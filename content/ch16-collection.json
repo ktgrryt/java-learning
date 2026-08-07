@@ -1,0 +1,338 @@
+{
+  "id": "ch16",
+  "title": "コレクション",
+  "subtitle": "伸び縮みする入れ物を使う",
+  "emoji": "📚",
+  "lessons": [
+    {
+      "id": "16-1",
+      "title": "ArrayList を使う",
+      "explanation": "## 配列の不便なところ\n\n配列は **長さを最初に決めたら変えられません**。\n\n```java\nString[] names = new String[3];\n// 4つ目を入れたい → 作り直すしかない\n```\n\n「あとから増える」データを扱うたびに作り直すのは大変です。\nそこでJavaには **伸び縮みする入れ物** が用意されています。その代表が **`ArrayList`** です。\n\n```java\nimport java.util.ArrayList;\nimport java.util.List;\n\nList<String> names = new ArrayList<>();\nnames.add(\"田中\");\nnames.add(\"佐藤\");\nSystem.out.println(names.size());      // 2\n```\n\n`java.util` にあるので **`import` が必要** です（第9章）。\n\n## 書き方の決まり\n\n```java\nList<String> names = new ArrayList<>();\n//  ↑型     ↑中身の型            ↑ここは空でよい\n```\n\n- `<String>` … 「中に入れるのは `String` です」という宣言（**ジェネリクス**。次のレッスンで扱います）\n- 左辺の型は **`List`**（インターフェース）にするのが作法です\n- 右辺の `<>` は左辺から分かるので空にできます（**ダイヤモンド演算子**）\n\n`List` は第12章で学んだインターフェースです。`ArrayList` はその実装クラスの1つ。\nだから `List` 型で受けておくと、あとで別の実装（`LinkedList` など）に差し替えられます。\n\n## よく使うメソッド\n\n| メソッド | すること |\n|---|---|\n| `add(x)` | 末尾に追加する |\n| `add(i, x)` | `i` の位置に挿入する |\n| `get(i)` | `i` 番目を取り出す |\n| `set(i, x)` | `i` 番目を差し替える |\n| `size()` | 要素数（配列の `length` にあたる） |\n| `remove(i)` | `i` 番目を削除する |\n| `contains(x)` | 含むか（`boolean`） |\n| `indexOf(x)` | 位置。なければ `-1` |\n| `isEmpty()` | 空か |\n| `clear()` | 全部消す |\n\n配列との対応で覚えると楽です。\n\n| | 配列 | List |\n|---|---|---|\n| 個数 | `arr.length` | `list.size()` |\n| 取り出す | `arr[i]` | `list.get(i)` |\n| 入れる | `arr[i] = x` | `list.set(i, x)` |\n| 追加 | できない | `list.add(x)` |\n\n## 回し方\n\n拡張for がそのまま使えます。\n\n```java\nfor (String name : names) {\n    System.out.println(name);\n}\n```\n\n`println` にそのまま渡すと、`[田中, 佐藤]` の形で出力されます\n（`toString()` が上書きされているからです。第10章）。\n\n```java\nSystem.out.println(names);      // [田中, 佐藤]\n```\n\n> ⚠️ 試験のワナ … 配列は `length`（フィールド）、`String` は `length()`（メソッド）、`List` は `size()`（メソッド）。3つとも違います。\n\n> 💡 `ArrayList` の中身は実は配列です。いっぱいになったら自動で大きい配列を作り直してくれます。「作り直しを代わりにやってくれる配列」と考えると分かりやすいです。",
+      "samples": [
+        {
+          "caption": "追加して、取り出して、回す",
+          "code": "import java.util.ArrayList;\nimport java.util.List;\n\npublic class Main {\n    public static void main(String[] args) {\n        List<String> names = new ArrayList<>();\n\n        names.add(\"田中\");\n        names.add(\"佐藤\");\n        names.add(\"鈴木\");\n\n        System.out.println(\"個数     : \" + names.size());\n        System.out.println(\"1番目    : \" + names.get(0));\n        System.out.println(\"そのまま : \" + names);\n\n        names.set(1, \"高橋\");\n        System.out.println(\"差し替え : \" + names);\n\n        names.remove(0);\n        System.out.println(\"削除後   : \" + names);\n\n        for (String name : names) {\n            System.out.println(\"→ \" + name);\n        }\n    }\n}\n"
+        },
+        {
+          "caption": "配列とくらべる",
+          "code": "import java.util.ArrayList;\nimport java.util.List;\n\npublic class Main {\n    public static void main(String[] args) {\n        // 配列は長さ固定\n        String[] arr = new String[2];\n        arr[0] = \"a\";\n        arr[1] = \"b\";\n        System.out.println(\"配列の個数: \" + arr.length);\n\n        // List は増やせる\n        List<String> list = new ArrayList<>();\n        list.add(\"a\");\n        list.add(\"b\");\n        list.add(\"c\");          // 3つ目も入る\n        System.out.println(\"List の個数: \" + list.size());\n\n        System.out.println(\"contains(b): \" + list.contains(\"b\"));\n        System.out.println(\"indexOf(c) : \" + list.indexOf(\"c\"));\n        System.out.println(\"indexOf(z) : \" + list.indexOf(\"z\"));\n        System.out.println(\"isEmpty    : \" + list.isEmpty());\n    }\n}\n"
+        }
+      ],
+      "task": "入力は次の形です。\n\n- 1行目 … 個数 `k`（`0` もありえます）\n- 2行目 … `k` 個の単語（`k` が `0` のときこの行はありません）\n\n`List<String>` に読み込んで、次のように出力してください。\n\n1. 要素数\n2. すべての要素を1行ずつ（拡張for で回します）\n3. `末尾 ○○` … 最後の要素。要素が1つもないときは `末尾 なし`\n\n`3` と `a b c` が入力されたときの出力はこうです。\n\n```\n3\na\nb\nc\n末尾 c\n```\n\n`0` が入力されたときはこうなります。\n\n```\n0\n末尾 なし\n```\n\n- 末尾の要素は `list.get(list.size() - 1)` で取り出せます\n- 要素が `0` 個のときに `get(-1)` を呼ばないよう気をつけてください",
+      "starterCode": "import java.util.ArrayList;\nimport java.util.List;\nimport java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int k = sc.nextInt();\n\n        List<String> list = new ArrayList<>();\n        for (int i = 0; i < k; i++) {\n            // 読み込んで list に追加する\n        }\n\n        // 要素数、各要素、末尾 を出力する\n    }\n}\n",
+      "visibleCases": [
+        {
+          "label": "3個",
+          "stdin": "3\na b c",
+          "expected": "3\na\nb\nc\n末尾 c"
+        },
+        {
+          "label": "1個",
+          "stdin": "1\nhello",
+          "expected": "1\nhello\n末尾 hello"
+        }
+      ],
+      "hiddenCases": [
+        {
+          "label": "0個（末尾なし）",
+          "stdin": "0",
+          "expected": "0\n末尾 なし"
+        },
+        {
+          "label": "同じ単語が2つ",
+          "stdin": "2\nx x",
+          "expected": "2\nx\nx\n末尾 x"
+        },
+        {
+          "label": "4個",
+          "stdin": "4\np q r s",
+          "expected": "4\np\nq\nr\ns\n末尾 s"
+        },
+        {
+          "label": "日本語",
+          "stdin": "2\n田中 佐藤",
+          "expected": "2\n田中\n佐藤\n末尾 佐藤"
+        },
+        {
+          "label": "5個",
+          "stdin": "5\n1 2 3 4 5",
+          "expected": "5\n1\n2\n3\n4\n5\n末尾 5"
+        }
+      ],
+      "hints": [
+        "追加は `list.add(sc.next());` です。配列のように添字を指定する必要はありません。",
+        "要素数は `list.size()` です。配列の `length` とは書き方が違います。",
+        "末尾は `list.get(list.size() - 1)` ですが、空のときは呼べません。`list.isEmpty()` で先に確かめてください。"
+      ],
+      "solution": "import java.util.ArrayList;\nimport java.util.List;\nimport java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int k = sc.nextInt();\n\n        List<String> list = new ArrayList<>();\n        for (int i = 0; i < k; i++) {\n            list.add(sc.next());\n        }\n\n        System.out.println(list.size());\n        for (String s : list) {\n            System.out.println(s);\n        }\n\n        if (list.isEmpty()) {\n            System.out.println(\"末尾 なし\");\n        } else {\n            System.out.println(\"末尾 \" + list.get(list.size() - 1));\n        }\n    }\n}\n"
+    },
+    {
+      "id": "16-2",
+      "title": "ジェネリクスと型安全",
+      "explanation": "## <> の中身は「入れるものの型」\n\n`List<String>` の `<String>` を **型引数** といい、この仕組みを **ジェネリクス** と呼びます。\n「この入れ物には `String` しか入れません」という約束です。\n\n約束があると、コンパイラが間違いを見つけてくれます。\n\n```java\nList<String> list = new ArrayList<>();\nlist.add(\"abc\");\nlist.add(123);        // ❌ コンパイルエラー：String ではない\n```\n\n取り出すときもキャストが要りません。\n\n```java\nString s = list.get(0);       // String と分かっているのでそのまま受け取れる\n```\n\n### 型を書かないと（raw type）\n\n`<>` を省略しても書けますが、そうすると **何でも入る** 入れ物になります。\n\n```java\nList list = new ArrayList();      // raw type（型を指定していない）\nlist.add(\"abc\");\nlist.add(123);                    // 通ってしまう\n\nString s = (String) list.get(1);  // 実行時に ClassCastException\n```\n\nコンパイルは通り、**実行してから落ちます**。ジェネリクスは\n「実行時のエラーをコンパイル時に前倒しする」ための仕組みです。必ず型を書きましょう。\n\n## 基本型は入れられない\n\nここが第15章とつながります。型引数には **参照型しか書けません**。\n\n```java\nList<int> list = new ArrayList<>();          // ❌ コンパイルエラー\nList<Integer> list = new ArrayList<>();      // ✅ ラッパークラスを使う\n```\n\n`int` を入れたければ `Integer` を指定します。オートボクシングのおかげで、\n出し入れは `int` のまま書けます。\n\n```java\nList<Integer> numbers = new ArrayList<>();\nnumbers.add(10);                     // int → Integer（オートボクシング）\nint first = numbers.get(0);           // Integer → int（アンボクシング）\nint sum = numbers.get(0) + 5;         // 計算もそのまま\n```\n\n> ⚠️ 試験のワナ … `List<Integer>` から `get` した値を `int` に入れるとき、要素が `null` だと `NullPointerException` です（第15章のアンボクシング）。`List` には `null` も入れられるので注意してください。\n\n## 型引数は「ぴったり一致」\n\n`List<Object>` と `List<String>` は **別の型** です。継承関係があっても代入できません。\n\n```java\nList<String> strings = new ArrayList<>();\nList<Object> objects = strings;      // ❌ コンパイルエラー\n```\n\n配列（第11章）では `Object[] a = new String[3];` が書けたので混乱しますが、\nジェネリクスでは許されません。`String` は `Object` ですが、\n**`List<String>` は `List<Object>` ではない** のです。\n\n> 💡 自分でジェネリクスなクラスを作ることもできます（`class Box<T> { ... }`）。Silver では「使えること」が中心なので、まずは `List<Integer>` を自在に扱えるようにしましょう。",
+      "samples": [
+        {
+          "caption": "型を書くと守ってくれる",
+          "code": "import java.util.ArrayList;\nimport java.util.List;\n\npublic class Main {\n    public static void main(String[] args) {\n        List<Integer> numbers = new ArrayList<>();\n\n        numbers.add(10);            // オートボクシング\n        numbers.add(20);\n        // numbers.add(\"abc\");      ← コンパイルエラーになる\n\n        int sum = 0;\n        for (int n : numbers) {     // アンボクシングして int で受け取れる\n            sum += n;\n        }\n\n        System.out.println(numbers);\n        System.out.println(\"合計 \" + sum);\n        System.out.println(\"1番目 + 5 = \" + (numbers.get(0) + 5));\n    }\n}\n"
+        },
+        {
+          "caption": "null を入れると危ない",
+          "code": "import java.util.ArrayList;\nimport java.util.List;\n\npublic class Main {\n    public static void main(String[] args) {\n        List<Integer> numbers = new ArrayList<>();\n        numbers.add(1);\n        numbers.add(null);          // List には null も入る\n\n        System.out.println(numbers);\n\n        try {\n            int x = numbers.get(1); // アンボクシングで落ちる\n            System.out.println(x);\n        } catch (NullPointerException e) {\n            System.out.println(\"null をアンボクシングした\");\n        }\n    }\n}\n"
+        }
+      ],
+      "task": "入力は次の形です。\n\n- 1行目 … 個数 `k`（`0` もありえます）\n- 2行目 … `k` 個の整数（`k` が `0` のときこの行はありません）\n\n**`List<Integer>`** に読み込んで、次の2行を出力してください。\n\n1. `合計 ○○` … すべての要素の合計\n2. `最大 ○○` … いちばん大きい要素。要素が1つもないときは `最大 なし`\n\n`5` と `1 2 3 4 5` が入力されたときの出力はこうです。\n\n```\n合計 15\n最大 5\n```\n\n`0` が入力されたときはこうなります。\n\n```\n合計 0\n最大 なし\n```\n\n- `List<int>` とは書けません。`List<Integer>` です\n- **マイナスばかりの入力** も試されます。最大値の初期値を `0` にしないでください",
+      "starterCode": "import java.util.ArrayList;\nimport java.util.List;\nimport java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int k = sc.nextInt();\n\n        List<Integer> numbers = new ArrayList<>();\n        for (int i = 0; i < k; i++) {\n            // 読み込んで追加する\n        }\n\n        // 合計 と 最大 を出力する\n    }\n}\n",
+      "visibleCases": [
+        {
+          "label": "5個",
+          "stdin": "5\n1 2 3 4 5",
+          "expected": "合計 15\n最大 5"
+        },
+        {
+          "label": "マイナスばかり",
+          "stdin": "3\n-1 -2 -3",
+          "expected": "合計 -6\n最大 -1"
+        }
+      ],
+      "hiddenCases": [
+        {
+          "label": "0個",
+          "stdin": "0",
+          "expected": "合計 0\n最大 なし"
+        },
+        {
+          "label": "0 が1つだけ",
+          "stdin": "1\n0",
+          "expected": "合計 0\n最大 0"
+        },
+        {
+          "label": "全部同じ",
+          "stdin": "4\n5 5 5 5",
+          "expected": "合計 20\n最大 5"
+        },
+        {
+          "label": "打ち消して合計 0",
+          "stdin": "3\n-10 0 10",
+          "expected": "合計 0\n最大 10"
+        },
+        {
+          "label": "最大が先頭",
+          "stdin": "3\n100 1 2",
+          "expected": "合計 103\n最大 100"
+        },
+        {
+          "label": "マイナスと 0",
+          "stdin": "2\n-5 0",
+          "expected": "合計 -5\n最大 0"
+        }
+      ],
+      "hints": [
+        "`numbers.add(sc.nextInt());` と書けます。`int` は自動で `Integer` に包まれます。",
+        "合計は `for (int n : numbers) { sum += n; }` で求められます。取り出すときも自動でアンボクシングされます。",
+        "最大値は `numbers.get(0)` を仮の1位にしてから比べます。空のときは `最大 なし` を出力してください。"
+      ],
+      "solution": "import java.util.ArrayList;\nimport java.util.List;\nimport java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int k = sc.nextInt();\n\n        List<Integer> numbers = new ArrayList<>();\n        for (int i = 0; i < k; i++) {\n            numbers.add(sc.nextInt());\n        }\n\n        int sum = 0;\n        for (int n : numbers) {\n            sum += n;\n        }\n        System.out.println(\"合計 \" + sum);\n\n        if (numbers.isEmpty()) {\n            System.out.println(\"最大 なし\");\n        } else {\n            int max = numbers.get(0);\n            for (int n : numbers) {\n                if (n > max) {\n                    max = n;\n                }\n            }\n            System.out.println(\"最大 \" + max);\n        }\n    }\n}\n"
+    },
+    {
+      "id": "16-3",
+      "title": "remove の罠",
+      "explanation": "## remove は2種類ある\n\n`List` の `remove` には **オーバーロードされた2つの版** があります。\n\n```java\nremove(int index)        // 「その位置」の要素を削除する\nremove(Object o)         // 「その値」を探して最初の1つを削除する\n```\n\n`List<String>` なら迷いません。`remove(0)` は位置、`remove(\"a\")` は値です。\nところが **`List<Integer>` だと見分けがつかなくなります**。\n\n```java\nList<Integer> list = new ArrayList<>();\nlist.add(10);\nlist.add(20);\nlist.add(30);\n\nlist.remove(1);        // ← 位置1（20）が消える。値の 1 ではない！\n```\n\n第7章のオーバーロード解決を思い出してください。`1` は `int` なので、\n**キャストの要らない `remove(int)` が選ばれます**。`remove(Object)` を選ぶには\nオートボクシングが必要で、そちらは後回しにされるからです。\n\n### 値で消したいときは Integer にする\n\n```java\nlist.remove(Integer.valueOf(1));      // 値 1 を探して消す\n```\n\nこう書けば引数の型が `Integer` になるので、`remove(Object)` が呼ばれます。\n\n> ⚠️ 試験のワナ … `List<Integer>` に対する `remove(1)` は「位置」です。「値」で消したいなら `Integer.valueOf(1)` を渡します。ここは毎回出ます。\n\n`remove(Object)` は消せたかどうかを `boolean` で返し、\n`remove(int)` は **消した要素** を返します。戻り値の型まで違います。\n\n## すべての出現を消す\n\n`remove(Object)` は **最初に見つかった1つだけ** を消します。\n全部消したいならくり返します。\n\n```java\nwhile (list.contains(v)) {\n    list.remove(Integer.valueOf(v));\n}\n```\n\n## ループの中で削除してはいけない\n\n添字を進めながら削除すると、**要素がずれて飛ばされます**。\n\n```java\nfor (int i = 0; i < list.size(); i++) {\n    if (list.get(i) == 1) {\n        list.remove(i);        // 消した分だけ後ろが前にずれる\n    }\n}\n```\n\n`[1, 1, 2]` に対してこれを実行すると、位置0を消した瞬間に\n2つ目の `1` が位置0へ移動しますが、`i` は `1` に進んでしまいます。\n結果として1つ残ります。\n\n対策は3つあります。\n\n1. **後ろから** 回す（`for (int i = list.size() - 1; i >= 0; i--)`）\n2. `while (list.contains(v))` でくり返す\n3. `list.removeIf(...)` を使う（第17章で扱います）\n\n> ⚠️ 試験のワナ … 拡張for の中で `add` や `remove` をすると `ConcurrentModificationException` が投げられます。「回している最中に構造を変えるな」というルールです。\n\n```java\nfor (Integer n : list) {\n    list.remove(n);       // ❌ 実行時に ConcurrentModificationException\n}\n```",
+      "samples": [
+        {
+          "caption": "remove(1) は位置か、値か",
+          "code": "import java.util.ArrayList;\nimport java.util.List;\n\npublic class Main {\n    public static void main(String[] args) {\n        List<Integer> a = new ArrayList<>();\n        a.add(10);\n        a.add(20);\n        a.add(30);\n        a.remove(1);                       // 位置1\n        System.out.println(\"remove(1)              : \" + a);\n\n        List<Integer> b = new ArrayList<>();\n        b.add(1);\n        b.add(2);\n        b.add(3);\n        b.remove(Integer.valueOf(1));      // 値1\n        System.out.println(\"remove(Integer.valueOf(1)): \" + b);\n\n        // 文字列なら迷わない\n        List<String> c = new ArrayList<>();\n        c.add(\"a\");\n        c.add(\"b\");\n        c.remove(\"a\");\n        System.out.println(\"remove(\\\"a\\\")            : \" + c);\n    }\n}\n"
+        },
+        {
+          "caption": "ループの中で削除すると取りこぼす",
+          "code": "import java.util.ArrayList;\nimport java.util.List;\n\npublic class Main {\n    public static void main(String[] args) {\n        List<Integer> bad = new ArrayList<>(List.of(1, 1, 2));\n        for (int i = 0; i < bad.size(); i++) {\n            if (bad.get(i) == 1) {\n                bad.remove(i);            // ずれる\n            }\n        }\n        System.out.println(\"前から回した : \" + bad);\n\n        List<Integer> good = new ArrayList<>(List.of(1, 1, 2));\n        for (int i = good.size() - 1; i >= 0; i--) {\n            if (good.get(i) == 1) {\n                good.remove(i);           // 後ろからならずれない\n            }\n        }\n        System.out.println(\"後ろから回した: \" + good);\n\n        List<Integer> loop = new ArrayList<>(List.of(1, 1, 2));\n        try {\n            for (Integer n : loop) {\n                loop.remove(n);\n            }\n        } catch (Exception e) {\n            System.out.println(\"拡張for の中で削除: \" + e.getClass().getSimpleName());\n        }\n    }\n}\n"
+        }
+      ],
+      "task": "入力は次の形です。\n\n- 1行目 … 個数 `k`（必ず **1以上**）\n- 2行目 … `k` 個の整数\n- 3行目 … 削除する値 `v`\n\n`List<Integer>` を **2つ** 用意して、どちらにも同じ整数を入れてください。そのうえで\n次の **2行** を出力します。\n\n1. 1つ目のリストから **位置 `0`** の要素を削除したあとのリスト\n2. 2つ目のリストから **値 `v`** を **すべて** 削除したあとのリスト\n\nリストはそのまま `println` に渡してください（`[2, 1, 3, 1]` の形で出力されます）。\n\n次の入力なら、\n\n```\n5\n1 2 1 3 1\n1\n```\n\n出力はこうなります。\n\n```\n[2, 1, 3, 1]\n[2, 3]\n```\n\n- 1行目は「位置」の削除なので、先頭の `1` だけが消えます\n- 2行目は「値」の削除なので、`1` が **3つとも** 消えます\n- `v` がリストに含まれないこともあります",
+      "starterCode": "import java.util.ArrayList;\nimport java.util.List;\nimport java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int k = sc.nextInt();\n\n        List<Integer> byIndex = new ArrayList<>();\n        List<Integer> byValue = new ArrayList<>();\n        for (int i = 0; i < k; i++) {\n            int n = sc.nextInt();\n            // 両方のリストに入れる\n        }\n        int v = sc.nextInt();\n\n        // 1行目：位置 0 を削除したリスト\n\n        // 2行目：値 v をすべて削除したリスト\n    }\n}\n",
+      "visibleCases": [
+        {
+          "label": "1 が3つ",
+          "stdin": "5\n1 2 1 3 1\n1",
+          "expected": "[2, 1, 3, 1]\n[2, 3]"
+        },
+        {
+          "label": "v が含まれない",
+          "stdin": "3\n10 20 30\n99",
+          "expected": "[20, 30]\n[10, 20, 30]"
+        }
+      ],
+      "hiddenCases": [
+        {
+          "label": "1個だけ",
+          "stdin": "1\n5\n5",
+          "expected": "[]\n[]"
+        },
+        {
+          "label": "全部 v",
+          "stdin": "4\n7 7 7 7\n7",
+          "expected": "[7, 7, 7]\n[]"
+        },
+        {
+          "label": "v が 0",
+          "stdin": "2\n0 1\n0",
+          "expected": "[1]\n[1]"
+        },
+        {
+          "label": "マイナスの値を消す",
+          "stdin": "3\n-1 -1 2\n-1",
+          "expected": "[-1, 2]\n[2]"
+        },
+        {
+          "label": "連続する v",
+          "stdin": "5\n2 3 3 3 4\n3",
+          "expected": "[3, 3, 3, 4]\n[2, 4]"
+        },
+        {
+          "label": "末尾だけ v",
+          "stdin": "3\n1 2 9\n9",
+          "expected": "[2, 9]\n[1, 2]"
+        }
+      ],
+      "hints": [
+        "1つ目は `byIndex.remove(0);` です。これは「位置」の削除になります。",
+        "2つ目は `while (byValue.contains(v)) { byValue.remove(Integer.valueOf(v)); }` とくり返します。",
+        "`byValue.remove(v)` と書くと `v` が `int` なので「位置」の削除になってしまいます。`Integer.valueOf(v)` で包んでください。"
+      ],
+      "solution": "import java.util.ArrayList;\nimport java.util.List;\nimport java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int k = sc.nextInt();\n\n        List<Integer> byIndex = new ArrayList<>();\n        List<Integer> byValue = new ArrayList<>();\n        for (int i = 0; i < k; i++) {\n            int n = sc.nextInt();\n            byIndex.add(n);\n            byValue.add(n);\n        }\n        int v = sc.nextInt();\n\n        byIndex.remove(0);\n        System.out.println(byIndex);\n\n        while (byValue.contains(v)) {\n            byValue.remove(Integer.valueOf(v));\n        }\n        System.out.println(byValue);\n    }\n}\n"
+    },
+    {
+      "id": "16-4",
+      "title": "Map で数える",
+      "explanation": "## キーと値のペアを持つ入れ物\n\n`List` は「順番に並んだもの」でしたが、`Map` は **キーから値を引く** 入れ物です。\n辞書のように使えます。\n\n```java\nimport java.util.HashMap;\nimport java.util.Map;\n\nMap<String, Integer> counts = new HashMap<>();\ncounts.put(\"apple\", 3);\ncounts.put(\"banana\", 1);\n\nSystem.out.println(counts.get(\"apple\"));      // 3\n```\n\n型引数は2つです。`Map<キーの型, 値の型>` と書きます。\n\n## よく使うメソッド\n\n| メソッド | すること |\n|---|---|\n| `put(k, v)` | 登録する。**同じキーなら上書き** |\n| `get(k)` | 値を取り出す。**キーがなければ `null`** |\n| `getOrDefault(k, d)` | 値を取り出す。なければ `d` を返す |\n| `containsKey(k)` | そのキーがあるか |\n| `containsValue(v)` | その値があるか |\n| `remove(k)` | キーごと削除する |\n| `size()` | ペアの数 |\n| `keySet()` | キーの一覧（`Set`） |\n| `values()` | 値の一覧 |\n| `entrySet()` | ペアの一覧（`getKey()` / `getValue()`） |\n\n**キーは重複しません。** 同じキーで `put` すると、前の値は上書きされて消えます。\n\n```java\ncounts.put(\"apple\", 3);\ncounts.put(\"apple\", 5);\nSystem.out.println(counts.size());       // 1（2つにはならない）\nSystem.out.println(counts.get(\"apple\")); // 5\n```\n\n## 数を数える定番の書き方\n\n「単語がいくつ出てきたか」を数えるのが `Map` の典型的な使い道です。\n\n```java\nMap<String, Integer> counts = new HashMap<>();\nfor (String word : words) {\n    counts.put(word, counts.getOrDefault(word, 0) + 1);\n}\n```\n\n`getOrDefault(word, 0)` が効いています。まだ登録されていなければ `0` を返すので、\n「初回かどうか」の分岐を書かずに済みます。\n\n`get` を使うとこう書かなければなりません。\n\n```java\nif (counts.containsKey(word)) {\n    counts.put(word, counts.get(word) + 1);\n} else {\n    counts.put(word, 1);\n}\n```\n\n> ⚠️ 試験のワナ … `get` は キーがないとき **`null`** を返します。`int` で受けるとアンボクシングで `NullPointerException` です（第15章）。\n\n```java\nMap<String, Integer> m = new HashMap<>();\nint n = m.get(\"なにか\");        // ❌ 実行時に NullPointerException\nint n = m.getOrDefault(\"なにか\", 0);   // ✅ 安全\n```\n\n## 並び順は保証されない\n\n`HashMap` は **並び順を約束しません**。`keySet()` で取り出す順番は\n登録した順とは限らず、実行するたびに変わることもあります。\n\n順番が必要なときは実装を選びます。\n\n| クラス | 並び順 |\n|---|---|\n| `HashMap` | 保証なし（速い） |\n| `LinkedHashMap` | **登録した順** |\n| `TreeMap` | **キーの順**（辞書順・数値順） |\n\n> 💡 どれも `Map` インターフェースの実装なので、`Map<String, Integer> m = new TreeMap<>();` と差し替えるだけで並び順を変えられます。第12章のインターフェースの利点がここでも効いています。",
+      "samples": [
+        {
+          "caption": "getOrDefault で数える",
+          "code": "import java.util.HashMap;\nimport java.util.Map;\n\npublic class Main {\n    public static void main(String[] args) {\n        String[] words = {\"a\", \"b\", \"a\", \"c\", \"a\"};\n\n        Map<String, Integer> counts = new HashMap<>();\n        for (String w : words) {\n            counts.put(w, counts.getOrDefault(w, 0) + 1);\n        }\n\n        System.out.println(\"a の回数    : \" + counts.getOrDefault(\"a\", 0));\n        System.out.println(\"b の回数    : \" + counts.getOrDefault(\"b\", 0));\n        System.out.println(\"z の回数    : \" + counts.getOrDefault(\"z\", 0));\n        System.out.println(\"異なる単語数: \" + counts.size());\n        System.out.println(\"z はあるか  : \" + counts.containsKey(\"z\"));\n    }\n}\n"
+        },
+        {
+          "caption": "上書きと、get が返す null",
+          "code": "import java.util.HashMap;\nimport java.util.Map;\nimport java.util.TreeMap;\n\npublic class Main {\n    public static void main(String[] args) {\n        Map<String, Integer> m = new HashMap<>();\n        m.put(\"apple\", 3);\n        m.put(\"apple\", 5);              // 上書き\n        System.out.println(\"size: \" + m.size() + \" / value: \" + m.get(\"apple\"));\n\n        System.out.println(\"ないキー: \" + m.get(\"banana\"));    // null\n\n        try {\n            int n = m.get(\"banana\");\n            System.out.println(n);\n        } catch (NullPointerException e) {\n            System.out.println(\"null をアンボクシングして落ちた\");\n        }\n\n        // TreeMap ならキーの順に並ぶ\n        Map<String, Integer> sorted = new TreeMap<>();\n        sorted.put(\"c\", 1);\n        sorted.put(\"a\", 2);\n        sorted.put(\"b\", 3);\n        System.out.println(sorted);\n    }\n}\n"
+        }
+      ],
+      "task": "入力は次の形です。\n\n- 1行目 … 単語の個数 `k`（`0` もありえます）\n- 2行目 … `k` 個の単語（`k` が `0` のときこの行はありません）\n- 3行目 … 質問の個数 `q`（`0` もありえます）\n- 4行目 … `q` 個の単語（`q` が `0` のときこの行はありません）\n\n`Map<String, Integer>` で単語の出現回数を数えてください。そのうえで\n質問された単語について1行ずつ、最後にもう1行を出力します。\n\n- 各質問 … `単語 回数`（1度も出てこなかった単語は `0`）\n- `異なる単語 ○○` … 登録されたキーの数\n\n次の入力なら、\n\n```\n5\na b a c a\n3\na b z\n```\n\n出力はこうなります。\n\n```\na 3\nb 1\nz 0\n異なる単語 3\n```\n\n- 出てこなかった単語は `0` です。`null` と出力してはいけません\n- 大文字と小文字は別の単語として数えます（`ab` と `AB` は別）\n- 同じ単語を2回質問されることもあります",
+      "starterCode": "import java.util.HashMap;\nimport java.util.Map;\nimport java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int k = sc.nextInt();\n\n        Map<String, Integer> counts = new HashMap<>();\n        for (int i = 0; i < k; i++) {\n            String word = sc.next();\n            // counts に数え上げる\n        }\n\n        int q = sc.nextInt();\n        for (int i = 0; i < q; i++) {\n            String query = sc.next();\n            // 「単語 回数」を出力する\n        }\n\n        // 異なる単語の数を出力する\n    }\n}\n",
+      "visibleCases": [
+        {
+          "label": "3種類の単語",
+          "stdin": "5\na b a c a\n3\na b z",
+          "expected": "a 3\nb 1\nz 0\n異なる単語 3"
+        },
+        {
+          "label": "全部同じ単語",
+          "stdin": "3\na a a\n1\na",
+          "expected": "a 3\n異なる単語 1"
+        }
+      ],
+      "hiddenCases": [
+        {
+          "label": "単語が0個",
+          "stdin": "0\n2\nx y",
+          "expected": "x 0\ny 0\n異なる単語 0"
+        },
+        {
+          "label": "質問が0個",
+          "stdin": "4\np q r s\n0",
+          "expected": "異なる単語 4"
+        },
+        {
+          "label": "大文字小文字は別",
+          "stdin": "2\nab ab\n2\nab AB",
+          "expected": "ab 2\nAB 0\n異なる単語 1"
+        },
+        {
+          "label": "同じ質問を2回",
+          "stdin": "3\nx y x\n2\nx x",
+          "expected": "x 2\nx 2\n異なる単語 2"
+        },
+        {
+          "label": "どちらも0個",
+          "stdin": "0\n0",
+          "expected": "異なる単語 0"
+        },
+        {
+          "label": "日本語",
+          "stdin": "4\n犬 猫 犬 犬\n2\n犬 鳥",
+          "expected": "犬 3\n鳥 0\n異なる単語 2"
+        }
+      ],
+      "hints": [
+        "数え上げは `counts.put(word, counts.getOrDefault(word, 0) + 1);` の1行で書けます。",
+        "質問への回答も `counts.getOrDefault(query, 0)` を使います。`get` だと `null` が返ってしまいます。",
+        "最後の行は `counts.size()` です。同じ単語を何回 `put` してもキーは1つのままです。"
+      ],
+      "solution": "import java.util.HashMap;\nimport java.util.Map;\nimport java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int k = sc.nextInt();\n\n        Map<String, Integer> counts = new HashMap<>();\n        for (int i = 0; i < k; i++) {\n            String word = sc.next();\n            counts.put(word, counts.getOrDefault(word, 0) + 1);\n        }\n\n        int q = sc.nextInt();\n        for (int i = 0; i < q; i++) {\n            String query = sc.next();\n            System.out.println(query + \" \" + counts.getOrDefault(query, 0));\n        }\n\n        System.out.println(\"異なる単語 \" + counts.size());\n    }\n}\n"
+    },
+    {
+      "id": "16-5",
+      "title": "Set と、変更できないリスト",
+      "explanation": "## 重複を持たない入れ物 — Set\n\n`Set` は **同じものを2つ持てない** 入れ物です。「集合」という意味です。\n\n```java\nimport java.util.HashSet;\nimport java.util.Set;\n\nSet<String> set = new HashSet<>();\nset.add(\"a\");\nset.add(\"b\");\nset.add(\"a\");                  // すでにある → 何も起きない\n\nSystem.out.println(set.size());     // 2\n```\n\n`add` は **追加できたかどうか** を `boolean` で返します。\nこれを使えば「初めて出てきたか」を1行で判定できます。\n\n```java\nif (set.add(word)) {\n    System.out.println(\"初めて見た単語です\");\n}\n```\n\n`List` にあった `get(i)` はありません。位置という概念がないからです。\n中身を見るには拡張for か `contains` を使います。\n\n## 3種類の Set\n\n`Map` と同じように、並び順で使い分けます。\n\n| クラス | 並び順 |\n|---|---|\n| `HashSet` | 保証なし（速い） |\n| `LinkedHashSet` | **追加した順** |\n| `TreeSet` | **自然順**（辞書順・数値順） |\n\n```java\nSet<String> ordered = new LinkedHashSet<>();   // 入力順に並ぶ\nSet<String> sorted = new TreeSet<>();          // 辞書順に並ぶ\n```\n\n「重複を消したいが順番は保ちたい」なら `LinkedHashSet`、\n「並べ替えたい」なら `TreeSet` です。\n\n> ⚠️ 試験のワナ … `TreeSet` の辞書順は **文字コード順** です。大文字が小文字より前に来ます（`Banana` → `Cherry` → `apple`）。\n\n## 変更できないコレクション\n\n`List.of(...)` や `Set.of(...)` で作ったコレクションは **不変** です。\n追加や削除をしようとすると **`UnsupportedOperationException`** が投げられます。\n\n```java\nList<String> fixed = List.of(\"a\", \"b\");\nfixed.add(\"c\");            // 実行時に UnsupportedOperationException\n```\n\nコンパイルは通ります。`List` インターフェースには `add` があるので、\n呼ぶことはできてしまい、**実行時に断られる** という形です。\n\n変更したいなら、可変なリストに詰め替えます。\n\n```java\nList<String> mutable = new ArrayList<>(List.of(\"a\", \"b\"));\nmutable.add(\"c\");          // ✅ OK\n```\n\n`Arrays.asList(...)` も似ていますが少し違います。\n\n| 作り方 | 要素の差し替え | 追加・削除 |\n|---|---|---|\n| `new ArrayList<>()` | できる | できる |\n| `Arrays.asList(...)` | **できる** | できない（固定長） |\n| `List.of(...)` | できない | できない（完全に不変） |\n\n> 💡 「変更されない」と分かっているコレクションは安心して他のメソッドに渡せます。第9章の不変クラスと同じ発想です。",
+      "samples": [
+        {
+          "caption": "3種類の Set で並び順を比べる",
+          "code": "import java.util.HashSet;\nimport java.util.LinkedHashSet;\nimport java.util.Set;\nimport java.util.TreeSet;\n\npublic class Main {\n    public static void main(String[] args) {\n        String[] words = {\"c\", \"a\", \"b\", \"a\", \"c\"};\n\n        Set<String> hash = new HashSet<>();\n        Set<String> linked = new LinkedHashSet<>();\n        Set<String> tree = new TreeSet<>();\n\n        for (String w : words) {\n            hash.add(w);\n            linked.add(w);\n            tree.add(w);\n        }\n\n        System.out.println(\"個数        : \" + linked.size());\n        System.out.println(\"LinkedHash  : \" + linked);      // 追加した順\n        System.out.println(\"TreeSet     : \" + tree);        // 辞書順\n        System.out.println(\"HashSet     : \" + hash);        // 順番は保証なし\n\n        System.out.println(\"add の戻り値: \" + linked.add(\"a\") + \" / \" + linked.add(\"z\"));\n    }\n}\n"
+        },
+        {
+          "caption": "変更できないリストに add すると",
+          "code": "import java.util.ArrayList;\nimport java.util.List;\n\npublic class Main {\n    public static void main(String[] args) {\n        List<String> fixed = List.of(\"a\", \"b\");\n        System.out.println(\"読むのは自由: \" + fixed.get(0) + \" / \" + fixed.size());\n\n        try {\n            fixed.add(\"c\");\n        } catch (UnsupportedOperationException e) {\n            System.out.println(\"変更できません\");\n        }\n\n        // 詰め替えれば変更できる\n        List<String> mutable = new ArrayList<>(List.of(\"a\", \"b\"));\n        mutable.add(\"c\");\n        System.out.println(\"詰め替えた後: \" + mutable);\n    }\n}\n"
+        }
+      ],
+      "task": "入力は次の形です。\n\n- 1行目 … 個数 `k`（`0` もありえます）\n- 2行目 … `k` 個の単語（`k` が `0` のときこの行はありません）\n\n次の **4行** を出力してください。\n\n1. 重複を除いた個数\n2. 重複を除いて **入力された順** に並べたもの（`LinkedHashSet` をそのまま `println`）\n3. 重複を除いて **辞書順** に並べたもの（`TreeSet` をそのまま `println`）\n4. `List.of(\"x\")` に対して `add(\"y\")` を試し、`UnsupportedOperationException` を\n   受け止めて `変更できません` と出力\n\n`5` と `c a b a c` が入力されたときの出力はこうです。\n\n```\n3\n[c, a, b]\n[a, b, c]\n変更できません\n```\n\n- 2行目と3行目の並び順の違いに注目してください\n- 大文字は小文字より **前** に並びます（文字コード順）\n- `k` が `0` のときは `0` と `[]` が出力されます",
+      "starterCode": "import java.util.LinkedHashSet;\nimport java.util.List;\nimport java.util.Scanner;\nimport java.util.Set;\nimport java.util.TreeSet;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int k = sc.nextInt();\n\n        Set<String> ordered = new LinkedHashSet<>();\n        Set<String> sorted = new TreeSet<>();\n        for (int i = 0; i < k; i++) {\n            String word = sc.next();\n            // 両方の Set に追加する\n        }\n\n        // 1〜3行目を出力する\n\n        // 4行目：List.of(\"x\").add(\"y\") を try-catch する\n    }\n}\n",
+      "visibleCases": [
+        {
+          "label": "重複あり",
+          "stdin": "5\nc a b a c",
+          "expected": "3\n[c, a, b]\n[a, b, c]\n変更できません"
+        },
+        {
+          "label": "全部同じ",
+          "stdin": "3\na a a",
+          "expected": "1\n[a]\n[a]\n変更できません"
+        }
+      ],
+      "hiddenCases": [
+        {
+          "label": "0個",
+          "stdin": "0",
+          "expected": "0\n[]\n[]\n変更できません"
+        },
+        {
+          "label": "逆順の入力",
+          "stdin": "4\nz y x w",
+          "expected": "4\n[z, y, x, w]\n[w, x, y, z]\n変更できません"
+        },
+        {
+          "label": "大文字は前に並ぶ",
+          "stdin": "3\nBanana apple Cherry",
+          "expected": "3\n[Banana, apple, Cherry]\n[Banana, Cherry, apple]\n変更できません"
+        },
+        {
+          "label": "2個で同じ",
+          "stdin": "2\nab ab",
+          "expected": "1\n[ab]\n[ab]\n変更できません"
+        },
+        {
+          "label": "数字の文字列",
+          "stdin": "4\n3 1 2 1",
+          "expected": "3\n[3, 1, 2]\n[1, 2, 3]\n変更できません"
+        },
+        {
+          "label": "1個だけ",
+          "stdin": "1\nsolo",
+          "expected": "1\n[solo]\n[solo]\n変更できません"
+        }
+      ],
+      "hints": [
+        "`LinkedHashSet` と `TreeSet` に同じ単語を両方 `add` します。重複は自動で無視されます。",
+        "個数はどちらの `size()` でも同じです。`Set` をそのまま `println` に渡すと `[a, b, c]` の形で出力されます。",
+        "4行目は `try { List.of(\"x\").add(\"y\"); } catch (UnsupportedOperationException e) { ... }` です。"
+      ],
+      "solution": "import java.util.LinkedHashSet;\nimport java.util.List;\nimport java.util.Scanner;\nimport java.util.Set;\nimport java.util.TreeSet;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int k = sc.nextInt();\n\n        Set<String> ordered = new LinkedHashSet<>();\n        Set<String> sorted = new TreeSet<>();\n        for (int i = 0; i < k; i++) {\n            String word = sc.next();\n            ordered.add(word);\n            sorted.add(word);\n        }\n\n        System.out.println(ordered.size());\n        System.out.println(ordered);\n        System.out.println(sorted);\n\n        try {\n            List.of(\"x\").add(\"y\");\n        } catch (UnsupportedOperationException e) {\n            System.out.println(\"変更できません\");\n        }\n    }\n}\n"
+    }
+  ]
+}

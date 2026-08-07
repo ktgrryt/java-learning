@@ -1,0 +1,247 @@
+{
+  "id": "ch09",
+  "title": "カプセル化",
+  "subtitle": "外から触れる範囲を決める",
+  "emoji": "🔒",
+  "lessons": [
+    {
+      "id": "9-1",
+      "title": "private とアクセサ",
+      "explanation": "## フィールドを直接触らせない\n\n第8章で作ったクラスは、フィールドを外から自由に書き換えられました。\n\n```java\nclass Person {\n    String name;\n    int age;\n}\n\nPerson p = new Person();\np.age = -100;        // 「年齢がマイナス」を止められない\n```\n\nこれは困ります。ありえない値が入った瞬間ではなく、\nずっと後になって「なぜ年齢がマイナスなのか」と悩むことになるからです。\n\nそこで **フィールドを `private` にして、外から直接触れないようにします**。\n\n```java\nclass Person {\n    private String name;\n    private int age;\n}\n\nPerson p = new Person();\np.age = -100;        // ❌ コンパイルエラー：private なので外からは見えない\n```\n\n`private` を付けたものは **同じクラスの中からしか** 使えません。\n\n## 出入り口を用意する — アクセサ\n\n直接触れないなら、代わりに **メソッド経由** でやりとりします。\n\n- 値を取り出すメソッド … **ゲッター**（`getXxx`）\n- 値を入れるメソッド … **セッター**（`setXxx`）\n\nこの2つをまとめて **アクセサ** と呼びます。\n\n```java\nclass Person {\n    private String name;\n    private int age;\n\n    Person(String name, int age) {\n        this.name = name;\n        this.age = age;\n    }\n\n    String getName() {\n        return name;\n    }\n\n    int getAge() {\n        return age;\n    }\n\n    void setAge(int age) {\n        this.age = age;\n    }\n}\n```\n\n### メソッドを通すと「検査」ができる\n\nこれがカプセル化の本当のねらいです。セッターの中でおかしな値をはじけます。\n\n```java\nvoid setAge(int age) {\n    if (age < 0) {\n        return;              // マイナスは受け付けない（何もせず帰る）\n    }\n    this.age = age;\n}\n```\n\nこうしておけば、このクラスの外で何が起きても\n**「年齢がマイナスの Person は存在しない」と言い切れます**。\nデータと、そのデータを守るルールを1か所にまとめる — これが **カプセル化** です。\n\n> 💡 ゲッターだけ用意してセッターを作らない、という設計もよくあります（外からは読めるが変えられない）。次のレッスンでその形を作ります。\n\n> ⚠️ 試験のワナ … `private` は「クラス単位」で効きます。同じクラスの別のインスタンスの private フィールドには **アクセスできます**。\n\n```java\nclass Person {\n    private int age;\n\n    boolean olderThan(Person other) {\n        return this.age > other.age;    // ✅ OK。他人でも同じ Person クラスなら見える\n    }\n}\n```\n\n「インスタンスごとに秘密」ではなく「クラスの外に対して秘密」だと覚えてください。",
+      "samples": [
+        {
+          "caption": "セッターで値を検査する",
+          "code": "class Person {\n    private String name;\n    private int age;\n\n    Person(String name, int age) {\n        this.name = name;\n        this.age = age < 0 ? 0 : age;      // 作るときも検査する\n    }\n\n    String getName() {\n        return name;\n    }\n\n    int getAge() {\n        return age;\n    }\n\n    void setAge(int age) {\n        if (age < 0) {\n            System.out.println(\"  （\" + age + \" は無視しました）\");\n            return;\n        }\n        this.age = age;\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Person p = new Person(\"田中\", 20);\n        System.out.println(p.getName() + \" \" + p.getAge());\n\n        p.setAge(25);\n        System.out.println(p.getAge());\n\n        p.setAge(-5);                       // はじかれる\n        System.out.println(p.getAge());\n\n        // p.age = -5;   ← private なのでコンパイルエラー\n    }\n}\n"
+        },
+        {
+          "caption": "同じクラスなら他人の private も見える",
+          "code": "class Person {\n    private int age;\n\n    Person(int age) {\n        this.age = age;\n    }\n\n    boolean olderThan(Person other) {\n        return this.age > other.age;        // other.age が見える\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Person a = new Person(30);\n        Person b = new Person(20);\n\n        System.out.println(a.olderThan(b));\n        System.out.println(b.olderThan(a));\n    }\n}\n"
+        }
+      ],
+      "task": "`Person` クラスを作ってください。\n\n- フィールド … `private String name` と `private int age`\n- コンストラクタ … `Person(String name, int age)`。`age` が **`0` 未満なら `0`** にする\n- `String getName()` / `int getAge()` … 値を返す\n- `void setAge(int age)` … `0` 未満なら **何もしない**（今の値を保つ）。それ以外は入れ替える\n\n入力は2行です。\n\n- 1行目 … 名前（1語）と年齢\n- 2行目 … `setAge` に渡す値\n\n`main` では次の2行を出力してください。\n\n1. 作った直後の `getName()` と `getAge()`（半角スペース区切り）\n2. `setAge` を呼んだあとの `getName()` と `getAge()`\n\n`田中 20` と `25` が入力されたときの出力はこうです。\n\n```\n田中 20\n田中 25\n```\n\n- コンストラクタに `-5` が来たら `0` になります\n- `setAge(-1)` は **無視** されるので、年齢は変わりません\n- `0` は正しい値なので受け付けます",
+      "starterCode": "import java.util.Scanner;\n\nclass Person {\n    private String name;\n    private int age;\n\n    // コンストラクタ、getName、getAge、setAge を書く\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        String name = sc.next();\n        int age = sc.nextInt();\n        int newAge = sc.nextInt();\n\n        // Person クラスを書いたら、下のコメントを外して使う\n\n        // Person p = new Person(name, age);\n        // System.out.println(p.getName() + \" \" + p.getAge());\n\n        // p.setAge(newAge);\n        // System.out.println(p.getName() + \" \" + p.getAge());\n    }\n}\n",
+      "visibleCases": [
+        {
+          "label": "普通の場合",
+          "stdin": "田中 20\n25",
+          "expected": "田中 20\n田中 25"
+        },
+        {
+          "label": "作るときにマイナス",
+          "stdin": "佐藤 -5\n30",
+          "expected": "佐藤 0\n佐藤 30"
+        }
+      ],
+      "hiddenCases": [
+        {
+          "label": "setAge がマイナス（無視される）",
+          "stdin": "鈴木 40\n-1",
+          "expected": "鈴木 40\n鈴木 40"
+        },
+        {
+          "label": "どちらも 0",
+          "stdin": "A 0\n0",
+          "expected": "A 0\nA 0"
+        },
+        {
+          "label": "どちらもマイナス",
+          "stdin": "B -3\n-3",
+          "expected": "B 0\nB 0"
+        },
+        {
+          "label": "0 に変更する（受け付ける）",
+          "stdin": "C 100\n0",
+          "expected": "C 100\nC 0"
+        },
+        {
+          "label": "大きい値",
+          "stdin": "D 1\n120",
+          "expected": "D 1\nD 120"
+        }
+      ],
+      "hints": [
+        "コンストラクタでは `this.age = age < 0 ? 0 : age;` のように、マイナスを 0 に丸めます。",
+        "`setAge` では `if (age < 0) { return; }` として、マイナスなら何もせずに帰ります。",
+        "出力は `System.out.println(p.getName() + \" \" + p.getAge());` の形です。フィールドを直接読まず、ゲッターを使ってください。"
+      ],
+      "solution": "import java.util.Scanner;\n\nclass Person {\n    private String name;\n    private int age;\n\n    Person(String name, int age) {\n        this.name = name;\n        this.age = age < 0 ? 0 : age;\n    }\n\n    String getName() {\n        return name;\n    }\n\n    int getAge() {\n        return age;\n    }\n\n    void setAge(int age) {\n        if (age < 0) {\n            return;\n        }\n        this.age = age;\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        String name = sc.next();\n        int age = sc.nextInt();\n        int newAge = sc.nextInt();\n\n        Person p = new Person(name, age);\n        System.out.println(p.getName() + \" \" + p.getAge());\n\n        p.setAge(newAge);\n        System.out.println(p.getName() + \" \" + p.getAge());\n    }\n}\n"
+    },
+    {
+      "id": "9-2",
+      "title": "final と、変わらないクラス",
+      "explanation": "## final — 一度入れたら変えられない\n\n変数に `final` を付けると、**再代入できなくなります**。\n\n```java\nfinal int max = 100;\nmax = 200;            // ❌ コンパイルエラー\n```\n\nフィールドにも付けられます。`final` なフィールドは\n**宣言のときか、コンストラクタの中** でだけ値を入れられます。\n\n```java\nclass Money {\n    private final int amount;      // final なフィールド\n\n    Money(int amount) {\n        this.amount = amount;      // ✅ コンストラクタなのでOK\n    }\n\n    void set(int amount) {\n        this.amount = amount;      // ❌ コンパイルエラー\n    }\n}\n```\n\n> ⚠️ 試験のワナ … `final` なフィールドを **どこでも初期化しない** とコンパイルエラーです。既定値（`0` や `null`）で済ませてはくれません。\n\n## 変わらないクラス（不変クラス）を作る\n\n`final` なフィールドとゲッターだけを持ち、**セッターを作らない** クラスは、\n作られたあと二度と中身が変わりません。これを **不変（イミュータブル）クラス** と呼びます。\n\n```java\nclass Money {\n    private final int amount;\n\n    Money(int amount) {\n        this.amount = amount;\n    }\n\n    int getAmount() {\n        return amount;\n    }\n}\n```\n\n### 変更したいときは「新しく作って返す」\n\n不変クラスでは、値を変える代わりに **新しいインスタンスを返します**。\n\n```java\nMoney plus(int n) {\n    return new Money(amount + n);      // 自分は変えない。別の Money を作る\n}\n```\n\n使う側はこうなります。\n\n```java\nMoney m1 = new Money(100);\nMoney m2 = m1.plus(30);\n\nSystem.out.println(m1.getAmount());    // 100 ← 元はそのまま\nSystem.out.println(m2.getAmount());    // 130\n```\n\n`String` がまさにこの作りです。`s.toUpperCase()` は `s` 自身を大文字にするのではなく、\n**大文字にした新しい文字列を返します**。だから戻り値を受け取らないと何も起きません。\n\n```java\nString s = \"abc\";\ns.toUpperCase();                 // 戻り値を捨てている。s は \"abc\" のまま\nSystem.out.println(s);           // abc\n\ns = s.toUpperCase();             // ✅ 受け取り直す\nSystem.out.println(s);           // ABC\n```\n\n不変にしておくと「いつの間にか書き換わっていた」が起こらないので、\n安心して他のメソッドに渡せます。\n\n## final な参照は「指し先」が変わらないだけ\n\nここは必ず問われます。`final` が固定するのは **変数が指す先** であって、\n**指した先の中身** ではありません。\n\n```java\nfinal int[] a = {1, 2, 3};\na[0] = 99;              // ✅ OK！中身は変えられる\na = new int[]{4, 5};    // ❌ コンパイルエラー：指し先を変えている\n```\n\n> ⚠️ 試験のワナ … 「`final` な配列やオブジェクトは変更できない」という選択肢は誤りです。変えられないのは代入だけです。",
+      "samples": [
+        {
+          "caption": "不変クラスは自分を変えずに新しい実体を返す",
+          "code": "class Money {\n    private final int amount;\n\n    Money(int amount) {\n        this.amount = amount;\n    }\n\n    int getAmount() {\n        return amount;\n    }\n\n    Money plus(int n) {\n        return new Money(amount + n);\n    }\n\n    Money minus(int n) {\n        return new Money(amount - n);\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Money m1 = new Money(100);\n        Money m2 = m1.plus(30);\n        Money m3 = m1.minus(30);\n\n        System.out.println(\"m1 \" + m1.getAmount());\n        System.out.println(\"m2 \" + m2.getAmount());\n        System.out.println(\"m3 \" + m3.getAmount());\n    }\n}\n"
+        },
+        {
+          "caption": "final な参照の中身は変えられる",
+          "code": "public class Main {\n    public static void main(String[] args) {\n        final int[] a = {1, 2, 3};\n\n        a[0] = 99;                    // 中身の書き換えはOK\n        System.out.println(a[0]);\n\n        // a = new int[]{4, 5};       // ← これはコンパイルエラー\n\n        final String s = \"abc\";\n        System.out.println(s.toUpperCase());   // 新しい文字列が返る\n        System.out.println(s);                 // s 自身は変わらない\n    }\n}\n"
+        }
+      ],
+      "task": "**不変クラス** `Money` を作ってください。\n\n- フィールド … `private final int amount`（`final` を付けます）\n- コンストラクタ … `Money(int amount)`\n- `int getAmount()` … 金額を返す\n- `Money plus(int n)` … `amount + n` の **新しい `Money`** を返す（自分は変えない）\n- `Money minus(int n)` … `amount - n` の **新しい `Money`** を返す\n\n整数が2つ、`a` `b` の順で入力されます。`main` では `Money m = new Money(a);` を作り、\n次の4行を出力してください。\n\n1. `m.getAmount()`\n2. `m.plus(b)` の結果の金額\n3. **もう一度** `m.getAmount()`（元が変わっていないことの確認）\n4. `m.minus(b)` の結果の金額\n\n`100 30` が入力されたときの出力はこうです。\n\n```\n100\n130\n100\n70\n```\n\n- マイナスの入力もあります（`Money` は金額を検査しません）\n- 3行目が2行目と同じ値になってしまう人は、`plus` の中で自分のフィールドを書き換えていないか確かめてください",
+      "starterCode": "import java.util.Scanner;\n\nclass Money {\n    private final int amount;\n\n    Money(int amount) {\n        this.amount = amount;\n    }\n\n    // getAmount、plus、minus を書く\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int a = sc.nextInt();\n        int b = sc.nextInt();\n\n        Money m = new Money(a);\n\n        // 4行出力する（メソッドを書いたら呼べるようになります）\n    }\n}\n",
+      "visibleCases": [
+        {
+          "label": "100 と 30",
+          "stdin": "100 30",
+          "expected": "100\n130\n100\n70"
+        },
+        {
+          "label": "500 と 500",
+          "stdin": "500 500",
+          "expected": "500\n1000\n500\n0"
+        }
+      ],
+      "hiddenCases": [
+        {
+          "label": "どちらも 0",
+          "stdin": "0 0",
+          "expected": "0\n0\n0\n0"
+        },
+        {
+          "label": "元がマイナス",
+          "stdin": "-50 100",
+          "expected": "-50\n50\n-50\n-150"
+        },
+        {
+          "label": "足す値がマイナス",
+          "stdin": "10 -10",
+          "expected": "10\n0\n10\n20"
+        },
+        {
+          "label": "大きい数",
+          "stdin": "10000 1",
+          "expected": "10000\n10001\n10000\n9999"
+        }
+      ],
+      "hints": [
+        "`plus` の戻り値の型は `Money` です。中では `return new Money(amount + n);` と書きます。",
+        "`amount` は `final` なので `this.amount = ...` はコンストラクタの中だけです。`plus` の中で代入しようとするとコンパイルエラーになります。",
+        "3行目は2行目と同じ `m` を出力します。`plus` が新しいインスタンスを返していれば `a` のままです。"
+      ],
+      "solution": "import java.util.Scanner;\n\nclass Money {\n    private final int amount;\n\n    Money(int amount) {\n        this.amount = amount;\n    }\n\n    int getAmount() {\n        return amount;\n    }\n\n    Money plus(int n) {\n        return new Money(amount + n);\n    }\n\n    Money minus(int n) {\n        return new Money(amount - n);\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int a = sc.nextInt();\n        int b = sc.nextInt();\n\n        Money m = new Money(a);\n\n        System.out.println(m.getAmount());\n        System.out.println(m.plus(b).getAmount());\n        System.out.println(m.getAmount());\n        System.out.println(m.minus(b).getAmount());\n    }\n}\n"
+    },
+    {
+      "id": "9-3",
+      "title": "アクセス修飾子とパッケージ",
+      "explanation": "## 公開範囲は4段階\n\n`private` と、何も付けない状態のほかにもう2つあります。全部で4段階です。\n\n| 修飾子 | 同じクラス | 同じパッケージ | サブクラス（別パッケージ） | どこからでも |\n|---|---|---|---|---|\n| `private` | ✅ | ❌ | ❌ | ❌ |\n| （何も書かない） | ✅ | ✅ | ❌ | ❌ |\n| `protected` | ✅ | ✅ | ✅ | ❌ |\n| `public` | ✅ | ✅ | ✅ | ✅ |\n\n何も書かない状態には名前があり、**パッケージプライベート**（またはデフォルトアクセス）と呼びます。\n「同じパッケージの中でだけ使える」という意味です。第8章までフィールドに何も付けていなかったので、\nすべてこれでした。\n\n指針はかんたんです。**フィールドは `private`、外に見せたいメソッドは `public`。**\n迷ったらまず狭くしておいて、必要になったら広げます。\n\n> ⚠️ 試験のワナ … 4段階の順序を「`private` → デフォルト → `protected` → `public`」と覚えます。`protected` はデフォルトより **広い**（別パッケージのサブクラスにも見える）ことに注意してください。\n\n## パッケージ — クラスの住所\n\nクラスが増えると名前がぶつかります。`Date` のようなありふれた名前は、\n自分のプロジェクトにもライブラリにもありえます。\nそこでクラスには **パッケージ** という住所を付けます。\n\n```java\npackage com.example.shop;    // ファイルの先頭に1つだけ書く\n\nclass Item { }\n```\n\nこのクラスの本当の名前は `com.example.shop.Item` です。\nこれを **完全修飾名（FQCN）** といいます。\n\n### import は「名前を省略する宣言」\n\n別のパッケージのクラスを短い名前で使うために `import` を書きます。\n\n```java\nimport java.util.Scanner;                      // 名前を短く使う宣言\n\nScanner sc = new Scanner(System.in);\n```\n\n`import` は必須ではありません。**完全修飾名で書けば `import` は不要** です。\n\n```java\njava.util.Scanner sc = new java.util.Scanner(System.in);   // import なしでOK\n```\n\nつまり `import` は「打つ手間を減らすため」だけの機能で、\n何かを読み込んでいるわけではありません。ここはよく誤解されます。\n\n### java.lang は自動で import される\n\n`String` `System` `Math` `Integer` などは `java.lang` パッケージにいます。\nこのパッケージだけは **書かなくても自動で import** されます。\nだから `Math.abs(-5)` がいつでも使えるわけです。\n\n```java\nSystem.out.println(Math.abs(-5));                  // import 不要\nSystem.out.println(java.lang.Math.abs(-5));        // 同じ意味\n```\n\n`import java.util.*;` のように `*` を使うと、そのパッケージの\n**クラス全部** を短い名前で使えるようになります。ただし\n`java.util.*` はサブパッケージ（`java.util.function` など）を含みません。\n\n> 💡 このアプリでは1つのファイルにまとめて書くので、`package` 宣言はありません。すべてのクラスが同じ（名前なしの）パッケージにいる扱いになります。",
+      "samples": [
+        {
+          "caption": "import ありと、完全修飾名だけの書き方",
+          "code": "public class Main {\n    public static void main(String[] args) {\n        // import を書かずに完全修飾名で使う\n        java.util.Scanner sc = new java.util.Scanner(System.in);\n\n        // java.lang は自動で import されている\n        System.out.println(Math.abs(-5));\n        System.out.println(java.lang.Math.max(3, 8));\n\n        // 文字列も java.lang.String\n        java.lang.String s = \"同じ意味です\";\n        System.out.println(s);\n    }\n}\n"
+        },
+        {
+          "caption": "public / private の見え方",
+          "code": "class Item {\n    private int price;          // このクラスの中だけ\n    String name;                // 同じパッケージなら見える\n    public int stock;           // どこからでも見える\n\n    Item(String name, int price, int stock) {\n        this.name = name;\n        this.price = price;\n        this.stock = stock;\n    }\n\n    public int total() {        // 外に見せるメソッド\n        return price * stock;\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Item i = new Item(\"ペン\", 100, 3);\n\n        System.out.println(i.name);        // OK（同じパッケージ）\n        System.out.println(i.stock);       // OK（public）\n        System.out.println(i.total());     // OK（public）\n\n        // System.out.println(i.price);    // ← private なのでコンパイルエラー\n    }\n}\n"
+        }
+      ],
+      "task": "**`import` 文を1つも書かずに** 次の処理を書いてください。\n\n整数が2つ、`a` `b` の順で入力されます。次の2行を出力します。\n\n1. `a` の絶対値と `b` の絶対値の **合計**\n2. `a` と `b` の **大きい方**\n\n`3 -4` が入力されたときの出力はこうです。\n\n```\n7\n3\n```\n\n条件はこれだけです。\n\n- `Scanner` は **完全修飾名** `java.util.Scanner` で書く（`import` は書かない）\n- 絶対値と大きい方の判定は `Math.abs` と `Math.max` を使う（`java.lang` なので何も要りません）\n\n`import` なしでも動くことを自分の手で確かめるのが、このレッスンの目的です。",
+      "starterCode": "public class Main {\n    public static void main(String[] args) {\n        // import を書かずに、完全修飾名で Scanner を作る\n        java.util.Scanner sc = new java.util.Scanner(System.in);\n        int a = sc.nextInt();\n        int b = sc.nextInt();\n\n        // 1行目：絶対値の合計\n\n        // 2行目：大きい方\n    }\n}\n",
+      "visibleCases": [
+        {
+          "label": "3 と -4",
+          "stdin": "3 -4",
+          "expected": "7\n3"
+        },
+        {
+          "label": "10 と 20",
+          "stdin": "10 20",
+          "expected": "30\n20"
+        }
+      ],
+      "hiddenCases": [
+        {
+          "label": "どちらも 0",
+          "stdin": "0 0",
+          "expected": "0\n0"
+        },
+        {
+          "label": "どちらもマイナス",
+          "stdin": "-10 -20",
+          "expected": "30\n-10"
+        },
+        {
+          "label": "同じ値",
+          "stdin": "5 5",
+          "expected": "10\n5"
+        },
+        {
+          "label": "打ち消し合う",
+          "stdin": "-1 1",
+          "expected": "2\n1"
+        }
+      ],
+      "hints": [
+        "`Math.abs(a) + Math.abs(b)` で絶対値の合計になります。`Math` は `java.lang` なので `import` は要りません。",
+        "2行目は `Math.max(a, b)` です。マイナスどうしなら `0` に近い方が大きい値です。",
+        "`Scanner` を短い名前で書くと「シンボルが見つかりません」と言われます。`java.util.Scanner` と完全修飾名で書いてください。"
+      ],
+      "solution": "public class Main {\n    public static void main(String[] args) {\n        java.util.Scanner sc = new java.util.Scanner(System.in);\n        int a = sc.nextInt();\n        int b = sc.nextInt();\n\n        System.out.println(Math.abs(a) + Math.abs(b));\n        System.out.println(Math.max(a, b));\n    }\n}\n"
+    },
+    {
+      "id": "9-4",
+      "title": "総合問題：銀行口座を作る",
+      "explanation": "## ここまでを1つにまとめる\n\n第7章から第9章で学んだことを全部使って、`Account`（銀行口座）クラスを作ります。\nカプセル化が効いてくるのは、まさにこういうクラスです。\n\n外から `balance` を直接いじれてしまったら、口座の意味がありません。\n**残高を変えられるのは入金と出金だけ**、というルールをクラスの中に閉じ込めます。\n\n### 設計の考え方\n\n```java\nclass Account {\n    private final String owner;    // 名義は作ったら変わらない → final\n    private int balance;           // 残高は変わる → final にしない\n\n    Account(String owner, int initial) { ... }\n\n    int getBalance() { ... }       // 読むのは自由\n\n    boolean deposit(int amount) { ... }    // 変えるのはメソッド経由だけ\n    boolean withdraw(int amount) { ... }\n}\n```\n\n`deposit` と `withdraw` が `boolean` を返すのは、\n**成功したかどうかを呼び出し元に伝える** ためです。\n「金額がマイナス」「残高不足」のときは何もせず `false` を返します。\n\n```java\nboolean withdraw(int amount) {\n    if (amount <= 0 || amount > balance) {\n        return false;              // 何も変えずに失敗を伝える\n    }\n    balance -= amount;\n    return true;\n}\n```\n\n失敗のときに **残高をいじってから戻る** ようなことがないよう、\n「先に検査して、通ったら変える」順番で書きます。\n\n> 💡 「ありえない状態を作れないようにする」のがカプセル化の目的です。`private` は手段にすぎません。\n\n> ⚠️ 試験のワナ … `amount > balance` の境界に注意してください。残高とちょうど同じ額の出金は **成功** です（残高 `0` になります）。",
+      "samples": [
+        {
+          "caption": "口座に入金・出金してみる",
+          "code": "class Account {\n    private final String owner;\n    private int balance;\n\n    Account(String owner, int initial) {\n        this.owner = owner;\n        this.balance = initial < 0 ? 0 : initial;\n    }\n\n    String getOwner() {\n        return owner;\n    }\n\n    int getBalance() {\n        return balance;\n    }\n\n    boolean deposit(int amount) {\n        if (amount <= 0) {\n            return false;\n        }\n        balance += amount;\n        return true;\n    }\n\n    boolean withdraw(int amount) {\n        if (amount <= 0 || amount > balance) {\n            return false;\n        }\n        balance -= amount;\n        return true;\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Account a = new Account(\"田中\", 1000);\n\n        System.out.println(a.deposit(500) + \" → \" + a.getBalance());\n        System.out.println(a.withdraw(200) + \" → \" + a.getBalance());\n        System.out.println(a.withdraw(5000) + \" → \" + a.getBalance());\n        System.out.println(a.withdraw(1300) + \" → \" + a.getBalance());\n        System.out.println(a.deposit(-1) + \" → \" + a.getBalance());\n    }\n}\n"
+        }
+      ],
+      "task": "`Account` クラスを作ってください。\n\n- `private final String owner` … 名義\n- `private int balance` … 残高\n- コンストラクタ `Account(String owner, int initial)` … `initial` が **`0` 未満なら `0`** にする\n- `String getOwner()` / `int getBalance()`\n- `boolean deposit(int amount)` … `amount` が `0` 以下なら何もせず `false`。それ以外は足して `true`\n- `boolean withdraw(int amount)` … `amount` が `0` 以下、または **残高より多い** なら何もせず `false`。それ以外は引いて `true`\n\n### 入力\n\n- 1行目 … 名義（1語）と初期残高\n- 2行目 … 操作の回数 `k`（`0` もありえます）\n- 続く `k` 行 … `D 金額`（入金）または `W 金額`（出金）\n\n### 出力\n\n操作1回につき1行、そのあと最後に1行です。\n\n- 成功したら `残高 <残高>`\n- 失敗したら `失敗 残高 <残高>`\n- 最後の行は `<名義> <残高>`\n\n例えば次の入力なら、\n\n```\n田中 1000\n3\nD 500\nW 200\nW 5000\n```\n\n出力はこうなります。\n\n```\n残高 1500\n残高 1300\n失敗 残高 1300\n田中 1300\n```\n\n- 残高とちょうど同じ額の出金は **成功** します\n- 残高 `0` から出金しようとすると失敗します\n- `0` や マイナスの金額はすべて失敗です",
+      "starterCode": "import java.util.Scanner;\n\nclass Account {\n    private final String owner;\n    private int balance;\n\n    Account(String owner, int initial) {\n        this.owner = owner;\n        // balance を入れる（initial が 0 未満なら 0 にする）\n    }\n\n    // getOwner、getBalance、deposit、withdraw を書く\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        String owner = sc.next();\n        int initial = sc.nextInt();\n        int k = sc.nextInt();\n\n        Account account = new Account(owner, initial);\n\n        for (int i = 0; i < k; i++) {\n            String command = sc.next();\n            int amount = sc.nextInt();\n            // D なら入金、W なら出金。結果に応じて1行出力する\n        }\n\n        // 最後に「名義 残高」を出力する\n    }\n}\n",
+      "visibleCases": [
+        {
+          "label": "入金・出金・残高不足",
+          "stdin": "田中 1000\n3\nD 500\nW 200\nW 5000",
+          "expected": "残高 1500\n残高 1300\n失敗 残高 1300\n田中 1300"
+        },
+        {
+          "label": "操作なし",
+          "stdin": "太郎 300\n0",
+          "expected": "太郎 300"
+        }
+      ],
+      "hiddenCases": [
+        {
+          "label": "全額出金（境界）",
+          "stdin": "B 100\n1\nW 100",
+          "expected": "残高 0\nB 0"
+        },
+        {
+          "label": "残高 0 から出金",
+          "stdin": "佐藤 0\n2\nW 100\nD 0",
+          "expected": "失敗 残高 0\n失敗 残高 0\n佐藤 0"
+        },
+        {
+          "label": "初期残高がマイナス",
+          "stdin": "A -50\n1\nD 100",
+          "expected": "残高 100\nA 100"
+        },
+        {
+          "label": "マイナスの金額はすべて失敗",
+          "stdin": "C 500\n2\nD -10\nW -10",
+          "expected": "失敗 残高 500\n失敗 残高 500\nC 500"
+        },
+        {
+          "label": "1円だけ足りない",
+          "stdin": "D 100\n1\nW 101",
+          "expected": "失敗 残高 100\nD 100"
+        },
+        {
+          "label": "入金してから全額出金",
+          "stdin": "E 0\n3\nD 50\nD 50\nW 100",
+          "expected": "残高 50\n残高 100\n残高 0\nE 0"
+        }
+      ],
+      "hints": [
+        "`withdraw` の条件は `amount <= 0 || amount > balance` です。`>=` にすると全額出金が失敗してしまいます。",
+        "コマンドの判定は `if (command.equals(\"D\"))` です。文字列の比較は `==` ではなく `equals` を使います。",
+        "戻り値を使って出力を分けます。`boolean ok = ...;` としてから `System.out.println((ok ? \"\" : \"失敗 \") + \"残高 \" + account.getBalance());` のように書けます。"
+      ],
+      "solution": "import java.util.Scanner;\n\nclass Account {\n    private final String owner;\n    private int balance;\n\n    Account(String owner, int initial) {\n        this.owner = owner;\n        this.balance = initial < 0 ? 0 : initial;\n    }\n\n    String getOwner() {\n        return owner;\n    }\n\n    int getBalance() {\n        return balance;\n    }\n\n    boolean deposit(int amount) {\n        if (amount <= 0) {\n            return false;\n        }\n        balance += amount;\n        return true;\n    }\n\n    boolean withdraw(int amount) {\n        if (amount <= 0 || amount > balance) {\n            return false;\n        }\n        balance -= amount;\n        return true;\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        String owner = sc.next();\n        int initial = sc.nextInt();\n        int k = sc.nextInt();\n\n        Account account = new Account(owner, initial);\n\n        for (int i = 0; i < k; i++) {\n            String command = sc.next();\n            int amount = sc.nextInt();\n\n            boolean ok;\n            if (command.equals(\"D\")) {\n                ok = account.deposit(amount);\n            } else {\n                ok = account.withdraw(amount);\n            }\n\n            System.out.println((ok ? \"\" : \"失敗 \") + \"残高 \" + account.getBalance());\n        }\n\n        System.out.println(account.getOwner() + \" \" + account.getBalance());\n    }\n}\n"
+    }
+  ]
+}

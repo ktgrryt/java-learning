@@ -1,0 +1,204 @@
+{
+  "id": "ch15",
+  "title": "ラッパークラス",
+  "subtitle": "基本型をオブジェクトとして扱う",
+  "emoji": "🎁",
+  "lessons": [
+    {
+      "id": "15-1",
+      "title": "ラッパークラスとは",
+      "explanation": "## 基本型はオブジェクトではない\n\n`int` や `double` は **基本型（プリミティブ型）** で、オブジェクトではありません。\nだからメソッドを持たず、`null` も入れられません。\n\nところが世の中には「オブジェクトしか受け取れない」場所があります。\nたとえば `ArrayList`（第16章）には `int` を直接入れられません。\n\nそこで、基本型を **包んでオブジェクトにするクラス** が用意されています。\nこれが **ラッパークラス**（包み紙クラス）です。\n\n| 基本型 | ラッパークラス |\n|---|---|\n| `byte` | `Byte` |\n| `short` | `Short` |\n| `int` | **`Integer`** |\n| `long` | `Long` |\n| `float` | `Float` |\n| `double` | **`Double`** |\n| `char` | **`Character`** |\n| `boolean` | `Boolean` |\n\n**すべて頭が大文字** です。そして `int` → `Integer`、`char` → `Character` の2つだけ\n名前が単純な大文字化になっていないので、必ず問われます。\n\nこれらはすべて `java.lang` にあるので `import` は不要です（第9章）。\n\n## 包む・取り出す\n\n```java\nInteger boxed = Integer.valueOf(10);     // int を包む\nint raw = boxed.intValue();              // 取り出す\n```\n\nいまはどちらも自動でやってくれるので（15-3のオートボクシング）、\n`Integer boxed = 10;` と書けます。仕組みとして知っておいてください。\n\n## 便利な定数と static メソッド\n\nラッパークラスは「その型に関する道具箱」でもあります。\n\n| 使い方 | 意味 |\n|---|---|\n| `Integer.MAX_VALUE` | `int` の最大値 `2147483647` |\n| `Integer.MIN_VALUE` | `int` の最小値 `-2147483648` |\n| `Integer.parseInt(\"12\")` | 文字列を `int` にする |\n| `Integer.valueOf(\"12\")` | 文字列を `Integer` にする |\n| `Integer.toString(12)` | `int` を文字列にする |\n| `Integer.toBinaryString(5)` | 2進数の文字列 `101` |\n| `Character.isDigit(c)` | 数字の文字か |\n| `Boolean.parseBoolean(\"true\")` | 文字列を `boolean` にする |\n\n`int` の最大値を覚えておくと、桁あふれ（オーバーフロー）の問題に強くなります。\n`Integer.MAX_VALUE + 1` は `Integer.MIN_VALUE` になります。ぐるっと回るのです。\n\n> ⚠️ 試験のワナ … ラッパークラスは **不変** です。`Integer` の中身を書き換えることはできません。`i++` のように見える操作も、実は新しい `Integer` を作って入れ直しています。\n\n> 💡 `Integer` は `Number` クラスを継承しています（`Double` なども同じ）。だから `Number` 型の変数に `Integer` も `Double` も入れられます。",
+      "samples": [
+        {
+          "caption": "定数と変換メソッドを試す",
+          "code": "public class Main {\n    public static void main(String[] args) {\n        System.out.println(\"int の最大値 : \" + Integer.MAX_VALUE);\n        System.out.println(\"int の最小値 : \" + Integer.MIN_VALUE);\n\n        // 最大値を1つ超えると最小値に戻る\n        System.out.println(\"MAX + 1     : \" + (Integer.MAX_VALUE + 1));\n\n        System.out.println(\"parseInt    : \" + (Integer.parseInt(\"12\") + 1));\n        System.out.println(\"toString    : \" + Integer.toString(-42).length());\n        System.out.println(\"toBinary(5) : \" + Integer.toBinaryString(5));\n\n        System.out.println(\"isDigit('7'): \" + Character.isDigit('7'));\n        System.out.println(\"isDigit('a'): \" + Character.isDigit('a'));\n        System.out.println(\"Boolean     : \" + Boolean.parseBoolean(\"true\"));\n    }\n}\n"
+        },
+        {
+          "caption": "包む・取り出す",
+          "code": "public class Main {\n    public static void main(String[] args) {\n        Integer boxed = Integer.valueOf(10);\n        int raw = boxed.intValue();\n\n        System.out.println(\"包んだもの: \" + boxed);\n        System.out.println(\"取り出した: \" + raw);\n\n        // Number 型で受けられる\n        Number n1 = Integer.valueOf(1);\n        Number n2 = Double.valueOf(2.5);\n        System.out.println(n1 + \" \" + n2);\n\n        // ラッパーは不変。中身の書き換えはできない\n        Integer a = 5;\n        a = a + 1;              // 新しい Integer を作って入れ直している\n        System.out.println(a);\n    }\n}\n"
+        }
+      ],
+      "task": "整数 `n` が1つ入力されます。次の **4行** を出力してください。\n\n1. `Integer.MAX_VALUE`\n2. `Integer.MIN_VALUE`\n3. `Integer.valueOf(n)`（包んでから出力する）\n4. `Integer.toString(n)` の **長さ**\n\n`5` が入力されたときの出力はこうです。\n\n```\n2147483647\n-2147483648\n5\n1\n```\n\n- 4行目はマイナス記号も1文字として数えます（`-42` なら `3`）",
+      "starterCode": "import java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n\n        // 4行出力する\n    }\n}\n",
+      "visibleCases": [
+        {
+          "label": "5",
+          "stdin": "5",
+          "expected": "2147483647\n-2147483648\n5\n1"
+        },
+        {
+          "label": "-42",
+          "stdin": "-42",
+          "expected": "2147483647\n-2147483648\n-42\n3"
+        }
+      ],
+      "hiddenCases": [
+        {
+          "label": "0",
+          "stdin": "0",
+          "expected": "2147483647\n-2147483648\n0\n1"
+        },
+        {
+          "label": "-1",
+          "stdin": "-1",
+          "expected": "2147483647\n-2147483648\n-1\n2"
+        },
+        {
+          "label": "7桁",
+          "stdin": "1000000",
+          "expected": "2147483647\n-2147483648\n1000000\n7"
+        },
+        {
+          "label": "最大値そのもの",
+          "stdin": "2147483647",
+          "expected": "2147483647\n-2147483648\n2147483647\n10"
+        },
+        {
+          "label": "最小値そのもの",
+          "stdin": "-2147483648",
+          "expected": "2147483647\n-2147483648\n-2147483648\n11"
+        }
+      ],
+      "hints": [
+        "1行目と2行目は入力に関係なく `Integer.MAX_VALUE` と `Integer.MIN_VALUE` を出力します。",
+        "3行目は `Integer.valueOf(n)` をそのまま `println` に渡せば、中身の数が出力されます。",
+        "4行目は `Integer.toString(n).length()` です。`String.valueOf(n).length()` でも同じ結果になります。"
+      ],
+      "solution": "import java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n\n        System.out.println(Integer.MAX_VALUE);\n        System.out.println(Integer.MIN_VALUE);\n        System.out.println(Integer.valueOf(n));\n        System.out.println(Integer.toString(n).length());\n    }\n}\n"
+    },
+    {
+      "id": "15-2",
+      "title": "文字列と数の変換",
+      "explanation": "## 文字列を数にする\n\nキーボードやファイルから読んだ値は文字列です。計算するには数に変える必要があります。\n\n```java\nint n = Integer.parseInt(\"123\");           // 123（int）\ndouble d = Double.parseDouble(\"1.5\");      // 1.5（double）\n```\n\n`parseXxx` は **基本型** を返します。ラッパーが欲しいときは `valueOf` です。\n\n| メソッド | 返すもの |\n|---|---|\n| `Integer.parseInt(\"12\")` | `int`（基本型） |\n| `Integer.valueOf(\"12\")` | `Integer`（ラッパー） |\n\nどちらも文字列から作れます。ふだんは `parseInt` で十分です。\n\n## 数を文字列にする\n\n```java\nString a = Integer.toString(12);      // \"12\"\nString b = String.valueOf(12);        // \"12\"\nString c = \"\" + 12;                   // \"12\"（手軽だがおすすめしない）\n```\n\n`String.valueOf` はどんな型でも渡せるので便利です。\n\n## 変換できないときは例外\n\n数として読めない文字列を渡すと **`NumberFormatException`** が投げられます。\nこれは `RuntimeException` のサブクラスなので、`try-catch` は強制されません（第13章）。\nでも外部からの入力を扱うなら、受け止めておくのが安全です。\n\n```java\ntry {\n    int n = Integer.parseInt(text);\n    System.out.println(n * 2);\n} catch (NumberFormatException e) {\n    System.out.println(\"変換できません\");\n}\n```\n\n### 何が「変換できない」のか\n\n| 文字列 | `Integer.parseInt` の結果 |\n|---|---|\n| `\"123\"` | `123` |\n| `\"-5\"` | `-5` |\n| `\"007\"` | `7`（先頭の `0` は無視される） |\n| `\"abc\"` | ❌ 例外 |\n| `\"1.5\"` | ❌ 例外（**小数点は受け付けない**） |\n| `\"12a\"` | ❌ 例外 |\n| `\" 12\"` | ❌ 例外（**空白が入っているとダメ**） |\n| `\"\"` | ❌ 例外 |\n| `\"2147483648\"` | ❌ 例外（`int` の範囲を超えている） |\n\n> ⚠️ 試験のワナ … `\"1.5\"` を `Integer.parseInt` に渡すと例外です。「小数を切り捨てて `1` になる」わけではありません。小数として読みたいなら `Double.parseDouble` を使います。\n\n> ⚠️ 試験のワナ … `\" 12\"` のように空白が混じっても例外です。必要なら `text.trim()` で落としてから渡します。\n\n> 💡 `Integer.parseInt` の中身は「1文字ずつ数字か確かめて組み立てる」処理です。だから桁があふれても検出できて、例外にしてくれます。",
+      "samples": [
+        {
+          "caption": "変換できるもの、できないもの",
+          "code": "public class Main {\n    static void tryParse(String text) {\n        try {\n            int n = Integer.parseInt(text);\n            System.out.println(\"[\" + text + \"] → \" + n);\n        } catch (NumberFormatException e) {\n            System.out.println(\"[\" + text + \"] → 変換できません\");\n        }\n    }\n\n    public static void main(String[] args) {\n        tryParse(\"123\");\n        tryParse(\"-5\");\n        tryParse(\"007\");\n        tryParse(\"abc\");\n        tryParse(\"1.5\");\n        tryParse(\"12a\");\n        tryParse(\" 12\");\n        tryParse(\"\");\n        tryParse(\"2147483648\");\n    }\n}\n"
+        },
+        {
+          "caption": "数 → 文字列、小数の変換",
+          "code": "public class Main {\n    public static void main(String[] args) {\n        System.out.println(Integer.toString(12).length());\n        System.out.println(String.valueOf(-42).length());\n        System.out.println(String.valueOf(true));\n        System.out.println(String.valueOf(1.5));\n\n        // 小数として読む\n        System.out.println(Double.parseDouble(\"1.5\") * 2);\n\n        // 空白を落としてから渡す\n        String messy = \"  42  \";\n        System.out.println(Integer.parseInt(messy.trim()) + 1);\n    }\n}\n"
+        }
+      ],
+      "task": "入力は次の形です。\n\n- 1行目 … 個数 `k`（`0` もありえます）\n- 2行目 … `k` 個の文字列（空白区切り。`k` が `0` のときこの行はありません）\n\nそれぞれの文字列を `Integer.parseInt` で数に変換し、**2倍した値** を1行ずつ出力してください。\n変換できないものは `変換できません` と出力します。\n\n`3` と `10 abc -5` が入力されたときの出力はこうです。\n\n```\n20\n変換できません\n-10\n```\n\n- 1つ失敗しても、次の文字列の処理は続けてください（`try-catch` をループの中に書きます）\n- `1.5` のような小数は **変換できません**（`Integer.parseInt` は小数点を受け付けません）\n- `int` の範囲を超える数字も **変換できません**",
+      "starterCode": "import java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int k = sc.nextInt();\n\n        for (int i = 0; i < k; i++) {\n            String text = sc.next();\n            // parseInt して2倍を出力。失敗したら「変換できません」\n        }\n    }\n}\n",
+      "visibleCases": [
+        {
+          "label": "数と文字が混ざる",
+          "stdin": "3\n10 abc -5",
+          "expected": "20\n変換できません\n-10"
+        },
+        {
+          "label": "全部数",
+          "stdin": "2\n1 2",
+          "expected": "2\n4"
+        }
+      ],
+      "hiddenCases": [
+        {
+          "label": "0個",
+          "stdin": "0",
+          "expected": ""
+        },
+        {
+          "label": "0 と 先頭ゼロ",
+          "stdin": "2\n0 007",
+          "expected": "0\n14"
+        },
+        {
+          "label": "小数は変換できない",
+          "stdin": "1\n1.5",
+          "expected": "変換できません"
+        },
+        {
+          "label": "int の範囲を超える",
+          "stdin": "1\n2147483648",
+          "expected": "変換できません"
+        },
+        {
+          "label": "数字のあとに文字",
+          "stdin": "2\n12a 34",
+          "expected": "変換できません\n68"
+        },
+        {
+          "label": "全部変換できない",
+          "stdin": "3\nx y z",
+          "expected": "変換できません\n変換できません\n変換できません"
+        }
+      ],
+      "hints": [
+        "`try { ... } catch (NumberFormatException e) { ... }` を **ループの中** に書きます。",
+        "`Integer.parseInt(text) * 2` の結果を出力します。`text * 2` とは書けません（文字列は掛け算できません）。",
+        "`1.5` や `2147483648` も例外になります。特別な判定を書く必要はなく、`catch` に任せてください。"
+      ],
+      "solution": "import java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int k = sc.nextInt();\n\n        for (int i = 0; i < k; i++) {\n            String text = sc.next();\n            try {\n                System.out.println(Integer.parseInt(text) * 2);\n            } catch (NumberFormatException e) {\n                System.out.println(\"変換できません\");\n            }\n        }\n    }\n}\n"
+    },
+    {
+      "id": "15-3",
+      "title": "オートボクシングの罠",
+      "explanation": "## 自動で包まれ、自動で取り出される\n\nいまのJavaでは、基本型とラッパーを **自動で行き来** してくれます。\n\n```java\nInteger boxed = 10;        // オートボクシング（int → Integer）\nint raw = boxed;           // アンボクシング（Integer → int）\nint sum = boxed + 5;       // 計算のときも自動で取り出される\n```\n\n書くのが楽になった一方で、**参照型であることを忘れさせる** という副作用があります。\nここから先がSilverの重要ポイントです。\n\n## == で比べると危ない\n\n`Integer` は参照型なので、`==` は **同じ本体か** を見ます（第8章・第14章と同じ話）。\n\n```java\nInteger a = 200;\nInteger b = 200;\nSystem.out.println(a == b);        // false！\n```\n\n内容は同じでも別の本体なので `false` です。ところが——\n\n```java\nInteger a = 100;\nInteger b = 100;\nSystem.out.println(a == b);        // true！\n```\n\nこちらは `true` になります。値によって結果が変わるのです。\n\n### 理由：Integer キャッシュ\n\nオートボクシングは内部で `Integer.valueOf(int)` を呼びます。\nこのメソッドは **`-128` から `127` までの値をあらかじめ作って持っていて、使い回します**。\nよく使う小さい数を毎回作るのは無駄だからです。\n\n- `-128` ～ `127` … キャッシュから同じ本体が返る → `==` が **`true`**\n- それ以外 … 毎回新しい本体を作る → `==` が **`false`**\n\n> ⚠️ 試験のワナ … 境界は `127` と `128` です。`127` までは `true`、`128` からは `false`。マイナス側は `-128` までが `true` です。\n\n```java\nInteger a = 127, b = 127;\nSystem.out.println(a == b);        // true\n\nInteger c = 128, d = 128;\nSystem.out.println(c == d);        // false\n```\n\n**結論：ラッパーの値を比べるときは必ず `equals`（または `intValue()` で取り出して `==`）。**\n`equals` なら値の大きさに関係なく、内容で比べてくれます。\n\n```java\nSystem.out.println(c.equals(d));   // true（いつでも正しい）\n```\n\n## null のアンボクシングは NullPointerException\n\nラッパーは `null` を入れられます。ここが便利な点であり、危険な点です。\n\n```java\nInteger n = null;\nint x = n;              // 実行時に NullPointerException\n```\n\n`int x = n;` は裏で `n.intValue()` を呼んでいます。`n` が `null` なら、\n`null` に対してメソッドを呼ぶことになるので落ちます。\n\n```java\nInteger n = null;\nif (n != null) {\n    int x = n;          // ✅ 確かめてから取り出す\n}\n```\n\n> ⚠️ 試験のワナ … 計算式の中でも起きます。`Integer a = null; int b = a + 1;` は `NullPointerException` です。コンパイルは通るので、実行するまで気づけません。\n\n> 💡 `null` と比べるだけなら安全です（`n == null` はアンボクシングしません）。落ちるのは **数として使おうとしたとき** だけです。",
+      "samples": [
+        {
+          "caption": "キャッシュの境界を確かめる",
+          "code": "public class Main {\n    static void check(int value) {\n        Integer a = value;\n        Integer b = value;\n        System.out.println(value + \" : == は \" + (a == b) + \" / equals は \" + a.equals(b));\n    }\n\n    public static void main(String[] args) {\n        check(100);\n        check(127);      // 境界の内側\n        check(128);      // 境界の外側\n        check(-128);\n        check(-129);\n        check(0);\n    }\n}\n"
+        },
+        {
+          "caption": "null のアンボクシングで落ちる場所",
+          "code": "public class Main {\n    public static void main(String[] args) {\n        Integer n = null;\n\n        // 比較だけなら安全\n        System.out.println(\"null か: \" + (n == null));\n\n        // 数として使おうとすると落ちる\n        try {\n            int x = n;\n            System.out.println(x);\n        } catch (NullPointerException e) {\n            System.out.println(\"アンボクシングで NullPointerException\");\n        }\n\n        try {\n            System.out.println(n + 1);\n        } catch (NullPointerException e) {\n            System.out.println(\"計算式の中でも同じ\");\n        }\n    }\n}\n"
+        }
+      ],
+      "task": "整数 `n` が1つ入力されます。`main` で次のように書いてください。\n\n```java\nInteger a = n;          // オートボクシング\nInteger b = n;\nInteger c = null;\n```\n\nそのうえで **4行** 出力します。\n\n1. `a == b`\n2. `a.equals(b)`\n3. `a + b`（アンボクシングして計算した結果）\n4. `c == null`\n\n`100` が入力されたときの出力はこうです。\n\n```\ntrue\ntrue\n200\ntrue\n```\n\n`200` が入力されたときはこうなります。\n\n```\nfalse\ntrue\n400\ntrue\n```\n\n**1行目が入力の値によって変わります。** なぜそうなるのか、境界はどこなのかを\n解説で確かめてください。2行目は入力に関係なく必ず `true` です。",
+      "starterCode": "import java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n\n        Integer a = n;\n        Integer b = n;\n        Integer c = null;\n\n        // 4行出力する（c は数として使わないこと）\n    }\n}\n",
+      "visibleCases": [
+        {
+          "label": "100（キャッシュの中）",
+          "stdin": "100",
+          "expected": "true\ntrue\n200\ntrue"
+        },
+        {
+          "label": "200（キャッシュの外）",
+          "stdin": "200",
+          "expected": "false\ntrue\n400\ntrue"
+        }
+      ],
+      "hiddenCases": [
+        {
+          "label": "127（境界の内側）",
+          "stdin": "127",
+          "expected": "true\ntrue\n254\ntrue"
+        },
+        {
+          "label": "128（境界の外側）",
+          "stdin": "128",
+          "expected": "false\ntrue\n256\ntrue"
+        },
+        {
+          "label": "-128（マイナス側の境界）",
+          "stdin": "-128",
+          "expected": "true\ntrue\n-256\ntrue"
+        },
+        {
+          "label": "-129（境界の外側）",
+          "stdin": "-129",
+          "expected": "false\ntrue\n-258\ntrue"
+        },
+        {
+          "label": "0",
+          "stdin": "0",
+          "expected": "true\ntrue\n0\ntrue"
+        },
+        {
+          "label": "1000",
+          "stdin": "1000",
+          "expected": "false\ntrue\n2000\ntrue"
+        }
+      ],
+      "hints": [
+        "1行目は `System.out.println(a == b);` です。入力によって `true` と `false` が変わるのが正解です。",
+        "3行目の `a + b` では自動でアンボクシングされて足し算になります。文字列の連結にはなりません。",
+        "4行目の `c == null` は安全です。`c` を `int` に入れたり計算に使うと `NullPointerException` で落ちます。"
+      ],
+      "solution": "import java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n\n        Integer a = n;\n        Integer b = n;\n        Integer c = null;\n\n        System.out.println(a == b);\n        System.out.println(a.equals(b));\n        System.out.println(a + b);\n        System.out.println(c == null);\n    }\n}\n"
+    }
+  ]
+}

@@ -1,0 +1,252 @@
+{
+  "id": "ch12",
+  "title": "インターフェース",
+  "subtitle": "「できること」を型にする",
+  "emoji": "🔌",
+  "lessons": [
+    {
+      "id": "12-1",
+      "title": "インターフェースの基本",
+      "explanation": "## 中身のない約束だけを書く\n\n抽象クラスは「共通の実装＋未完成のメソッド」でした。\nでは **共通の実装が1つもない** ときはどうでしょう。\n\n「挨拶できる」という性質を表したいだけなら、フィールドも共通処理も要りません。\n必要なのは「`greet` というメソッドがある」という約束だけです。\nそれを書くのが **インターフェース** です。\n\n```java\ninterface Greeter {\n    String greet(String name);      // 中身は書かない。セミコロンで終わる\n}\n```\n\n`class` ではなく `interface` と書きます。使う側は `implements` で「約束を守ります」と宣言します。\n\n```java\nclass JapaneseGreeter implements Greeter {\n    @Override\n    public String greet(String name) {\n        return \"こんにちは、\" + name + \"さん\";\n    }\n}\n\nclass EnglishGreeter implements Greeter {\n    @Override\n    public String greet(String name) {\n        return \"Hello, \" + name + \"!\";\n    }\n}\n```\n\n`implements` したクラスは、**約束したメソッドを全部実装する義務** があります。\n1つでも足りなければコンパイルエラーです（抽象クラスと同じ考え方）。\n\n## インターフェースは型になる\n\nインターフェース自体は `new` できませんが、**変数の型として使えます**。\n\n```java\nGreeter g = new JapaneseGreeter();\nSystem.out.println(g.greet(\"田中\"));      // こんにちは、田中さん\n\ng = new EnglishGreeter();                 // 入れ替えられる\nSystem.out.println(g.greet(\"田中\"));      // Hello, 田中さん\n```\n\n第11章のポリモーフィズムがそのまま効きます。\n`Greeter` として受け取る側は、**中身が日本語版か英語版かを知らなくてよい** わけです。\n\n```java\nstatic void hello(Greeter g, String name) {     // どの実装でも受け取れる\n    System.out.println(g.greet(name));\n}\n```\n\n## 省略されているもの\n\nインターフェースの中の宣言には、書かなくても付く修飾子があります。\n\n```java\ninterface Greeter {\n    String greet(String name);              // 実は public abstract\n    int MAX = 100;                          // 実は public static final（定数）\n}\n```\n\n- メソッドは自動で **`public abstract`**\n- フィールドは自動で **`public static final`**（つまり **定数**。値の代入が必須）\n\nだからインターフェースに「状態」は持たせられません。持てるのは定数だけです。\n\n> ⚠️ 試験のワナ … 実装するメソッドに `public` を付け忘れるとコンパイルエラーです。\n\n```java\nclass JapaneseGreeter implements Greeter {\n    String greet(String name) { ... }       // ❌ public がない＝狭くなっている\n}\n```\n\nインターフェースのメソッドは `public` なので、オーバーライドの条件\n「アクセス修飾子を狭くできない」に引っかかります。**実装側には必ず `public`** を付けてください。\n\n> 💡 抽象クラスとの違いは次のレッスンから順に見ていきます。ひとまず「継承は1つだけ、`implements` は何個でも」と覚えておいてください。",
+      "samples": [
+        {
+          "caption": "同じ Greeter 型に入れ替えて使う",
+          "code": "interface Greeter {\n    String greet(String name);\n}\n\nclass JapaneseGreeter implements Greeter {\n    @Override\n    public String greet(String name) {\n        return \"こんにちは、\" + name + \"さん\";\n    }\n}\n\nclass EnglishGreeter implements Greeter {\n    @Override\n    public String greet(String name) {\n        return \"Hello, \" + name + \"!\";\n    }\n}\n\npublic class Main {\n    static void hello(Greeter g, String name) {\n        System.out.println(g.greet(name));\n    }\n\n    public static void main(String[] args) {\n        Greeter g = new JapaneseGreeter();\n        System.out.println(g.greet(\"田中\"));\n\n        g = new EnglishGreeter();\n        System.out.println(g.greet(\"田中\"));\n\n        System.out.println(\"--- メソッドに渡しても同じ ---\");\n        hello(new JapaneseGreeter(), \"佐藤\");\n        hello(new EnglishGreeter(), \"佐藤\");\n    }\n}\n"
+        },
+        {
+          "caption": "インターフェースのフィールドは定数",
+          "code": "interface Config {\n    int MAX = 100;              // public static final が付いている\n    String NAME = \"設定\";\n}\n\nclass Sample implements Config {\n    void show() {\n        System.out.println(NAME + \" の上限は \" + MAX);\n        // MAX = 200;           ← final なので代入はできない\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        new Sample().show();\n\n        // インターフェース名から直接読める（static だから）\n        System.out.println(Config.MAX);\n    }\n}\n"
+        }
+      ],
+      "task": "`Greeter` インターフェースはひな形に用意してあります。\n\n```java\ninterface Greeter {\n    String greet(String name);\n}\n```\n\nこれを実装する2つのクラスを作ってください。\n\n- `JapaneseGreeter` … `こんにちは、○○さん` という文字列を返す\n- `EnglishGreeter` … `Hello, ○○!` という文字列を返す\n\n### 入力\n\n- 1行目 … 個数 `k`（`0` もありえます）\n- 続く `k` 行 … 種類と名前（種類は `JP` または `EN`）\n\n種類に応じた実装を使って、挨拶を1行ずつ出力してください。\n\n次の入力なら、\n\n```\n3\nJP 田中\nEN Smith\nJP 佐藤\n```\n\n出力はこうなります。\n\n```\nこんにちは、田中さん\nHello, Smith!\nこんにちは、佐藤さん\n```\n\n- `Hello, ` のカンマのあとは **半角スペース1つ**、最後は半角の `!` です\n- 実装するメソッドには **`public`** を付けてください（付けないとコンパイルエラーになります）",
+      "starterCode": "import java.util.Scanner;\n\ninterface Greeter {\n    String greet(String name);\n}\n\n// class JapaneseGreeter implements Greeter を書く\n\n// class EnglishGreeter implements Greeter を書く\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int k = sc.nextInt();\n\n        for (int i = 0; i < k; i++) {\n            String type = sc.next();\n            String name = sc.next();\n            // type に応じた Greeter を作り、greet(name) の結果を出力する\n        }\n    }\n}\n",
+      "visibleCases": [
+        {
+          "label": "3人",
+          "stdin": "3\nJP 田中\nEN Smith\nJP 佐藤",
+          "expected": "こんにちは、田中さん\nHello, Smith!\nこんにちは、佐藤さん"
+        },
+        {
+          "label": "英語だけ",
+          "stdin": "2\nEN Alice\nEN Bob",
+          "expected": "Hello, Alice!\nHello, Bob!"
+        }
+      ],
+      "hiddenCases": [
+        {
+          "label": "0人",
+          "stdin": "0",
+          "expected": ""
+        },
+        {
+          "label": "日本語だけ",
+          "stdin": "1\nJP 鈴木",
+          "expected": "こんにちは、鈴木さん"
+        },
+        {
+          "label": "同じ名前で両方",
+          "stdin": "2\nJP Ken\nEN Ken",
+          "expected": "こんにちは、Kenさん\nHello, Ken!"
+        },
+        {
+          "label": "1文字の名前",
+          "stdin": "2\nJP A\nEN B",
+          "expected": "こんにちは、Aさん\nHello, B!"
+        },
+        {
+          "label": "4人",
+          "stdin": "4\nEN a\nJP b\nEN c\nJP d",
+          "expected": "Hello, a!\nこんにちは、bさん\nHello, c!\nこんにちは、dさん"
+        }
+      ],
+      "hints": [
+        "`class JapaneseGreeter implements Greeter {` と書き、中に `public String greet(String name)` を実装します。",
+        "`greet` は文字列を **返す** メソッドです。中で `System.out.println` するのではなく `return` してください。",
+        "`Greeter g;` という変数を1つ用意して、`if` で `new JapaneseGreeter()` か `new EnglishGreeter()` を入れると、出力は1行で済みます。"
+      ],
+      "solution": "import java.util.Scanner;\n\ninterface Greeter {\n    String greet(String name);\n}\n\nclass JapaneseGreeter implements Greeter {\n    @Override\n    public String greet(String name) {\n        return \"こんにちは、\" + name + \"さん\";\n    }\n}\n\nclass EnglishGreeter implements Greeter {\n    @Override\n    public String greet(String name) {\n        return \"Hello, \" + name + \"!\";\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int k = sc.nextInt();\n\n        for (int i = 0; i < k; i++) {\n            String type = sc.next();\n            String name = sc.next();\n\n            Greeter g;\n            if (type.equals(\"JP\")) {\n                g = new JapaneseGreeter();\n            } else {\n                g = new EnglishGreeter();\n            }\n            System.out.println(g.greet(name));\n        }\n    }\n}\n"
+    },
+    {
+      "id": "12-2",
+      "title": "いくつでも実装できる",
+      "explanation": "## 継承は1つだけ、実装は何個でも\n\n第10章で見たように、`extends` に書けるクラスは1つだけです。\nけれど `implements` は **カンマで区切っていくつでも並べられます**。\n\n```java\ninterface Flyable {\n    String fly();\n}\n\ninterface Swimmable {\n    String swim();\n}\n\nclass Duck implements Flyable, Swimmable {      // 両方の約束を守る\n    private String name;\n\n    Duck(String name) { this.name = name; }\n\n    @Override\n    public String fly() { return name + \"は飛ぶ\"; }\n\n    @Override\n    public String swim() { return name + \"は泳ぐ\"; }\n}\n\nclass Fish implements Swimmable {               // 泳げるだけ\n    private String name;\n\n    Fish(String name) { this.name = name; }\n\n    @Override\n    public String swim() { return name + \"は泳ぐ\"; }\n}\n```\n\n`Duck` は「飛べる」も「泳げる」も持っています。\nクラスの継承では表せなかった「複数の性質」が、インターフェースなら自然に書けます。\n\nこれがインターフェースの存在理由の1つです。\n実装を複数受け継ぐと「どちらの実装が動くのか」で困りますが、\n**約束だけなら何個でも重ねられる** からです。\n\n## インターフェース型でまとめる\n\n「泳げるもの」だけを集めたいなら、`Swimmable` を型にします。\n\n```java\nSwimmable[] swimmers = { new Duck(\"カモ\"), new Fish(\"コイ\") };\n\nfor (Swimmable s : swimmers) {\n    System.out.println(s.swim());\n}\n```\n\n`Duck` と `Fish` に **継承関係はまったくありません**。\nそれでも「泳げる」という一点で同じ配列に入れられます。\n共通の親クラスを無理に作らなくてよいのが、インターフェースの使いやすさです。\n\n## instanceof はインターフェースにも使える\n\n`Swimmable` として持っているものが、飛べるかどうかを調べられます。\n\n```java\nfor (Swimmable s : swimmers) {\n    if (s instanceof Flyable f) {\n        System.out.println(f.fly());\n    }\n    System.out.println(s.swim());\n}\n```\n\n`Duck` は `Flyable` でもあるので `true`、`Fish` は `false` です。\n\n## インターフェースどうしの継承\n\nインターフェースは `extends` で別のインターフェースを継承できます。\nこちらは **複数書けます**（実装がないので衝突しないため）。\n\n```java\ninterface Amphibious extends Flyable, Swimmable { }\n```\n\n`Amphibious` を実装するクラスは、`fly()` と `swim()` の両方を実装する必要があります。\n\n> ⚠️ 試験のワナ … クラスがインターフェースを実装するときは `implements`、インターフェースが別のインターフェースを継承するときは `extends` です。逆に書くとコンパイルエラーです。\n\n> 💡 `extends` と `implements` を両方書くときは、**`extends` が先** です。`class A extends B implements C, D` の順番は決まっています。",
+      "samples": [
+        {
+          "caption": "2つのインターフェースを実装する",
+          "code": "interface Flyable {\n    String fly();\n}\n\ninterface Swimmable {\n    String swim();\n}\n\nclass Duck implements Flyable, Swimmable {\n    private String name;\n    Duck(String name) { this.name = name; }\n    @Override public String fly()  { return name + \"は飛ぶ\"; }\n    @Override public String swim() { return name + \"は泳ぐ\"; }\n}\n\nclass Fish implements Swimmable {\n    private String name;\n    Fish(String name) { this.name = name; }\n    @Override public String swim() { return name + \"は泳ぐ\"; }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Swimmable[] swimmers = { new Duck(\"カモ\"), new Fish(\"コイ\") };\n\n        for (Swimmable s : swimmers) {\n            if (s instanceof Flyable f) {\n                System.out.println(f.fly());\n            }\n            System.out.println(s.swim());\n        }\n    }\n}\n"
+        },
+        {
+          "caption": "継承関係がなくても同じ配列に入る",
+          "code": "interface Printable {\n    String label();\n}\n\nclass Book implements Printable {\n    @Override public String label() { return \"本\"; }\n}\n\nclass Ticket implements Printable {\n    @Override public String label() { return \"チケット\"; }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        // Book と Ticket に親子関係はない\n        Printable[] items = { new Book(), new Ticket() };\n\n        for (Printable p : items) {\n            System.out.println(p.label() + \"を印刷しました\");\n        }\n    }\n}\n"
+        }
+      ],
+      "task": "`Flyable` と `Swimmable` はひな形に用意してあります。\n\n```java\ninterface Flyable  { String fly();  }\ninterface Swimmable { String swim(); }\n```\n\n次の2つのクラスを作ってください。\n\n- `Duck implements Flyable, Swimmable` … `Duck(String name)`。`fly()` は `○○は飛ぶ`、`swim()` は `○○は泳ぐ` を返す\n- `Fish implements Swimmable` … `Fish(String name)`。`swim()` は `○○は泳ぐ` を返す\n\n### 入力\n\n- 1行目 … 個数 `k`（`0` もありえます）\n- 続く `k` 行 … 種類と名前（種類は `D`（カモ）または `F`（魚））\n\n読み込んだものを **`Swimmable[]`** にまとめて入れ、1つのループで次のように出力してください。\n\n- `Flyable` でもあるなら、まず `fly()` の結果\n- そのあと必ず `swim()` の結果\n\n次の入力なら、\n\n```\n3\nD カモ\nF コイ\nD アヒル\n```\n\n出力はこうなります。\n\n```\nカモは飛ぶ\nカモは泳ぐ\nコイは泳ぐ\nアヒルは飛ぶ\nアヒルは泳ぐ\n```\n\n- 判定は `instanceof` を使ってください\n- `k` が `0` のときは何も出力しません",
+      "starterCode": "import java.util.Scanner;\n\ninterface Flyable {\n    String fly();\n}\n\ninterface Swimmable {\n    String swim();\n}\n\n// class Duck implements Flyable, Swimmable を書く\n\n// class Fish implements Swimmable を書く\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int k = sc.nextInt();\n\n        // Swimmable[] swimmers = new Swimmable[k];\n\n        for (int i = 0; i < k; i++) {\n            String type = sc.next();\n            String name = sc.next();\n            // Duck / Fish を作って配列に入れる\n        }\n\n        // Flyable なら fly()、そのあと必ず swim() を出力する\n    }\n}\n",
+      "visibleCases": [
+        {
+          "label": "カモと魚",
+          "stdin": "3\nD カモ\nF コイ\nD アヒル",
+          "expected": "カモは飛ぶ\nカモは泳ぐ\nコイは泳ぐ\nアヒルは飛ぶ\nアヒルは泳ぐ"
+        },
+        {
+          "label": "魚だけ",
+          "stdin": "2\nF a\nF b",
+          "expected": "aは泳ぐ\nbは泳ぐ"
+        }
+      ],
+      "hiddenCases": [
+        {
+          "label": "0匹",
+          "stdin": "0",
+          "expected": ""
+        },
+        {
+          "label": "カモだけ",
+          "stdin": "1\nD カモ",
+          "expected": "カモは飛ぶ\nカモは泳ぐ"
+        },
+        {
+          "label": "同じ名前",
+          "stdin": "2\nD 同\nF 同",
+          "expected": "同は飛ぶ\n同は泳ぐ\n同は泳ぐ"
+        },
+        {
+          "label": "最後がカモ",
+          "stdin": "3\nF x\nF y\nD z",
+          "expected": "xは泳ぐ\nyは泳ぐ\nzは飛ぶ\nzは泳ぐ"
+        },
+        {
+          "label": "4匹交互",
+          "stdin": "4\nD p\nF q\nD r\nF s",
+          "expected": "pは飛ぶ\npは泳ぐ\nqは泳ぐ\nrは飛ぶ\nrは泳ぐ\nsは泳ぐ"
+        }
+      ],
+      "hints": [
+        "`class Duck implements Flyable, Swimmable {` のようにカンマで並べます。両方のメソッドを `public` で実装してください。",
+        "配列の型は `Swimmable[]` です。`Duck` も `Fish` も `Swimmable` なので入れられます。",
+        "ループの中は `if (s instanceof Flyable f) { System.out.println(f.fly()); }` のあとに `System.out.println(s.swim());` です。"
+      ],
+      "solution": "import java.util.Scanner;\n\ninterface Flyable {\n    String fly();\n}\n\ninterface Swimmable {\n    String swim();\n}\n\nclass Duck implements Flyable, Swimmable {\n    private String name;\n\n    Duck(String name) {\n        this.name = name;\n    }\n\n    @Override\n    public String fly() {\n        return name + \"は飛ぶ\";\n    }\n\n    @Override\n    public String swim() {\n        return name + \"は泳ぐ\";\n    }\n}\n\nclass Fish implements Swimmable {\n    private String name;\n\n    Fish(String name) {\n        this.name = name;\n    }\n\n    @Override\n    public String swim() {\n        return name + \"は泳ぐ\";\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int k = sc.nextInt();\n        Swimmable[] swimmers = new Swimmable[k];\n\n        for (int i = 0; i < k; i++) {\n            String type = sc.next();\n            String name = sc.next();\n            if (type.equals(\"D\")) {\n                swimmers[i] = new Duck(name);\n            } else {\n                swimmers[i] = new Fish(name);\n            }\n        }\n\n        for (Swimmable s : swimmers) {\n            if (s instanceof Flyable f) {\n                System.out.println(f.fly());\n            }\n            System.out.println(s.swim());\n        }\n    }\n}\n"
+    },
+    {
+      "id": "12-3",
+      "title": "default メソッドと static メソッド",
+      "explanation": "## 実装を書けるインターフェース\n\n「インターフェースには実装を書けない」と説明しましたが、\nJava 8 から **例外が2つ** できました。`default` と `static` です。\n\n### default メソッド — 既定の実装\n\n`default` を付けると、インターフェースの中に **中身を書けます**。\n\n```java\ninterface Greeter {\n    String name();                          // これは実装させる\n\n    default String greet() {                // 既定の実装を用意する\n        return \"こんにちは、\" + name() + \"さん\";\n    }\n}\n```\n\n実装クラスは `name()` だけ書けば済みます。`greet()` は **そのまま使えます**。\n\n```java\nclass Simple implements Greeter {\n    private String n;\n    Simple(String n) { this.n = n; }\n\n    @Override\n    public String name() { return n; }\n}\n\nnew Simple(\"田中\").greet();       // こんにちは、田中さん\n```\n\nもちろん **上書きもできます**。既定でよければ書かない、変えたければ書く、という選択制です。\n\n```java\nclass Casual implements Greeter {\n    private String n;\n    Casual(String n) { this.n = n; }\n\n    @Override public String name() { return n; }\n\n    @Override\n    public String greet() {                 // 既定を使わず自分で書く\n        return \"やあ、\" + n + \"！\";\n    }\n}\n```\n\n### なぜ必要になったのか\n\nインターフェースにメソッドを1つ足すと、**世界中の実装クラスが全部コンパイルエラー** になります。\nこれでは標準ライブラリを進化させられません。\n\n`default` があれば「足すけれど既定の実装も付ける」ができるので、\n既存のクラスを壊さずに機能を追加できます。\n`List` の `forEach` などが実際にこの方法で追加されました。\n\n### static メソッド — インターフェース名から呼ぶ道具\n\n`static` を付けたメソッドも書けます。こちらは **実装とは無関係な補助関数** の置き場です。\n\n```java\ninterface Greeter {\n    static String rule() {\n        return \"挨拶は大事\";\n    }\n}\n\nSystem.out.println(Greeter.rule());        // インターフェース名から呼ぶ\n```\n\n> ⚠️ 試験のワナ … インターフェースの `static` メソッドは **実装クラスに継承されません**。\n\n```java\nGreeter.rule();       // ✅ OK\nSimple.rule();        // ❌ コンパイルエラー\nnew Simple(\"x\").rule();   // ❌ コンパイルエラー\n```\n\n`default` は継承される、`static` は継承されない。ここが必ず問われます。\n\n## まとめ\n\n| 種類 | 中身 | 実装クラスでの扱い |\n|---|---|---|\n| 通常のメソッド | 書かない | **実装する義務がある** |\n| `default` メソッド | 書く | そのまま使える。上書きもできる |\n| `static` メソッド | 書く | 継承されない。インターフェース名から呼ぶ |\n\n> 💡 `default` メソッドの中から、まだ実装されていない `name()` を呼べるのは、抽象クラスの `show()` が `area()` を呼べたのと同じ理屈です。実行時には必ず実装が入っています。",
+      "samples": [
+        {
+          "caption": "default をそのまま使う / 上書きする",
+          "code": "interface Greeter {\n    String name();\n\n    default String greet() {\n        return \"こんにちは、\" + name() + \"さん\";\n    }\n\n    static String rule() {\n        return \"挨拶は大事\";\n    }\n}\n\nclass Simple implements Greeter {\n    private String n;\n    Simple(String n) { this.n = n; }\n\n    @Override\n    public String name() { return n; }\n}\n\nclass Casual implements Greeter {\n    private String n;\n    Casual(String n) { this.n = n; }\n\n    @Override public String name() { return n; }\n\n    @Override\n    public String greet() {\n        return \"やあ、\" + n + \"！\";\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Greeter a = new Simple(\"田中\");\n        Greeter b = new Casual(\"佐藤\");\n\n        System.out.println(a.greet());       // 既定の実装\n        System.out.println(b.greet());       // 上書きした実装\n\n        System.out.println(Greeter.rule());  // static はインターフェース名から\n        // System.out.println(Simple.rule());   ← コンパイルエラー\n    }\n}\n"
+        },
+        {
+          "caption": "default が既存クラスを壊さずに増える様子",
+          "code": "interface Shape {\n    int area();\n\n    // あとから追加したメソッド。default なので既存の実装は壊れない\n    default String describe() {\n        return \"面積は \" + area();\n    }\n}\n\nclass Square implements Shape {\n    private int s;\n    Square(int s) { this.s = s; }\n\n    @Override\n    public int area() { return s * s; }\n    // describe() を書かなくてもコンパイルできる\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Shape sq = new Square(4);\n        System.out.println(sq.area());\n        System.out.println(sq.describe());\n    }\n}\n"
+        }
+      ],
+      "task": "`Greeter` インターフェースはひな形に用意してあります。\n\n```java\ninterface Greeter {\n    String name();\n    default String greet() { return \"こんにちは、\" + name() + \"さん\"; }\n    static String rule()   { return \"挨拶は大事\"; }\n}\n```\n\nこれを実装する2つのクラスを作ってください。\n\n- `Simple` … `Simple(String name)`。`name()` だけ実装し、`greet()` は **既定の実装をそのまま使う**\n- `Casual` … `Casual(String name)`。`name()` を実装し、`greet()` を **上書き** して `やあ、○○！` を返す\n\n### 入力\n\n名前が2つ入力されます。1つ目を `Simple`、2つ目を `Casual` に渡してください。\n\n### 出力\n\n次の3行です。\n\n1. `Simple` の `greet()`\n2. `Casual` の `greet()`\n3. `Greeter.rule()`（**インターフェース名から** 呼びます）\n\n`田中 佐藤` が入力されたときの出力はこうです。\n\n```\nこんにちは、田中さん\nやあ、佐藤！\n挨拶は大事\n```\n\n- `！` は全角です\n- `Simple` に `greet()` を書いてはいけません（既定の実装が使えることを確かめる問題です）",
+      "starterCode": "import java.util.Scanner;\n\ninterface Greeter {\n    String name();\n\n    default String greet() {\n        return \"こんにちは、\" + name() + \"さん\";\n    }\n\n    static String rule() {\n        return \"挨拶は大事\";\n    }\n}\n\n// class Simple implements Greeter を書く（name() だけ実装する）\n\n// class Casual implements Greeter を書く（greet() も上書きする）\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        String name1 = sc.next();\n        String name2 = sc.next();\n\n        // 3行出力する\n    }\n}\n",
+      "visibleCases": [
+        {
+          "label": "田中と佐藤",
+          "stdin": "田中 佐藤",
+          "expected": "こんにちは、田中さん\nやあ、佐藤！\n挨拶は大事"
+        },
+        {
+          "label": "英字",
+          "stdin": "Smith Bob",
+          "expected": "こんにちは、Smithさん\nやあ、Bob！\n挨拶は大事"
+        }
+      ],
+      "hiddenCases": [
+        {
+          "label": "同じ名前",
+          "stdin": "同 同",
+          "expected": "こんにちは、同さん\nやあ、同！\n挨拶は大事"
+        },
+        {
+          "label": "1文字",
+          "stdin": "A B",
+          "expected": "こんにちは、Aさん\nやあ、B！\n挨拶は大事"
+        },
+        {
+          "label": "長い名前",
+          "stdin": "山田太郎 鈴木花子",
+          "expected": "こんにちは、山田太郎さん\nやあ、鈴木花子！\n挨拶は大事"
+        },
+        {
+          "label": "数字を含む",
+          "stdin": "user1 user2",
+          "expected": "こんにちは、user1さん\nやあ、user2！\n挨拶は大事"
+        }
+      ],
+      "hints": [
+        "`Simple` の中身は `name()` の実装だけです。`greet()` はインターフェースの `default` がそのまま働きます。",
+        "`Casual` では `public String greet()` を書いて上書きします。`@Override` を付けて確かめてください。",
+        "3行目は `Greeter.rule()` です。`Simple.rule()` や `インスタンス.rule()` はコンパイルエラーになります。"
+      ],
+      "solution": "import java.util.Scanner;\n\ninterface Greeter {\n    String name();\n\n    default String greet() {\n        return \"こんにちは、\" + name() + \"さん\";\n    }\n\n    static String rule() {\n        return \"挨拶は大事\";\n    }\n}\n\nclass Simple implements Greeter {\n    private String name;\n\n    Simple(String name) {\n        this.name = name;\n    }\n\n    @Override\n    public String name() {\n        return name;\n    }\n}\n\nclass Casual implements Greeter {\n    private String name;\n\n    Casual(String name) {\n        this.name = name;\n    }\n\n    @Override\n    public String name() {\n        return name;\n    }\n\n    @Override\n    public String greet() {\n        return \"やあ、\" + name + \"！\";\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        String name1 = sc.next();\n        String name2 = sc.next();\n\n        Greeter a = new Simple(name1);\n        Greeter b = new Casual(name2);\n\n        System.out.println(a.greet());\n        System.out.println(b.greet());\n        System.out.println(Greeter.rule());\n    }\n}\n"
+    },
+    {
+      "id": "12-4",
+      "title": "抽象クラスとインターフェースの使い分け",
+      "explanation": "## どちらを使えばいいのか\n\n似ているので迷いますが、性質はかなり違います。\n\n| | 抽象クラス | インターフェース |\n|---|---|---|\n| いくつ使えるか | **1つだけ**（`extends`） | **いくつでも**（`implements`） |\n| フィールド | 持てる（状態を持てる） | 定数だけ（`public static final`） |\n| コンストラクタ | 持てる | 持てない |\n| 実装のあるメソッド | 普通に書ける | `default` と `static` だけ |\n| メソッドの公開範囲 | `private` なども使える | 実質 `public` |\n\n判断の目安はこうです。\n\n- **共通の状態や実装がある** → 抽象クラス（例：`Employee` は名前と給与を持つ）\n- **できることを表したい** → インターフェース（例：`Bonusable` は賞与を計算できる）\n\n言い換えると、抽象クラスは **「○○である」（is-a）**、\nインターフェースは **「○○できる」（can-do）** です。\n\n## 両方を同時に使う\n\nこの2つは競合しません。**組み合わせるのが普通の設計** です。\n\n```java\nabstract class Employee {                 // 共通の状態と、実装させる部分\n    protected final String name;\n    protected final int salary;\n\n    Employee(String name, int salary) {\n        this.name = name;\n        this.salary = salary;\n    }\n\n    abstract String role();\n}\n\ninterface Bonusable {                     // 一部の社員だけが持つ性質\n    int bonus();\n}\n\nclass Manager extends Employee implements Bonusable {\n    Manager(String name, int salary) {\n        super(name, salary);\n    }\n\n    @Override String role() { return \"管理職\"; }\n\n    @Override\n    public int bonus() { return salary / 10; }\n}\n\nclass Staff extends Employee {            // 賞与はない\n    Staff(String name, int salary) {\n        super(name, salary);\n    }\n\n    @Override String role() { return \"一般\"; }\n}\n```\n\n`Manager` は「社員である」し「賞与を計算できる」。\nそれぞれを継承とインターフェースで表しています。\n\n使う側は `Employee` の配列にまとめて、賞与があるかどうかは `instanceof` で分けます。\n\n```java\nfor (Employee e : employees) {\n    int total = e.salary;\n    if (e instanceof Bonusable b) {\n        total += b.bonus();\n    }\n    System.out.println(e.name + \" \" + e.role() + \" 支給 \" + total);\n}\n```\n\n`Manager` が増えても `Staff` が増えても、このループは変わりません。\n\n> ⚠️ 試験のワナ … 書く順番は `extends` → `implements` です。`class Manager implements Bonusable extends Employee` はコンパイルエラーになります。\n\n> 💡 迷ったらインターフェースから考えるのがおすすめです。あとから「共通の実装が多いな」と気づいたときに抽象クラスを足せますが、逆（継承をやめる）は大変です。",
+      "samples": [
+        {
+          "caption": "抽象クラス + インターフェースの組み合わせ",
+          "code": "abstract class Employee {\n    protected final String name;\n    protected final int salary;\n\n    Employee(String name, int salary) {\n        this.name = name;\n        this.salary = salary;\n    }\n\n    abstract String role();\n}\n\ninterface Bonusable {\n    int bonus();\n}\n\nclass Manager extends Employee implements Bonusable {\n    Manager(String name, int salary) { super(name, salary); }\n    @Override String role() { return \"管理職\"; }\n    @Override public int bonus() { return salary / 10; }\n}\n\nclass Staff extends Employee {\n    Staff(String name, int salary) { super(name, salary); }\n    @Override String role() { return \"一般\"; }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Employee[] employees = {\n            new Manager(\"田中\", 500000),\n            new Staff(\"佐藤\", 300000)\n        };\n\n        for (Employee e : employees) {\n            int total = e.salary;\n            if (e instanceof Bonusable b) {\n                total += b.bonus();\n            }\n            System.out.println(e.name + \" \" + e.role() + \" 支給 \" + total);\n        }\n    }\n}\n"
+        }
+      ],
+      "task": "次の4つを作ってください。\n\n**`abstract class Employee`**\n\n- `protected final String name` と `protected final int salary`\n- コンストラクタ `Employee(String name, int salary)`\n- `abstract String role()`\n\n**`interface Bonusable`** … `int bonus();`\n\n**`Manager extends Employee implements Bonusable`**\n\n- `role()` は `管理職` を返す\n- `bonus()` は `salary / 10`（整数の割り算なので切り捨て）\n\n**`Staff extends Employee`** … `role()` は `一般` を返す（賞与なし）\n\n### 入力\n\n- 1行目 … 人数 `k`（必ず **1以上**）\n- 続く `k` 行 … `M 名前 給与`（管理職）または `S 名前 給与`（一般）\n\n### 出力\n\n1人につき1行、最後に合計です。支給額は「給与 + 賞与（あれば）」です。\n\n- `名前 役割 支給 ○○`\n- `合計 ○○`\n\n次の入力なら、\n\n```\n2\nM 田中 500000\nS 佐藤 300000\n```\n\n出力はこうなります。\n\n```\n田中 管理職 支給 550000\n佐藤 一般 支給 300000\n合計 850000\n```\n\n- 賞与があるかどうかは **`instanceof Bonusable`** で判定してください\n- 給与が `0` の人もいます\n- `salary / 10` は切り捨てです（`105` なら賞与 `10`）",
+      "starterCode": "import java.util.Scanner;\n\n// abstract class Employee を書く\n\n// interface Bonusable を書く\n\n// class Manager extends Employee implements Bonusable を書く\n\n// class Staff extends Employee を書く\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int k = sc.nextInt();\n\n        // Employee[] employees = new Employee[k];\n\n        for (int i = 0; i < k; i++) {\n            String type = sc.next();\n            String name = sc.next();\n            int salary = sc.nextInt();\n            // M なら Manager、S なら Staff\n        }\n\n        // 1人ずつ出力して、最後に合計を出力する\n    }\n}\n",
+      "visibleCases": [
+        {
+          "label": "管理職と一般",
+          "stdin": "2\nM 田中 500000\nS 佐藤 300000",
+          "expected": "田中 管理職 支給 550000\n佐藤 一般 支給 300000\n合計 850000"
+        },
+        {
+          "label": "1人だけ",
+          "stdin": "1\nS 鈴木 250000",
+          "expected": "鈴木 一般 支給 250000\n合計 250000"
+        }
+      ],
+      "hiddenCases": [
+        {
+          "label": "賞与が切り捨てられる",
+          "stdin": "1\nM A 105",
+          "expected": "A 管理職 支給 115\n合計 115"
+        },
+        {
+          "label": "給与 0",
+          "stdin": "2\nM B 0\nS C 0",
+          "expected": "B 管理職 支給 0\nC 一般 支給 0\n合計 0"
+        },
+        {
+          "label": "管理職だけ3人",
+          "stdin": "3\nM a 100\nM b 200\nM c 300",
+          "expected": "a 管理職 支給 110\nb 管理職 支給 220\nc 管理職 支給 330\n合計 660"
+        },
+        {
+          "label": "10未満の給与（賞与 0）",
+          "stdin": "1\nM D 9",
+          "expected": "D 管理職 支給 9\n合計 9"
+        },
+        {
+          "label": "一般だけ",
+          "stdin": "2\nS x 1\nS y 2",
+          "expected": "x 一般 支給 1\ny 一般 支給 2\n合計 3"
+        },
+        {
+          "label": "4人混在",
+          "stdin": "4\nS p 1000\nM q 1000\nS r 500\nM s 505",
+          "expected": "p 一般 支給 1000\nq 管理職 支給 1100\nr 一般 支給 500\ns 管理職 支給 555\n合計 3155"
+        }
+      ],
+      "hints": [
+        "`class Manager extends Employee implements Bonusable` の順番です。`implements` を先に書くとコンパイルエラーになります。",
+        "`bonus()` は `public` を付けて実装します（インターフェースのメソッドなので）。`role()` は抽象クラス側なので `public` は不要です。",
+        "支給額は `int total = e.salary;` から始めて、`if (e instanceof Bonusable b) { total += b.bonus(); }` で足します。合計はそれを積み上げます。"
+      ],
+      "solution": "import java.util.Scanner;\n\nabstract class Employee {\n    protected final String name;\n    protected final int salary;\n\n    Employee(String name, int salary) {\n        this.name = name;\n        this.salary = salary;\n    }\n\n    abstract String role();\n}\n\ninterface Bonusable {\n    int bonus();\n}\n\nclass Manager extends Employee implements Bonusable {\n    Manager(String name, int salary) {\n        super(name, salary);\n    }\n\n    @Override\n    String role() {\n        return \"管理職\";\n    }\n\n    @Override\n    public int bonus() {\n        return salary / 10;\n    }\n}\n\nclass Staff extends Employee {\n    Staff(String name, int salary) {\n        super(name, salary);\n    }\n\n    @Override\n    String role() {\n        return \"一般\";\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int k = sc.nextInt();\n        Employee[] employees = new Employee[k];\n\n        for (int i = 0; i < k; i++) {\n            String type = sc.next();\n            String name = sc.next();\n            int salary = sc.nextInt();\n            if (type.equals(\"M\")) {\n                employees[i] = new Manager(name, salary);\n            } else {\n                employees[i] = new Staff(name, salary);\n            }\n        }\n\n        int sum = 0;\n        for (Employee e : employees) {\n            int total = e.salary;\n            if (e instanceof Bonusable b) {\n                total += b.bonus();\n            }\n            System.out.println(e.name + \" \" + e.role() + \" 支給 \" + total);\n            sum += total;\n        }\n        System.out.println(\"合計 \" + sum);\n    }\n}\n"
+    }
+  ]
+}

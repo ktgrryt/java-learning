@@ -1,0 +1,266 @@
+{
+  "id": "ch17",
+  "title": "ラムダ式",
+  "subtitle": "処理を値として渡す",
+  "emoji": "🧩",
+  "lessons": [
+    {
+      "id": "17-1",
+      "title": "匿名クラスからラムダへ",
+      "explanation": "## メソッドが1つだけのインターフェース\n\n第12章で作った `Greeter` のように、**抽象メソッドがちょうど1つ** の\nインターフェースを **関数型インターフェース** と呼びます。\n\n```java\ninterface Calc {\n    int apply(int a, int b);      // 抽象メソッドが1つだけ\n}\n```\n\nこれを実装するには、いままでクラスを作っていました。\n\n```java\nclass Adder implements Calc {\n    @Override\n    public int apply(int a, int b) {\n        return a + b;\n    }\n}\n\nCalc add = new Adder();\nSystem.out.println(add.apply(3, 4));      // 7\n```\n\n「足し算をする」ためだけにクラスを1つ作るのは大げさです。\n\n## 匿名クラス — 名前を付けずに実装する\n\nそこで、その場で作って使い捨てにできます。**匿名クラス** です。\n\n```java\nCalc add = new Calc() {          // 名前のないクラスをその場で作る\n    @Override\n    public int apply(int a, int b) {\n        return a + b;\n    }\n};\n```\n\n`new インターフェース名() { 実装 }` という形です。クラス宣言が要らなくなりました。\nけれど本当に必要なのは `return a + b;` の1行だけなのに、まだ5行あります。\n\n## ラムダ式 — 中身だけを書く\n\nインターフェース名もメソッド名も、**変数の型から分かっています**。\nだから省略できます。それが **ラムダ式** です。\n\n```java\nCalc add = (a, b) -> a + b;\n```\n\n`(引数) -> 処理` と書くだけです。5行が1行になりました。\n\n```java\nCalc add      = (a, b) -> a + b;\nCalc multiply = (a, b) -> a * b;\nCalc subtract = (a, b) -> a - b;\n\nSystem.out.println(add.apply(3, 4));         // 7\nSystem.out.println(multiply.apply(3, 4));    // 12\n```\n\n**処理そのものを変数に入れて持ち歩ける** ようになったのがポイントです。\n\n## 書き方の省略ルール\n\n| 書き方 | 例 |\n|---|---|\n| 基本形 | `(int a, int b) -> { return a + b; }` |\n| 引数の型を省略 | `(a, b) -> { return a + b; }` |\n| 1文なら `{}` と `return` を省略 | `(a, b) -> a + b` |\n| 引数が1つならカッコも省略 | `s -> s.length()` |\n| 引数がないときはカッコだけ | `() -> \"固定値\"` |\n\n引数の型は **インターフェースの宣言から分かる** ので省略できます。\n`{}` を書く場合は `return` が必要、書かない場合は式の値がそのまま戻り値になります。\n\n> ⚠️ 試験のワナ … `{}` を付けたら `return` も必要です。`(a, b) -> { a + b; }` はコンパイルエラーになります（値を返していない）。\n\n## @FunctionalInterface\n\n「抽象メソッドは1つだけ」と宣言しておくと、増やしたときにエラーで気づけます。\n\n```java\n@FunctionalInterface\ninterface Calc {\n    int apply(int a, int b);\n    // int other();        ← 2つ目を書くとコンパイルエラー\n}\n```\n\n付けるのは任意ですが、ラムダで使うつもりのインターフェースには付けておくと安全です。\n`default` メソッドや `static` メソッドは何個あっても構いません（抽象メソッドではないため）。\n\n> 💡 ラムダ式は「関数型インターフェースの実装を短く書く記法」です。新しい種類の何かではなく、匿名クラスの書き換えだと考えると理解しやすくなります。",
+      "samples": [
+        {
+          "caption": "クラス → 匿名クラス → ラムダ",
+          "code": "@FunctionalInterface\ninterface Calc {\n    int apply(int a, int b);\n}\n\nclass Adder implements Calc {\n    @Override\n    public int apply(int a, int b) {\n        return a + b;\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        // 1. クラスを作る\n        Calc c1 = new Adder();\n\n        // 2. 匿名クラス\n        Calc c2 = new Calc() {\n            @Override\n            public int apply(int a, int b) {\n                return a + b;\n            }\n        };\n\n        // 3. ラムダ式\n        Calc c3 = (a, b) -> a + b;\n\n        System.out.println(c1.apply(3, 4));\n        System.out.println(c2.apply(3, 4));\n        System.out.println(c3.apply(3, 4));\n    }\n}\n"
+        },
+        {
+          "caption": "処理を差し替えて使う",
+          "code": "@FunctionalInterface\ninterface Calc {\n    int apply(int a, int b);\n}\n\npublic class Main {\n    // 処理そのものを引数で受け取れる\n    static void show(String label, Calc calc, int a, int b) {\n        System.out.println(label + \": \" + calc.apply(a, b));\n    }\n\n    public static void main(String[] args) {\n        show(\"足し算\", (a, b) -> a + b, 6, 3);\n        show(\"掛け算\", (a, b) -> a * b, 6, 3);\n        show(\"引き算\", (a, b) -> a - b, 6, 3);\n        show(\"大きい方\", (a, b) -> a > b ? a : b, 6, 3);\n\n        // {} を使う書き方（return が必要）\n        Calc div = (a, b) -> {\n            if (b == 0) {\n                return 0;\n            }\n            return a / b;\n        };\n        System.out.println(\"割り算: \" + div.apply(6, 0));\n    }\n}\n"
+        }
+      ],
+      "task": "`Calc` インターフェースはひな形に用意してあります。\n\n```java\n@FunctionalInterface\ninterface Calc {\n    int apply(int a, int b);\n}\n```\n\n整数が2つ、`a` `b` の順で入力されます。次の **3行** を出力してください。\n\n1. **匿名クラス** で足し算を実装して `apply(a, b)` を呼んだ結果\n2. **ラムダ式** で掛け算を実装して呼んだ結果\n3. **ラムダ式** で引き算（`a - b`）を実装して呼んだ結果\n\n`3 4` が入力されたときの出力はこうです。\n\n```\n7\n12\n-1\n```\n\n- 1行目は `new Calc() { ... }` の形で書いてください（匿名クラスの練習です）\n- 2行目と3行目は `(x, y) -> ...` の形で書きます\n- マイナスの数も入力されます",
+      "starterCode": "import java.util.Scanner;\n\n@FunctionalInterface\ninterface Calc {\n    int apply(int a, int b);\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int a = sc.nextInt();\n        int b = sc.nextInt();\n\n        // 匿名クラスで足し算\n\n        // ラムダで掛け算\n\n        // ラムダで引き算\n    }\n}\n",
+      "visibleCases": [
+        {
+          "label": "3 と 4",
+          "stdin": "3 4",
+          "expected": "7\n12\n-1"
+        },
+        {
+          "label": "7 と 2",
+          "stdin": "7 2",
+          "expected": "9\n14\n5"
+        }
+      ],
+      "hiddenCases": [
+        {
+          "label": "両方 0",
+          "stdin": "0 0",
+          "expected": "0\n0\n0"
+        },
+        {
+          "label": "マイナスが混ざる",
+          "stdin": "-2 5",
+          "expected": "3\n-10\n-7"
+        },
+        {
+          "label": "同じ値",
+          "stdin": "10 10",
+          "expected": "20\n100\n0"
+        },
+        {
+          "label": "打ち消し合う",
+          "stdin": "1 -1",
+          "expected": "0\n-1\n2"
+        },
+        {
+          "label": "両方マイナス",
+          "stdin": "-3 -4",
+          "expected": "-7\n12\n1"
+        }
+      ],
+      "hints": [
+        "匿名クラスは `Calc add = new Calc() { public int apply(int x, int y) { return x + y; } };` です。最後のセミコロンを忘れないでください。",
+        "ラムダは `Calc multiply = (x, y) -> x * y;` の1行です。引数の型は書かなくてよいことに注目してください。",
+        "引き算は順番が大事です。`(x, y) -> x - y` として `apply(a, b)` を呼びます。"
+      ],
+      "solution": "import java.util.Scanner;\n\n@FunctionalInterface\ninterface Calc {\n    int apply(int a, int b);\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int a = sc.nextInt();\n        int b = sc.nextInt();\n\n        Calc add = new Calc() {\n            @Override\n            public int apply(int x, int y) {\n                return x + y;\n            }\n        };\n\n        Calc multiply = (x, y) -> x * y;\n        Calc subtract = (x, y) -> x - y;\n\n        System.out.println(add.apply(a, b));\n        System.out.println(multiply.apply(a, b));\n        System.out.println(subtract.apply(a, b));\n    }\n}\n"
+    },
+    {
+      "id": "17-2",
+      "title": "Predicate と removeIf",
+      "explanation": "## 標準の関数型インターフェース\n\n自分で `Calc` を作ったように、よく使う形は **`java.util.function`** に用意されています。\n自分で宣言しなくても使えます。\n\nまずは **`Predicate<T>`** です。「条件を判定する」ためのもので、\nメソッドは `test` の1つだけ、戻り値は `boolean` です。\n\n```java\nimport java.util.function.Predicate;\n\nPredicate<Integer> isEven = n -> n % 2 == 0;\n\nSystem.out.println(isEven.test(4));      // true\nSystem.out.println(isEven.test(5));      // false\n```\n\n「条件」を変数に入れて持ち回せるようになります。\n\n## 組み合わせる\n\n`Predicate` には `default` メソッド（第12章）が用意されていて、条件をつなげられます。\n\n| メソッド | 意味 |\n|---|---|\n| `and(other)` | 両方が真 |\n| `or(other)` | どちらかが真 |\n| `negate()` | 反転する |\n\n```java\nPredicate<Integer> isEven = n -> n % 2 == 0;\nPredicate<Integer> isPositive = n -> n > 0;\n\nPredicate<Integer> bothOk = isEven.and(isPositive);\nPredicate<Integer> isOdd = isEven.negate();\n```\n\n## removeIf — 条件に合うものを消す\n\n`List` には `Predicate` を渡せるメソッドがあります。**`removeIf`** です。\n\n```java\nList<Integer> list = new ArrayList<>(List.of(1, 2, 3, 4, 5));\nlist.removeIf(n -> n % 2 == 0);        // 偶数を削除\nSystem.out.println(list);              // [1, 3, 5]\n```\n\n第16章で見た「ループの中で削除すると添字がずれる」問題を、これが解決します。\n`removeIf` は内部で `Iterator` を使って安全に削除してくれるので、\n取りこぼしも `ConcurrentModificationException` も起きません。\n\n`while (list.contains(v))` でくり返す必要もありません。**1行で全部消えます**。\n\n```java\nlist.removeIf(n -> n == v);            // 値 v をすべて削除\n```\n\n> ⚠️ 試験のワナ … `removeIf` は不変リストには使えません。`List.of(...)` に対して呼ぶと `UnsupportedOperationException` です（第16章）。\n\n## マイナスの余りに注意\n\n「偶数か」を `n % 2 == 0` と書くのは正しいですが、\n「奇数か」を **`n % 2 == 1` と書くと間違い** です。\n\n```java\nSystem.out.println(-3 % 2);        // -1（1 ではない）\n```\n\nJavaの `%` は **左側の符号** を引き継ぎます。だから負の奇数では `-1` になり、\n`== 1` の判定をすり抜けてしまいます。\n\n```java\nn % 2 == 1        // ❌ 負の奇数を見落とす\nn % 2 != 0        // ✅ どんな数でも正しい\n```\n\n> 💡 `0` は偶数です。`0 % 2` は `0` なので、`n % 2 == 0` で正しく判定されます。",
+      "samples": [
+        {
+          "caption": "Predicate を作って組み合わせる",
+          "code": "import java.util.function.Predicate;\n\npublic class Main {\n    public static void main(String[] args) {\n        Predicate<Integer> isEven = n -> n % 2 == 0;\n        Predicate<Integer> isPositive = n -> n > 0;\n\n        int[] values = {4, 5, 0, -2, -3};\n\n        for (int v : values) {\n            System.out.println(v\n                + \" 偶数=\" + isEven.test(v)\n                + \" 正=\" + isPositive.test(v)\n                + \" 両方=\" + isEven.and(isPositive).test(v)\n                + \" 奇数=\" + isEven.negate().test(v));\n        }\n\n        System.out.println(\"--- 余りの符号 ---\");\n        System.out.println(\"-3 % 2 = \" + (-3 % 2));\n    }\n}\n"
+        },
+        {
+          "caption": "removeIf で安全に削除する",
+          "code": "import java.util.ArrayList;\nimport java.util.List;\n\npublic class Main {\n    public static void main(String[] args) {\n        List<Integer> list = new ArrayList<>(List.of(1, 2, 3, 4, 5, 6));\n        System.out.println(\"元         : \" + list);\n\n        list.removeIf(n -> n % 2 == 0);\n        System.out.println(\"偶数を削除 : \" + list);\n\n        List<String> words = new ArrayList<>(List.of(\"apple\", \"fig\", \"banana\", \"kiwi\"));\n        words.removeIf(s -> s.length() <= 4);\n        System.out.println(\"短い語を削除: \" + words);\n\n        try {\n            List.of(1, 2).removeIf(n -> true);\n        } catch (UnsupportedOperationException e) {\n            System.out.println(\"不変リストには使えません\");\n        }\n    }\n}\n"
+        }
+      ],
+      "task": "入力は次の形です。\n\n- 1行目 … 個数 `k`（`0` もありえます）\n- 2行目 … `k` 個の整数（`k` が `0` のときこの行はありません）\n\n`List<Integer>` に読み込んで、次の **2行** を出力してください。\n\n1. **偶数の個数**（`Predicate<Integer>` を作って `test` で数えます）\n2. `removeIf` で **偶数を削除** したあとのリスト（そのまま `println`）\n\n`5` と `1 2 3 4 5` が入力されたときの出力はこうです。\n\n```\n2\n[1, 3, 5]\n```\n\n- `0` は偶数です\n- **マイナスの偶数**（`-2` など）も偶数として数えてください\n- `k` が `0` のときは `0` と `[]` が出力されます",
+      "starterCode": "import java.util.ArrayList;\nimport java.util.List;\nimport java.util.Scanner;\nimport java.util.function.Predicate;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int k = sc.nextInt();\n\n        List<Integer> numbers = new ArrayList<>();\n        for (int i = 0; i < k; i++) {\n            numbers.add(sc.nextInt());\n        }\n\n        // Predicate<Integer> isEven = ... を作る\n\n        // 1行目：偶数の個数\n\n        // 2行目：removeIf で偶数を消したリスト\n    }\n}\n",
+      "visibleCases": [
+        {
+          "label": "1〜5",
+          "stdin": "5\n1 2 3 4 5",
+          "expected": "2\n[1, 3, 5]"
+        },
+        {
+          "label": "全部偶数",
+          "stdin": "3\n2 4 6",
+          "expected": "3\n[]"
+        }
+      ],
+      "hiddenCases": [
+        {
+          "label": "0個",
+          "stdin": "0",
+          "expected": "0\n[]"
+        },
+        {
+          "label": "0 とマイナスの偶数",
+          "stdin": "4\n0 -2 -3 7",
+          "expected": "2\n[-3, 7]"
+        },
+        {
+          "label": "マイナスの偶数1つ",
+          "stdin": "1\n-4",
+          "expected": "1\n[]"
+        },
+        {
+          "label": "全部奇数",
+          "stdin": "3\n1 3 5",
+          "expected": "0\n[1, 3, 5]"
+        },
+        {
+          "label": "マイナスの奇数だけ",
+          "stdin": "3\n-1 -3 -5",
+          "expected": "0\n[-1, -3, -5]"
+        },
+        {
+          "label": "0 だけ",
+          "stdin": "1\n0",
+          "expected": "1\n[]"
+        }
+      ],
+      "hints": [
+        "`Predicate<Integer> isEven = n -> n % 2 == 0;` と書きます。`n % 2 == 1` では負の奇数を取りこぼします。",
+        "個数を数えるには、拡張for の中で `if (isEven.test(n)) { count++; }` とします。",
+        "2行目は `numbers.removeIf(isEven);` の1行です。作った `Predicate` をそのまま渡せます。"
+      ],
+      "solution": "import java.util.ArrayList;\nimport java.util.List;\nimport java.util.Scanner;\nimport java.util.function.Predicate;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int k = sc.nextInt();\n\n        List<Integer> numbers = new ArrayList<>();\n        for (int i = 0; i < k; i++) {\n            numbers.add(sc.nextInt());\n        }\n\n        Predicate<Integer> isEven = n -> n % 2 == 0;\n\n        int count = 0;\n        for (int n : numbers) {\n            if (isEven.test(n)) {\n                count++;\n            }\n        }\n        System.out.println(count);\n\n        numbers.removeIf(isEven);\n        System.out.println(numbers);\n    }\n}\n"
+    },
+    {
+      "id": "17-3",
+      "title": "Function / Consumer / Supplier",
+      "explanation": "## 4つの基本形\n\n`java.util.function` の中で、まず覚えるのは4つです。\n**「引数があるか」「戻り値があるか」** の組み合わせで整理できます。\n\n| インターフェース | メソッド | 引数 | 戻り値 | 用途 |\n|---|---|---|---|---|\n| `Predicate<T>` | `test(T)` | あり | `boolean` | 条件を判定する |\n| `Function<T, R>` | `apply(T)` | あり | あり | 変換する |\n| `Consumer<T>` | `accept(T)` | あり | **なし** | 受け取って何かする |\n| `Supplier<T>` | `get()` | **なし** | あり | 値を作って返す |\n\n名前が役割そのままなので、対応を覚えれば迷いません。\n\n```java\nimport java.util.function.Consumer;\nimport java.util.function.Function;\nimport java.util.function.Predicate;\nimport java.util.function.Supplier;\n\nFunction<String, Integer> length = s -> s.length();      // String → Integer\nConsumer<String> shout = s -> System.out.println(s + \"!\");\nSupplier<String> greeting = () -> \"こんにちは\";\nPredicate<String> isEmpty = s -> s.isEmpty();\n\nSystem.out.println(length.apply(\"Java\"));     // 4\nshout.accept(\"Hello\");                        // Hello!\nSystem.out.println(greeting.get());           // こんにちは\n```\n\n### Function は型を2つ書く\n\n`Function<T, R>` の `T` が引数の型、`R` が戻り値の型です。順番を間違えないように。\n\n```java\nFunction<String, Integer> length = s -> s.length();     // String を受けて Integer を返す\nFunction<Integer, String> label = n -> \"値は\" + n;      // Integer を受けて String を返す\n```\n\n`andThen` でつなげることもできます。\n\n```java\nFunction<String, Integer> len = s -> s.length();\nFunction<Integer, String> msg = n -> n + \"文字\";\nSystem.out.println(len.andThen(msg).apply(\"Java\"));      // 4文字\n```\n\n### Consumer は戻り値なし\n\n`Consumer` のラムダは値を返しません。だから `{}` の中で `return 値;` は書けません。\n出力や登録のように「受け取って終わり」の処理に使います。\n\n`List` の `forEach` が `Consumer` を受け取ります。\n\n```java\nList<String> words = List.of(\"a\", \"b\");\nwords.forEach(s -> System.out.println(s));\n```\n\n### Supplier は引数なし\n\n`Supplier` は `() -> 値` の形です。「あとで必要になったら作る」ために使います。\n\n## メソッド参照\n\nラムダが「既にあるメソッドを呼ぶだけ」のときは、さらに短く書けます。\n\n```java\nFunction<String, Integer> f1 = s -> s.length();     // ラムダ\nFunction<String, Integer> f2 = String::length;      // メソッド参照\n\nConsumer<String> c1 = s -> System.out.println(s);\nConsumer<String> c2 = System.out::println;\n```\n\n`クラス名::メソッド名` の形です。**引数をそのまま渡すだけ** のときにしか使えませんが、\n`forEach(System.out::println)` のような定番の書き方でよく登場します。\n\n> ⚠️ 試験のワナ … `Consumer` のラムダで値を返そうとするとコンパイルエラーです。逆に `Supplier` のラムダで値を返さないのもエラーです。「戻り値があるか」が合っていないと使えません。\n\n> 💡 基本型を扱う `IntPredicate` や `IntFunction` などもありますが、まずは上の4つを押さえれば十分です。",
+      "samples": [
+        {
+          "caption": "4つを並べて使う",
+          "code": "import java.util.function.Consumer;\nimport java.util.function.Function;\nimport java.util.function.Predicate;\nimport java.util.function.Supplier;\n\npublic class Main {\n    public static void main(String[] args) {\n        Function<String, Integer> length = s -> s.length();\n        Consumer<String> shout = s -> System.out.println(s + \"!\");\n        Supplier<String> greeting = () -> \"こんにちは\";\n        Predicate<String> isLong = s -> s.length() > 3;\n\n        System.out.println(\"Function : \" + length.apply(\"Java\"));\n        System.out.print(\"Consumer : \");\n        shout.accept(\"Hello\");\n        System.out.println(\"Supplier : \" + greeting.get());\n        System.out.println(\"Predicate: \" + isLong.test(\"Java\"));\n\n        // つなげる\n        Function<Integer, String> label = n -> n + \"文字\";\n        System.out.println(\"andThen  : \" + length.andThen(label).apply(\"Silver\"));\n    }\n}\n"
+        },
+        {
+          "caption": "forEach とメソッド参照",
+          "code": "import java.util.List;\nimport java.util.function.Consumer;\nimport java.util.function.Function;\n\npublic class Main {\n    public static void main(String[] args) {\n        List<String> words = List.of(\"apple\", \"fig\", \"banana\");\n\n        // ラムダで書く\n        words.forEach(s -> System.out.println(s));\n\n        System.out.println(\"--- メソッド参照 ---\");\n        words.forEach(System.out::println);\n\n        System.out.println(\"--- 長さに変換 ---\");\n        Function<String, Integer> len = String::length;\n        for (String w : words) {\n            System.out.println(w + \" \" + len.apply(w));\n        }\n\n        Consumer<String> mark = s -> System.out.println(\"[\" + s + \"]\");\n        words.forEach(mark);\n    }\n}\n"
+        }
+      ],
+      "task": "入力は次の形です。\n\n- 1行目 … 個数 `k`（`0` もありえます）\n- 2行目 … `k` 個の単語（`k` が `0` のときこの行はありません）\n\n次の3つを作って使ってください。\n\n- `Function<String, Integer>` … 単語を受け取って **長さ** を返す\n- `Consumer<String>` … 単語を受け取って `単語!` と **出力** する\n- `Supplier<String>` … `おわり` という文字列を返す\n\n出力は次の順です。\n\n1. 各単語について `単語 長さ`（`Function` を使う）\n2. 各単語について `単語!`（`Consumer` を使う）\n3. `Supplier` が返した文字列\n\n`2` と `a bb` が入力されたときの出力はこうです。\n\n```\na 1\nbb 2\na!\nbb!\nおわり\n```\n\n- 1のループを全部終えてから、2のループを始めてください（交互ではありません）\n- `k` が `0` のときは `おわり` の1行だけです",
+      "starterCode": "import java.util.ArrayList;\nimport java.util.List;\nimport java.util.Scanner;\nimport java.util.function.Consumer;\nimport java.util.function.Function;\nimport java.util.function.Supplier;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int k = sc.nextInt();\n\n        List<String> words = new ArrayList<>();\n        for (int i = 0; i < k; i++) {\n            words.add(sc.next());\n        }\n\n        // Function / Consumer / Supplier を作る\n\n        // 1. 単語と長さ\n\n        // 2. 単語!\n\n        // 3. Supplier の結果\n    }\n}\n",
+      "visibleCases": [
+        {
+          "label": "2単語",
+          "stdin": "2\na bb",
+          "expected": "a 1\nbb 2\na!\nbb!\nおわり"
+        },
+        {
+          "label": "1単語",
+          "stdin": "1\nJava",
+          "expected": "Java 4\nJava!\nおわり"
+        }
+      ],
+      "hiddenCases": [
+        {
+          "label": "0個（おわりだけ）",
+          "stdin": "0",
+          "expected": "おわり"
+        },
+        {
+          "label": "3単語",
+          "stdin": "3\nx yy zzz",
+          "expected": "x 1\nyy 2\nzzz 3\nx!\nyy!\nzzz!\nおわり"
+        },
+        {
+          "label": "同じ単語",
+          "stdin": "2\nab ab",
+          "expected": "ab 2\nab 2\nab!\nab!\nおわり"
+        },
+        {
+          "label": "日本語",
+          "stdin": "2\nあい うえお",
+          "expected": "あい 2\nうえお 3\nあい!\nうえお!\nおわり"
+        },
+        {
+          "label": "長い単語",
+          "stdin": "1\nabcdefghij",
+          "expected": "abcdefghij 10\nabcdefghij!\nおわり"
+        }
+      ],
+      "hints": [
+        "`Function<String, Integer> length = s -> s.length();` です。型引数は「引数の型, 戻り値の型」の順です。",
+        "`Consumer<String> shout = s -> System.out.println(s + \"!\");` です。値を `return` してはいけません。",
+        "`Supplier<String> end = () -> \"おわり\";` です。引数がないのでカッコだけを書きます。`words.forEach(shout);` も使えます。"
+      ],
+      "solution": "import java.util.ArrayList;\nimport java.util.List;\nimport java.util.Scanner;\nimport java.util.function.Consumer;\nimport java.util.function.Function;\nimport java.util.function.Supplier;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int k = sc.nextInt();\n\n        List<String> words = new ArrayList<>();\n        for (int i = 0; i < k; i++) {\n            words.add(sc.next());\n        }\n\n        Function<String, Integer> length = s -> s.length();\n        Consumer<String> shout = s -> System.out.println(s + \"!\");\n        Supplier<String> end = () -> \"おわり\";\n\n        for (String w : words) {\n            System.out.println(w + \" \" + length.apply(w));\n        }\n\n        words.forEach(shout);\n\n        System.out.println(end.get());\n    }\n}\n"
+    },
+    {
+      "id": "17-4",
+      "title": "Comparator でならべ替える",
+      "explanation": "## 並べ替えの規則を渡す\n\n`List` は `sort` で並べ替えられます。どう並べるかを **`Comparator`** で渡します。\n\n```java\nList<String> words = new ArrayList<>(List.of(\"banana\", \"apple\", \"fig\"));\nwords.sort(Comparator.naturalOrder());\nSystem.out.println(words);          // [apple, banana, fig]\n```\n\n`Comparator<T>` も関数型インターフェースです。メソッドは `compare(a, b)` の1つで、\n**戻り値の符号** で順番を伝えます。\n\n| 戻り値 | 意味 |\n|---|---|\n| 負 | `a` を **前** にする |\n| `0` | 同じ扱い（順番はそのまま） |\n| 正 | `a` を **後** にする |\n\nだから自分で書くならこうです。\n\n```java\nwords.sort((s1, s2) -> s1.length() - s2.length());     // 短い順\n```\n\n「`a` から `b` を引く」と昇順になる、と覚えると楽です。\n`String` の `compareTo`（第14章）が返すのも同じ符号のルールでした。\n\n## 用意されている Comparator\n\n自分で書かずに済むものも多くあります。\n\n| 書き方 | 意味 |\n|---|---|\n| `Comparator.naturalOrder()` | 自然順（文字は辞書順、数は小さい順） |\n| `Comparator.reverseOrder()` | 自然順の逆 |\n| `Comparator.comparing(f)` | `f` で取り出した値で比べる |\n| `Comparator.comparingInt(f)` | 同じだが `int` 用 |\n| `.reversed()` | 並び順を逆にする |\n| `.thenComparing(other)` | 同じだったときの second key |\n\n```java\nwords.sort(Comparator.comparingInt(String::length));                  // 短い順\nwords.sort(Comparator.comparingInt(String::length).reversed());       // 長い順\n```\n\n## 同じだったときの決め方\n\n長さで並べると、同じ長さのものの順番が決まりません。\nそこで **2番目の基準** を足します。\n\n```java\nwords.sort(Comparator.comparingInt(String::length)\n        .thenComparing(Comparator.naturalOrder()));\n```\n\n自分でラムダを書くなら、こう書くのと同じことです。\n\n```java\nwords.sort((s1, s2) -> {\n    if (s1.length() != s2.length()) {\n        return s1.length() - s2.length();\n    }\n    return s1.compareTo(s2);           // 長さが同じなら辞書順\n});\n```\n\nどちらでも構いません。**同じ扱い（`0`）を返すと元の順番が保たれる** という性質\n（安定ソート）も覚えておくとよいでしょう。\n\n> ⚠️ 試験のワナ … `list.sort(...)` は **そのリスト自身を並べ替えます**（`String` のメソッドと違って新しいリストは返りません）。元の順番を残したいなら、`new ArrayList<>(元のリスト)` でコピーしてから並べ替えます。\n\n> ⚠️ 試験のワナ … 不変リスト（`List.of(...)`）を `sort` すると `UnsupportedOperationException` です。\n\n`Collections.sort(list)` という古い書き方もあり、`list.sort(null)` と同じく自然順で並べます。\nいまは `list.sort(...)` を使うほうが素直です。\n\n> 💡 `Comparator` は「大小の決め方」を持ち歩ける値にしたものです。`TreeSet` や `TreeMap` のコンストラクタにも渡せて、並び順を自由に決められます。",
+      "samples": [
+        {
+          "caption": "いろいろな順で並べ替える",
+          "code": "import java.util.ArrayList;\nimport java.util.Comparator;\nimport java.util.List;\n\npublic class Main {\n    public static void main(String[] args) {\n        List<String> base = List.of(\"banana\", \"apple\", \"fig\", \"date\");\n\n        List<String> a = new ArrayList<>(base);\n        a.sort(Comparator.naturalOrder());\n        System.out.println(\"辞書順      : \" + a);\n\n        List<String> b = new ArrayList<>(base);\n        b.sort(Comparator.comparingInt(String::length));\n        System.out.println(\"短い順      : \" + b);\n\n        List<String> c = new ArrayList<>(base);\n        c.sort(Comparator.comparingInt(String::length).reversed());\n        System.out.println(\"長い順      : \" + c);\n\n        List<String> d = new ArrayList<>(base);\n        d.sort(Comparator.reverseOrder());\n        System.out.println(\"辞書順の逆  : \" + d);\n\n        System.out.println(\"元のリスト  : \" + base);\n    }\n}\n"
+        },
+        {
+          "caption": "同じ長さのときの決め方",
+          "code": "import java.util.ArrayList;\nimport java.util.Comparator;\nimport java.util.List;\n\npublic class Main {\n    public static void main(String[] args) {\n        List<String> words = new ArrayList<>(List.of(\"cc\", \"aa\", \"b\", \"bb\"));\n\n        List<String> onlyLength = new ArrayList<>(words);\n        onlyLength.sort(Comparator.comparingInt(String::length));\n        System.out.println(\"長さだけ    : \" + onlyLength);\n\n        List<String> withSecond = new ArrayList<>(words);\n        withSecond.sort(Comparator.comparingInt(String::length)\n                .thenComparing(Comparator.naturalOrder()));\n        System.out.println(\"長さ→辞書順 : \" + withSecond);\n\n        List<String> byLambda = new ArrayList<>(words);\n        byLambda.sort((s1, s2) -> {\n            if (s1.length() != s2.length()) {\n                return s1.length() - s2.length();\n            }\n            return s1.compareTo(s2);\n        });\n        System.out.println(\"ラムダで同じ: \" + byLambda);\n    }\n}\n"
+        }
+      ],
+      "task": "入力は次の形です。\n\n- 1行目 … 個数 `k`（`0` もありえます）\n- 2行目 … `k` 個の単語（`k` が `0` のときこの行はありません）\n\n同じ内容のリストを **3つ** 用意して、それぞれ違う順に並べ替え、\nそのまま `println` して **3行** 出力してください。\n\n1. **辞書順**（自然順）\n2. **長さ順**。長さが同じなら **辞書順**\n3. **辞書順の逆**\n\n`4` と `banana apple fig date` が入力されたときの出力はこうです。\n\n```\n[apple, banana, date, fig]\n[fig, date, apple, banana]\n[fig, date, banana, apple]\n```\n\n- 1つのリストを並べ替えると元の順番が失われます。`new ArrayList<>(元のリスト)` で\n  コピーしてから並べ替えてください\n- 長さが同じものが並ぶ入力も試されます\n- 大文字は小文字より前に並びます（文字コード順）",
+      "starterCode": "import java.util.ArrayList;\nimport java.util.Comparator;\nimport java.util.List;\nimport java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int k = sc.nextInt();\n\n        List<String> words = new ArrayList<>();\n        for (int i = 0; i < k; i++) {\n            words.add(sc.next());\n        }\n\n        // 1. 辞書順\n\n        // 2. 長さ順（同じ長さなら辞書順）\n\n        // 3. 辞書順の逆\n    }\n}\n",
+      "visibleCases": [
+        {
+          "label": "4単語",
+          "stdin": "4\nbanana apple fig date",
+          "expected": "[apple, banana, date, fig]\n[fig, date, apple, banana]\n[fig, date, banana, apple]"
+        },
+        {
+          "label": "全部同じ長さ",
+          "stdin": "3\nbb aa cc",
+          "expected": "[aa, bb, cc]\n[aa, bb, cc]\n[cc, bb, aa]"
+        }
+      ],
+      "hiddenCases": [
+        {
+          "label": "0個",
+          "stdin": "0",
+          "expected": "[]\n[]\n[]"
+        },
+        {
+          "label": "1個",
+          "stdin": "1\nsolo",
+          "expected": "[solo]\n[solo]\n[solo]"
+        },
+        {
+          "label": "1文字ずつ",
+          "stdin": "2\nb a",
+          "expected": "[a, b]\n[a, b]\n[b, a]"
+        },
+        {
+          "label": "長さがすべて違う",
+          "stdin": "3\nabc a ab",
+          "expected": "[a, ab, abc]\n[a, ab, abc]\n[abc, ab, a]"
+        },
+        {
+          "label": "長さが混ざる",
+          "stdin": "4\nz yy xxx w",
+          "expected": "[w, xxx, yy, z]\n[w, z, yy, xxx]\n[z, yy, xxx, w]"
+        },
+        {
+          "label": "同じ単語が2つ",
+          "stdin": "3\nab ab a",
+          "expected": "[a, ab, ab]\n[a, ab, ab]\n[ab, ab, a]"
+        }
+      ],
+      "hints": [
+        "1つ目は `List<String> a = new ArrayList<>(words); a.sort(Comparator.naturalOrder());` です。",
+        "2つ目は `Comparator.comparingInt(String::length).thenComparing(Comparator.naturalOrder())` を渡します。ラムダで自分で書いてもかまいません。",
+        "3つ目は `Comparator.reverseOrder()` です。`naturalOrder().reversed()` でも同じ結果になります。"
+      ],
+      "solution": "import java.util.ArrayList;\nimport java.util.Comparator;\nimport java.util.List;\nimport java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int k = sc.nextInt();\n\n        List<String> words = new ArrayList<>();\n        for (int i = 0; i < k; i++) {\n            words.add(sc.next());\n        }\n\n        List<String> byDict = new ArrayList<>(words);\n        byDict.sort(Comparator.naturalOrder());\n        System.out.println(byDict);\n\n        List<String> byLength = new ArrayList<>(words);\n        byLength.sort((s1, s2) -> {\n            if (s1.length() != s2.length()) {\n                return s1.length() - s2.length();\n            }\n            return s1.compareTo(s2);\n        });\n        System.out.println(byLength);\n\n        List<String> reverse = new ArrayList<>(words);\n        reverse.sort(Comparator.reverseOrder());\n        System.out.println(reverse);\n    }\n}\n"
+    }
+  ]
+}

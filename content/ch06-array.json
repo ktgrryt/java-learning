@@ -1,0 +1,254 @@
+{
+  "id": "ch06",
+  "title": "配列",
+  "subtitle": "たくさんの値をまとめて持つ",
+  "emoji": "🗃️",
+  "lessons": [
+    {
+      "id": "6-1",
+      "title": "配列を作って使う",
+      "explanation": "## 変数がたくさん必要になったら\n\n3人の点数なら変数3つでも足りますが、100人ならどうでしょう。\n`score1` から `score100` まで書くのは現実的ではありません。\n\n**配列** は、同じ型の値を **番号付きで一列に** 持つ入れ物です。\n\n```java\nint[] scores = {80, 95, 60};\n```\n\n- `int[]` … 「int が並んだもの」という型（`[]` が付く）\n- `{80, 95, 60}` … 中身をまとめて指定する書き方\n\n### 番号（添字）で取り出す\n\n```java\nint[] scores = {80, 95, 60};\n\nSystem.out.println(scores[0]);   // 80   ← 1番目\nSystem.out.println(scores[1]);   // 95   ← 2番目\nSystem.out.println(scores[2]);   // 60   ← 3番目\n```\n\n**番号は 0 から始まります**。これはとても大事です。\n1番目が `[0]`、2番目が `[1]`、3番目が `[2]` です。\n\n```\n        [0]   [1]   [2]\n      ┌─────┬─────┬─────┐\n      │  80 │  95 │  60 │\n      └─────┴─────┴─────┘\n```\n\n### 長さは .length\n\n要素がいくつあるかは `.length` で分かります。**かっこは付きません**。\n\n```java\nSystem.out.println(scores.length);   // 3\n```\n\n文字列の `s.length()` にはかっこが付き、配列の `arr.length` には付きません。\nまぎらわしいところなので、混ざったらこの違いを思い出してください。\n\n### いちばん最後の要素は [length - 1]\n\n長さが3なら、使える番号は `0` `1` `2` です。`scores[3]` は存在しません。\n\n```java\nSystem.out.println(scores[scores.length - 1]);   // 60  ← 最後の要素\nSystem.out.println(scores[3]);                   // ✗ 実行時エラー\n```\n\n`scores[3]` を書くと `ArrayIndexOutOfBoundsException` で止まります。\n「範囲の外を見た」という意味のエラーで、配列でいちばんよく出会うものです。\n\n### 中身の書き換え\n\n```java\nscores[1] = 100;                  // 2番目を 100 に変える\nSystem.out.println(scores[1]);    // 100\n```\n\n### 空の配列を先に作る\n\n中身が後から決まるときは、長さだけ指定して作ります。\n\n```java\nint[] nums = new int[5];      // 長さ5。中身は全部 0 で埋まる\nnums[0] = 10;\n```\n\n> 💡 配列は**長さを後から変えられません**。増減する数を扱いたいときは\n> `ArrayList` を使いますが、それはこの先の話です。",
+      "samples": [
+        {
+          "caption": "配列の要素と長さを見る",
+          "code": "public class Main {\n    public static void main(String[] args) {\n        int[] scores = {80, 95, 60};\n\n        System.out.println(\"1番目: \" + scores[0]);\n        System.out.println(\"2番目: \" + scores[1]);\n        System.out.println(\"最後:  \" + scores[scores.length - 1]);\n        System.out.println(\"個数:  \" + scores.length);\n    }\n}\n"
+        }
+      ],
+      "task": "次の配列を作り、期待する出力のとおりに表示してください。\n\n```java\nint[] scores = {80, 95, 60, 72, 88};\n```\n\n出力するのは3つです。\n\n- **1番目** の要素\n- **最後** の要素（`88` と直接書かず、`length` を使って取り出すこと）\n- 要素の **個数**\n\n配列の中身を変えてはいけません。",
+      "starterCode": "public class Main {\n    public static void main(String[] args) {\n        int[] scores = {80, 95, 60, 72, 88};\n\n        // 3行出力しよう\n    }\n}\n",
+      "visibleCases": [
+        {
+          "label": "出力の確認",
+          "stdin": "",
+          "expected": "1番目: 80\n最後: 88\n個数: 5"
+        }
+      ],
+      "hiddenCases": [],
+      "hints": [
+        "1番目は `scores[0]` です。`scores[1]` ではありません（番号は0から始まります）。",
+        "最後の要素は `scores[scores.length - 1]` です。`- 1` を忘れると範囲外エラーになります。",
+        "個数は `scores.length` です。かっこは付けません。"
+      ],
+      "solution": "public class Main {\n    public static void main(String[] args) {\n        int[] scores = {80, 95, 60, 72, 88};\n\n        System.out.println(\"1番目: \" + scores[0]);\n        System.out.println(\"最後: \" + scores[scores.length - 1]);\n        System.out.println(\"個数: \" + scores.length);\n    }\n}\n"
+    },
+    {
+      "id": "6-2",
+      "title": "for で配列を回す",
+      "explanation": "## 配列とループは相棒\n\n配列の要素を1つずつ処理するには `for` を使います。\n**添字が 0 から `length - 1` まで動く** 形が定番です。\n\n```java\nint[] nums = {10, 20, 30};\n\nfor (int i = 0; i < nums.length; i++) {\n    System.out.println(nums[i]);\n}\n```\n\n条件が `i < nums.length` であることに注目してください。\n`i <= nums.length` と書くと、最後に `nums[3]` を見ようとして\n`ArrayIndexOutOfBoundsException` になります。\n\n**`< length` はセットで覚える**。これで範囲外エラーのほとんどを防げます。\n\n### 逆順にまわす\n\n添字を逆に動かせば、後ろから処理できます。\n\n```java\nfor (int i = nums.length - 1; i >= 0; i--) {\n    System.out.println(nums[i]);\n}\n```\n\n- 開始は `nums.length - 1`（最後の添字）\n- 条件は `i >= 0`（0 も含める）\n- 更新は `i--`\n\n## 入力された個数だけ読み込む\n\n「まず個数、次にその個数ぶんの値」という入力はとてもよくある形です。\n\n```java\nint n = sc.nextInt();            // ① 個数を読む\nint[] nums = new int[n];         // ② その長さの配列を作る\n\nfor (int i = 0; i < n; i++) {\n    nums[i] = sc.nextInt();      // ③ 1つずつ読んで入れる\n}\n```\n\n`new int[n]` は「長さ n の配列を作る」という意味です。\n入力を読む前に長さが分かるので、この順番で書けます。\n\n> 💡 `nums[i] = sc.nextInt();` の `i` は「何番目に入れるか」です。\n> ここを `nums[0]` と書き間違えると、全部が最初の場所に上書きされてしまいます。",
+      "samples": [
+        {
+          "caption": "個数ぶん読んで、そのまま出す（入力は 3個: 10 20 30）",
+          "code": "import java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n\n        int n = sc.nextInt();\n        int[] nums = new int[n];\n\n        for (int i = 0; i < n; i++) {\n            nums[i] = sc.nextInt();\n        }\n\n        for (int i = 0; i < nums.length; i++) {\n            System.out.println(i + \"番目: \" + nums[i]);\n        }\n    }\n}\n",
+          "stdin": "3\n10\n20\n30"
+        }
+      ],
+      "task": "入力は次の形で与えられます。\n\n```\n1行目: 個数 n\n2行目以降: n 個の整数\n```\n\n読み込んだ数を **逆の順番** で1行ずつ出力してください。\n\n例えば入力が\n\n```\n3\n10\n20\n30\n```\n\nなら、出力は\n\n```\n30\n20\n10\n```\n\n`n` が `0` のときは何も出力しません。",
+      "starterCode": "import java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n\n        int n = sc.nextInt();\n        int[] nums = new int[n];\n\n        // n個読み込もう\n\n        // 逆順に出力しよう\n    }\n}\n",
+      "visibleCases": [
+        {
+          "label": "3個 (10 20 30)",
+          "stdin": "3\n10\n20\n30",
+          "expected": "30\n20\n10"
+        },
+        {
+          "label": "1個 (5)",
+          "stdin": "1\n5",
+          "expected": "5"
+        }
+      ],
+      "hiddenCases": [
+        {
+          "label": "0個（何も出ない）",
+          "stdin": "0",
+          "expected": ""
+        },
+        {
+          "label": "4個（マイナスあり）",
+          "stdin": "4\n-1\n0\n1\n2",
+          "expected": "2\n1\n0\n-1"
+        },
+        {
+          "label": "2個（同じ値）",
+          "stdin": "2\n7\n7",
+          "expected": "7\n7"
+        },
+        {
+          "label": "5個",
+          "stdin": "5\n1\n2\n3\n4\n5",
+          "expected": "5\n4\n3\n2\n1"
+        }
+      ],
+      "hints": [
+        "読み込みは `for (int i = 0; i < n; i++) { nums[i] = sc.nextInt(); }` です。`nums[i]` の `i` が大事です。",
+        "逆順の出力は `for (int i = nums.length - 1; i >= 0; i--)` です。開始位置と条件に注意しましょう。",
+        "`i--` は「1減らす」です。`i++` のままだと条件が最初から false で何も出ません。"
+      ],
+      "solution": "import java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n\n        int n = sc.nextInt();\n        int[] nums = new int[n];\n\n        for (int i = 0; i < n; i++) {\n            nums[i] = sc.nextInt();\n        }\n\n        for (int i = nums.length - 1; i >= 0; i--) {\n            System.out.println(nums[i]);\n        }\n    }\n}\n"
+    },
+    {
+      "id": "6-3",
+      "title": "拡張for と、配列の集計",
+      "explanation": "## 添字が要らないときの、短い書き方\n\n配列を「最初から最後まで順に」処理するだけなら、**拡張for**（for-each）が書けます。\n\n```java\nint[] nums = {10, 20, 30};\n\nfor (int num : nums) {\n    System.out.println(num);\n}\n```\n\n読み方は「`nums` の中身を1つずつ取り出して `num` に入れ、そのたびに中を実行する」です。\n\n普通の for と比べてみます。\n\n```java\nfor (int i = 0; i < nums.length; i++) {   // 添字を自分で管理する\n    System.out.println(nums[i]);\n}\n\nfor (int num : nums) {                    // 添字が出てこない\n    System.out.println(num);\n}\n```\n\n拡張for のいいところは、**`length` の書き間違いによる範囲外エラーが起きない** ことです。\n\n### 使い分け\n\n| 使う場面 | どちら |\n|---|---|\n| 全部を順に見るだけ | **拡張for** |\n| 何番目かを知りたい | 普通の for |\n| 逆順・飛ばしながら | 普通の for |\n| 中身を書き換えたい | 普通の for |\n\n最後の1つは注意点です。拡張for の変数はコピーなので、書き換えても配列には反映されません。\n\n```java\nfor (int num : nums) {\n    num = 0;              // nums の中身は変わらない\n}\n```\n\n## 集計の型\n\n第5章でやった「ためる変数」を配列にも使います。\n\n```java\nint sum = 0;\nfor (int num : nums) {\n    sum += num;\n}\nSystem.out.println(\"合計: \" + sum);\n```\n\n平均を出すときは、**割る前に double にする** のを忘れないでください（第3章の話です）。\n\n```java\ndouble average = (double) sum / nums.length;\n```\n\n`sum / nums.length` のままだと整数の割り算になり、小数点以下が切り捨てられてしまいます。\n\n> 💡 `int num : nums` の型は、配列の要素の型に合わせます。\n> `String[]` なら `for (String s : names)` です。",
+      "samples": [
+        {
+          "caption": "合計と平均を出す（入力は 4個: 10 20 30 41）",
+          "code": "import java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n\n        int n = sc.nextInt();\n        int[] nums = new int[n];\n        for (int i = 0; i < n; i++) {\n            nums[i] = sc.nextInt();\n        }\n\n        int sum = 0;\n        for (int num : nums) {\n            sum += num;\n        }\n\n        System.out.println(\"合計: \" + sum);\n        System.out.println(\"整数の割り算: \" + sum / nums.length);\n        System.out.println(\"小数の割り算: \" + (double) sum / nums.length);\n    }\n}\n",
+          "stdin": "4\n10\n20\n30\n41"
+        }
+      ],
+      "task": "入力は「1行目に個数 `n`、2行目以降に `n` 個の整数」です（`n` は必ず1以上）。\n\n合計と平均を、次の形で2行出力してください。\n\n```\n合計 6\n平均 2.0\n```\n\n（`1 2 3` が入力された場合）\n\n- ラベルと数字の間は **半角スペース1つ**\n- 平均は **小数** で出します（`2` ではなく `2.0`）\n- 集計のループは **拡張for** で書いてみましょう",
+      "starterCode": "import java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n\n        int n = sc.nextInt();\n        int[] nums = new int[n];\n        for (int i = 0; i < n; i++) {\n            nums[i] = sc.nextInt();\n        }\n\n        // 拡張for で合計を求めよう\n\n        // 合計と平均を出力しよう\n    }\n}\n",
+      "visibleCases": [
+        {
+          "label": "3個 (1 2 3)",
+          "stdin": "3\n1\n2\n3",
+          "expected": "合計 6\n平均 2.0"
+        },
+        {
+          "label": "4個 (10 20 30 41)",
+          "stdin": "4\n10\n20\n30\n41",
+          "expected": "合計 101\n平均 25.25"
+        }
+      ],
+      "hiddenCases": [
+        {
+          "label": "1個 (7)",
+          "stdin": "1\n7",
+          "expected": "合計 7\n平均 7.0"
+        },
+        {
+          "label": "2個（マイナス）",
+          "stdin": "2\n-4\n-6",
+          "expected": "合計 -10\n平均 -5.0"
+        },
+        {
+          "label": "5個（全部同じ）",
+          "stdin": "5\n1\n1\n1\n1\n1",
+          "expected": "合計 5\n平均 1.0"
+        },
+        {
+          "label": "2個（割り切れない）",
+          "stdin": "2\n1\n2",
+          "expected": "合計 3\n平均 1.5"
+        }
+      ],
+      "hints": [
+        "合計は `int sum = 0;` をループの外に置き、`for (int num : nums) { sum += num; }` でためます。",
+        "平均は `(double) sum / nums.length` です。`(double) (sum / nums.length)` と書くと切り捨ててから変換するので間違いになります。",
+        "出力は `System.out.println(\"合計 \" + sum);` と `System.out.println(\"平均 \" + (double) sum / nums.length);` です。"
+      ],
+      "solution": "import java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n\n        int n = sc.nextInt();\n        int[] nums = new int[n];\n        for (int i = 0; i < n; i++) {\n            nums[i] = sc.nextInt();\n        }\n\n        int sum = 0;\n        for (int num : nums) {\n            sum += num;\n        }\n\n        System.out.println(\"合計 \" + sum);\n        System.out.println(\"平均 \" + (double) sum / nums.length);\n    }\n}\n"
+    },
+    {
+      "id": "6-4",
+      "title": "最大値と最小値を探す",
+      "explanation": "## 「今までのいちばん」を覚えておく\n\n配列の中でいちばん大きい値を探すやり方は、次の2ステップです。\n\n1. **今までのいちばん** を入れる変数を用意する\n2. 1つずつ見ていって、それより大きければ入れ替える\n\n```java\nint[] nums = {3, 9, 1, 7};\n\nint max = nums[0];              // ① 最初の要素を仮の最大値にする\n\nfor (int num : nums) {\n    if (num > max) {\n        max = num;              // ② より大きければ更新\n    }\n}\nSystem.out.println(max);        // 9\n```\n\n### 動きを追う\n\n| 見ている値 | `num > max` | max |\n|---|---|---|\n| 開始 | — | 3 |\n| 3 | false | 3 |\n| 9 | true | **9** |\n| 1 | false | 9 |\n| 7 | false | 9 |\n\n## 最初の値をどうするかが分かれ道\n\nここが最大のポイントです。`max` の初期値を `0` にすると、**マイナスばかりの配列で壊れます**。\n\n```java\nint max = 0;                    // ✗ 危険\nint[] nums = {-5, -1, -9};\n// 全部 0 より小さいので、max は 0 のまま\n// → 答えが 0 になってしまう（配列に 0 は入っていないのに！）\n```\n\n正しくは **配列の最初の要素** を初期値にします。\n\n```java\nint max = nums[0];              // ○ 必ず配列の中の値から始める\n```\n\nこれなら、答えが必ず配列の中のどれかになります。\n\n### 最小値も同じ形\n\n比較の向きを逆にするだけです。\n\n```java\nint min = nums[0];\nfor (int num : nums) {\n    if (num < min) {\n        min = num;\n    }\n}\n```\n\n### Math.max を使う書き方\n\n`if` を使わずに書くこともできます。\n\n```java\nint max = nums[0];\nfor (int num : nums) {\n    max = Math.max(max, num);\n}\n```\n\nどちらでも構いません。`if` で書けるようになってから、こちらに移ると理解が深まります。\n\n> 💡 「今までのいちばん」を持ち歩くこの型は、最大・最小だけでなく\n> 「いちばん長い単語」「いちばん近い点」など、応用がとても広いパターンです。",
+      "samples": [
+        {
+          "caption": "最大値の探し方を追う（入力は 4個: 3 9 1 7）",
+          "code": "import java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n\n        int n = sc.nextInt();\n        int[] nums = new int[n];\n        for (int i = 0; i < n; i++) {\n            nums[i] = sc.nextInt();\n        }\n\n        int max = nums[0];\n        for (int num : nums) {\n            if (num > max) {\n                max = num;\n            }\n            System.out.println(\"見た値=\" + num + \" → いまの最大=\" + max);\n        }\n        System.out.println(\"答え: \" + max);\n    }\n}\n",
+          "stdin": "4\n3\n9\n1\n7"
+        }
+      ],
+      "task": "入力は「1行目に個数 `n`、2行目以降に `n` 個の整数」です（`n` は必ず1以上）。\n\n最大値と最小値を、次の形で2行出力してください。\n\n```\n最大 9\n最小 1\n```\n\n- ラベルと数字の間は **半角スペース1つ**\n- **マイナスばかりの入力** も試されます。初期値を `0` にしないよう注意してください",
+      "starterCode": "import java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n\n        int n = sc.nextInt();\n        int[] nums = new int[n];\n        for (int i = 0; i < n; i++) {\n            nums[i] = sc.nextInt();\n        }\n\n        // 最大値と最小値を探そう\n        // ヒント: 初期値は nums[0] にする\n\n        // 2行出力しよう\n    }\n}\n",
+      "visibleCases": [
+        {
+          "label": "5個 (3 9 1 7 5)",
+          "stdin": "5\n3\n9\n1\n7\n5",
+          "expected": "最大 9\n最小 1"
+        },
+        {
+          "label": "1個 (42)",
+          "stdin": "1\n42",
+          "expected": "最大 42\n最小 42"
+        }
+      ],
+      "hiddenCases": [
+        {
+          "label": "全部マイナス",
+          "stdin": "3\n-5\n-1\n-9",
+          "expected": "最大 -1\n最小 -9"
+        },
+        {
+          "label": "全部同じ",
+          "stdin": "4\n2\n2\n2\n2",
+          "expected": "最大 2\n最小 2"
+        },
+        {
+          "label": "最初が最大・最後が最小",
+          "stdin": "3\n200\n100\n50",
+          "expected": "最大 200\n最小 50"
+        },
+        {
+          "label": "0をまたぐ",
+          "stdin": "4\n-3\n0\n5\n-8",
+          "expected": "最大 5\n最小 -8"
+        }
+      ],
+      "hints": [
+        "`int max = nums[0];` と `int min = nums[0];` から始めます。`0` を初期値にすると、マイナスだけの入力で間違えます。",
+        "ループの中で `if (num > max) { max = num; }` と `if (num < min) { min = num; }` の2つを書きます。1つのループで両方できます。",
+        "出力は `System.out.println(\"最大 \" + max);` と `System.out.println(\"最小 \" + min);` です。"
+      ],
+      "solution": "import java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n\n        int n = sc.nextInt();\n        int[] nums = new int[n];\n        for (int i = 0; i < n; i++) {\n            nums[i] = sc.nextInt();\n        }\n\n        int max = nums[0];\n        int min = nums[0];\n        for (int num : nums) {\n            if (num > max) {\n                max = num;\n            }\n            if (num < min) {\n                min = num;\n            }\n        }\n\n        System.out.println(\"最大 \" + max);\n        System.out.println(\"最小 \" + min);\n    }\n}\n"
+    },
+    {
+      "id": "6-5",
+      "title": "2次元配列と Arrays",
+      "explanation": "## 表のようなデータを持つ\n\n配列の要素をさらに配列にすると、表（マトリクス）のようなデータを持てます。\nこれを **2次元配列** といいます。\n\n```java\nint[][] table = new int[2][3];   // 2行3列。中身はすべて 0\ntable[0][0] = 5;                 // 1行目の1列目に 5\nSystem.out.println(table[0][0]); // 5\n```\n\n最初から中身を書いて作ることもできます。内側の `{}` が1行分です。\n\n```java\nint[][] table = {\n    {1, 2, 3},\n    {4, 5, 6}\n};\nSystem.out.println(table[1][2]);   // 6（2行目の3列目）\n```\n\n### length は「行数」と「列数」で使い分ける\n\nここが一番大事です。\n\n- `table.length` … **行数**（外側の要素数）\n- `table[i].length` … **`i` 行目の列数**（内側の要素数）\n\n```java\nint[][] table = {{1, 2, 3}, {4, 5, 6}};\nSystem.out.println(table.length);      // 2 ← 行数\nSystem.out.println(table[0].length);   // 3 ← 1行目の列数\n```\n\n2重の `for` で全部を回るときは、外側が行、内側が列です。\n\n```java\nfor (int i = 0; i < table.length; i++) {\n    for (int j = 0; j < table[i].length; j++) {\n        System.out.print(table[i][j] + \" \");\n    }\n    System.out.println();\n}\n```\n\n拡張for でも書けます。「1行分の配列」が順番に取り出されます。\n\n```java\nfor (int[] row : table) {\n    for (int value : row) {\n        System.out.print(value + \" \");\n    }\n    System.out.println();\n}\n```\n\n## 行ごとに長さが違ってもよい（ジャグ配列）\n\nJavaの2次元配列は「配列の配列」なので、行ごとに長さを変えられます。\n`new int[3][]` のように **内側を空けて** 作り、行ごとに用意します。\n\n```java\nint[][] jagged = new int[3][];\njagged[0] = new int[1];\njagged[1] = new int[4];\njagged[2] = new int[2];\nSystem.out.println(jagged[1].length);   // 4\n```\n\n> ⚠️ 試験のワナ … 列数に `table[0].length` を使うと、行ごとに長さが違う配列で落ちます。\n\n```java\nfor (int i = 0; i < table.length; i++) {\n    for (int j = 0; j < table[0].length; j++) {   // ❌ 0行目の長さを全行に使っている\n        System.out.println(table[i][j]);          //    → ArrayIndexOutOfBoundsException\n    }\n}\n```\n\n内側のループは必ず `table[i].length` を見ます。\n\n> ⚠️ 試験のワナ … 外側の要素数は省略できません。`new int[][]` や `new int[][3]` はコンパイルエラーです。\n\n`new int[3][]` は OK（内側は後から）、`new int[3][2]` も OK。\n迷ったら「左から埋める」と覚えます。\n\n## Arrays クラス — 配列の便利道具\n\n配列を扱う定番メソッドが `java.util.Arrays` にまとまっています。\n\n| メソッド | すること |\n|---|---|\n| `Arrays.toString(a)` | 1次元配列を `[1, 2, 3]` の形の文字列にする |\n| `Arrays.deepToString(a)` | 2次元以上を `[[1, 2], [3]]` の形にする |\n| `Arrays.sort(a)` | 小さい順に並べ替える（配列そのものが変わる） |\n| `Arrays.fill(a, v)` | 全要素を `v` にする |\n\n```java\nimport java.util.Arrays;\n\nint[] a = {3, 1, 2};\nSystem.out.println(Arrays.toString(a));   // [3, 1, 2]\nArrays.sort(a);\nSystem.out.println(Arrays.toString(a));   // [1, 2, 3]\n```\n\n> ⚠️ 試験のワナ … 配列をそのまま `println` すると `[I@1b6d3586` のような内部表現が出ます。中身を見たいときは `Arrays.toString` を使います。",
+      "samples": [
+        {
+          "caption": "行数と列数、そして中身の並べ方",
+          "code": "import java.util.Arrays;\n\npublic class Main {\n    public static void main(String[] args) {\n        int[][] table = {\n            {1, 2, 3},\n            {4, 5, 6}\n        };\n\n        System.out.println(\"行数 \" + table.length);\n        System.out.println(\"1行目の列数 \" + table[0].length);\n\n        for (int[] row : table) {\n            System.out.println(Arrays.toString(row));\n        }\n\n        System.out.println(Arrays.deepToString(table));\n        System.out.println(table);              // 中身は出ない\n    }\n}\n"
+        },
+        {
+          "caption": "行ごとに長さが違う配列（ジャグ配列）を回す",
+          "code": "public class Main {\n    public static void main(String[] args) {\n        int[][] jagged = new int[3][];\n        jagged[0] = new int[]{1};\n        jagged[1] = new int[]{2, 3, 4};\n        jagged[2] = new int[]{5, 6};\n\n        for (int i = 0; i < jagged.length; i++) {\n            // ここを jagged[0].length にすると落ちる\n            for (int j = 0; j < jagged[i].length; j++) {\n                System.out.print(jagged[i][j] + \" \");\n            }\n            System.out.println(\"（\" + jagged[i].length + \"個）\");\n        }\n    }\n}\n"
+        }
+      ],
+      "task": "入力は次の形です。\n\n- 1行目 … 行数 `r`（必ず1以上）\n- 続く `r` 行 … その行の **個数 `k`**、続けて `k` 個の整数（同じ行に半角スペース区切り）\n\n読み込んだ値を **`int[][]` に入れてから**、行ごとの合計と全体の合計を出力してください。\n\n例えば次の入力なら、\n\n```\n2\n3 1 2 3\n1 3\n```\n\n出力はこうなります。\n\n```\n行1 6\n行2 3\n合計 9\n```\n\n- 行の番号は **1から** 数えます\n- ラベルと数字の間は **半角スペース1つ** です\n- **個数が `0` の行**（数が1つもない行）も来ます。その行の合計は `0` です\n- 行ごとに個数は違います。マイナスの数も来ます",
+      "starterCode": "import java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int r = sc.nextInt();\n        int[][] table = new int[r][];   // 内側は行ごとに作る\n\n        // 各行の個数 k を読んで table[i] = new int[k]; その行の値を読む\n\n        // 行ごとの合計と全体の合計を出力する\n    }\n}\n",
+      "visibleCases": [
+        {
+          "label": "2行（3個と1個）",
+          "stdin": "2\n3 1 2 3\n1 3",
+          "expected": "行1 6\n行2 3\n合計 9"
+        },
+        {
+          "label": "1行（4個）",
+          "stdin": "1\n4 1 1 1 1",
+          "expected": "行1 4\n合計 4"
+        }
+      ],
+      "hiddenCases": [
+        {
+          "label": "1行目が空（0個）",
+          "stdin": "2\n0\n2 5 5",
+          "expected": "行1 0\n行2 10\n合計 10"
+        },
+        {
+          "label": "後ろの行が長い",
+          "stdin": "2\n1 100\n3 1 2 3",
+          "expected": "行1 100\n行2 6\n合計 106"
+        },
+        {
+          "label": "マイナスばかり",
+          "stdin": "3\n1 -5\n2 -1 -2\n1 0",
+          "expected": "行1 -5\n行2 -3\n行3 0\n合計 -8"
+        },
+        {
+          "label": "1行で0個だけ",
+          "stdin": "1\n0",
+          "expected": "行1 0\n合計 0"
+        }
+      ],
+      "hints": [
+        "外側は `new int[r][]` で作り、行ごとに `table[i] = new int[k];` と作ります。",
+        "内側のループの上限は `table[i].length` です。`table[0].length` にすると長さの違う行で落ちます。",
+        "行の合計を出したら、それを全体の合計に足し込んでいきます。最後に `合計` の行を出力します。"
+      ],
+      "solution": "import java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int r = sc.nextInt();\n        int[][] table = new int[r][];\n\n        for (int i = 0; i < r; i++) {\n            int k = sc.nextInt();\n            table[i] = new int[k];\n            for (int j = 0; j < k; j++) {\n                table[i][j] = sc.nextInt();\n            }\n        }\n\n        int total = 0;\n        for (int i = 0; i < table.length; i++) {\n            int rowSum = 0;\n            for (int j = 0; j < table[i].length; j++) {\n                rowSum += table[i][j];\n            }\n            System.out.println(\"行\" + (i + 1) + \" \" + rowSum);\n            total += rowSum;\n        }\n        System.out.println(\"合計 \" + total);\n    }\n}\n"
+    }
+  ]
+}

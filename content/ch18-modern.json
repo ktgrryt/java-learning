@@ -1,0 +1,323 @@
+{
+  "id": "ch18",
+  "title": "モダンな書き方",
+  "subtitle": "新しいJavaの構文を知る",
+  "emoji": "✨",
+  "lessons": [
+    {
+      "id": "18-1",
+      "title": "var — 型を推論させる",
+      "explanation": "## 右辺から型を決めてもらう\n\n型の名前が長いと、同じことを2回書いている気分になります。\n\n```java\nMap<String, List<Integer>> map = new HashMap<String, List<Integer>>();\n```\n\nそこで **`var`** を使うと、**右辺から型を推論** してくれます。\n\n```java\nvar map = new HashMap<String, List<Integer>>();\nvar list = new ArrayList<String>();\nvar i = 10;                  // int\nvar s = \"abc\";               // String\n```\n\n大事なのは、**型がなくなるわけではない** ことです。\n`var i = 10;` の `i` は `int` に決まり、あとから文字列を入れることはできません。\n\n```java\nvar i = 10;\ni = \"abc\";        // ❌ コンパイルエラー：i は int\n```\n\nJavaScript の `var` とはまったく違います。**書き方が短くなるだけ** で、\n型の安全性はそのままです。\n\n## 使える場所は「ローカル変数」だけ\n\n`var` が使えるのは **メソッドの中で宣言する変数** だけです。\n\n| 場所 | `var` |\n|---|---|\n| ローカル変数 | ✅ 使える |\n| `for` の変数 | ✅ 使える |\n| 拡張for の変数 | ✅ 使える |\n| フィールド | ❌ 使えない |\n| メソッドの引数 | ❌ 使えない |\n| メソッドの戻り値の型 | ❌ 使えない |\n\n```java\nclass Sample {\n    var field = 10;                    // ❌ フィールドには使えない\n\n    void method(var arg) { }           // ❌ 引数には使えない\n\n    void ok() {\n        var local = 10;                // ✅ ローカル変数ならOK\n        for (var i = 0; i < 3; i++) { }              // ✅\n        for (var s : List.of(\"a\", \"b\")) { }          // ✅\n    }\n}\n```\n\n## 初期化しないと使えない\n\n型を右辺から決めるので、**右辺がないと決められません**。\n\n```java\nvar x;              // ❌ コンパイルエラー：推論できない\nvar y = null;       // ❌ コンパイルエラー：null では型が決まらない\n```\n\n第8章で「ローカル変数は初期化しないと使えない」と学びましたが、\n`var` の場合は **宣言すらできません**。\n\n> ⚠️ 試験のワナ … `var` に関するコンパイルエラーは「フィールドに使った」「引数に使った」「初期化していない」「`null` で初期化した」の4パターンが定番です。\n\n## var は予約語ではない\n\n意外なところですが、`var` は **予約語ではありません**（「予約型名」という扱い）。\nだから変数名やメソッド名に `var` を使えます。\n\n```java\nint var = 10;           // ✅ コンパイルできる（読みにくいのでやめましょう）\n```\n\nクラス名には使えません（型の名前として予約されているため）。\n\n## 使いどころ\n\n型が右辺を見れば明らかなときは読みやすくなります。\n\n```java\nvar list = new ArrayList<String>();          // 見れば分かる\nvar scanner = new Scanner(System.in);\n```\n\n逆に、型が分からなくなる書き方は避けます。\n\n```java\nvar result = process();       // process() の戻り値の型が分からない\n```\n\n> 💡 迷ったら型を書いておけば大丈夫です。`var` は「明らかに分かるときの省略」と考えてください。",
+      "samples": [
+        {
+          "caption": "var で書いてみる",
+          "code": "import java.util.ArrayList;\nimport java.util.List;\n\npublic class Main {\n    public static void main(String[] args) {\n        var i = 10;                          // int\n        var d = 1.5;                         // double\n        var s = \"abc\";                       // String\n        var list = new ArrayList<String>();  // ArrayList<String>\n\n        list.add(\"x\");\n        list.add(\"y\");\n\n        System.out.println(i * 2);\n        System.out.println(d * 2);\n        System.out.println(s.length());\n        System.out.println(list);\n\n        // 型は決まっているので、別の型は入らない\n        // i = \"abc\";      ← コンパイルエラー\n\n        for (var n = 0; n < 3; n++) {\n            System.out.print(n + \" \");\n        }\n        System.out.println();\n\n        for (var item : List.of(\"a\", \"b\")) {\n            System.out.print(item + \" \");\n        }\n        System.out.println();\n    }\n}\n"
+        },
+        {
+          "caption": "var が使えない場所（コメントを外すとエラー）",
+          "code": "public class Main {\n    // var field = 10;                 ← フィールドには使えない\n    int field = 10;\n\n    // static void method(var arg) { } ← 引数には使えない\n\n    public static void main(String[] args) {\n        var ok = 10;\n        System.out.println(ok);\n\n        // var x;            ← 初期化がないので推論できない\n        // var y = null;     ← null では型が決まらない\n\n        // var は予約語ではないので、変数名にも使える（読みにくいので非推奨）\n        int var = 5;\n        System.out.println(var);\n    }\n}\n"
+        }
+      ],
+      "task": "整数 `n` と単語 `s` が入力されます。**変数の宣言はすべて `var` で書いて**、\n次の **4行** を出力してください。\n\n1. `n` を入れた変数の **2倍**\n2. `s` を入れた変数の **長さ**\n3. `ArrayList<String>` を作って `s` を **2回** 追加し、そのリストをそのまま出力\n4. `1` から `n` までの合計（`n` が `0` 以下のときは `0`）\n\n`3 ab` が入力されたときの出力はこうです。\n\n```\n6\n2\n[ab, ab]\n6\n```\n\n- リストは `new ArrayList<String>()` と、**右辺に型引数を書く** 必要があります\n  （`new ArrayList<>()` だと `var` が型を決められません）\n- `n` にはマイナスも入力されます",
+      "starterCode": "import java.util.ArrayList;\nimport java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n        String s = sc.next();\n\n        // ここから下は var で宣言する\n\n        // 1. n の2倍\n\n        // 2. s の長さ\n\n        // 3. リストに s を2回追加して出力\n\n        // 4. 1 から n までの合計\n    }\n}\n",
+      "visibleCases": [
+        {
+          "label": "3 と ab",
+          "stdin": "3 ab",
+          "expected": "6\n2\n[ab, ab]\n6"
+        },
+        {
+          "label": "5 と java",
+          "stdin": "5 java",
+          "expected": "10\n4\n[java, java]\n15"
+        }
+      ],
+      "hiddenCases": [
+        {
+          "label": "0（合計も 0）",
+          "stdin": "0 x",
+          "expected": "0\n1\n[x, x]\n0"
+        },
+        {
+          "label": "1",
+          "stdin": "1 a",
+          "expected": "2\n1\n[a, a]\n1"
+        },
+        {
+          "label": "マイナス",
+          "stdin": "-2 zz",
+          "expected": "-4\n2\n[zz, zz]\n0"
+        },
+        {
+          "label": "10",
+          "stdin": "10 abc",
+          "expected": "20\n3\n[abc, abc]\n55"
+        },
+        {
+          "label": "日本語",
+          "stdin": "4 あいう",
+          "expected": "8\n3\n[あいう, あいう]\n10"
+        }
+      ],
+      "hints": [
+        "`var i = n;` のように書けば `i` は `int` になります。`var` はローカル変数でだけ使えます。",
+        "3行目は `var list = new ArrayList<String>();` です。`<>` を空にすると型が決まらずコンパイルエラーになります。",
+        "4行目は `var sum = 0;` としてから `for (var j = 1; j <= n; j++) { sum += j; }` と足していきます。`n` が 0 以下ならループが1回も回らないので `0` のままです。"
+      ],
+      "solution": "import java.util.ArrayList;\nimport java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n        String s = sc.next();\n\n        var i = n;\n        System.out.println(i * 2);\n\n        var text = s;\n        System.out.println(text.length());\n\n        var list = new ArrayList<String>();\n        list.add(s);\n        list.add(s);\n        System.out.println(list);\n\n        var sum = 0;\n        for (var j = 1; j <= n; j++) {\n            sum += j;\n        }\n        System.out.println(sum);\n    }\n}\n"
+    },
+    {
+      "id": "18-2",
+      "title": "switch 式",
+      "explanation": "## 従来の switch の困りごと\n\n第4章で学んだ `switch` 文には、間違えやすい点がありました。\n\n```java\nswitch (n) {\n    case 1:\n        System.out.println(\"月曜日\");\n        break;              // ← 忘れると次の case へ流れてしまう\n    case 2:\n        System.out.println(\"火曜日\");\n        break;\n    default:\n        System.out.println(\"?\");\n}\n```\n\n- `break` を忘れると **フォールスルー** して下の case も実行される\n- 「値を選ぶ」だけなのに、変数を用意して代入する必要がある\n\n## アロー構文\n\n新しい書き方では `:` の代わりに `->` を使います。\n\n```java\nswitch (n) {\n    case 1 -> System.out.println(\"月曜日\");\n    case 2 -> System.out.println(\"火曜日\");\n    default -> System.out.println(\"?\");\n}\n```\n\n**`break` は不要です。** アロー構文では該当する1つだけが実行され、\nフォールスルーは起きません。\n\n## 値を返す switch 式\n\nさらに、`switch` 全体を **式** として値を取り出せます。\n\n```java\nString name = switch (n) {\n    case 1 -> \"月曜日\";\n    case 2 -> \"火曜日\";\n    default -> \"?\";\n};                        // ← 式なので最後にセミコロンが必要\n```\n\n`if-else` を並べるより短く、「値を選んでいる」ことがはっきりします。\n\n### 複数のラベルをまとめる\n\nカンマで並べられます。従来のフォールスルーを使った書き方より安全で読みやすいです。\n\n```java\nString type = switch (n) {\n    case 1, 2, 3, 4, 5 -> \"平日\";\n    case 6, 7 -> \"休日\";\n    default -> \"?\";\n};\n```\n\n### 複数行の処理には yield\n\n処理が1つの式で書けないときは `{}` を使い、**`yield`** で値を返します。\n\n```java\nint score = switch (n) {\n    case 1, 2, 3, 4, 5 -> {\n        int base = n * 100;\n        yield base;                // ← return ではなく yield\n    }\n    case 6, 7 -> 0;\n    default -> -1;\n};\n```\n\n> ⚠️ 試験のワナ … `switch` 式の中で値を返すのは `yield` です。`return` を書くと **メソッドから抜けよう** としてコンパイルエラーになります。\n\n## default は必要か\n\n**式として使う場合、すべての場合を網羅していなければ `default` が必須** です。\n値を返せない道すじがあってはいけないからです（第7章の `return` の話と同じ理屈）。\n\n`enum` を使い、すべての定数を `case` に書いた場合だけ `default` を省略できます。\n\n> ⚠️ 試験のワナ … `:` の書き方と `->` の書き方を **同じ switch の中で混ぜる** ことはできません。コンパイルエラーです。\n\n```java\nswitch (n) {\n    case 1 -> \"a\";\n    case 2: yield \"b\";      // ❌ 混在は不可\n}\n```\n\n> 💡 従来の `switch` 文も引き続き使えます。新しい書き方は「値を選ぶとき」に特に便利です。",
+      "samples": [
+        {
+          "caption": "3つの switch 式を書き分ける",
+          "code": "public class Main {\n    static void show(int n) {\n        String name = switch (n) {\n            case 1 -> \"月曜日\";\n            case 2 -> \"火曜日\";\n            case 3 -> \"水曜日\";\n            case 4 -> \"木曜日\";\n            case 5 -> \"金曜日\";\n            case 6 -> \"土曜日\";\n            case 7 -> \"日曜日\";\n            default -> \"?\";\n        };\n\n        String type = switch (n) {\n            case 1, 2, 3, 4, 5 -> \"平日\";\n            case 6, 7 -> \"休日\";\n            default -> \"?\";\n        };\n\n        int score = switch (n) {\n            case 1, 2, 3, 4, 5 -> {\n                int base = n * 100;\n                yield base;\n            }\n            case 6, 7 -> 0;\n            default -> -1;\n        };\n\n        System.out.println(n + \" → \" + name + \" / \" + type + \" / \" + score);\n    }\n\n    public static void main(String[] args) {\n        show(1);\n        show(5);\n        show(6);\n        show(8);\n    }\n}\n"
+        },
+        {
+          "caption": "フォールスルーが起きないことを確かめる",
+          "code": "public class Main {\n    public static void main(String[] args) {\n        int n = 1;\n\n        System.out.println(\"--- 従来の switch（break なし）---\");\n        switch (n) {\n            case 1:\n                System.out.println(\"case 1\");\n            case 2:\n                System.out.println(\"case 2 も実行された\");\n            default:\n                System.out.println(\"default も実行された\");\n        }\n\n        System.out.println(\"--- アロー構文 ---\");\n        switch (n) {\n            case 1 -> System.out.println(\"case 1 だけ\");\n            case 2 -> System.out.println(\"これは実行されない\");\n            default -> System.out.println(\"これも実行されない\");\n        }\n    }\n}\n"
+        }
+      ],
+      "task": "整数 `n` が1つ入力されます。**すべて `switch` 式（アロー構文）で書いて**、\n次の **3行** を出力してください。\n\n1. 曜日の名前。`1`〜`7` を `月曜日`〜`日曜日` に対応させ、それ以外は `?`\n2. `1`〜`5` なら `平日`、`6` と `7` なら `休日`、それ以外は `?`（**複数ラベル** を使います）\n3. `1`〜`5` なら `n * 100`、`6` と `7` なら `0`、それ以外は `-1`（**`yield`** を使います）\n\n`1` が入力されたときの出力はこうです。\n\n```\n月曜日\n平日\n100\n```\n\n`8` が入力されたときはこうなります。\n\n```\n?\n?\n-1\n```\n\n- 3行目は `{}` と `yield` を使って書いてください（`n * 100` を計算してから返します）\n- `0` やマイナスも入力されます",
+      "starterCode": "import java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n\n        // 1. 曜日の名前（switch 式）\n\n        // 2. 平日 / 休日（複数ラベル）\n\n        // 3. yield を使って点数を返す\n    }\n}\n",
+      "visibleCases": [
+        {
+          "label": "1（月曜日）",
+          "stdin": "1",
+          "expected": "月曜日\n平日\n100"
+        },
+        {
+          "label": "6（土曜日）",
+          "stdin": "6",
+          "expected": "土曜日\n休日\n0"
+        },
+        {
+          "label": "8（範囲外）",
+          "stdin": "8",
+          "expected": "?\n?\n-1"
+        }
+      ],
+      "hiddenCases": [
+        {
+          "label": "5（平日の境界）",
+          "stdin": "5",
+          "expected": "金曜日\n平日\n500"
+        },
+        {
+          "label": "7（日曜日）",
+          "stdin": "7",
+          "expected": "日曜日\n休日\n0"
+        },
+        {
+          "label": "0",
+          "stdin": "0",
+          "expected": "?\n?\n-1"
+        },
+        {
+          "label": "マイナス",
+          "stdin": "-1",
+          "expected": "?\n?\n-1"
+        },
+        {
+          "label": "3（水曜日）",
+          "stdin": "3",
+          "expected": "水曜日\n平日\n300"
+        },
+        {
+          "label": "100",
+          "stdin": "100",
+          "expected": "?\n?\n-1"
+        }
+      ],
+      "hints": [
+        "`String name = switch (n) { case 1 -> \"月曜日\"; ... default -> \"?\"; };` の形です。最後のセミコロンを忘れないでください。",
+        "2行目は `case 1, 2, 3, 4, 5 -> \"平日\";` のようにカンマで並べます。",
+        "3行目は `case 1, 2, 3, 4, 5 -> { int base = n * 100; yield base; }` です。`return` ではなく `yield` を使います。"
+      ],
+      "solution": "import java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n\n        String name = switch (n) {\n            case 1 -> \"月曜日\";\n            case 2 -> \"火曜日\";\n            case 3 -> \"水曜日\";\n            case 4 -> \"木曜日\";\n            case 5 -> \"金曜日\";\n            case 6 -> \"土曜日\";\n            case 7 -> \"日曜日\";\n            default -> \"?\";\n        };\n        System.out.println(name);\n\n        String type = switch (n) {\n            case 1, 2, 3, 4, 5 -> \"平日\";\n            case 6, 7 -> \"休日\";\n            default -> \"?\";\n        };\n        System.out.println(type);\n\n        int score = switch (n) {\n            case 1, 2, 3, 4, 5 -> {\n                int base = n * 100;\n                yield base;\n            }\n            case 6, 7 -> 0;\n            default -> -1;\n        };\n        System.out.println(score);\n    }\n}\n"
+    },
+    {
+      "id": "18-3",
+      "title": "テキストブロック",
+      "explanation": "## 複数行の文字列をそのまま書く\n\n複数行の文字列を書くのは、これまで面倒でした。\n\n```java\nString s = \"1行目\\n\"\n         + \"2行目\\n\"\n         + \"3行目\";\n```\n\n**テキストブロック** を使うと、見たままに書けます。開始と終了を `\"\"\"` で囲みます。\n\n```java\nString s = \"\"\"\n        1行目\n        2行目\n        3行目\"\"\";\n```\n\n`\\n` を書く必要はありません。改行はそのまま改行になります。\n\n### 決まり\n\n- 開始の `\"\"\"` の **直後は必ず改行**（同じ行に文字を書くとコンパイルエラー）\n- 終了の `\"\"\"` は、内容の最後に続けて書くか、次の行に置く\n\n```java\nString a = \"\"\"abc\"\"\";        // ❌ 開始の直後に改行がない\n```\n\n## インデントは自動で取り除かれる\n\nコードを読みやすくするために字下げしますが、その空白まで文字列に入ったら困ります。\nそこでJavaは **すべての行に共通する最小のインデント** を取り除きます。\n\n```java\nString s = \"\"\"\n        あ\n        い\n        \"\"\";\n```\n\nこのとき `あ` と `い` の前の空白は消えて、`\"あ\\nい\\n\"` になります。\n\n**終了の `\"\"\"` の位置も判定に含まれます。** だから終了行を左に寄せると、\nその分だけインデントが残ります。\n\n```java\nString s = \"\"\"\n        あ\n        い\n\"\"\";                     // ← 左端に置いた\n```\n\nこう書くと `\"        あ\\n        い\\n\"` になり、空白が残ります。\n**終了の `\"\"\"` は内容と同じ位置にそろえる** のが基本です。\n\n## 末尾の改行\n\n終了の `\"\"\"` を **次の行** に置くと、最後の行のあとに改行が入ります。\n**同じ行に続けて** 書くと入りません。\n\n```java\nString withNewline = \"\"\"\n        あ\n        \"\"\";             // \"あ\\n\"\n\nString withoutNewline = \"\"\"\n        あ\"\"\";           // \"あ\"\n```\n\n`System.out.println` は自分で改行を足すので、\n**末尾の改行を入れたくない** ことが多くなります。\n\n## 値を埋め込む\n\nテキストブロックの中で変数を展開することはできません。\n`+` でつなぐか、**`formatted`** を使います。\n\n```java\nString name = \"田中\";\n\nString message = \"\"\"\n        %sさん\n        ようこそ\"\"\".formatted(name);\n```\n\n`formatted` は `String.format` と同じ書式を使います（`%s` が文字列、`%d` が整数）。\n\n> ⚠️ 試験のワナ … テキストブロックの中に `\"` を1つ書くのはそのままでOKです。`\"\"\"` を書きたいときだけエスケープが必要です。\n\n> ⚠️ 試験のワナ … 行末に `\\` を書くと **改行を打ち消せます**。長い1行を折り返して書くときに使います。\n\n```java\nString s = \"\"\"\n        これは1行に \\\n        なります\"\"\";        // \"これは1行に なります\"\n```\n\n> 💡 テキストブロックの型は普通の `String` です。特別な型ではないので、`length()` なども普通に使えます。",
+      "samples": [
+        {
+          "caption": "インデントと末尾の改行を確かめる",
+          "code": "public class Main {\n    public static void main(String[] args) {\n        String normal = \"\"\"\n                あ\n                い\n                \"\"\";\n        System.out.println(\"[\" + normal + \"]\");\n\n        String noNewline = \"\"\"\n                あ\n                い\"\"\";\n        System.out.println(\"[\" + noNewline + \"]\");\n\n        // 終了の \"\"\" を左に寄せるとインデントが残る\n        String indented = \"\"\"\n                あ\n                い\n\"\"\";\n        System.out.println(\"[\" + indented + \"]\");\n    }\n}\n"
+        },
+        {
+          "caption": "formatted で値を埋め込む",
+          "code": "public class Main {\n    public static void main(String[] args) {\n        String name = \"田中\";\n        int count = 3;\n\n        String message = \"\"\"\n                %sさん\n                残り %d 件です\"\"\".formatted(name, count);\n\n        System.out.println(message);\n\n        System.out.println(\"--- 行末の \\\\ で改行を打ち消す ---\");\n        String joined = \"\"\"\n                これは1行に \\\n                なります\"\"\";\n        System.out.println(joined);\n\n        System.out.println(\"--- 長さ ---\");\n        System.out.println(joined.length());\n    }\n}\n"
+        }
+      ],
+      "task": "空白を含まない単語 `name` が1語入力されます。\n\n**テキストブロック** を使って、次の3行を出力してください。\n\n```\n○○さん\nようこそ\nJava Quest へ\n```\n\n`田中` が入力されたときの出力はこうです。\n\n```\n田中さん\nようこそ\nJava Quest へ\n```\n\n条件はこれだけです。\n\n- テキストブロック（`\"\"\"`）を使って書くこと\n- 名前の埋め込みは `formatted` を使うか、`+` でつなぐこと\n- **各行の先頭に空白が入らないように** してください\n  （終了の `\"\"\"` の位置を、内容と同じ位置にそろえます）",
+      "starterCode": "import java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        String name = sc.next();\n\n        // テキストブロックで3行の文字列を作って出力する\n    }\n}\n",
+      "visibleCases": [
+        {
+          "label": "田中",
+          "stdin": "田中",
+          "expected": "田中さん\nようこそ\nJava Quest へ"
+        },
+        {
+          "label": "Smith",
+          "stdin": "Smith",
+          "expected": "Smithさん\nようこそ\nJava Quest へ"
+        }
+      ],
+      "hiddenCases": [
+        {
+          "label": "1文字",
+          "stdin": "A",
+          "expected": "Aさん\nようこそ\nJava Quest へ"
+        },
+        {
+          "label": "数字を含む",
+          "stdin": "user1",
+          "expected": "user1さん\nようこそ\nJava Quest へ"
+        },
+        {
+          "label": "長い名前",
+          "stdin": "山田太郎",
+          "expected": "山田太郎さん\nようこそ\nJava Quest へ"
+        },
+        {
+          "label": "記号を含む",
+          "stdin": "a-b",
+          "expected": "a-bさん\nようこそ\nJava Quest へ"
+        }
+      ],
+      "hints": [
+        "`String message = \"\"\"` と書いて改行し、3行の内容を書いて、最後に `\"\"\"` で閉じます。",
+        "名前は `%sさん` と書いておいて、閉じたあとに `.formatted(name)` を付けると埋め込めます。",
+        "終了の `\"\"\"` を内容と同じ字下げ位置に置いてください。左に寄せると各行の先頭に空白が残ります。"
+      ],
+      "solution": "import java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        String name = sc.next();\n\n        String message = \"\"\"\n                %sさん\n                ようこそ\n                Java Quest へ\"\"\".formatted(name);\n\n        System.out.println(message);\n    }\n}\n"
+    },
+    {
+      "id": "18-4",
+      "title": "record — 値を運ぶクラス",
+      "explanation": "## 定型文をなくす\n\n第10章で `Point` クラスを作ったとき、こう書きました。\n\n```java\nclass Point {\n    private final int x;\n    private final int y;\n\n    Point(int x, int y) { this.x = x; this.y = y; }\n\n    int getX() { return x; }\n    int getY() { return y; }\n\n    @Override public String toString() { ... }\n    @Override public boolean equals(Object o) { ... }\n    @Override public int hashCode() { ... }\n}\n```\n\n「`x` と `y` を持つ」という情報に対して、書く量が多すぎます。\n**`record`** を使うと、これが1行になります。\n\n```java\nrecord Point(int x, int y) { }\n```\n\nこれだけで、次のすべてが自動で作られます。\n\n- `private final` なフィールド `x` `y`\n- 引数が全部そろったコンストラクタ\n- アクセサ `x()` と `y()`\n- `equals` / `hashCode` / `toString`\n\n```java\nPoint p1 = new Point(1, 2);\nPoint p2 = new Point(1, 2);\n\nSystem.out.println(p1);              // Point[x=1, y=2]\nSystem.out.println(p1.x());          // 1\nSystem.out.println(p1.equals(p2));   // true！自動で内容比較になる\nSystem.out.println(p1 == p2);        // false（別の本体なのは変わらない）\n```\n\n第10章で手で書いた `equals` と `toString` が、最初から入っているわけです。\n\n> ⚠️ 試験のワナ … アクセサの名前は `getX()` ではなく **`x()`** です。フィールド名と同じ名前になります。\n\n## record の決まり\n\n- **不変** です。フィールドは `final` で、セッターはありません（第9章の不変クラス）\n- **暗黙的に `final`** なクラスなので、**継承できません**\n- **他のクラスを継承することもできません**（`extends` は書けない）\n- **インターフェースは実装できます**（`implements` はOK）\n- インスタンスフィールドを追加することはできません（`static` フィールドならOK）\n- メソッドは自由に追加できます\n\n```java\nrecord Point(int x, int y) {\n    int sum() {                        // メソッドは追加できる\n        return x + y;\n    }\n}\n```\n\n## コンパクトコンストラクタで検証する\n\n「値がおかしければ弾く」を書きたいときは、**引数リストを省略した** コンストラクタを書きます。\n\n```java\nrecord Point(int x, int y) {\n    Point {                            // カッコがない = コンパクトコンストラクタ\n        if (x < 0 || y < 0) {\n            throw new IllegalArgumentException(\"マイナスは不可\");\n        }\n    }\n}\n```\n\n書いた処理のあとで、フィールドへの代入が自動的に行われます。\n第9章でやった「カプセル化による検証」を、短く書ける形です。\n\n## いつ使うか\n\n「データを運ぶだけ」のクラスに使います。座標、金額、APIの応答、\nメソッドから複数の値を返したいとき、`Map` のキーなどです。\n\n逆に「状態が変わる」ものには向きません（不変だからです）。\nそういうときは普通のクラスを使います。\n\n> 💡 `record` は「クラスの短縮記法」ではなく **「値であること」を宣言する仕組み** です。`equals` が内容比較になるのは、値として扱うのが当たり前だからです。",
+      "samples": [
+        {
+          "caption": "record が自動で用意してくれるもの",
+          "code": "record Point(int x, int y) {\n    int sum() {\n        return x + y;\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Point p1 = new Point(1, 2);\n        Point p2 = new Point(1, 2);\n        Point p3 = new Point(3, 4);\n\n        System.out.println(\"toString : \" + p1);\n        System.out.println(\"アクセサ  : \" + p1.x() + \" と \" + p1.y());\n        System.out.println(\"メソッド  : \" + p1.sum());\n        System.out.println(\"equals   : \" + p1.equals(p2));\n        System.out.println(\"==       : \" + (p1 == p2));\n        System.out.println(\"違う値    : \" + p1.equals(p3));\n        System.out.println(\"hashCode : \" + (p1.hashCode() == p2.hashCode()));\n    }\n}\n"
+        },
+        {
+          "caption": "コンパクトコンストラクタで検証する",
+          "code": "record Money(String label, int amount) {\n    Money {\n        if (amount < 0) {\n            throw new IllegalArgumentException(\"マイナスは不可: \" + amount);\n        }\n    }\n\n    Money plus(int n) {\n        return new Money(label, amount + n);      // 不変なので新しく作る\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Money m = new Money(\"財布\", 100);\n        System.out.println(m);\n        System.out.println(m.plus(50));\n        System.out.println(m);                    // 元は変わらない\n\n        try {\n            new Money(\"借金\", -1);\n        } catch (IllegalArgumentException e) {\n            System.out.println(\"弾かれた: \" + e.getMessage());\n        }\n    }\n}\n"
+        }
+      ],
+      "task": "**`record`** を使って `Point` を作ってください。\n\n```java\nrecord Point(int x, int y) { }\n```\n\n整数が4つ、`x1 y1 x2 y2` の順で入力されます。`p1` と `p2` を作り、次の **4行** を\n出力してください。\n\n1. `p1` をそのまま `println` に渡した結果\n2. `p1.x() + p1.y()`\n3. `p1.equals(p2)`\n4. `p1 == p2`\n\n`1 2 1 2` が入力されたときの出力はこうです。\n\n```\nPoint[x=1, y=2]\n3\ntrue\nfalse\n```\n\n- 1行目の形（`Point[x=1, y=2]`）は `record` が自動で作る `toString` そのままです\n- 3行目は **自分で `equals` を書かなくても** 内容比較になります\n  （第10章で手で書いたものと比べてみてください）\n- アクセサは `getX()` ではなく **`x()`** です",
+      "starterCode": "import java.util.Scanner;\n\n// record Point を1行で書く\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int x1 = sc.nextInt();\n        int y1 = sc.nextInt();\n        int x2 = sc.nextInt();\n        int y2 = sc.nextInt();\n\n        // Point を2つ作って4行出力する\n    }\n}\n",
+      "visibleCases": [
+        {
+          "label": "同じ座標",
+          "stdin": "1 2 1 2",
+          "expected": "Point[x=1, y=2]\n3\ntrue\nfalse"
+        },
+        {
+          "label": "違う座標",
+          "stdin": "1 2 3 4",
+          "expected": "Point[x=1, y=2]\n3\nfalse\nfalse"
+        }
+      ],
+      "hiddenCases": [
+        {
+          "label": "全部 0",
+          "stdin": "0 0 0 0",
+          "expected": "Point[x=0, y=0]\n0\ntrue\nfalse"
+        },
+        {
+          "label": "マイナスで同じ",
+          "stdin": "-3 -4 -3 -4",
+          "expected": "Point[x=-3, y=-4]\n-7\ntrue\nfalse"
+        },
+        {
+          "label": "x だけ同じ",
+          "stdin": "5 1 5 2",
+          "expected": "Point[x=5, y=1]\n6\nfalse\nfalse"
+        },
+        {
+          "label": "入れ替わっている",
+          "stdin": "1 2 2 1",
+          "expected": "Point[x=1, y=2]\n3\nfalse\nfalse"
+        },
+        {
+          "label": "打ち消して 0",
+          "stdin": "10 -10 10 -10",
+          "expected": "Point[x=10, y=-10]\n0\ntrue\nfalse"
+        }
+      ],
+      "hints": [
+        "`record Point(int x, int y) { }` を `public class Main` の外に書きます。`class` ではなく `record` です。",
+        "1行目は `System.out.println(p1);` だけです。`toString` は自動で用意されています。",
+        "2行目のアクセサは `p1.x()` と `p1.y()` です。カッコが必要で、`getX()` ではありません。"
+      ],
+      "solution": "import java.util.Scanner;\n\nrecord Point(int x, int y) { }\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int x1 = sc.nextInt();\n        int y1 = sc.nextInt();\n        int x2 = sc.nextInt();\n        int y2 = sc.nextInt();\n\n        Point p1 = new Point(x1, y1);\n        Point p2 = new Point(x2, y2);\n\n        System.out.println(p1);\n        System.out.println(p1.x() + p1.y());\n        System.out.println(p1.equals(p2));\n        System.out.println(p1 == p2);\n    }\n}\n"
+    },
+    {
+      "id": "18-5",
+      "title": "enum — 決まった選択肢を型にする",
+      "explanation": "## 「取りうる値」を限定する\n\n季節を表すのに文字列を使うと、何でも入ってしまいます。\n\n```java\nString season = \"はる\";        // 打ち間違えてもコンパイルは通る\n```\n\n**`enum`（列挙型）** を使うと、**決められた値しか入れられない型** を作れます。\n\n```java\nenum Season {\n    SPRING, SUMMER, AUTUMN, WINTER\n}\n\nSeason s = Season.SPRING;\nSeason t = Season.SPRINGG;     // ❌ コンパイルエラー\n```\n\n打ち間違いがコンパイル時に分かります。定数の名前は **大文字** にするのが慣習です。\n\n## 使える機能\n\n| 書き方 | 意味 |\n|---|---|\n| `Season.SPRING` | 定数を取り出す |\n| `Season.values()` | 全定数の配列 |\n| `Season.valueOf(\"SPRING\")` | 名前から定数を得る |\n| `s.name()` | 定数の名前（`\"SPRING\"`） |\n| `s.ordinal()` | 宣言順の番号（**`0` から**） |\n\n```java\nfor (Season s : Season.values()) {\n    System.out.println(s.ordinal() + \" \" + s.name());\n}\n```\n\n`enum` の定数は **1つずつしか存在しない** ので、`==` で比較できます\n（`String` と違うところです）。`equals` でも構いません。\n\n```java\nif (s == Season.SPRING) { ... }        // ✅ これでよい\n```\n\n`switch` でも使えます。すべての定数を書けば `default` を省略できます（18-2）。\n\n```java\nString japanese = switch (s) {\n    case SPRING -> \"春\";\n    case SUMMER -> \"夏\";\n    case AUTUMN -> \"秋\";\n    case WINTER -> \"冬\";\n};\n```\n\n`case` に `Season.SPRING` ではなく **`SPRING` と書く** ことに注意してください。\n\n> ⚠️ 試験のワナ … `valueOf` に存在しない名前を渡すと **`IllegalArgumentException`** です（`null` でも例外）。大文字小文字も区別されるので、`valueOf(\"spring\")` は例外になります。\n\n## フィールドとメソッドを持てる\n\n`enum` は実はクラスです。だから各定数に値を持たせられます。\n\n```java\nenum Season {\n    SPRING(\"春\"), SUMMER(\"夏\"), AUTUMN(\"秋\"), WINTER(\"冬\");    // ← セミコロンが必要\n\n    private final String japanese;\n\n    Season(String japanese) {          // コンストラクタは private 扱い\n        this.japanese = japanese;\n    }\n\n    String japanese() {\n        return japanese;\n    }\n}\n\nSystem.out.println(Season.SPRING.japanese());     // 春\n```\n\n定数の一覧の最後に **セミコロン** が必要です（フィールドが続くため）。\nコンストラクタは外から呼べません（`new Season(...)` はコンパイルエラー）。\n定数はクラスの読み込み時に1回だけ作られます。\n\n> ⚠️ 試験のワナ … `enum` は `new` できません。また、他のクラスを継承することもできません（内部で `java.lang.Enum` を継承しているため）。インターフェースの実装はできます。\n\n> 💡 `ordinal()` は便利ですが、定数の順番を入れ替えると値が変わってしまいます。永続化やロジックの判断には使わず、表示や並び順の目安として使うのが安全です。",
+      "samples": [
+        {
+          "caption": "enum に日本語を持たせる",
+          "code": "enum Season {\n    SPRING(\"春\"), SUMMER(\"夏\"), AUTUMN(\"秋\"), WINTER(\"冬\");\n\n    private final String japanese;\n\n    Season(String japanese) {\n        this.japanese = japanese;\n    }\n\n    String japanese() {\n        return japanese;\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        for (Season s : Season.values()) {\n            System.out.println(s.ordinal() + \" \" + s.name() + \" \" + s.japanese());\n        }\n\n        System.out.println(\"個数: \" + Season.values().length);\n\n        Season s = Season.valueOf(\"SUMMER\");\n        System.out.println(\"valueOf: \" + s.japanese());\n        System.out.println(\"== で比較: \" + (s == Season.SUMMER));\n    }\n}\n"
+        },
+        {
+          "caption": "valueOf の失敗と switch",
+          "code": "enum Season { SPRING, SUMMER, AUTUMN, WINTER }\n\npublic class Main {\n    static void show(String name) {\n        try {\n            Season s = Season.valueOf(name);\n            String japanese = switch (s) {          // default を省略できる\n                case SPRING -> \"春\";\n                case SUMMER -> \"夏\";\n                case AUTUMN -> \"秋\";\n                case WINTER -> \"冬\";\n            };\n            System.out.println(name + \" → \" + japanese);\n        } catch (IllegalArgumentException e) {\n            System.out.println(name + \" → 不明\");\n        }\n    }\n\n    public static void main(String[] args) {\n        show(\"SPRING\");\n        show(\"WINTER\");\n        show(\"spring\");        // 小文字は別扱い\n        show(\"XXX\");\n    }\n}\n"
+        }
+      ],
+      "task": "**`enum`** で `Season` を作ってください。\n\n- 定数は `SPRING` `SUMMER` `AUTUMN` `WINTER` の4つ（この順）\n- それぞれに日本語の名前（`春` `夏` `秋` `冬`）を持たせ、`String japanese()` で取り出せるようにする\n\n### 入力\n\n- 1行目 … 個数 `k`（`0` もありえます）\n- 2行目 … `k` 個の名前（`k` が `0` のときこの行はありません）\n\n### 出力\n\n1つにつき1行、最後にもう1行です。\n\n- `valueOf` に成功したら `名前 番号 日本語`（番号は `ordinal()`）\n- 失敗したら `不明`\n- 最後の行は `全部 ○○`（`values().length`）\n\n`2` と `SPRING WINTER` が入力されたときの出力はこうです。\n\n```\nSPRING 0 春\nWINTER 3 冬\n全部 4\n```\n\n- `ordinal()` は **`0` から** 始まります\n- 存在しない名前や **小文字** は `IllegalArgumentException` になるので、`不明` と出力してください\n- 1つ失敗しても次の名前の処理は続けてください",
+      "starterCode": "import java.util.Scanner;\n\n// enum Season を書く（日本語のフィールドとコンストラクタ、japanese() を持たせる）\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int k = sc.nextInt();\n\n        for (int i = 0; i < k; i++) {\n            String name = sc.next();\n            // valueOf を try-catch して出力する\n        }\n\n        // 全部 の行を出力する\n    }\n}\n",
+      "visibleCases": [
+        {
+          "label": "2つ",
+          "stdin": "2\nSPRING WINTER",
+          "expected": "SPRING 0 春\nWINTER 3 冬\n全部 4"
+        },
+        {
+          "label": "存在しない名前",
+          "stdin": "2\nSUMMER XXX",
+          "expected": "SUMMER 1 夏\n不明\n全部 4"
+        }
+      ],
+      "hiddenCases": [
+        {
+          "label": "0個",
+          "stdin": "0",
+          "expected": "全部 4"
+        },
+        {
+          "label": "小文字は不明",
+          "stdin": "1\nspring",
+          "expected": "不明\n全部 4"
+        },
+        {
+          "label": "4つ全部",
+          "stdin": "4\nSPRING SUMMER AUTUMN WINTER",
+          "expected": "SPRING 0 春\nSUMMER 1 夏\nAUTUMN 2 秋\nWINTER 3 冬\n全部 4"
+        },
+        {
+          "label": "同じものを2回",
+          "stdin": "2\nAUTUMN AUTUMN",
+          "expected": "AUTUMN 2 秋\nAUTUMN 2 秋\n全部 4"
+        },
+        {
+          "label": "全部不明",
+          "stdin": "3\na b c",
+          "expected": "不明\n不明\n不明\n全部 4"
+        }
+      ],
+      "hints": [
+        "定数の一覧は `SPRING(\"春\"), SUMMER(\"夏\"), AUTUMN(\"秋\"), WINTER(\"冬\");` と書き、最後に **セミコロン** を付けます。",
+        "そのあとに `private final String japanese;`、コンストラクタ、`String japanese() { return japanese; }` を書きます。",
+        "`try { Season s = Season.valueOf(name); ... } catch (IllegalArgumentException e) { System.out.println(\"不明\"); }` の形です。"
+      ],
+      "solution": "import java.util.Scanner;\n\nenum Season {\n    SPRING(\"春\"), SUMMER(\"夏\"), AUTUMN(\"秋\"), WINTER(\"冬\");\n\n    private final String japanese;\n\n    Season(String japanese) {\n        this.japanese = japanese;\n    }\n\n    String japanese() {\n        return japanese;\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int k = sc.nextInt();\n\n        for (int i = 0; i < k; i++) {\n            String name = sc.next();\n            try {\n                Season s = Season.valueOf(name);\n                System.out.println(s.name() + \" \" + s.ordinal() + \" \" + s.japanese());\n            } catch (IllegalArgumentException e) {\n                System.out.println(\"不明\");\n            }\n        }\n\n        System.out.println(\"全部 \" + Season.values().length);\n    }\n}\n"
+    }
+  ]
+}

@@ -1,0 +1,321 @@
+{
+  "id": "ch05",
+  "title": "くり返す",
+  "subtitle": "for と while で同じ処理を何度も",
+  "emoji": "🔁",
+  "lessons": [
+    {
+      "id": "5-1",
+      "title": "for でくり返す",
+      "explanation": "## 同じことを何度も書かない\n\n1から5まで出したいとき、`println` を5回書くこともできます。\nでも100までなら？ そこで `for` を使います。\n\n```java\nfor (int i = 1; i <= 5; i++) {\n    System.out.println(i);\n}\n```\n\nこれで `1 2 3 4 5` が1行ずつ出ます。かっこの中は **セミコロンで区切られた3つの部分** です。\n\n```java\nfor ( int i = 1 ;  i <= 5 ;  i++ ) {\n//    ①最初に1回   ②毎回チェック  ③1周ごとに\n```\n\n- **① 初期化** `int i = 1` … ループ用の変数を作る（最初に1回だけ）\n- **② 条件** `i <= 5` … これが true のあいだ続ける（毎周のはじめに調べる）\n- **③ 更新** `i++` … 1周終わるたびに実行する（`i++` は `i = i + 1` と同じ）\n\n### 動きを1周ずつ追う\n\n| 周 | i | `i <= 5` | 出力 | 更新後 |\n|---|---|---|---|---|\n| 1周目 | 1 | true | 1 | 2 |\n| 2周目 | 2 | true | 2 | 3 |\n| 3周目 | 3 | true | 3 | 4 |\n| 4周目 | 4 | true | 4 | 5 |\n| 5周目 | 5 | true | 5 | 6 |\n| — | 6 | **false** | — | 終了 |\n\n条件が false になった時点で、中身は実行されずにループを抜けます。\n\n### 0から始めるか、1から始めるか\n\n```java\nfor (int i = 0; i < 5; i++)    // i は 0,1,2,3,4  → 5回\nfor (int i = 1; i <= 5; i++)   // i は 1,2,3,4,5  → 5回\n```\n\nどちらも5回まわります。**回数を数えるなら上、値をそのまま使うなら下** が書きやすいです。\n第6章の配列では上の形をよく使います。\n\n### 無限ループに注意\n\n`i++` を書き忘れると `i` がずっと 1 のままで、条件が永久に true になります。\n\n```java\nfor (int i = 1; i <= 5; ) {    // ✗ i が増えないので終わらない\n    System.out.println(i);\n}\n```\n\nこのアプリでは5秒で自動的に止めるので、固まったら「終わらないループになっていないか」を疑ってください。",
+      "samples": [
+        {
+          "caption": "1から5までと、5から1まで",
+          "code": "public class Main {\n    public static void main(String[] args) {\n        for (int i = 1; i <= 5; i++) {\n            System.out.println(\"上り: \" + i);\n        }\n\n        for (int i = 5; i >= 1; i--) {\n            System.out.println(\"下り: \" + i);\n        }\n    }\n}\n"
+        }
+      ],
+      "task": "整数 `n` が入力されます。`1` から `n` までの数を、1行ずつ順番に出力してください。\n\n例えば `3` が入力されたら:\n\n```\n1\n2\n3\n```\n\n`n` が `0` のときは **何も出力しません**（1から0までの数は存在しないので）。\nこのケースも試されます。",
+      "starterCode": "import java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n\n        int n = sc.nextInt();\n\n        // for で 1 から n まで出力しよう\n    }\n}\n",
+      "visibleCases": [
+        {
+          "label": "3 のとき",
+          "stdin": "3",
+          "expected": "1\n2\n3"
+        },
+        {
+          "label": "1 のとき",
+          "stdin": "1",
+          "expected": "1"
+        }
+      ],
+      "hiddenCases": [
+        {
+          "label": "0 のとき（何も出ない）",
+          "stdin": "0",
+          "expected": ""
+        },
+        {
+          "label": "5 のとき",
+          "stdin": "5",
+          "expected": "1\n2\n3\n4\n5"
+        },
+        {
+          "label": "10 のとき",
+          "stdin": "10",
+          "expected": "1\n2\n3\n4\n5\n6\n7\n8\n9\n10"
+        }
+      ],
+      "hints": [
+        "`for (int i = 1; i <= n; i++) { ... }` の形です。条件に `n` を使うところがポイントです。",
+        "中身は `System.out.println(i);` の1行だけです。",
+        "`n` が 0 のときは、最初のチェックで `1 <= 0` が false になるので中身は1度も実行されません。特別な処理は要りません。"
+      ],
+      "solution": "import java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n\n        int n = sc.nextInt();\n\n        for (int i = 1; i <= n; i++) {\n            System.out.println(i);\n        }\n    }\n}\n"
+    },
+    {
+      "id": "5-2",
+      "title": "くり返しで合計を出す",
+      "explanation": "## 「ためていく変数」を用意する\n\n合計を求めるには、**ループの外に入れ物を用意して、ループの中で足していきます**。\n\n```java\nint sum = 0;                        // ① ループの外で 0 から始める\n\nfor (int i = 1; i <= 5; i++) {\n    sum += i;                       // ② 毎周ちょっと足す\n}\n\nSystem.out.println(sum);            // ③ ループを抜けてから出力  → 15\n```\n\n3つの位置が、それぞれ意味を持っています。\n\n- **① ループの外** … ここで宣言しないと、毎周リセットされてしまう\n- **② ループの中** … `sum = sum + i` と同じ意味\n- **③ ループの後** … 中に書くと途中の値まで全部出てしまう\n\n### 変数の置き場所を間違えると\n\n```java\nfor (int i = 1; i <= 5; i++) {\n    int sum = 0;      // ✗ 毎周作り直されるので、最後まで 5 のまま\n    sum += i;\n}\n```\n\n「ためる変数はループの外」。これは合計・個数・最大値など、あらゆる集計で共通の型です。\n\n### 0 から始める / 1 から始める\n\n- 足し算をためるなら **`0`** から（0を足しても変わらないので）\n- 掛け算をためるなら **`1`** から（1を掛けても変わらないので）\n\n```java\nint product = 1;\nfor (int i = 1; i <= 5; i++) {\n    product *= i;\n}\nSystem.out.println(product);   // 120  (5の階乗)\n```\n\n> 💡 途中の値を確認したいときは、ループの中に\n> `System.out.println(\"i=\" + i + \" sum=\" + sum);` を一時的に足してみましょう。\n> 頭で追うよりずっと速く原因が分かります。",
+      "samples": [
+        {
+          "caption": "合計をためていく様子を見る",
+          "code": "public class Main {\n    public static void main(String[] args) {\n        int sum = 0;\n\n        for (int i = 1; i <= 5; i++) {\n            sum += i;\n            System.out.println(\"i=\" + i + \" のとき sum=\" + sum);\n        }\n\n        System.out.println(\"最終的な合計: \" + sum);\n    }\n}\n"
+        }
+      ],
+      "task": "整数 `n` が入力されます。`1` から `n` までの合計を計算し、**その数だけ** を出力してください。\n\n例えば `5` が入力されたら `15` （= 1+2+3+4+5）を出力します。\n\n`n` が `0` のときは `0` を出力してください。",
+      "starterCode": "import java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n\n        int n = sc.nextInt();\n        int sum = 0;\n\n        // for でためて、最後に出力しよう\n    }\n}\n",
+      "visibleCases": [
+        {
+          "label": "5 のとき",
+          "stdin": "5",
+          "expected": "15"
+        },
+        {
+          "label": "1 のとき",
+          "stdin": "1",
+          "expected": "1"
+        }
+      ],
+      "hiddenCases": [
+        {
+          "label": "0 のとき",
+          "stdin": "0",
+          "expected": "0"
+        },
+        {
+          "label": "10 のとき",
+          "stdin": "10",
+          "expected": "55"
+        },
+        {
+          "label": "100 のとき",
+          "stdin": "100",
+          "expected": "5050"
+        }
+      ],
+      "hints": [
+        "`sum` はループの**外**で `0` にしておきます。中で宣言すると毎周リセットされます。",
+        "ループの中は `sum += i;` だけです。`sum = sum + i;` と書いても同じです。",
+        "`System.out.println(sum);` はループの**外**（下）に書きます。中に書くと途中の値まで全部出力されてしまいます。"
+      ],
+      "solution": "import java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n\n        int n = sc.nextInt();\n        int sum = 0;\n\n        for (int i = 1; i <= n; i++) {\n            sum += i;\n        }\n\n        System.out.println(sum);\n    }\n}\n"
+    },
+    {
+      "id": "5-3",
+      "title": "while — 回数が決まっていないくり返し",
+      "explanation": "## 「〜のあいだ、ずっと」\n\n`for` は「何回まわるか」がはっきりしているときに向いています。\n一方 `while` は **条件が満たされているあいだ続ける** 書き方で、\n回数が事前に分からない処理に向いています。\n\n```java\nwhile (条件) {\n    // 条件が true のあいだ、ずっとくり返す\n}\n```\n\n例えば「1以下になるまで半分にし続ける」は、何回かかるか事前に分かりません。\n\n```java\nint n = 10;\n\nwhile (n >= 1) {\n    System.out.println(n);\n    n = n / 2;\n}\n```\n\n出力は `10` → `5` → `2` → `1` です（整数の割り算なので `5/2` は `2` になります）。\n\n### 動きを追う\n\n| n | `n >= 1` | 出力 | 半分にした後 |\n|---|---|---|---|\n| 10 | true | 10 | 5 |\n| 5 | true | 5 | 2 |\n| 2 | true | 2 | 1 |\n| 1 | true | 1 | 0 |\n| 0 | **false** | — | 終了 |\n\n### while で必ず確認する3つ\n\n1. **条件に使う変数がループの前に用意されているか**\n2. **ループの中で、その変数が変化しているか**（これを忘れると無限ループ）\n3. **いつか条件が false になるか**\n\n```java\nint n = 10;\nwhile (n >= 1) {\n    System.out.println(n);\n    // n を変えるのを忘れた → 永久に終わらない\n}\n```\n\n`for` は更新式 `i++` が形として決まっているので忘れにくいのですが、\n`while` は自分で書く必要があります。**書いたら必ず「終わるか？」を確認**しましょう。\n\n### for と while は書き換えられる\n\n```java\nfor (int i = 1; i <= 5; i++) {   //  この2つは\n    System.out.println(i);\n}\n\nint i = 1;                        //  まったく同じ動き\nwhile (i <= 5) {\n    System.out.println(i);\n    i++;\n}\n```\n\n**回数が決まっているなら for、決まっていないなら while** と選ぶと読みやすくなります。",
+      "samples": [
+        {
+          "caption": "半分にし続ける（入力は 10）",
+          "code": "import java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n\n        int n = sc.nextInt();\n\n        while (n >= 1) {\n            System.out.println(n);\n            n = n / 2;\n        }\n        System.out.println(\"終わりました\");\n    }\n}\n",
+          "stdin": "10"
+        }
+      ],
+      "task": "整数 `n` が入力されます。`n` が `1` 以上のあいだ、**その値を出力してから2で割る** という\n処理をくり返してください。\n\n例えば `10` が入力されたら:\n\n```\n10\n5\n2\n1\n```\n\n（`10 → 5 → 2 → 1 → 0` と変化し、`0` になったところで終了）\n\n`n` が `0` のときは何も出力しません。",
+      "starterCode": "import java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n\n        int n = sc.nextInt();\n\n        // while で、1以上のあいだくり返そう\n    }\n}\n",
+      "visibleCases": [
+        {
+          "label": "10 のとき",
+          "stdin": "10",
+          "expected": "10\n5\n2\n1"
+        },
+        {
+          "label": "1 のとき",
+          "stdin": "1",
+          "expected": "1"
+        }
+      ],
+      "hiddenCases": [
+        {
+          "label": "0 のとき（何も出ない）",
+          "stdin": "0",
+          "expected": ""
+        },
+        {
+          "label": "7 のとき",
+          "stdin": "7",
+          "expected": "7\n3\n1"
+        },
+        {
+          "label": "16 のとき",
+          "stdin": "16",
+          "expected": "16\n8\n4\n2\n1"
+        },
+        {
+          "label": "100 のとき",
+          "stdin": "100",
+          "expected": "100\n50\n25\n12\n6\n3\n1"
+        }
+      ],
+      "hints": [
+        "`while (n >= 1) { ... }` の形です。条件は「1以上のあいだ」です。",
+        "中身は2行です。まず `System.out.println(n);` で出力し、次に `n = n / 2;` で半分にします。",
+        "`n = n / 2;` を書き忘れると `n` が変わらず、永久に終わらないループになります（5秒で自動的に止まります）。"
+      ],
+      "solution": "import java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n\n        int n = sc.nextInt();\n\n        while (n >= 1) {\n            System.out.println(n);\n            n = n / 2;\n        }\n    }\n}\n"
+    },
+    {
+      "id": "5-4",
+      "title": "break と continue でループを操る",
+      "explanation": "## ループの流れを変える2つの命令\n\n| 命令 | 意味 |\n|---|---|\n| `break` | ループを **完全に抜ける**（もう1周もしない） |\n| `continue` | この周だけ飛ばして、**次の周へ進む** |\n\n### continue — この1周をスキップ\n\n```java\nfor (int i = 1; i <= 5; i++) {\n    if (i == 3) {\n        continue;          // i が 3 のときだけ、下を実行せず次へ\n    }\n    System.out.println(i);\n}\n```\n\n出力は `1 2 4 5` です。`3` だけが飛ばされました。\n`continue` の下にあるコードは、その周では実行されません。\n\n### break — ループそのものを終わる\n\n```java\nfor (int i = 1; i <= 5; i++) {\n    if (i == 3) {\n        break;             // i が 3 になった時点で終了\n    }\n    System.out.println(i);\n}\n```\n\n出力は `1 2` だけです。`3` は出力されず、`4` と `5` も実行されません。\n\n### 2つを並べて比べる\n\n`i` が 1 から 5 まで動くとき、\n\n| | 出力 |\n|---|---|\n| `if (i == 3) continue;` | 1, 2, **4, 5** |\n| `if (i == 3) break;` | 1, 2 |\n\n**continue は「この1回を飛ばす」、break は「ここで終わり」** と覚えましょう。\n\n### 使いどきの例\n\n`continue` は「条件に合わないものを除外する」のに便利です。\n\n```java\nfor (int i = 1; i <= 20; i++) {\n    if (i % 3 != 0) {\n        continue;          // 3の倍数以外はスキップ\n    }\n    System.out.println(i);  // 3, 6, 9, 12, 15, 18\n}\n```\n\n`break` は「見つかったらもう探さなくてよい」場面で使います。\n\n> 💡 `break` と `continue` は、いちばん内側のループにだけ効きます。\n> 二重ループの内側で `break` しても、外側のループは続きます（次のレッスンで扱います）。",
+      "samples": [
+        {
+          "caption": "continue と break のちがいを並べて見る",
+          "code": "public class Main {\n    public static void main(String[] args) {\n        System.out.println(\"--- continue（3を飛ばす）---\");\n        for (int i = 1; i <= 5; i++) {\n            if (i == 3) {\n                continue;\n            }\n            System.out.println(i);\n        }\n\n        System.out.println(\"--- break（3で終わる）---\");\n        for (int i = 1; i <= 5; i++) {\n            if (i == 3) {\n                break;\n            }\n            System.out.println(i);\n        }\n    }\n}\n"
+        }
+      ],
+      "task": "整数 `n` が入力されます。`1` から `n` まで数えながら、次のルールで出力してください。\n\n1. **3の倍数は出力しない**（飛ばして次へ進む）\n2. **`7` になったら、そこでくり返しを終わる**（`7` 自体も出力しない）\n\n例えば `10` が入力されたら:\n\n```\n1\n2\n4\n5\n```\n\n（`3` と `6` は3の倍数なので飛ばし、`7` で終了。だから `8` 以降は出力されません）",
+      "starterCode": "import java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n\n        int n = sc.nextInt();\n\n        for (int i = 1; i <= n; i++) {\n            // 7 なら break、3の倍数なら continue\n        }\n    }\n}\n",
+      "visibleCases": [
+        {
+          "label": "10 のとき",
+          "stdin": "10",
+          "expected": "1\n2\n4\n5"
+        },
+        {
+          "label": "3 のとき",
+          "stdin": "3",
+          "expected": "1\n2"
+        }
+      ],
+      "hiddenCases": [
+        {
+          "label": "5 のとき",
+          "stdin": "5",
+          "expected": "1\n2\n4\n5"
+        },
+        {
+          "label": "20 のとき（7で止まる）",
+          "stdin": "20",
+          "expected": "1\n2\n4\n5"
+        },
+        {
+          "label": "1 のとき",
+          "stdin": "1",
+          "expected": "1"
+        },
+        {
+          "label": "0 のとき（何も出ない）",
+          "stdin": "0",
+          "expected": ""
+        },
+        {
+          "label": "6 のとき",
+          "stdin": "6",
+          "expected": "1\n2\n4\n5"
+        }
+      ],
+      "hints": [
+        "ループの中で2つの `if` を書きます。`if (i == 7) { break; }` と `if (i % 3 == 0) { continue; }` です。",
+        "`break` の判定を先に書きます。順番を逆にしても今回は同じ結果になりますが、「終了条件を先に見る」ほうが読みやすいです。",
+        "2つの if の後ろに `System.out.println(i);` を書きます。break や continue で飛ばされた周には、ここへ来ません。"
+      ],
+      "solution": "import java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n\n        int n = sc.nextInt();\n\n        for (int i = 1; i <= n; i++) {\n            if (i == 7) {\n                break;\n            }\n            if (i % 3 == 0) {\n                continue;\n            }\n            System.out.println(i);\n        }\n    }\n}\n"
+    },
+    {
+      "id": "5-5",
+      "title": "ループの中のループ（二重ループ）",
+      "explanation": "## ループは入れ子にできる\n\n`for` の中に `for` を書けます。**外側が1周するあいだに、内側が全部まわります**。\n\n```java\nfor (int i = 1; i <= 3; i++) {          // 外側: 3周\n    for (int j = 1; j <= 2; j++) {      // 内側: 毎回2周\n        System.out.println(i + \"-\" + j);\n    }\n}\n```\n\n出力はこうなります。\n\n```\n1-1\n1-2\n2-1\n2-2\n3-1\n3-2\n```\n\n外側が 3周 × 内側が 2周 = 合計6回、いちばん内側が実行されました。\n**内側のループは、外側の1周ごとに最初からやり直される** のがポイントです。\n\n## 表を作るときの型\n\n行と列のある表を作るのが、二重ループの典型的な使い道です。\n\n```java\nfor (int i = 1; i <= 3; i++) {          // 行\n    for (int j = 1; j <= 3; j++) {      // 列\n        System.out.print(i * j + \" \");  // print なので改行しない\n    }\n    System.out.println();               // 1行ぶん終わったので改行\n}\n```\n\n出力:\n\n```\n1 2 3\n2 4 6\n3 6 9\n```\n\n### 改行の位置が命\n\n- 内側では **`print`**（改行しない）を使う → 数が横に並ぶ\n- 内側のループを抜けたところで **`println()`**（空の改行だけ）を呼ぶ → 行が変わる\n\n`println()` を内側に書いてしまうと縦一列になり、\n外側に書き忘れると全部が1行につながります。\n**「改行は行の終わりで1回」** と意識しましょう。\n\n### 変数名は i, j, k\n\n外側から順に `i` `j` `k` を使うのが慣習です。\n`i` を内側でも使ってしまうと壊れるので、必ず別の名前にします。\n\n> 💡 二重ループは実行回数がかけ算で増えます（100×100なら1万回）。\n> うまく動かないときは、まず `n` を 2 や 3 にして手で追ってみましょう。",
+      "samples": [
+        {
+          "caption": "3×3 の掛け算表を作る",
+          "code": "public class Main {\n    public static void main(String[] args) {\n        for (int i = 1; i <= 3; i++) {\n            for (int j = 1; j <= 3; j++) {\n                System.out.print(i * j + \" \");\n            }\n            System.out.println();\n        }\n    }\n}\n"
+        }
+      ],
+      "task": "整数 `n` が入力されます。`n` 行 `n` 列の掛け算表を出力してください。\n\n`i` 行目 `j` 列目には `i * j` を書き、**半角スペース区切り**で横に並べます。\n\n例えば `3` が入力されたら:\n\n```\n1 2 3\n2 4 6\n3 6 9\n```\n\n`n` が `0` のときは何も出力しません。\n\n> 各行の末尾に余分な半角スペースが付いていても正解になります（気にしなくて大丈夫です）。",
+      "starterCode": "import java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n\n        int n = sc.nextInt();\n\n        for (int i = 1; i <= n; i++) {\n            // 内側のループで1行ぶんを print し、\n            // 行が終わったら println() で改行しよう\n        }\n    }\n}\n",
+      "visibleCases": [
+        {
+          "label": "3 のとき",
+          "stdin": "3",
+          "expected": "1 2 3\n2 4 6\n3 6 9"
+        },
+        {
+          "label": "1 のとき",
+          "stdin": "1",
+          "expected": "1"
+        }
+      ],
+      "hiddenCases": [
+        {
+          "label": "2 のとき",
+          "stdin": "2",
+          "expected": "1 2\n2 4"
+        },
+        {
+          "label": "0 のとき（何も出ない）",
+          "stdin": "0",
+          "expected": ""
+        },
+        {
+          "label": "5 のとき",
+          "stdin": "5",
+          "expected": "1 2 3 4 5\n2 4 6 8 10\n3 6 9 12 15\n4 8 12 16 20\n5 10 15 20 25"
+        }
+      ],
+      "hints": [
+        "外側は `for (int i = 1; i <= n; i++)`、内側は `for (int j = 1; j <= n; j++)` です。変数名を分けるのが大事です。",
+        "内側では `System.out.print(i * j + \" \");` を使います。`println` ではなく `print` です（改行しないため）。",
+        "内側のループが終わった直後、外側のループの中で `System.out.println();` を呼んで改行します。この位置がずれると表になりません。"
+      ],
+      "solution": "import java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n\n        int n = sc.nextInt();\n\n        for (int i = 1; i <= n; i++) {\n            for (int j = 1; j <= n; j++) {\n                System.out.print(i * j + \" \");\n            }\n            System.out.println();\n        }\n    }\n}\n"
+    },
+    {
+      "id": "5-6",
+      "title": "do-while と、ループの選び方",
+      "explanation": "## 「まず1回はやる」ループ\n\n`while` は **条件を先に** 調べます。だから条件が最初から偽なら **1回も実行されません**。\n\n```java\nint n = 0;\nwhile (n > 0) {\n    System.out.println(\"実行された\");   // 一度も出ない\n}\n```\n\nこれに対して `do-while` は **処理を先に** 実行して、**後で** 条件を調べます。\nだから条件が最初から偽でも **必ず1回は実行されます**。\n\n```java\nint n = 0;\ndo {\n    System.out.println(\"実行された\");   // 1回だけ出る\n} while (n > 0);\n```\n\n書き方で気をつける点は2つです。\n\n- `while` が **後ろ** に来る\n- 行の最後に **セミコロン `;` が必要**（`while (n > 0);`）\n\n### どう使い分けるか\n\n| 書き方 | 条件を調べるタイミング | 最低実行回数 | 向いている場面 |\n|---|---|---|---|\n| `for` | 前 | 0回 | くり返す回数が決まっている |\n| `while` | 前 | 0回 | 回数は決まっていないが、0回もありうる |\n| `do-while` | 後 | **1回** | まず1回やってから続けるか決める |\n\n`do-while` の典型は「入力を受け取って、正しい値が来るまでやり直す」処理です。\n1回目は必ず入力させたいので、後判定が自然になります。\n\n> 💡 迷ったら `for` か `while` で書けます。`do-while` は「必ず1回はやる」と言い切れるときだけ使いましょう。\n\n> ⚠️ 試験のワナ … `while (i < 3);` のように条件のあとにセミコロンを付けると、そこで文が終わります。\n\n```java\nint i = 0;\nwhile (i < 3);          // ← ここで文が終わっている（空の文をくり返す）\n{\n    i++;                // このブロックはループの中ではない\n}\n```\n\nこれは `i` が増えないまま条件を調べ続けるので **終わらないループ** になります。\n`do-while` ではセミコロンが必要、`while` では不要 — この差はよく問われます。",
+      "samples": [
+        {
+          "caption": "条件が最初から偽のとき、while と do-while で何が違うか",
+          "code": "public class Main {\n    public static void main(String[] args) {\n        int n = 0;\n\n        System.out.println(\"--- while ---\");\n        while (n > 0) {\n            System.out.println(\"while の中\");\n        }\n\n        System.out.println(\"--- do-while ---\");\n        do {\n            System.out.println(\"do-while の中\");\n        } while (n > 0);\n\n        System.out.println(\"おわり\");\n    }\n}\n"
+        },
+        {
+          "caption": "do-while で「合計が10を超えるまで足す」",
+          "code": "public class Main {\n    public static void main(String[] args) {\n        int sum = 0;\n        int i = 1;\n\n        do {\n            sum += i;\n            System.out.println(i + \" を足した → 合計 \" + sum);\n            i++;\n        } while (sum <= 10);\n\n        System.out.println(\"10を超えたので終了\");\n    }\n}\n"
+        }
+      ],
+      "task": "整数 `n` が1つ入力されます。`n` から **1ずつ減らしながら** 1行ずつ出力してください。\n\nただし条件があります。\n\n- **`n` は必ず1回出力する**（`n` が `0` 以下でも、`n` だけは出力する）\n- そのあとは、値が `0` より大きい間だけ続ける\n\n例えば `3` が入力されたら、こうなります。\n\n```\n3\n2\n1\n```\n\n`0` が入力されたら `0` の1行だけ、`-2` が入力されたら `-2` の1行だけです。\n\n> `do-while` を使うと素直に書けます。",
+      "starterCode": "import java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n\n        // do-while で「まず1回出力してから、続けるか決める」\n    }\n}\n",
+      "visibleCases": [
+        {
+          "label": "3 のとき",
+          "stdin": "3",
+          "expected": "3\n2\n1"
+        },
+        {
+          "label": "1 のとき",
+          "stdin": "1",
+          "expected": "1"
+        }
+      ],
+      "hiddenCases": [
+        {
+          "label": "0 のとき（1回だけ出る）",
+          "stdin": "0",
+          "expected": "0"
+        },
+        {
+          "label": "-2 のとき（1回だけ出る）",
+          "stdin": "-2",
+          "expected": "-2"
+        },
+        {
+          "label": "5 のとき",
+          "stdin": "5",
+          "expected": "5\n4\n3\n2\n1"
+        },
+        {
+          "label": "2 のとき",
+          "stdin": "2",
+          "expected": "2\n1"
+        }
+      ],
+      "hints": [
+        "`int i = n;` としてから `do { ... } while (i > 0);` の形を考えてみましょう。",
+        "ブロックの中でやることは2つです。`i` を出力して、`i` を1減らす。",
+        "`while (i > 0);` の **セミコロン** を忘れないでください。do-while では必要です。"
+      ],
+      "solution": "import java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n\n        int i = n;\n        do {\n            System.out.println(i);\n            i--;\n        } while (i > 0);\n    }\n}\n"
+    }
+  ]
+}

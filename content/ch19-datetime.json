@@ -1,0 +1,266 @@
+{
+  "id": "ch19",
+  "title": "日付と時刻",
+  "subtitle": "java.time で日付を扱う",
+  "emoji": "📅",
+  "lessons": [
+    {
+      "id": "19-1",
+      "title": "LocalDate で日付を持つ",
+      "explanation": "## 日付を扱うための道具\n\n日付や時刻は `java.time` パッケージにまとまっています。よく使うのは3つです。\n\n| クラス | 表すもの | 例 |\n|---|---|---|\n| `LocalDate` | 日付だけ | `2024-05-03` |\n| `LocalTime` | 時刻だけ | `09:05` |\n| `LocalDateTime` | 日付と時刻 | `2024-05-03T09:05` |\n\n`java.util` ではなく **`java.time`** なので、`import` に注意してください。\n\n```java\nimport java.time.LocalDate;\n```\n\n## 作り方 — new は使わない\n\nこれらのクラスは **`new` できません**（コンストラクタが非公開です）。\n代わりに `static` メソッドの **`of`** を使います。\n\n```java\nLocalDate d = LocalDate.of(2024, 5, 3);      // 2024年5月3日\nLocalTime t = LocalTime.of(9, 5);            // 9時5分\nLocalDateTime dt = LocalDateTime.of(2024, 5, 3, 9, 5);\n```\n\n文字列から作るなら `parse` です。\n\n```java\nLocalDate d = LocalDate.parse(\"2024-05-03\");     // ISO 形式ならそのまま読める\n```\n\n現在の日時は `now()` で取れます（実行するたびに変わるので、この章の問題では使いません）。\n\n```java\nLocalDate today = LocalDate.now();\n```\n\n> ⚠️ 試験のワナ … **月は `1`〜`12`** です。古い `java.util.Date` や `Calendar` は月が `0`〜`11` でしたが、`java.time` では素直に1月が `1` です。\n\n## そのまま出力すると ISO 形式\n\n`println` に渡すと、標準の形（ISO 8601）で出力されます。\n\n```java\nSystem.out.println(LocalDate.of(2024, 5, 3));      // 2024-05-03\n```\n\n**月と日は2桁にそろえられます**（`5` 月は `05`）。ここは出力を合わせるときに大事です。\n\n## 取り出すメソッド\n\n| メソッド | 返すもの |\n|---|---|\n| `getYear()` | 年（`int`） |\n| `getMonthValue()` | 月（`int`。`1`〜`12`） |\n| `getMonth()` | 月（`Month` という enum。`MAY` など） |\n| `getDayOfMonth()` | 日（`int`） |\n| `getDayOfWeek()` | 曜日（`DayOfWeek` という enum。`FRIDAY` など） |\n| `getDayOfYear()` | その年の何日目か |\n| `lengthOfMonth()` | その月の日数 |\n| `isLeapYear()` | うるう年か（`boolean`） |\n\n`getMonthValue()` と `getMonth()` の違いに注意してください。\n数字が欲しいときは **`getMonthValue()`** です。\n\n## ありえない日付は例外\n\n```java\nLocalDate.of(2024, 13, 1);      // 実行時に DateTimeException\nLocalDate.of(2023, 2, 29);      // 2023年はうるう年ではない → 例外\n```\n\n「日付として成り立たない値」はその場で弾かれます。\n古い `Calendar` が勝手に繰り上げていたのと違い、間違いに気づけます。\n\n> 💡 うるう年の判定は「4で割れる年。ただし100で割れる年は違う。ただし400で割れる年はうるう年」です。だから `2000` はうるう年、`1900` は違います。`isLeapYear()` はこれを正しく答えてくれます。",
+      "samples": [
+        {
+          "caption": "作って、取り出す",
+          "code": "import java.time.LocalDate;\n\npublic class Main {\n    public static void main(String[] args) {\n        LocalDate d = LocalDate.of(2024, 5, 3);\n\n        System.out.println(\"そのまま      : \" + d);\n        System.out.println(\"年            : \" + d.getYear());\n        System.out.println(\"月（数字）     : \" + d.getMonthValue());\n        System.out.println(\"月（enum）     : \" + d.getMonth());\n        System.out.println(\"日            : \" + d.getDayOfMonth());\n        System.out.println(\"曜日          : \" + d.getDayOfWeek());\n        System.out.println(\"その月の日数   : \" + d.lengthOfMonth());\n        System.out.println(\"うるう年か     : \" + d.isLeapYear());\n\n        System.out.println(\"parse         : \" + LocalDate.parse(\"2000-01-01\"));\n    }\n}\n"
+        },
+        {
+          "caption": "ありえない日付とうるう年",
+          "code": "import java.time.LocalDate;\n\npublic class Main {\n    public static void main(String[] args) {\n        int[] years = {2000, 1900, 2024, 2023, 2100};\n        for (int y : years) {\n            System.out.println(y + \" はうるう年か: \" + LocalDate.of(y, 1, 1).isLeapYear());\n        }\n\n        try {\n            LocalDate.of(2023, 2, 29);\n        } catch (Exception e) {\n            System.out.println(\"2023-02-29 → \" + e.getClass().getSimpleName());\n        }\n\n        try {\n            LocalDate.of(2024, 13, 1);\n        } catch (Exception e) {\n            System.out.println(\"13月 → \" + e.getClass().getSimpleName());\n        }\n    }\n}\n"
+        }
+      ],
+      "task": "整数が3つ、`年 月 日` の順で入力されます（正しい日付だけが入力されます）。\n\n`LocalDate` を作って、次の **5行** を出力してください。\n\n1. 日付をそのまま `println` に渡した結果\n2. 年\n3. 月（**数字** で）\n4. 日\n5. うるう年かどうか（`true` / `false`）\n\n`2024 5 3` が入力されたときの出力はこうです。\n\n```\n2024-05-03\n2024\n5\n3\ntrue\n```\n\n- 1行目は月日が **2桁にそろえられます**（`5` 月なら `05`）\n- 3行目は `getMonth()` ではなく **`getMonthValue()`** を使います（`MAY` ではなく `5`）\n- `1900` 年や `2100` 年も試されます",
+      "starterCode": "import java.time.LocalDate;\nimport java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int y = sc.nextInt();\n        int m = sc.nextInt();\n        int d = sc.nextInt();\n\n        // LocalDate を作って5行出力する\n    }\n}\n",
+      "visibleCases": [
+        {
+          "label": "2024年5月3日",
+          "stdin": "2024 5 3",
+          "expected": "2024-05-03\n2024\n5\n3\ntrue"
+        },
+        {
+          "label": "2023年12月31日",
+          "stdin": "2023 12 31",
+          "expected": "2023-12-31\n2023\n12\n31\nfalse"
+        }
+      ],
+      "hiddenCases": [
+        {
+          "label": "2000年2月29日（400で割れる）",
+          "stdin": "2000 2 29",
+          "expected": "2000-02-29\n2000\n2\n29\ntrue"
+        },
+        {
+          "label": "1900年（100で割れるのでうるう年でない）",
+          "stdin": "1900 1 1",
+          "expected": "1900-01-01\n1900\n1\n1\nfalse"
+        },
+        {
+          "label": "うるう年の2月29日",
+          "stdin": "2024 2 29",
+          "expected": "2024-02-29\n2024\n2\n29\ntrue"
+        },
+        {
+          "label": "2021年6月1日",
+          "stdin": "2021 6 1",
+          "expected": "2021-06-01\n2021\n6\n1\nfalse"
+        },
+        {
+          "label": "2100年（うるう年でない）",
+          "stdin": "2100 3 1",
+          "expected": "2100-03-01\n2100\n3\n1\nfalse"
+        }
+      ],
+      "hints": [
+        "`LocalDate date = LocalDate.of(y, m, d);` で作ります。`new LocalDate(...)` とは書けません。",
+        "1行目は `System.out.println(date);` だけです。`2024-05-03` の形で出力されます。",
+        "3行目は `date.getMonthValue()` です。`getMonth()` だと `MAY` のような英語の enum が出てしまいます。"
+      ],
+      "solution": "import java.time.LocalDate;\nimport java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int y = sc.nextInt();\n        int m = sc.nextInt();\n        int d = sc.nextInt();\n\n        LocalDate date = LocalDate.of(y, m, d);\n\n        System.out.println(date);\n        System.out.println(date.getYear());\n        System.out.println(date.getMonthValue());\n        System.out.println(date.getDayOfMonth());\n        System.out.println(date.isLeapYear());\n    }\n}\n"
+    },
+    {
+      "id": "19-2",
+      "title": "日付の計算（変わらないことに注意）",
+      "explanation": "## 足す・引く\n\n日付の計算はメソッド1つで書けます。\n\n```java\nLocalDate d = LocalDate.of(2024, 5, 3);\n\nd.plusDays(10);        // 10日後\nd.plusMonths(1);       // 1か月後\nd.plusYears(1);        // 1年後\nd.minusDays(10);       // 10日前\n```\n\n`plusWeeks` や `minusMonths` もあります。時刻には `plusHours` / `plusMinutes` があります。\n\n## java.time のクラスはすべて不変\n\nここが最重要です。`java.time` のクラスは **すべて不変** です。\n`String` とまったく同じで、**メソッドは新しいインスタンスを返します**。\n\n```java\nLocalDate d = LocalDate.of(2024, 5, 3);\nd.plusDays(10);                       // 戻り値を捨てている\nSystem.out.println(d);                // 2024-05-03 ← 変わっていない！\n\nd = d.plusDays(10);                   // ✅ 受け取り直す\nSystem.out.println(d);                // 2024-05-13\n```\n\n> ⚠️ 試験のワナ … `date.plusDays(1);` を単独の文として書いているコードは、何も変えていません。第14章の `String` と同じ引っかけです。\n\n不変なので、メソッドに渡しても書き換えられる心配がありません（第7章）。\n\n## 月をまたぐときの丸め\n\n`plusMonths` には注意が必要です。**月末の日は、行き先の月末に丸められます**。\n\n```java\nLocalDate d = LocalDate.of(2024, 1, 31);\nSystem.out.println(d.plusMonths(1));      // 2024-02-29（29日に丸められる）\n```\n\n1月31日の1か月後は「2月31日」ですが、そんな日はありません。\nそこで **その月の最後の日** になります。2024年はうるう年なので `29` 日、\n2023年なら `28` 日です。\n\n```java\nLocalDate.of(2023, 1, 31).plusMonths(1);    // 2023-02-28\nLocalDate.of(2023, 3, 31).plusMonths(1);    // 2023-04-30\n```\n\n> ⚠️ 試験のワナ … 丸められた結果から1か月戻しても、元には帰りません。`1/31 → 2/29 → 1/29` です。「足して引けば元に戻る」は成り立ちません。\n\n`plusDays` にはこの問題はありません。単純に日数を足すだけです。\n\n## 差し替える with\n\n一部だけ変えたいときは `withXxx` を使います。これも新しいインスタンスを返します。\n\n```java\nd.withYear(2025);          // 年だけ差し替える\nd.withDayOfMonth(1);       // 日だけ差し替える（月初にする）\n```\n\n## 比較する\n\n大小の比較は専用メソッドです。`<` や `>` は使えません。\n\n| メソッド | 意味 |\n|---|---|\n| `isBefore(other)` | より前か |\n| `isAfter(other)` | より後か |\n| `isEqual(other)` | 同じ日か |\n\n`equals` でも比較できます。`compareTo` も使えるので、`List` に入れて\n`sort(Comparator.naturalOrder())` で並べ替えることもできます（第17章）。\n\n> 💡 `plusDays(-10)` は `minusDays(10)` と同じです。マイナスを渡しても正しく動きます。",
+      "samples": [
+        {
+          "caption": "戻り値を受け取らないと変わらない",
+          "code": "import java.time.LocalDate;\n\npublic class Main {\n    public static void main(String[] args) {\n        LocalDate d = LocalDate.of(2024, 5, 3);\n\n        d.plusDays(10);                       // 捨てている\n        System.out.println(\"捨てた後  : \" + d);\n\n        LocalDate later = d.plusDays(10);     // 受け取っている\n        System.out.println(\"受け取り  : \" + later);\n        System.out.println(\"元の d    : \" + d);\n\n        d = d.plusDays(10);                   // 入れ直している\n        System.out.println(\"入れ直し  : \" + d);\n\n        System.out.println(\"--- 比較 ---\");\n        System.out.println(later.isBefore(d) + \" / \" + later.isEqual(d));\n    }\n}\n"
+        },
+        {
+          "caption": "月末の丸めを確かめる",
+          "code": "import java.time.LocalDate;\n\npublic class Main {\n    public static void main(String[] args) {\n        System.out.println(\"2024-01-31 +1月 : \" + LocalDate.of(2024, 1, 31).plusMonths(1));\n        System.out.println(\"2023-01-31 +1月 : \" + LocalDate.of(2023, 1, 31).plusMonths(1));\n        System.out.println(\"2023-03-31 +1月 : \" + LocalDate.of(2023, 3, 31).plusMonths(1));\n        System.out.println(\"2024-05-03 +1月 : \" + LocalDate.of(2024, 5, 3).plusMonths(1));\n\n        System.out.println(\"--- 足して引くと元に戻らない ---\");\n        LocalDate d = LocalDate.of(2024, 1, 31);\n        System.out.println(d + \" → \" + d.plusMonths(1) + \" → \" + d.plusMonths(1).minusMonths(1));\n\n        System.out.println(\"--- plusDays は素直 ---\");\n        System.out.println(LocalDate.of(2024, 12, 31).plusDays(1));\n    }\n}\n"
+        }
+      ],
+      "task": "整数が4つ、`年 月 日 n` の順で入力されます（`年 月 日` は正しい日付です）。\n\n`LocalDate` を作って、次の **4行** を出力してください。\n\n1. 作った日付\n2. `plusDays(n)` の結果\n3. **もう一度** 元の日付（変わっていないことの確認）\n4. 元の日付の `plusMonths(1)` の結果\n\n`2024 1 31 1` が入力されたときの出力はこうです。\n\n```\n2024-01-31\n2024-02-01\n2024-01-31\n2024-02-29\n```\n\n- 3行目が2行目と同じになった人は、`plusDays` の戻り値を元の変数に代入してしまっています\n- 4行目の `2024-02-29` に注目してください。「2月31日」は存在しないので **月末に丸められます**\n- `n` には `0` やマイナスも入力されます",
+      "starterCode": "import java.time.LocalDate;\nimport java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int y = sc.nextInt();\n        int m = sc.nextInt();\n        int d = sc.nextInt();\n        int n = sc.nextInt();\n\n        LocalDate date = LocalDate.of(y, m, d);\n\n        // 4行出力する（date には代入しないこと）\n    }\n}\n",
+      "visibleCases": [
+        {
+          "label": "うるう年の月末に丸められる",
+          "stdin": "2024 1 31 1",
+          "expected": "2024-01-31\n2024-02-01\n2024-01-31\n2024-02-29"
+        },
+        {
+          "label": "うるう年でないので28日",
+          "stdin": "2023 1 31 1",
+          "expected": "2023-01-31\n2023-02-01\n2023-01-31\n2023-02-28"
+        }
+      ],
+      "hiddenCases": [
+        {
+          "label": "年をまたぐ",
+          "stdin": "2024 12 31 1",
+          "expected": "2024-12-31\n2025-01-01\n2024-12-31\n2025-01-31"
+        },
+        {
+          "label": "マイナスの日数",
+          "stdin": "2024 3 15 -20",
+          "expected": "2024-03-15\n2024-02-24\n2024-03-15\n2024-04-15"
+        },
+        {
+          "label": "0日後は同じ日",
+          "stdin": "2024 5 3 0",
+          "expected": "2024-05-03\n2024-05-03\n2024-05-03\n2024-06-03"
+        },
+        {
+          "label": "2月29日の翌日",
+          "stdin": "2024 2 29 1",
+          "expected": "2024-02-29\n2024-03-01\n2024-02-29\n2024-03-29"
+        },
+        {
+          "label": "31日→30日に丸められる",
+          "stdin": "2023 3 31 0",
+          "expected": "2023-03-31\n2023-03-31\n2023-03-31\n2023-04-30"
+        },
+        {
+          "label": "100日後",
+          "stdin": "2024 7 1 100",
+          "expected": "2024-07-01\n2024-10-09\n2024-07-01\n2024-08-01"
+        }
+      ],
+      "hints": [
+        "2行目は `System.out.println(date.plusDays(n));` です。`date = date.plusDays(n);` としてはいけません。",
+        "3行目は `System.out.println(date);` をもう一度書くだけです。`java.time` のクラスは不変なので変わりません。",
+        "4行目は `date.plusMonths(1)` です。行き先の月に同じ日がないときは、その月の最後の日になります。"
+      ],
+      "solution": "import java.time.LocalDate;\nimport java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int y = sc.nextInt();\n        int m = sc.nextInt();\n        int d = sc.nextInt();\n        int n = sc.nextInt();\n\n        LocalDate date = LocalDate.of(y, m, d);\n\n        System.out.println(date);\n        System.out.println(date.plusDays(n));\n        System.out.println(date);\n        System.out.println(date.plusMonths(1));\n    }\n}\n"
+    },
+    {
+      "id": "19-3",
+      "title": "期間を求める（Period と ChronoUnit）",
+      "explanation": "## 2つの日付の差\n\n「何年何か月何日離れているか」を求めるのが **`Period`** です。\n\n```java\nimport java.time.Period;\n\nLocalDate from = LocalDate.of(2020, 1, 1);\nLocalDate to = LocalDate.of(2024, 3, 15);\n\nPeriod p = Period.between(from, to);\n\nSystem.out.println(p.getYears());      // 4\nSystem.out.println(p.getMonths());     // 2\nSystem.out.println(p.getDays());       // 14\n```\n\n`Period.between(前, 後)` の順で渡します。逆にすると値がマイナスになります。\n\n> ⚠️ 試験のワナ … `getDays()` は **「余りの日数」** です。総日数ではありません。\n\n上の例で `getDays()` が返すのは `14` で、「4年2か月と14日」の `14` です。\n**総日数（1535日）ではない** ことに注意してください。\n`getYears()` `getMonths()` `getDays()` を足しても意味のある数にはなりません。\n\n## 総日数は ChronoUnit\n\n「何日離れているか」を1つの数で知りたいときは **`ChronoUnit`** を使います。\n\n```java\nimport java.time.temporal.ChronoUnit;\n\nlong days = ChronoUnit.DAYS.between(from, to);       // 1535\n```\n\n`ChronoUnit` は enum（第18章）で、単位を選べます。\n\n| 単位 | 意味 |\n|---|---|\n| `ChronoUnit.DAYS` | 日数 |\n| `ChronoUnit.MONTHS` | 月数（丸ごと何か月分か） |\n| `ChronoUnit.YEARS` | 年数 |\n| `ChronoUnit.HOURS` | 時間（時刻を含む型に使う） |\n\n戻り値は **`long`** です。`int` で受けるとコンパイルエラーになります。\n\n```java\nint days = ChronoUnit.DAYS.between(from, to);        // ❌ long は int に入らない\nlong days = ChronoUnit.DAYS.between(from, to);       // ✅\n```\n\n## 時間の差は Duration\n\n日付ではなく **時間** の差には `Duration` を使います。\n\n```java\nimport java.time.Duration;\n\nDuration d = Duration.between(\n        LocalDateTime.of(2024, 5, 3, 9, 0),\n        LocalDateTime.of(2024, 5, 3, 17, 30));\n\nSystem.out.println(d.toHours());        // 8\nSystem.out.println(d.toMinutes());      // 510\n```\n\n使い分けはこうです。\n\n| クラス | 単位 | 使う相手 |\n|---|---|---|\n| `Period` | 年・月・日 | `LocalDate` |\n| `Duration` | 時・分・秒 | `LocalTime` / `LocalDateTime` |\n\n> ⚠️ 試験のワナ … `Period` を `LocalTime` に使ったり、`Duration` を `LocalDate` に使ったりはできません（`Duration.between` に `LocalDate` を渡すと実行時に例外になります）。\n\n> 💡 `Period` は「カレンダー上の見え方」、`ChronoUnit.DAYS` は「実際に何日か」。誕生日から年齢を出すなら `Period.getYears()`、締め切りまでの残り日数なら `ChronoUnit.DAYS` です。",
+      "samples": [
+        {
+          "caption": "Period と ChronoUnit のちがい",
+          "code": "import java.time.LocalDate;\nimport java.time.Period;\nimport java.time.temporal.ChronoUnit;\n\npublic class Main {\n    public static void main(String[] args) {\n        LocalDate from = LocalDate.of(2020, 1, 1);\n        LocalDate to = LocalDate.of(2024, 3, 15);\n\n        Period p = Period.between(from, to);\n        System.out.println(\"年     : \" + p.getYears());\n        System.out.println(\"月     : \" + p.getMonths());\n        System.out.println(\"日(余り): \" + p.getDays());\n\n        long days = ChronoUnit.DAYS.between(from, to);\n        System.out.println(\"総日数  : \" + days);\n        System.out.println(\"総月数  : \" + ChronoUnit.MONTHS.between(from, to));\n        System.out.println(\"総年数  : \" + ChronoUnit.YEARS.between(from, to));\n    }\n}\n"
+        },
+        {
+          "caption": "月末をまたぐ期間と、時間の差",
+          "code": "import java.time.Duration;\nimport java.time.LocalDate;\nimport java.time.LocalDateTime;\nimport java.time.Period;\nimport java.time.temporal.ChronoUnit;\n\npublic class Main {\n    public static void main(String[] args) {\n        LocalDate a = LocalDate.of(2024, 1, 31);\n        LocalDate b = LocalDate.of(2024, 3, 1);\n\n        Period p = Period.between(a, b);\n        System.out.println(p.getYears() + \"年 \" + p.getMonths() + \"か月 \" + p.getDays() + \"日\");\n        System.out.println(\"総日数: \" + ChronoUnit.DAYS.between(a, b));\n\n        System.out.println(\"--- 時間の差 ---\");\n        Duration d = Duration.between(\n                LocalDateTime.of(2024, 5, 3, 9, 0),\n                LocalDateTime.of(2024, 5, 3, 17, 30));\n        System.out.println(d.toHours() + \"時間 = \" + d.toMinutes() + \"分\");\n    }\n}\n"
+        }
+      ],
+      "task": "整数が6つ、`年1 月1 日1 年2 月2 日2` の順で入力されます\n（どちらも正しい日付で、**1つ目のほうが後にはなりません**）。\n\n次の **4行** を出力してください。\n\n1. `Period.between` の `getYears()`\n2. `Period.between` の `getMonths()`\n3. `Period.between` の `getDays()`\n4. `ChronoUnit.DAYS.between` の値（**総日数**）\n\n`2020 1 1 2024 3 15` が入力されたときの出力はこうです。\n\n```\n4\n2\n14\n1535\n```\n\n- 3行目は「4年2か月と **14日**」の `14` です。総日数ではありません\n- 4行目が総日数です。`long` で受け取ってください（`int` に入れるとコンパイルエラーです）\n- 同じ日付が2回入力されることもあります（すべて `0`）",
+      "starterCode": "import java.time.LocalDate;\nimport java.time.Period;\nimport java.time.temporal.ChronoUnit;\nimport java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        LocalDate from = LocalDate.of(sc.nextInt(), sc.nextInt(), sc.nextInt());\n        LocalDate to = LocalDate.of(sc.nextInt(), sc.nextInt(), sc.nextInt());\n\n        // Period を作って3行、ChronoUnit で1行出力する\n    }\n}\n",
+      "visibleCases": [
+        {
+          "label": "4年2か月14日",
+          "stdin": "2020 1 1 2024 3 15",
+          "expected": "4\n2\n14\n1535"
+        },
+        {
+          "label": "同じ日",
+          "stdin": "2024 1 1 2024 1 1",
+          "expected": "0\n0\n0\n0"
+        }
+      ],
+      "hiddenCases": [
+        {
+          "label": "月末をまたぐ",
+          "stdin": "2024 1 31 2024 3 1",
+          "expected": "0\n1\n1\n30"
+        },
+        {
+          "label": "年をまたぐ1日",
+          "stdin": "2023 12 31 2024 1 1",
+          "expected": "0\n0\n1\n1"
+        },
+        {
+          "label": "うるう日から1年後の前日",
+          "stdin": "2000 2 29 2001 2 28",
+          "expected": "0\n11\n30\n365"
+        },
+        {
+          "label": "同じ月の7日後",
+          "stdin": "2024 5 3 2024 5 10",
+          "expected": "0\n0\n7\n7"
+        },
+        {
+          "label": "ちょうど3年",
+          "stdin": "2020 6 15 2023 6 15",
+          "expected": "3\n0\n0\n1095"
+        },
+        {
+          "label": "同じ年の年末まで",
+          "stdin": "2024 1 1 2024 12 31",
+          "expected": "0\n11\n30\n365"
+        }
+      ],
+      "hints": [
+        "`Period p = Period.between(from, to);` としてから、`p.getYears()` `p.getMonths()` `p.getDays()` を出力します。",
+        "4行目は `ChronoUnit.DAYS.between(from, to)` です。`import java.time.temporal.ChronoUnit;` が必要です。",
+        "`ChronoUnit.DAYS.between` の戻り値は `long` です。`long days = ...` で受け取ってください。"
+      ],
+      "solution": "import java.time.LocalDate;\nimport java.time.Period;\nimport java.time.temporal.ChronoUnit;\nimport java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        LocalDate from = LocalDate.of(sc.nextInt(), sc.nextInt(), sc.nextInt());\n        LocalDate to = LocalDate.of(sc.nextInt(), sc.nextInt(), sc.nextInt());\n\n        Period p = Period.between(from, to);\n        System.out.println(p.getYears());\n        System.out.println(p.getMonths());\n        System.out.println(p.getDays());\n\n        long days = ChronoUnit.DAYS.between(from, to);\n        System.out.println(days);\n    }\n}\n"
+    },
+    {
+      "id": "19-4",
+      "title": "書式を指定して出力する",
+      "explanation": "## 好きな形で文字列にする\n\n`println` にそのまま渡すと ISO 形式（`2024-05-03`）になりますが、\n`2024/05/03` や `2024年5月3日` のように出したいこともあります。\n\nそのときは **`DateTimeFormatter`** を使います。\n\n```java\nimport java.time.format.DateTimeFormatter;\n\nLocalDate d = LocalDate.of(2024, 5, 3);\nDateTimeFormatter f = DateTimeFormatter.ofPattern(\"yyyy/MM/dd\");\n\nSystem.out.println(d.format(f));        // 2024/05/03\n```\n\n`日付.format(フォーマッタ)` の順です。逆に文字列から日付を作るときは `parse` に渡します。\n\n```java\nLocalDate d = LocalDate.parse(\"2024/05/03\", f);\n```\n\n## パターン文字\n\n| 文字 | 意味 | `2024-05-03 09:05` の例 |\n|---|---|---|\n| `yyyy` | 年（4桁） | `2024` |\n| `MM` | 月（2桁） | `05` |\n| `M` | 月（そのまま） | `5` |\n| `dd` | 日（2桁） | `03` |\n| `d` | 日（そのまま） | `3` |\n| `HH` | 時（24時間・2桁） | `09` |\n| `hh` | 時（12時間・2桁） | `09` |\n| `mm` | 分（2桁） | `05` |\n| `ss` | 秒（2桁） | `00` |\n| `E` | 曜日 | `金` |\n\n**文字を重ねる数で桁がそろうかどうかが決まります。** `MM` なら `05`、`M` なら `5` です。\n\n> ⚠️ 試験のワナ … **`MM` は月、`mm` は分** です。大文字と小文字で意味がまったく違います。同じく **`HH` は24時間制、`hh` は12時間制** です。`hh` を使うと `13時` が `01` になります。\n\nパターンの中に日本語などを混ぜるのはそのままでできます。\n\n```java\nDateTimeFormatter f = DateTimeFormatter.ofPattern(\"yyyy年M月d日\");\nSystem.out.println(d.format(f));        // 2024年5月3日\n```\n\nただし **アルファベットは予約されている** ので、そのまま出したいときは\nシングルクォートで囲みます（`\"yyyy'年'\"` のように）。\n\n## LocalDateTime の標準の形\n\n`LocalDateTime` をそのまま出力すると、日付と時刻が `T` で区切られます。\n\n```java\nSystem.out.println(LocalDateTime.of(2024, 5, 3, 9, 5));      // 2024-05-03T09:05\n```\n\n**秒が `0` のときは秒が省略されます。** `09:05:00` ではなく `09:05` になります。\nここは出力を合わせるときに気をつけてください。\n\n> 💡 `DateTimeFormatter` には `ISO_DATE` などの定義済みのものもあります。自分でパターンを書くのは「決まった形式に合わせたいとき」です。",
+      "samples": [
+        {
+          "caption": "いろいろな書式で出力する",
+          "code": "import java.time.LocalDateTime;\nimport java.time.format.DateTimeFormatter;\n\npublic class Main {\n    public static void main(String[] args) {\n        LocalDateTime dt = LocalDateTime.of(2024, 5, 3, 9, 5);\n\n        System.out.println(\"そのまま  : \" + dt);\n        System.out.println(\"yyyy/MM/dd: \" + dt.format(DateTimeFormatter.ofPattern(\"yyyy/MM/dd\")));\n        System.out.println(\"yyyy年M月d日: \" + dt.format(DateTimeFormatter.ofPattern(\"yyyy年M月d日\")));\n        System.out.println(\"HH:mm     : \" + dt.format(DateTimeFormatter.ofPattern(\"HH:mm\")));\n        System.out.println(\"HH:mm:ss  : \" + dt.format(DateTimeFormatter.ofPattern(\"HH:mm:ss\")));\n        System.out.println(\"曜日      : \" + dt.format(DateTimeFormatter.ofPattern(\"E\")));\n    }\n}\n"
+        },
+        {
+          "caption": "MM と mm、HH と hh のちがい",
+          "code": "import java.time.LocalDateTime;\nimport java.time.format.DateTimeFormatter;\n\npublic class Main {\n    public static void main(String[] args) {\n        LocalDateTime dt = LocalDateTime.of(2024, 5, 3, 13, 7);\n\n        System.out.println(\"MM（月）  : \" + dt.format(DateTimeFormatter.ofPattern(\"MM\")));\n        System.out.println(\"mm（分）  : \" + dt.format(DateTimeFormatter.ofPattern(\"mm\")));\n        System.out.println(\"HH（24時）: \" + dt.format(DateTimeFormatter.ofPattern(\"HH\")));\n        System.out.println(\"hh（12時）: \" + dt.format(DateTimeFormatter.ofPattern(\"hh\")));\n\n        System.out.println(\"--- 秒が 0 なら省略される ---\");\n        System.out.println(LocalDateTime.of(2024, 5, 3, 9, 5));\n        System.out.println(LocalDateTime.of(2024, 5, 3, 9, 5, 30));\n    }\n}\n"
+        }
+      ],
+      "task": "整数が5つ、`年 月 日 時 分` の順で入力されます（正しい値だけが入力されます）。\n\n`LocalDateTime` を作って、次の **4行** を出力してください。\n\n1. そのまま `println` に渡した結果\n2. `yyyy/MM/dd` の形\n3. `HH:mm` の形\n4. `yyyy年M月d日` の形（月と日は **0埋めしない**）\n\n`2024 5 3 9 5` が入力されたときの出力はこうです。\n\n```\n2024-05-03T09:05\n2024/05/03\n09:05\n2024年5月3日\n```\n\n- 1行目は日付と時刻が `T` で区切られ、**秒は省略されます**\n- 2行目は `MM` `dd` なので `05` `03` と2桁になります\n- 4行目は `M` `d` なので `5` `3` とそのままの桁数になります\n- 3行目は `HH`（24時間制）です。`hh` にすると午後がずれます",
+      "starterCode": "import java.time.LocalDateTime;\nimport java.time.format.DateTimeFormatter;\nimport java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int y = sc.nextInt();\n        int m = sc.nextInt();\n        int d = sc.nextInt();\n        int h = sc.nextInt();\n        int mi = sc.nextInt();\n\n        LocalDateTime dt = LocalDateTime.of(y, m, d, h, mi);\n\n        // 4行出力する\n    }\n}\n",
+      "visibleCases": [
+        {
+          "label": "2024年5月3日 9時5分",
+          "stdin": "2024 5 3 9 5",
+          "expected": "2024-05-03T09:05\n2024/05/03\n09:05\n2024年5月3日"
+        },
+        {
+          "label": "0時0分",
+          "stdin": "2024 12 25 0 0",
+          "expected": "2024-12-25T00:00\n2024/12/25\n00:00\n2024年12月25日"
+        }
+      ],
+      "hiddenCases": [
+        {
+          "label": "23時59分",
+          "stdin": "2024 1 1 23 59",
+          "expected": "2024-01-01T23:59\n2024/01/01\n23:59\n2024年1月1日"
+        },
+        {
+          "label": "全部2桁",
+          "stdin": "2000 10 10 10 10",
+          "expected": "2000-10-10T10:10\n2000/10/10\n10:10\n2000年10月10日"
+        },
+        {
+          "label": "うるう日の正午",
+          "stdin": "2024 2 29 12 0",
+          "expected": "2024-02-29T12:00\n2024/02/29\n12:00\n2024年2月29日"
+        },
+        {
+          "label": "1桁の月日時分",
+          "stdin": "1999 7 4 5 6",
+          "expected": "1999-07-04T05:06\n1999/07/04\n05:06\n1999年7月4日"
+        },
+        {
+          "label": "午後（hh との違いが出る）",
+          "stdin": "2024 11 30 13 45",
+          "expected": "2024-11-30T13:45\n2024/11/30\n13:45\n2024年11月30日"
+        }
+      ],
+      "hints": [
+        "1行目は `System.out.println(dt);` だけです。秒が `0` なので秒は出力されません。",
+        "2行目は `dt.format(DateTimeFormatter.ofPattern(\"yyyy/MM/dd\"))` です。",
+        "4行目のパターンは `\"yyyy年M月d日\"` です。`MM` `dd` にすると `05` `03` と0埋めされてしまいます。"
+      ],
+      "solution": "import java.time.LocalDateTime;\nimport java.time.format.DateTimeFormatter;\nimport java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int y = sc.nextInt();\n        int m = sc.nextInt();\n        int d = sc.nextInt();\n        int h = sc.nextInt();\n        int mi = sc.nextInt();\n\n        LocalDateTime dt = LocalDateTime.of(y, m, d, h, mi);\n\n        System.out.println(dt);\n        System.out.println(dt.format(DateTimeFormatter.ofPattern(\"yyyy/MM/dd\")));\n        System.out.println(dt.format(DateTimeFormatter.ofPattern(\"HH:mm\")));\n        System.out.println(dt.format(DateTimeFormatter.ofPattern(\"yyyy年M月d日\")));\n    }\n}\n"
+    }
+  ]
+}

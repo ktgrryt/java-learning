@@ -1,0 +1,333 @@
+{
+  "id": "ch14",
+  "title": "String と StringBuilder",
+  "subtitle": "文字列を自在に扱う",
+  "emoji": "🔤",
+  "lessons": [
+    {
+      "id": "14-1",
+      "title": "String は変わらない",
+      "explanation": "## 文字列は一度作ったら変えられない\n\n`String` は **不変（イミュータブル）** です。第9章で作った `Money` と同じ性質で、\n一度できた文字列の中身は **絶対に書き換わりません**。\n\nだから `String` のメソッドはすべて「**変更した新しい文字列を返す**」形になっています。\n\n```java\nString s = \"abc\";\ns.toUpperCase();                 // 新しい文字列 \"ABC\" を作って返す\nSystem.out.println(s);           // abc ← s は変わっていない！\n```\n\n戻り値を捨てているので、何も起きていないように見えます。正しくはこうです。\n\n```java\ns = s.toUpperCase();             // 返ってきたものを受け取り直す\nSystem.out.println(s);           // ABC\n```\n\n**「`String` のメソッドを呼んだら、必ず戻り値を使う」** と覚えてください。\nSilver で最もよく出る引っかけの1つです。\n\n## += も新しい文字列を作っている\n\n`s += \"!\"` は「`s` に `!` を足す」ように見えますが、実際は\n**新しい文字列を作って `s` に入れ直しています**。\n\n```java\nString s = \"a\";\ns += \"b\";        // \"ab\" という新しい文字列を作って s に代入\n```\n\n元の `\"a\"` はどこかに残り、やがて捨てられます。1回や2回なら問題ありませんが、\nループの中で何千回もやると、そのたびに文字列が作られて非効率になります。\n\n```java\nString s = \"\";\nfor (int i = 0; i < 10000; i++) {\n    s += i;        // 1万個の文字列が作られては捨てられる\n}\n```\n\nこの対策が `StringBuilder` で、14-4で扱います。\n\n## 不変だと何がうれしいのか\n\n**安心して渡せます。** メソッドに文字列を渡しても、\n勝手に書き換えられていることはありえません（第7章の値渡しの話とつながります）。\n\n```java\nstatic void shout(String s) {\n    s = s.toUpperCase();     // 呼び出し元の文字列には影響しない\n}\n```\n\n同じ理由で、複数の場所から同じ文字列を共有しても安全です。\nだからJavaは同じ内容のリテラルを1つにまとめて使い回せます（14-3で扱います）。\n\n> 💡 `String` は `final class` なので継承もできません。「変えられない」を徹底した設計です。\n\n> ⚠️ 試験のワナ … `s.replace(\"a\", \"b\");` や `s.trim();` を **単独の文として** 書いているコードは、何も変えていません。結果を代入しているかどうかを必ず確認してください。",
+      "samples": [
+        {
+          "caption": "戻り値を受け取るかどうかで結果が変わる",
+          "code": "public class Main {\n    public static void main(String[] args) {\n        String s = \"hello\";\n\n        s.toUpperCase();                    // 戻り値を捨てている\n        System.out.println(\"捨てた後: \" + s);\n\n        String t = s.toUpperCase();         // 受け取っている\n        System.out.println(\"受け取り: \" + t);\n        System.out.println(\"元の s  : \" + s);\n\n        s = s.toUpperCase();                // 入れ直している\n        System.out.println(\"入れ直し: \" + s);\n    }\n}\n"
+        },
+        {
+          "caption": "メソッドに渡しても書き換わらない",
+          "code": "public class Main {\n    static void shout(String s) {\n        s = s.toUpperCase();\n        System.out.println(\"  メソッドの中: \" + s);\n    }\n\n    public static void main(String[] args) {\n        String word = \"java\";\n        shout(word);\n        System.out.println(\"呼び出し元    : \" + word);\n\n        // 配列はこうならなかった（第7章）\n        String[] arr = {\"java\"};\n        arr[0] = arr[0].toUpperCase();      // 配列の中身は書き換えられる\n        System.out.println(\"配列の中身    : \" + arr[0]);\n    }\n}\n"
+        }
+      ],
+      "task": "空白を含まない文字列 `s` が1語入力されます。次の **5行** を出力してください。\n\n1. `s.toUpperCase()` の結果\n2. その直後の `s`\n3. `s.concat(\"!\")` の結果（`concat` は `+` と同じ連結です）\n4. その直後の `s`\n5. `s.length()`\n\n`abc` が入力されたときの出力はこうです。\n\n```\nABC\nabc\nabc!\nabc\n3\n```\n\n2行目と4行目が `s` のまま変わらないことが、`String` が不変であることの証拠です。\nここが `ABC` や `abc!` になった人は、戻り値を `s` に代入してしまっています。",
+      "starterCode": "import java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        String s = sc.next();\n\n        // 5行出力する（s には代入しないこと）\n    }\n}\n",
+      "visibleCases": [
+        {
+          "label": "abc",
+          "stdin": "abc",
+          "expected": "ABC\nabc\nabc!\nabc\n3"
+        },
+        {
+          "label": "Java",
+          "stdin": "Java",
+          "expected": "JAVA\nJava\nJava!\nJava\n4"
+        }
+      ],
+      "hiddenCases": [
+        {
+          "label": "1文字",
+          "stdin": "A",
+          "expected": "A\nA\nA!\nA\n1"
+        },
+        {
+          "label": "大文字小文字混在",
+          "stdin": "aBcD",
+          "expected": "ABCD\naBcD\naBcD!\naBcD\n4"
+        },
+        {
+          "label": "数字だけ",
+          "stdin": "123",
+          "expected": "123\n123\n123!\n123\n3"
+        },
+        {
+          "label": "すでに大文字",
+          "stdin": "SILVER",
+          "expected": "SILVER\nSILVER\nSILVER!\nSILVER\n6"
+        },
+        {
+          "label": "日本語",
+          "stdin": "あいう",
+          "expected": "あいう\nあいう\nあいう!\nあいう\n3"
+        }
+      ],
+      "hints": [
+        "`System.out.println(s.toUpperCase());` と書くだけです。`s = s.toUpperCase();` としてはいけません。",
+        "3行目は `s.concat(\"!\")` です。`s + \"!\"` でも同じ結果になります。",
+        "5行目の `s.length()` は、`s` が一度も変わっていないので入力の長さそのままです。"
+      ],
+      "solution": "import java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        String s = sc.next();\n\n        System.out.println(s.toUpperCase());\n        System.out.println(s);\n        System.out.println(s.concat(\"!\"));\n        System.out.println(s);\n        System.out.println(s.length());\n    }\n}\n"
+    },
+    {
+      "id": "14-2",
+      "title": "よく使う String のメソッド",
+      "explanation": "## 覚えておきたいメソッド\n\n| メソッド | すること | 例（`\"banana\"` に対して） |\n|---|---|---|\n| `length()` | 文字数 | `6` |\n| `charAt(i)` | `i` 番目の1文字（`char`） | `charAt(0)` → `b` |\n| `substring(b)` | `b` 番目から最後まで | `substring(1)` → `anana` |\n| `substring(b, e)` | `b` 番目から **`e` の直前** まで | `substring(0, 3)` → `ban` |\n| `indexOf(str)` | 最初に現れる位置。なければ `-1` | `indexOf(\"a\")` → `1` |\n| `lastIndexOf(str)` | 最後に現れる位置 | `lastIndexOf(\"a\")` → `5` |\n| `contains(str)` | 含むか（`boolean`） | `contains(\"nan\")` → `true` |\n| `replace(a, b)` | 置き換えた新しい文字列 | `replace(\"a\", \"o\")` → `bonono` |\n| `toUpperCase()` / `toLowerCase()` | 大文字 / 小文字にする | `BANANA` |\n| `trim()` / `strip()` | 前後の空白を取る | — |\n| `isEmpty()` | 長さが `0` か | `false` |\n| `startsWith(s)` / `endsWith(s)` | 前方 / 後方一致 | `startsWith(\"ba\")` → `true` |\n| `equals(s)` / `equalsIgnoreCase(s)` | 内容の一致（大小無視） | — |\n\n**位置は 0 から数えます。** 配列と同じです。\n\n## substring の境界に注意\n\n`substring` は Silver でいちばん狙われます。ポイントは\n**開始位置は含み、終了位置は含まない** ことです。\n\n```java\nString s = \"banana\";\ns.substring(0, 3);      // ban   ← 3番目（4文字目）は含まない\ns.substring(2, 4);      // na\ns.substring(6);         // \"\"    ← 長さと同じ位置は空文字（エラーではない）\ns.substring(0, 0);      // \"\"\n```\n\n`e - b` が取り出される文字数になる、と覚えると計算が楽です。\n\n> ⚠️ 試験のワナ … 範囲を超えると `StringIndexOutOfBoundsException` です。ただし **「長さと同じ位置」はセーフ** で、空文字が返ります。1つ超えるとアウトです。\n\n```java\n\"banana\".substring(6);      // ✅ \"\" が返る\n\"banana\".substring(7);      // ❌ 実行時に例外\n\"banana\".charAt(6);         // ❌ 実行時に例外（charAt は length-1 まで）\n```\n\n## 見つからないときは -1\n\n`indexOf` は「ない」ことを `-1` で表します。`0` ではありません。\n`0` は「先頭で見つかった」という意味なので、混同すると逆の判定になります。\n\n```java\nif (s.indexOf(\"z\") == -1) {\n    System.out.println(\"含まれていない\");\n}\n```\n\n`contains` を使えば `boolean` で受け取れるので、こちらの方が読みやすいです。\n\n> 💡 `charAt` が返すのは `String` ではなく `char` です。`+` でつなぐと数として足されることがあるので注意してください（第1章の「文字と数のちがい」）。",
+      "samples": [
+        {
+          "caption": "substring の境界を目で確かめる",
+          "code": "public class Main {\n    public static void main(String[] args) {\n        String s = \"banana\";\n\n        System.out.println(\"length      : \" + s.length());\n        System.out.println(\"charAt(0)   : \" + s.charAt(0));\n        System.out.println(\"substring(1): \" + s.substring(1));\n        System.out.println(\"sub(0, 3)   : \" + s.substring(0, 3));\n        System.out.println(\"sub(2, 4)   : \" + s.substring(2, 4));\n        System.out.println(\"sub(6)      : [\" + s.substring(6) + \"]\");\n        System.out.println(\"sub(0, 0)   : [\" + s.substring(0, 0) + \"]\");\n\n        // System.out.println(s.substring(7));   ← 例外になる\n    }\n}\n"
+        },
+        {
+          "caption": "探す・置き換える",
+          "code": "public class Main {\n    public static void main(String[] args) {\n        String s = \"banana\";\n\n        System.out.println(\"indexOf(a)     : \" + s.indexOf(\"a\"));\n        System.out.println(\"lastIndexOf(a) : \" + s.lastIndexOf(\"a\"));\n        System.out.println(\"indexOf(z)     : \" + s.indexOf(\"z\"));\n        System.out.println(\"contains(nan)  : \" + s.contains(\"nan\"));\n        System.out.println(\"replace(a,o)   : \" + s.replace(\"a\", \"o\"));\n        System.out.println(\"元の s         : \" + s);\n\n        String messy = \"   spaces   \";\n        System.out.println(\"trim: [\" + messy.trim() + \"]\");\n    }\n}\n"
+        }
+      ],
+      "task": "空白を含まない文字列 `s` と整数 `i` が入力されます（`i` は `0` 以上 `s` の長さ以下）。\n\n次の **6行** を出力してください。\n\n1. `s.length()`\n2. `s.charAt(0)`\n3. `s.substring(1)`\n4. `s.substring(0, i)`\n5. `s.indexOf(\"a\")`\n6. `s.toUpperCase()`\n\n`banana 3` が入力されたときの出力はこうです。\n\n```\n6\nb\nanana\nban\n1\nBANANA\n```\n\n- 4行目は `i` が `0` のとき **空行** になります（それが正解です）\n- 5行目は `a` が含まれないとき `-1` になります\n- 3行目は1文字の入力のとき空行になります",
+      "starterCode": "import java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        String s = sc.next();\n        int i = sc.nextInt();\n\n        // 6行出力する\n    }\n}\n",
+      "visibleCases": [
+        {
+          "label": "banana と 3",
+          "stdin": "banana 3",
+          "expected": "6\nb\nanana\nban\n1\nBANANA"
+        },
+        {
+          "label": "hello と 2（a がない）",
+          "stdin": "hello 2",
+          "expected": "5\nh\nello\nhe\n-1\nHELLO"
+        }
+      ],
+      "hiddenCases": [
+        {
+          "label": "i が 0（空行になる）",
+          "stdin": "banana 0",
+          "expected": "6\nb\nanana\n\n1\nBANANA"
+        },
+        {
+          "label": "i が長さと同じ",
+          "stdin": "hello 5",
+          "expected": "5\nh\nello\nhello\n-1\nHELLO"
+        },
+        {
+          "label": "1文字（3行目が空行）",
+          "stdin": "a 1",
+          "expected": "1\na\n\na\n0\nA"
+        },
+        {
+          "label": "同じ文字が並ぶ",
+          "stdin": "aaa 2",
+          "expected": "3\na\naa\naa\n0\nAAA"
+        },
+        {
+          "label": "Java",
+          "stdin": "Java 4",
+          "expected": "4\nJ\nava\nJava\n1\nJAVA"
+        },
+        {
+          "label": "数字",
+          "stdin": "12345 1",
+          "expected": "5\n1\n2345\n1\n-1\n12345"
+        }
+      ],
+      "hints": [
+        "3行目は `s.substring(1)` です。1文字の入力なら空文字が返るので、空行が出力されます（エラーではありません）。",
+        "4行目の `s.substring(0, i)` は `i` 文字ぶん取り出します。`i` が `0` なら空文字です。",
+        "5行目は `s.indexOf(\"a\")` です。見つからないときは `0` ではなく `-1` が返ります。"
+      ],
+      "solution": "import java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        String s = sc.next();\n        int i = sc.nextInt();\n\n        System.out.println(s.length());\n        System.out.println(s.charAt(0));\n        System.out.println(s.substring(1));\n        System.out.println(s.substring(0, i));\n        System.out.println(s.indexOf(\"a\"));\n        System.out.println(s.toUpperCase());\n    }\n}\n"
+    },
+    {
+      "id": "14-3",
+      "title": "== と equals と文字列プール",
+      "explanation": "## 同じ内容なのに == が false になる\n\n第4章で「文字列の比較は `equals`」と学びました。その理由をここで詰めます。\n\n`String` は参照型なので、`==` は **同じ本体を指しているか** しか見ません（第8章）。\n\n```java\nString a = new String(\"abc\");\nString b = new String(\"abc\");\n\nSystem.out.println(a == b);        // false ← 本体が2つある\nSystem.out.println(a.equals(b));   // true  ← 内容は同じ\n```\n\n## ところがリテラルどうしは true になる\n\nここが混乱の元です。\n\n```java\nString a = \"abc\";\nString b = \"abc\";\n\nSystem.out.println(a == b);        // true！\n```\n\n同じ内容のリテラルは **1つにまとめて共有される** からです。\nこの共有場所を **文字列プール（String pool）** といいます。\n\n不変だからこそできる最適化です。中身が書き換わらないので、\n何人で共有しても誰も困りません（14-1でふれた通りです）。\n\n- `\"abc\"` … プールを探して、あれば使い回す → `==` が `true` になりうる\n- `new String(\"abc\")` … **必ず新しい本体を作る** → `==` は `false`\n\n> ⚠️ 試験のワナ … コンパイル時に値が決まる連結はプールに入りますが、実行時に決まる連結は入りません。\n\n```java\nString a = \"ab\" + \"c\";              // コンパイル時に \"abc\" になる → プール\nSystem.out.println(a == \"abc\");     // true\n\nString x = \"ab\";\nString y = x + \"c\";                 // 実行時に作られる → 新しい本体\nSystem.out.println(y == \"abc\");     // false\n```\n\nつまり `==` の結果は **書き方で変わります**。だから内容を比べたいときは\n**必ず `equals`** を使う、という結論になります。\n\nキーボードから読み込んだ文字列も実行時に作られるので、\n**同じ文字を入力しても `==` は `false`** です。この問題で実際に確かめます。\n\n## 比較のためのメソッド\n\n| メソッド | すること |\n|---|---|\n| `equals(s)` | 内容が完全に同じか |\n| `equalsIgnoreCase(s)` | 大文字小文字を無視して同じか |\n| `compareTo(s)` | 辞書順の前後。`負`＝自分が前、`0`＝同じ、`正`＝自分が後 |\n\n`compareTo` が返すのは文字コードの差なので、値そのものではなく **符号** を見ます。\n\n```java\n\"apple\".compareTo(\"banana\");    // 負（apple が前）\n\"b\".compareTo(\"a\");             // 正\n\"x\".compareTo(\"x\");             // 0\n```\n\n大文字は小文字より前（`'A'` は 65、`'a'` は 97）なので、\n`\"Java\".compareTo(\"java\")` は **負** になります。\n\n> 💡 `equals` の引数は `Object` です（第10章）。だから `s.equals(123)` はコンパイルできて `false` を返します。型が違うだけでエラーにはなりません。",
+      "samples": [
+        {
+          "caption": "書き方によって == の結果が変わる",
+          "code": "public class Main {\n    public static void main(String[] args) {\n        String literal1 = \"abc\";\n        String literal2 = \"abc\";\n        String created = new String(\"abc\");\n        String compileTime = \"ab\" + \"c\";\n\n        String part = \"ab\";\n        String runTime = part + \"c\";\n\n        System.out.println(\"literal == literal    : \" + (literal1 == literal2));\n        System.out.println(\"literal == new String : \" + (literal1 == created));\n        System.out.println(\"literal == \\\"ab\\\"+\\\"c\\\"   : \" + (literal1 == compileTime));\n        System.out.println(\"literal == part+\\\"c\\\"   : \" + (literal1 == runTime));\n        System.out.println(\"--- equals はすべて true ---\");\n        System.out.println(literal1.equals(created));\n        System.out.println(literal1.equals(runTime));\n    }\n}\n"
+        },
+        {
+          "caption": "compareTo の符号を見る",
+          "code": "public class Main {\n    static void compare(String a, String b) {\n        int r = a.compareTo(b);\n        String order = r < 0 ? \"前\" : r > 0 ? \"後\" : \"同じ\";\n        System.out.println(a + \" は \" + b + \" より \" + order + \"（\" + r + \"）\");\n    }\n\n    public static void main(String[] args) {\n        compare(\"apple\", \"banana\");\n        compare(\"banana\", \"apple\");\n        compare(\"x\", \"x\");\n        compare(\"Java\", \"java\");        // 大文字が前\n        compare(\"abc\", \"abcd\");\n    }\n}\n"
+        }
+      ],
+      "task": "空白を含まない文字列が2つ、`a` `b` の順で入力されます。次の **5行** を出力してください。\n\n1. `a.equals(b)`\n2. `a == b`\n3. `a.equalsIgnoreCase(b)`\n4. `a.compareTo(b)` の **符号** を見て、負なら `前`、`0` なら `同じ`、正なら `後`\n5. `\"abc\" == \"abc\"` の結果\n\n`abc abc` が入力されたときの出力はこうです。\n\n```\ntrue\nfalse\ntrue\n同じ\ntrue\n```\n\n**2行目に注目してください。** 同じ文字を入力しても `==` は `false` です。\nキーボードから読み込んだ文字列は実行時に作られるので、プールの共有が効かないからです。\n一方5行目のリテラルどうしは `true` になります。",
+      "starterCode": "import java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        String a = sc.next();\n        String b = sc.next();\n\n        // 5行出力する\n    }\n}\n",
+      "visibleCases": [
+        {
+          "label": "同じ文字列",
+          "stdin": "abc abc",
+          "expected": "true\nfalse\ntrue\n同じ\ntrue"
+        },
+        {
+          "label": "大文字小文字が違う",
+          "stdin": "abc ABC",
+          "expected": "false\nfalse\ntrue\n後\ntrue"
+        }
+      ],
+      "hiddenCases": [
+        {
+          "label": "辞書順で前",
+          "stdin": "apple banana",
+          "expected": "false\nfalse\nfalse\n前\ntrue"
+        },
+        {
+          "label": "辞書順で後",
+          "stdin": "b a",
+          "expected": "false\nfalse\nfalse\n後\ntrue"
+        },
+        {
+          "label": "先頭が大文字（前になる）",
+          "stdin": "Java java",
+          "expected": "false\nfalse\ntrue\n前\ntrue"
+        },
+        {
+          "label": "1文字で同じ",
+          "stdin": "x x",
+          "expected": "true\nfalse\ntrue\n同じ\ntrue"
+        },
+        {
+          "label": "前方一致で短い方が前",
+          "stdin": "abc abcd",
+          "expected": "false\nfalse\nfalse\n前\ntrue"
+        },
+        {
+          "label": "全部大文字と全部小文字",
+          "stdin": "AB ab",
+          "expected": "false\nfalse\ntrue\n前\ntrue"
+        }
+      ],
+      "hints": [
+        "2行目は `System.out.println(a == b);` です。同じ内容でも `false` になるのが正解です。",
+        "4行目は `int r = a.compareTo(b);` としてから、`r < 0` / `r == 0` / `r > 0` で分けます。三項演算子（第4章）が使えます。",
+        "5行目は入力に関係なく `System.out.println(\"abc\" == \"abc\");` です。リテラルはプールで共有されるので `true` になります。"
+      ],
+      "solution": "import java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        String a = sc.next();\n        String b = sc.next();\n\n        System.out.println(a.equals(b));\n        System.out.println(a == b);\n        System.out.println(a.equalsIgnoreCase(b));\n\n        int r = a.compareTo(b);\n        System.out.println(r < 0 ? \"前\" : r > 0 ? \"後\" : \"同じ\");\n\n        System.out.println(\"abc\" == \"abc\");\n    }\n}\n"
+    },
+    {
+      "id": "14-4",
+      "title": "StringBuilder で組み立てる",
+      "explanation": "## 変えられる文字列\n\n`String` は不変なので、連結するたびに新しい文字列が作られます。\nこれをループで何千回もやると無駄が積み上がります。\n\nそこで **中身を書き換えられる** 文字列として `StringBuilder` があります。\n\n```java\nStringBuilder sb = new StringBuilder();\nsb.append(\"a\");\nsb.append(\"b\");\nsb.append(\"c\");\nSystem.out.println(sb);           // abc\n```\n\n`append` は **`sb` 自身を書き換えます**。新しいオブジェクトは作られません。\nだからループで組み立てるときはこちらを使います。\n\n```java\nStringBuilder sb = new StringBuilder();\nfor (int i = 0; i < 10000; i++) {\n    sb.append(i);                 // 作り直さないので速い\n}\nString result = sb.toString();    // 最後に String へ\n```\n\n## よく使うメソッド\n\n| メソッド | すること |\n|---|---|\n| `append(x)` | 末尾に足す（どんな型でも渡せる） |\n| `insert(i, x)` | `i` の位置に挿入する |\n| `delete(b, e)` | `b` から `e` の直前までを削除 |\n| `deleteCharAt(i)` | `i` の1文字を削除 |\n| `reverse()` | **自分を** 逆順にする |\n| `replace(b, e, str)` | 範囲を置き換える |\n| `setCharAt(i, c)` | `i` の1文字を差し替える |\n| `length()` | 長さ |\n| `toString()` | `String` に変換する |\n\n`append` や `reverse` は **自分自身を返す** ので、続けて書けます（メソッドチェーン）。\n\n```java\nsb.append(\"a\").append(\"b\").reverse();\n```\n\n> ⚠️ 試験のワナ … `String` のメソッドは「新しい文字列を返す」、`StringBuilder` のメソッドは「自分を変えて自分を返す」。ここを混同させる問題が出ます。\n\n```java\nString s = \"abc\";\ns.toUpperCase();                  // s は変わらない\n\nStringBuilder sb = new StringBuilder(\"abc\");\nsb.reverse();                     // sb は cba に変わる\nSystem.out.println(sb);           // cba\n```\n\n> ⚠️ 試験のワナ … `StringBuilder` は `equals` を上書きしていません。だから内容が同じでも `equals` は `false` です。\n\n```java\nnew StringBuilder(\"a\").equals(new StringBuilder(\"a\"));      // false！\nnew StringBuilder(\"a\").toString().equals(\"a\");              // true\n```\n\n比べたいときは `toString()` してから `equals` します。\n\n## String と StringBuilder の使い分け\n\n| | String | StringBuilder |\n|---|---|---|\n| 中身 | 変えられない | 変えられる |\n| 連結 | 毎回新しく作る | 自分に足す |\n| 向いている場面 | 受け渡し、比較、キー | ループで組み立てる |\n\n> 💡 ふだんは `String` で書いて構いません。`+` の連結が **ループの中に入ったとき** だけ `StringBuilder` を思い出してください。",
+      "samples": [
+        {
+          "caption": "append で組み立てて reverse する",
+          "code": "public class Main {\n    public static void main(String[] args) {\n        StringBuilder sb = new StringBuilder();\n        sb.append(\"a\").append(\",\").append(\"b\").append(\",\").append(\"c\");\n\n        System.out.println(\"組み立て: \" + sb);\n        System.out.println(\"長さ    : \" + sb.length());\n\n        sb.reverse();\n        System.out.println(\"reverse : \" + sb);      // 自分が変わっている\n\n        sb.insert(0, \"[\").append(\"]\");\n        System.out.println(\"insert  : \" + sb);\n\n        sb.deleteCharAt(0);\n        System.out.println(\"delete  : \" + sb);\n    }\n}\n"
+        },
+        {
+          "caption": "String と StringBuilder のふるまいの差",
+          "code": "public class Main {\n    public static void main(String[] args) {\n        String s = \"abc\";\n        s.toUpperCase();                        // 変わらない\n        System.out.println(\"String        : \" + s);\n\n        StringBuilder sb = new StringBuilder(\"abc\");\n        sb.reverse();                           // 変わる\n        System.out.println(\"StringBuilder : \" + sb);\n\n        // equals の違い\n        StringBuilder x = new StringBuilder(\"a\");\n        StringBuilder y = new StringBuilder(\"a\");\n        System.out.println(\"sb.equals(sb) : \" + x.equals(y));\n        System.out.println(\"toString 比較 : \" + x.toString().equals(y.toString()));\n    }\n}\n"
+        }
+      ],
+      "task": "入力は次の形です。\n\n- 1行目 … 個数 `k`（`0` もありえます）\n- 2行目 … `k` 個の単語（`k` が `0` のときこの行はありません）\n\n`StringBuilder` を1つ使って、単語を **`,` 区切り** でつないでください\n（先頭には `,` を付けません）。そのうえで次の **3行** を出力します。\n\n1. つないだ結果\n2. それを `reverse()` した結果\n3. その長さ\n\n`3` と `a b c` が入力されたときの出力はこうです。\n\n```\na,b,c\nc,b,a\n5\n```\n\n- `k` が `0` のときは、1行目と2行目が **空行** になり、3行目は `0` です\n- 単語が2文字以上のときは、`reverse()` が **1文字ずつ** 逆にすることに注意してください\n  （`ab,cd` を反転すると `dc,ba` です）",
+      "starterCode": "import java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int k = sc.nextInt();\n\n        StringBuilder sb = new StringBuilder();\n        for (int i = 0; i < k; i++) {\n            String word = sc.next();\n            // 2個目以降は \",\" を先に足してから word を足す\n        }\n\n        // 3行出力する\n    }\n}\n",
+      "visibleCases": [
+        {
+          "label": "1文字の単語3つ",
+          "stdin": "3\na b c",
+          "expected": "a,b,c\nc,b,a\n5"
+        },
+        {
+          "label": "1単語",
+          "stdin": "1\nhello",
+          "expected": "hello\nolleh\n5"
+        }
+      ],
+      "hiddenCases": [
+        {
+          "label": "0個（空行が2つ）",
+          "stdin": "0",
+          "expected": "\n\n0"
+        },
+        {
+          "label": "2文字ずつ",
+          "stdin": "2\nab cd",
+          "expected": "ab,cd\ndc,ba\n5"
+        },
+        {
+          "label": "長い単語",
+          "stdin": "2\nJava Silver",
+          "expected": "Java,Silver\nrevliS,avaJ\n11"
+        },
+        {
+          "label": "数字4つ",
+          "stdin": "4\n1 2 3 4",
+          "expected": "1,2,3,4\n4,3,2,1\n7"
+        },
+        {
+          "label": "同じ単語",
+          "stdin": "2\nxy xy",
+          "expected": "xy,xy\nyx,yx\n5"
+        }
+      ],
+      "hints": [
+        "区切りは `if (sb.length() > 0) { sb.append(\",\"); }` としてから単語を足すと、先頭に付きません。",
+        "`i > 0` で判定してもかまいません。どちらでも同じ結果になります。",
+        "2行目は `sb.reverse()` を呼んでから `sb` を出力します。`reverse()` は `sb` 自身を変えるので、3行目の長さは変わりません。"
+      ],
+      "solution": "import java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int k = sc.nextInt();\n\n        StringBuilder sb = new StringBuilder();\n        for (int i = 0; i < k; i++) {\n            String word = sc.next();\n            if (sb.length() > 0) {\n                sb.append(\",\");\n            }\n            sb.append(word);\n        }\n\n        System.out.println(sb);\n        sb.reverse();\n        System.out.println(sb);\n        System.out.println(sb.length());\n    }\n}\n"
+    },
+    {
+      "id": "14-5",
+      "title": "総合問題：単語を加工して集計する",
+      "explanation": "## String の道具を組み合わせる\n\n第14章のまとめです。「先頭だけ大文字にする」という定番の処理を作りながら、\n`substring` と `toUpperCase` を組み合わせます。\n\n### 先頭だけ大文字にする\n\n`String` には「先頭を大文字にする」メソッドはありません。自分で組み立てます。\n\n```java\nString capitalize(String s) {\n    return s.substring(0, 1).toUpperCase() + s.substring(1);\n}\n```\n\nやっていることは3つです。\n\n1. `s.substring(0, 1)` … 先頭の1文字を取り出す（`\"j\"`）\n2. `.toUpperCase()` … 大文字にする（`\"J\"`）\n3. `+ s.substring(1)` … 2文字目以降をそのままつなぐ（`\"ava\"`）\n\n1文字の単語でも動きます。`\"a\".substring(1)` は **空文字** なので（14-2で確認しました）、\n`\"A\" + \"\"` で `\"A\"` になります。境界がきれいに収まっているのがポイントです。\n\n### 最長の単語を探す\n\n第6章の「最大値を探す」と同じ形です。仮の1位を置いて、超えたら入れ替えます。\n\n```java\nString longest = words[0];\nfor (String w : words) {\n    if (w.length() > longest.length()) {\n        longest = w;\n    }\n}\n```\n\n`>` なので、同じ長さが並んだときは **先に出てきた方** が残ります。\n\n> 💡 `length()` は文字数です。日本語1文字も1として数えます（絵文字などは例外がありますが、Silver の範囲では気にしなくて大丈夫です）。\n\n> ⚠️ 試験のワナ … `substring(0, 1)` の代わりに `charAt(0)` を使うと `char` が返ります。`char` を `toUpperCase` することはできず、`Character.toUpperCase(c)` を使う必要があります。さらに `char + String` の連結順にも注意が必要なので、`substring` の方が安全です。",
+      "samples": [
+        {
+          "caption": "先頭だけ大文字にする",
+          "code": "public class Main {\n    static String capitalize(String s) {\n        return s.substring(0, 1).toUpperCase() + s.substring(1);\n    }\n\n    public static void main(String[] args) {\n        System.out.println(capitalize(\"java\"));\n        System.out.println(capitalize(\"silver\"));\n        System.out.println(capitalize(\"a\"));        // 1文字でも動く\n        System.out.println(capitalize(\"Java\"));     // すでに大文字でもそのまま\n    }\n}\n"
+        },
+        {
+          "caption": "長さを集計して最長を探す",
+          "code": "public class Main {\n    public static void main(String[] args) {\n        String[] words = {\"java\", \"silver\", \"go\"};\n\n        int total = 0;\n        String longest = words[0];\n\n        for (String w : words) {\n            System.out.println(w + \" \" + w.length());\n            total += w.length();\n            if (w.length() > longest.length()) {\n                longest = w;\n            }\n        }\n\n        System.out.println(\"合計 \" + total);\n        System.out.println(\"最長 \" + longest);\n    }\n}\n"
+        }
+      ],
+      "task": "入力は次の形です。\n\n- 1行目 … 個数 `k`（必ず **1以上**）\n- 2行目 … `k` 個の単語（空白区切り）\n\n各単語について1行、そのあと2行を出力してください。\n\n- 各単語 … `単語 長さ 先頭を大文字にした形`（半角スペース区切り）\n- `合計 ○○` … すべての単語の長さの合計\n- `最長 ○○` … いちばん長い単語。同じ長さが並んだときは **先に入力された方**\n\n`2` と `java silver` が入力されたときの出力はこうです。\n\n```\njava 4 Java\nsilver 6 Silver\n合計 10\n最長 silver\n```\n\n- 1文字の単語も入力されます（`a` → `a 1 A`）\n- すでに先頭が大文字の単語はそのままです\n- 日本語も入力されます（大文字にしても変わりません）",
+      "starterCode": "import java.util.Scanner;\n\npublic class Main {\n\n    // static String capitalize(String s) を作ってもよい\n\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int k = sc.nextInt();\n        String[] words = new String[k];\n        for (int i = 0; i < k; i++) {\n            words[i] = sc.next();\n        }\n\n        // 各単語の行、合計、最長 を出力する\n    }\n}\n",
+      "visibleCases": [
+        {
+          "label": "2単語",
+          "stdin": "2\njava silver",
+          "expected": "java 4 Java\nsilver 6 Silver\n合計 10\n最長 silver"
+        },
+        {
+          "label": "1文字",
+          "stdin": "1\na",
+          "expected": "a 1 A\n合計 1\n最長 a"
+        }
+      ],
+      "hiddenCases": [
+        {
+          "label": "同じ長さ（先が勝つ）",
+          "stdin": "2\nab cd",
+          "expected": "ab 2 Ab\ncd 2 Cd\n合計 4\n最長 ab"
+        },
+        {
+          "label": "だんだん長くなる",
+          "stdin": "3\nx yy zzz",
+          "expected": "x 1 X\nyy 2 Yy\nzzz 3 Zzz\n合計 6\n最長 zzz"
+        },
+        {
+          "label": "すでに大文字",
+          "stdin": "2\nJava GO",
+          "expected": "Java 4 Java\nGO 2 GO\n合計 6\n最長 Java"
+        },
+        {
+          "label": "日本語",
+          "stdin": "2\nあい うえお",
+          "expected": "あい 2 あい\nうえお 3 うえお\n合計 5\n最長 うえお"
+        },
+        {
+          "label": "最長が先頭",
+          "stdin": "3\nlongest ab c",
+          "expected": "longest 7 Longest\nab 2 Ab\nc 1 C\n合計 10\n最長 longest"
+        },
+        {
+          "label": "数字の単語",
+          "stdin": "2\n123 45",
+          "expected": "123 3 123\n45 2 45\n合計 5\n最長 123"
+        }
+      ],
+      "hints": [
+        "先頭を大文字にするのは `s.substring(0, 1).toUpperCase() + s.substring(1)` です。1文字でも空文字が返るので安全に動きます。",
+        "最長を探すときの初期値は `words[0]` です。空文字の単語は入力されないので、`\"\"` から始めても動きますが `words[0]` の方が安全です。",
+        "同じ長さのときに先を勝たせるので、条件は `w.length() > longest.length()` です（`>=` にしないこと）。"
+      ],
+      "solution": "import java.util.Scanner;\n\npublic class Main {\n\n    static String capitalize(String s) {\n        return s.substring(0, 1).toUpperCase() + s.substring(1);\n    }\n\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int k = sc.nextInt();\n        String[] words = new String[k];\n        for (int i = 0; i < k; i++) {\n            words[i] = sc.next();\n        }\n\n        int total = 0;\n        String longest = words[0];\n\n        for (String w : words) {\n            System.out.println(w + \" \" + w.length() + \" \" + capitalize(w));\n            total += w.length();\n            if (w.length() > longest.length()) {\n                longest = w;\n            }\n        }\n\n        System.out.println(\"合計 \" + total);\n        System.out.println(\"最長 \" + longest);\n    }\n}\n"
+    }
+  ]
+}

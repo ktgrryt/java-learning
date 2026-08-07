@@ -1,0 +1,293 @@
+{
+  "id": "ch08",
+  "title": "クラスとインスタンス",
+  "subtitle": "自分でデータの型を作る",
+  "emoji": "🏗️",
+  "lessons": [
+    {
+      "id": "8-1",
+      "title": "クラスを作って new する",
+      "explanation": "## 関係のあるデータをひとまとめにする\n\n本の情報を扱うとして、これまでの道具ではこう書くしかありませんでした。\n\n```java\nString title1 = \"Java入門\";\nint price1 = 2500;\nString title2 = \"Python入門\";\nint price2 = 3000;\n```\n\n冊数が増えるたびに変数も増え、「どのタイトルとどの価格が組なのか」は\n名前の付け方で祈るしかありません。\n\nそこで **自分で新しい型を作ります**。それが **クラス** です。\n\n```java\nclass Book {\n    String title;   // フィールド（このクラスが持つデータ）\n    int price;\n}\n```\n\nこれで `Book` という型ができました。`int` や `String` と同じように使える、自作の型です。\n\n## クラスは設計図、インスタンスは実体\n\nクラスは「どんなデータを持つか」を書いた **設計図** にすぎません。\n実際のデータを入れる箱は `new` で作ります。作られた箱を **インスタンス**（またはオブジェクト）と呼びます。\n\n```java\nBook b = new Book();      // 設計図から実体を1つ作る\nb.title = \"Java入門\";     // ドットでフィールドにアクセスする\nb.price = 2500;\nSystem.out.println(b.title + \" \" + b.price);\n```\n\n`new Book()` を2回書けば、独立した箱が2つできます。\n\n```java\nBook b1 = new Book();\nBook b2 = new Book();\nb1.price = 2500;\nb2.price = 3000;      // b1 には影響しない\n```\n\n## インスタンスメソッド — データにくっついた処理\n\nクラスの中にはメソッドも書けます。第7章では `static` を付けていましたが、\n`static` を **付けない** メソッドは「そのインスタンスに対する処理」になります。\n\n```java\nclass Book {\n    String title;\n    int price;\n\n    void show() {                                   // static を付けない\n        System.out.println(title + \" \" + price + \"円\");\n    }\n}\n```\n\n`show()` の中では、自分のフィールドを名前だけで使えます。\n呼び出すときは「どのインスタンスに対してか」を書きます。\n\n```java\nBook b = new Book();\nb.title = \"Java入門\";\nb.price = 2500;\nb.show();            // Java入門 2500円\n```\n\n> 💡 `System.out.println(...)` も、`System.out` というインスタンスに対して `println` を呼んでいます。同じ形です。\n\n### ファイルの書き方\n\nこのアプリでは1つのファイルにまとめて書きます。`public` を付けるのは `Main` だけです。\n\n```java\nclass Book {          // public は付けない\n    String title;\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Book b = new Book();\n    }\n}\n```\n\n> ⚠️ 試験のワナ … 1つのファイルに `public` なクラスを2つ書くとコンパイルエラーです。`public` はファイル名と同じ名前のクラスだけに付けられます。",
+      "samples": [
+        {
+          "caption": "Book クラスを作って2冊分の実体を作る",
+          "code": "class Book {\n    String title;\n    int price;\n\n    void show() {\n        System.out.println(title + \" \" + price + \"円\");\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Book b1 = new Book();\n        b1.title = \"Java入門\";\n        b1.price = 2500;\n\n        Book b2 = new Book();\n        b2.title = \"Python入門\";\n        b2.price = 3000;\n\n        b1.show();\n        b2.show();\n\n        // それぞれ独立している\n        b1.price = 1980;\n        b1.show();\n        b2.show();\n    }\n}\n"
+        },
+        {
+          "caption": "インスタンスメソッドは自分のフィールドを使える",
+          "code": "class Rectangle {\n    int width;\n    int height;\n\n    int area() {\n        return width * height;        // 自分のフィールドを名前だけで使える\n    }\n\n    boolean isSquare() {\n        return width == height;\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Rectangle r = new Rectangle();\n        r.width = 3;\n        r.height = 4;\n\n        System.out.println(\"面積 \" + r.area());\n        System.out.println(\"正方形か \" + r.isSquare());\n    }\n}\n"
+        }
+      ],
+      "task": "`Book` クラスを作ってください。\n\n- フィールド … `String title` と `int price`\n- メソッド … `void show()`。`タイトル 価格円` の形で1行出力する\n\n入力は2行で、それぞれ「タイトル（空白を含まない1語）と価格」です。\n\n```\nJava入門 2500\nPython入門 3000\n```\n\n`main` では `Book` のインスタンスを2つ作って値を入れ、`show()` を呼び、\n最後に合計金額を出力してください。上の入力に対する出力はこうです。\n\n```\nJava入門 2500円\nPython入門 3000円\n合計 5500円\n```\n\n- 数字と `円` の間に空白は入れません\n- 価格に `0` が入力されることもあります",
+      "starterCode": "import java.util.Scanner;\n\nclass Book {\n    // フィールド2つと show() を書く\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n\n        Book b1 = new Book();\n        // b1 に読み込んだ値を入れる\n\n        Book b2 = new Book();\n        // b2 にも入れる\n\n        // show() を呼んで、合計を出力する\n    }\n}\n",
+      "visibleCases": [
+        {
+          "label": "2冊",
+          "stdin": "Java入門 2500\nPython入門 3000",
+          "expected": "Java入門 2500円\nPython入門 3000円\n合計 5500円"
+        },
+        {
+          "label": "安い本",
+          "stdin": "文庫 500\n新書 900",
+          "expected": "文庫 500円\n新書 900円\n合計 1400円"
+        }
+      ],
+      "hiddenCases": [
+        {
+          "label": "価格が 0",
+          "stdin": "無料本 0\n有料本 100",
+          "expected": "無料本 0円\n有料本 100円\n合計 100円"
+        },
+        {
+          "label": "両方 0",
+          "stdin": "A 0\nB 0",
+          "expected": "A 0円\nB 0円\n合計 0円"
+        },
+        {
+          "label": "同じタイトル",
+          "stdin": "同じ 1000\n同じ 2000",
+          "expected": "同じ 1000円\n同じ 2000円\n合計 3000円"
+        },
+        {
+          "label": "大きい価格",
+          "stdin": "全集 12000\n別巻 8800",
+          "expected": "全集 12000円\n別巻 8800円\n合計 20800円"
+        }
+      ],
+      "hints": [
+        "`class Book { String title; int price; ... }` をクラスの外（`public class Main` の前か後）に書きます。",
+        "`show()` は `static` を付けずに書き、中では `title` と `price` を名前だけで使えます。",
+        "合計は `b1.price + b2.price` で計算できます。`System.out.println(\"合計 \" + (b1.price + b2.price) + \"円\");` のように書きます。"
+      ],
+      "solution": "import java.util.Scanner;\n\nclass Book {\n    String title;\n    int price;\n\n    void show() {\n        System.out.println(title + \" \" + price + \"円\");\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n\n        Book b1 = new Book();\n        b1.title = sc.next();\n        b1.price = sc.nextInt();\n\n        Book b2 = new Book();\n        b2.title = sc.next();\n        b2.price = sc.nextInt();\n\n        b1.show();\n        b2.show();\n        System.out.println(\"合計 \" + (b1.price + b2.price) + \"円\");\n    }\n}\n"
+    },
+    {
+      "id": "8-2",
+      "title": "コンストラクタと this",
+      "explanation": "## new のときに走る初期化 — コンストラクタ\n\n前のレッスンでは、`new` したあとにフィールドを1つずつ埋めました。\n\n```java\nBook b = new Book();\nb.title = \"Java入門\";\nb.price = 2500;\n```\n\n埋め忘れると中身が空のままです。そこで **作るときに必ず値を渡させる** ようにします。\nそのための特別なメソッドが **コンストラクタ** です。\n\n```java\nclass Book {\n    String title;\n    int price;\n\n    Book(String title, int price) {      // ← コンストラクタ\n        this.title = title;\n        this.price = price;\n    }\n}\n```\n\nこれで `new` のときに値を渡せます。というより、**渡さないと作れなくなります**。\n\n```java\nBook b = new Book(\"Java入門\", 2500);     // 1行で完成\n```\n\n### コンストラクタの決まり\n\n- 名前は **クラス名とまったく同じ**\n- **戻り値の型を書かない**（`void` すら書かない）\n\n> ⚠️ 試験のワナ … 戻り値の型を書くと、それはコンストラクタではなく **ただのメソッド** になります。\n\n```java\nclass Book {\n    void Book(String t) { }    // ❌ これはメソッド。new Book(\"x\") では呼ばれない\n}\n```\n\n見た目がそっくりなので、試験でもよく出ます。`void` があるかどうかを必ず確認してください。\n\n## this — 自分自身を指す\n\n`this.title = title;` の `this` は「**いま処理しているこのインスタンス**」を指します。\n\n引数の名前とフィールドの名前が同じとき、`title` だけ書くと **引数** の方が優先されます。\nだから `this.` を付けてフィールドだと示す必要があります。\n\n```java\nBook(String title, int price) {\n    title = title;          // ❌ 引数を引数に代入している。フィールドは空のまま\n    this.title = title;     // ✅ フィールド ← 引数\n}\n```\n\n名前が違えば `this` は省略できますが、同じ名前にして `this` を付けるのが定番です。\n\n## デフォルトコンストラクタ\n\n第8章の最初では `new Book()` と引数なしで書けました。コンストラクタを1つも書かなかったので、\nJavaが **引数なしのコンストラクタを自動で用意していた** からです。これを\n**デフォルトコンストラクタ** といいます。\n\n> ⚠️ 試験のワナ … 自分でコンストラクタを1つでも書くと、デフォルトコンストラクタは **作られなくなります**。\n\n```java\nclass Book {\n    Book(String title) { }\n}\n\nBook b = new Book();          // ❌ コンパイルエラー：引数なしの版はもう存在しない\n```\n\n引数なしでも作りたいなら、自分で両方書きます。コンストラクタもオーバーロードできます。\n\n## this(...) で別のコンストラクタを呼ぶ\n\n似たコンストラクタを2つ書くと、同じ初期化が重複します。\n`this(...)` を使うと、**同じクラスの別のコンストラクタ** に処理を任せられます。\n\n```java\nclass Book {\n    String title;\n    int price;\n\n    Book(String title, int price) {\n        this.title = title;\n        this.price = price;\n    }\n\n    Book(String title) {\n        this(title, 0);        // 価格 0 として上のコンストラクタに任せる\n    }\n}\n```\n\n`this(...)` は **コンストラクタの1行目** に書かなければなりません（それより前に文を書くとエラー）。",
+      "samples": [
+        {
+          "caption": "コンストラクタ2つと this(...)",
+          "code": "class Book {\n    String title;\n    int price;\n\n    Book(String title, int price) {\n        System.out.println(\"  [2引数のコンストラクタ]\");\n        this.title = title;\n        this.price = price;\n    }\n\n    Book(String title) {\n        this(title, 0);        // 1行目に書く決まり\n        System.out.println(\"  [1引数のコンストラクタ]\");\n    }\n\n    void show() {\n        System.out.println(title + \" \" + price + \"円\");\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Book a = new Book(\"Java入門\", 2500);\n        a.show();\n\n        Book b = new Book(\"メモ帳\");\n        b.show();\n    }\n}\n"
+        },
+        {
+          "caption": "this を忘れるとどうなるか",
+          "code": "class Wrong {\n    String name;\n\n    Wrong(String name) {\n        name = name;          // this を忘れた。フィールドには入らない\n    }\n}\n\nclass Right {\n    String name;\n\n    Right(String name) {\n        this.name = name;\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        System.out.println(\"this なし: \" + new Wrong(\"田中\").name);\n        System.out.println(\"this あり: \" + new Right(\"田中\").name);\n    }\n}\n"
+        }
+      ],
+      "task": "`Book` クラスに **コンストラクタを2つ** 作ってください。\n\n- `Book(String title, int price)` … タイトルと価格を受け取る\n- `Book(String title)` … 価格を `0` として、`this(...)` で上のコンストラクタに任せる\n\nフィールドは `String title` と `int price`、メソッドは `void show()`\n（`タイトル 価格円` の形で1行出力）です。\n\n入力は2行です。\n\n- 1行目 … タイトルと価格（2語）\n- 2行目 … タイトルだけ（1語）\n\n```\nJava入門 2500\nメモ帳\n```\n\n`main` では1行目から2引数のコンストラクタで、2行目から1引数のコンストラクタで\nインスタンスを作り、それぞれ `show()` を呼んでください。\n\n```\nJava入門 2500円\nメモ帳 0円\n```",
+      "starterCode": "import java.util.Scanner;\n\nclass Book {\n    String title;\n    int price;\n\n    // コンストラクタ2つと show() を書く\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        String title1 = sc.next();\n        int price1 = sc.nextInt();\n        String title2 = sc.next();\n\n        // インスタンスを2つ作って show() を呼ぶ\n    }\n}\n",
+      "visibleCases": [
+        {
+          "label": "本と無料の冊子",
+          "stdin": "Java入門 2500\nメモ帳",
+          "expected": "Java入門 2500円\nメモ帳 0円"
+        },
+        {
+          "label": "別の2冊",
+          "stdin": "図鑑 4800\nチラシ",
+          "expected": "図鑑 4800円\nチラシ 0円"
+        }
+      ],
+      "hiddenCases": [
+        {
+          "label": "価格が 0 の本",
+          "stdin": "見本 0\n付録",
+          "expected": "見本 0円\n付録 0円"
+        },
+        {
+          "label": "同じタイトル",
+          "stdin": "同名 1200\n同名",
+          "expected": "同名 1200円\n同名 0円"
+        },
+        {
+          "label": "大きい価格",
+          "stdin": "全集 15000\n目録",
+          "expected": "全集 15000円\n目録 0円"
+        },
+        {
+          "label": "英字のタイトル",
+          "stdin": "Java 100\nMemo",
+          "expected": "Java 100円\nMemo 0円"
+        }
+      ],
+      "hints": [
+        "コンストラクタは `Book(String title, int price) {` のように、クラス名と同じ名前で戻り値の型を書きません。",
+        "フィールドに入れるときは `this.title = title;` と `this.` を付けます。付けないと引数に代入するだけになります。",
+        "1引数の方は中身が1行です。`this(title, 0);` と書けば2引数の方が呼ばれます。"
+      ],
+      "solution": "import java.util.Scanner;\n\nclass Book {\n    String title;\n    int price;\n\n    Book(String title, int price) {\n        this.title = title;\n        this.price = price;\n    }\n\n    Book(String title) {\n        this(title, 0);\n    }\n\n    void show() {\n        System.out.println(title + \" \" + price + \"円\");\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        String title1 = sc.next();\n        int price1 = sc.nextInt();\n        String title2 = sc.next();\n\n        Book b1 = new Book(title1, price1);\n        Book b2 = new Book(title2);\n\n        b1.show();\n        b2.show();\n    }\n}\n"
+    },
+    {
+      "id": "8-3",
+      "title": "フィールドの初期値と、ローカル変数",
+      "explanation": "## フィールドは勝手に初期化される\n\nクラスのフィールドは、値を入れなくても **必ず既定値で初期化されます**。\n`new` した直後に読んでも、ゴミが入っていることはありません。\n\n```java\nclass Data {\n    int num;\n    double rate;\n    boolean flag;\n    String name;\n}\n\nData d = new Data();\nSystem.out.println(d.num);     // 0\nSystem.out.println(d.name);    // null\n```\n\n既定値は型で決まっています。Silver では必ず問われるので覚えてください。\n\n| 型 | 既定値 |\n|---|---|\n| `byte` `short` `int` `long` | `0` |\n| `float` `double` | `0.0` |\n| `char` | 空文字ではなく「数としては `0` の文字」（画面には見えません） |\n| `boolean` | `false` |\n| 参照型（`String` や自作クラス、配列） | `null` |\n\n配列の要素も同じルールで初期化されます。`new int[3]` の中身は `0, 0, 0`、\n`new String[3]` の中身は `null, null, null` です。\n\n> 💡 `null` を `println` に渡すと、文字として `null` と表示されます。エラーにはなりません。\n\n## ローカル変数は自分で初期化する\n\n一方、メソッドの中で宣言した変数（**ローカル変数**）はまったく違います。\n**初期化せずに読もうとすると、コンパイルエラー** になります。\n\n```java\npublic static void main(String[] args) {\n    int i;\n    System.out.println(i);     // ❌ コンパイルエラー：初期化されていない可能性がある\n}\n```\n\nこれは意地悪ではなく親切です。フィールドは「箱の一部」なので既定値を用意する意味がありますが、\nローカル変数は一時的な作業用なので、**入れ忘れはバグ以外にありえない** からです。\n\n宣言だけしておいて、後で必ず入れるなら問題ありません。\n\n```java\nint i;\nif (flag) {\n    i = 1;\n} else {\n    i = 2;          // ✅ どの道すじでも必ず入るのでOK\n}\nSystem.out.println(i);\n```\n\n`else` を書き忘れると「入らない道すじ」ができるので、その時点でエラーになります。\n\n> ⚠️ 試験のワナ … 「初期化していない変数を使う」問題は、**フィールドかローカル変数か** で答えが変わります。フィールドなら既定値が出力され、ローカル変数ならコンパイルエラーです。",
+      "samples": [
+        {
+          "caption": "new した直後のフィールドを覗く",
+          "code": "class Data {\n    int num;\n    double rate;\n    boolean flag;\n    char letter;\n    String name;\n    int[] values;\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Data d = new Data();\n\n        System.out.println(\"int     \" + d.num);\n        System.out.println(\"double  \" + d.rate);\n        System.out.println(\"boolean \" + d.flag);\n        System.out.println(\"char    \" + (int) d.letter);   // 数にして見る\n        System.out.println(\"String  \" + d.name);\n        System.out.println(\"配列    \" + d.values);\n    }\n}\n"
+        },
+        {
+          "caption": "配列の要素も既定値で埋まる",
+          "code": "import java.util.Arrays;\n\npublic class Main {\n    public static void main(String[] args) {\n        int[] numbers = new int[3];\n        String[] names = new String[3];\n        boolean[] flags = new boolean[3];\n\n        System.out.println(Arrays.toString(numbers));\n        System.out.println(Arrays.toString(names));\n        System.out.println(Arrays.toString(flags));\n\n        // ローカル変数はこうはならない\n        // int i;\n        // System.out.println(i);   ← コンパイルエラーになる\n    }\n}\n"
+        }
+      ],
+      "task": "`Data` クラスを作ってください。フィールドは次の5つで、**初期値は書きません**（宣言だけ）。\n\n```java\nint num;\ndouble rate;\nboolean flag;\nchar letter;\nString name;\n```\n\n1行目に整数 `n`、2行目に文字列 `s` が入力されます。\n\n`main` では `Data` を `new` して、**まず初期値を5行出力** し、\nそのあと `num` に `n`、`name` に `s` を入れて2つを1行で出力してください。\n\n`7` と `abc` が入力されたときの出力はこうです。\n\n```\n0\n0.0\nfalse\nnull\n0\n7 abc\n```\n\n出力する順番は次の通りです。\n\n1. `num`\n2. `rate`\n3. `flag`\n4. `name`\n5. `letter` を `(int)` でキャストした値\n6. 値を入れたあとの `num` と `name`（半角スペース区切り）",
+      "starterCode": "import java.util.Scanner;\n\nclass Data {\n    // フィールド5つを宣言だけする\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n        String s = sc.next();\n\n        Data d = new Data();\n\n        // 初期値を5行出力する\n\n        // 値を入れて1行出力する\n    }\n}\n",
+      "visibleCases": [
+        {
+          "label": "7 と abc",
+          "stdin": "7\nabc",
+          "expected": "0\n0.0\nfalse\nnull\n0\n7 abc"
+        },
+        {
+          "label": "42 と Java",
+          "stdin": "42\nJava",
+          "expected": "0\n0.0\nfalse\nnull\n0\n42 Java"
+        }
+      ],
+      "hiddenCases": [
+        {
+          "label": "0 のとき",
+          "stdin": "0\nx",
+          "expected": "0\n0.0\nfalse\nnull\n0\n0 x"
+        },
+        {
+          "label": "マイナス",
+          "stdin": "-5\nテスト",
+          "expected": "0\n0.0\nfalse\nnull\n0\n-5 テスト"
+        },
+        {
+          "label": "大きい数",
+          "stdin": "100000\nlong",
+          "expected": "0\n0.0\nfalse\nnull\n0\n100000 long"
+        },
+        {
+          "label": "1文字",
+          "stdin": "1\nA",
+          "expected": "0\n0.0\nfalse\nnull\n0\n1 A"
+        }
+      ],
+      "hints": [
+        "フィールドは `int num;` のように宣言するだけです。`= 0` などは書きません。",
+        "`double` の既定値は `0` ではなく `0.0` と表示されます。`boolean` は `false`、`String` は `null` です。",
+        "`char` の既定値は画面に見えない文字なので、`(int) d.letter` とキャストして数として出力します。"
+      ],
+      "solution": "import java.util.Scanner;\n\nclass Data {\n    int num;\n    double rate;\n    boolean flag;\n    char letter;\n    String name;\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n        String s = sc.next();\n\n        Data d = new Data();\n\n        System.out.println(d.num);\n        System.out.println(d.rate);\n        System.out.println(d.flag);\n        System.out.println(d.name);\n        System.out.println((int) d.letter);\n\n        d.num = n;\n        d.name = s;\n        System.out.println(d.num + \" \" + d.name);\n    }\n}\n"
+    },
+    {
+      "id": "8-4",
+      "title": "参照とは何か（== と null）",
+      "explanation": "## 変数が持っているのは「場所」\n\n`int` の変数は値そのものを持っています。けれどクラス型の変数が持っているのは\n**本体がどこにあるかを指す矢印** です。これを **参照** と呼びます。\n\n```java\nPoint p1 = new Point(1, 2);\nPoint p2 = p1;          // 矢印のコピー。本体は増えない\n```\n\nこの状態では `p1` と `p2` は **同じ本体** を指しています。\nだから `p2` 経由で書き換えると `p1` からも見えます。\n\n```java\np2.x = 99;\nSystem.out.println(p1.x);    // 99\n```\n\n`new` を2回書けば、中身が同じでも **別の本体** になります。\n\n```java\nPoint a = new Point(1, 2);\nPoint b = new Point(1, 2);   // 中身は同じだが別の本体\n```\n\n## == は「同じ本体か」を調べる\n\n`==` は矢印の指し先を比べます。**中身が同じかどうかは見ません**。\n\n```java\nPoint a = new Point(1, 2);\nPoint b = new Point(1, 2);\nPoint c = a;\n\nSystem.out.println(a == b);   // false ← 中身は同じでも別の本体\nSystem.out.println(a == c);   // true  ← 同じ本体\n```\n\n「中身が同じか」を判定したいときは `equals` メソッドを使います。\nただし **自分で作ったクラスでは、`equals` を書かないかぎり `==` と同じ動作** です\n（`Object` から受け継いだ既定の `equals` が「同じ本体か」を返すため）。\n自作クラスの `equals` を書く方法は第10章で学びます。\n\n> ⚠️ 試験のワナ … `String` の比較で `==` を使うと、同じ文字列でも `false` になることがあります。第4章でやったように、文字列は `equals` で比べます。\n\n## null — どこも指していない状態\n\n参照型の変数には **`null`** を入れられます。「矢印がどこも指していない」という意味です。\n\n```java\nPoint p = null;\nSystem.out.println(p == null);    // true\n```\n\n`null` の変数に対してフィールドやメソッドを使おうとすると、実行時に\n**NullPointerException** で落ちます。コンパイルは通ってしまうので、\nJavaで最もよく出会うエラーです。\n\n```java\nPoint p = null;\nSystem.out.println(p.x);          // 実行時に NullPointerException\n```\n\nだから「使う前に `null` かどうか確かめる」書き方が基本になります。\n\n```java\nif (p != null) {\n    System.out.println(p.x);      // ここは安全\n}\n```\n\n> 💡 `p == null` の比較は安全です。落ちるのは `p.` と **ドットを付けた** ときだけ、と覚えると分かりやすいです。",
+      "samples": [
+        {
+          "caption": "同じ本体か、別の本体か",
+          "code": "class Point {\n    int x;\n    int y;\n\n    Point(int x, int y) {\n        this.x = x;\n        this.y = y;\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Point a = new Point(1, 2);\n        Point b = new Point(1, 2);\n        Point c = a;\n\n        System.out.println(\"a == b : \" + (a == b));\n        System.out.println(\"a == c : \" + (a == c));\n\n        c.x = 99;                     // c 経由で書き換える\n        System.out.println(\"a.x = \" + a.x);\n        System.out.println(\"b.x = \" + b.x);\n    }\n}\n"
+        },
+        {
+          "caption": "null かどうか確かめてから使う",
+          "code": "class Point {\n    int x;\n    Point(int x) { this.x = x; }\n}\n\npublic class Main {\n    static void show(Point p) {\n        if (p == null) {\n            System.out.println(\"（データがありません）\");\n            return;\n        }\n        System.out.println(\"x = \" + p.x);\n    }\n\n    public static void main(String[] args) {\n        show(new Point(5));\n        show(null);\n\n        Point p = null;\n        System.out.println(\"p == null : \" + (p == null));\n        // System.out.println(p.x);   ← ここを外すと NullPointerException\n    }\n}\n"
+        }
+      ],
+      "task": "`Point` クラス（フィールド `int x` `int y` とコンストラクタ）はひな形に用意してあります。\n\n整数が2つ、`x` `y` の順で入力されます。`main` では次のようにして **5行** 出力してください。\n\n1. `Point p1 = new Point(x, y);` と `Point p2 = new Point(x, y);` を作り、`p1 == p2` の結果\n2. `Point p3 = p1;` として、`p1 == p3` の結果\n3. `p3.x` に `10` を足したあとの **`p1.x`**\n4. `Point p4 = null;` として、`p4 == null` の結果\n5. `p1.x + p1.y`（3の書き換えを反映した値）\n\n`1 2` が入力されたときの出力はこうです。\n\n```\nfalse\ntrue\n11\ntrue\n13\n```\n\nなぜ1行目が `false` で2行目が `true` になるのか、3行目がなぜ変わるのかを\n説明できるようになるのがこのレッスンの目標です。",
+      "starterCode": "import java.util.Scanner;\n\nclass Point {\n    int x;\n    int y;\n\n    Point(int x, int y) {\n        this.x = x;\n        this.y = y;\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int x = sc.nextInt();\n        int y = sc.nextInt();\n\n        Point p1 = new Point(x, y);\n        Point p2 = new Point(x, y);\n        Point p3 = p1;\n        Point p4 = null;\n\n        // 1行目: p1 == p2\n\n        // 2行目: p1 == p3\n\n        // 3行目: p3.x に 10 を足してから p1.x\n\n        // 4行目: p4 == null\n\n        // 5行目: p1.x + p1.y\n    }\n}\n",
+      "visibleCases": [
+        {
+          "label": "1 と 2",
+          "stdin": "1 2",
+          "expected": "false\ntrue\n11\ntrue\n13"
+        },
+        {
+          "label": "5 と 5",
+          "stdin": "5 5",
+          "expected": "false\ntrue\n15\ntrue\n20"
+        }
+      ],
+      "hiddenCases": [
+        {
+          "label": "両方 0",
+          "stdin": "0 0",
+          "expected": "false\ntrue\n10\ntrue\n10"
+        },
+        {
+          "label": "マイナス（10を足して 0）",
+          "stdin": "-10 5",
+          "expected": "false\ntrue\n0\ntrue\n5"
+        },
+        {
+          "label": "両方マイナス",
+          "stdin": "-3 -4",
+          "expected": "false\ntrue\n7\ntrue\n3"
+        },
+        {
+          "label": "大きい数",
+          "stdin": "100 200",
+          "expected": "false\ntrue\n110\ntrue\n310"
+        }
+      ],
+      "hints": [
+        "`p1` と `p2` は `new` を2回書いているので別の本体です。`==` は本体が同じかを見るので `false` になります。",
+        "3行目は `p3.x += 10;` としてから `p1.x` を出力します。`p3` と `p1` は同じ本体なので、`p1.x` も変わります。",
+        "5行目は書き換えたあとの `p1.x + p1.y` です。3行目の `+10` が効いていることに注意してください。"
+      ],
+      "solution": "import java.util.Scanner;\n\nclass Point {\n    int x;\n    int y;\n\n    Point(int x, int y) {\n        this.x = x;\n        this.y = y;\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int x = sc.nextInt();\n        int y = sc.nextInt();\n\n        Point p1 = new Point(x, y);\n        Point p2 = new Point(x, y);\n        Point p3 = p1;\n        Point p4 = null;\n\n        System.out.println(p1 == p2);\n        System.out.println(p1 == p3);\n\n        p3.x += 10;\n        System.out.println(p1.x);\n\n        System.out.println(p4 == null);\n        System.out.println(p1.x + p1.y);\n    }\n}\n"
+    },
+    {
+      "id": "8-5",
+      "title": "static — クラスに1つだけの持ち物",
+      "explanation": "## インスタンスごとか、クラスに1つか\n\nフィールドに `static` を付けると、**インスタンスごとではなくクラスに1つだけ** 存在する\nフィールドになります。すべてのインスタンスがそれを **共有** します。\n\n```java\nclass Counter {\n    static int total;    // クラスに1つ。全員で共有する\n    int count;           // インスタンスごとに別々\n\n    void add() {\n        total++;\n        count++;\n    }\n}\n```\n\n2つ作って動かすと、違いがはっきりします。\n\n```java\nCounter c1 = new Counter();\nCounter c2 = new Counter();\n\nc1.add();\nc1.add();\nc2.add();\n\nSystem.out.println(c1.count);        // 2 ← c1 の分だけ\nSystem.out.println(c2.count);        // 1 ← c2 の分だけ\nSystem.out.println(Counter.total);   // 3 ← 全員の合計\n```\n\n`static` なフィールドは **クラス名から** アクセスするのが作法です（`Counter.total`）。\nインスタンス経由（`c1.total`）でも動きますが、共有だと分かりにくいので避けます。\n\n## static メソッド\n\nメソッドに `static` を付けると、**インスタンスを作らずに呼べる** メソッドになります。\n第7章で書いていたのはこれです。\n\n```java\nclass MathUtil {\n    static int twice(int n) {\n        return n * 2;\n    }\n}\n\nSystem.out.println(MathUtil.twice(5));    // インスタンス不要\n```\n\n`Math.max(...)` や `Integer.parseInt(...)` も static メソッドです。\n「特定のインスタンスの状態と関係のない処理」に向いています。\n\n### static からインスタンスのものは触れない\n\n`static` メソッドは「インスタンスがなくても呼べる」ので、\nその中から **インスタンスフィールドを直接使うことはできません**。誰のものか決まらないからです。\n\n```java\nclass Sample {\n    int value;                    // インスタンスフィールド\n    static int shared;\n\n    static void bad() {\n        System.out.println(value);     // ❌ コンパイルエラー\n        System.out.println(shared);    // ✅ OK\n    }\n}\n```\n\n同じ理由で、**`static` の中では `this` が使えません**。\n\n逆向き（インスタンスメソッドから static のものを使う）は自由です。\n\n> ⚠️ 試験のワナ … `main` は `static` です。だから `main` の中でインスタンスフィールドやインスタンスメソッドを直接書くとコンパイルエラーになります。使いたければ `new` してインスタンス経由で呼びます。\n\nこれが第7章で「メソッドに `static` を付けてください」とお願いしていた理由です。\n\n> 💡 迷ったときの目安。「インスタンスごとの値を使う」ならインスタンス側、「引数だけで完結する」なら `static`。",
+      "samples": [
+        {
+          "caption": "共有される total と、別々の count",
+          "code": "class Counter {\n    static int total;\n    int count;\n\n    void add() {\n        total++;\n        count++;\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Counter c1 = new Counter();\n        Counter c2 = new Counter();\n\n        c1.add();\n        c1.add();\n        c2.add();\n\n        System.out.println(\"c1.count = \" + c1.count);\n        System.out.println(\"c2.count = \" + c2.count);\n        System.out.println(\"Counter.total = \" + Counter.total);\n    }\n}\n"
+        },
+        {
+          "caption": "static メソッドはインスタンスなしで呼べる",
+          "code": "class MathUtil {\n    static int twice(int n) {\n        return n * 2;\n    }\n}\n\nclass Greeter {\n    String name;\n\n    Greeter(String name) {\n        this.name = name;\n    }\n\n    void greet() {                    // static なし\n        System.out.println(\"こんにちは、\" + name + \"さん\");\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        System.out.println(MathUtil.twice(21));      // インスタンス不要\n\n        // greet() はインスタンスがないと呼べない\n        Greeter g = new Greeter(\"田中\");\n        g.greet();\n    }\n}\n"
+        }
+      ],
+      "task": "`Counter` クラスを作ってください。\n\n- `static int total` … クラスに1つだけの、全体の回数\n- `int count` … そのインスタンスの回数\n- `void add()` … `total` と `count` を **どちらも** 1増やす\n\n整数が2つ、`a` `b` の順で入力されます。`main` では `Counter` を2つ作り、\n1つ目に `add()` を `a` 回、2つ目に `add()` を `b` 回呼んでから、次の3行を出力してください。\n\n```\nc1 2\nc2 3\n合計 5\n```\n\n（`2 3` が入力された場合）\n\n- 1行目は1つ目の `count`、2行目は2つ目の `count`、3行目は `total` です\n- `total` は **クラス名から** `Counter.total` と書いて取り出してください\n- `0` 回（1度も呼ばない）も試されます",
+      "starterCode": "import java.util.Scanner;\n\nclass Counter {\n    // static な total と、インスタンスごとの count、そして add()\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int a = sc.nextInt();\n        int b = sc.nextInt();\n\n        Counter c1 = new Counter();\n        Counter c2 = new Counter();\n\n        // c1 を a 回、c2 を b 回 add する\n\n        // 3行出力する\n    }\n}\n",
+      "visibleCases": [
+        {
+          "label": "2回と3回",
+          "stdin": "2 3",
+          "expected": "c1 2\nc2 3\n合計 5"
+        },
+        {
+          "label": "1回と1回",
+          "stdin": "1 1",
+          "expected": "c1 1\nc2 1\n合計 2"
+        }
+      ],
+      "hiddenCases": [
+        {
+          "label": "どちらも 0 回",
+          "stdin": "0 0",
+          "expected": "c1 0\nc2 0\n合計 0"
+        },
+        {
+          "label": "片方だけ 0 回",
+          "stdin": "5 0",
+          "expected": "c1 5\nc2 0\n合計 5"
+        },
+        {
+          "label": "0 回と 4 回",
+          "stdin": "0 4",
+          "expected": "c1 0\nc2 4\n合計 4"
+        },
+        {
+          "label": "多めに呼ぶ",
+          "stdin": "10 7",
+          "expected": "c1 10\nc2 7\n合計 17"
+        }
+      ],
+      "hints": [
+        "`static int total;` と `int count;` を並べて宣言します。`add()` の中で両方を `++` します。",
+        "呼び出す回数は `for (int i = 0; i < a; i++) { c1.add(); }` のようにループで回します。",
+        "3行目は `Counter.total` を使います。`c1.count + c2.count` でも同じ値になりますが、共有されていることを確かめるためにクラス名から取り出してみてください。"
+      ],
+      "solution": "import java.util.Scanner;\n\nclass Counter {\n    static int total;\n    int count;\n\n    void add() {\n        total++;\n        count++;\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int a = sc.nextInt();\n        int b = sc.nextInt();\n\n        Counter c1 = new Counter();\n        Counter c2 = new Counter();\n\n        for (int i = 0; i < a; i++) {\n            c1.add();\n        }\n        for (int i = 0; i < b; i++) {\n            c2.add();\n        }\n\n        System.out.println(\"c1 \" + c1.count);\n        System.out.println(\"c2 \" + c2.count);\n        System.out.println(\"合計 \" + Counter.total);\n    }\n}\n"
+    }
+  ]
+}

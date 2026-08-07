@@ -1,0 +1,259 @@
+{
+  "id": "ch20",
+  "title": "総仕上げ",
+  "subtitle": "全部を組み合わせて使う",
+  "emoji": "🎓",
+  "lessons": [
+    {
+      "id": "20-1",
+      "title": "import の総整理と、モジュールの概要",
+      "explanation": "## import の復習\n\n第9章で見たように、`import` は **名前を短く書くための宣言** です。\n何かを読み込んでいるわけではないので、完全修飾名で書けば省略できます。\n\n```java\nimport java.util.Scanner;\nScanner sc = new Scanner(System.in);                     // 短く書ける\n\njava.util.Scanner sc = new java.util.Scanner(System.in); // import なしでもOK\n```\n\n### アスタリスクの範囲\n\n`import java.util.*;` はそのパッケージの **クラス全部** を対象にします。\nただし **サブパッケージは含みません**。\n\n```java\nimport java.util.*;              // List, Map, Scanner ... は使える\n                                 // java.util.function.Predicate は使えない\nimport java.util.function.*;     // これも別に必要\n```\n\n> ⚠️ 試験のワナ … `java.util.*` を import しても `java.util.function.Predicate` は短く書けません。パッケージは階層ではなく「別の名前」だからです。\n\n### 名前がぶつかったら\n\n`java.util.Date` と `java.sql.Date` のように同名のクラスがあるとき、\n両方を `import` するとコンパイルエラーです。片方だけ `import` して、\nもう片方は完全修飾名で書きます。\n\n## import static\n\n**クラスの `static` メンバーを、クラス名なしで使える** ようにする書き方があります。\n\n```java\nimport static java.lang.Math.abs;\nimport static java.lang.Math.max;\n\nSystem.out.println(abs(-5));        // Math. が要らない\nSystem.out.println(max(3, 8));\n```\n\nまとめて指定もできます。\n\n```java\nimport static java.lang.Math.*;     // abs, max, min, PI ... すべて\n```\n\n`Math` は `java.lang` なので普通の `import` は不要ですが、\n**`import static` は別に必要** です。ここは混同しやすいところです。\n\n便利ですが、どのクラスのメソッドか分からなくなるので、使いすぎには注意します。\n\n## モジュールの概要\n\nJava 9 から **モジュールシステム（JPMS）** が入りました。\nパッケージをさらにまとめる、より大きな単位です。\n\n宣言は `module-info.java` という専用のファイルに書きます。\n\n```java\nmodule com.example.app {\n    requires java.sql;              // 使うモジュール\n    exports com.example.api;        // 外に公開するパッケージ\n}\n```\n\n- `requires` … このモジュールが依存するモジュール\n- `exports` … 他のモジュールから使わせるパッケージ\n\nねらいは **「公開するものを絞れる」** ことです。\n`public` なクラスでも、`exports` していないパッケージのものは外から使えません。\n第9章のアクセス修飾子より上の層で、公開範囲をコントロールする仕組みです。\n\n標準ライブラリもモジュールに分割されています。\n\n| モジュール | 中身 |\n|---|---|\n| `java.base` | `java.lang` `java.util` `java.io` `java.time` など基本 |\n| `java.sql` | データベース関連 |\n| `java.desktop` | GUI 関連 |\n\n**`java.base` は暗黙的に requires される** ので、いつでも使えます。\nだから `String` や `List` や `LocalDate` を使うのに宣言は要りません。\n\n> ⚠️ 試験のワナ … `module-info.java` を置かなければ、そのコードは「名前のないモジュール（unnamed module）」として扱われ、**従来どおりクラスパスで動きます**。モジュールは必須ではありません。\n\nこのアプリも `module-info.java` を置いていないので、モジュールを意識せずに動いています。\nSilver では「何のための仕組みか」と `requires` / `exports` の意味を押さえておけば十分です。\n\n> 💡 まとめると入れ物は3段階です。**クラス → パッケージ → モジュール**。それぞれに「どこまで見せるか」を決める仕組み（アクセス修飾子 / `exports`）があります。",
+      "samples": [
+        {
+          "caption": "import static で Math を短く書く",
+          "code": "import static java.lang.Math.abs;\nimport static java.lang.Math.max;\nimport static java.lang.Math.min;\n\npublic class Main {\n    public static void main(String[] args) {\n        int a = -7;\n        int b = 3;\n\n        System.out.println(\"abs(-7) : \" + abs(a));\n        System.out.println(\"max     : \" + max(a, b));\n        System.out.println(\"min     : \" + min(a, b));\n\n        // クラス名を付けて書いても、もちろん同じ\n        System.out.println(\"Math.abs: \" + Math.abs(a));\n    }\n}\n"
+        },
+        {
+          "caption": "3つの書き方を並べる",
+          "code": "import java.util.ArrayList;\nimport java.util.List;\n\npublic class Main {\n    public static void main(String[] args) {\n        // 1. import して短く書く\n        List<String> a = new ArrayList<>();\n        a.add(\"import あり\");\n\n        // 2. 完全修飾名で書く（import 不要）\n        java.util.List<String> b = new java.util.ArrayList<>();\n        b.add(\"完全修飾名\");\n\n        // 3. java.lang は自動 import\n        System.out.println(a + \" / \" + b);\n        System.out.println(Math.abs(-1) + \" \" + Integer.MAX_VALUE);\n    }\n}\n"
+        }
+      ],
+      "task": "整数が2つ、`a` `b` の順で入力されます。\n\n**`import static` を使って** `Math` のメソッドを **クラス名なしで** 呼び、\n次の **3行** を出力してください。\n\n1. `a` の絶対値と `b` の絶対値の合計\n2. `a` と `b` の大きい方\n3. `a` と `b` の小さい方\n\n`3 -4` が入力されたときの出力はこうです。\n\n```\n7\n3\n-4\n```\n\n- `import static java.lang.Math.*;`（またはメソッドごとの指定）を書いて、\n  `abs(a)` `max(a, b)` `min(a, b)` の形で呼んでください\n- `Scanner` は普通の `import` が必要です（`static` メンバーではないため）",
+      "starterCode": "import java.util.Scanner;\n\n// import static を書く\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int a = sc.nextInt();\n        int b = sc.nextInt();\n\n        // Math. を付けずに abs / max / min を呼んで3行出力する\n    }\n}\n",
+      "visibleCases": [
+        {
+          "label": "3 と -4",
+          "stdin": "3 -4",
+          "expected": "7\n3\n-4"
+        },
+        {
+          "label": "10 と 20",
+          "stdin": "10 20",
+          "expected": "30\n20\n10"
+        }
+      ],
+      "hiddenCases": [
+        {
+          "label": "両方 0",
+          "stdin": "0 0",
+          "expected": "0\n0\n0"
+        },
+        {
+          "label": "両方マイナス",
+          "stdin": "-10 -20",
+          "expected": "30\n-10\n-20"
+        },
+        {
+          "label": "同じ値",
+          "stdin": "5 5",
+          "expected": "10\n5\n5"
+        },
+        {
+          "label": "打ち消し合う",
+          "stdin": "-1 1",
+          "expected": "2\n1\n-1"
+        },
+        {
+          "label": "大きい数",
+          "stdin": "-100 7",
+          "expected": "107\n7\n-100"
+        }
+      ],
+      "hints": [
+        "`import static java.lang.Math.*;` を `import java.util.Scanner;` の下に書きます。",
+        "そのあとは `abs(a) + abs(b)` のように、`Math.` を付けずに呼べます。",
+        "マイナスどうしの比較では、`0` に近い方が大きい値です（`-10` と `-20` なら `-10` が最大）。"
+      ],
+      "solution": "import java.util.Scanner;\n\nimport static java.lang.Math.abs;\nimport static java.lang.Math.max;\nimport static java.lang.Math.min;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int a = sc.nextInt();\n        int b = sc.nextInt();\n\n        System.out.println(abs(a) + abs(b));\n        System.out.println(max(a, b));\n        System.out.println(min(a, b));\n    }\n}\n"
+    },
+    {
+      "id": "20-2",
+      "title": "総合演習：在庫を集計する",
+      "explanation": "## record + コレクション + Comparator\n\n第18章の `record`、第16章の `List`、第17章の `Comparator` を組み合わせます。\n「データを読んで、加工して、並べ替えて、集計する」という実務でいちばん多い形です。\n\n### データを record で表す\n\n商品は「名前・個数・単価」を持つだけのデータです。`record` がぴったりです。\n\n```java\nrecord Item(String name, int count, int price) {\n    int subtotal() {\n        return count * price;\n    }\n}\n```\n\n`record` にメソッドを足せることを思い出してください（第18章）。\n「小計」は持っているデータから計算できるので、フィールドにせずメソッドにします。\nこうしておけば、個数と単価と小計がずれる心配がありません。\n\n### 2つの基準で並べ替える\n\n「小計の降順、同じなら名前の辞書順」は第17章の `thenComparing` で書けます。\n\n```java\nitems.sort(Comparator.comparingInt(Item::subtotal).reversed()\n        .thenComparing(Item::name));\n```\n\n`reversed()` が **どこまでかかるか** に注意してください。上の書き方では\n`comparingInt(...)` にだけかかり、そのあとの `thenComparing` は昇順のままです。\nつまり「小計は降順、名前は辞書順」という狙った動きになります。\n\n自分でラムダを書くならこうです。\n\n```java\nitems.sort((a, b) -> {\n    if (a.subtotal() != b.subtotal()) {\n        return b.subtotal() - a.subtotal();      // 降順なので b - a\n    }\n    return a.name().compareTo(b.name());         // 同じなら辞書順\n});\n```\n\n降順にしたいときは **引き算の順を逆にする** と覚えると分かりやすいです。\n\n> 💡 `Item::subtotal` はメソッド参照（第17章）です。`item -> item.subtotal()` と同じ意味です。\n\n> ⚠️ 試験のワナ … `record` のアクセサは `getName()` ではなく `name()` です。`Comparator.comparing(Item::getName)` と書くとコンパイルエラーになります。",
+      "samples": [
+        {
+          "caption": "record を作って並べ替える",
+          "code": "import java.util.ArrayList;\nimport java.util.Comparator;\nimport java.util.List;\n\nrecord Item(String name, int count, int price) {\n    int subtotal() {\n        return count * price;\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        List<Item> items = new ArrayList<>();\n        items.add(new Item(\"pen\", 2, 100));\n        items.add(new Item(\"note\", 1, 300));\n        items.add(new Item(\"eraser\", 5, 50));\n\n        System.out.println(\"--- そのまま ---\");\n        for (Item i : items) {\n            System.out.println(i + \" 小計=\" + i.subtotal());\n        }\n\n        items.sort(Comparator.comparingInt(Item::subtotal).reversed()\n                .thenComparing(Item::name));\n\n        System.out.println(\"--- 小計の降順 ---\");\n        int total = 0;\n        for (Item i : items) {\n            System.out.println(i.name() + \" \" + i.subtotal());\n            total += i.subtotal();\n        }\n        System.out.println(\"合計 \" + total);\n    }\n}\n"
+        }
+      ],
+      "task": "`record Item(String name, int count, int price)` を作り、小計（`count * price`）を返す\nメソッド `int subtotal()` を持たせてください。\n\n### 入力\n\n- 1行目 … 商品数 `k`（必ず **1以上**）\n- 続く `k` 行 … `名前 個数 単価`\n\n### 出力\n\n**小計の降順**（同じ小計なら **名前の辞書順**）に並べ替えて、1商品につき1行、\n最後に合計を出力してください。\n\n- 各商品 … `名前 小計`\n- `合計 ○○` … すべての小計の合計\n\n次の入力なら、\n\n```\n3\npen 2 100\nnote 1 300\neraser 5 50\n```\n\n出力はこうなります。\n\n```\nnote 300\neraser 250\npen 200\n合計 750\n```\n\n- 個数や単価に `0` が入ることもあります（小計は `0`）\n- 小計が同じ商品が複数あるときは、名前の辞書順に並べてください",
+      "starterCode": "import java.util.ArrayList;\nimport java.util.Comparator;\nimport java.util.List;\nimport java.util.Scanner;\n\n// record Item を書く（subtotal() を持たせる）\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int k = sc.nextInt();\n\n        // List<Item> items = new ArrayList<>();\n\n        for (int i = 0; i < k; i++) {\n            String name = sc.next();\n            int count = sc.nextInt();\n            int price = sc.nextInt();\n            // Item を作ってリストに追加する\n        }\n\n        // 小計の降順（同じなら名前の辞書順）に並べ替える\n\n        // 各商品と合計を出力する\n    }\n}\n",
+      "visibleCases": [
+        {
+          "label": "3商品",
+          "stdin": "3\npen 2 100\nnote 1 300\neraser 5 50",
+          "expected": "note 300\neraser 250\npen 200\n合計 750"
+        },
+        {
+          "label": "1商品",
+          "stdin": "1\nsolo 3 33",
+          "expected": "solo 99\n合計 99"
+        }
+      ],
+      "hiddenCases": [
+        {
+          "label": "小計が同じ（辞書順）",
+          "stdin": "2\nb 2 50\na 1 100",
+          "expected": "a 100\nb 100\n合計 200"
+        },
+        {
+          "label": "小計 0 が混ざる",
+          "stdin": "3\nx 0 500\ny 1 0\nz 2 10",
+          "expected": "z 20\nx 0\ny 0\n合計 20"
+        },
+        {
+          "label": "差が大きい",
+          "stdin": "2\nbig 100 1000\nsmall 1 1",
+          "expected": "big 100000\nsmall 1\n合計 100001"
+        },
+        {
+          "label": "すでに降順",
+          "stdin": "4\nd 1 4\nc 1 3\nb 1 2\na 1 1",
+          "expected": "d 4\nc 3\nb 2\na 1\n合計 10"
+        },
+        {
+          "label": "全部同じ小計",
+          "stdin": "3\nc 1 5\na 5 1\nb 1 5",
+          "expected": "a 5\nb 5\nc 5\n合計 15"
+        },
+        {
+          "label": "全部 0",
+          "stdin": "2\nq 0 0\np 0 0",
+          "expected": "p 0\nq 0\n合計 0"
+        }
+      ],
+      "hints": [
+        "`record Item(String name, int count, int price) { int subtotal() { return count * price; } }` と書けます。",
+        "並べ替えは `items.sort(Comparator.comparingInt(Item::subtotal).reversed().thenComparing(Item::name));` です。",
+        "自分でラムダを書くなら、降順は `b.subtotal() - a.subtotal()`、同じときは `a.name().compareTo(b.name())` を返します。"
+      ],
+      "solution": "import java.util.ArrayList;\nimport java.util.Comparator;\nimport java.util.List;\nimport java.util.Scanner;\n\nrecord Item(String name, int count, int price) {\n    int subtotal() {\n        return count * price;\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int k = sc.nextInt();\n\n        List<Item> items = new ArrayList<>();\n        for (int i = 0; i < k; i++) {\n            String name = sc.next();\n            int count = sc.nextInt();\n            int price = sc.nextInt();\n            items.add(new Item(name, count, price));\n        }\n\n        items.sort(Comparator.comparingInt(Item::subtotal).reversed()\n                .thenComparing(Item::name));\n\n        int total = 0;\n        for (Item item : items) {\n            System.out.println(item.name() + \" \" + item.subtotal());\n            total += item.subtotal();\n        }\n        System.out.println(\"合計 \" + total);\n    }\n}\n"
+    },
+    {
+      "id": "20-3",
+      "title": "総合演習：単語を集計する",
+      "explanation": "## Map + Set + String を組み合わせる\n\n第14章の `String`、第16章の `Map` と `Set` を合わせて使います。\n「数える」「重複を除く」「条件で絞る」という3つを1つの問題でやります。\n\n### 数える\n\n第16章の定番です。\n\n```java\nMap<String, Integer> counts = new HashMap<>();\nfor (String w : words) {\n    counts.put(w, counts.getOrDefault(w, 0) + 1);\n}\n```\n\n### 最多のものを探す（同数なら辞書順）\n\n`HashMap` は並び順を約束しないので、そのまま回すと\n「同数のときどちらが選ばれるか」が実行ごとに変わってしまいます。\n\nそこで **キーを辞書順にそろえてから** 回します。`TreeSet` に入れ直すのが簡単です。\n\n```java\nSet<String> keys = new TreeSet<>(counts.keySet());\n\nString best = null;\nint bestCount = 0;\nfor (String key : keys) {\n    if (counts.get(key) > bestCount) {      // > なので先に出た方が残る\n        best = key;\n        bestCount = counts.get(key);\n    }\n}\n```\n\n辞書順に見ていって `>` で更新するので、同数なら **辞書順で先のもの** が残ります。\n第6章・第11章でやった「最大値を探す」と同じ形です。\n\n> ⚠️ 試験のワナ … `counts.keySet()` の順番は `HashMap` では不定です。出力の順番が問題になるときは、必ず `TreeSet` や `List.sort` で順番を決めてください。\n\n### 条件で絞る\n\n「長さ3以上の単語だけ」は、`TreeSet` に入れるときに `if` で選ぶだけです。\n`Set` なので重複は自動で消え、`TreeSet` なので辞書順に並びます。\n\n```java\nSet<String> longWords = new TreeSet<>();\nfor (String w : words) {\n    if (w.length() >= 3) {\n        longWords.add(w);\n    }\n}\n```\n\n`Set` をそのまま `println` すると `[apple, fig, kiwi]` の形で出力されます。\n\n> 💡 「重複を除いて並べる」は `TreeSet` に入れるだけで終わります。自分でループを書いて重複チェックをする必要はありません。道具を知っていると短く書けます。",
+      "samples": [
+        {
+          "caption": "数えて、最多を探して、絞る",
+          "code": "import java.util.HashMap;\nimport java.util.Map;\nimport java.util.Set;\nimport java.util.TreeSet;\n\npublic class Main {\n    public static void main(String[] args) {\n        String[] words = {\"apple\", \"fig\", \"apple\", \"kiwi\", \"fig\", \"apple\"};\n\n        Map<String, Integer> counts = new HashMap<>();\n        for (String w : words) {\n            counts.put(w, counts.getOrDefault(w, 0) + 1);\n        }\n        System.out.println(\"異なる単語 \" + counts.size());\n\n        String best = null;\n        int bestCount = 0;\n        for (String key : new TreeSet<>(counts.keySet())) {\n            System.out.println(\"  \" + key + \" → \" + counts.get(key));\n            if (counts.get(key) > bestCount) {\n                best = key;\n                bestCount = counts.get(key);\n            }\n        }\n        System.out.println(\"最多 \" + best + \" \" + bestCount);\n\n        Set<String> longWords = new TreeSet<>();\n        for (String w : words) {\n            if (w.length() >= 3) {\n                longWords.add(w);\n            }\n        }\n        System.out.println(\"長い単語 \" + longWords);\n    }\n}\n"
+        }
+      ],
+      "task": "### 入力\n\n- 1行目 … 単語の個数 `k`（`0` もありえます）\n- 2行目 … `k` 個の単語（`k` が `0` のときこの行はありません）\n\n### 出力\n\n次の **3行** を出力してください。\n\n1. `異なる単語 ○○` … 重複を除いた単語の数\n2. `最多 単語 回数` … 最も多く出てきた単語とその回数。**同数のときは辞書順で先のもの**。\n   単語が1つもないときは `最多 なし`\n3. `長い単語 [...]` … **長さ3以上** の単語を重複なく **辞書順** に並べたもの\n   （`Set` をそのまま `println` した形）\n\n次の入力なら、\n\n```\n6\napple fig apple kiwi fig apple\n```\n\n出力はこうなります。\n\n```\n異なる単語 3\n最多 apple 3\n長い単語 [apple, fig, kiwi]\n```\n\n- `k` が `0` のときは `異なる単語 0` / `最多 なし` / `長い単語 []` です\n- 長さ3以上の単語が1つもないときは `長い単語 []` になります\n- 同数の単語が複数あるときは、必ず辞書順で先のものを選んでください",
+      "starterCode": "import java.util.HashMap;\nimport java.util.Map;\nimport java.util.Scanner;\nimport java.util.Set;\nimport java.util.TreeSet;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int k = sc.nextInt();\n\n        Map<String, Integer> counts = new HashMap<>();\n        Set<String> longWords = new TreeSet<>();\n\n        for (int i = 0; i < k; i++) {\n            String word = sc.next();\n            // 数え上げる / 長さ3以上なら longWords に入れる\n        }\n\n        // 1. 異なる単語の数\n\n        // 2. 最多（同数なら辞書順で先）\n\n        // 3. 長い単語\n    }\n}\n",
+      "visibleCases": [
+        {
+          "label": "apple が3回",
+          "stdin": "6\napple fig apple kiwi fig apple",
+          "expected": "異なる単語 3\n最多 apple 3\n長い単語 [apple, fig, kiwi]"
+        },
+        {
+          "label": "1単語",
+          "stdin": "1\nsolo",
+          "expected": "異なる単語 1\n最多 solo 1\n長い単語 [solo]"
+        }
+      ],
+      "hiddenCases": [
+        {
+          "label": "0個",
+          "stdin": "0",
+          "expected": "異なる単語 0\n最多 なし\n長い単語 []"
+        },
+        {
+          "label": "同数なら辞書順で先",
+          "stdin": "4\nb a b a",
+          "expected": "異なる単語 2\n最多 a 2\n長い単語 []"
+        },
+        {
+          "label": "全部1回ずつ",
+          "stdin": "3\nab abc abcd",
+          "expected": "異なる単語 3\n最多 ab 1\n長い単語 [abc, abcd]"
+        },
+        {
+          "label": "短い単語ばかり",
+          "stdin": "5\nxx xx xx yy zz",
+          "expected": "異なる単語 3\n最多 xx 3\n長い単語 []"
+        },
+        {
+          "label": "辞書順で後ろが最多",
+          "stdin": "3\nzzz zzz aaa",
+          "expected": "異なる単語 2\n最多 zzz 2\n長い単語 [aaa, zzz]"
+        },
+        {
+          "label": "同じ単語だけ",
+          "stdin": "3\nrepeat repeat repeat",
+          "expected": "異なる単語 1\n最多 repeat 3\n長い単語 [repeat]"
+        }
+      ],
+      "hints": [
+        "数え上げは `counts.put(word, counts.getOrDefault(word, 0) + 1);` です。",
+        "最多を探すときは `for (String key : new TreeSet<>(counts.keySet()))` と辞書順に回して、`>` で更新します。こうすれば同数なら先のものが残ります。",
+        "`longWords` は `TreeSet` なので、`add` するだけで重複が消えて辞書順に並びます。そのまま `println` してください。"
+      ],
+      "solution": "import java.util.HashMap;\nimport java.util.Map;\nimport java.util.Scanner;\nimport java.util.Set;\nimport java.util.TreeSet;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int k = sc.nextInt();\n\n        Map<String, Integer> counts = new HashMap<>();\n        Set<String> longWords = new TreeSet<>();\n\n        for (int i = 0; i < k; i++) {\n            String word = sc.next();\n            counts.put(word, counts.getOrDefault(word, 0) + 1);\n            if (word.length() >= 3) {\n                longWords.add(word);\n            }\n        }\n\n        System.out.println(\"異なる単語 \" + counts.size());\n\n        String best = null;\n        int bestCount = 0;\n        for (String key : new TreeSet<>(counts.keySet())) {\n            if (counts.get(key) > bestCount) {\n                best = key;\n                bestCount = counts.get(key);\n            }\n        }\n        if (best == null) {\n            System.out.println(\"最多 なし\");\n        } else {\n            System.out.println(\"最多 \" + best + \" \" + bestCount);\n        }\n\n        System.out.println(\"長い単語 \" + longWords);\n    }\n}\n"
+    },
+    {
+      "id": "20-4",
+      "title": "最終問題：成績を処理する",
+      "explanation": "## 学んだことを全部使う\n\n最後の問題です。次のものを組み合わせます。\n\n- 独自の **検査例外**（第13章）\n- **`switch` 式**（第18章）\n- **コレクション**（第16章）\n- 整数の割り算と境界値（第3章・第4章）\n\n### 検査例外で「ありえない値」を弾く\n\n点数は `0`〜`100` のはずです。範囲外なら例外を投げて、呼び出し元に判断させます。\n\n```java\nclass InvalidScoreException extends Exception {\n    InvalidScoreException(String message) {\n        super(message);\n    }\n}\n\nstatic int check(int score) throws InvalidScoreException {\n    if (score < 0 || score > 100) {\n        throw new InvalidScoreException(\"範囲外: \" + score);\n    }\n    return score;\n}\n```\n\n`Exception` を継承したので **検査例外** です。呼び出し側は `try-catch` を\n書かないとコンパイルできません（第13章）。「対処を忘れられない」のが利点です。\n\n### switch 式で評価を決める\n\n`switch` は等値の比較なので、範囲の判定には使えません。\nそこで **`score / 10`** にしてから使います。整数の割り算で切り捨てられるので、\n`95 / 10` は `9`、`89 / 10` は `8` になります。\n\n```java\nString grade = switch (score / 10) {\n    case 10, 9 -> \"A\";\n    case 8, 7 -> \"B\";\n    case 6 -> \"C\";\n    default -> \"D\";\n};\n```\n\n`100` のときだけ `10` になるので、`case 10` を忘れないようにします。\nこれで「90以上A、70以上B、60以上C、それ未満D」が表せます。\n\n### 平均は整数の割り算\n\n有効な点数だけを足して、その件数で割ります。\n**有効な点数が1つもないときに `0` で割らない** よう気をつけてください（第4章の短絡評価）。\n\n```java\nint average = validCount == 0 ? 0 : sum / validCount;\n```\n\n> ⚠️ 試験のワナ … 例外を投げる `check` を `try` の中で呼び、`catch` の中では\n> 「範囲外」の出力だけをして、集計には加えないようにします。`catch` で `continue`\n> するか、`try` の中に集計まで書くかで、結果が変わってしまいます。\n\n> 💡 ここまで来れば、Silver の範囲はひととおり通ったことになります。あとは「なぜそう書くのか」を自分の言葉で説明できるかどうかです。模範解答を読むだけでなく、1行ずつ理由を言えるか試してみてください。",
+      "samples": [
+        {
+          "caption": "検査例外と switch 式を組み合わせる",
+          "code": "class InvalidScoreException extends Exception {\n    InvalidScoreException(String message) {\n        super(message);\n    }\n}\n\npublic class Main {\n    static int check(int score) throws InvalidScoreException {\n        if (score < 0 || score > 100) {\n            throw new InvalidScoreException(\"範囲外: \" + score);\n        }\n        return score;\n    }\n\n    static String grade(int score) {\n        return switch (score / 10) {\n            case 10, 9 -> \"A\";\n            case 8, 7 -> \"B\";\n            case 6 -> \"C\";\n            default -> \"D\";\n        };\n    }\n\n    public static void main(String[] args) {\n        int[] scores = {100, 95, 89, 70, 69, 60, 59, 0, -1, 101};\n\n        for (int s : scores) {\n            try {\n                int valid = check(s);\n                System.out.println(valid + \" → \" + grade(valid));\n            } catch (InvalidScoreException e) {\n                System.out.println(e.getMessage());\n            }\n        }\n    }\n}\n"
+        }
+      ],
+      "task": "ひな形には検査例外 `InvalidScoreException`（`extends Exception`）が用意してあります。\n\n次の2つを作ってください。\n\n- `static int check(int score) throws InvalidScoreException` …\n  `score` が `0` 未満または `100` より大きいなら例外を投げる。そうでなければそのまま返す\n- `static String grade(int score)` … **`switch` 式** で評価を返す\n  （`90` 以上 `A` / `70` 以上 `B` / `60` 以上 `C` / それ未満 `D`）\n\n### 入力\n\n- 1行目 … 人数 `k`（必ず **1以上**）\n- 続く `k` 行 … `名前 点数`\n\n### 出力\n\n1人につき1行、そのあと2行です。\n\n- 有効な点数 … `名前 点数 評価`\n- 範囲外 … `名前 範囲外`\n- `平均 ○○` … **有効な点数だけ** の平均（整数の割り算で切り捨て。有効な点数が0件なら `0`）\n- `合格 ○○` … 有効な点数のうち **`60` 以上** の人数\n\n次の入力なら、\n\n```\n3\n田中 95\n佐藤 72\n鈴木 -1\n```\n\n出力はこうなります。\n\n```\n田中 95 A\n佐藤 72 B\n鈴木 範囲外\n平均 83\n合格 2\n```\n\n- 平均は `(95 + 72) / 2` で `83` です（範囲外の人は数に入れません）\n- `100` は有効、`101` は範囲外です。`0` は有効です\n- 全員が範囲外のときは `平均 0` と `合格 0` になります",
+      "starterCode": "import java.util.Scanner;\n\nclass InvalidScoreException extends Exception {\n    InvalidScoreException(String message) {\n        super(message);\n    }\n}\n\npublic class Main {\n\n    // static int check(int score) throws InvalidScoreException を書く\n\n    // static String grade(int score) を switch 式で書く\n\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int k = sc.nextInt();\n\n        int sum = 0;\n        int validCount = 0;\n        int passCount = 0;\n\n        for (int i = 0; i < k; i++) {\n            String name = sc.next();\n            int score = sc.nextInt();\n            // check を try-catch で呼び、結果に応じて出力・集計する\n        }\n\n        // 平均 と 合格 を出力する\n    }\n}\n",
+      "visibleCases": [
+        {
+          "label": "3人（1人が範囲外）",
+          "stdin": "3\n田中 95\n佐藤 72\n鈴木 -1",
+          "expected": "田中 95 A\n佐藤 72 B\n鈴木 範囲外\n平均 83\n合格 2"
+        },
+        {
+          "label": "満点",
+          "stdin": "1\nA 100",
+          "expected": "A 100 A\n平均 100\n合格 1"
+        }
+      ],
+      "hiddenCases": [
+        {
+          "label": "101 は範囲外",
+          "stdin": "1\nB 101",
+          "expected": "B 範囲外\n平均 0\n合格 0"
+        },
+        {
+          "label": "A と B の境界",
+          "stdin": "2\nC 90\nD 89",
+          "expected": "C 90 A\nD 89 B\n平均 89\n合格 2"
+        },
+        {
+          "label": "C と D の境界と 0 点",
+          "stdin": "3\nE 60\nF 59\nG 0",
+          "expected": "E 60 C\nF 59 D\nG 0 D\n平均 39\n合格 1"
+        },
+        {
+          "label": "全員範囲外",
+          "stdin": "2\nH -5\nI 200",
+          "expected": "H 範囲外\nI 範囲外\n平均 0\n合格 0"
+        },
+        {
+          "label": "4人（平均が切り捨て）",
+          "stdin": "4\nJ 70\nK 69\nL 61\nM 45",
+          "expected": "J 70 B\nK 69 C\nL 61 C\nM 45 D\n平均 61\n合格 3"
+        },
+        {
+          "label": "0 点だけ",
+          "stdin": "1\nN 0",
+          "expected": "N 0 D\n平均 0\n合格 0"
+        }
+      ],
+      "hints": [
+        "`grade` は `switch (score / 10)` にします。`100` のときは `10` になるので `case 10, 9 -> \"A\";` と書きます。",
+        "`try` の中で `int valid = check(score);` を呼び、出力と集計（`sum` `validCount` `passCount`）もそこで行います。`catch` では `名前 範囲外` の出力だけをします。",
+        "平均は `validCount == 0 ? 0 : sum / validCount` です。`0` で割らないよう先に確かめてください。"
+      ],
+      "solution": "import java.util.Scanner;\n\nclass InvalidScoreException extends Exception {\n    InvalidScoreException(String message) {\n        super(message);\n    }\n}\n\npublic class Main {\n\n    static int check(int score) throws InvalidScoreException {\n        if (score < 0 || score > 100) {\n            throw new InvalidScoreException(\"範囲外: \" + score);\n        }\n        return score;\n    }\n\n    static String grade(int score) {\n        return switch (score / 10) {\n            case 10, 9 -> \"A\";\n            case 8, 7 -> \"B\";\n            case 6 -> \"C\";\n            default -> \"D\";\n        };\n    }\n\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int k = sc.nextInt();\n\n        int sum = 0;\n        int validCount = 0;\n        int passCount = 0;\n\n        for (int i = 0; i < k; i++) {\n            String name = sc.next();\n            int score = sc.nextInt();\n\n            try {\n                int valid = check(score);\n                System.out.println(name + \" \" + valid + \" \" + grade(valid));\n                sum += valid;\n                validCount++;\n                if (valid >= 60) {\n                    passCount++;\n                }\n            } catch (InvalidScoreException e) {\n                System.out.println(name + \" 範囲外\");\n            }\n        }\n\n        System.out.println(\"平均 \" + (validCount == 0 ? 0 : sum / validCount));\n        System.out.println(\"合格 \" + passCount);\n    }\n}\n"
+    }
+  ]
+}

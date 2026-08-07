@@ -1,0 +1,234 @@
+{
+  "id": "ch03",
+  "title": "計算とキーボード入力",
+  "subtitle": "入力を受け取って計算する",
+  "emoji": "🧮",
+  "lessons": [
+    {
+      "id": "3-1",
+      "title": "計算のきほんと、割り算の落とし穴",
+      "explanation": "## 5つの演算子\n\n```java\nSystem.out.println(17 + 5);   // 22   足す\nSystem.out.println(17 - 5);   // 12   引く\nSystem.out.println(17 * 5);   // 85   かける（× ではなく *）\nSystem.out.println(17 / 5);   // 3    わる  ← 3.4 ではない！\nSystem.out.println(17 % 5);   // 2    余り  （17 = 5×3 + 2）\n```\n\nかける記号は `×` ではなく **`*`**（アスタリスク）、わる記号は `÷` ではなく **`/`** です。\n\n## 落とし穴: 整数どうしの割り算は切り捨てられる\n\n`17 / 5` は `3.4` ではなく **`3`** になります。\nJavaでは **整数 ÷ 整数 の答えは整数** で、小数点以下は捨てられます（四捨五入ではなく切り捨て）。\n\n```java\nSystem.out.println(7 / 2);      // 3     3.5 ではない\nSystem.out.println(1 / 2);      // 0     0.5 ではない！\nSystem.out.println(9 / 10);     // 0\n```\n\n小数の答えが欲しいときは、**どちらかを小数にします**。\n\n```java\nSystem.out.println(7.0 / 2);    // 3.5\nSystem.out.println(7 / 2.0);    // 3.5\n```\n\n## % は「余り」\n\n`%` は割り算の余りです。地味ですが、とてもよく使います。\n\n```java\nSystem.out.println(10 % 3);   // 1\nSystem.out.println(10 % 2);   // 0    ← 割り切れた\nSystem.out.println(7 % 2);    // 1    ← 割り切れない\n```\n\n`n % 2 == 0` なら偶数、というのが定番の使い方です。第4章で使います。\n\n## 計算の順番\n\n算数と同じで `*` `/` `%` が先、`+` `-` が後です。順番を変えたいときはかっこを使います。\n\n```java\nSystem.out.println(2 + 3 * 4);     // 14   （3*4 が先）\nSystem.out.println((2 + 3) * 4);   // 20   （かっこが先）\n```",
+      "samples": [
+        {
+          "caption": "整数の割り算と小数の割り算を比べる",
+          "code": "public class Main {\n    public static void main(String[] args) {\n        System.out.println(\"整数どうし: \" + (7 / 2));\n        System.out.println(\"小数まじり: \" + (7.0 / 2));\n        System.out.println(\"余り: \" + (7 % 2));\n    }\n}\n"
+        }
+      ],
+      "task": "`int a = 17;` と `int b = 5;` を作り、5つの計算結果を次の形で出力してください。\n\n```\n17 + 5 = 22\n17 - 5 = 12\n17 * 5 = 85\n17 / 5 = 3\n17 % 5 = 2\n```\n\n数字を直接書かず、すべて `a` と `b` を使って計算しましょう。\n`17 / 5` が `3` になることに注目してください（これがJavaの整数の割り算です）。",
+      "starterCode": "public class Main {\n    public static void main(String[] args) {\n        int a = 17;\n        int b = 5;\n\n        // 5行出力しよう\n    }\n}\n",
+      "visibleCases": [
+        {
+          "label": "出力の確認",
+          "stdin": "",
+          "expected": "17 + 5 = 22\n17 - 5 = 12\n17 * 5 = 85\n17 / 5 = 3\n17 % 5 = 2"
+        }
+      ],
+      "hiddenCases": [],
+      "hints": [
+        "1行目は `System.out.println(a + \" + \" + b + \" = \" + (a + b));` です。計算はかっこで囲むのを忘れずに。",
+        "記号のまわりの半角スペースに注意しましょう。`17 + 5 = 22` はスペースが4か所あります。",
+        "残りの4行も同じ形で、`+` の部分を `-` `*` `/` `%` に変えるだけです。"
+      ],
+      "solution": "public class Main {\n    public static void main(String[] args) {\n        int a = 17;\n        int b = 5;\n\n        System.out.println(a + \" + \" + b + \" = \" + (a + b));\n        System.out.println(a + \" - \" + b + \" = \" + (a - b));\n        System.out.println(a + \" * \" + b + \" = \" + (a * b));\n        System.out.println(a + \" / \" + b + \" = \" + (a / b));\n        System.out.println(a + \" % \" + b + \" = \" + (a % b));\n    }\n}\n"
+    },
+    {
+      "id": "3-2",
+      "title": "キーボードから数を受け取る",
+      "explanation": "## 入力を受け取ると、プログラムが「道具」になる\n\nここまでは値をコードに直接書いていました。入力を受け取れるようになると、\n**同じプログラムがどんな値にも使える** ようになります。\n\nJavaでは `Scanner` を使います。準備は2ステップです。\n\n```java\nimport java.util.Scanner;                          // ① いちばん上に書く\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);       // ② 入力を読む係を用意する\n\n        int n = sc.nextInt();                      // ③ 整数を1つ読む\n        System.out.println(n * 2);\n    }\n}\n```\n\n- `import java.util.Scanner;` … 「Scanner という道具を使います」という宣言。**class より上**に書きます\n- `new Scanner(System.in)` … キーボード（標準入力）から読む Scanner を作る\n- `sc.nextInt()` … 整数を1つ読んで返す\n\n### 読み方は型で変わる\n\n| 書き方 | 読むもの |\n|---|---|\n| `sc.nextInt()` | 整数 |\n| `sc.nextDouble()` | 小数 |\n| `sc.next()` | 単語（スペースまで） |\n| `sc.nextLine()` | 1行まるごと |\n\n### このアプリでの入力の与え方\n\n練習問題では、下の「試されること」の表にある **入力** が自動でプログラムに渡されます。\n自分でキーボードを打つ必要はありません。\n\n> 💡 `nextInt()` は呼ぶたびに次の数を読みます。1つの数を2回使いたいときは、\n> 2回呼ぶのではなく **変数に入れて** から使いましょう。",
+      "samples": [
+        {
+          "caption": "入力された数を2倍にする（入力は 21）",
+          "code": "import java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n\n        int n = sc.nextInt();\n        System.out.println(\"読んだ数: \" + n);\n        System.out.println(\"2倍: \" + n * 2);\n    }\n}\n",
+          "stdin": "21"
+        }
+      ],
+      "task": "整数が1つ入力されます。その数を **3倍した値だけ** を出力してください。\n\n余計な文字は出力しないこと（`21` のように数だけ）。\n\nどんな数が来ても正しく動く必要があります。`0` やマイナスの数も試されます。",
+      "starterCode": "import java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n\n        // n を3倍して出力しよう\n    }\n}\n",
+      "visibleCases": [
+        {
+          "label": "7 のとき",
+          "stdin": "7",
+          "expected": "21"
+        },
+        {
+          "label": "10 のとき",
+          "stdin": "10",
+          "expected": "30"
+        }
+      ],
+      "hiddenCases": [
+        {
+          "label": "0 のとき",
+          "stdin": "0",
+          "expected": "0"
+        },
+        {
+          "label": "マイナスのとき",
+          "stdin": "-4",
+          "expected": "-12"
+        },
+        {
+          "label": "大きい数のとき",
+          "stdin": "12345",
+          "expected": "37035"
+        }
+      ],
+      "hints": [
+        "`int n = sc.nextInt();` で読んだあと、`System.out.println(n * 3);` で出力します。",
+        "`\"3倍は\"` のようなラベルは付けません。数だけを出力してください。",
+        "`n * 3` は計算されてから出力されます。`n` に何が入っていても同じコードで動きます。"
+      ],
+      "solution": "import java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n\n        int n = sc.nextInt();\n        System.out.println(n * 3);\n    }\n}\n"
+    },
+    {
+      "id": "3-3",
+      "title": "小数と型変換（キャスト）",
+      "explanation": "## int と double を行き来する\n\n`3-1` で見たように、整数どうしの割り算は切り捨てられます。\n\n```java\nint n = 7;\nSystem.out.println(n / 2);      // 3   ← 3.5 が欲しいのに！\n```\n\n答えを小数にするには、**割る前にどちらかを double にします**。\nそのための書き方が **キャスト** で、`(double)` を前に付けます。\n\n```java\nint n = 7;\nSystem.out.println((double) n / 2);    // 3.5\n```\n\n`(double) n` は「n を小数として扱え」という意味です。\n`n` 自体は int のまま変わりません（その場かぎりの読み替えです）。\n\n### かっこの位置が重要\n\n```java\nSystem.out.println((double) n / 2);      // 3.5   n を先に double にする → 7.0 / 2\nSystem.out.println((double) (n / 2));    // 3.0   先に 7/2=3 してから double にする\n```\n\n下の書き方では、切り捨てが起きた**後**に変換しているので `3.0` になってしまいます。\n**割る前に変換する** のが要点です。\n\n### 逆向き: double → int\n\n小数を整数にするときも同じようにキャストします。**切り捨て**になります。\n\n```java\ndouble d = 3.9;\nSystem.out.println((int) d);     // 3   ← 四捨五入ではない\n```\n\n四捨五入したいときは `Math.round` を使います。\n\n```java\nSystem.out.println(Math.round(3.9));   // 4\n```\n\n### double の出力は必ず小数点が付く\n\n`double` の値は、割り切れても `.0` が付いて表示されます。\n\n```java\nSystem.out.println(4.0 / 2);   // 2.0   ← 2 ではない\n```\n\nこれは間違いではなく「これは小数の型ですよ」という表示です。",
+      "samples": [
+        {
+          "caption": "キャストの位置で結果が変わる（入力は 7）",
+          "code": "import java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n\n        System.out.println(\"そのまま:     \" + n / 2);\n        System.out.println(\"割る前に変換: \" + (double) n / 2);\n        System.out.println(\"割った後に変換: \" + (double) (n / 2));\n    }\n}\n",
+          "stdin": "7"
+        }
+      ],
+      "task": "整数が1つ入力されます。それを2で割った結果を **2行** 出力してください。\n\n- 1行目: 整数として割った答え（切り捨て）\n- 2行目: 小数として割った答え\n\n例えば `7` が入力されたら:\n\n```\n3\n3.5\n```\n\n`8` が入力されたら:\n\n```\n4\n4.0\n```\n\n2行目に `.0` が付くのは正しい動作です。",
+      "starterCode": "import java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n\n        // 1行目: 整数として割る\n\n        // 2行目: 小数として割る\n    }\n}\n",
+      "visibleCases": [
+        {
+          "label": "7 のとき",
+          "stdin": "7",
+          "expected": "3\n3.5"
+        },
+        {
+          "label": "8 のとき",
+          "stdin": "8",
+          "expected": "4\n4.0"
+        }
+      ],
+      "hiddenCases": [
+        {
+          "label": "1 のとき",
+          "stdin": "1",
+          "expected": "0\n0.5"
+        },
+        {
+          "label": "0 のとき",
+          "stdin": "0",
+          "expected": "0\n0.0"
+        },
+        {
+          "label": "100 のとき",
+          "stdin": "100",
+          "expected": "50\n50.0"
+        }
+      ],
+      "hints": [
+        "1行目はそのまま `System.out.println(n / 2);` です。",
+        "2行目は割る前に変換します。`System.out.println((double) n / 2);` です。",
+        "`(double) (n / 2)` と書くと切り捨てた後に変換されてしまい、`7` のとき `3.0` になってしまいます。かっこの位置に注意しましょう。"
+      ],
+      "solution": "import java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n\n        int n = sc.nextInt();\n        System.out.println(n / 2);\n        System.out.println((double) n / 2);\n    }\n}\n"
+    },
+    {
+      "id": "3-4",
+      "title": "いくつもの値を読む",
+      "explanation": "## nextInt() は呼ぶたびに次を読む\n\n`sc.nextInt()` を続けて呼ぶと、入力を順番に読み進めます。\n\n```java\nint a = sc.nextInt();   // 1つ目\nint b = sc.nextInt();   // 2つ目\nint c = sc.nextInt();   // 3つ目\n```\n\n入力が\n```\n10\n20\n30\n```\nなら、`a` に 10、`b` に 20、`c` に 30 が入ります。\n\n### 区切りは改行でもスペースでもよい\n\n`nextInt()` は「空白（スペース・改行・タブ）で区切られた次の数」を読みます。\nだから次の2つの入力は、プログラムから見て**まったく同じ**です。\n\n```\n10 20 30\n```\n```\n10\n20\n30\n```\n\n### 読む回数と入力の数が合わないと落ちる\n\n入力が2つしかないのに3回 `nextInt()` を呼ぶと、\n`NoSuchElementException` というエラーで止まります。\n「あと何個読むのか」を意識して書きましょう。\n\n## 大きい / 小さいを比べる Math.max と Math.min\n\n`if` はまだ習っていませんが、2つの数の大きいほうを取るだけなら\n`Math.max` が使えます。\n\n```java\nSystem.out.println(Math.max(3, 8));         // 8\nSystem.out.println(Math.min(3, 8));         // 3\n```\n\n3つ以上を比べたいときは、**入れ子にする** のがコツです。\n\n```java\nint biggest = Math.max(a, Math.max(b, c));\n```\n\n内側の `Math.max(b, c)` が先に計算され、その結果と `a` を比べます。\n\n> 💡 `Math.abs(-5)` は絶対値（`5`）、`Math.pow(2, 10)` はべき乗（`1024.0`）です。\n> 「こんな計算あるかな？」と思ったら `Math.` の後ろを探してみましょう。",
+      "samples": [
+        {
+          "caption": "3つの数を読んで合計と最大を出す（入力は 4 9 2）",
+          "code": "import java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n\n        int a = sc.nextInt();\n        int b = sc.nextInt();\n        int c = sc.nextInt();\n\n        System.out.println(\"読んだ数: \" + a + \", \" + b + \", \" + c);\n        System.out.println(\"合計: \" + (a + b + c));\n        System.out.println(\"最大: \" + Math.max(a, Math.max(b, c)));\n    }\n}\n",
+          "stdin": "4\n9\n2"
+        }
+      ],
+      "task": "整数が3つ入力されます。合計と最大値を次の形で出力してください。\n\n```\n合計 6\n最大 3\n```\n\n（`1 2 3` が入力された場合）\n\n- ラベルと数字の間は **半角スペース1つ** です\n- どの位置に最大の数が来ても正しく動く必要があります\n- マイナスの数も入力されます",
+      "starterCode": "import java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int a = sc.nextInt();\n        // b と c も読もう\n\n        // 合計と最大を出力しよう\n    }\n}\n",
+      "visibleCases": [
+        {
+          "label": "1 2 3",
+          "stdin": "1\n2\n3",
+          "expected": "合計 6\n最大 3"
+        },
+        {
+          "label": "10 5 7",
+          "stdin": "10\n5\n7",
+          "expected": "合計 22\n最大 10"
+        }
+      ],
+      "hiddenCases": [
+        {
+          "label": "真ん中が最大",
+          "stdin": "2\n40\n8",
+          "expected": "合計 50\n最大 40"
+        },
+        {
+          "label": "全部マイナス",
+          "stdin": "-1\n-5\n-3",
+          "expected": "合計 -9\n最大 -1"
+        },
+        {
+          "label": "全部同じ",
+          "stdin": "4\n4\n4",
+          "expected": "合計 12\n最大 4"
+        }
+      ],
+      "hints": [
+        "`sc.nextInt()` を3回呼んで、`a` `b` `c` の3つの変数に入れます。",
+        "合計は `System.out.println(\"合計 \" + (a + b + c));` です。かっこを忘れると連結になってしまいます。",
+        "最大は `Math.max(a, Math.max(b, c))` で3つを比べられます。`a` が最大でも、`b` が最大でも、これ1つで正しく動きます。"
+      ],
+      "solution": "import java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n\n        int a = sc.nextInt();\n        int b = sc.nextInt();\n        int c = sc.nextInt();\n\n        System.out.println(\"合計 \" + (a + b + c));\n        System.out.println(\"最大 \" + Math.max(a, Math.max(b, c)));\n    }\n}\n"
+    },
+    {
+      "id": "3-5",
+      "title": "1つ増やす（++）と複合代入（+=）",
+      "explanation": "## 1つ増やす、1つ減らす\n\n「変数を1つ増やす」はプログラムで最もよく出てくる操作なので、専用の書き方があります。\n\n```java\nint n = 5;\nn++;    // n = n + 1 と同じ。6 になる\nn--;    // n = n - 1 と同じ。5 に戻る\n```\n\n### 前に付けるか、後ろに付けるか\n\n`n++`（後置）と `++n`（前置）で、**変数が1増える**ことは同じです。\n違うのは **式そのものの値** です。\n\n- `n++` … 式の値は「**増える前**の値」（使ってから増える）\n- `++n` … 式の値は「**増えた後**の値」（増えてから使う）\n\n```java\nint a = 5;\nSystem.out.println(a++);   // 5 が出る。このあと a は 6\nSystem.out.println(a);     // 6\n\nint b = 5;\nSystem.out.println(++b);   // 6 が出る。b も 6\nSystem.out.println(b);     // 6\n```\n\n`n++;` と単独の文で書くだけなら、前置でも後置でも結果は変わりません。\n差が出るのは「同じ式の中でその値を使う」ときだけです。\n\n> ⚠️ 試験のワナ … `int i = 1; int x = i++ + i++;` の `x` はいくつでしょう。\n\n左から順に読み解きます。1つ目の `i++` は **1** を返して `i` は 2 になり、\n2つ目の `i++` は **2** を返して `i` は 3 になります。\nつまり `x` は `1 + 2` で **3**、`i` は **3** です。あわてず順番に追えば必ず解けます。\n\n## 複合代入 — `+=` の仲間\n\n「自分の値を使って計算して、自分に代入し直す」も短く書けます。\n\n| 短い書き方 | 同じ意味 |\n|---|---|\n| `n += 3` | `n = n + 3` |\n| `n -= 3` | `n = n - 3` |\n| `n *= 2` | `n = n * 2` |\n| `n /= 2` | `n = n / 2` |\n| `n %= 3` | `n = n % 3` |\n\n文字列にも使えます。`s += \"!\"` は `s = s + \"!\"` と同じです。\n\n> ⚠️ 試験のワナ … 複合代入には **キャストが隠れています**。次の2行は同じではありません。\n\n```java\nbyte b = 10;\nb = b + 5;   // ❌ コンパイルエラー：b + 5 は int なので byte に戻せない\nb += 5;      // ✅ OK：(byte)(b + 5) が自動で入る\n```\n\n`+=` は「短く書ける」だけでなく「型を自動で戻してくれる」点も違うわけです。\nSilver では、この2行のどちらがエラーになるかがよく問われます。",
+      "samples": [
+        {
+          "caption": "後置と前置。出力を予想してから実行してみよう",
+          "code": "public class Main {\n    public static void main(String[] args) {\n        int a = 10;\n        System.out.println(a++);   // ?\n        System.out.println(a);     // ?\n\n        int b = 10;\n        System.out.println(++b);   // ?\n        System.out.println(b);     // ?\n\n        int i = 1;\n        int x = i++ + i++;\n        System.out.println(x + \" \" + i);   // ?\n    }\n}\n"
+        },
+        {
+          "caption": "複合代入に隠れたキャストを見る",
+          "code": "public class Main {\n    public static void main(String[] args) {\n        byte b = 100;\n        b += 50;                   // (byte)(100 + 50) → あふれてマイナスになる\n        System.out.println(b);\n\n        int n = 7;\n        n *= 2;\n        n -= 4;\n        n %= 4;\n        System.out.println(n);\n    }\n}\n"
+        }
+      ],
+      "task": "整数 `n` が1つ入力されます。次の4行を出力してください。\n\n1. `int a = n;` としたときの `a++` **の値**\n2. その直後の `a` の値\n3. `int b = n;` としたときの `++b` **の値**\n4. その直後の `b` の値\n\n例えば `5` が入力されたら、こうなります。\n\n```\n5\n6\n6\n6\n```\n\n数字だけを1行ずつ出力してください（ラベルは不要です）。",
+      "starterCode": "import java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n\n        int a = n;\n        // a++ の値と、そのあとの a\n\n        int b = n;\n        // ++b の値と、そのあとの b\n    }\n}\n",
+      "visibleCases": [
+        {
+          "label": "5 のとき",
+          "stdin": "5",
+          "expected": "5\n6\n6\n6"
+        },
+        {
+          "label": "10 のとき",
+          "stdin": "10",
+          "expected": "10\n11\n11\n11"
+        }
+      ],
+      "hiddenCases": [
+        {
+          "label": "0 のとき",
+          "stdin": "0",
+          "expected": "0\n1\n1\n1"
+        },
+        {
+          "label": "-1 のとき（0 をまたぐ）",
+          "stdin": "-1",
+          "expected": "-1\n0\n0\n0"
+        },
+        {
+          "label": "-100 のとき",
+          "stdin": "-100",
+          "expected": "-100\n-99\n-99\n-99"
+        }
+      ],
+      "hints": [
+        "`System.out.println(a++);` と書くと、増える前の値が出力されてから a が増えます。",
+        "3行目は `System.out.println(++b);` です。こちらは増えた後の値が出力されます。",
+        "`a` と `b` は別々に `n` で初期化します。同じ変数を使い回すと値がずれます。"
+      ],
+      "solution": "import java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n\n        int a = n;\n        System.out.println(a++);\n        System.out.println(a);\n\n        int b = n;\n        System.out.println(++b);\n        System.out.println(b);\n    }\n}\n"
+    }
+  ]
+}
