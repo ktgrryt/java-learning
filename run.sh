@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Java Quest を起動する。
+# Java Café を起動する。
 #   ./run.sh              … ビルドして起動（http://localhost:8123）
 #   ./run.sh --port 9000  … ポートを指定して起動
 #   ./run.sh --no-open    … ブラウザを自動で開かない
@@ -30,10 +30,10 @@ for ((i = 0; i < ${#JAVA_ARGS[@]}; i++)); do
   fi
 done
 
-# アプリ（tools/make-app.sh で作る Java Quest.app）から起動した分がまだ残っていると、
+# アプリ（tools/make-app.sh で作る Java Café.app）から起動した分がまだ残っていると、
 # ここで立てるサーバは別のポートにずれる。黙ってずれると混乱するので先に知らせる。
-if curl -fsS --max-time 2 "http://localhost:${PORT}/" 2>/dev/null | grep -q 'Java Quest'; then
-  echo "注意: ポート ${PORT} ではすでに Java Quest が動いています。"
+if curl -fsS --max-time 2 "http://localhost:${PORT}/" 2>/dev/null | grep -q 'Java Café'; then
+  echo "注意: ポート ${PORT} ではすでに Java Café が動いています。"
   echo "      ターミナルから起動し直すなら、先にアプリを終了するか tools/launch.sh --stop してください。"
   echo ""
 fi

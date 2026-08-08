@@ -39,6 +39,7 @@ import java.util.concurrent.atomic.AtomicReference;
  *   <li>{@code POST /api/save}     … 書きかけのコードを保存</li>
  *   <li>{@code POST /api/hint}     … ヒントを1つ開示</li>
  *   <li>{@code POST /api/solution} … 模範解答（全ヒント開示後、またはクリア後）</li>
+ *   <li>{@code POST /api/cafe/purchase} … カフェ設備を購入</li>
  *   <li>{@code POST /api/reset}    … 進捗を全消去</li>
  * </ul>
  */
@@ -82,6 +83,7 @@ public final class ApiHandler implements HttpHandler {
                 case "/api/hint" -> sendJson(exchange, 200, doHint(body));
                 case "/api/quiz" -> sendJson(exchange, 200, doQuiz(body));
                 case "/api/solution" -> sendJson(exchange, 200, doSolution(body));
+                case "/api/cafe/purchase" -> sendJson(exchange, 200, doCafePurchase(body));
                 case "/api/reset" -> {
                     progress.resetAll();
                     sendJson(exchange, 200, state());
@@ -157,7 +159,7 @@ public final class ApiHandler implements HttpHandler {
         }
         m.put("parts", parts);
         m.put("chapters", chapters);
-        m.put("progress", progress.toClientJson());
+        m.put("progress", progress.toClientJson(clearedChapterCount(c, cleared)));
         m.put("totalLessons", c.totalLessonCount());
         m.put("totalTasks", c.totalTaskCount());
         m.put("quizTotal", quizTotal);
@@ -212,7 +214,7 @@ public final class ApiHandler implements HttpHandler {
         }
 
         Map<String, Object> m = new LinkedHashMap<>();
-        m.put("progress", progress.toClientJson());
+        m.put("progress", progress.toClientJson(clearedChapterCount(c, cleared)));
         m.put("quizCorrect", quizCorrect);
         m.put("chapters", chapters);
         m.put("lessons", lessons);
@@ -370,11 +372,26 @@ public final class ApiHandler implements HttpHandler {
                 boolean firstTime = progress.markCleared(key);
                 Set<String> after = progress.clearedIds();
 
+                boolean chapterCompletedNow = firstTime
+                        && !chapterWasCleared
+                        && c.isChapterCleared(chapter, after);
+                ProgressStore.CafeAward cafeAward = ProgressStore.CafeAward.NONE;
+                if (firstTime) {
+                    cafeAward = progress.rewardTask();
+                }
+                boolean chapterCleared = false;
+                if (chapterCompletedNow) {
+                    ProgressStore.CafeAward chapterAward = progress.rewardChapter(chapter.id());
+                    chapterCleared = chapterAward.cash() > 0 || chapterAward.cups() > 0;
+                    cafeAward = cafeAward.plus(chapterAward);
+                }
+
                 result.put("newStar", firstTime);
                 result.put("lessonCleared", !lessonWasCleared && c.isLessonCleared(lesson, after));
-                result.put("chapterCleared", !chapterWasCleared && c.isChapterCleared(chapter, after));
+                result.put("chapterCleared", chapterCleared);
                 result.put("chapterTitle", chapter.title());
                 result.put("chapterNumber", chapter.partNumber());
+                result.put("cafeAward", cafeAwardJson(cafeAward));
                 Curriculum.TaskRef next = c.nextTask(lessonId, taskId);
                 result.put("next", next == null ? null : next.toJson());
                 result.put("allChaptersCleared", after.size() == c.totalTaskCount());
@@ -412,17 +429,54 @@ public final class ApiHandler implements HttpHandler {
             throw new BadRequest("その選択肢はありません");
         }
 
+        boolean correct = choice == quiz.answer();
         progress.recordQuiz(lessonId, index, choice);
+        ProgressStore.CafeAward cafeAward = correct
+                ? progress.rewardQuiz(lessonId, index)
+                : ProgressStore.CafeAward.NONE;
 
         Map<String, Object> m = new LinkedHashMap<>();
         m.put("lessonId", lessonId);
         m.put("index", index);
         m.put("choice", choice);
-        m.put("correct", choice == quiz.answer());
+        m.put("correct", correct);
         m.put("answer", quiz.answer());
         m.put("explanation", quiz.explanation());
+        m.put("cafeAward", cafeAwardJson(cafeAward));
         m.put("delta", delta(lessonId));
         return m;
+    }
+
+    private Object doCafePurchase(Map<String, Object> body) {
+        String id = requireString(body, "id");
+        Curriculum c = curriculum.get();
+        Set<String> cleared = progress.clearedIds();
+        int clearedChapters = clearedChapterCount(c, cleared);
+        ProgressStore.PurchaseResult purchase = progress.purchaseCafeUpgrade(id, clearedChapters);
+        if (!purchase.purchased()) {
+            throw new BadRequest(purchase.error());
+        }
+
+        Map<String, Object> upgrade = new LinkedHashMap<>();
+        upgrade.put("id", purchase.upgrade().id());
+        upgrade.put("name", purchase.upgrade().name());
+        upgrade.put("emoji", purchase.upgrade().emoji());
+
+        Map<String, Object> m = new LinkedHashMap<>();
+        m.put("upgrade", upgrade);
+        m.put("delta", Map.of("progress", progress.toClientJson(clearedChapters)));
+        return m;
+    }
+
+    /** 設備は問題数ではなく、どの章でもよいので制覇した章数で解放する。 */
+    private int clearedChapterCount(Curriculum c, Set<String> cleared) {
+        int count = 0;
+        for (Chapter chapter : c.chapters()) {
+            if (c.isChapterCleared(chapter, cleared)) {
+                count++;
+            }
+        }
+        return count;
     }
 
     private Object doHint(Map<String, Object> body) {
@@ -508,6 +562,13 @@ public final class ApiHandler implements HttpHandler {
     }
 
     // --------------------------------------------------------------- plumbing
+
+    private static Object cafeAwardJson(ProgressStore.CafeAward award) {
+        Map<String, Object> m = new LinkedHashMap<>();
+        m.put("cash", award.cash());
+        m.put("cups", award.cups());
+        return m;
+    }
 
     private static List<Object> diagnosticsJson(List<Diagnostic> diagnostics) {
         List<Object> list = new ArrayList<>(diagnostics.size());

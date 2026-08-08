@@ -245,10 +245,10 @@
     {
       "id": "15-3",
       "title": "オートボクシングの罠",
-      "explanation": "## 自動で包まれ、自動で取り出される\n\nいまのJavaでは、基本型とラッパーを **自動で行き来** してくれます。\n\n```java\nInteger boxed = 10;        // オートボクシング（int → Integer）\nint raw = boxed;           // アンボクシング（Integer → int）\nint sum = boxed + 5;       // 計算のときも自動で取り出される\n```\n\n書くのが楽になった一方で、**参照型であることを忘れさせる** という副作用があります。\nここから先がSilverの重要ポイントです。\n\n## == で比べると危ない\n\n`Integer` は参照型なので、`==` は **同じ本体か** を見ます（第8章・第14章と同じ話）。\n\n```java\nInteger a = 200;\nInteger b = 200;\nSystem.out.println(a == b);        // false！\n```\n\n内容は同じでも別の本体なので `false` です。ところが——\n\n```java\nInteger a = 100;\nInteger b = 100;\nSystem.out.println(a == b);        // true！\n```\n\nこちらは `true` になります。値によって結果が変わるのです。\n\n### 理由：Integer キャッシュ\n\nオートボクシングは内部で `Integer.valueOf(int)` を呼びます。\nこのメソッドは **`-128` から `127` までの値をあらかじめ作って持っていて、使い回します**。\nよく使う小さい数を毎回作るのは無駄だからです。\n\n- `-128` ～ `127` … キャッシュから同じ本体が返る → `==` が **`true`**\n- それ以外 … 毎回新しい本体を作る → `==` が **`false`**\n\n> ⚠️ 試験のワナ … 境界は `127` と `128` です。`127` までは `true`、`128` からは `false`。マイナス側は `-128` までが `true` です。\n\n```java\nInteger a = 127, b = 127;\nSystem.out.println(a == b);        // true\n\nInteger c = 128, d = 128;\nSystem.out.println(c == d);        // false\n```\n\n**結論：ラッパーの値を比べるときは必ず `equals`（または `intValue()` で取り出して `==`）。**\n`equals` なら値の大きさに関係なく、内容で比べてくれます。\n\n```java\nSystem.out.println(c.equals(d));   // true（いつでも正しい）\n```\n\n## null のアンボクシングは NullPointerException\n\nラッパーは `null` を入れられます。ここが便利な点であり、危険な点です。\n\n```java\nInteger n = null;\nint x = n;              // 実行時に NullPointerException\n```\n\n`int x = n;` は裏で `n.intValue()` を呼んでいます。`n` が `null` なら、\n`null` に対してメソッドを呼ぶことになるので落ちます。\n\n```java\nInteger n = null;\nif (n != null) {\n    int x = n;          // ✅ 確かめてから取り出す\n}\n```\n\n> ⚠️ 試験のワナ … 計算式の中でも起きます。`Integer a = null; int b = a + 1;` は `NullPointerException` です。コンパイルは通るので、実行するまで気づけません。\n\n> 💡 `null` と比べるだけなら安全です（`n == null` はアンボクシングしません）。落ちるのは **数として使おうとしたとき** だけです。",
+      "explanation": "## 自動で包まれ、自動で取り出される\n\n```java\nInteger boxed = 10;        // オートボクシング\nint raw = boxed;           // アンボクシング\nint sum = boxed + 5;\n```\n\n便利ですが、`Integer` は参照型です。両側が `Integer` の `==` は数値ではなく**同じインスタンスか**を比較します。\n\n## キャッシュの保証を正確に区別する\n\nJava言語仕様は、`Integer a = 127;` のような**定数式**を複数回ボクシングした場合、`-128`〜`127` では\n同一インスタンスになることを保証します。一方、定数式でない値のボクシングについて、同一性を一般に仮定してはいけません。\n\n```java\nInteger a = 127, b = 127;\nSystem.out.println(a == b);        // true が言語仕様で保証される\n```\n\n別に、JDK APIの `Integer.valueOf(int)` は `-128`〜`127` を常にキャッシュし、範囲外もキャッシュする可能性があります。\nこの教材で使うコンパイラと実行環境ではオートボクシングに `Integer.valueOf` が使われるため、入力値でもその挙動を観察できます。\nただし、範囲外が必ず別インスタンスになるとは限らず、ボクシングした値の比較をキャッシュへ依存させるべきではありません。\n\n```java\nInteger c = 128, d = 128;\nSystem.out.println(c == d);        // この環境ではfalse。移植可能な前提ではない\nSystem.out.println(c.equals(d));   // true\n```\n\n**値は `equals`、またはアンボクシングした基本型どうしで比較します。**\n\n## null のアンボクシング\n\n```java\nInteger n = null;\nint x = n;              // 実行時に NullPointerException\n```\n\nアンボクシングは実質的に `n.intValue()` を呼ぶため、`null` では例外になります。計算式の中でも同じです。\n`n == null` は参照と `null` の比較なのでアンボクシングせず、安全です。",
       "samples": [
         {
-          "caption": "キャッシュの境界を確かめる",
+          "caption": "この実行環境でキャッシュの挙動を確かめる（範囲外は仕様上未保証）",
           "code": "public class Main {\n    static void check(int value) {\n        Integer a = value;\n        Integer b = value;\n        System.out.println(value + \" : == は \" + (a == b) + \" / equals は \" + a.equals(b));\n    }\n\n    public static void main(String[] args) {\n        check(100);\n        check(127);      // 境界の内側\n        check(128);      // 境界の外側\n        check(-128);\n        check(-129);\n        check(0);\n    }\n}\n"
         },
         {
@@ -256,7 +256,7 @@
           "code": "public class Main {\n    public static void main(String[] args) {\n        Integer n = null;\n\n        // 比較だけなら安全\n        System.out.println(\"null か: \" + (n == null));\n\n        // 数として使おうとすると落ちる\n        try {\n            int x = n;\n            System.out.println(x);\n        } catch (NullPointerException e) {\n            System.out.println(\"アンボクシングで NullPointerException\");\n        }\n\n        try {\n            System.out.println(n + 1);\n        } catch (NullPointerException e) {\n            System.out.println(\"計算式の中でも同じ\");\n        }\n    }\n}\n"
         }
       ],
-      "task": "整数 `n` が1つ入力されます。`main` で次のように書いてください。\n\n```java\nInteger a = n;          // オートボクシング\nInteger b = n;\nInteger c = null;\n```\n\nそのうえで **4行** 出力します。\n\n1. `a == b`\n2. `a.equals(b)`\n3. `a + b`（アンボクシングして計算した結果）\n4. `c == null`\n\n`100` が入力されたときの出力はこうです。\n\n```\ntrue\ntrue\n200\ntrue\n```\n\n`200` が入力されたときはこうなります。\n\n```\nfalse\ntrue\n400\ntrue\n```\n\n**1行目が入力の値によって変わります。** なぜそうなるのか、境界はどこなのかを\n解説で確かめてください。2行目は入力に関係なく必ず `true` です。",
+      "task": "整数 `n` が1つ入力されます。`main` で次のように書いてください。\n\n```java\nInteger a = n;          // オートボクシング\nInteger b = n;\nInteger c = null;\n```\n\nそのうえで **4行** 出力します。\n\n1. `a == b`\n2. `a.equals(b)`\n3. `a + b`（アンボクシングして計算した結果）\n4. `c == null`\n\n`100` が入力されたとき、この実行環境では次の出力になります。\n\n```\ntrue\ntrue\n200\ntrue\n```\n\n`200` のときは次のとおりです。\n\n```\nfalse\ntrue\n400\ntrue\n```\n\n1行目は参照比較です。この教材のコンパイラ・実行環境が使う `Integer.valueOf` は `-128`〜`127` を共有します。\nただし、Java言語仕様によるボクシング同一性の保証は定数式についてのもので、範囲外が `false` になる保証もありません。\nこの演習では環境の挙動を観察し、実際の値比較には2行目の `equals` を使うべきことを確認します。",
       "starterCode": "import java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n\n        Integer a = n;\n        Integer b = n;\n        Integer c = null;\n\n        // 4行出力する（c は数として使わないこと）\n    }\n}\n",
       "visibleCases": [
         {
@@ -311,7 +311,7 @@
       "extraTasks": [
         {
           "kind": "applied",
-          "task": "こんどは `null` のアンボクシングを **わざと起こして受け止めます**。メソッドをまたぐときのボクシングも確かめます。\n\n### 入力\n\n整数 `n` が1つです。\n\n### 出力\n\nひな形に用意された `a` `b` `nul` を使って、次の **7行** を出力します。\n\n1. `a == b` の結果\n2. `a.intValue() == b.intValue()` の結果\n3. `a == n` の結果（**ラッパーと基本型** の比較）\n4. `int x = nul;` を `try` の中で書き、例外を受け止めて `代入でNPE` と出力\n5. `nul + 1` を `try` の中で計算し、例外を受け止めて `計算でNPE` と出力\n6. `twice(a)` の結果\n7. `boxed(n)` の結果\n\n`100` が入力されたときはこうです。\n\n```\ntrue\ntrue\ntrue\n代入でNPE\n計算でNPE\n200\n300\n```\n\n`200` が入力されたときはこうです。\n\n```\nfalse\ntrue\ntrue\n代入でNPE\n計算でNPE\n400\n600\n```\n\n1行目だけが変わります。ここがキャッシュの境界です。\n\n**3行目に注目してください。** `a == n` は `Integer` と `int` の比較です。この形では **`a` が自動で `int` に取り出されてから** 比べられるので、参照の比較にはなりません。だから `200` でも `true` です。`==` が危ないのは **両側がラッパーのとき** だけです。\n\n- 4行目と5行目で受け止めるのは `NullPointerException` です\n- 6行目は `Integer` を `int` の引数に渡しています（アンボクシング）\n- 7行目は `int` を返しているのに戻り値の型が `Integer` です（ボクシング）",
+          "task": "こんどは `null` のアンボクシングを **わざと起こして受け止めます**。メソッドをまたぐときのボクシングも確かめます。\n\n### 入力\n\n整数 `n` が1つです。\n\n### 出力\n\nひな形に用意された `a` `b` `nul` を使って、次の **7行** を出力します。\n\n1. `a == b` の結果\n2. `a.intValue() == b.intValue()` の結果\n3. `a == n` の結果（**ラッパーと基本型** の比較）\n4. `int x = nul;` を `try` の中で書き、例外を受け止めて `代入でNPE` と出力\n5. `nul + 1` を `try` の中で計算し、例外を受け止めて `計算でNPE` と出力\n6. `twice(a)` の結果\n7. `boxed(n)` の結果\n\nこの教材の実行環境では、`100` のときはこうなります。\n\n```\ntrue\ntrue\ntrue\n代入でNPE\n計算でNPE\n200\n300\n```\n\n`200` のときはこうです。\n\n```\nfalse\ntrue\ntrue\n代入でNPE\n計算でNPE\n400\n600\n```\n\n1行目は参照比較で、この環境では `Integer.valueOf` のキャッシュが結果に現れます。この同一性や範囲外の結果を移植可能なコードで当てにしてはいけません。\n\n**3行目に注目してください。** `a == n` は `Integer` と `int` の比較です。この形では `a` が `int` にアンボクシングされてから比較されるため、参照比較にはなりません。だから `200` でも `true` です。\n\n- 4行目と5行目で受け止めるのは `NullPointerException` です\n- 6行目は `Integer` を `int` の引数に渡しています（アンボクシング）\n- 7行目は `int` を返している式を戻り値型 `Integer` に変換しています（ボクシング）",
           "starterCode": "import java.util.Scanner;\n\npublic class Main {\n    static int twice(int x) {\n        return x * 2;\n    }\n\n    static Integer boxed(int x) {\n        return x * 3;\n    }\n\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n\n        Integer a = n;\n        Integer b = n;\n        Integer nul = null;\n\n        // 7行出力する\n    }\n}\n",
           "visibleCases": [
             {
@@ -367,15 +367,15 @@
       ],
       "quiz": [
         {
-          "question": "次のコードの出力はどれでしょう。\n\n```java\nInteger a = 127, b = 127;\nInteger c = 128, d = 128;\nSystem.out.println((a == b) + \" \" + (c == d));\n```",
+          "question": "`Integer.valueOf(int)` のAPI仕様として正しいのはどれでしょう。",
           "choices": [
-            "`true true`",
-            "`true false`",
-            "`false false`",
-            "`false true`"
+            "`-128`〜`127` は常にキャッシュし、範囲外もキャッシュする場合がある",
+            "`128` 以上の同じ値は必ず別インスタンスになる",
+            "すべての `int` 値で同じインスタンスが使われる",
+            "`Integer` どうしの `==` は数値を比較する"
           ],
-          "answer": 1,
-          "explanation": "オートボクシングは `Integer.valueOf` を呼び、**`-128`〜`127` はキャッシュを使い回します**。だから `127` は同じ本体で `true`、`128` は別の本体で `false` です。値の比較には `equals` を使います。"
+          "answer": 0,
+          "explanation": "`Integer.valueOf` は `-128`〜`127` を常にキャッシュし、範囲外もキャッシュする場合があります。なお、Java言語仕様がボクシング結果の同一性を保証するのは所定範囲の定数式です。どちらにしても値の比較には `equals` を使います。"
         },
         {
           "question": "次のコードはどうなるでしょう。\n\n```java\nInteger n = null;\nint x = n;\n```",

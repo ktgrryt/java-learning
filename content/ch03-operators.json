@@ -145,7 +145,7 @@
     {
       "id": "3-3",
       "title": "小数と型変換（キャスト）",
-      "explanation": "## int と double を行き来する\n\n`3-1` で見たように、整数どうしの割り算は切り捨てられます。\n\n```java\nint n = 7;\nSystem.out.println(n / 2);      // 3   ← 3.5 が欲しいのに！\n```\n\n答えを小数にするには、**割る前にどちらかを double にします**。\nそのための書き方が **キャスト** で、`(double)` を前に付けます。\n\n```java\nint n = 7;\nSystem.out.println((double) n / 2);    // 3.5\n```\n\n`(double) n` は「n を小数として扱え」という意味です。\n`n` 自体は int のまま変わりません（その場かぎりの読み替えです）。\n\n### かっこの位置が重要\n\n```java\nSystem.out.println((double) n / 2);      // 3.5   n を先に double にする → 7.0 / 2\nSystem.out.println((double) (n / 2));    // 3.0   先に 7/2=3 してから double にする\n```\n\n下の書き方では、切り捨てが起きた**後**に変換しているので `3.0` になってしまいます。\n**割る前に変換する** のが要点です。\n\n### 逆向き: double → int\n\n小数を整数にするときも同じようにキャストします。**切り捨て**になります。\n\n```java\ndouble d = 3.9;\nSystem.out.println((int) d);     // 3   ← 四捨五入ではない\n```\n\n四捨五入したいときは `Math.round` を使います。\n\n```java\nSystem.out.println(Math.round(3.9));   // 4\n```\n\n### double の出力は必ず小数点が付く\n\n`double` の値は、割り切れても `.0` が付いて表示されます。\n\n```java\nSystem.out.println(4.0 / 2);   // 2.0   ← 2 ではない\n```\n\nこれは間違いではなく「これは小数の型ですよ」という表示です。",
+      "explanation": "## int と double を行き来する\n\n`3-1` で見たように、整数どうしの割り算では小数部分が切り捨てられます。\n\n```java\nint n = 7;\nSystem.out.println(n / 2);      // 3\n```\n\n答えを小数にするには、**割る前にどちらかを `double` にします**。\n\n```java\nSystem.out.println((double) n / 2);    // 3.5\n```\n\n`(double) n` はその式の中で `n` を `double` に変換します。`n` 自体の型は変わりません。\n\n### かっこの位置が重要\n\n```java\nSystem.out.println((double) n / 2);      // 3.5（変換してから割る）\nSystem.out.println((double) (n / 2));    // 3.0（整数で割ってから変換）\n```\n\n**割る前に変換する** のが要点です。\n\n### 逆向き: double → int\n\n有限の `double` を `int` へキャストすると、小数部分はゼロ方向へ切り捨てられます。\n\n```java\ndouble d = 3.9;\nSystem.out.println((int) d);     // 3（丸めではない）\n```\n\n最も近い整数値へ丸めたいときは `Math.round` を使います。ちょうど中間の値は**正の無限大方向**へ丸められるため、\n`Math.round(2.5)` は `3`、`Math.round(-2.5)` は `-2` です。\n\n```java\nSystem.out.println(Math.round(3.9));    // 4\nSystem.out.println(Math.round(-2.5));   // -2\n```\n\n### double の基本的な表示\n\n有限で整数相当の通常の値を `println` すると、`2.0` のように `.0` が付きます。\n\n```java\nSystem.out.println(4.0 / 2);   // 2.0\n```\n\nただし、非常に大きい・小さい値では指数表記になり、`NaN` や `Infinity` には小数点が付きません。",
       "samples": [
         {
           "caption": "キャストの位置で結果が変わる（入力は 7）",
@@ -193,7 +193,7 @@
       "extraTasks": [
         {
           "kind": "applied",
-          "task": "上の問題は `int` → `double` の向きでした。こんどは解説の後半、**`double` → `int`（切り捨て）と `Math.round`（四捨五入）** を比べます。\n\n小数が1つ入力されます。次の3行を出力してください。\n\n1. 読んだ値そのまま\n2. `(int)` でキャストした値（**切り捨て**）\n3. `Math.round` で丸めた値（**四捨五入**）\n\n例えば `3.9` が入力されたら:\n\n```\n3.9\n3\n4\n```\n\n小数を読むには `sc.nextDouble()` を使います。`2` と `3` の結果が食い違うところが、この問題の見どころです。",
+          "task": "上の問題は `int` → `double` の向きでした。こんどは、**`double` → `int`（ゼロ方向への切り捨て）と `Math.round`（最も近い整数値への丸め）** を比べます。\n\n小数が1つ入力されます。次の3行を出力してください。\n\n1. 読んだ値そのまま\n2. `(int)` でキャストした値（小数部分をゼロ方向へ切り捨て）\n3. `Math.round` で丸めた値（ちょうど中間なら正の無限大方向）\n\n例えば `3.9` が入力されたら:\n\n```\n3.9\n3\n4\n```\n\n小数を読むには `sc.nextDouble()` を使います。`2.5` は `3`、`-2.5` は `-2` になる点にも注目してください。",
           "starterCode": "import java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        double d = sc.nextDouble();\n\n        // 3行出力しよう\n    }\n}\n",
           "visibleCases": [
             {
@@ -227,7 +227,7 @@
           "hints": [
             "1行目は `System.out.println(d);` です。`double` なので `10` を入れても `10.0` と出ます。",
             "2行目は `System.out.println((int) d);` です。四捨五入ではなく、小数点以下をただ捨てます。",
-            "3行目は `System.out.println(Math.round(d));` です。`2.5` のとき2行目が `2`、3行目が `3` になるのを確かめてみてください。"
+            "3行目は `System.out.println(Math.round(d));` です。`2.5` は `3`、`-2.5` は `-2` になります。"
           ],
           "solution": "import java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n\n        double d = sc.nextDouble();\n        System.out.println(d);\n        System.out.println((int) d);\n        System.out.println(Math.round(d));\n    }\n}\n"
         }

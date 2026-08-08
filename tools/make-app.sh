@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Dock / Launchpad / Spotlight から1クリックで遊べる「Java Quest.app」を作る（macOS専用）。
+# Dock / Launchpad / Spotlight から1クリックで遊べる「Java Café.app」を作る（macOS専用）。
 #
 #   tools/make-app.sh                        … ~/Applications に作る
 #   tools/make-app.sh --dest /Applications   … 場所を指定する
@@ -21,7 +21,7 @@ cd "$(dirname "$0")/.."
 ROOT="$PWD"
 
 DEST="$HOME/Applications"
-NAME="Java Quest"
+NAME="Java Café"
 JDK_OVERRIDE=""
 
 while [[ $# -gt 0 ]]; do
@@ -84,9 +84,9 @@ on startServer()
 	try
 		do shell script "test -x " & quoted form of launcher
 	on error
-		display dialog "Java Quest のファイルが見つかりません。" & return & return & ¬
+		display dialog "Java Café のファイルが見つかりません。" & return & return & ¬
 			"フォルダを移動した場合は、移動先で tools/make-app.sh を実行し直してください。" ¬
-			with title "Java Quest" buttons {"OK"} default button 1 with icon stop
+			with title "Java Café" buttons {"OK"} default button 1 with icon stop
 		quit
 		return
 	end try
@@ -130,7 +130,7 @@ osacompile -s -o "$APP" "$WORK/main.applescript"
 # 足りないのはバンドルIDだけ（Dockへの固定や Spotlight のためにあった方がいい）
 SLUG="$(printf '%s' "$NAME" | tr '[:upper:]' '[:lower:]' | tr -cs 'a-z0-9' '-' | sed 's/^-*//; s/-*$//')"
 [[ -n "$SLUG" ]] || SLUG="app"
-BUNDLE_ID="local.javaquest.$SLUG"
+BUNDLE_ID="local.javacafe.$SLUG"
 /usr/libexec/PlistBuddy -c "Add :CFBundleIdentifier string $BUNDLE_ID" "$APP/Contents/Info.plist" >/dev/null 2>&1 \
   || /usr/libexec/PlistBuddy -c "Set :CFBundleIdentifier $BUNDLE_ID" "$APP/Contents/Info.plist" >/dev/null
 

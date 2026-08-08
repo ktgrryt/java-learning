@@ -10,7 +10,7 @@
 #   tools/launch.sh --stop   … 動いているサーバを止める
 #   tools/launch.sh --status … 動いているか調べる
 #
-# tools/make-app.sh が作る「Java Quest.app」は、起動時にこれを JQ_GUI=1 で呼び、
+# tools/make-app.sh が作る「Java Café.app」は、起動時にこれを JQ_GUI=1 で呼び、
 # 終了（右クリック →「終了」）のときに --stop を呼ぶ。
 # GUI から呼ばれたときは、標準エラーを読む人がいないのでエラーをダイアログで出す。
 #
@@ -33,7 +33,7 @@ die() {
     osascript \
       -e 'on run {msg}' \
       -e 'activate' \
-      -e 'display dialog msg with title "Java Quest" buttons {"OK"} default button 1 with icon stop' \
+      -e 'display dialog msg with title "Java Café" buttons {"OK"} default button 1 with icon stop' \
       -e 'end run' \
       -- "$1" >/dev/null 2>&1 || true
   fi
@@ -50,9 +50,9 @@ die_with_log() {
 
 # ---- 動いているか調べる ----------------------------------------------------
 # ポートが開いているだけでは足りない。別のアプリが同じポートを使っていることも
-# あるので、返ってきた画面が Java Quest かどうかまで確かめる。
+# あるので、返ってきた画面が Java Café かどうかまで確かめる。
 is_running() {
-  curl -fsS --max-time 2 "$URL/" 2>/dev/null | grep -q 'Java Quest'
+  curl -fsS --max-time 2 "$URL/" 2>/dev/null | grep -q 'Java Café'
 }
 
 stop_server() {
@@ -65,14 +65,14 @@ stop_server() {
     rm -f "$PIDFILE"
   fi
   # PIDファイルが無い / 古いときの保険。ここまで来たら止める相手を特定できていないので、
-  # Java Quest のサーバを全部止める（run.sh で別ポートに立てた分も一緒に止まる）
+  # Java Café のサーバを全部止める（run.sh で別ポートに立てた分も一緒に止まる）
   if [[ "$stopped" == "0" ]] && pkill -f 'jq\.App' 2>/dev/null; then
     stopped=1
   fi
   if [[ "$stopped" == "1" ]]; then
-    echo "Java Quest を止めました。"
+    echo "Java Café を止めました。"
   else
-    echo "Java Quest は動いていません。"
+    echo "Java Café は動いていません。"
   fi
 }
 
@@ -128,7 +128,7 @@ echo "$server_pid" > "$PIDFILE"
 for _ in $(seq 1 "$READY_TIMEOUT"); do
   if is_running; then
     open "$URL"
-    echo "Java Quest を起動しました: $URL"
+    echo "Java Café を起動しました: $URL"
     exit 0
   fi
   if ! kill -0 "$server_pid" 2>/dev/null; then

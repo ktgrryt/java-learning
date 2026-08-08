@@ -14,7 +14,7 @@ import java.nio.file.Path;
 import java.util.concurrent.Executors;
 
 /**
- * Java Quest のローカルサーバ。
+ * Java Café のローカルサーバ。
  *
  * ユーザーが書いたコードをこのマシンで実行するため、待ち受けは必ず 127.0.0.1 だけにする
  * （同じネットワークの他人がコードを実行できてしまわないように）。
@@ -50,7 +50,7 @@ public final class App {
 
         String url = "http://localhost:" + server.getAddress().getPort();
         System.out.println();
-        System.out.println("  ☕  Java Quest が起動しました");
+        System.out.println("  ☕  Java Café が起動しました");
         System.out.println();
         System.out.println("      " + url);
         System.out.println();
@@ -61,7 +61,7 @@ public final class App {
 
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
             server.stop(0);
-            System.out.println("Java Quest を終了しました。おつかれさまでした。");
+            System.out.println("Java Café を終了しました。おつかれさまでした。");
         }));
     }
 

@@ -7,20 +7,22 @@
  * 初心者がつまずきやすいところを補助する:
  *   - Tab で4スペース（Javaの慣習）。Shift+Tab で戻す
  *   - Enter で前の行のインデントを引き継ぐ。`{` の後ろなら1段深くする
- *   - `{` `(` `"` を自動で閉じる。自分で閉じ記号を打ったときは重複させず通り抜ける
+ *   - `{` `(` `[` を自動で閉じる。自分で閉じ記号を打ったときは重複させず通り抜ける
+ *   - 引用符は入力・削除とも1文字ずつ扱う（勝手に2個入ったように見せない）
  */
 (function (global) {
   'use strict';
 
   var INDENT = '    '; // 4スペース
 
-  var PAIRS = { '(': ')', '{': '}', '[': ']', '"': '"' };
-  var CLOSERS = { ')': true, '}': true, ']': true, '"': true };
+  var PAIRS = { '(': ')', '{': '}', '[': ']' };
+  var CLOSERS = { ')': true, '}': true, ']': true };
 
   function Editor(host) {
     this.host = host;
     this.onSubmit = null;
     this.onRun = null;
+    this._isComposing = false;
     this._build();
   }
 
@@ -44,6 +46,16 @@
     this.input.addEventListener('input', function () { self._refresh(); });
     this.input.addEventListener('scroll', function () { self._syncScroll(); });
     this.input.addEventListener('keydown', function (e) { self._onKeyDown(e); });
+    // 日本語IMEの変換確定Enterを、自動改行やショートカットとして扱わない。
+    // Safariなどでは KeyboardEvent.isComposing が安定しない場合があるため、
+    // compositionstart/end の状態も別に保持する。
+    this.input.addEventListener('compositionstart', function () {
+      self._isComposing = true;
+    });
+    this.input.addEventListener('compositionend', function () {
+      self._isComposing = false;
+      self._refresh();
+    });
   };
 
   Editor.prototype.getValue = function () {
@@ -112,6 +124,13 @@
   Editor.prototype._onKeyDown = function (e) {
     var el = this.input;
     var mod = e.metaKey || e.ctrlKey;
+
+    // IME変換中のキーはブラウザとIMEに任せる。特に変換確定のEnterへ
+    // preventDefault()やexecCommand()を行うと、確定文字が二重に入ることがある。
+    // keyCode 229 は isComposing がfalseになる一部ブラウザ向けのフォールバック。
+    if (e.isComposing || this._isComposing || e.keyCode === 229) {
+      return;
+    }
 
     // ---- ショートカット ----------------------------------------------------
     if (mod && e.key === 'Enter') {
