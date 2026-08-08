@@ -22,6 +22,12 @@ import urllib.request
 PORT = sys.argv[1] if len(sys.argv) > 1 else "8123"
 BASE = f"http://localhost:{PORT}/api/"
 
+# 第2引数以降にレッスンIDの先頭を並べると、その章・レッスンだけを検査する。
+# 章を1つ書いている間、1122件すべてを走らせ直さなくて済むようにするための指定。
+# 例:  tools/verify-solutions.sh --only 21      （第21章だけ）
+#      tools/verify-solutions.sh --only 21-3    （そのレッスンだけ）
+ONLY = [p for p in sys.argv[2:] if p]
+
 GREEN, RED, YELLOW, DIM, RESET = "\033[32m", "\033[31m", "\033[33m", "\033[2m", "\033[0m"
 
 
@@ -57,7 +63,8 @@ def verify_task(lid, task, problems, warnings):
     where = f"問題{tid}"
 
     # ── ひな形がコンパイルできるか ────────────────────────────────
-    starter = post("run", {"code": task["starterCode"]})
+    # libLessonId は同梱ライブラリを引き当てるためだけのもの（保存はされない）
+    starter = post("run", {"code": task["starterCode"], "libLessonId": lid})
     if not starter.get("compiled"):
         problems.append(f"{where}のひな形がコンパイルできない")
         show_diagnostics(starter.get("diagnostics", []))
@@ -103,26 +110,40 @@ def verify_task(lid, task, problems, warnings):
     return passed, total
 
 
+def wanted(lesson_id):
+    """--only が指定されていれば、その先頭に一致するレッスンだけ検査する。"""
+    return not ONLY or any(lesson_id.startswith(p) for p in ONLY)
+
+
 def main():
     state = get("state")
-    lessons = [(ch, l) for ch in state["chapters"] for l in ch["lessons"]]
+    chapters = [ch for ch in state["chapters"]
+                if any(wanted(l["id"]) for l in ch["lessons"])]
+    lessons = [(ch, l) for ch in chapters for l in ch["lessons"] if wanted(l["id"])]
     tasks = [t for _, l in lessons for t in l["tasks"]]
-    print(f"問題 {len(tasks)}件 / レッスン {len(lessons)}件 / 章 {len(state['chapters'])}件 "
-          f"を検査します\n")
+    scope = f"（{' '.join(ONLY)} に絞って検査）" if ONLY else ""
+    print(f"問題 {len(tasks)}件 / レッスン {len(lessons)}件 / 章 {len(chapters)}件 "
+          f"を検査します{scope}\n")
+    if not lessons:
+        print(f"{RED}指定に一致するレッスンがありません: {' '.join(ONLY)}{RESET}")
+        return 1
 
     failures = []
     warnings = []
 
-    for chapter in state["chapters"]:
+    for chapter in chapters:
         print(f"{chapter['emoji']} 第{chapter['number']}章 {chapter['title']}")
 
         for lesson in chapter["lessons"]:
             lid = lesson["id"]
+            if not wanted(lid):
+                continue
             problems = []
 
             # ── サンプルコードが実行できるか ──────────────────────────
             for i, sample in enumerate(lesson["samples"]):
-                res = post("run", {"code": sample["code"], "stdin": sample.get("stdin", "")})
+                res = post("run", {"code": sample["code"], "stdin": sample.get("stdin", ""),
+                                   "libLessonId": lid})
                 if not res.get("compiled"):
                     problems.append(f"サンプル{i + 1}がコンパイルできない")
                     show_diagnostics(res.get("diagnostics", []))

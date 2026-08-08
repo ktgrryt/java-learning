@@ -1,5 +1,7 @@
 package jq.runner;
 
+import jq.content.SourceFile;
+
 import javax.tools.Diagnostic.Kind;
 import javax.tools.DiagnosticCollector;
 import javax.tools.JavaCompiler;
@@ -17,8 +19,10 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -57,12 +61,16 @@ public final class JavaRunner {
         private final String mainClass;
         private final List<Diagnostic> diagnostics;
         private final boolean success;
+        /** 同梱ライブラリのファイル名。スタックトレースから枠組みの行を落とすために使う。 */
+        private final Set<String> libFileNames;
 
-        private Compiled(Path workDir, String mainClass, List<Diagnostic> diagnostics, boolean success) {
+        private Compiled(Path workDir, String mainClass, List<Diagnostic> diagnostics, boolean success,
+                         Set<String> libFileNames) {
             this.workDir = workDir;
             this.mainClass = mainClass;
             this.diagnostics = diagnostics;
             this.success = success;
+            this.libFileNames = libFileNames;
         }
 
         public boolean success() {
@@ -90,6 +98,20 @@ public final class JavaRunner {
      * {@link Compiled} を返す（診断メッセージは {@code diagnostics()} に入る）。
      */
     public Compiled compile(String code) {
+        return compile(code, List.of());
+    }
+
+    /**
+     * 同梱ライブラリと一緒にコンパイルする。
+     *
+     * Jakarta EE の章のように、JDKに無いクラス（{@code jakarta.servlet.*} など）を
+     * 学習者に書かせたい場合に使う。{@code support} のソースは学習者のコードと同じ作業
+     * ディレクトリへ、{@link SourceFile#path()} の相対パスのまま書き出してから
+     * まとめてコンパイルするので、学習者は本物と同じ import 文を書ける。
+     *
+     * @param support 一緒にコンパイルするソース。空なら {@link #compile(String)} と同じ
+     */
+    public Compiled compile(String code, List<SourceFile> support) {
         if (code == null || code.isBlank()) {
             return failed("コードが空です。まずは何か書いてみましょう。");
         }
@@ -108,28 +130,52 @@ public final class JavaRunner {
             return failed("Javaコンパイラが見つかりません。JRE ではなく JDK で起動してください。");
         }
 
+        String userFileName = className + ".java";
+        // 同梱ライブラリと同じファイル名だと、学習者のコードが上書きされて消える。
+        // 原因の分かりにくい不具合になるので、その場で名前を変えてもらう。
+        for (SourceFile sf : support) {
+            if (sf.path().equals(userFileName)) {
+                return failed("クラス名 " + className + " は同梱ライブラリのファイルと重なっています。"
+                        + "別のクラス名にしてください。");
+            }
+        }
+
         Path workDir;
+        List<Path> units = new ArrayList<>(support.size() + 1);
+        Set<String> libFileNames = new LinkedHashSet<>();
         try {
             workDir = Files.createTempDirectory("jq-run-");
-            Files.writeString(workDir.resolve(className + ".java"), code, StandardCharsets.UTF_8);
+            Path userFile = workDir.resolve(userFileName);
+            Files.writeString(userFile, code, StandardCharsets.UTF_8);
+            units.add(userFile);
+
+            for (SourceFile sf : support) {
+                Path dest = workDir.resolve(sf.path());
+                Files.createDirectories(dest.getParent());
+                Files.writeString(dest, sf.content(), StandardCharsets.UTF_8);
+                units.add(dest);
+                libFileNames.add(dest.getFileName().toString());
+            }
         } catch (IOException e) {
             throw new UncheckedIOException("一時ディレクトリを作れません", e);
         }
+        // 学習者のファイルと同じ名前のライブラリがあっても、学習者の行は消さない
+        libFileNames.remove(userFileName);
 
         DiagnosticCollector<JavaFileObject> collector = new DiagnosticCollector<>();
         boolean ok;
         try (StandardJavaFileManager fileManager =
                      compiler.getStandardFileManager(collector, Locale.JAPAN, StandardCharsets.UTF_8)) {
             fileManager.setLocationFromPaths(StandardLocation.CLASS_OUTPUT, List.of(workDir));
-            Iterable<? extends JavaFileObject> units =
-                    fileManager.getJavaFileObjects(workDir.resolve(className + ".java"));
+            Iterable<? extends JavaFileObject> compilationUnits =
+                    fileManager.getJavaFileObjects(units.toArray(new Path[0]));
             ok = compiler.getTask(
                             null,
                             fileManager,
                             collector,
                             List.of("-encoding", "UTF-8", "-nowarn", "-proc:none"),
                             null,
-                            units)
+                            compilationUnits)
                     .call();
         } catch (IOException e) {
             deleteRecursively(workDir);
@@ -139,15 +185,15 @@ public final class JavaRunner {
             return failed("コンパイル中に想定外のエラーが起きました: " + e.getMessage());
         }
 
-        List<Diagnostic> diagnostics = translate(collector);
+        List<Diagnostic> diagnostics = translate(collector, libFileNames);
         if (!ok) {
             deleteRecursively(workDir);
             if (diagnostics.isEmpty()) {
                 return failed("コンパイルできませんでした。");
             }
-            return new Compiled(null, className, diagnostics, false);
+            return new Compiled(null, className, diagnostics, false, Set.copyOf(libFileNames));
         }
-        return new Compiled(workDir, className, diagnostics, true);
+        return new Compiled(workDir, className, diagnostics, true, Set.copyOf(libFileNames));
     }
 
     /**
@@ -220,7 +266,7 @@ public final class JavaRunner {
         err.finish();
         return new RunResult(
                 out.text(),
-                trimStackTrace(err.text()),
+                trimStackTrace(err.text(), compiled.libFileNames),
                 exitCode,
                 timedOut,
                 out.truncated() || err.truncated());
@@ -229,16 +275,32 @@ public final class JavaRunner {
     // ------------------------------------------------------------- internals
 
     private static Compiled failed(String hint) {
-        return new Compiled(null, "Main", List.of(new Diagnostic("error", 0, 0, hint, "")), false);
+        return new Compiled(null, "Main", List.of(new Diagnostic("error", 0, 0, hint, "")), false, Set.of());
     }
 
-    private static List<Diagnostic> translate(DiagnosticCollector<JavaFileObject> collector) {
+    private static List<Diagnostic> translate(DiagnosticCollector<JavaFileObject> collector,
+                                              Set<String> libFileNames) {
         List<Diagnostic> list = new ArrayList<>();
         for (javax.tools.Diagnostic<? extends JavaFileObject> d : collector.getDiagnostics()) {
             if (d.getKind() != Kind.ERROR && d.getKind() != Kind.WARNING) {
                 continue;
             }
             String message = d.getMessage(Locale.JAPAN);
+            String fileName = sourceFileName(d);
+
+            // 同梱ライブラリ側のエラーは、行番号が学習者のコードの行ではない。
+            // そのまま「12行目」と出すと自分のコードを疑わせてしまうので、行を指さずに
+            // 教材側の問題だと分かる形で見せる（本来は verify-solutions.sh が先に見つける）。
+            if (fileName != null && libFileNames.contains(fileName)) {
+                list.add(new Diagnostic(
+                        "error",
+                        0,
+                        0,
+                        "同梱ライブラリ " + fileName + " でエラー: " + message,
+                        "これは教材側の不具合です。あなたのコードは関係ありません。"));
+                continue;
+            }
+
             list.add(new Diagnostic(
                     d.getKind() == Kind.ERROR ? "error" : "warning",
                     (int) Math.max(d.getLineNumber(), 0),
@@ -247,6 +309,17 @@ public final class JavaRunner {
                     ErrorTranslator.forCompileError(d.getCode(), message)));
         }
         return List.copyOf(list);
+    }
+
+    /** 診断が出たソースのファイル名（パスは落とす）。分からなければ null。 */
+    private static String sourceFileName(javax.tools.Diagnostic<? extends JavaFileObject> d) {
+        JavaFileObject source = d.getSource();
+        if (source == null) {
+            return null;
+        }
+        String name = source.getName();
+        int slash = Math.max(name.lastIndexOf('/'), name.lastIndexOf('\\'));
+        return slash >= 0 ? name.substring(slash + 1) : name;
     }
 
     /**
@@ -376,8 +449,12 @@ public final class JavaRunner {
     /**
      * スタックトレースからアプリ内部の行を落とし、初心者に読める分量に刈り込む。
      * 例外の種類とメッセージ、そしてユーザーコードの行だけを残す。
+     *
+     * @param libFileNames 同梱ライブラリのファイル名。枠組みの中の行も落とす。
+     *                     疑似コンテナ経由だと {@code MiniWeb.java} などが間に挟まるので、
+     *                     残しておくと学習者が自分の行を見つけにくくなる
      */
-    static String trimStackTrace(String stderr) {
+    static String trimStackTrace(String stderr, Set<String> libFileNames) {
         if (stderr == null || stderr.isEmpty()) {
             return "";
         }
@@ -386,7 +463,7 @@ public final class JavaRunner {
             String trimmed = line.strip();
             if (trimmed.startsWith("at ")) {
                 // ユーザーのソース（Main.java など）に対応する行だけ残す
-                if (trimmed.contains(".java:")) {
+                if (trimmed.contains(".java:") && !isLibFrame(trimmed, libFileNames)) {
                     kept.add(line);
                 }
                 continue;
@@ -405,6 +482,23 @@ public final class JavaRunner {
             result.add(line);
         }
         return String.join("\n", result).strip();
+    }
+
+    /**
+     * その {@code at} 行が同梱ライブラリの中か判定する。
+     *
+     * 行の形は {@code at MiniWeb.serve(MiniWeb.java:40)} なので、カッコの中のファイル名を見る。
+     */
+    private static boolean isLibFrame(String frame, Set<String> libFileNames) {
+        if (libFileNames.isEmpty()) {
+            return false;
+        }
+        int open = frame.lastIndexOf('(');
+        int dot = frame.lastIndexOf(".java:");
+        if (open < 0 || dot < open) {
+            return false;
+        }
+        return libFileNames.contains(frame.substring(open + 1, dot + ".java".length()));
     }
 
     private static void deleteRecursively(Path dir) {

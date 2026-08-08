@@ -8,16 +8,27 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.regex.Pattern;
+import java.util.stream.Stream;
 
 /**
  * content/manifest.json と各章のJSONを読み込んで {@link Curriculum} を組み立てる。
  *
  * 章を追加したいときは content/ にJSONを置き、manifest.json の "chapters" に
  * ファイル名を足すだけでよい（Javaコードの変更は不要）。
+ *
+ * Jakarta EE の章のように、学習者のコードと一緒にコンパイルしたい同梱ライブラリがある場合は、
+ * ソースを {@code content/lib/<名前>/} に置き、章またはレッスンの {@code "libs"} に名前を書く。
  */
 public final class ContentLoader {
+
+    /** libs に書ける名前。ディレクトリ区切りやドットを許さないので、content/lib の外へは出られない。 */
+    private static final Pattern LIB_NAME = Pattern.compile("[A-Za-z0-9_-]+");
 
     private final Path contentDir;
 
@@ -29,6 +40,11 @@ public final class ContentLoader {
         Path manifestPath = contentDir.resolve("manifest.json");
         Map<String, Object> manifest = MiniJson.parseObject(read(manifestPath));
 
+        // 同梱ライブラリは章をまたいで共有されるので、1回の load 中は読み直さない。
+        // （load() は /api/state ごとに呼ばれる。ライブラリを使うレッスンの数だけ
+        //   同じファイルを読むのは無駄なので、ここで1回に畳む）
+        Map<String, List<SourceFile>> libCache = new HashMap<>();
+
         List<Chapter> chapters = new ArrayList<>();
         int number = 1;
         for (Object entry : MiniJson.list(manifest, "chapters")) {
@@ -37,7 +53,7 @@ public final class ContentLoader {
             }
             Path chapterPath = contentDir.resolve(fileName);
             try {
-                chapters.add(parseChapter(MiniJson.parseObject(read(chapterPath)), number++));
+                chapters.add(parseChapter(MiniJson.parseObject(read(chapterPath)), number++, libCache));
             } catch (RuntimeException e) {
                 throw new IllegalStateException(fileName + " を読めません: " + e.getMessage(), e);
             }
@@ -48,11 +64,15 @@ public final class ContentLoader {
         return new Curriculum(chapters);
     }
 
-    private Chapter parseChapter(Map<String, Object> raw, int number) {
+    private Chapter parseChapter(Map<String, Object> raw, int number,
+                                 Map<String, List<SourceFile>> libCache) {
         String chapterId = MiniJson.requireStr(raw, "id");
+        // 章に書いた libs は、その章の全レッスンが受け継ぐ（レッスンごとに書き写さなくてよい）
+        List<String> chapterLibs = stringList(raw, "libs");
+
         List<Lesson> lessons = new ArrayList<>();
         for (Object o : MiniJson.list(raw, "lessons")) {
-            lessons.add(parseLesson(MiniJson.asObj(o), chapterId));
+            lessons.add(parseLesson(MiniJson.asObj(o), chapterId, chapterLibs, libCache));
         }
         if (lessons.isEmpty()) {
             throw new IllegalStateException("章 " + chapterId + " にレッスンがありません");
@@ -66,7 +86,8 @@ public final class ContentLoader {
                 List.copyOf(lessons));
     }
 
-    private Lesson parseLesson(Map<String, Object> raw, String chapterId) {
+    private Lesson parseLesson(Map<String, Object> raw, String chapterId, List<String> chapterLibs,
+                               Map<String, List<SourceFile>> libCache) {
         String id = MiniJson.requireStr(raw, "id");
 
         List<Sample> samples = new ArrayList<>();
@@ -85,7 +106,84 @@ public final class ContentLoader {
                 MiniJson.str(raw, "explanation", ""),
                 List.copyOf(samples),
                 parseTasks(raw, id),
-                parseQuizzes(raw, id));
+                parseQuizzes(raw, id),
+                resolveLibs(chapterLibs, stringList(raw, "libs"), id, libCache));
+    }
+
+    /**
+     * 章とレッスンの {@code libs} を合わせて、コンパイルに渡すソース一覧にする。
+     *
+     * 同じライブラリを章とレッスンの両方に書いても1回しか読まない。別のライブラリが
+     * 同じ相対パスのファイルを持っていたら、どちらが勝つか分からなくなるのでエラーにする。
+     */
+    private List<SourceFile> resolveLibs(List<String> chapterLibs, List<String> lessonLibs,
+                                         String lessonId, Map<String, List<SourceFile>> libCache) {
+        LinkedHashSet<String> names = new LinkedHashSet<>(chapterLibs);
+        names.addAll(lessonLibs);
+        if (names.isEmpty()) {
+            return List.of();
+        }
+
+        Map<String, SourceFile> byPath = new LinkedHashMap<>();
+        Map<String, String> ownerOf = new LinkedHashMap<>();
+        for (String name : names) {
+            for (SourceFile sf : libSources(name, lessonId, libCache)) {
+                String previous = ownerOf.put(sf.path(), name);
+                if (previous != null) {
+                    throw new IllegalStateException("レッスン " + lessonId + ": 同梱ライブラリ \""
+                            + previous + "\" と \"" + name + "\" が同じファイル " + sf.path()
+                            + " を持っています。どちらか片方にしてください");
+                }
+                byPath.put(sf.path(), sf);
+            }
+        }
+        return List.copyOf(byPath.values());
+    }
+
+    /** content/lib/&lt;name&gt;/ 以下の .java を全部読む。 */
+    private List<SourceFile> libSources(String name, String lessonId,
+                                        Map<String, List<SourceFile>> cache) {
+        List<SourceFile> cached = cache.get(name);
+        if (cached != null) {
+            return cached;
+        }
+        if (!LIB_NAME.matcher(name).matches()) {
+            throw new IllegalStateException("レッスン " + lessonId + " の libs に使えない名前があります: \""
+                    + name + "\"（英数字とハイフン・アンダースコアだけ）");
+        }
+        Path dir = contentDir.resolve("lib").resolve(name);
+        if (!Files.isDirectory(dir)) {
+            throw new IllegalStateException("レッスン " + lessonId + " の libs \"" + name
+                    + "\" に対応するディレクトリがありません: " + dir.toAbsolutePath());
+        }
+
+        List<SourceFile> files = new ArrayList<>();
+        try (Stream<Path> paths = Files.walk(dir)) {
+            // 並び順を固定する（コンパイル単位の順番が実行ごとに変わると原因を追いにくい）
+            for (Path p : paths.filter(p -> p.getFileName().toString().endsWith(".java")).sorted().toList()) {
+                files.add(new SourceFile(dir.relativize(p).toString().replace('\\', '/'), read(p)));
+            }
+        } catch (IOException e) {
+            throw new UncheckedIOException("同梱ライブラリを読めません: " + dir.toAbsolutePath(), e);
+        }
+        if (files.isEmpty()) {
+            throw new IllegalStateException("同梱ライブラリ \"" + name + "\" に .java がありません: "
+                    + dir.toAbsolutePath());
+        }
+
+        List<SourceFile> result = List.copyOf(files);
+        cache.put(name, result);
+        return result;
+    }
+
+    private static List<String> stringList(Map<String, Object> raw, String key) {
+        List<String> out = new ArrayList<>();
+        for (Object o : MiniJson.list(raw, key)) {
+            if (o instanceof String s && !s.isBlank()) {
+                out.add(s.strip());
+            }
+        }
+        return out;
     }
 
     /**

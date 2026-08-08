@@ -3,8 +3,13 @@
 # 全レッスンの模範解答を実際に提出して、全テストケースを通ることを確かめる。
 # コンテンツを追加・修正したあとに走らせるための回帰チェック。
 #
-#   ./tools/verify-solutions.sh              … 一時サーバを自分で立てて検査する
-#   ./tools/verify-solutions.sh --port 8123  … すでに動いているサーバを使う
+#   ./tools/verify-solutions.sh                 … 一時サーバを自分で立てて検査する
+#   ./tools/verify-solutions.sh --port 8123     … すでに動いているサーバを使う
+#   ./tools/verify-solutions.sh --only 21       … 第21章だけ検査する
+#   ./tools/verify-solutions.sh --only 21-3 22  … レッスン21-3と第22章だけ
+#
+# --only は章を1つ書いている間の確認用（全部で数分かかるので）。
+# コンテンツを直し終えたら、必ず --only なしで全体を通してください。
 #
 # 進捗ファイル(progress.json)は書き換えない（一時ディレクトリで動かすため）。
 #
@@ -13,9 +18,27 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 PORT=""
-if [[ "${1:-}" == "--port" && -n "${2:-}" ]]; then
-  PORT="$2"
-fi
+ONLY=()
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --port)
+      PORT="${2:-}"
+      if [[ -z "$PORT" ]]; then echo "--port にはポート番号が必要です" >&2; exit 1; fi
+      shift 2
+      ;;
+    --only)
+      shift
+      while [[ $# -gt 0 && "$1" != --* ]]; do ONLY+=("$1"); shift; done
+      if [[ ${#ONLY[@]} -eq 0 ]]; then
+        echo "--only にはレッスンIDの先頭が必要です（例: --only 21）" >&2; exit 1
+      fi
+      ;;
+    *)
+      echo "知らない引数です: $1" >&2
+      exit 1
+      ;;
+  esac
+done
 
 BUILD_DIR="build/classes"
 
@@ -93,6 +116,7 @@ fi
 # exec は使わない。使うとシェルが置き換わって trap cleanup が動かず、
 # 検査用サーバと一時ディレクトリが毎回リークする。
 # -u … 出力先がファイルやパイプでも1行ずつ流す（長い検査中に無言にならないように）
+# ${ONLY[@]+...} … 空配列を set -u のもとで展開してもエラーにしない書き方（bash 3.2 対策）
 RC=0
-python3 -u tools/verify_solutions.py "$PORT" || RC=$?
+python3 -u tools/verify_solutions.py "$PORT" ${ONLY[@]+"${ONLY[@]}"} || RC=$?
 exit "$RC"

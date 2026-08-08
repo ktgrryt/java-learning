@@ -1,0 +1,539 @@
+{
+  "id": "ch21",
+  "title": "業務アプリの骨格",
+  "subtitle": "層に分けて組み立てる",
+  "emoji": "🏛️",
+  "lessons": [
+    {
+      "id": "21-1",
+      "title": "3層アーキテクチャ",
+      "explanation": "## 1つのクラスに全部書くと、何が起きるか\n\nここまでの章では、1つの `Main` クラスに処理をまとめて書いてきました。学習用の小さな\nプログラムならそれで困りません。でも業務のアプリを同じ書き方で作ると、すぐに行き詰まります。\n\nたとえば「商品の在庫を調べて画面に出す」処理を1つのメソッドに書くと、その中に\n\n- 入力を受け取る処理\n- 在庫があるかどうかを決める**業務ルール**\n- データベースから在庫数を取ってくる処理\n- 画面に出す文字を組み立てる処理\n\nの4つが混ざります。すると次のことが起きます。\n\n- **テストできない** … 業務ルールだけを試したいのに、動かすとデータベースまで必要になる\n- **使い回せない** … 同じ業務ルールをバッチ処理でも使いたいのに、画面の処理とくっついている\n- **変更が広がる** … 画面の文言を直すだけのつもりが、業務ルールのコードに触ることになる\n\n## 3つの層に分ける\n\nそこで業務アプリでは、役割ごとに層（レイヤ）へ分けます。名前は現場によって少し違いますが、\nだいたいこの3つです。\n\n| 層 | 責務 | 知っていてよいこと |\n|---|---|---|\n| **Controller** | 受け取って、返す | 画面やHTTPの都合。表示する文言 |\n| **Service** | 業務ルールを決める | 「在庫0なら在庫切れ」のような業務の決まり |\n| **Repository** | データの出入り | テーブルの形、SQL |\n\n### 大事なのは「依存の向き」\n\n```\nController  ──▶  Service  ──▶  Repository\n```\n\n矢印は「使う側 → 使われる側」です。**この向きは絶対に逆にしません。**\n\n- Controller は Service を使う。Service は Controller を知らない\n- Service は Repository を使う。Repository は Service を知らない\n\nだから Service は「どんな画面から呼ばれるか」を知らずに動きます。これが\n「業務ルールだけをテストできる」「バッチからも呼べる」の正体です。\n\n### Service は表示の文言を知らない\n\nよくやってしまう失敗が、Service に画面の文字を作らせることです。\n\n```java\n// ❌ Service が「在庫あり」という表示の文言を知ってしまっている\nString check(String name) {\n    return count > 0 ? \"在庫あり\" : \"在庫切れ\";\n}\n```\n\nこう書くと、英語版の画面を作るときに Service を直すことになります。Service は\n**「状態」だけ**を返し、文言は Controller が決めます。状態を表すには `enum` が向いています。\n\n```java\n// ✅ Service は状態だけ返す。文言は Controller の仕事\nenum StockStatus { IN_STOCK, SOLD_OUT, NOT_HANDLED }\n```\n\n> 💡 「この処理はどの層に置くべきか」で迷ったら、**「画面が変わったら直る必要があるか？」**\n> と考えてみてください。はいなら Controller、いいえなら Service です。\n",
+      "samples": [
+        {
+          "caption": "3つの層に分けて在庫を調べる",
+          "code": "import java.util.LinkedHashMap;\nimport java.util.Map;\n\npublic class Main {\n    public static void main(String[] args) {\n        // 下の層から順に組み立てて、上の層へ渡していく\n        ItemRepository repository = new ItemRepository();\n        ItemService service = new ItemService(repository);\n        ItemController controller = new ItemController(service);\n\n        System.out.println(controller.show(\"apple\"));\n        System.out.println(controller.show(\"banana\"));\n        System.out.println(controller.show(\"grape\"));\n    }\n}\n\n/** 業務ルールが返す「状態」。表示の文言はここには書かない。 */\nenum StockStatus { IN_STOCK, SOLD_OUT, NOT_HANDLED }\n\n/** データの出入りだけを担当する層。 */\nclass ItemRepository {\n    private final Map<String, Integer> stock = new LinkedHashMap<>();\n\n    ItemRepository() {\n        stock.put(\"apple\", 5);\n        stock.put(\"banana\", 0);\n    }\n\n    /** 在庫数。取り扱いが無ければ null。 */\n    Integer findStock(String name) {\n        return stock.get(name);\n    }\n}\n\n/** 業務ルールだけを担当する層。画面のことは何も知らない。 */\nclass ItemService {\n    private final ItemRepository repository;\n\n    ItemService(ItemRepository repository) {\n        this.repository = repository;\n    }\n\n    StockStatus check(String name) {\n        Integer count = repository.findStock(name);\n        if (count == null) {\n            return StockStatus.NOT_HANDLED;\n        }\n        return count > 0 ? StockStatus.IN_STOCK : StockStatus.SOLD_OUT;\n    }\n\n    int countOf(String name) {\n        Integer count = repository.findStock(name);\n        return count == null ? 0 : count;\n    }\n}\n\n/** 受け取って返す形を担当する層。表示の文言はここで決める。 */\nclass ItemController {\n    private final ItemService service;\n\n    ItemController(ItemService service) {\n        this.service = service;\n    }\n\n    String show(String name) {\n        return switch (service.check(name)) {\n            case IN_STOCK -> name + \": 在庫あり (\" + service.countOf(name) + \"個)\";\n            case SOLD_OUT -> name + \": 在庫切れ\";\n            case NOT_HANDLED -> name + \": 取り扱いなし\";\n        };\n    }\n}\n"
+        }
+      ],
+      "task": "在庫照会を **3層に分けて** 完成させてください。`ItemRepository` は書いてあるので、\n`ItemService` と `ItemController` の TODO を埋めます。\n\n標準入力から商品名を1行受け取り、次の形で出力します。\n\n| 状態 | 出力 |\n|---|---|\n| 在庫が1個以上 | `apple: 在庫あり (5個)` |\n| 在庫が0個 | `banana: 在庫切れ` |\n| 取り扱いが無い | `grape: 取り扱いなし` |\n\n**Service には表示の文言を書かないこと。** Service は `StockStatus` を返すだけにして、\n文言の組み立ては Controller に置きます。",
+      "starterCode": "import java.util.LinkedHashMap;\nimport java.util.Map;\nimport java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        String name = sc.nextLine().trim();\n\n        ItemRepository repository = new ItemRepository();\n        ItemService service = new ItemService(repository);\n        ItemController controller = new ItemController(service);\n        System.out.println(controller.show(name));\n    }\n}\n\nenum StockStatus { IN_STOCK, SOLD_OUT, NOT_HANDLED }\n\n/** この層は完成しています。触らなくてよいです。 */\nclass ItemRepository {\n    private final Map<String, Integer> stock = new LinkedHashMap<>();\n\n    ItemRepository() {\n        stock.put(\"apple\", 5);\n        stock.put(\"banana\", 0);\n        stock.put(\"melon\", 12);\n    }\n\n    Integer findStock(String name) {\n        return stock.get(name);\n    }\n}\n\nclass ItemService {\n    private final ItemRepository repository;\n\n    ItemService(ItemRepository repository) {\n        this.repository = repository;\n    }\n\n    /** TODO: 在庫数を見て StockStatus を返す */\n    StockStatus check(String name) {\n        return StockStatus.NOT_HANDLED;\n    }\n\n    /** TODO: 在庫数を返す。取り扱いが無ければ 0 */\n    int countOf(String name) {\n        return 0;\n    }\n}\n\nclass ItemController {\n    private final ItemService service;\n\n    ItemController(ItemService service) {\n        this.service = service;\n    }\n\n    /** TODO: check() の結果に応じて表示する文字を組み立てる */\n    String show(String name) {\n        return \"\";\n    }\n}\n",
+      "visibleCases": [
+        {
+          "label": "在庫あり",
+          "stdin": "apple",
+          "expected": "apple: 在庫あり (5個)"
+        },
+        {
+          "label": "在庫0個",
+          "stdin": "banana",
+          "expected": "banana: 在庫切れ"
+        }
+      ],
+      "hiddenCases": [
+        {
+          "label": "取り扱いなし",
+          "stdin": "grape",
+          "expected": "grape: 取り扱いなし"
+        },
+        {
+          "label": "別の在庫あり",
+          "stdin": "melon",
+          "expected": "melon: 在庫あり (12個)"
+        }
+      ],
+      "hints": [
+        "`ItemService.check()` は `repository.findStock(name)` の戻り値を見ます。`Integer` なので、取り扱いが無いときは `null` が返ります。まず `null` かどうかを調べましょう。",
+        "`null` でなければ、`count > 0` かどうかで `IN_STOCK` と `SOLD_OUT` に分かれます。`countOf()` は `null` のとき 0 を返します。",
+        "`ItemController.show()` は `switch (service.check(name))` で3つに分けます。`case IN_STOCK -> name + \": 在庫あり (\" + service.countOf(name) + \"個)\";` の形です。"
+      ],
+      "solution": "import java.util.LinkedHashMap;\nimport java.util.Map;\nimport java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        String name = sc.nextLine().trim();\n\n        ItemRepository repository = new ItemRepository();\n        ItemService service = new ItemService(repository);\n        ItemController controller = new ItemController(service);\n        System.out.println(controller.show(name));\n    }\n}\n\nenum StockStatus { IN_STOCK, SOLD_OUT, NOT_HANDLED }\n\nclass ItemRepository {\n    private final Map<String, Integer> stock = new LinkedHashMap<>();\n\n    ItemRepository() {\n        stock.put(\"apple\", 5);\n        stock.put(\"banana\", 0);\n        stock.put(\"melon\", 12);\n    }\n\n    Integer findStock(String name) {\n        return stock.get(name);\n    }\n}\n\nclass ItemService {\n    private final ItemRepository repository;\n\n    ItemService(ItemRepository repository) {\n        this.repository = repository;\n    }\n\n    StockStatus check(String name) {\n        Integer count = repository.findStock(name);\n        if (count == null) {\n            return StockStatus.NOT_HANDLED;\n        }\n        return count > 0 ? StockStatus.IN_STOCK : StockStatus.SOLD_OUT;\n    }\n\n    int countOf(String name) {\n        Integer count = repository.findStock(name);\n        return count == null ? 0 : count;\n    }\n}\n\nclass ItemController {\n    private final ItemService service;\n\n    ItemController(ItemService service) {\n        this.service = service;\n    }\n\n    String show(String name) {\n        return switch (service.check(name)) {\n            case IN_STOCK -> name + \": 在庫あり (\" + service.countOf(name) + \"個)\";\n            case SOLD_OUT -> name + \": 在庫切れ\";\n            case NOT_HANDLED -> name + \": 取り扱いなし\";\n        };\n    }\n}\n",
+      "extraTasks": [
+        {
+          "kind": "applied",
+          "task": "解説では「**業務ルールは Service に置く**」「文言は Controller」と説明しました。\nその線引きが身についたか、業務ルールを1つ増やして確かめます。\n\n**追加する業務ルール**：在庫が **3個以下**（ただし0個ではない）なら「残りわずか」とする。\n\n| 在庫 | 出力 |\n|---|---|\n| 4個以上 | `mango: 在庫あり (4個)` |\n| 1〜3個 | `pear: 残りわずか (2個)` |\n| 0個 | `banana: 在庫切れ` |\n| 取り扱いなし | `grape: 取り扱いなし` |\n\n`StockStatus` に `LOW_STOCK` を足して、**判定は Service、文言は Controller** に書き分けてください。\n「3個以下」という数字が業務ルールなので、Controller 側で `countOf() <= 3` と判定してはいけません。\n\n> 境界に注意してください。**3個はちょうど「残りわずか」**、4個は「在庫あり」です。",
+          "starterCode": "import java.util.LinkedHashMap;\nimport java.util.Map;\nimport java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        String name = sc.nextLine().trim();\n\n        ItemRepository repository = new ItemRepository();\n        ItemService service = new ItemService(repository);\n        ItemController controller = new ItemController(service);\n        System.out.println(controller.show(name));\n    }\n}\n\nenum StockStatus { IN_STOCK, SOLD_OUT, NOT_HANDLED }\n\nclass ItemRepository {\n    private final Map<String, Integer> stock = new LinkedHashMap<>();\n\n    ItemRepository() {\n        stock.put(\"apple\", 5);\n        stock.put(\"banana\", 0);\n        stock.put(\"melon\", 12);\n        stock.put(\"pear\", 2);\n        stock.put(\"kiwi\", 3);\n        stock.put(\"mango\", 4);\n    }\n\n    Integer findStock(String name) {\n        return stock.get(name);\n    }\n}\n\nclass ItemService {\n    private final ItemRepository repository;\n\n    ItemService(ItemRepository repository) {\n        this.repository = repository;\n    }\n\n    StockStatus check(String name) {\n        Integer count = repository.findStock(name);\n        if (count == null) {\n            return StockStatus.NOT_HANDLED;\n        }\n        return count > 0 ? StockStatus.IN_STOCK : StockStatus.SOLD_OUT;\n    }\n\n    int countOf(String name) {\n        Integer count = repository.findStock(name);\n        return count == null ? 0 : count;\n    }\n}\n\nclass ItemController {\n    private final ItemService service;\n\n    ItemController(ItemService service) {\n        this.service = service;\n    }\n\n    String show(String name) {\n        return switch (service.check(name)) {\n            case IN_STOCK -> name + \": 在庫あり (\" + service.countOf(name) + \"個)\";\n            case SOLD_OUT -> name + \": 在庫切れ\";\n            case NOT_HANDLED -> name + \": 取り扱いなし\";\n        };\n    }\n}\n",
+          "visibleCases": [
+            {
+              "label": "残りわずか",
+              "stdin": "pear",
+              "expected": "pear: 残りわずか (2個)"
+            },
+            {
+              "label": "在庫あり",
+              "stdin": "melon",
+              "expected": "melon: 在庫あり (12個)"
+            }
+          ],
+          "hiddenCases": [
+            {
+              "label": "3個ちょうど（境界）",
+              "stdin": "kiwi",
+              "expected": "kiwi: 残りわずか (3個)"
+            },
+            {
+              "label": "4個（境界のすぐ上）",
+              "stdin": "mango",
+              "expected": "mango: 在庫あり (4個)"
+            },
+            {
+              "label": "0個は在庫切れのまま",
+              "stdin": "banana",
+              "expected": "banana: 在庫切れ"
+            },
+            {
+              "label": "取り扱いなし",
+              "stdin": "grape",
+              "expected": "grape: 取り扱いなし"
+            }
+          ],
+          "hints": [
+            "まず `enum StockStatus` に `LOW_STOCK` を足します。`enum StockStatus { IN_STOCK, LOW_STOCK, SOLD_OUT, NOT_HANDLED }` です。",
+            "`check()` の判定順が大事です。**先に `count == 0` を調べて** `SOLD_OUT` を返してから、残りを `count <= 3` で分けます。順番を逆にすると0個が「残りわずか」になってしまいます。",
+            "Controller には `case LOW_STOCK -> name + \": 残りわずか (\" + service.countOf(name) + \"個)\";` を足すだけです。3という数字は Service 側だけに置きます（`private static final int LOW_STOCK_THRESHOLD = 3;` のように名前を付けると意図が伝わります）。"
+          ],
+          "solution": "import java.util.LinkedHashMap;\nimport java.util.Map;\nimport java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        String name = sc.nextLine().trim();\n\n        ItemRepository repository = new ItemRepository();\n        ItemService service = new ItemService(repository);\n        ItemController controller = new ItemController(service);\n        System.out.println(controller.show(name));\n    }\n}\n\nenum StockStatus { IN_STOCK, LOW_STOCK, SOLD_OUT, NOT_HANDLED }\n\nclass ItemRepository {\n    private final Map<String, Integer> stock = new LinkedHashMap<>();\n\n    ItemRepository() {\n        stock.put(\"apple\", 5);\n        stock.put(\"banana\", 0);\n        stock.put(\"melon\", 12);\n        stock.put(\"pear\", 2);\n        stock.put(\"kiwi\", 3);\n        stock.put(\"mango\", 4);\n    }\n\n    Integer findStock(String name) {\n        return stock.get(name);\n    }\n}\n\nclass ItemService {\n    /** 3個以下になったら「残りわずか」とする、という業務ルール。 */\n    private static final int LOW_STOCK_THRESHOLD = 3;\n\n    private final ItemRepository repository;\n\n    ItemService(ItemRepository repository) {\n        this.repository = repository;\n    }\n\n    StockStatus check(String name) {\n        Integer count = repository.findStock(name);\n        if (count == null) {\n            return StockStatus.NOT_HANDLED;\n        }\n        if (count == 0) {\n            return StockStatus.SOLD_OUT;\n        }\n        return count <= LOW_STOCK_THRESHOLD ? StockStatus.LOW_STOCK : StockStatus.IN_STOCK;\n    }\n\n    int countOf(String name) {\n        Integer count = repository.findStock(name);\n        return count == null ? 0 : count;\n    }\n}\n\nclass ItemController {\n    private final ItemService service;\n\n    ItemController(ItemService service) {\n        this.service = service;\n    }\n\n    String show(String name) {\n        return switch (service.check(name)) {\n            case IN_STOCK -> name + \": 在庫あり (\" + service.countOf(name) + \"個)\";\n            case LOW_STOCK -> name + \": 残りわずか (\" + service.countOf(name) + \"個)\";\n            case SOLD_OUT -> name + \": 在庫切れ\";\n            case NOT_HANDLED -> name + \": 取り扱いなし\";\n        };\n    }\n}\n"
+        }
+      ]
+    },
+    {
+      "id": "21-2",
+      "title": "インターフェースで差し替えられるようにする",
+      "explanation": "## 「実装」に依存すると、テストが動かなくなる\n\n前のレッスンで層を分けました。でもまだ1つ問題が残っています。`ItemService` が\n`ItemRepository` という **具体的なクラス** を直接持っていることです。\n\n```java\nclass ItemService {\n    private final ItemRepository repository;   // ← 具体的なクラスそのもの\n}\n```\n\nいまは `Map` を使った練習用の実装なので動きますが、本番では `ItemRepository` の中身は\nデータベースへの接続になります。すると `ItemService` を試したいだけなのに、\n\n- データベースが起動していないと動かない\n- テスト用のデータを毎回入れ直さないといけない\n- 「在庫0のとき」を試すために、わざわざDBのデータを0にしないといけない\n\nという状態になります。**業務ルールをテストしたいだけなのに、DBに振り回される**わけです。\n\n## インターフェースにして、「何ができるか」だけに依存させる\n\n解決策は、`ItemRepository` を **インターフェース** にすることです。\n\n```java\n/** 「在庫数を引ける」という約束だけを決める */\ninterface ItemRepository {\n    Integer findStock(String name);\n}\n```\n\nそして実装を複数用意します。\n\n```java\n/** 本番用：本当のデータを持っている */\nclass InMemoryItemRepository implements ItemRepository {\n    public Integer findStock(String name) { ... }\n}\n\n/** テスト用：いつでも同じ答えを返す */\nclass StubItemRepository implements ItemRepository {\n    public Integer findStock(String name) { return 99; }\n}\n```\n\n`ItemService` の中身は **1行も変えません**。型がインターフェースになっただけです。\n\n```java\nclass ItemService {\n    private final ItemRepository repository;   // ← インターフェース型になった\n\n    ItemService(ItemRepository repository) {   // ← 受け取る型もインターフェース\n        this.repository = repository;\n    }\n}\n```\n\nこれで、どちらの実装を渡すかは **外から決められる** ようになりました。\n\n```java\nnew ItemService(new InMemoryItemRepository());   // 本番\nnew ItemService(new StubItemRepository());       // テスト\n```\n\n### これが「依存性の注入（DI）」の入口\n\nいま `ItemService` は「自分が使う相手を自分で `new` しない」形になっています。\n外から渡してもらう（＝注入してもらう）ので、**依存性の注入（Dependency Injection, DI）** と\n呼びます。第25章でやる CDI の `@Inject` は、この受け渡しを自動でやる仕組みです。\n\n仕組みは後回しでよいので、まず **「なぜ外から渡すのか」** を押さえてください。\n答えは「差し替えられるようにするため」で、いちばん効くのがテストです。\n\n### ⚠️ 現場のワナ：Service の中で `new` してしまう\n\n```java\n// ❌ これをやると差し替えられない\nclass ItemService {\n    private final ItemRepository repository = new InMemoryItemRepository();\n}\n```\n\nインターフェースにしても、中で `new` したら意味がありません。テストのときに\n別の実装へ差し替える余地が消えます。**依存は必ず外から受け取る**、が原則です。\n\n> 💡 インターフェースの実装クラスには、`InMemory...` `Jdbc...` `Stub...` のように\n> 「どうやって実現しているか」を名前に出すのが一般的です。逆にインターフェース側には\n> 実現方法を入れません（`ItemRepository` であって `ItemDbRepository` ではない）。\n",
+      "samples": [
+        {
+          "caption": "同じ Service に違う実装を渡す",
+          "code": "public class Main {\n    public static void main(String[] args) {\n        // 同じ Service に、違う実装を渡してみる\n        ItemService real = new ItemService(new InMemoryItemRepository());\n        ItemService stub = new ItemService(new StubItemRepository());\n\n        System.out.println(\"本番用: \" + real.check(\"apple\") + \" \" + real.countOf(\"apple\"));\n        System.out.println(\"本番用: \" + real.check(\"grape\") + \" \" + real.countOf(\"grape\"));\n        System.out.println(\"テスト用: \" + stub.check(\"apple\") + \" \" + stub.countOf(\"apple\"));\n        System.out.println(\"テスト用: \" + stub.check(\"grape\") + \" \" + stub.countOf(\"grape\"));\n    }\n}\n\nenum StockStatus { IN_STOCK, SOLD_OUT, NOT_HANDLED }\n\n/** 「在庫数を引ける」という約束だけを決める。実現方法は書かない。 */\ninterface ItemRepository {\n    Integer findStock(String name);\n}\n\nclass InMemoryItemRepository implements ItemRepository {\n    @Override\n    public Integer findStock(String name) {\n        return switch (name) {\n            case \"apple\" -> 5;\n            case \"banana\" -> 0;\n            default -> null;\n        };\n    }\n}\n\n/** テスト用。何を聞かれても99を返すので、DBが要らない。 */\nclass StubItemRepository implements ItemRepository {\n    @Override\n    public Integer findStock(String name) {\n        return 99;\n    }\n}\n\n/** Service の中身は実装が変わっても一切影響を受けない。 */\nclass ItemService {\n    private final ItemRepository repository;\n\n    ItemService(ItemRepository repository) {\n        this.repository = repository;\n    }\n\n    StockStatus check(String name) {\n        Integer count = repository.findStock(name);\n        if (count == null) {\n            return StockStatus.NOT_HANDLED;\n        }\n        return count > 0 ? StockStatus.IN_STOCK : StockStatus.SOLD_OUT;\n    }\n\n    int countOf(String name) {\n        Integer count = repository.findStock(name);\n        return count == null ? 0 : count;\n    }\n}\n"
+        }
+      ],
+      "task": "`ItemRepository` はすでにインターフェースになっています。やることは2つです。\n\n1. `StubItemRepository.findStock()` が **何を聞かれても `99`** を返すようにする\n2. `main` で、入力の1つめが `stub` なら `StubItemRepository`、それ以外なら\n   `InMemoryItemRepository` を渡すようにする\n\n標準入力は「**モード 商品名**」の形で1行来ます。出力の形は前のレッスンと同じです。\n\n```\nreal apple   →  apple: 在庫あり (5個)\nstub apple   →  apple: 在庫あり (99個)\n```\n\n`ItemService` と `ItemController` は **1行も変えずに** 動くことを確かめてください。\nそれが「インターフェースにした甲斐」です。\n\n> `stub` は何を聞かれても99を返すので、`stub grape` でも「取り扱いなし」にはなりません。",
+      "starterCode": "import java.util.LinkedHashMap;\nimport java.util.Map;\nimport java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        String[] input = sc.nextLine().trim().split(\"\\\\s+\");\n        String mode = input[0];\n        String name = input[1];\n\n        // TODO: mode が \"stub\" なら StubItemRepository、それ以外は InMemoryItemRepository を渡す\n        ItemRepository repository = new InMemoryItemRepository();\n\n        ItemService service = new ItemService(repository);\n        ItemController controller = new ItemController(service);\n        System.out.println(controller.show(name));\n    }\n}\n\nenum StockStatus { IN_STOCK, SOLD_OUT, NOT_HANDLED }\n\ninterface ItemRepository {\n    Integer findStock(String name);\n}\n\n/** 本番用。完成しています。 */\nclass InMemoryItemRepository implements ItemRepository {\n    private final Map<String, Integer> stock = new LinkedHashMap<>();\n\n    InMemoryItemRepository() {\n        stock.put(\"apple\", 5);\n        stock.put(\"banana\", 0);\n        stock.put(\"melon\", 12);\n    }\n\n    @Override\n    public Integer findStock(String name) {\n        return stock.get(name);\n    }\n}\n\n/** テスト用。TODO: 何を聞かれても 99 を返すようにする */\nclass StubItemRepository implements ItemRepository {\n    @Override\n    public Integer findStock(String name) {\n        return null;\n    }\n}\n\n/** この層は完成しています。触らないでください。 */\nclass ItemService {\n    private final ItemRepository repository;\n\n    ItemService(ItemRepository repository) {\n        this.repository = repository;\n    }\n\n    StockStatus check(String name) {\n        Integer count = repository.findStock(name);\n        if (count == null) {\n            return StockStatus.NOT_HANDLED;\n        }\n        return count > 0 ? StockStatus.IN_STOCK : StockStatus.SOLD_OUT;\n    }\n\n    int countOf(String name) {\n        Integer count = repository.findStock(name);\n        return count == null ? 0 : count;\n    }\n}\n\n/** この層は完成しています。触らないでください。 */\nclass ItemController {\n    private final ItemService service;\n\n    ItemController(ItemService service) {\n        this.service = service;\n    }\n\n    String show(String name) {\n        return switch (service.check(name)) {\n            case IN_STOCK -> name + \": 在庫あり (\" + service.countOf(name) + \"個)\";\n            case SOLD_OUT -> name + \": 在庫切れ\";\n            case NOT_HANDLED -> name + \": 取り扱いなし\";\n        };\n    }\n}\n",
+      "visibleCases": [
+        {
+          "label": "本番用・在庫あり",
+          "stdin": "real apple",
+          "expected": "apple: 在庫あり (5個)"
+        },
+        {
+          "label": "テスト用・いつでも99",
+          "stdin": "stub apple",
+          "expected": "apple: 在庫あり (99個)"
+        }
+      ],
+      "hiddenCases": [
+        {
+          "label": "本番用・在庫0",
+          "stdin": "real banana",
+          "expected": "banana: 在庫切れ"
+        },
+        {
+          "label": "本番用・取り扱いなし",
+          "stdin": "real grape",
+          "expected": "grape: 取り扱いなし"
+        },
+        {
+          "label": "テスト用は知らない名前でも99",
+          "stdin": "stub grape",
+          "expected": "grape: 在庫あり (99個)"
+        }
+      ],
+      "hints": [
+        "`StubItemRepository.findStock()` は引数を使いません。`return 99;` と書くだけです（テスト用なので、聞かれた名前は無視してよい）。",
+        "`main` では三項演算子が使えます。`ItemRepository repository = mode.equals(\"stub\") ? new StubItemRepository() : new InMemoryItemRepository();`",
+        "変数の型は `ItemRepository`（インターフェース）にしておきます。こうすると、どちらの実装を入れても `ItemService` にそのまま渡せます。"
+      ],
+      "solution": "import java.util.LinkedHashMap;\nimport java.util.Map;\nimport java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        String[] input = sc.nextLine().trim().split(\"\\\\s+\");\n        String mode = input[0];\n        String name = input[1];\n\n        ItemRepository repository = mode.equals(\"stub\")\n                ? new StubItemRepository()\n                : new InMemoryItemRepository();\n\n        ItemService service = new ItemService(repository);\n        ItemController controller = new ItemController(service);\n        System.out.println(controller.show(name));\n    }\n}\n\nenum StockStatus { IN_STOCK, SOLD_OUT, NOT_HANDLED }\n\ninterface ItemRepository {\n    Integer findStock(String name);\n}\n\n/** 本番用。完成しています。 */\nclass InMemoryItemRepository implements ItemRepository {\n    private final Map<String, Integer> stock = new LinkedHashMap<>();\n\n    InMemoryItemRepository() {\n        stock.put(\"apple\", 5);\n        stock.put(\"banana\", 0);\n        stock.put(\"melon\", 12);\n    }\n\n    @Override\n    public Integer findStock(String name) {\n        return stock.get(name);\n    }\n}\n\n/** テスト用。何を聞かれても 99 を返すので、DBが要らない。 */\nclass StubItemRepository implements ItemRepository {\n    @Override\n    public Integer findStock(String name) {\n        return 99;\n    }\n}\n\n/** この層は完成しています。触らないでください。 */\nclass ItemService {\n    private final ItemRepository repository;\n\n    ItemService(ItemRepository repository) {\n        this.repository = repository;\n    }\n\n    StockStatus check(String name) {\n        Integer count = repository.findStock(name);\n        if (count == null) {\n            return StockStatus.NOT_HANDLED;\n        }\n        return count > 0 ? StockStatus.IN_STOCK : StockStatus.SOLD_OUT;\n    }\n\n    int countOf(String name) {\n        Integer count = repository.findStock(name);\n        return count == null ? 0 : count;\n    }\n}\n\n/** この層は完成しています。触らないでください。 */\nclass ItemController {\n    private final ItemService service;\n\n    ItemController(ItemService service) {\n        this.service = service;\n    }\n\n    String show(String name) {\n        return switch (service.check(name)) {\n            case IN_STOCK -> name + \": 在庫あり (\" + service.countOf(name) + \"個)\";\n            case SOLD_OUT -> name + \": 在庫切れ\";\n            case NOT_HANDLED -> name + \": 取り扱いなし\";\n        };\n    }\n}\n",
+      "extraTasks": [
+        {
+          "kind": "applied",
+          "task": "解説の要点は「**実装を足しても Service と Controller は変えなくてよい**」でした。\nそれを実際にやってみます。\n\n`EmptyItemRepository` という **3つめの実装** を追加してください。\n何を聞かれても **在庫0**（つまり `0` を返す）実装です。「在庫切れの画面を確かめたい」\nというときに使うものです。\n\n`main` は入力の1つめを見て3つに振り分けます。\n\n```\nreal apple    →  apple: 在庫あり (5個)\nstub apple    →  apple: 在庫あり (99個)\nempty apple   →  apple: 在庫切れ\n```\n\n**`ItemService` と `ItemController` には触らないでください。** 触らずに新しい振る舞いが\n足せることを確かめるのが、この問題の狙いです。\n\n> `0` を返すのと `null` を返すのは違います。`null` は「取り扱いなし」なので、\n> `EmptyItemRepository` が `null` を返すと「在庫切れ」になりません。",
+          "starterCode": "import java.util.LinkedHashMap;\nimport java.util.Map;\nimport java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        String[] input = sc.nextLine().trim().split(\"\\\\s+\");\n        String mode = input[0];\n        String name = input[1];\n\n        ItemRepository repository = mode.equals(\"stub\")\n                ? new StubItemRepository()\n                : new InMemoryItemRepository();\n\n        ItemService service = new ItemService(repository);\n        ItemController controller = new ItemController(service);\n        System.out.println(controller.show(name));\n    }\n}\n\nenum StockStatus { IN_STOCK, SOLD_OUT, NOT_HANDLED }\n\ninterface ItemRepository {\n    Integer findStock(String name);\n}\n\n/** 本番用。完成しています。 */\nclass InMemoryItemRepository implements ItemRepository {\n    private final Map<String, Integer> stock = new LinkedHashMap<>();\n\n    InMemoryItemRepository() {\n        stock.put(\"apple\", 5);\n        stock.put(\"banana\", 0);\n        stock.put(\"melon\", 12);\n    }\n\n    @Override\n    public Integer findStock(String name) {\n        return stock.get(name);\n    }\n}\n\n/** テスト用。何を聞かれても 99 を返すので、DBが要らない。 */\nclass StubItemRepository implements ItemRepository {\n    @Override\n    public Integer findStock(String name) {\n        return 99;\n    }\n}\n\n/** この層は完成しています。触らないでください。 */\nclass ItemService {\n    private final ItemRepository repository;\n\n    ItemService(ItemRepository repository) {\n        this.repository = repository;\n    }\n\n    StockStatus check(String name) {\n        Integer count = repository.findStock(name);\n        if (count == null) {\n            return StockStatus.NOT_HANDLED;\n        }\n        return count > 0 ? StockStatus.IN_STOCK : StockStatus.SOLD_OUT;\n    }\n\n    int countOf(String name) {\n        Integer count = repository.findStock(name);\n        return count == null ? 0 : count;\n    }\n}\n\n/** この層は完成しています。触らないでください。 */\nclass ItemController {\n    private final ItemService service;\n\n    ItemController(ItemService service) {\n        this.service = service;\n    }\n\n    String show(String name) {\n        return switch (service.check(name)) {\n            case IN_STOCK -> name + \": 在庫あり (\" + service.countOf(name) + \"個)\";\n            case SOLD_OUT -> name + \": 在庫切れ\";\n            case NOT_HANDLED -> name + \": 取り扱いなし\";\n        };\n    }\n}\n",
+          "visibleCases": [
+            {
+              "label": "empty は在庫切れ",
+              "stdin": "empty apple",
+              "expected": "apple: 在庫切れ"
+            },
+            {
+              "label": "real はそのまま",
+              "stdin": "real apple",
+              "expected": "apple: 在庫あり (5個)"
+            }
+          ],
+          "hiddenCases": [
+            {
+              "label": "empty は知らない名前でも在庫切れ",
+              "stdin": "empty grape",
+              "expected": "grape: 在庫切れ"
+            },
+            {
+              "label": "stub は壊れていない",
+              "stdin": "stub melon",
+              "expected": "melon: 在庫あり (99個)"
+            },
+            {
+              "label": "real の取り扱いなしも壊れていない",
+              "stdin": "real grape",
+              "expected": "grape: 取り扱いなし"
+            }
+          ],
+          "hints": [
+            "`class EmptyItemRepository implements ItemRepository` を作り、`findStock` で `return 0;` します。`null` ではなく `0` です。",
+            "3つに分けるなら `switch` 式が読みやすいです。`switch (mode) { case \"stub\" -> ...; case \"empty\" -> ...; default -> ...; }`",
+            "`switch` 式の各分岐が返すのは全部 `ItemRepository` 型なので、そのまま変数に代入できます。Service には何も足しません。"
+          ],
+          "solution": "import java.util.LinkedHashMap;\nimport java.util.Map;\nimport java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        String[] input = sc.nextLine().trim().split(\"\\\\s+\");\n        String mode = input[0];\n        String name = input[1];\n\n        ItemRepository repository = switch (mode) {\n            case \"stub\" -> new StubItemRepository();\n            case \"empty\" -> new EmptyItemRepository();\n            default -> new InMemoryItemRepository();\n        };\n\n        ItemService service = new ItemService(repository);\n        ItemController controller = new ItemController(service);\n        System.out.println(controller.show(name));\n    }\n}\n\nenum StockStatus { IN_STOCK, SOLD_OUT, NOT_HANDLED }\n\ninterface ItemRepository {\n    Integer findStock(String name);\n}\n\n/** 本番用。完成しています。 */\nclass InMemoryItemRepository implements ItemRepository {\n    private final Map<String, Integer> stock = new LinkedHashMap<>();\n\n    InMemoryItemRepository() {\n        stock.put(\"apple\", 5);\n        stock.put(\"banana\", 0);\n        stock.put(\"melon\", 12);\n    }\n\n    @Override\n    public Integer findStock(String name) {\n        return stock.get(name);\n    }\n}\n\n/** テスト用。何を聞かれても 99 を返すので、DBが要らない。 */\nclass StubItemRepository implements ItemRepository {\n    @Override\n    public Integer findStock(String name) {\n        return 99;\n    }\n}\n\n/** 3つめの実装。いつでも在庫0を返す（在庫切れの画面を確かめたいとき用）。 */\nclass EmptyItemRepository implements ItemRepository {\n    @Override\n    public Integer findStock(String name) {\n        return 0;\n    }\n}\n\n/** この層は完成しています。触らないでください。 */\nclass ItemService {\n    private final ItemRepository repository;\n\n    ItemService(ItemRepository repository) {\n        this.repository = repository;\n    }\n\n    StockStatus check(String name) {\n        Integer count = repository.findStock(name);\n        if (count == null) {\n            return StockStatus.NOT_HANDLED;\n        }\n        return count > 0 ? StockStatus.IN_STOCK : StockStatus.SOLD_OUT;\n    }\n\n    int countOf(String name) {\n        Integer count = repository.findStock(name);\n        return count == null ? 0 : count;\n    }\n}\n\n/** この層は完成しています。触らないでください。 */\nclass ItemController {\n    private final ItemService service;\n\n    ItemController(ItemService service) {\n        this.service = service;\n    }\n\n    String show(String name) {\n        return switch (service.check(name)) {\n            case IN_STOCK -> name + \": 在庫あり (\" + service.countOf(name) + \"個)\";\n            case SOLD_OUT -> name + \": 在庫切れ\";\n            case NOT_HANDLED -> name + \": 取り扱いなし\";\n        };\n    }\n}\n"
+        }
+      ]
+    },
+    {
+      "id": "21-3",
+      "title": "Entity と DTO を分ける",
+      "explanation": "## DBの形をそのまま外に出すと事故になる\n\n`Repository` が返してくるのは、**データベースの1行に対応したオブジェクト**です。\nこれを **エンティティ（Entity）** と呼びます。\n\n```java\nrecord User(int id, String name, String email, String passwordHash) { }\n```\n\nこのまま画面やAPIに返すと、何が起きるでしょうか。\n\n- **パスワードのハッシュが漏れる**。JSONに変換して返すと `passwordHash` まで出てしまう\n- **内部のIDが漏れる**。連番のIDが見えると、値を変えて他人のデータを覗く手がかりになる\n- **DBを直すと画面が壊れる**。列名を `email` から `mail_address` に変えた瞬間、\n  画面のコードも直さないといけなくなる\n\n## 境界で「詰め替える」\n\nそこで、外に見せる用の別のクラスを用意します。**DTO（Data Transfer Object）** です。\n\n```java\n/** 外へ渡す形。見せてよいものだけを持つ */\nrecord UserDto(String name, String maskedEmail) { }\n```\n\nエンティティから DTO へ **詰め替える** のは Service の仕事です。\n\n```java\nUserDto findDto(int id) {\n    User user = repository.findById(id);\n    if (user == null) {\n        return null;\n    }\n    return new UserDto(user.name(), mask(user.email()));   // ← ここで passwordHash を落とす\n}\n```\n\nこうすると、**「見せてよいもの」を書いた場所が1か所に決まります**。\n`UserDto` に `passwordHash` が無い以上、どうやっても外へは出ていきません。\n\n### 面倒に見えるが、これがいちばん効く\n\n「同じような項目を2回書くのは無駄では？」と感じるはずです。実際、書く量は増えます。\nそれでもこうするのは、**うっかり漏らす事故を、仕組みで防げる**からです。\n\nエンティティをそのまま返す設計だと、「漏らさないように気をつける」が毎回必要になります。\nDTO なら、`UserDto` に項目が無いことがそのまま保証になります。\n**気をつけて防ぐより、書けないようにして防ぐほうが強い**わけです。\n\n### ⚠️ 現場のワナ：DTO に業務ルールを書き始める\n\nDTO は「運ぶための箱」です。判定や計算を入れ始めると、Service との境界が溶けて\n「どっちに書いてあるか分からない」状態になります。DTO は素直な `record` のままにして、\n判断は Service に置きます。\n\n> 💡 呼び方は現場によって違い、DTO のほかに「レスポンスクラス」「ビューモデル」\n> 「フォームクラス」とも呼ばれます。名前は違っても\n> **「DBの形と、外に見せる形を分ける」** という狙いは同じです。\n",
+      "samples": [
+        {
+          "caption": "Entity と DTO を並べて見る",
+          "code": "public class Main {\n    public static void main(String[] args) {\n        User user = new User(1, \"山田太郎\", \"yamada@example.com\", \"$2a$10$abcdefg\");\n\n        // エンティティにはパスワードのハッシュまで入っている\n        System.out.println(\"Entity: \" + user);\n\n        // DTO には見せてよいものだけを詰め替える\n        UserDto dto = new UserDto(user.name(), mask(user.email()));\n        System.out.println(\"DTO   : \" + dto);\n    }\n\n    static String mask(String email) {\n        int at = email.indexOf('@');\n        return email.charAt(0) + \"***\" + email.substring(at);\n    }\n}\n\n/** DBの1行に対応する形（Entity）。 */\nrecord User(int id, String name, String email, String passwordHash) { }\n\n/** 外へ渡す形（DTO）。passwordHash と id を持たない。 */\nrecord UserDto(String name, String maskedEmail) { }\n"
+        }
+      ],
+      "task": "`UserService` と `UserController` の TODO を埋めて、**パスワードのハッシュを外に出さない**\n形で表示してください。\n\n標準入力からユーザーIDを1行受け取ります。\n\n| 入力 | 出力 |\n|---|---|\n| `1` | `name=山田太郎 email=y***@example.com` |\n| 該当なし | `該当なし` |\n\n**メールアドレスの伏せ方**：`先頭1文字` + `***` + `@以降`\n\n```\nyamada@example.com  →  y***@example.com\ns@example.jp        →  s***@example.jp\n```\n\n`UserDto` には `passwordHash` の項目がないので、詰め替えさえすれば漏れる心配はありません。",
+      "starterCode": "import java.util.LinkedHashMap;\nimport java.util.Map;\nimport java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int id = Integer.parseInt(sc.nextLine().trim());\n\n        UserService service = new UserService(new UserRepository());\n        System.out.println(new UserController(service).show(id));\n    }\n}\n\nrecord User(int id, String name, String email, String passwordHash) { }\n\nrecord UserDto(String name, String maskedEmail) { }\n\n/** この層は完成しています。触らなくてよいです。 */\nclass UserRepository {\n    private final Map<Integer, User> users = new LinkedHashMap<>();\n\n    UserRepository() {\n        users.put(1, new User(1, \"山田太郎\", \"yamada@example.com\", \"$2a$10$hash1\"));\n        users.put(2, new User(2, \"佐藤花子\", \"sato@test.jp\", \"$2a$10$hash2\"));\n        users.put(3, new User(3, \"鈴木一郎\", \"s@example.jp\", \"$2a$10$hash3\"));\n    }\n\n    /** 見つからなければ null。 */\n    User findById(int id) {\n        return users.get(id);\n    }\n}\n\nclass UserService {\n    private final UserRepository repository;\n\n    UserService(UserRepository repository) {\n        this.repository = repository;\n    }\n\n    /** TODO: Entity を DTO に詰め替える。見つからなければ null */\n    UserDto findDto(int id) {\n        return null;\n    }\n\n    /** TODO: メールアドレスを「先頭1文字 + *** + @以降」にする */\n    private static String mask(String email) {\n        return email;\n    }\n}\n\nclass UserController {\n    private final UserService service;\n\n    UserController(UserService service) {\n        this.service = service;\n    }\n\n    /** TODO: DTO があれば \"name=... email=...\"、無ければ \"該当なし\" */\n    String show(int id) {\n        return \"\";\n    }\n}\n",
+      "visibleCases": [
+        {
+          "label": "山田太郎",
+          "stdin": "1",
+          "expected": "name=山田太郎 email=y***@example.com"
+        },
+        {
+          "label": "佐藤花子",
+          "stdin": "2",
+          "expected": "name=佐藤花子 email=s***@test.jp"
+        }
+      ],
+      "hiddenCases": [
+        {
+          "label": "ローカル部が1文字",
+          "stdin": "3",
+          "expected": "name=鈴木一郎 email=s***@example.jp"
+        },
+        {
+          "label": "存在しないID",
+          "stdin": "99",
+          "expected": "該当なし"
+        },
+        {
+          "label": "0番も該当なし",
+          "stdin": "0",
+          "expected": "該当なし"
+        }
+      ],
+      "hints": [
+        "`findDto()` はまず `repository.findById(id)` を呼び、`null` なら `null` を返します。そうでなければ `new UserDto(user.name(), mask(user.email()))` を返します。",
+        "`mask()` は `@` の位置を `email.indexOf('@')` で探します。そこから後ろは `email.substring(at)` で `@example.com` のように取れます。",
+        "組み立ては `email.charAt(0) + \"***\" + email.substring(at)` です。`charAt` は `char` を返しますが、`+` で文字列とつなぐと文字列になります。Controller 側は `dto == null` なら `\"該当なし\"` です。"
+      ],
+      "solution": "import java.util.LinkedHashMap;\nimport java.util.Map;\nimport java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int id = Integer.parseInt(sc.nextLine().trim());\n\n        UserService service = new UserService(new UserRepository());\n        System.out.println(new UserController(service).show(id));\n    }\n}\n\nrecord User(int id, String name, String email, String passwordHash) { }\n\nrecord UserDto(String name, String maskedEmail) { }\n\nclass UserRepository {\n    private final Map<Integer, User> users = new LinkedHashMap<>();\n\n    UserRepository() {\n        users.put(1, new User(1, \"山田太郎\", \"yamada@example.com\", \"$2a$10$hash1\"));\n        users.put(2, new User(2, \"佐藤花子\", \"sato@test.jp\", \"$2a$10$hash2\"));\n        users.put(3, new User(3, \"鈴木一郎\", \"s@example.jp\", \"$2a$10$hash3\"));\n    }\n\n    User findById(int id) {\n        return users.get(id);\n    }\n}\n\nclass UserService {\n    private final UserRepository repository;\n\n    UserService(UserRepository repository) {\n        this.repository = repository;\n    }\n\n    UserDto findDto(int id) {\n        User user = repository.findById(id);\n        if (user == null) {\n            return null;\n        }\n        // ここで passwordHash と id を落とす。DTO に項目が無いので、そもそも入れられない\n        return new UserDto(user.name(), mask(user.email()));\n    }\n\n    private static String mask(String email) {\n        int at = email.indexOf('@');\n        return email.charAt(0) + \"***\" + email.substring(at);\n    }\n}\n\nclass UserController {\n    private final UserService service;\n\n    UserController(UserService service) {\n        this.service = service;\n    }\n\n    String show(int id) {\n        UserDto dto = service.findDto(id);\n        if (dto == null) {\n            return \"該当なし\";\n        }\n        return \"name=\" + dto.name() + \" email=\" + dto.maskedEmail();\n    }\n}\n",
+      "extraTasks": [
+        {
+          "kind": "applied",
+          "task": "解説では「詰め替えは Service の仕事」と書きました。1問目は1件だけでしたが、\n実務では **一覧** を返すほうが多いです。まとめて詰め替える形にしてみましょう。\n\n埋めるのは2か所です。\n\n1. **`UserService.findDtos(int... ids)`** … 複数のIDを受け取り `List<UserDto>` を返す。\n   **見つからなかったIDはリストに含めない**（`null` を混ぜないこと）\n2. **`UserController.showAll(int... ids)`** … 見つかった分だけ\n   `name=... email=...` の行にして返す\n\n標準入力は、IDがスペース区切りで1行来ます。出力は1件1行です。\n\n```\n入力:  1 3\n出力:  name=山田太郎 email=y***@example.com\n      name=鈴木一郎 email=s***@example.jp\n```\n\n**1件も見つからなければ、何も出力しません**（「該当なし」とは出しません）。\n存在しないIDは、あったことにせず黙って飛ばすのがこの問題の仕様です。\n\n> `findDto()` はそのまま使い回せます。中で `null` かどうかを見て、詰めるかどうかを決めます。",
+          "starterCode": "import java.util.ArrayList;\nimport java.util.LinkedHashMap;\nimport java.util.List;\nimport java.util.Map;\nimport java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        String[] tokens = sc.nextLine().trim().split(\"\\\\s+\");\n        int[] ids = new int[tokens.length];\n        for (int i = 0; i < tokens.length; i++) {\n            ids[i] = Integer.parseInt(tokens[i]);\n        }\n\n        UserService service = new UserService(new UserRepository());\n        UserController controller = new UserController(service);\n        for (String line : controller.showAll(ids)) {\n            System.out.println(line);\n        }\n    }\n}\n\nrecord User(int id, String name, String email, String passwordHash) { }\n\nrecord UserDto(String name, String maskedEmail) { }\n\n/** この層は完成しています。触らなくてよいです。 */\nclass UserRepository {\n    private final Map<Integer, User> users = new LinkedHashMap<>();\n\n    UserRepository() {\n        users.put(1, new User(1, \"山田太郎\", \"yamada@example.com\", \"$2a$10$hash1\"));\n        users.put(2, new User(2, \"佐藤花子\", \"sato@test.jp\", \"$2a$10$hash2\"));\n        users.put(3, new User(3, \"鈴木一郎\", \"s@example.jp\", \"$2a$10$hash3\"));\n    }\n\n    User findById(int id) {\n        return users.get(id);\n    }\n}\n\nclass UserService {\n    private final UserRepository repository;\n\n    UserService(UserRepository repository) {\n        this.repository = repository;\n    }\n\n    UserDto findDto(int id) {\n        User user = repository.findById(id);\n        if (user == null) {\n            return null;\n        }\n        return new UserDto(user.name(), mask(user.email()));\n    }\n\n    private static String mask(String email) {\n        int at = email.indexOf('@');\n        return email.charAt(0) + \"***\" + email.substring(at);\n    }\n\n    /** TODO: 複数件をまとめて詰め替える。見つからなかったIDはリストに含めない */\n    List<UserDto> findDtos(int... ids) {\n        return new ArrayList<>();\n    }\n}\n\nclass UserController {\n    private final UserService service;\n\n    UserController(UserService service) {\n        this.service = service;\n    }\n\n    /** TODO: 見つかった分だけ \"name=... email=...\" の行にして返す */\n    List<String> showAll(int... ids) {\n        return new ArrayList<>();\n    }\n}\n",
+          "visibleCases": [
+            {
+              "label": "2件",
+              "stdin": "1 3",
+              "expected": "name=山田太郎 email=y***@example.com\nname=鈴木一郎 email=s***@example.jp"
+            },
+            {
+              "label": "1件",
+              "stdin": "2",
+              "expected": "name=佐藤花子 email=s***@test.jp"
+            }
+          ],
+          "hiddenCases": [
+            {
+              "label": "存在しないIDは飛ばす",
+              "stdin": "1 99 2",
+              "expected": "name=山田太郎 email=y***@example.com\nname=佐藤花子 email=s***@test.jp"
+            },
+            {
+              "label": "全部存在しない（空の出力）",
+              "stdin": "98 99",
+              "expected": ""
+            },
+            {
+              "label": "同じIDを2回",
+              "stdin": "1 1",
+              "expected": "name=山田太郎 email=y***@example.com\nname=山田太郎 email=y***@example.com"
+            },
+            {
+              "label": "3件すべて",
+              "stdin": "1 2 3",
+              "expected": "name=山田太郎 email=y***@example.com\nname=佐藤花子 email=s***@test.jp\nname=鈴木一郎 email=s***@example.jp"
+            }
+          ],
+          "hints": [
+            "`findDtos(int... ids)` は可変長引数です（第7章）。中で `List<UserDto> dtos = new ArrayList<>();` を作り、`for (int id : ids)` で回します。",
+            "1件ずつ `findDto(id)` を呼び、`null` でなければ `dtos.add(dto)` します。`null` のときは何もしません。これが「含めない」の意味です。",
+            "`showAll()` は `for (UserDto dto : service.findDtos(ids))` で回して、`lines.add(\"name=\" + dto.name() + \" email=\" + dto.maskedEmail())` します。1件も無ければ空のリストが返るので、`main` は何も出力しません。"
+          ],
+          "solution": "import java.util.ArrayList;\nimport java.util.LinkedHashMap;\nimport java.util.List;\nimport java.util.Map;\nimport java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        String[] tokens = sc.nextLine().trim().split(\"\\\\s+\");\n        int[] ids = new int[tokens.length];\n        for (int i = 0; i < tokens.length; i++) {\n            ids[i] = Integer.parseInt(tokens[i]);\n        }\n\n        UserService service = new UserService(new UserRepository());\n        UserController controller = new UserController(service);\n        for (String line : controller.showAll(ids)) {\n            System.out.println(line);\n        }\n    }\n}\n\nrecord User(int id, String name, String email, String passwordHash) { }\n\nrecord UserDto(String name, String maskedEmail) { }\n\n/** この層は完成しています。触らなくてよいです。 */\nclass UserRepository {\n    private final Map<Integer, User> users = new LinkedHashMap<>();\n\n    UserRepository() {\n        users.put(1, new User(1, \"山田太郎\", \"yamada@example.com\", \"$2a$10$hash1\"));\n        users.put(2, new User(2, \"佐藤花子\", \"sato@test.jp\", \"$2a$10$hash2\"));\n        users.put(3, new User(3, \"鈴木一郎\", \"s@example.jp\", \"$2a$10$hash3\"));\n    }\n\n    User findById(int id) {\n        return users.get(id);\n    }\n}\n\nclass UserService {\n    private final UserRepository repository;\n\n    UserService(UserRepository repository) {\n        this.repository = repository;\n    }\n\n    UserDto findDto(int id) {\n        User user = repository.findById(id);\n        if (user == null) {\n            return null;\n        }\n        return new UserDto(user.name(), mask(user.email()));\n    }\n\n    private static String mask(String email) {\n        int at = email.indexOf('@');\n        return email.charAt(0) + \"***\" + email.substring(at);\n    }\n\n    /** 複数件をまとめて詰め替える。見つからなかったIDは含めない（null を混ぜない）。 */\n    List<UserDto> findDtos(int... ids) {\n        List<UserDto> dtos = new ArrayList<>();\n        for (int id : ids) {\n            UserDto dto = findDto(id);\n            if (dto != null) {\n                dtos.add(dto);\n            }\n        }\n        return dtos;\n    }\n}\n\nclass UserController {\n    private final UserService service;\n\n    UserController(UserService service) {\n        this.service = service;\n    }\n\n    /** 表示の形を決めるのは Controller の仕事。 */\n    List<String> showAll(int... ids) {\n        List<String> lines = new ArrayList<>();\n        for (UserDto dto : service.findDtos(ids)) {\n            lines.add(\"name=\" + dto.name() + \" email=\" + dto.maskedEmail());\n        }\n        return lines;\n    }\n}\n"
+        }
+      ]
+    },
+    {
+      "id": "21-4",
+      "title": "例外を層で扱い分ける",
+      "explanation": "## 「想定内の失敗」と「想定外の失敗」は別物\n\n第13章で例外の書き方を学びました。業務アプリでは、書き方より **どう設計するか** が問題になります。\n出発点は、失敗を2種類に分けることです。\n\n| 種類 | 例 | どうする |\n|---|---|---|\n| **業務例外**（想定内） | 在庫切れ、残高不足、期限切れ | 利用者に理由を見せる。**復帰できる** |\n| **システム例外**（想定外） | DB接続失敗、NullPointerException | 利用者には詳細を見せない。ログに出して調査する |\n\nこの2つを混ぜると、次のような困ったことになります。\n\n- 在庫切れ（利用者に伝えるべき）が「システムエラー」と出て、利用者が何をすればいいか分からない\n- DBの接続情報がそのまま画面に出て、攻撃の手がかりになる\n\n## 業務例外は親を作ってまとめる\n\n業務例外には共通の親を作っておくと、Controller 側でまとめて捕まえられます。\n\n```java\n/** 業務例外の親。想定内のエラー */\nclass BusinessException extends Exception {\n    BusinessException(String message) { super(message); }\n    BusinessException(String message, Throwable cause) { super(message, cause); }\n}\n\nclass OutOfStockException extends BusinessException { ... }\nclass ItemNotFoundException extends BusinessException { ... }\n```\n\nController はこう書けます。\n\n```java\ntry {\n    return \"出荷しました: \" + service.ship(name, count);\n} catch (BusinessException e) {\n    return \"エラー: \" + e.getMessage();   // ← 想定内なので、理由をそのまま見せてよい\n}\n```\n\n`OutOfStockException` を足しても Controller は変えなくて済みます。\n\n## 層をまたぐときは「包み直す」\n\nRepository は低い層なので、DBの言葉で失敗します（本物なら `SQLException`）。\nこれをそのまま上の層へ流すと、Service や Controller が **DBの都合を知ってしまいます**。\n\nそこで層の境目で、業務の言葉に **包み直す（ラップする）** のが定石です。\n\n```java\ntry {\n    return repository.findStock(name);\n} catch (DataAccessException e) {\n    // 「SQLが失敗した」を「在庫を確認できなかった」に翻訳する\n    throw new InventoryUnavailableException(\"在庫を確認できませんでした\", e);\n}\n```\n\nこのとき **元の例外を第2引数に渡す** のがとても大事です。これを `cause`（原因）と呼びます。\n\n```java\nthrow new InventoryUnavailableException(\"在庫を確認できませんでした\", e);\n//                                                                  ↑ これを忘れない\n```\n\n`cause` を渡しておけば、あとから `getCause()` で元の失敗をたどれます。\n\n### ⚠️ 現場のワナ：例外を握りつぶす\n\nいちばんやってはいけないのがこれです。\n\n```java\n// ❌ 何も起きなかったことになる。障害の調査が不可能になる\ntry {\n    repository.save(order);\n} catch (Exception e) {\n    // 何もしない\n}\n```\n\n```java\n// ❌ 原因が消える。「在庫を確認できません」しか残らず、DBの何が悪いのか永久に分からない\ncatch (DataAccessException e) {\n    throw new InventoryUnavailableException(\"在庫を確認できませんでした\");\n}\n```\n\n例外を捨てると、**動いているのに結果がおかしい**という最悪の壊れ方をします。\n握りつぶすくらいなら、そのまま上へ投げたほうがましです。\n\n> 💡 目安として、**業務例外は検査例外**（`extends Exception`）にして「呼ぶ側に必ず考えさせる」、\n> **システム例外は非検査例外**（`extends RuntimeException`）にして「途中の層では触らせない」\n> という使い分けがよく使われます。\n",
+      "samples": [
+        {
+          "caption": "業務例外を見せる / 低レベルの失敗を包み直す",
+          "code": "public class Main {\n    public static void main(String[] args) {\n        // 業務例外は理由を見せる。cause があれば原因もたどれる\n        try {\n            throw new OutOfStockException(\"apple の在庫が足りません (在庫5個, 要求6個)\");\n        } catch (BusinessException e) {\n            System.out.println(\"エラー: \" + e.getMessage());\n        }\n\n        // 低い層の失敗を、業務の言葉に包み直す\n        try {\n            try {\n                throw new DataAccessException(\"connection refused\");\n            } catch (DataAccessException e) {\n                throw new InventoryUnavailableException(\"在庫を確認できませんでした\", e);\n            }\n        } catch (BusinessException e) {\n            System.out.println(\"エラー: \" + e.getMessage());\n            System.out.println(\"  原因: \" + e.getCause().getClass().getSimpleName());\n            System.out.println(\"  詳細: \" + e.getCause().getMessage());\n        }\n    }\n}\n\nclass BusinessException extends Exception {\n    BusinessException(String message) { super(message); }\n    BusinessException(String message, Throwable cause) { super(message, cause); }\n}\n\nclass OutOfStockException extends BusinessException {\n    OutOfStockException(String message) { super(message); }\n}\n\nclass InventoryUnavailableException extends BusinessException {\n    InventoryUnavailableException(String message, Throwable cause) { super(message, cause); }\n}\n\n/** Repository の層で起きる、低レベルの失敗。 */\nclass DataAccessException extends Exception {\n    DataAccessException(String message) { super(message); }\n}\n"
+        }
+      ],
+      "task": "出荷処理を作ります。`ShipService.ship()` と `ShipController.ship()` の TODO を埋めてください。\n\n標準入力は「**商品名 数量**」の形で1行来ます。\n\n| 状況 | 出力 |\n|---|---|\n| 出荷できる | `出荷しました: apple x3 (残り2個)` |\n| 在庫が足りない | `エラー: apple の在庫が足りません (在庫5個, 要求6個)` |\n| 取り扱いがない | `エラー: grape は取り扱いがありません` |\n\n- `ShipService.ship()` は成功したら **残りの在庫数** を返し、失敗したら業務例外を投げます\n  （取り扱いなし → `ItemNotFoundException`、在庫不足 → `OutOfStockException`）\n- `ShipController.ship()` は `BusinessException` を **まとめて** 捕まえて `エラー: ` を付けます。\n  2種類を別々に `catch` しないでください（親でまとめて捕まえるのが狙いです）\n\n> 在庫と要求がちょうど同じとき（`apple 5`）は **出荷できます**。`<` と `<=` を間違えないように。",
+      "starterCode": "import java.util.LinkedHashMap;\nimport java.util.Map;\nimport java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        String[] input = sc.nextLine().trim().split(\"\\\\s+\");\n        String name = input[0];\n        int count = Integer.parseInt(input[1]);\n\n        ShipService service = new ShipService(new StockRepository());\n        System.out.println(new ShipController(service).ship(name, count));\n    }\n}\n\n/** 業務例外の親。 */\nclass BusinessException extends Exception {\n    BusinessException(String message) { super(message); }\n}\n\n/** 在庫が足りない。 */\nclass OutOfStockException extends BusinessException {\n    OutOfStockException(String message) { super(message); }\n}\n\n/** そもそも取り扱いがない。 */\nclass ItemNotFoundException extends BusinessException {\n    ItemNotFoundException(String message) { super(message); }\n}\n\n/** この層は完成しています。 */\nclass StockRepository {\n    private final Map<String, Integer> stock = new LinkedHashMap<>();\n\n    StockRepository() {\n        stock.put(\"apple\", 5);\n        stock.put(\"banana\", 0);\n        stock.put(\"melon\", 12);\n    }\n\n    /** 在庫数。取り扱いが無ければ null。 */\n    Integer findStock(String name) {\n        return stock.get(name);\n    }\n}\n\nclass ShipService {\n    private final StockRepository repository;\n\n    ShipService(StockRepository repository) {\n        this.repository = repository;\n    }\n\n    /**\n     * 出荷して、残りの在庫数を返す。\n     *\n     * TODO: 取り扱いが無ければ ItemNotFoundException、\n     *       在庫が足りなければ OutOfStockException を投げる\n     */\n    int ship(String name, int count) throws BusinessException {\n        return 0;\n    }\n}\n\nclass ShipController {\n    private final ShipService service;\n\n    ShipController(ShipService service) {\n        this.service = service;\n    }\n\n    /** TODO: 成功なら出荷メッセージ、業務例外なら \"エラー: \" + メッセージ */\n    String ship(String name, int count) {\n        return \"\";\n    }\n}\n",
+      "visibleCases": [
+        {
+          "label": "出荷できる",
+          "stdin": "apple 3",
+          "expected": "出荷しました: apple x3 (残り2個)"
+        },
+        {
+          "label": "在庫不足",
+          "stdin": "apple 6",
+          "expected": "エラー: apple の在庫が足りません (在庫5個, 要求6個)"
+        }
+      ],
+      "hiddenCases": [
+        {
+          "label": "ちょうど全部（境界）",
+          "stdin": "apple 5",
+          "expected": "出荷しました: apple x5 (残り0個)"
+        },
+        {
+          "label": "在庫0からの出荷",
+          "stdin": "banana 1",
+          "expected": "エラー: banana の在庫が足りません (在庫0個, 要求1個)"
+        },
+        {
+          "label": "取り扱いなし",
+          "stdin": "grape 1",
+          "expected": "エラー: grape は取り扱いがありません"
+        },
+        {
+          "label": "0個の出荷は成功",
+          "stdin": "melon 0",
+          "expected": "出荷しました: melon x0 (残り12個)"
+        }
+      ],
+      "hints": [
+        "`ship()` はまず `repository.findStock(name)` を `Integer` で受けます。`null` なら `throw new ItemNotFoundException(name + \" は取り扱いがありません\");` です。",
+        "次に `current < count` なら `OutOfStockException` を投げます。`<=` にすると「ちょうど同じ数」が出荷できなくなるので注意。成功時は `return current - count;` です。",
+        "Controller は `try { int rest = service.ship(name, count); return \"出荷しました: ...\"; } catch (BusinessException e) { return \"エラー: \" + e.getMessage(); }` の形です。親の型で捕まえれば2種類ともここに来ます。"
+      ],
+      "solution": "import java.util.LinkedHashMap;\nimport java.util.Map;\nimport java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        String[] input = sc.nextLine().trim().split(\"\\\\s+\");\n        String name = input[0];\n        int count = Integer.parseInt(input[1]);\n\n        ShipService service = new ShipService(new StockRepository());\n        System.out.println(new ShipController(service).ship(name, count));\n    }\n}\n\nclass BusinessException extends Exception {\n    BusinessException(String message) { super(message); }\n}\n\nclass OutOfStockException extends BusinessException {\n    OutOfStockException(String message) { super(message); }\n}\n\nclass ItemNotFoundException extends BusinessException {\n    ItemNotFoundException(String message) { super(message); }\n}\n\nclass StockRepository {\n    private final Map<String, Integer> stock = new LinkedHashMap<>();\n\n    StockRepository() {\n        stock.put(\"apple\", 5);\n        stock.put(\"banana\", 0);\n        stock.put(\"melon\", 12);\n    }\n\n    Integer findStock(String name) {\n        return stock.get(name);\n    }\n}\n\nclass ShipService {\n    private final StockRepository repository;\n\n    ShipService(StockRepository repository) {\n        this.repository = repository;\n    }\n\n    int ship(String name, int count) throws BusinessException {\n        Integer current = repository.findStock(name);\n        if (current == null) {\n            throw new ItemNotFoundException(name + \" は取り扱いがありません\");\n        }\n        if (current < count) {\n            throw new OutOfStockException(\n                    name + \" の在庫が足りません (在庫\" + current + \"個, 要求\" + count + \"個)\");\n        }\n        return current - count;\n    }\n}\n\nclass ShipController {\n    private final ShipService service;\n\n    ShipController(ShipService service) {\n        this.service = service;\n    }\n\n    String ship(String name, int count) {\n        try {\n            int rest = service.ship(name, count);\n            return \"出荷しました: \" + name + \" x\" + count + \" (残り\" + rest + \"個)\";\n        } catch (BusinessException e) {\n            // 業務例外は想定内なので、理由をそのまま見せてよい\n            return \"エラー: \" + e.getMessage();\n        }\n    }\n}\n",
+      "extraTasks": [
+        {
+          "kind": "applied",
+          "task": "解説のもう1つの要点は「**層をまたぐときは包み直す。そのとき `cause` を落とさない**」でした。\nそれを実装します。\n\n`StockRepository.findStock()` が `DataAccessException`（DB障害のつもり）を投げるようになりました。\n商品名が `ERROR` のときに起きます。埋めるのは2か所です。\n\n1. **`ShipService.ship()`** … `DataAccessException` を捕まえて、\n   `InventoryUnavailableException(\"在庫を確認できませんでした\", 原因)` に **包み直して** 投げる。\n   第2引数に元の例外を渡すのを忘れないこと\n2. **`ShipController.ship()`** … `cause` があれば、後ろに ` (原因: クラス名)` を足す\n\n| 入力 | 出力 |\n|---|---|\n| `ERROR 1` | `エラー: 在庫を確認できませんでした (原因: DataAccessException)` |\n| `apple 3` | `出荷しました: apple x3 (残り2個)` |\n| `apple 6` | `エラー: apple の在庫が足りません (在庫5個, 要求6個)` |\n\n**在庫不足のときは `(原因: ...)` が付きません。** `OutOfStockException` には `cause` を\n渡していないので `getCause()` が `null` になり、自然に付かなくなります。\n「`cause` があるときだけ足す」と書けば、例外の種類で分岐する必要はありません。\n\n> クラス名は `e.getCause().getClass().getSimpleName()` で取れます。\n> `getName()` だとパッケージ名まで付くので `getSimpleName()` を使います。",
+          "starterCode": "import java.util.LinkedHashMap;\nimport java.util.Map;\nimport java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        String[] input = sc.nextLine().trim().split(\"\\\\s+\");\n        String name = input[0];\n        int count = Integer.parseInt(input[1]);\n\n        ShipService service = new ShipService(new StockRepository());\n        System.out.println(new ShipController(service).ship(name, count));\n    }\n}\n\nclass BusinessException extends Exception {\n    BusinessException(String message) { super(message); }\n    BusinessException(String message, Throwable cause) { super(message, cause); }\n}\n\nclass OutOfStockException extends BusinessException {\n    OutOfStockException(String message) { super(message); }\n}\n\nclass ItemNotFoundException extends BusinessException {\n    ItemNotFoundException(String message) { super(message); }\n}\n\n/** 在庫を確認できなかった（低レベルの失敗を業務の言葉にしたもの）。 */\nclass InventoryUnavailableException extends BusinessException {\n    InventoryUnavailableException(String message, Throwable cause) { super(message, cause); }\n}\n\n/** Repository の層で起きる低レベルの失敗。本物なら SQLException にあたる。 */\nclass DataAccessException extends Exception {\n    DataAccessException(String message) { super(message); }\n}\n\n/** この層は完成しています。 */\nclass StockRepository {\n    private final Map<String, Integer> stock = new LinkedHashMap<>();\n\n    StockRepository() {\n        stock.put(\"apple\", 5);\n        stock.put(\"banana\", 0);\n        stock.put(\"melon\", 12);\n    }\n\n    /** 商品名が \"ERROR\" のときは、DB障害のつもりで例外を投げる。 */\n    Integer findStock(String name) throws DataAccessException {\n        if (name.equals(\"ERROR\")) {\n            throw new DataAccessException(\"connection refused\");\n        }\n        return stock.get(name);\n    }\n}\n\nclass ShipService {\n    private final StockRepository repository;\n\n    ShipService(StockRepository repository) {\n        this.repository = repository;\n    }\n\n    int ship(String name, int count) throws BusinessException {\n        Integer current;\n        // TODO: findStock は DataAccessException を投げる。捕まえて\n        //       InventoryUnavailableException(\"在庫を確認できませんでした\", 原因) に包み直す\n        current = null;\n\n        if (current == null) {\n            throw new ItemNotFoundException(name + \" は取り扱いがありません\");\n        }\n        if (current < count) {\n            throw new OutOfStockException(\n                    name + \" の在庫が足りません (在庫\" + current + \"個, 要求\" + count + \"個)\");\n        }\n        return current - count;\n    }\n}\n\nclass ShipController {\n    private final ShipService service;\n\n    ShipController(ShipService service) {\n        this.service = service;\n    }\n\n    String ship(String name, int count) {\n        try {\n            int rest = service.ship(name, count);\n            return \"出荷しました: \" + name + \" x\" + count + \" (残り\" + rest + \"個)\";\n        } catch (BusinessException e) {\n            // TODO: cause があれば \" (原因: クラス名)\" を後ろに足す\n            return \"エラー: \" + e.getMessage();\n        }\n    }\n}\n",
+          "visibleCases": [
+            {
+              "label": "DB障害を包み直す",
+              "stdin": "ERROR 1",
+              "expected": "エラー: 在庫を確認できませんでした (原因: DataAccessException)"
+            },
+            {
+              "label": "正常な出荷",
+              "stdin": "apple 3",
+              "expected": "出荷しました: apple x3 (残り2個)"
+            }
+          ],
+          "hiddenCases": [
+            {
+              "label": "在庫不足には原因が付かない",
+              "stdin": "apple 6",
+              "expected": "エラー: apple の在庫が足りません (在庫5個, 要求6個)"
+            },
+            {
+              "label": "取り扱いなしにも原因が付かない",
+              "stdin": "grape 1",
+              "expected": "エラー: grape は取り扱いがありません"
+            },
+            {
+              "label": "数量が多くてもDB障害が先に出る",
+              "stdin": "ERROR 999",
+              "expected": "エラー: 在庫を確認できませんでした (原因: DataAccessException)"
+            },
+            {
+              "label": "境界はそのまま通る",
+              "stdin": "apple 5",
+              "expected": "出荷しました: apple x5 (残り0個)"
+            }
+          ],
+          "hints": [
+            "`try { current = repository.findStock(name); } catch (DataAccessException e) { ... }` の形にします。`current` は `try` の外で宣言しておきます。",
+            "`catch` の中で `throw new InventoryUnavailableException(\"在庫を確認できませんでした\", e);` とします。第2引数の `e` が `cause` になります。ここを省くと原因が消えます。",
+            "Controller では `if (e.getCause() != null) { message += \" (原因: \" + e.getCause().getClass().getSimpleName() + \")\"; }` とします。`cause` を渡していない例外では `getCause()` が `null` なので、何も足されません。"
+          ],
+          "solution": "import java.util.LinkedHashMap;\nimport java.util.Map;\nimport java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        String[] input = sc.nextLine().trim().split(\"\\\\s+\");\n        String name = input[0];\n        int count = Integer.parseInt(input[1]);\n\n        ShipService service = new ShipService(new StockRepository());\n        System.out.println(new ShipController(service).ship(name, count));\n    }\n}\n\nclass BusinessException extends Exception {\n    BusinessException(String message) { super(message); }\n    BusinessException(String message, Throwable cause) { super(message, cause); }\n}\n\nclass OutOfStockException extends BusinessException {\n    OutOfStockException(String message) { super(message); }\n}\n\nclass ItemNotFoundException extends BusinessException {\n    ItemNotFoundException(String message) { super(message); }\n}\n\n/** 在庫を確認できなかった（低レベルの失敗を業務の言葉にしたもの）。 */\nclass InventoryUnavailableException extends BusinessException {\n    InventoryUnavailableException(String message, Throwable cause) { super(message, cause); }\n}\n\n/** Repository の層で起きる低レベルの失敗。本物なら SQLException にあたる。 */\nclass DataAccessException extends Exception {\n    DataAccessException(String message) { super(message); }\n}\n\n/** この層は完成しています。 */\nclass StockRepository {\n    private final Map<String, Integer> stock = new LinkedHashMap<>();\n\n    StockRepository() {\n        stock.put(\"apple\", 5);\n        stock.put(\"banana\", 0);\n        stock.put(\"melon\", 12);\n    }\n\n    /** 商品名が \"ERROR\" のときは、DB障害のつもりで例外を投げる。 */\n    Integer findStock(String name) throws DataAccessException {\n        if (name.equals(\"ERROR\")) {\n            throw new DataAccessException(\"connection refused\");\n        }\n        return stock.get(name);\n    }\n}\n\nclass ShipService {\n    private final StockRepository repository;\n\n    ShipService(StockRepository repository) {\n        this.repository = repository;\n    }\n\n    int ship(String name, int count) throws BusinessException {\n        Integer current;\n        try {\n            current = repository.findStock(name);\n        } catch (DataAccessException e) {\n            // 「SQLが失敗した」を「在庫を確認できなかった」に翻訳する。\n            // 第2引数に e を渡すのが大事（原因をたどれなくなるので落とさない）\n            throw new InventoryUnavailableException(\"在庫を確認できませんでした\", e);\n        }\n\n        if (current == null) {\n            throw new ItemNotFoundException(name + \" は取り扱いがありません\");\n        }\n        if (current < count) {\n            throw new OutOfStockException(\n                    name + \" の在庫が足りません (在庫\" + current + \"個, 要求\" + count + \"個)\");\n        }\n        return current - count;\n    }\n}\n\nclass ShipController {\n    private final ShipService service;\n\n    ShipController(ShipService service) {\n        this.service = service;\n    }\n\n    String ship(String name, int count) {\n        try {\n            int rest = service.ship(name, count);\n            return \"出荷しました: \" + name + \" x\" + count + \" (残り\" + rest + \"個)\";\n        } catch (BusinessException e) {\n            String message = \"エラー: \" + e.getMessage();\n            if (e.getCause() != null) {\n                message += \" (原因: \" + e.getCause().getClass().getSimpleName() + \")\";\n            }\n            return message;\n        }\n    }\n}\n"
+        }
+      ]
+    },
+    {
+      "id": "21-5",
+      "title": "Maven とプロジェクトの形",
+      "explanation": "## ライブラリを手で集めるのは無理がある\n\nここまでのこの教材は、外部ライブラリを1つも使っていません（JDKだけで動きます）。\nでも業務のアプリは、必ずたくさんのライブラリを使います。\n\nそれを手作業でやると、こうなります。\n\n- 必要な `.jar` をサイトから1つずつダウンロードする\n- そのライブラリが内部で使っている別のライブラリも、追いかけてダウンロードする\n- バージョンの組み合わせが合わなくて動かない\n- 他の人が同じ環境を作れない\n\nこれを解決するのが **ビルドツール** です。Java では **Maven** と **Gradle** が主流で、\n業務のシステムでは Maven がよく使われます。\n\n## pom.xml が「このアプリの説明書」になる\n\nMaven は `pom.xml` に書いたことだけで、ライブラリの取得からビルドまでやります。\n\n```xml\n<project>\n  <groupId>com.example</groupId>        <!-- 組織・団体の名前（ドメインを逆順にする慣習） -->\n  <artifactId>inventory</artifactId>    <!-- このアプリの名前 -->\n  <version>1.0.0</version>              <!-- このアプリのバージョン -->\n  <packaging>war</packaging>            <!-- 何を作るか（jar / war） -->\n\n  <dependencies>\n    <dependency>\n      <groupId>jakarta.platform</groupId>\n      <artifactId>jakarta.jakartaee-api</artifactId>\n      <version>10.0.0</version>\n      <scope>provided</scope>           <!-- ← ここが大事。あとで説明します -->\n    </dependency>\n  </dependencies>\n</project>\n```\n\n`groupId` + `artifactId` + `version` の3つでライブラリが1つに決まります。この3つ組を\n**GAV** と呼びます。\n\n### 推移的依存：連れてくるものも自動で入る\n\nあるライブラリが別のライブラリを必要としている場合、Maven は **それも自動で取ってきます**。\nこれを **推移的依存** といいます。だから `pom.xml` に3行書いただけで、実際には\n30個の `.jar` が入っていることも普通にあります。\n\n## scope：そのライブラリが「いつ」必要か\n\n依存には `scope` を指定できます。業務で効いてくるのはこの4つです。\n\n| scope | コンパイル時 | 実行時 | 用途 |\n|---|---|---|---|\n| `compile`（既定） | ○ | ○ | 普通のライブラリ |\n| **`provided`** | ○ | **×** | **動かす環境が既に持っているもの** |\n| `runtime` | × | ○ | JDBCドライバなど、実行時だけ要るもの |\n| `test` | テストのみ | × | JUnit など |\n\n### `provided` が Jakarta EE で必須になる理由\n\nJakarta EE のアプリを WAR にして WildFly や Tomcat に置くとき、\n`jakarta.servlet` などの API は **アプリサーバがすでに持っています**。\n\nなのに WAR の中にも同じ API を入れてしまうと、同じクラスが2つ存在することになり、\n`ClassCastException` や `NoClassDefFoundError` といった原因の分かりにくい事故が起きます。\n\nだから Jakarta EE の API は **必ず `provided`** にします。\n「コンパイルには要るが、同梱はしない」という指定です。\n\n## ディレクトリの決まりごと\n\nMaven はディレクトリの配置を決めていて、設定を書かなくてもその通りに動きます。\n\n```\ninventory/\n├── pom.xml\n└── src/\n    ├── main/\n    │   ├── java/         … 本体のソース（.java）\n    │   ├── resources/    … 設定ファイル。ビルドすると classpath の直下に入る\n    │   └── webapp/       … WAR のときだけ。JSP や WEB-INF/web.xml\n    └── test/\n        ├── java/         … テストのソース\n        └── resources/    … テスト用の設定ファイル\n```\n\n`src/main/resources/` に置いたファイルは、ビルドすると **クラスパスの直下** に置かれます。\nだから `application.properties` のようなファイルは\n`getClass().getResourceAsStream(\"/application.properties\")` で読めます。\n\n## JAR と WAR のちがい\n\n| | JAR | WAR |\n|---|---|---|\n| 中身 | `.class` とリソース | JARの中身 + `WEB-INF/` + JSP など |\n| 動かし方 | `java -jar` など | **アプリサーバに配置する** |\n| 使う場面 | ライブラリ、バッチ | Webアプリ |\n\nWAR の中では、`WEB-INF/classes/` に自分の `.class` が、`WEB-INF/lib/` に依存ライブラリの\n`.jar` が入ります。`WEB-INF/` の中はブラウザから直接アクセスできないので、\nJSP を直接見せたくない場合はここに置きます。\n\n## よく使うコマンド\n\n| コマンド | 何をするか |\n|---|---|\n| `mvn compile` | コンパイルする |\n| `mvn test` | テストを走らせる |\n| `mvn package` | `target/` に `.jar` / `.war` を作る |\n| `mvn clean package` | `target/` を消してから作り直す |\n| `mvn dependency:tree` | 依存の木を表示する（**バージョン衝突の調査に必須**） |\n\n### ⚠️ 現場のワナ：同じライブラリの違うバージョンが混ざる\n\n推移的依存があるので、「ライブラリAは commons-lang 3.5 を、ライブラリBは 3.12 を要求する」\nという状況が普通に起きます。Maven はこのとき **どちらか1つだけ** を選びます。\n選ばれなかった側を前提に書かれたコードは、実行時に `NoSuchMethodError` で落ちます。\n\n原因を追うには `mvn dependency:tree` で「いま実際に何のバージョンが入っているか」を見ます。\n**コンパイルは通るのに実行時に落ちる** ので、知らないとかなり時間を取られます。\n\n> 💡 バージョンの新しさを比べるとき、文字列として比べてはいけません。\n> `\"1.10.2\"` と `\"1.2.10\"` を文字列比較すると `\"1.1...\"` < `\"1.2...\"` で\n> **1.2.10 のほうが新しい** と判定されてしまいます。正しくは数値として、\n> ドットで区切った区画ごとに比べます。次の練習問題でこれを書きます。\n",
+      "samples": [
+        {
+          "caption": "バージョンを文字列で比べると間違える",
+          "code": "public class Main {\n    public static void main(String[] args) {\n        // 文字列として比べると間違える\n        System.out.println(\"文字列比較: \" + \"1.10.2\".compareTo(\"1.2.10\"));   // マイナス = 1.10.2 が小さい？\n        System.out.println(\"正しい比較: \" + compare(\"1.10.2\", \"1.2.10\"));    // プラス = 1.10.2 が大きい\n\n        System.out.println(compare(\"2.0.0\", \"2.0\"));   // 0 = 同じ（足りない区画は 0 とみなす）\n        System.out.println(compare(\"1.0.0\", \"1.0.1\")); // マイナス\n    }\n\n    /** ドットで区切って、区画ごとに数値として比べる。 */\n    static int compare(String a, String b) {\n        String[] x = a.split(\"\\\\.\");\n        String[] y = b.split(\"\\\\.\");\n        int length = Math.max(x.length, y.length);\n        for (int i = 0; i < length; i++) {\n            int xi = i < x.length ? Integer.parseInt(x[i]) : 0;\n            int yi = i < y.length ? Integer.parseInt(y[i]) : 0;\n            if (xi != yi) {\n                return Integer.compare(xi, yi);\n            }\n        }\n        return 0;\n    }\n}\n"
+        }
+      ],
+      "task": "解説の最後に書いた「**バージョンは文字列で比べてはいけない**」を実装します。\n\n標準入力に2つのバージョンがスペース区切りで1行来ます。\n**新しいほうをそのまま出力**してください。同じなら `同じ` と出します。\n\n| 入力 | 出力 | なぜ |\n|---|---|---|\n| `1.2.10 1.10.2` | `1.10.2` | 2番目の区画が 2 < 10 |\n| `2.0.0 2.0` | `同じ` | 足りない区画は 0 とみなす |\n| `1.0.0 1.0.1` | `1.0.1` | 3番目の区画が 0 < 1 |\n\n`compare(a, b)` を完成させてください。`a` が新しければ **正の数**、`b` が新しければ\n**負の数**、同じなら **0** を返します。\n\n- ドットで区切る（`split(\"\\\\.\")`。`split(\".\")` ではありません。`.` は正規表現で「任意の1文字」）\n- 区画の数が違う場合、**足りないほうは 0** として扱う\n- 出力するのは **入力された表記そのまま**（`2.0` を `2.0.0` に直さない）",
+      "starterCode": "import java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        String[] input = sc.nextLine().trim().split(\"\\\\s+\");\n        String a = input[0];\n        String b = input[1];\n\n        // TODO: 新しいほうを出力する。同じなら \"同じ\"\n        System.out.println(\"\");\n    }\n\n    /** TODO: a が新しければ正、b が新しければ負、同じなら 0 を返す */\n    static int compare(String a, String b) {\n        return 0;\n    }\n}\n",
+      "visibleCases": [
+        {
+          "label": "区画ごとの数値比較",
+          "stdin": "1.2.10 1.10.2",
+          "expected": "1.10.2"
+        },
+        {
+          "label": "桁数が違うが同じ",
+          "stdin": "2.0.0 2.0",
+          "expected": "同じ"
+        }
+      ],
+      "hiddenCases": [
+        {
+          "label": "最後の区画で決まる",
+          "stdin": "1.0.0 1.0.1",
+          "expected": "1.0.1"
+        },
+        {
+          "label": "2桁の主バージョン",
+          "stdin": "10.0.0 9.9.9",
+          "expected": "10.0.0"
+        },
+        {
+          "label": "区画が足りない側が新しい",
+          "stdin": "1.2 1.2.1",
+          "expected": "1.2.1"
+        },
+        {
+          "label": "左が新しい",
+          "stdin": "3.1.0 3.0.9",
+          "expected": "3.1.0"
+        },
+        {
+          "label": "完全に同じ表記",
+          "stdin": "1.4.2 1.4.2",
+          "expected": "同じ"
+        }
+      ],
+      "hints": [
+        "`split(\"\\\\.\")` でドット区切りにします。`.` は正規表現では「任意の1文字」なので、`\\\\.` とエスケープが必要です。",
+        "長いほうの区画数だけ回します。`int length = Math.max(x.length, y.length);` として、`i < x.length ? Integer.parseInt(x[i]) : 0` で足りない分を 0 にします。",
+        "違いが見つかった区画で即座に決まります。`if (xi != yi) return Integer.compare(xi, yi);`。最後まで同じなら `return 0;` です。`main` 側は 0 なら `\"同じ\"`、正なら `a`、負なら `b` を出します。"
+      ],
+      "solution": "import java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        String[] input = sc.nextLine().trim().split(\"\\\\s+\");\n        String a = input[0];\n        String b = input[1];\n\n        int result = compare(a, b);\n        if (result == 0) {\n            System.out.println(\"同じ\");\n        } else {\n            System.out.println(result > 0 ? a : b);\n        }\n    }\n\n    /** ドットで区切って、区画ごとに数値として比べる。 */\n    static int compare(String a, String b) {\n        String[] x = a.split(\"\\\\.\");\n        String[] y = b.split(\"\\\\.\");\n        int length = Math.max(x.length, y.length);\n        for (int i = 0; i < length; i++) {\n            // 区画が足りないほうは 0 として扱う（2.0 と 2.0.0 を同じにするため）\n            int xi = i < x.length ? Integer.parseInt(x[i]) : 0;\n            int yi = i < y.length ? Integer.parseInt(y[i]) : 0;\n            if (xi != yi) {\n                return Integer.compare(xi, yi);\n            }\n        }\n        return 0;\n    }\n}\n",
+      "extraTasks": [
+        {
+          "kind": "applied",
+          "task": "解説の「⚠️ 現場のワナ」で、**同じライブラリの違うバージョンが混ざったとき Maven は\nどれか1つを選ぶ** と書きました。その「いちばん新しいものを選ぶ」処理を書きます。\n\n標準入力にバージョンがスペース区切りで **何個か** 来ます（1個のこともあります）。\n**いちばん新しいものを出力**してください。\n\n```\n入力:  1.2.10 1.10.2 1.9.0\n出力:  1.10.2\n```\n\n`compare()` は書いてあるので、そのまま使ってください。\n\n**同じ新しさのものが並んだときは、先に出てきた表記を出します。**\n\n```\n入力:  1.0 0.9 1.0.0\n出力:  1.0            ← 1.0 と 1.0.0 は同じ新しさ。先に出てきた 1.0 を残す\n```\n\nそのためには「**より新しいときだけ** 入れ替える」と書きます（`>` を使い、`>=` にしない）。\n`>=` にすると、同じ新しさで後ろの表記に入れ替わってしまいます。",
+          "starterCode": "import java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        String[] versions = sc.nextLine().trim().split(\"\\\\s+\");\n\n        // TODO: いちばん新しいバージョンを出力する\n        System.out.println(\"\");\n    }\n\n    static int compare(String a, String b) {\n        String[] x = a.split(\"\\\\.\");\n        String[] y = b.split(\"\\\\.\");\n        int length = Math.max(x.length, y.length);\n        for (int i = 0; i < length; i++) {\n            int xi = i < x.length ? Integer.parseInt(x[i]) : 0;\n            int yi = i < y.length ? Integer.parseInt(y[i]) : 0;\n            if (xi != yi) {\n                return Integer.compare(xi, yi);\n            }\n        }\n        return 0;\n    }\n}\n",
+          "visibleCases": [
+            {
+              "label": "3つから選ぶ",
+              "stdin": "1.2.10 1.10.2 1.9.0",
+              "expected": "1.10.2"
+            },
+            {
+              "label": "同じ新しさは先を残す",
+              "stdin": "1.0 0.9 1.0.0",
+              "expected": "1.0"
+            }
+          ],
+          "hiddenCases": [
+            {
+              "label": "1個だけ",
+              "stdin": "2.5.1",
+              "expected": "2.5.1"
+            },
+            {
+              "label": "先頭がいちばん新しい",
+              "stdin": "9.0.0 1.2.3 4.5.6",
+              "expected": "9.0.0"
+            },
+            {
+              "label": "末尾がいちばん新しい",
+              "stdin": "1.0.0 1.0.1 1.0.2",
+              "expected": "1.0.2"
+            },
+            {
+              "label": "全部同じ新しさ",
+              "stdin": "3.0 3.0.0 3",
+              "expected": "3.0"
+            },
+            {
+              "label": "2桁が混ざる",
+              "stdin": "1.9.9 1.10.0 1.2.99",
+              "expected": "1.10.0"
+            }
+          ],
+          "hints": [
+            "まず `String newest = versions[0];` と置いて、拡張for文で全部を見ていきます。",
+            "`if (compare(version, newest) > 0) { newest = version; }` とします。`compare` が正なら `version` のほうが新しい、という意味です。",
+            "`>` であることが大事です。`>=` にすると、同じ新しさのときにも入れ替わってしまい、`1.0 0.9 1.0.0` で `1.0.0` が残ってしまいます。"
+          ],
+          "solution": "import java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        String[] versions = sc.nextLine().trim().split(\"\\\\s+\");\n\n        String newest = versions[0];\n        for (String version : versions) {\n            // 「より新しい」ときだけ入れ替える。同じときは入れ替えないので、\n            // 同じ新しさが並んだ場合は先に出てきた表記が残る\n            if (compare(version, newest) > 0) {\n                newest = version;\n            }\n        }\n        System.out.println(newest);\n    }\n\n    static int compare(String a, String b) {\n        String[] x = a.split(\"\\\\.\");\n        String[] y = b.split(\"\\\\.\");\n        int length = Math.max(x.length, y.length);\n        for (int i = 0; i < length; i++) {\n            int xi = i < x.length ? Integer.parseInt(x[i]) : 0;\n            int yi = i < y.length ? Integer.parseInt(y[i]) : 0;\n            if (xi != yi) {\n                return Integer.compare(xi, yi);\n            }\n        }\n        return 0;\n    }\n}\n"
+        }
+      ],
+      "quiz": [
+        {
+          "question": "Jakarta EE のアプリを WAR にしてアプリサーバへ置くとき、`jakarta.jakartaee-api` の `scope` を `provided` にするのはなぜでしょう。",
+          "choices": [
+            "コンパイルが速くなるから",
+            "アプリサーバが同じAPIを持っているので、WARに同梱すると同じクラスが2つになって事故になるから",
+            "`provided` にしないとコンパイルが通らないから",
+            "テストのときだけ必要なライブラリだから"
+          ],
+          "answer": 1,
+          "explanation": "`provided` は「コンパイル時には要るが、実行環境が用意するので同梱しない」という指定です。アプリサーバは `jakarta.servlet` などを最初から持っているので、WAR にも同じものを入れると同一クラスが2つ存在し、`ClassCastException` や `NoClassDefFoundError` という原因の追いにくい不具合になります。コンパイル自体は `compile` でも通るので、3つ目は誤りです。テストだけに必要なものは `test` スコープです。"
+        },
+        {
+          "question": "`src/main/resources/application.properties` に置いたファイルは、ビルドしたあとどこから読めるでしょう。",
+          "choices": [
+            "`src/main/resources/` からの相対パスで、実行時もそのまま読める",
+            "クラスパスの直下に置かれるので、`getResourceAsStream(\"/application.properties\")` で読める",
+            "`WEB-INF/resources/` に置かれるので、そのパスを指定して読む",
+            "ビルド結果には含まれないので、実行時には読めない"
+          ],
+          "answer": 1,
+          "explanation": "`src/main/resources/` の中身は、ビルドすると **クラスパスの直下**（JARなら中身の直下、WARなら `WEB-INF/classes/` の直下）にコピーされます。だから `getClass().getResourceAsStream(\"/application.properties\")` のようにクラスパス基準で読みます。`src/main/resources` というパスはビルド前のソースの置き場所であって、実行時には存在しません。"
+        },
+        {
+          "question": "JAR と WAR について、正しいのはどれでしょう。",
+          "choices": [
+            "WAR は `WEB-INF/lib/` に依存ライブラリを、`WEB-INF/classes/` に自分のクラスを持つ",
+            "WAR は JAR と中身が同じで、拡張子だけが違う",
+            "JAR はアプリサーバに配置して動かすものである",
+            "WAR に入れたファイルは、すべてブラウザから直接アクセスできる"
+          ],
+          "answer": 0,
+          "explanation": "WAR は Web アプリ用の形式で、`WEB-INF/classes/` に自分の `.class`、`WEB-INF/lib/` に依存の `.jar` が入ります。JAR とは構造が違います。また `WEB-INF/` の中はブラウザから直接アクセスできない決まりで、これを利用して JSP を直接見せないようにします。アプリサーバに配置するのは WAR（や EAR）です。"
+        },
+        {
+          "question": "推移的依存について、正しいのはどれでしょう。",
+          "choices": [
+            "自分が使うライブラリが必要としているライブラリも自動で入るが、同じライブラリの違うバージョンが要求された場合は1つだけが選ばれる",
+            "推移的依存はすべてのバージョンが同時に入るので、バージョンの衝突は起きない",
+            "`test` スコープのライブラリも、実行時のクラスパスに入る",
+            "推移的依存は `pom.xml` に書いたものだけなので、自分が書いていないライブラリが入ることはない"
+          ],
+          "answer": 0,
+          "explanation": "Maven は依存が必要とする依存も自動で取ってきます（推移的依存）。同じライブラリに複数のバージョンが要求されたときは **1つだけ** が選ばれるので、選ばれなかった側を前提にしたコードは実行時に `NoSuchMethodError` などで落ちます。コンパイルは通るのに実行時に落ちるのが厄介な点で、`mvn dependency:tree` で実際に入っているバージョンを確認します。`test` スコープは実行時のクラスパスには入りません。"
+        }
+      ]
+    }
+  ]
+}

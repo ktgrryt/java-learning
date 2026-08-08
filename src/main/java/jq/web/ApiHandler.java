@@ -7,6 +7,7 @@ import jq.content.ContentLoader;
 import jq.content.Curriculum;
 import jq.content.Lesson;
 import jq.content.Quiz;
+import jq.content.SourceFile;
 import jq.content.Task;
 import jq.content.TestCase;
 import jq.judge.CaseResult;
@@ -273,7 +274,13 @@ public final class ApiHandler implements HttpHandler {
         return n;
     }
 
-    /** 採点なしで1回実行する。「まず動かしてみる」ためのボタン。 */
+    /**
+     * 採点なしで1回実行する。「まず動かしてみる」ためのボタン。
+     *
+     * {@code lessonId} が付いていれば、書きかけのコードとして保存もする。
+     * サンプルコードの試し打ちのように「保存はしたくないが同梱ライブラリだけ知りたい」場合は、
+     * 代わりに {@code libLessonId} を送る（参照専用。保存しない）。
+     */
     private Object doRun(Map<String, Object> body) {
         String code = requireString(body, "code");
         String stdin = MiniJson.str(body, "stdin", "");
@@ -282,8 +289,11 @@ public final class ApiHandler implements HttpHandler {
             progress.saveCode(Lesson.taskKey(lessonId, taskId(body)), code);
         }
 
+        // 同梱ライブラリの引き当て元。lessonId があればそれを、無ければ参照専用の libLessonId を使う
+        String libLessonId = lessonId.isEmpty() ? MiniJson.str(body, "libLessonId", "") : lessonId;
+
         Map<String, Object> result = new LinkedHashMap<>();
-        try (JavaRunner.Compiled compiled = runner.compile(code)) {
+        try (JavaRunner.Compiled compiled = runner.compile(code, libSourcesOf(libLessonId))) {
             result.put("compiled", compiled.success());
             result.put("diagnostics", diagnosticsJson(compiled.diagnostics()));
             if (!compiled.success()) {
@@ -318,7 +328,7 @@ public final class ApiHandler implements HttpHandler {
         result.put("taskId", taskId);
         result.put("attempts", attempts);
 
-        try (JavaRunner.Compiled compiled = runner.compile(code)) {
+        try (JavaRunner.Compiled compiled = runner.compile(code, lesson.libSources())) {
             result.put("compiled", compiled.success());
             result.put("diagnostics", diagnosticsJson(compiled.diagnostics()));
             if (!compiled.success()) {
@@ -453,6 +463,21 @@ public final class ApiHandler implements HttpHandler {
             return true;
         }
         return progress.hintsRevealed(key) >= task.hints().size();
+    }
+
+    /**
+     * そのレッスンの同梱ライブラリ。レッスンIDが空・不明なら空リスト。
+     *
+     * 不明なIDでも例外にしないのは、サンプルの試し打ちのように「ライブラリが無くても
+     * 実行できる」呼び方があるため。ライブラリが要るコードならコンパイルの時点で落ちる。
+     */
+    private List<SourceFile> libSourcesOf(String lessonId) {
+        if (lessonId == null || lessonId.isEmpty()) {
+            return List.of();
+        }
+        return curriculum.get().lesson(lessonId)
+                .map(Lesson::libSources)
+                .orElse(List.of());
     }
 
     private Task requireTask(String lessonId, String taskId) {

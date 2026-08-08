@@ -11,6 +11,9 @@ import java.util.Optional;
  *
  * 解説で教えた論点には、なるべく対応する練習問題を1つ置く方針なので、
  * 1レッスンに複数問入ることがある（{@link Task}）。クイズは任意で、0問でもよい。
+ *
+ * @param libSources このレッスンのコードと一緒にコンパイルする同梱ライブラリ（{@code libs} キー）。
+ *                   Jakarta EE の章で使う。ブラウザへは渡さない（{@link #toPublicJson()} 参照）
  */
 public record Lesson(
         String id,
@@ -19,7 +22,8 @@ public record Lesson(
         String explanation,
         List<Sample> samples,
         List<Task> tasks,
-        List<Quiz> quizzes) {
+        List<Quiz> quizzes,
+        List<SourceFile> libSources) {
 
     /** 問題キー（進捗の保存単位）。 */
     public static String taskKey(String lessonId, String taskId) {
@@ -44,7 +48,13 @@ public record Lesson(
         return keys;
     }
 
-    /** ブラウザへ渡す表現。問題ごとの中身は {@link Task#toPublicJson()} に任せる。 */
+    /**
+     * ブラウザへ渡す表現。問題ごとの中身は {@link Task#toPublicJson()} に任せる。
+     *
+     * {@code libSources} は意図的に含めない。画面が描くのに要らないうえ、同梱ライブラリの
+     * ソース全文を載せると /api/state の応答が無駄に膨らむ（すでに解説とサンプルで数百KBある）。
+     * コンパイルはサーバ側でやるので、ブラウザが中身を知る必要はない。
+     */
     public Map<String, Object> toPublicJson() {
         Map<String, Object> m = new LinkedHashMap<>();
         m.put("id", id);

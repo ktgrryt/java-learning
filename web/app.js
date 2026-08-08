@@ -759,7 +759,9 @@
         out.hidden = false;
         out.className = 'sample-out';
         out.textContent = '';
-        api('run', { code: sample.code, stdin: sample.stdin || '' })
+        // libLessonId は「同梱ライブラリの引き当て」専用。lessonId を送ると
+        // サンプルのコードが1問目の書きかけとして保存されてしまう
+        api('run', { code: sample.code, stdin: sample.stdin || '', libLessonId: currentId })
           .then(function (res) {
             out.innerHTML = renderRunOutput(res);
           })

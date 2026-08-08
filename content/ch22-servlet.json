@@ -1,0 +1,204 @@
+{
+  "id": "ch22",
+  "title": "サーブレットとHTTP",
+  "subtitle": "Webアプリの入口を作る",
+  "emoji": "🌐",
+  "libs": [
+    "jakarta-servlet",
+    "mini-web"
+  ],
+  "lessons": [
+    {
+      "id": "22-1",
+      "title": "サーブレットのはじめの一歩",
+      "explanation": "## Webアプリは「聞かれたら答える」だけ\n\nここからは Web アプリを作る話に入ります。難しそうに見えますが、やっていることは単純です。\n\n```\nブラウザ  ──①リクエスト──▶  サーバ\n          ◀─②レスポンス───\n```\n\n**① リクエスト** は「どのやり方で、どこに」の2つが本体です。\n\n```\nGET /hello\n↑    ↑\nメソッド パス\n```\n\n**② レスポンス** は「うまくいったか（ステータスコード）」と「中身（本文）」です。\n\n```\n200 OK          ← ステータスコード\nHello, Java!    ← 本文\n```\n\nHTTP は **1回のやりとりで完結する**（ステートレス）という性質があります。\n「さっき誰が来たか」をサーバは覚えていません。この性質が第23章の話につながります。\n\n## サーブレット＝1つのURLに対する処理\n\nJakarta EE では、この「聞かれたら答える」処理を **サーブレット** というクラスで書きます。\n形は決まっていて、覚えることは3つだけです。\n\n```java\n@WebServlet(\"/hello\")                                  // ① どのURLに応えるか\npublic class HelloServlet extends HttpServlet {        // ② HttpServlet を継承する\n\n    @Override\n    protected void doGet(HttpServletRequest req, HttpServletResponse res)\n            throws ServletException, IOException {     // ③ GET が来たら doGet が呼ばれる\n        res.getWriter().println(\"Hello, Java!\");\n    }\n}\n```\n\n- `@WebServlet(\"/hello\")` … このクラスが `/hello` の担当だと宣言する\n- `extends HttpServlet` … サーブレットの親クラス\n- `doGet(...)` … GET リクエストが来たときに呼ばれるメソッド\n\n`res.getWriter()` で本文を書く先（`PrintWriter`）が取れます。あとは今までどおり\n`println` するだけです。\n\n### 誰が `doGet` を呼ぶのか\n\n自分では呼びません。**アプリサーバ（コンテナ）** が呼びます。\nTomcat や WildFly といったアプリサーバが、リクエストを受け取り、パスを見て、\n担当のサーブレットの `doGet` を呼び出します。\n\nつまりサーブレットは「呼ばれる側」です。`main` から始まる今までのプログラムとは\n呼ばれ方が逆になります。これを **IoC（制御の反転）** と呼びます。\n\n## この教材での動かし方\n\n本物のアプリサーバはネットワークのポートを開いて待ち受けます。この教材では\nそこまではやらず、**`MiniWeb` という学習用の疑似コンテナ** を同梱しています。\n\n```java\npublic static void main(String[] args) {\n    MiniWeb.app()\n           .register(HelloServlet.class)   // このサーブレットを登録する\n           .serve();                       // 標準入力のリクエストを処理する\n}\n```\n\n`serve()` は **標準入力の1行を1リクエストとして** 扱います。\n\n```\n入力:  GET /hello\n出力:  200 OK\n      Hello, Java!\n```\n\n複数行入れれば、その分だけ順番に処理されます。だから「いろいろな入力で試す」ができます。\n\n### 📚 同梱APIリファレンス（この章で使えるもの）\n\n| クラス / メソッド | 意味 |\n|---|---|\n| `@WebServlet(\"/path\")` | 担当するURLの宣言 |\n| `HttpServlet` | 継承する親クラス |\n| `doGet(req, res)` / `doPost(req, res)` | GET / POST が来たときに呼ばれる |\n| `req.getMethod()` | `\"GET\"` / `\"POST\"` など |\n| `req.getRequestURI()` | クエリ文字列を除いたパス |\n| `req.getParameter(name)` | パラメータを1つ。**無ければ `null`** |\n| `req.getParameterValues(name)` | 同じ名前のパラメータを全部。無ければ `null` |\n| `res.getWriter()` | 本文を書く `PrintWriter` |\n| `res.setStatus(int)` | ステータスコードを決める |\n| `res.sendError(int)` / `sendError(int, msg)` | エラーとして返す |\n| `res.setContentType(String)` | `\"text/html; charset=UTF-8\"` など |\n| `res.setHeader(name, value)` | ヘッダを付ける |\n| `HttpServletResponse.SC_NOT_FOUND` など | ステータスコードの定数 |\n\n`MiniWeb` 側の指定はこれだけです。\n\n| 書き方 | 意味 |\n|---|---|\n| `MiniWeb.app()` | 疑似コンテナを作る |\n| `.register(クラス.class)` | サーブレットを登録する（`@WebServlet` からパスを読む） |\n| `.serve()` | 標準入力のリクエストを処理する |\n| `.echoRequests()` | 処理したリクエストを `> GET /hello` の形でも出す |\n\n### ⚠️ ここが本物と違う\n\n`MiniWeb` と同梱の `jakarta.servlet.*` は、**学習用に自分で書いた最小限の再実装**です。\n本物の Jakarta EE ではありません。次の点が違います。\n\n- ネットワークを使わない（ポートを開かない）\n- 本物のアプリサーバは起動時にクラスを走査して `@WebServlet` を自動で見つけるが、\n  この教材では `register(...)` で明示的に登録する\n- リクエストを1つずつ順番に処理する（本物は同時に複数を並行処理する）\n- `HttpServletRequest` のメソッドは、上の表にあるものだけ\n\n**書き方（import 文・アノテーション・メソッド名）は本物と同じ**にしてあるので、\nここで身につけた形はそのまま実務で通用します。\n\n> 💡 本物では、`pom.xml` に `jakarta.jakartaee-api` を **`provided`** で入れ（第21章）、\n> `mvn package` で WAR を作り、アプリサーバに配置します。`@WebServlet` を付けておけば\n> `web.xml` は要りません（昔は `web.xml` に登録するのが必須でした）。\n",
+      "samples": [
+        {
+          "caption": "はじめてのサーブレット",
+          "code": "import jakarta.servlet.ServletException;\nimport jakarta.servlet.annotation.WebServlet;\nimport jakarta.servlet.http.HttpServlet;\nimport jakarta.servlet.http.HttpServletRequest;\nimport jakarta.servlet.http.HttpServletResponse;\n\nimport java.io.IOException;\n\n@WebServlet(\"/hello\")\npublic class HelloServlet extends HttpServlet {\n\n    @Override\n    protected void doGet(HttpServletRequest req, HttpServletResponse res)\n            throws ServletException, IOException {\n        res.getWriter().println(\"Hello, Java!\");\n    }\n\n    public static void main(String[] args) {\n        MiniWeb.app().register(HelloServlet.class).serve();\n    }\n}\n",
+          "stdin": "GET /hello"
+        },
+        {
+          "caption": "リクエストの中身を見る（3回投げてみる）",
+          "code": "import jakarta.servlet.ServletException;\nimport jakarta.servlet.annotation.WebServlet;\nimport jakarta.servlet.http.HttpServlet;\nimport jakarta.servlet.http.HttpServletRequest;\nimport jakarta.servlet.http.HttpServletResponse;\n\nimport java.io.IOException;\n\n/** リクエストの中身を見てみるサンプル。 */\n@WebServlet(\"/info\")\npublic class InfoServlet extends HttpServlet {\n\n    @Override\n    protected void doGet(HttpServletRequest req, HttpServletResponse res)\n            throws ServletException, IOException {\n        res.getWriter().println(\"メソッド : \" + req.getMethod());\n        res.getWriter().println(\"パス     : \" + req.getRequestURI());\n        res.getWriter().println(\"クエリ   : \" + req.getQueryString());\n    }\n\n    public static void main(String[] args) {\n        // echoRequests() を付けると、どのリクエストの結果か分かりやすい\n        MiniWeb.app().register(InfoServlet.class).echoRequests().serve();\n    }\n}\n",
+          "stdin": "GET /info\nGET /info?name=Yamada&age=20\nPOST /info"
+        }
+      ],
+      "task": "はじめてのサーブレットを完成させてください。やることは2つです。\n\n1. クラスに **`@WebServlet(\"/hello\")`** を付けて、`/hello` の担当だと宣言する\n2. **`doGet`** を上書きして、本文に `Hello, Servlet!` を出力する\n\n`main` は書いてあるので触らなくてよいです。\n\n出力は疑似コンテナが付ける **ステータス行から始まります**。\n\n```\n入力:  GET /hello\n出力:  200 OK\n      Hello, Servlet!\n```\n\n`doGet` のシグネチャは次のとおりです。**`throws ServletException, IOException` を\nそのまま書く**のが大事です（親より広い例外を投げるとコンパイルエラーになります）。\n\n```java\n@Override\nprotected void doGet(HttpServletRequest req, HttpServletResponse res)\n        throws ServletException, IOException {\n```\n\n> `/hello` 以外のパスに来たリクエストは、担当がいないので `404` になります。",
+      "starterCode": "import jakarta.servlet.ServletException;\nimport jakarta.servlet.annotation.WebServlet;\nimport jakarta.servlet.http.HttpServlet;\nimport jakarta.servlet.http.HttpServletRequest;\nimport jakarta.servlet.http.HttpServletResponse;\n\nimport java.io.IOException;\n\n// TODO: @WebServlet で \"/hello\" を担当すると宣言する\npublic class HelloServlet extends HttpServlet {\n\n    // TODO: doGet を上書きして \"Hello, Servlet!\" を出力する\n\n    public static void main(String[] args) {\n        MiniWeb.app().register(HelloServlet.class).serve();\n    }\n}\n",
+      "visibleCases": [
+        {
+          "label": "GET /hello",
+          "stdin": "GET /hello",
+          "expected": "200 OK\nHello, Servlet!"
+        }
+      ],
+      "hiddenCases": [
+        {
+          "label": "担当のいないパスは404",
+          "stdin": "GET /other",
+          "expected": "404 Not Found\n! /other に対応するサーブレットがありません"
+        },
+        {
+          "label": "POST は doGet を上書きしただけでは405",
+          "stdin": "POST /hello",
+          "expected": "405 Method Not Allowed"
+        },
+        {
+          "label": "2回続けて投げても同じ結果",
+          "stdin": "GET /hello\nGET /hello",
+          "expected": "200 OK\nHello, Servlet!\n200 OK\nHello, Servlet!"
+        }
+      ],
+      "hints": [
+        "クラス宣言の直前の行に `@WebServlet(\"/hello\")` と書きます。`import jakarta.servlet.annotation.WebServlet;` はすでに書いてあります。",
+        "`doGet` はコピーして書き始めるのが確実です。`@Override` を付け、`protected void doGet(HttpServletRequest req, HttpServletResponse res) throws ServletException, IOException {` の形にします。",
+        "本文は `res.getWriter().println(\"Hello, Servlet!\");` で出します。`System.out.println` ではありません（それだとステータス行より先に出てしまいます）。"
+      ],
+      "solution": "import jakarta.servlet.ServletException;\nimport jakarta.servlet.annotation.WebServlet;\nimport jakarta.servlet.http.HttpServlet;\nimport jakarta.servlet.http.HttpServletRequest;\nimport jakarta.servlet.http.HttpServletResponse;\n\nimport java.io.IOException;\n\n@WebServlet(\"/hello\")\npublic class HelloServlet extends HttpServlet {\n\n    @Override\n    protected void doGet(HttpServletRequest req, HttpServletResponse res)\n            throws ServletException, IOException {\n        res.getWriter().println(\"Hello, Servlet!\");\n    }\n\n    public static void main(String[] args) {\n        MiniWeb.app().register(HelloServlet.class).serve();\n    }\n}\n",
+      "extraTasks": [
+        {
+          "kind": "applied",
+          "task": "解説では「サーブレットは **1つのURLに対する処理**」と説明しました。\nということは、URLが増えればサーブレットも増えます。**2つ目のサーブレット**を作ってみましょう。\n\n1. `ByeServlet` に **`@WebServlet(\"/bye\")`** を付け、`doGet` で `Goodbye!` を出力する\n2. `main` で **`ByeServlet` も登録**する（`.register(ByeServlet.class)` を足す）\n\n```\nGET /hello  →  200 OK / Hello!\nGET /bye    →  200 OK / Goodbye!\nGET /nope   →  404\n```\n\n`ByeServlet` に **`public` は付けません**。1つのファイルに `public` なクラスは1つだけ\nという決まりがあるためです（`HelloServlet` がその1つです）。\n`public` なしでも同じファイル内から使えるので問題ありません。\n\n> 本物のアプリサーバなら `@WebServlet` を書くだけで自動的に見つけてくれます。\n> この教材は走査をしないので、`register(...)` で明示的に登録します。",
+          "starterCode": "import jakarta.servlet.ServletException;\nimport jakarta.servlet.annotation.WebServlet;\nimport jakarta.servlet.http.HttpServlet;\nimport jakarta.servlet.http.HttpServletRequest;\nimport jakarta.servlet.http.HttpServletResponse;\n\nimport java.io.IOException;\n\n@WebServlet(\"/hello\")\npublic class HelloServlet extends HttpServlet {\n\n    @Override\n    protected void doGet(HttpServletRequest req, HttpServletResponse res)\n            throws ServletException, IOException {\n        res.getWriter().println(\"Hello!\");\n    }\n\n    public static void main(String[] args) {\n        // TODO: ByeServlet も登録する\n        MiniWeb.app()\n               .register(HelloServlet.class)\n               .serve();\n    }\n}\n\n// TODO: \"/bye\" を担当し、\"Goodbye!\" を出力するサーブレットを作る\n// （public は付けない。1つのファイルに public クラスは1つだけ）\nclass ByeServlet extends HttpServlet {\n}\n",
+          "visibleCases": [
+            {
+              "label": "2つのパスに振り分かれる",
+              "stdin": "GET /hello\nGET /bye",
+              "expected": "200 OK\nHello!\n200 OK\nGoodbye!"
+            }
+          ],
+          "hiddenCases": [
+            {
+              "label": "/bye だけ",
+              "stdin": "GET /bye",
+              "expected": "200 OK\nGoodbye!"
+            },
+            {
+              "label": "どちらでもないパスは404",
+              "stdin": "GET /nope",
+              "expected": "404 Not Found\n! /nope に対応するサーブレットがありません"
+            },
+            {
+              "label": "順番を逆に投げても正しく振り分かれる",
+              "stdin": "GET /bye\nGET /hello",
+              "expected": "200 OK\nGoodbye!\n200 OK\nHello!"
+            }
+          ],
+          "hints": [
+            "`class ByeServlet extends HttpServlet {` の直前に `@WebServlet(\"/bye\")` を付けます。",
+            "`ByeServlet` の中に `doGet` を書きます。中身は `res.getWriter().println(\"Goodbye!\");` です。`HelloServlet` の `doGet` をそのまま真似できます。",
+            "`main` の `MiniWeb.app()` の連なりに `.register(ByeServlet.class)` を足します。`.serve()` は最後に来るようにしてください。"
+          ],
+          "solution": "import jakarta.servlet.ServletException;\nimport jakarta.servlet.annotation.WebServlet;\nimport jakarta.servlet.http.HttpServlet;\nimport jakarta.servlet.http.HttpServletRequest;\nimport jakarta.servlet.http.HttpServletResponse;\n\nimport java.io.IOException;\n\n@WebServlet(\"/hello\")\npublic class HelloServlet extends HttpServlet {\n\n    @Override\n    protected void doGet(HttpServletRequest req, HttpServletResponse res)\n            throws ServletException, IOException {\n        res.getWriter().println(\"Hello!\");\n    }\n\n    public static void main(String[] args) {\n        MiniWeb.app()\n               .register(HelloServlet.class)\n               .register(ByeServlet.class)\n               .serve();\n    }\n}\n\n@WebServlet(\"/bye\")\nclass ByeServlet extends HttpServlet {\n\n    @Override\n    protected void doGet(HttpServletRequest req, HttpServletResponse res)\n            throws ServletException, IOException {\n        res.getWriter().println(\"Goodbye!\");\n    }\n}\n"
+        }
+      ]
+    },
+    {
+      "id": "22-2",
+      "title": "リクエストパラメータを受け取る",
+      "explanation": "## パラメータ＝ブラウザから渡される値\n\nURL の `?` より後ろは **クエリ文字列** で、`名前=値` を `&` でつないだものです。\n\n```\n/greet?name=Yamada&age=20\n       └────┬────┘ └──┬──┘\n       name=Yamada   age=20\n```\n\nサーブレットからは `getParameter` で取ります。\n\n```java\nString name = req.getParameter(\"name\");   // \"Yamada\"\n```\n\n## ⚠️ いちばん大事なこと：無いときは `null`\n\n`getParameter` は、そのパラメータが **無ければ `null` を返します**。空文字ではありません。\n\n```java\nString name = req.getParameter(\"name\");\nSystem.out.println(name.length());   // ❌ name が無いと NullPointerException\n```\n\nWebアプリでは、URLは **利用者が自由に書ける** ものです。\n`?name=Yamada` が来る前提で書いたコードには、いつか必ず `?name=` の無いリクエストが来ます。\nだから **必ず `null` を確かめる** のが基本です。\n\n```java\nString name = req.getParameter(\"name\");\nif (name == null || name.isEmpty()) {\n    name = \"ゲスト\";           // 既定値にする\n}\n```\n\n`null` と空文字の両方を見ているのがポイントです。`?name=`（イコールの後ろが空）だと\n`null` ではなく **空文字** が来るので、片方だけでは足りません。\n\n## 数値は必ず変換に失敗しうる\n\nパラメータは **いつも文字列** です。数として使いたければ変換します。\n\n```java\nint age = Integer.parseInt(req.getParameter(\"age\"));   // ❌ 危ない\n```\n\nこれは2通りに壊れます。\n\n- パラメータが無い → `null` を渡すことになり `NumberFormatException`\n- `?age=abc` → 数字でないので `NumberFormatException`\n\n利用者が URL を手で書き換えるだけで、アプリが 500 エラーで落ちます。\nだから変換は必ず囲みます。\n\n```java\nint age = -1;\nString raw = req.getParameter(\"age\");\nif (raw != null) {\n    try {\n        age = Integer.parseInt(raw);\n    } catch (NumberFormatException e) {\n        age = -1;          // 不正な入力として扱う\n    }\n}\n```\n\n## 同じ名前が複数あるとき\n\nチェックボックスのように、同じ名前で複数の値が送られることがあります。\n\n```\n/pick?color=red&color=blue&color=green\n```\n\n- `getParameter(\"color\")` … **最初の1つだけ**（`\"red\"`）\n- `getParameterValues(\"color\")` … 全部（`{\"red\", \"blue\", \"green\"}`）\n\n`getParameterValues` も、無ければ `null` を返します（**空配列ではありません**）。\n\n```java\nString[] colors = req.getParameterValues(\"color\");\nif (colors == null) {\n    colors = new String[0];   // 空配列にしておくと、この後の for が楽になる\n}\n```\n\n### ⚠️ 現場のワナ：パラメータを検証せずに使う\n\nパラメータは **利用者が完全に自由に決められる入力** です。次のことが実際に起こります。\n\n- 数値のはずが文字列（`?age=abc`）\n- 想定より極端に大きい値（`?count=999999999`）\n- そもそも項目が無い\n- 同じ名前が何個も来る\n\n「画面からは正しい値しか送られない」という前提は成立しません。画面の JavaScript で\nチェックしていても、URLを直接叩けば回避できます。**サーバ側で必ず検証する**のが原則です\n（第29章の Bean Validation で、これを宣言的に書く方法を扱います）。\n\n> 💡 POST で送られたフォームの値も、同じ `getParameter` で取れます。\n> GET はURLに、POST は本文に入っている、という違いはコンテナが吸収してくれます。\n",
+      "samples": [
+        {
+          "caption": "パラメータの取り方をまとめて試す",
+          "code": "import jakarta.servlet.ServletException;\nimport jakarta.servlet.annotation.WebServlet;\nimport jakarta.servlet.http.HttpServlet;\nimport jakarta.servlet.http.HttpServletRequest;\nimport jakarta.servlet.http.HttpServletResponse;\n\nimport java.io.IOException;\n\n@WebServlet(\"/greet\")\npublic class GreetServlet extends HttpServlet {\n\n    @Override\n    protected void doGet(HttpServletRequest req, HttpServletResponse res)\n            throws ServletException, IOException {\n        // 無いときは null が来る。空文字も一緒に弾いておく\n        String name = req.getParameter(\"name\");\n        if (name == null || name.isEmpty()) {\n            name = \"ゲスト\";\n        }\n\n        // 数値の変換は必ず失敗しうる\n        int age = -1;\n        String rawAge = req.getParameter(\"age\");\n        if (rawAge != null) {\n            try {\n                age = Integer.parseInt(rawAge);\n            } catch (NumberFormatException e) {\n                age = -1;\n            }\n        }\n\n        res.getWriter().println(\"name=\" + name + \" age=\" + age);\n\n        // 同じ名前が複数あるとき\n        String[] colors = req.getParameterValues(\"color\");\n        res.getWriter().println(\"color(1つ) =\" + req.getParameter(\"color\"));\n        res.getWriter().println(\"color(全部)=\" + (colors == null ? \"なし\" : String.join(\",\", colors)));\n    }\n\n    public static void main(String[] args) {\n        MiniWeb.app().register(GreetServlet.class).echoRequests().serve();\n    }\n}\n",
+          "stdin": "GET /greet?name=Yamada&age=20\nGET /greet\nGET /greet?name=&age=abc\nGET /greet?color=red&color=blue"
+        }
+      ],
+      "task": "パラメータを受け取って挨拶を返すサーブレットを作ります。\n\n| 入力 | 出力（ステータス行のあと） |\n|---|---|\n| `GET /greet?name=Yamada&age=20` | `ようこそ、Yamadaさん (20歳)` |\n| `GET /greet` | `ようこそ、ゲストさん (年齢不明)` |\n| `GET /greet?name=&age=abc` | `ようこそ、ゲストさん (年齢不明)` |\n\n仕様はこうです。\n\n- `name` … 無い、または **空文字** なら `ゲスト`\n- `age` … 無い、または **数字として読めない** なら「年齢不明」とする\n- `age` が **0以上** なら `(20歳)` の形、そうでなければ `(年齢不明)`\n\n**`?name=` のようにイコールの後ろが空のときは `null` ではなく空文字が来ます。**\nだから `null` チェックだけでは足りません。両方を見てください。\n\n`Integer.parseInt` は数字でない文字列で `NumberFormatException` を投げます。\n`try-catch` で囲んで、失敗したら「年齢不明」として扱ってください。\n\n> `age=-5` のような負の数は「年齢不明」になります（0以上のときだけ歳を出す仕様です）。",
+      "starterCode": "import jakarta.servlet.ServletException;\nimport jakarta.servlet.annotation.WebServlet;\nimport jakarta.servlet.http.HttpServlet;\nimport jakarta.servlet.http.HttpServletRequest;\nimport jakarta.servlet.http.HttpServletResponse;\n\nimport java.io.IOException;\n\n@WebServlet(\"/greet\")\npublic class GreetServlet extends HttpServlet {\n\n    @Override\n    protected void doGet(HttpServletRequest req, HttpServletResponse res)\n            throws ServletException, IOException {\n        // TODO: name を取り、無い/空なら \"ゲスト\" にする\n        // TODO: age を取り、無い/数字でないなら -1 にする\n        // TODO: age が 0 以上なら \"ようこそ、<name>さん (<age>歳)\"\n        //       そうでなければ    \"ようこそ、<name>さん (年齢不明)\"\n        res.getWriter().println(\"\");\n    }\n\n    public static void main(String[] args) {\n        MiniWeb.app().register(GreetServlet.class).serve();\n    }\n}\n",
+      "visibleCases": [
+        {
+          "label": "両方あり",
+          "stdin": "GET /greet?name=Yamada&age=20",
+          "expected": "200 OK\nようこそ、Yamadaさん (20歳)"
+        },
+        {
+          "label": "両方なし",
+          "stdin": "GET /greet",
+          "expected": "200 OK\nようこそ、ゲストさん (年齢不明)"
+        }
+      ],
+      "hiddenCases": [
+        {
+          "label": "空文字と不正な数値",
+          "stdin": "GET /greet?name=&age=abc",
+          "expected": "200 OK\nようこそ、ゲストさん (年齢不明)"
+        },
+        {
+          "label": "名前だけ",
+          "stdin": "GET /greet?name=Sato",
+          "expected": "200 OK\nようこそ、Satoさん (年齢不明)"
+        },
+        {
+          "label": "年齢0（境界）",
+          "stdin": "GET /greet?name=Baby&age=0",
+          "expected": "200 OK\nようこそ、Babyさん (0歳)"
+        },
+        {
+          "label": "負の年齢は不明扱い",
+          "stdin": "GET /greet?name=X&age=-5",
+          "expected": "200 OK\nようこそ、Xさん (年齢不明)"
+        },
+        {
+          "label": "日本語の名前",
+          "stdin": "GET /greet?name=山田&age=30",
+          "expected": "200 OK\nようこそ、山田さん (30歳)"
+        }
+      ],
+      "hints": [
+        "`String name = req.getParameter(\"name\");` のあと、`if (name == null || name.isEmpty()) { name = \"ゲスト\"; }` とします。`||` の順番が大事です（先に `null` を見ないと `isEmpty()` で落ちます）。",
+        "年齢は `int age = -1;` から始めて、`String rawAge = req.getParameter(\"age\");` が `null` でなければ `try { age = Integer.parseInt(rawAge); } catch (NumberFormatException e) { age = -1; }` とします。",
+        "最後に `if (age >= 0)` で出力を分けます。`res.getWriter().println(\"ようこそ、\" + name + \"さん (\" + age + \"歳)\");` と `... (年齢不明)\");` の2通りです。"
+      ],
+      "solution": "import jakarta.servlet.ServletException;\nimport jakarta.servlet.annotation.WebServlet;\nimport jakarta.servlet.http.HttpServlet;\nimport jakarta.servlet.http.HttpServletRequest;\nimport jakarta.servlet.http.HttpServletResponse;\n\nimport java.io.IOException;\n\n@WebServlet(\"/greet\")\npublic class GreetServlet extends HttpServlet {\n\n    @Override\n    protected void doGet(HttpServletRequest req, HttpServletResponse res)\n            throws ServletException, IOException {\n        String name = req.getParameter(\"name\");\n        if (name == null || name.isEmpty()) {\n            name = \"ゲスト\";\n        }\n\n        int age = -1;\n        String rawAge = req.getParameter(\"age\");\n        if (rawAge != null) {\n            try {\n                age = Integer.parseInt(rawAge);\n            } catch (NumberFormatException e) {\n                age = -1;\n            }\n        }\n\n        if (age >= 0) {\n            res.getWriter().println(\"ようこそ、\" + name + \"さん (\" + age + \"歳)\");\n        } else {\n            res.getWriter().println(\"ようこそ、\" + name + \"さん (年齢不明)\");\n        }\n    }\n\n    public static void main(String[] args) {\n        MiniWeb.app().register(GreetServlet.class).serve();\n    }\n}\n",
+      "extraTasks": [
+        {
+          "kind": "applied",
+          "task": "解説の後半で **`getParameterValues`**（同じ名前のパラメータを全部取る）を説明しました。\nチェックボックスの送信を受け取る形です。1問目では使っていないので、ここで書きます。\n\n`/pick` に来た `color` パラメータを **全部** 受け取って表示してください。\n\n| 入力 | 出力（ステータス行のあと） |\n|---|---|\n| `GET /pick?color=red&color=blue` | `選んだ色: red, blue (2件)` |\n| `GET /pick?color=red` | `選んだ色: red (1件)` |\n| `GET /pick` | `選択なし` |\n\n- 区切りは **カンマ + 半角スペース**（`String.join(\", \", 配列)` が使えます）\n- 件数を `(2件)` の形で後ろに付ける\n- 1つも無ければ `選択なし`\n\n**`getParameterValues` は、無いときに `null` を返します**（空配列ではありません）。\n`null` のまま `.length` を見ると `NullPointerException` になるので、\n先に空配列 `new String[0]` に置き換えておくと、そのあとの処理を分けずに書けます。",
+          "starterCode": "import jakarta.servlet.ServletException;\nimport jakarta.servlet.annotation.WebServlet;\nimport jakarta.servlet.http.HttpServlet;\nimport jakarta.servlet.http.HttpServletRequest;\nimport jakarta.servlet.http.HttpServletResponse;\n\nimport java.io.IOException;\n\n@WebServlet(\"/pick\")\npublic class PickServlet extends HttpServlet {\n\n    @Override\n    protected void doGet(HttpServletRequest req, HttpServletResponse res)\n            throws ServletException, IOException {\n        // TODO: color を全部取る。無ければ空配列にする\n        // TODO: 0個なら \"選択なし\"、1個以上なら \"選んだ色: a, b (2件)\"\n        res.getWriter().println(\"\");\n    }\n\n    public static void main(String[] args) {\n        MiniWeb.app().register(PickServlet.class).serve();\n    }\n}\n",
+          "visibleCases": [
+            {
+              "label": "2件",
+              "stdin": "GET /pick?color=red&color=blue",
+              "expected": "200 OK\n選んだ色: red, blue (2件)"
+            },
+            {
+              "label": "0件",
+              "stdin": "GET /pick",
+              "expected": "200 OK\n選択なし"
+            }
+          ],
+          "hiddenCases": [
+            {
+              "label": "1件（境界）",
+              "stdin": "GET /pick?color=red",
+              "expected": "200 OK\n選んだ色: red (1件)"
+            },
+            {
+              "label": "3件",
+              "stdin": "GET /pick?color=red&color=blue&color=green",
+              "expected": "200 OK\n選んだ色: red, blue, green (3件)"
+            },
+            {
+              "label": "別のパラメータだけでは0件",
+              "stdin": "GET /pick?size=L",
+              "expected": "200 OK\n選択なし"
+            },
+            {
+              "label": "空文字も1件として数える",
+              "stdin": "GET /pick?color=",
+              "expected": "200 OK\n選んだ色:  (1件)"
+            }
+          ],
+          "hints": [
+            "`String[] colors = req.getParameterValues(\"color\");` で全部取れます。`getParameter` のほうは最初の1つだけなので、こちらを使います。",
+            "`if (colors == null) { colors = new String[0]; }` としておくと、以降 `colors.length` を安心して見られます。",
+            "`String.join(\", \", colors)` で `red, blue` の形になります。件数は `colors.length` です。0件のときだけ `選択なし` を出します。"
+          ],
+          "solution": "import jakarta.servlet.ServletException;\nimport jakarta.servlet.annotation.WebServlet;\nimport jakarta.servlet.http.HttpServlet;\nimport jakarta.servlet.http.HttpServletRequest;\nimport jakarta.servlet.http.HttpServletResponse;\n\nimport java.io.IOException;\n\n@WebServlet(\"/pick\")\npublic class PickServlet extends HttpServlet {\n\n    @Override\n    protected void doGet(HttpServletRequest req, HttpServletResponse res)\n            throws ServletException, IOException {\n        String[] colors = req.getParameterValues(\"color\");\n        if (colors == null) {\n            // 無いときは null。空配列にしておくと、この後の処理を分けなくて済む\n            colors = new String[0];\n        }\n\n        if (colors.length == 0) {\n            res.getWriter().println(\"選択なし\");\n        } else {\n            res.getWriter().println(\"選んだ色: \" + String.join(\", \", colors)\n                    + \" (\" + colors.length + \"件)\");\n        }\n    }\n\n    public static void main(String[] args) {\n        MiniWeb.app().register(PickServlet.class).serve();\n    }\n}\n"
+        }
+      ]
+    }
+  ]
+}
