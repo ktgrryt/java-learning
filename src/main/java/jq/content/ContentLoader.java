@@ -19,8 +19,8 @@ import java.util.stream.Stream;
 /**
  * content/manifest.json と各章のJSONを読み込んで {@link Curriculum} を組み立てる。
  *
- * 章を追加したいときは content/ にJSONを置き、manifest.json の "chapters" に
- * ファイル名を足すだけでよい（Javaコードの変更は不要）。
+ * 章を追加したいときは content/ にJSONを置き、manifest.json で所属する編の
+ * "chapters" にファイル名を足すだけでよい（Javaコードの変更は不要）。
  *
  * Jakarta EE の章のように、学習者のコードと一緒にコンパイルしたい同梱ライブラリがある場合は、
  * ソースを {@code content/lib/<名前>/} に置き、章またはレッスンの {@code "libs"} に名前を書く。
@@ -45,26 +45,62 @@ public final class ContentLoader {
         //   同じファイルを読むのは無駄なので、ここで1回に畳む）
         Map<String, List<SourceFile>> libCache = new HashMap<>();
 
-        List<Chapter> chapters = new ArrayList<>();
+        List<CurriculumPart> parts = new ArrayList<>();
         int number = 1;
-        for (Object entry : MiniJson.list(manifest, "chapters")) {
-            if (!(entry instanceof String fileName)) {
-                throw new IllegalStateException("manifest.json の chapters は文字列の配列にしてください");
+        List<Object> partEntries = MiniJson.list(manifest, "parts");
+        if (partEntries.isEmpty()) {
+            // 以前のmanifestも読み込めるようにする。新規追加ではpartsを使う。
+            List<Chapter> chapters = new ArrayList<>();
+            for (Object entry : MiniJson.list(manifest, "chapters")) {
+                if (!(entry instanceof String fileName)) {
+                    throw new IllegalStateException("manifest.json の chapters は文字列の配列にしてください");
+                }
+                chapters.add(parseChapterFile(fileName, "main", number, number, libCache));
+                number++;
             }
-            Path chapterPath = contentDir.resolve(fileName);
-            try {
-                chapters.add(parseChapter(MiniJson.parseObject(read(chapterPath)), number++, libCache));
-            } catch (RuntimeException e) {
-                throw new IllegalStateException(fileName + " を読めません: " + e.getMessage(), e);
+            if (!chapters.isEmpty()) {
+                parts.add(new CurriculumPart("main", "カリキュラム", "", "📚", List.copyOf(chapters)));
+            }
+        } else {
+            for (Object partEntry : partEntries) {
+                Map<String, Object> rawPart = MiniJson.asObj(partEntry);
+                String partId = MiniJson.requireStr(rawPart, "id");
+                List<Chapter> chapters = new ArrayList<>();
+                int partNumber = 1;
+                for (Object entry : MiniJson.list(rawPart, "chapters")) {
+                    if (!(entry instanceof String fileName)) {
+                        throw new IllegalStateException("manifest.json の parts[].chapters は文字列の配列にしてください");
+                    }
+                    chapters.add(parseChapterFile(fileName, partId, number++, partNumber++, libCache));
+                }
+                if (chapters.isEmpty()) {
+                    throw new IllegalStateException("編 " + partId + " に章がありません");
+                }
+                parts.add(new CurriculumPart(
+                        partId,
+                        MiniJson.requireStr(rawPart, "title"),
+                        MiniJson.str(rawPart, "subtitle", ""),
+                        MiniJson.str(rawPart, "emoji", "📚"),
+                        List.copyOf(chapters)));
             }
         }
-        if (chapters.isEmpty()) {
+        if (parts.isEmpty()) {
             throw new IllegalStateException("章が1つも読み込めませんでした (" + contentDir.toAbsolutePath() + ")");
         }
-        return new Curriculum(chapters);
+        return new Curriculum(parts);
     }
 
-    private Chapter parseChapter(Map<String, Object> raw, int number,
+    private Chapter parseChapterFile(String fileName, String partId, int number, int partNumber,
+                                     Map<String, List<SourceFile>> libCache) {
+        Path chapterPath = contentDir.resolve(fileName);
+        try {
+            return parseChapter(MiniJson.parseObject(read(chapterPath)), partId, number, partNumber, libCache);
+        } catch (RuntimeException e) {
+            throw new IllegalStateException(fileName + " を読めません: " + e.getMessage(), e);
+        }
+    }
+
+    private Chapter parseChapter(Map<String, Object> raw, String partId, int number, int partNumber,
                                  Map<String, List<SourceFile>> libCache) {
         String chapterId = MiniJson.requireStr(raw, "id");
         // 章に書いた libs は、その章の全レッスンが受け継ぐ（レッスンごとに書き写さなくてよい）
@@ -79,7 +115,9 @@ public final class ContentLoader {
         }
         return new Chapter(
                 chapterId,
+                partId,
                 number,
+                partNumber,
                 MiniJson.requireStr(raw, "title"),
                 MiniJson.str(raw, "subtitle", ""),
                 MiniJson.str(raw, "emoji", "📘"),

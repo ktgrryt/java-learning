@@ -10,7 +10,9 @@ import java.util.Map;
  */
 public record Chapter(
         String id,
+        String partId,
         int number,
+        int partNumber,
         String title,
         String subtitle,
         String emoji,
@@ -19,7 +21,9 @@ public record Chapter(
     public Map<String, Object> toPublicJson() {
         Map<String, Object> m = new LinkedHashMap<>();
         m.put("id", id);
+        m.put("partId", partId);
         m.put("number", number);
+        m.put("partNumber", partNumber);
         m.put("title", title);
         m.put("subtitle", subtitle);
         m.put("emoji", emoji);

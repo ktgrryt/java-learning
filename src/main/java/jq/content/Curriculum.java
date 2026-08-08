@@ -15,12 +15,18 @@ import java.util.Set;
  */
 public final class Curriculum {
 
+    private final List<CurriculumPart> parts;
     private final List<Chapter> chapters;
     private final Map<String, Lesson> lessonsById = new LinkedHashMap<>();
     private final Map<String, Chapter> chapterOfLesson = new LinkedHashMap<>();
 
-    Curriculum(List<Chapter> chapters) {
-        this.chapters = List.copyOf(chapters);
+    Curriculum(List<CurriculumPart> parts) {
+        this.parts = List.copyOf(parts);
+        List<Chapter> allChapters = new ArrayList<>();
+        for (CurriculumPart part : this.parts) {
+            allChapters.addAll(part.chapters());
+        }
+        this.chapters = List.copyOf(allChapters);
         for (Chapter c : this.chapters) {
             for (Lesson l : c.lessons()) {
                 if (lessonsById.put(l.id(), l) != null) {
@@ -33,6 +39,10 @@ public final class Curriculum {
 
     public List<Chapter> chapters() {
         return chapters;
+    }
+
+    public List<CurriculumPart> parts() {
+        return parts;
     }
 
     public Optional<Lesson> lesson(String id) {

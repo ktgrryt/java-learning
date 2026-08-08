@@ -24,6 +24,7 @@
   var busyTask = null;     // 実行・採点中の問題ID（同時に走らせない）
   var expanded = {};       // メニューで開いている章のID
   var sideExpanded = {};   // サイドバーで開いている章のID（既定は全部たたむ）
+  var activePartId = null; // メニューで表示中の大区分（Java SE編 / Jakarta EE編など）
 
   // ---------------------------------------------------------------- 通信
 
@@ -65,6 +66,65 @@
       ch.lessons.forEach(function (l) { if (l.id === id) { found = ch; } });
     });
     return found;
+  }
+
+  /** manifestで定義した大区分。古いstateに対しては全章を1区分として扱う。 */
+  function curriculumParts() {
+    if (state.parts && state.parts.length) { return state.parts; }
+    return [{
+      id: 'main', title: 'カリキュラム', subtitle: '', emoji: '📚',
+      chapterIds: state.chapters.map(function (ch) { return ch.id; })
+    }];
+  }
+
+  function partOfChapter(chapter) {
+    var found = null;
+    curriculumParts().forEach(function (part) {
+      if (part.chapterIds.indexOf(chapter.id) >= 0) { found = part; }
+    });
+    return found;
+  }
+
+  function chaptersOfPart(part) {
+    return state.chapters.filter(function (ch) { return part.chapterIds.indexOf(ch.id) >= 0; });
+  }
+
+  /** 章番号は編ごとに1から振る。古いstateでは従来の通し番号へ戻す。 */
+  function displayChapterNumber(chapter) {
+    return chapter.partNumber || chapter.number;
+  }
+
+  /** 保存用ID（21-1など）は変えず、画面では編内の番号（1-1など）を見せる。 */
+  function displayLessonId(lesson) {
+    var chapter = chapterOf(lesson.id);
+    var dash = lesson.id.indexOf('-');
+    if (!chapter || dash < 0) { return lesson.id; }
+    return displayChapterNumber(chapter) + lesson.id.substring(dash);
+  }
+
+  /** 既存教材に書かれた通し章番号を、現在の編を明示した表記へ読み替える。 */
+  function localizeChapterReferences(text) {
+    var chapter = currentId && chapterOf(currentId);
+    if (!chapter || chapter.partId !== 'jakarta-ee') { return text; }
+    return String(text || '').replace(/第(\d+)章/g, function (_, rawNumber) {
+      var number = Number(rawNumber);
+      return number >= 21
+        ? 'Jakarta EE編 第' + (number - 20) + '章'
+        : 'Java SE編 第' + number + '章';
+    });
+  }
+
+  function renderMarkdown(text) {
+    return md(localizeChapterReferences(text));
+  }
+
+  function partProgress(part) {
+    var chapters = chaptersOfPart(part);
+    return chapters.reduce(function (result, ch) {
+      result.cleared += ch.clearedCount;
+      result.total += ch.taskCount;
+      return result;
+    }, { cleared: 0, total: 0 });
   }
 
   /** 全レッスンの全問題を平らに並べたもの（★の分母や集計に使う）。 */
@@ -183,7 +243,23 @@
     var nav = document.getElementById('sidebar');
     nav.innerHTML = '';
 
+    var lastPartId = null;
     state.chapters.forEach(function (ch) {
+      var part = partOfChapter(ch);
+      if (part && part.id !== lastPartId) {
+        var progress = partProgress(part);
+        var currentPart = chaptersOfPart(part).some(function (partChapter) {
+          return partChapter.lessons.some(function (l) { return l.id === currentId; });
+        });
+        var partHead = document.createElement('div');
+        partHead.className = 'side-part-head' + (currentPart ? ' current' : '');
+        partHead.innerHTML =
+          '<span class="side-part-emoji">' + esc(part.emoji) + '</span>' +
+          '<span class="side-part-title">' + esc(part.title) + '</span>' +
+          '<span class="side-part-count">' + progress.cleared + '/' + progress.total + '</span>';
+        nav.appendChild(partHead);
+        lastPartId = part.id;
+      }
       var total = ch.taskCount;
       var pct = Math.round((ch.clearedCount / total) * 100);
       var isCurrentChapter = ch.lessons.some(function (l) { return l.id === currentId; });
@@ -211,7 +287,7 @@
         '<button type="button" class="ch-head" aria-expanded="' + open + '">' +
         '  <span class="ch-emoji">' + esc(ch.emoji) + '</span>' +
         '  <span class="ch-titles">' +
-        '    <span class="ch-title">第' + ch.number + '章　' + esc(ch.title) + '</span>' +
+        '    <span class="ch-title">第' + displayChapterNumber(ch) + '章　' + esc(ch.title) + '</span>' +
         '    <span class="ch-sub">' + esc(ch.subtitle) + '</span>' +
         '  </span>' +
         '  <span class="ch-status">' + status + '</span>' +
@@ -229,7 +305,7 @@
           + (l.id === currentId ? ' lesson-current' : '');
         li.innerHTML =
           '<span class="lesson-mark">' + (l.cleared ? '★' : '○') + '</span>' +
-          '<span class="lesson-id">' + esc(l.id) + '</span>' +
+          '<span class="lesson-id">' + esc(displayLessonId(l)) + '</span>' +
           '<span class="lesson-title">' + esc(l.title) + '</span>' +
           lessonTaskProgress(l);
         li.title = lessonTooltip(l);
@@ -280,7 +356,9 @@
       renderMenuStats() +
       '  <section class="menu-section">' +
       '    <h2 class="menu-h2">章を選ぶ</h2>' +
-      '    <p class="menu-note">好きな章から始められます。カードを押すとレッスン一覧が開きます。</p>' +
+      '    <p class="menu-note">学びたい編を選んでください。どの章からでも始められます。</p>' +
+      '    <div class="part-tabs" id="partTabs"></div>' +
+      '    <div class="part-intro" id="partIntro"></div>' +
       '    <div class="ch-grid" id="chGrid"></div>' +
       '  </section>' +
       renderMenuGuide(stars) +
@@ -327,7 +405,7 @@
       '      <button class="primary-btn big" id="continueBtn" data-target="' + esc(target) + '">' +
              esc(label) +
       '      </button>' +
-      (lesson ? '      <div class="cta-target"><span class="cta-id">' + esc(lesson.id) + '</span>'
+      (lesson ? '      <div class="cta-target"><span class="cta-id">' + esc(displayLessonId(lesson)) + '</span>'
         + esc(lesson.title) + '</div>' : '') +
       '    </div>' +
       '  </div>' +
@@ -377,9 +455,52 @@
   /** 章のカード。押すと中にレッスン一覧が開く。 */
   function renderChapterCards() {
     var grid = document.getElementById('chGrid');
+    var tabs = document.getElementById('partTabs');
+    var intro = document.getElementById('partIntro');
     var todoChapter = chapterOf(firstTodo());
+    var parts = curriculumParts();
+    var todoPart = todoChapter && partOfChapter(todoChapter);
 
-    state.chapters.forEach(function (ch) {
+    if (!activePartId || !parts.some(function (part) { return part.id === activePartId; })) {
+      activePartId = todoPart ? todoPart.id : parts[0].id;
+    }
+
+    tabs.innerHTML = '';
+    parts.forEach(function (part) {
+      var progress = partProgress(part);
+      var button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'part-tab' + (part.id === activePartId ? ' active' : '');
+      button.setAttribute('aria-pressed', part.id === activePartId ? 'true' : 'false');
+      button.innerHTML =
+        '<span class="part-tab-emoji">' + esc(part.emoji) + '</span>' +
+        '<span class="part-tab-body">' +
+        '  <span class="part-tab-title">' + esc(part.title) + '</span>' +
+        '  <span class="part-tab-sub">' + esc(part.subtitle) + '</span>' +
+        '</span>' +
+        '<span class="part-tab-progress"><b>' + progress.cleared + '</b> / ' + progress.total + '問</span>';
+      button.addEventListener('click', function () {
+        activePartId = part.id;
+        renderChapterCards();
+      });
+      tabs.appendChild(button);
+    });
+
+    var activePart = parts.find(function (part) { return part.id === activePartId; }) || parts[0];
+    var activeChapters = chaptersOfPart(activePart);
+    var activeProgress = partProgress(activePart);
+    var firstNumber = activeChapters.length ? displayChapterNumber(activeChapters[0]) : 0;
+    var lastNumber = activeChapters.length ? displayChapterNumber(activeChapters[activeChapters.length - 1]) : 0;
+    var partPct = activeProgress.total ? Math.round(activeProgress.cleared / activeProgress.total * 100) : 0;
+    intro.innerHTML =
+      '<div><b>' + esc(activePart.emoji) + ' ' + esc(activePart.title) + '</b>' +
+      '<span>第' + firstNumber + '〜' + lastNumber + '章 · ' + activeChapters.length + '章</span></div>' +
+      '<div class="part-intro-progress"><span>' + partPct + '%</span>' +
+      '<div><i style="width:' + partPct + '%"></i></div></div>';
+
+    grid.innerHTML = '';
+
+    activeChapters.forEach(function (ch) {
       var total = ch.taskCount;
       var pct = Math.round((ch.clearedCount / total) * 100);
       // まだ初回なら、次にやる章だけ最初から開いておく
@@ -400,7 +521,7 @@
         '<button class="ch-card-head" aria-expanded="' + open + '">' +
         '  <span class="ch-card-emoji">' + esc(ch.emoji) + '</span>' +
         '  <span class="ch-card-titles">' +
-        '    <span class="ch-card-no">第' + ch.number + '章</span>' +
+        '    <span class="ch-card-no">第' + displayChapterNumber(ch) + '章</span>' +
         '    <span class="ch-card-title">' + esc(ch.title) + '</span>' +
         '    <span class="ch-card-sub">' + esc(ch.subtitle) + '</span>' +
         '  </span>' +
@@ -417,7 +538,7 @@
         li.className = 'ch-card-lesson' + (l.cleared ? ' cleared' : '');
         li.innerHTML =
           '<span class="ccl-mark">' + (l.cleared ? '★' : '○') + '</span>' +
-          '<span class="ccl-id">' + esc(l.id) + '</span>' +
+          '<span class="ccl-id">' + esc(displayLessonId(l)) + '</span>' +
           '<span class="ccl-title">' + esc(l.title) + '</span>' +
           lessonTaskProgress(l) +
           '<span class="ccl-go">→</span>';
@@ -427,7 +548,6 @@
 
       card.querySelector('.ch-card-head').addEventListener('click', function () {
         expanded[ch.id] = !expanded[ch.id];
-        grid.innerHTML = '';
         renderChapterCards();
       });
 
@@ -471,6 +591,7 @@
   function renderLesson() {
     var lesson = findLesson(currentId);
     var chapter = chapterOf(currentId);
+    var part = partOfChapter(chapter);
     var main = document.getElementById('content');
     if (!lesson) {
       main.innerHTML = '<div class="loading">レッスンが見つかりません</div>';
@@ -485,15 +606,17 @@
       '    <div class="crumb">' +
       '      <button class="crumb-home" id="crumbHome">メニュー</button>' +
       '      <span class="crumb-sep">›</span>' +
-             esc(chapter.emoji) + ' 第' + chapter.number + '章 ' + esc(chapter.title) +
+             (part ? '<span class="crumb-part">' + esc(part.emoji) + ' ' + esc(part.title) + '</span>' +
+             '<span class="crumb-sep">›</span>' : '') +
+             esc(chapter.emoji) + ' 第' + displayChapterNumber(chapter) + '章 ' + esc(chapter.title) +
       '    </div>' +
       '    <h1 class="lesson-h1">' +
-      '      <span class="lesson-h1-id">' + esc(lesson.id) + '</span>' + esc(lesson.title) +
+      '      <span class="lesson-h1-id">' + esc(displayLessonId(lesson)) + '</span>' + esc(lesson.title) +
              (lesson.cleared ? '<span class="badge badge-clear">★ クリア済み</span>' : '') +
       '    </h1>' +
       '  </div>' +
 
-      '  <section class="card card-explain">' + md(lesson.explanation) + '</section>' +
+      '  <section class="card card-explain">' + renderMarkdown(lesson.explanation) + '</section>' +
 
       '  <section class="samples" id="samples"></section>' +
 
@@ -548,7 +671,7 @@
 
       '<div class="task-block-body">' +
       '  <div class="card card-task">' +
-      '    <div class="task-body">' + md(task.task) + '</div>' +
+      '    <div class="task-body">' + renderMarkdown(task.task) + '</div>' +
            renderCasePreview(task) +
       '  </div>' +
 
@@ -668,12 +791,12 @@
       }
       return '<button class="' + cls + '" data-index="' + index + '" data-choice="' + i + '">' +
         '<span class="quiz-mark">' + CHOICE_LABELS[i] + '</span>' +
-        '<span class="quiz-choice-text">' + md(text) + '</span>' +
+        '<span class="quiz-choice-text">' + renderMarkdown(text) + '</span>' +
         '</button>';
     }).join('');
 
     return '<div class="quiz-item">' +
-      '  <div class="quiz-q"><span class="quiz-no">Q' + (index + 1) + '</span>' + md(quiz.question) + '</div>' +
+      '  <div class="quiz-q"><span class="quiz-no">Q' + (index + 1) + '</span>' + renderMarkdown(quiz.question) + '</div>' +
       '  <div class="quiz-choices">' + choices + '</div>' +
          quizFeedbackHtml(result) +
       '</div>';
@@ -686,7 +809,7 @@
       : '<span class="quiz-verdict quiz-ng">❌ 不正解　正解は '
           + CHOICE_LABELS[result.answer] + '</span>';
     return '<div class="quiz-feedback">' + head +
-      (result.explanation ? '<div class="quiz-explain">' + md(result.explanation) + '</div>' : '') +
+      (result.explanation ? '<div class="quiz-explain">' + renderMarkdown(result.explanation) + '</div>' : '') +
       '</div>';
   }
 
@@ -1070,7 +1193,7 @@
     box.className = 'card card-hint';
     box.setAttribute('data-hint', String(index));
     box.innerHTML = '<div class="hint-no">ヒント ' + (index + 1) + '</div>'
-      + '<div class="hint-text">' + md(text) + '</div>';
+      + '<div class="hint-text">' + renderMarkdown(text) + '</div>';
     host.appendChild(box);
   }
 

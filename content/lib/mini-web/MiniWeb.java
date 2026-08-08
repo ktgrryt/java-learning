@@ -286,8 +286,12 @@ public final class MiniWeb {
 
     /** {@code /admin/*} のような末尾ワイルドカードと、完全一致だけを見る。 */
     private static boolean matches(String pattern, String path) {
+        if (pattern.equals("/*")) {
+            return true;
+        }
         if (pattern.endsWith("/*")) {
-            return path.startsWith(pattern.substring(0, pattern.length() - 2));
+            String prefix = pattern.substring(0, pattern.length() - 2);
+            return path.equals(prefix) || path.startsWith(prefix + "/");
         }
         return pattern.equals(path);
     }

@@ -12,7 +12,7 @@
 #   jq_build           … 必要なときだけビルドする関数
 
 # 出力クラスが動く最低バージョン。ここを上げると古いJDKで動かなくなる
-JQ_TARGET_RELEASE=17
+JQ_TARGET_RELEASE=21
 
 # ---- 使うJDKを1つ決める ----------------------------------------------------
 jq_resolve_jdk() {
@@ -48,7 +48,7 @@ if ! jq_resolve_jdk; then
   echo "エラー: JDK ${JQ_TARGET_RELEASE} 以降が見つかりません。" >&2
   echo "" >&2
   echo "  javac が必要です（JRE だけでは足りません。あなたのコードをコンパイルするため）。" >&2
-  echo "  例: brew install openjdk@17" >&2
+  echo "  例: brew install openjdk@21" >&2
   echo "" >&2
   echo "  すでに入っている場合は、そのJDKの場所を指定してください:" >&2
   echo "    JQ_JAVA_HOME=/path/to/jdk ./run.sh" >&2

@@ -6,7 +6,7 @@
 #   ./run.sh --no-open    … ブラウザを自動で開かない
 #
 # 使うJDKを選びたいときは JQ_JAVA_HOME を指定する:
-#   JQ_JAVA_HOME=/opt/homebrew/opt/openjdk@17 ./run.sh
+#   JQ_JAVA_HOME=/opt/homebrew/opt/openjdk@21 ./run.sh
 #
 set -euo pipefail
 

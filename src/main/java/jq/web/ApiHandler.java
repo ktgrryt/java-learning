@@ -5,6 +5,7 @@ import com.sun.net.httpserver.HttpHandler;
 import jq.content.Chapter;
 import jq.content.ContentLoader;
 import jq.content.Curriculum;
+import jq.content.CurriculumPart;
 import jq.content.Lesson;
 import jq.content.Quiz;
 import jq.content.SourceFile;
@@ -150,6 +151,11 @@ public final class ApiHandler implements HttpHandler {
         }
 
         Map<String, Object> m = new LinkedHashMap<>();
+        List<Object> parts = new ArrayList<>();
+        for (CurriculumPart part : c.parts()) {
+            parts.add(part.toPublicJson());
+        }
+        m.put("parts", parts);
         m.put("chapters", chapters);
         m.put("progress", progress.toClientJson());
         m.put("totalLessons", c.totalLessonCount());
@@ -368,7 +374,7 @@ public final class ApiHandler implements HttpHandler {
                 result.put("lessonCleared", !lessonWasCleared && c.isLessonCleared(lesson, after));
                 result.put("chapterCleared", !chapterWasCleared && c.isChapterCleared(chapter, after));
                 result.put("chapterTitle", chapter.title());
-                result.put("chapterNumber", chapter.number());
+                result.put("chapterNumber", chapter.partNumber());
                 Curriculum.TaskRef next = c.nextTask(lessonId, taskId);
                 result.put("next", next == null ? null : next.toJson());
                 result.put("allChaptersCleared", after.size() == c.totalTaskCount());
