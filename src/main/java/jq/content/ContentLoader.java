@@ -78,11 +78,44 @@ public final class ContentLoader {
                     MiniJson.str(s, "stdin", "")));
         }
 
+        return new Lesson(
+                id,
+                chapterId,
+                MiniJson.requireStr(raw, "title"),
+                MiniJson.str(raw, "explanation", ""),
+                List.copyOf(samples),
+                parseTasks(raw, id),
+                parseQuizzes(raw, id));
+    }
+
+    /**
+     * レッスンの練習問題を読む。
+     *
+     * 1問目はレッスン直下の task / starterCode / … に書く（レッスンが1問だけなら
+     * これで完結する）。2問目以降は "extraTasks" 配列に足す。
+     *
+     * 問題のIDは並び順の1始まりの連番で、進捗の保存キー（レッスンID#連番）になる。
+     * だから extraTasks は **末尾に足す**（途中に挿入すると連番がずれて、
+     * すでにクリアした問題が別の問題として扱われてしまう）。
+     */
+    private List<Task> parseTasks(Map<String, Object> raw, String lessonId) {
+        List<Task> tasks = new ArrayList<>();
+        tasks.add(parseTask(raw, lessonId, 1, "practice"));
+        for (Object o : MiniJson.list(raw, "extraTasks")) {
+            tasks.add(parseTask(MiniJson.asObj(o), lessonId, tasks.size() + 1, "drill"));
+        }
+        return List.copyOf(tasks);
+    }
+
+    private Task parseTask(Map<String, Object> raw, String lessonId, int number, String defaultKind) {
+        String id = String.valueOf(number);
+        String where = "レッスン " + lessonId + " の問題" + number;
+
         List<TestCase> cases = new ArrayList<>();
         collectCases(cases, MiniJson.list(raw, "visibleCases"), false);
         collectCases(cases, MiniJson.list(raw, "hiddenCases"), true);
         if (cases.isEmpty()) {
-            throw new IllegalStateException("レッスン " + id + " にテストケースがありません");
+            throw new IllegalStateException(where + " にテストケースがありません");
         }
 
         List<String> hints = new ArrayList<>();
@@ -92,17 +125,57 @@ public final class ContentLoader {
             }
         }
 
-        return new Lesson(
+        String kind = MiniJson.str(raw, "kind", defaultKind);
+        if (!kind.equals("practice") && !kind.equals("drill") && !kind.equals("applied")) {
+            throw new IllegalStateException(where + " の kind は practice / drill / applied "
+                    + "のいずれかにしてください: " + kind);
+        }
+
+        return new Task(
                 id,
-                chapterId,
-                MiniJson.requireStr(raw, "title"),
-                MiniJson.str(raw, "explanation", ""),
-                List.copyOf(samples),
+                kind,
                 MiniJson.str(raw, "task", ""),
                 MiniJson.str(raw, "starterCode", defaultStarter()),
                 List.copyOf(cases),
                 List.copyOf(hints),
                 MiniJson.str(raw, "solution", ""));
+    }
+
+    /**
+     * 選択式クイズを読む（任意。無ければ空リスト）。
+     *
+     * 正解の番号が選択肢の範囲外だと「絶対に正解できない問題」になってしまうので、
+     * ここで弾いて起動時に気づけるようにする。
+     */
+    private List<Quiz> parseQuizzes(Map<String, Object> raw, String lessonId) {
+        List<Quiz> quizzes = new ArrayList<>();
+        for (Object o : MiniJson.list(raw, "quiz")) {
+            Map<String, Object> q = MiniJson.asObj(o);
+
+            List<String> choices = new ArrayList<>();
+            for (Object c : MiniJson.list(q, "choices")) {
+                if (c instanceof String s) {
+                    choices.add(s);
+                }
+            }
+            if (choices.size() < 2) {
+                throw new IllegalStateException(
+                        "レッスン " + lessonId + " のクイズには choices が2つ以上必要です");
+            }
+
+            int answer = MiniJson.intOf(q, "answer", -1);
+            if (answer < 0 || answer >= choices.size()) {
+                throw new IllegalStateException("レッスン " + lessonId
+                        + " のクイズの answer が選択肢の範囲外です: " + answer);
+            }
+
+            quizzes.add(new Quiz(
+                    MiniJson.requireStr(q, "question"),
+                    List.copyOf(choices),
+                    answer,
+                    MiniJson.str(q, "explanation", "")));
+        }
+        return List.copyOf(quizzes);
     }
 
     private void collectCases(List<TestCase> out, List<Object> raw, boolean hidden) {

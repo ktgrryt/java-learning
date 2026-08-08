@@ -19,10 +19,11 @@
 
   var state = null;        // サーバから受け取った最新の state
   var currentId = null;    // いま開いているレッスンID（メニュー表示中は null）
-  var editor = null;
-  var saveTimer = null;
-  var busy = false;
+  var editors = {};        // 問題ID -> エディタ（1レッスンに複数問あるので複数持つ）
+  var saveTimers = {};     // 問題ID -> 自動保存のタイマー
+  var busyTask = null;     // 実行・採点中の問題ID（同時に走らせない）
   var expanded = {};       // メニューで開いている章のID
+  var sideExpanded = {};   // サイドバーで開いている章のID（既定は全部たたむ）
 
   // ---------------------------------------------------------------- 通信
 
@@ -66,6 +67,21 @@
     return found;
   }
 
+  /** 全レッスンの全問題を平らに並べたもの（★の分母や集計に使う）。 */
+  function allTasks() {
+    var list = [];
+    allLessons().forEach(function (l) {
+      l.tasks.forEach(function (t) { list.push(t); });
+    });
+    return list;
+  }
+
+  function findTask(lesson, taskId) {
+    var found = null;
+    lesson.tasks.forEach(function (t) { if (t.id === taskId) { found = t; } });
+    return found;
+  }
+
   /** まだクリアしていない先頭のレッスン。全部終わっていれば最後のレッスン。 */
   function firstTodo() {
     var lessons = allLessons();
@@ -88,8 +104,58 @@
     return firstTodo();
   }
 
-  function clearedLessons() {
-    return allLessons().filter(function (l) { return l.cleared; });
+  /**
+   * 提出・クイズ回答の応答に入っている差分を、手元の state に上書きする。
+   *
+   * サーバはカリキュラム全体（解説やサンプル込みで約500KB）を返さず、
+   * 変わったところ＝進捗まわりだけを返す。解説文などは最初の /api/state で
+   * 受け取ったものをそのまま使い続ける。
+   */
+  function applyDelta(delta) {
+    if (!delta) { return; }
+    if (delta.progress) { state.progress = delta.progress; }
+    if (typeof delta.quizCorrect === 'number') { state.quizCorrect = delta.quizCorrect; }
+
+    var chapterUpdates = {};
+    (delta.chapters || []).forEach(function (c) { chapterUpdates[c.id] = c; });
+    state.chapters.forEach(function (ch) {
+      var u = chapterUpdates[ch.id];
+      if (u) {
+        ch.cleared = u.cleared;
+        ch.clearedCount = u.clearedCount;
+      }
+    });
+
+    var lessonUpdates = {};
+    (delta.lessons || []).forEach(function (l) { lessonUpdates[l.id] = l; });
+    allLessons().forEach(function (l) {
+      var u = lessonUpdates[l.id];
+      if (u) {
+        l.cleared = u.cleared;
+        l.clearedCount = u.clearedCount;
+      }
+    });
+
+    // ★・通過ケース数・ヒント開示数は問題ごとに持っている
+    var taskUpdates = {};
+    (delta.tasks || []).forEach(function (t) { taskUpdates[t.lessonId + '#' + t.taskId] = t; });
+    allLessons().forEach(function (l) {
+      l.tasks.forEach(function (t) {
+        var u = taskUpdates[l.id + '#' + t.id];
+        if (u) {
+          t.cleared = u.cleared;
+          t.passedCount = u.passedCount;
+          t.hintsRevealed = u.hintsRevealed;
+          t.solutionUnlocked = u.solutionUnlocked;
+        }
+      });
+    });
+
+    // 差分の対象になったレッスンだけ、クイズの回答状況も更新する
+    if (delta.lessonId) {
+      var target = findLesson(delta.lessonId);
+      if (target && delta.quizResults) { target.quizResults = delta.quizResults; }
+    }
   }
 
   function sumValues(obj) {
@@ -101,7 +167,7 @@
   // ------------------------------------------------------------ ヘッダ描画
 
   function renderHeader() {
-    var total = state.totalLessons;
+    var total = state.totalTasks;
     var stars = state.progress.starCount;
     var pct = total ? Math.round((stars / total) * 100) : 0;
 
@@ -118,16 +184,23 @@
     nav.innerHTML = '';
 
     state.chapters.forEach(function (ch) {
-      var total = ch.lessons.length;
+      var total = ch.taskCount;
       var pct = Math.round((ch.clearedCount / total) * 100);
       var isCurrentChapter = ch.lessons.some(function (l) { return l.id === currentId; });
+
+      // 章は既定でたたんでおく。ただし自分で開閉していない章のうち、
+      // いま開いているレッスンの章だけは現在地が分かるように開いておく。
+      if (sideExpanded[ch.id] === undefined && isCurrentChapter) {
+        sideExpanded[ch.id] = true;
+      }
+      var open = !!sideExpanded[ch.id];
 
       var section = document.createElement('section');
       section.className = 'ch'
         + (ch.cleared ? ' ch-cleared' : '')
         + (isCurrentChapter ? ' ch-current' : '');
 
-      // 全部クリアなら ✅、途中なら「2/4」。どの章がどこまで進んだか一目で分かるように。
+      // 全部クリアなら ✅、途中なら「2/9」（分母は章の問題数）。
       // まだ0件の章は数字を強調しない（0が目立つと、進んでいるように見えてしまう）
       var status = ch.cleared
         ? '<span class="ch-done">✅</span>'
@@ -135,18 +208,20 @@
           + '<b>' + ch.clearedCount + '</b>/' + total + '</span>';
 
       section.innerHTML =
-        '<div class="ch-head">' +
+        '<button type="button" class="ch-head" aria-expanded="' + open + '">' +
         '  <span class="ch-emoji">' + esc(ch.emoji) + '</span>' +
         '  <span class="ch-titles">' +
         '    <span class="ch-title">第' + ch.number + '章　' + esc(ch.title) + '</span>' +
         '    <span class="ch-sub">' + esc(ch.subtitle) + '</span>' +
         '  </span>' +
         '  <span class="ch-status">' + status + '</span>' +
-        '</div>' +
+        '  <span class="ch-caret">' + (open ? '▲' : '▼') + '</span>' +
+        '</button>' +
         '<div class="ch-bar"><div class="ch-bar-fill" style="width:' + pct + '%"></div></div>';
 
       var ul = document.createElement('ul');
       ul.className = 'lessons';
+      if (!open) { ul.hidden = true; }
       ch.lessons.forEach(function (l) {
         var li = document.createElement('li');
         li.className = 'lesson'
@@ -155,20 +230,45 @@
         li.innerHTML =
           '<span class="lesson-mark">' + (l.cleared ? '★' : '○') + '</span>' +
           '<span class="lesson-id">' + esc(l.id) + '</span>' +
-          '<span class="lesson-title">' + esc(l.title) + '</span>';
-        li.title = (l.cleared ? 'クリア済み: ' : '') + l.title;
+          '<span class="lesson-title">' + esc(l.title) + '</span>' +
+          lessonTaskProgress(l);
+        li.title = lessonTooltip(l);
         li.addEventListener('click', function () { selectLesson(l.id); });
         ul.appendChild(li);
       });
       section.appendChild(ul);
+
+      section.querySelector('.ch-head').addEventListener('click', function () {
+        sideExpanded[ch.id] = !open;
+        renderSidebar();
+      });
+
       nav.appendChild(section);
     });
+  }
+
+  /**
+   * レッスン行に出す「1/2」。
+   *
+   * 1問しかないレッスンでは★か○だけで足りるので出さない。複数問あるレッスンで
+   * 途中まで進んでいるときに、あと何問残っているかが分かるようにする。
+   */
+  function lessonTaskProgress(lesson) {
+    if (lesson.taskCount < 2 || lesson.cleared) { return ''; }
+    return '<span class="lesson-frac">' + (lesson.clearedCount || 0)
+      + '/' + lesson.taskCount + '</span>';
+  }
+
+  function lessonTooltip(lesson) {
+    if (lesson.cleared) { return 'クリア済み: ' + lesson.title; }
+    if (lesson.taskCount < 2) { return lesson.title; }
+    return lesson.title + '（' + (lesson.clearedCount || 0) + '/' + lesson.taskCount + '問クリア）';
   }
 
   // ------------------------------------------------------ メインメニュー描画
 
   function renderMenu() {
-    var total = state.totalLessons;
+    var total = state.totalTasks;
     var stars = state.progress.starCount;
     var pct = total ? Math.round((stars / total) * 100) : 0;
     var done = stars === total;
@@ -236,17 +336,28 @@
 
   /** 学習の記録。★・連続日数・通過したテストケース・提出回数。 */
   function renderMenuStats() {
-    var cleared = clearedLessons();
-    var casesPassed = cleared.reduce(function (n, l) { return n + l.totalCaseCount; }, 0);
-    var casesTotal = allLessons().reduce(function (n, l) { return n + l.totalCaseCount; }, 0);
+    // クリアした問題だけを数えると、8件中7件通っている問題が0件扱いになって
+    // 実際より進んでいないように見える。サーバが持っている最高記録で数える。
+    var casesPassed = allTasks().reduce(function (n, t) {
+      return n + (t.cleared ? t.totalCaseCount : (t.passedCount || 0));
+    }, 0);
+    var casesTotal = allTasks().reduce(function (n, t) { return n + t.totalCaseCount; }, 0);
     var attempts = sumValues(state.progress.attempts);
 
     var tiles = [
-      { icon: '★', value: state.progress.starCount, unit: '/ ' + state.totalLessons, label: 'クリアしたレッスン' },
+      { icon: '★', value: state.progress.starCount, unit: '/ ' + state.totalTasks, label: 'クリアした問題' },
       { icon: '🔥', value: state.progress.streak, unit: '日', label: '連続で学習した日数' },
       { icon: '✅', value: casesPassed, unit: '/ ' + casesTotal, label: '通過したテストケース' },
       { icon: '✍️', value: attempts, unit: '回', label: '提出した回数' }
     ];
+    if (state.quizTotal) {
+      tiles.push({
+        icon: '🧠',
+        value: state.quizCorrect,
+        unit: '/ ' + state.quizTotal,
+        label: '正解した確認クイズ'
+      });
+    }
 
     return '' +
       '<section class="menu-section">' +
@@ -269,7 +380,7 @@
     var todoChapter = chapterOf(firstTodo());
 
     state.chapters.forEach(function (ch) {
-      var total = ch.lessons.length;
+      var total = ch.taskCount;
       var pct = Math.round((ch.clearedCount / total) * 100);
       // まだ初回なら、次にやる章だけ最初から開いておく
       if (expanded[ch.id] === undefined && todoChapter && ch.id === todoChapter.id) {
@@ -308,6 +419,7 @@
           '<span class="ccl-mark">' + (l.cleared ? '★' : '○') + '</span>' +
           '<span class="ccl-id">' + esc(l.id) + '</span>' +
           '<span class="ccl-title">' + esc(l.title) + '</span>' +
+          lessonTaskProgress(l) +
           '<span class="ccl-go">→</span>';
         li.addEventListener('click', function () { selectLesson(l.id); });
         ul.appendChild(li);
@@ -330,6 +442,7 @@
       ['▶', 'サンプルを動かす', '解説中のコードは「▶ サンプルを実行」でその場で動きます。まず動かすのが理解の近道です。'],
       ['⌨️', '自分で書く', 'ひな形から書き始められます。行番号・色付け・自動インデントつきです。'],
       ['✓', '提出して採点', '隠しテストを含む全ケースで採点します。全部通ればクリア、★が付きます。'],
+      ['🔁', '同じ回に2問目', '解説で出てきた話は、なるべく全部その場で書いて確かめられるようにしています。'],
       ['💡', '詰まったらヒント', '1つずつ開けます。全部開くと模範解答も見られます。使ってもクリア扱いです。']
     ];
 
@@ -364,6 +477,7 @@
       return;
     }
 
+    editors = {};
     main.innerHTML =
       '<article class="lesson-view">' +
 
@@ -383,82 +497,230 @@
 
       '  <section class="samples" id="samples"></section>' +
 
-      '  <section class="card card-task">' +
-      '    <h2 class="card-h"><span class="card-h-icon">✍️</span>練習問題</h2>' +
-      '    <div class="task-body">' + md(lesson.task) + '</div>' +
-             renderCasePreview(lesson) +
-      '  </section>' +
-
-      '  <section class="card card-code">' +
-      '    <div class="code-head">' +
-      '      <h2 class="card-h"><span class="card-h-icon">⌨️</span>コードを書く</h2>' +
-      '      <div class="code-head-actions">' +
-      '        <button class="ghost-btn" id="restoreBtn" title="最初のひな形に戻す">ひな形に戻す</button>' +
-      '      </div>' +
-      '    </div>' +
-      '    <div id="editorHost"></div>' +
-      '    <div class="actions">' +
-      '      <button class="run-btn" id="runBtn">▶ 実行してみる</button>' +
-      '      <button class="primary-btn" id="submitBtn">✓ 提出して採点</button>' +
-      '      <span class="spacer"></span>' +
-             renderHintButton(lesson) +
-      '    </div>' +
-      '    <div class="shortcut-note">⌘/Ctrl + Enter で提出　·　⌘/Ctrl + Shift + Enter で実行</div>' +
-      '  </section>' +
-
-      '  <section class="hints" id="hints"></section>' +
-      '  <section class="result" id="result"></section>' +
+      '  <section class="tasks" id="tasks"></section>' +
+      '  <section class="quiz" id="quiz"></section>' +
       '</article>';
 
     renderSamples(lesson);
 
-    editor = new window.JQEditor(document.getElementById('editorHost'));
-    editor.setValue(lesson.savedCode != null && lesson.savedCode !== ''
-      ? lesson.savedCode
-      : lesson.starterCode);
-    editor.onSubmit = submit;
-    editor.onRun = runOnce;
-    editor.input.addEventListener('input', scheduleSave);
-
-    document.getElementById('crumbHome').addEventListener('click', goHome);
-    document.getElementById('runBtn').addEventListener('click', runOnce);
-    document.getElementById('submitBtn').addEventListener('click', submit);
-    document.getElementById('restoreBtn').addEventListener('click', function () {
-      if (window.confirm('書いたコードを消して、最初のひな形に戻します。よろしいですか？')) {
-        editor.setValue(lesson.starterCode);
-        editor.focus();
-        scheduleSave();
-      }
+    var tasksHost = document.getElementById('tasks');
+    lesson.tasks.forEach(function (task, index) {
+      tasksHost.appendChild(buildTaskBlock(lesson, task, index));
+      // 挿してから呼ぶ。開示済みヒントと模範解答ボタンは id で要素を引くので、
+      // 繋ぐ前に呼ぶと見つからない（ヒント欄が空のまま描画が止まる）。
+      renderRevealedHints(lesson, task);
     });
 
-    var hintBtn = document.getElementById('hintBtn');
-    if (hintBtn) { hintBtn.addEventListener('click', revealNextHint); }
+    document.getElementById('crumbHome').addEventListener('click', goHome);
 
-    // すでに開示済みのヒントは開き直したときにも見えるようにする
-    renderRevealedHints(lesson);
+    renderQuiz(lesson);
     main.scrollTop = 0;
   }
 
-  /** 問題文の下に置く「どんな入出力が試されるか」の表。 */
-  function renderCasePreview(lesson) {
-    if (!lesson.visibleCases.length && !lesson.hiddenCaseCount) { return ''; }
+  // ------------------------------------------------------- 練習問題1問ぶん
 
-    var usesStdin = lesson.visibleCases.some(function (c) { return c.stdin !== ''; });
-    var rows = lesson.visibleCases.map(function (c) {
+  /**
+   * 練習問題1問（問題文 + エディタ + ヒント + 採点結果）のかたまりを作る。
+   *
+   * 1レッスンに複数問あるので、DOMのidは問題ごとに接尾辞を付けて衝突させない。
+   * エディタも問題ごとに別インスタンスにする（textarea が別なので、書きかけの
+   * コードも採点結果も混ざらない）。
+   *
+   * すでにクリアした問題は headerだけに畳んでおく。開き直したときに全問が
+   * 開いていると、いま解くべき問題がどれか分からなくなるため。
+   */
+  function buildTaskBlock(lesson, task, index) {
+    var n = task.id;
+    var collapsed = task.cleared;
+
+    var block = document.createElement('section');
+    block.className = 'task-block' + (collapsed ? ' is-collapsed' : '');
+    block.id = 'task-' + n;
+    block.innerHTML =
+      '<button type="button" class="task-block-head" aria-expanded="' + (!collapsed) + '">' +
+      '  <span class="task-no">問題' + (index + 1) + '</span>' +
+      '  <span class="task-kind task-kind-' + esc(task.kind) + '">' + esc(task.label) + '</span>' +
+      '  <span class="task-head-status" id="taskStatus-' + n + '">' +
+           (task.cleared ? '★ クリア済み' : '') +
+      '  </span>' +
+      '  <span class="task-caret">' + (collapsed ? '▼' : '▲') + '</span>' +
+      '</button>' +
+
+      '<div class="task-block-body">' +
+      '  <div class="card card-task">' +
+      '    <div class="task-body">' + md(task.task) + '</div>' +
+           renderCasePreview(task) +
+      '  </div>' +
+
+      '  <div class="card card-code">' +
+      '    <div class="code-head">' +
+      '      <h2 class="card-h"><span class="card-h-icon">⌨️</span>コードを書く</h2>' +
+      '      <div class="code-head-actions">' +
+      '        <button class="ghost-btn" data-role="restore" title="最初のひな形に戻す">ひな形に戻す</button>' +
+      '      </div>' +
+      '    </div>' +
+      '    <div id="editorHost-' + n + '"></div>' +
+      '    <div class="actions">' +
+      '      <button class="run-btn" id="runBtn-' + n + '">▶ 実行してみる</button>' +
+      '      <button class="primary-btn" id="submitBtn-' + n + '">✓ 提出して採点</button>' +
+      '      <span class="spacer"></span>' +
+             renderHintButton(task) +
+      '    </div>' +
+      '    <div class="shortcut-note">⌘/Ctrl + Enter で提出　·　⌘/Ctrl + Shift + Enter で実行</div>' +
+      '  </div>' +
+
+      '  <div class="hints" id="hints-' + n + '"></div>' +
+      '  <div class="result" id="result-' + n + '"></div>' +
+      '</div>';
+
+    var editor = new window.JQEditor(block.querySelector('#editorHost-' + n));
+    editor.setValue(task.savedCode != null && task.savedCode !== ''
+      ? task.savedCode
+      : task.starterCode);
+    editor.onSubmit = function () { submit(n); };
+    editor.onRun = function () { runOnce(n); };
+    editor.input.addEventListener('input', function () { scheduleSave(n); });
+    editors[n] = editor;
+
+    block.querySelector('#runBtn-' + n).addEventListener('click', function () { runOnce(n); });
+    block.querySelector('#submitBtn-' + n).addEventListener('click', function () { submit(n); });
+    block.querySelector('[data-role="restore"]').addEventListener('click', function () {
+      if (window.confirm('書いたコードを消して、最初のひな形に戻します。よろしいですか？')) {
+        editor.setValue(task.starterCode);
+        editor.focus();
+        scheduleSave(n);
+      }
+    });
+
+    var hintBtn = block.querySelector('.hint-btn');
+    if (hintBtn) { hintBtn.addEventListener('click', function () { revealNextHint(n); }); }
+
+    block.querySelector('.task-block-head').addEventListener('click', function () {
+      toggleTaskBlock(n);
+    });
+
+    // 開示済みヒントの描画は、このかたまりを document に挿してから
+    // （renderRevealedHints は id で引くので、繋ぐ前だと見つからない）
+    return block;
+  }
+
+  function toggleTaskBlock(taskId, forceOpen) {
+    var block = document.getElementById('task-' + taskId);
+    if (!block) { return; }
+    var collapsed = forceOpen === true ? false : !block.classList.contains('is-collapsed');
+    block.classList.toggle('is-collapsed', collapsed);
+    block.querySelector('.task-block-head').setAttribute('aria-expanded', String(!collapsed));
+    block.querySelector('.task-caret').textContent = collapsed ? '▼' : '▲';
+  }
+
+  // ------------------------------------------------------- 確認クイズ（4択）
+
+  var CHOICE_LABELS = ['A', 'B', 'C', 'D', 'E', 'F'];
+
+  /**
+   * レッスンの最後に置く選択式クイズ。
+   *
+   * 正解の番号はサーバから送られてこないので、答え合わせは必ず /api/quiz に投げる。
+   * 一度答えた問題は state に残っているので、開き直しても結果が見える。
+   */
+  function renderQuiz(lesson) {
+    var host = document.getElementById('quiz');
+    if (!host) { return; }
+    var quizzes = lesson.quizzes || [];
+    if (!quizzes.length) {
+      host.innerHTML = '';
+      return;
+    }
+
+    var results = lesson.quizResults || [];
+    var correct = 0;
+    var answered = 0;
+    results.forEach(function (r) {
+      if (r) { answered++; if (r.correct) { correct++; } }
+    });
+
+    host.innerHTML =
+      '<div class="card card-quiz">' +
+      '  <div class="quiz-head">' +
+      '    <h2 class="card-h"><span class="card-h-icon">🧠</span>確認クイズ</h2>' +
+      '    <span class="quiz-score">' + correct + ' / ' + quizzes.length + ' 正解' +
+             (answered < quizzes.length ? '（未回答 ' + (quizzes.length - answered) + '）' : '') +
+      '    </span>' +
+      '  </div>' +
+      '  <p class="quiz-note">★ の判定には影響しません。何度でも答え直せます。</p>' +
+      quizzes.map(function (q, i) { return quizItemHtml(q, i, results[i]); }).join('') +
+      '</div>';
+
+    var buttons = host.getElementsByClassName('quiz-choice');
+    Array.prototype.forEach.call(buttons, function (btn) {
+      btn.addEventListener('click', function () {
+        answerQuiz(Number(btn.dataset.index), Number(btn.dataset.choice));
+      });
+    });
+  }
+
+  function quizItemHtml(quiz, index, result) {
+    var choices = quiz.choices.map(function (text, i) {
+      var cls = 'quiz-choice';
+      if (result) {
+        if (i === result.choice) { cls += result.correct ? ' is-picked-ok' : ' is-picked-ng'; }
+        if (!result.correct && i === result.answer) { cls += ' is-answer'; }
+      }
+      return '<button class="' + cls + '" data-index="' + index + '" data-choice="' + i + '">' +
+        '<span class="quiz-mark">' + CHOICE_LABELS[i] + '</span>' +
+        '<span class="quiz-choice-text">' + md(text) + '</span>' +
+        '</button>';
+    }).join('');
+
+    return '<div class="quiz-item">' +
+      '  <div class="quiz-q"><span class="quiz-no">Q' + (index + 1) + '</span>' + md(quiz.question) + '</div>' +
+      '  <div class="quiz-choices">' + choices + '</div>' +
+         quizFeedbackHtml(result) +
+      '</div>';
+  }
+
+  function quizFeedbackHtml(result) {
+    if (!result) { return ''; }
+    var head = result.correct
+      ? '<span class="quiz-verdict quiz-ok">✅ 正解</span>'
+      : '<span class="quiz-verdict quiz-ng">❌ 不正解　正解は '
+          + CHOICE_LABELS[result.answer] + '</span>';
+    return '<div class="quiz-feedback">' + head +
+      (result.explanation ? '<div class="quiz-explain">' + md(result.explanation) + '</div>' : '') +
+      '</div>';
+  }
+
+  function answerQuiz(index, choice) {
+    var lessonId = currentId;
+    api('quiz', { lessonId: lessonId, index: index, choice: choice })
+      .then(function (res) {
+        applyDelta(res.delta);
+        var lesson = findLesson(lessonId);
+        if (lesson && lessonId === currentId) { renderQuiz(lesson); }
+      })
+      .catch(toastError);
+  }
+
+  /** 問題文の下に置く「どんな入出力が試されるか」の表。 */
+  function renderCasePreview(task) {
+    if (!task.visibleCases.length && !task.hiddenCaseCount) { return ''; }
+
+    var usesStdin = task.visibleCases.some(function (c) { return c.stdin !== ''; });
+    var rows = task.visibleCases.map(function (c) {
       return '<tr>' +
         (usesStdin ? '<td class="io"><pre>' + esc(c.stdin) + '</pre></td>' : '') +
         '<td class="io"><pre>' + esc(c.expected) + '</pre></td>' +
         '</tr>';
     }).join('');
 
-    var hiddenNote = lesson.hiddenCaseCount
-      ? '<p class="case-hidden-note">🔒 このほかに <b>' + lesson.hiddenCaseCount
+    var hiddenNote = task.hiddenCaseCount
+      ? '<p class="case-hidden-note">🔒 このほかに <b>' + task.hiddenCaseCount
         + '件</b> の隠しテストがあります（提出すると結果が見えます）。'
         + 'たまたま通るコードではなく、どんな入力でも正しく動くコードを書きましょう。</p>'
       : '';
 
     return '<div class="cases">' +
-      '<div class="cases-title">試されること（全' + lesson.totalCaseCount + '件）</div>' +
+      '<div class="cases-title">試されること（全' + task.totalCaseCount + '件）</div>' +
       '<table class="case-table">' +
       '<thead><tr>' + (usesStdin ? '<th>入力</th>' : '') + '<th>期待する出力</th></tr></thead>' +
       '<tbody>' + rows + '</tbody></table>' +
@@ -466,11 +728,11 @@
       '</div>';
   }
 
-  function renderHintButton(lesson) {
-    if (!lesson.hintCount) { return ''; }
-    var left = lesson.hintCount - lesson.hintsRevealed;
+  function renderHintButton(task) {
+    if (!task.hintCount) { return ''; }
+    var left = task.hintCount - task.hintsRevealed;
     var label = left > 0 ? '💡 ヒント（残り' + left + '）' : '💡 ヒントはすべて表示済み';
-    return '<button class="ghost-btn" id="hintBtn"' + (left > 0 ? '' : ' disabled') + '>'
+    return '<button class="ghost-btn hint-btn"' + (left > 0 ? '' : ' disabled') + '>'
       + label + '</button>';
   }
 
@@ -555,21 +817,22 @@
 
   // -------------------------------------------------------------- アクション
 
-  function scheduleSave() {
-    clearTimeout(saveTimer);
+  function scheduleSave(taskId) {
+    clearTimeout(saveTimers[taskId]);
     var id = currentId;
-    var code = editor.getValue();
-    saveTimer = setTimeout(function () {
-      api('save', { lessonId: id, code: code }).catch(function () {
+    var code = editors[taskId].getValue();
+    saveTimers[taskId] = setTimeout(function () {
+      api('save', { lessonId: id, taskId: taskId, code: code }).catch(function () {
         // 保存に失敗しても学習は続けられるので黙って見送る（次の入力で再試行される）
       });
     }, 800);
   }
 
-  function setBusy(on, label) {
-    busy = on;
-    var runBtn = document.getElementById('runBtn');
-    var submitBtn = document.getElementById('submitBtn');
+  /** 実行・採点は1問ずつ。走っている問題のボタンだけを止める。 */
+  function setBusy(taskId, on, label) {
+    busyTask = on ? taskId : null;
+    var runBtn = document.getElementById('runBtn-' + taskId);
+    var submitBtn = document.getElementById('submitBtn-' + taskId);
     if (runBtn) { runBtn.disabled = on; }
     if (submitBtn) {
       submitBtn.disabled = on;
@@ -577,16 +840,17 @@
     }
   }
 
-  function runOnce() {
-    if (busy) { return; }
+  function runOnce(taskId) {
+    if (busyTask) { return; }
     var lesson = findLesson(currentId);
-    var stdin = lesson.visibleCases.length ? lesson.visibleCases[0].stdin : '';
-    var result = document.getElementById('result');
-    setBusy(true);
+    var task = findTask(lesson, taskId);
+    var stdin = task.visibleCases.length ? task.visibleCases[0].stdin : '';
+    var result = document.getElementById('result-' + taskId);
+    setBusy(taskId, true);
     result.className = 'result';
     result.innerHTML = '<div class="card card-result"><div class="spinner">実行中…</div></div>';
 
-    api('run', { lessonId: currentId, code: editor.getValue(), stdin: stdin })
+    api('run', { lessonId: currentId, taskId: taskId, code: editors[taskId].getValue(), stdin: stdin })
       .then(function (res) {
         var note = stdin
           ? '<div class="out-note">最初のテストケースの入力（<code>' + esc(stdin)
@@ -596,33 +860,72 @@
           + '<h2 class="card-h"><span class="card-h-icon">▶</span>実行結果</h2>'
           + note + renderRunOutput(res) + '</div>';
       })
-      .catch(showError)
-      .then(function () { setBusy(false); });
+      .catch(function (e) { showError(e, taskId); })
+      .then(function () { setBusy(taskId, false); });
   }
 
-  function submit() {
-    if (busy) { return; }
-    var result = document.getElementById('result');
-    setBusy(true, '採点中…');
+  function submit(taskId) {
+    if (busyTask) { return; }
+    var result = document.getElementById('result-' + taskId);
+    setBusy(taskId, true, '採点中…');
     result.innerHTML = '<div class="card card-result"><div class="spinner">採点中…</div></div>';
 
-    api('submit', { lessonId: currentId, code: editor.getValue() })
+    api('submit', { lessonId: currentId, taskId: taskId, code: editors[taskId].getValue() })
       .then(function (res) {
         var wasCurrent = currentId;
-        state = res.state;
+        applyDelta(res.delta);
         renderHeader();
         renderSidebar();
-        renderJudgement(res);
+        refreshClearedBadge(wasCurrent);
+        refreshTaskStatus(wasCurrent, taskId);
+        renderJudgement(res, taskId);
         if (res.allPass) {
-          celebrate(res, wasCurrent);
+          celebrate(res, wasCurrent, taskId);
         }
       })
-      .catch(showError)
-      .then(function () { setBusy(false); });
+      .catch(function (e) { showError(e, taskId); })
+      .then(function () { setBusy(taskId, false); });
   }
 
-  function renderJudgement(res) {
-    var result = document.getElementById('result');
+  /**
+   * 見出しの「★ クリア済み」バッジを、いまの state に合わせる。
+   *
+   * 提出後にレッスン全体を描き直すとエディタの中身と採点結果が消えてしまうので、
+   * バッジだけを差し込む。
+   */
+  function refreshClearedBadge(lessonId) {
+    if (lessonId !== currentId) { return; }
+    var lesson = findLesson(lessonId);
+    var head = document.querySelector('.lesson-h1');
+    if (!lesson || !head) { return; }
+    var badge = head.querySelector('.badge-clear');
+    if (lesson.cleared && !badge) {
+      badge = document.createElement('span');
+      badge.className = 'badge badge-clear';
+      badge.textContent = '★ クリア済み';
+      head.appendChild(badge);
+    } else if (!lesson.cleared && badge) {
+      badge.remove();
+    }
+  }
+
+  /**
+   * 問題ヘッダの「★ クリア済み」を、いまの state に合わせる。
+   *
+   * ここでは畳まない。採点結果をこれから読むところなので、通った瞬間に
+   * 閉じられると何が起きたのか分からなくなる。畳むのは開き直したときだけ。
+   */
+  function refreshTaskStatus(lessonId, taskId) {
+    if (lessonId !== currentId) { return; }
+    var lesson = findLesson(lessonId);
+    var task = lesson && findTask(lesson, taskId);
+    var status = document.getElementById('taskStatus-' + taskId);
+    if (!task || !status) { return; }
+    status.textContent = task.cleared ? '★ クリア済み' : '';
+  }
+
+  function renderJudgement(res, taskId) {
+    var result = document.getElementById('result-' + taskId);
     var html = '<div class="card card-result ' + (res.allPass ? 'ok' : 'ng') + '">';
 
     if (!res.compiled) {
@@ -672,19 +975,39 @@
     html += '</ul>';
 
     if (res.allPass) {
-      var next = res.nextLessonId;
+      // 次が同じレッスンの中なら「次の問題へ」。まだ解説を読み終えた流れの中にいるので、
+      // レッスンを離れずにその問題まで運ぶ。
+      var next = res.next;
+      var sameLesson = next && next.lessonId === currentId;
       html += '<div class="next-row">'
         + (next
-          ? '<button class="primary-btn" id="nextBtn">次のレッスンへ →</button>'
-          : '<span class="all-done">これで全レッスン完了です。おつかれさまでした！</span>')
+          ? '<button class="primary-btn" id="nextBtn-' + taskId + '">'
+            + (sameLesson ? '次の問題へ ↓' : '次のレッスンへ →') + '</button>'
+          : '<span class="all-done">これで全問完了です。おつかれさまでした！</span>')
         + '</div>';
     }
 
     result.innerHTML = html + '</div>';
 
-    var nextBtn = document.getElementById('nextBtn');
+    var nextBtn = document.getElementById('nextBtn-' + taskId);
     if (nextBtn) {
-      nextBtn.addEventListener('click', function () { selectLesson(res.nextLessonId); });
+      nextBtn.addEventListener('click', function () { goToTask(res.next); });
+    }
+  }
+
+  /** 次の問題へ移る。同じレッスン内ならスクロールするだけ。 */
+  function goToTask(next) {
+    if (!next) { return; }
+    if (next.lessonId !== currentId) {
+      selectLesson(next.lessonId);
+      return;
+    }
+    toggleTaskBlock(next.taskId, true);
+    var block = document.getElementById('task-' + next.taskId);
+    if (block) {
+      block.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      var editor = editors[next.taskId];
+      if (editor) { editor.focus(); }
     }
   }
 
@@ -713,35 +1036,33 @@
       '<tbody>' + rows + '</tbody></table>';
   }
 
-  function showError(e) {
-    var result = document.getElementById('result');
+  function showError(e, taskId) {
+    var result = document.getElementById('result-' + taskId);
     if (result) {
       result.innerHTML = '<div class="card card-result ng"><div class="err">'
         + esc(e.message) + '</div></div>';
     }
   }
 
-  // ------------------------------------------------------------------ ヒント
-
-  function renderRevealedHints(lesson) {
-    var host = document.getElementById('hints');
-    host.innerHTML = '';
-    if (!lesson.hintsRevealed) { return; }
-    // 開き直したときは、開示済みの件数ぶんをサーバから取り直す
-    var chain = Promise.resolve();
-    for (var i = 0; i < lesson.hintsRevealed; i++) {
-      (function (index) {
-        chain = chain.then(function () {
-          return api('hint', { lessonId: lesson.id, index: index })
-            .then(function (res) { appendHint(res.index, res.text); });
-        });
-      })(i);
-    }
-    chain.then(function () { maybeShowSolutionButton(lesson.id); });
+  /** 問題に紐づかない操作（クイズの回答・進捗リセット）の失敗。置き場所が無いので通知で出す。 */
+  function toastError(e) {
+    toast('⚠️ ' + e.message);
   }
 
-  function appendHint(index, text) {
-    var host = document.getElementById('hints');
+  // ------------------------------------------------------------------ ヒント
+
+  function renderRevealedHints(lesson, task) {
+    var host = document.getElementById('hints-' + task.id);
+    host.innerHTML = '';
+    // 開示済みのヒント本文は /api/state に入っているので、開き直しでも通信は要らない
+    (task.revealedHints || []).forEach(function (text, index) {
+      appendHint(task.id, index, text);
+    });
+    maybeShowSolutionButton(lesson.id, task.id);
+  }
+
+  function appendHint(taskId, index, text) {
+    var host = document.getElementById('hints-' + taskId);
     if (host.querySelector('[data-hint="' + index + '"]')) { return; }
     var box = document.createElement('div');
     box.className = 'card card-hint';
@@ -751,52 +1072,60 @@
     host.appendChild(box);
   }
 
-  function revealNextHint() {
-    var lesson = findLesson(currentId);
-    var next = document.querySelectorAll('#hints [data-hint]').length;
-    if (next >= lesson.hintCount) { return; }
-    api('hint', { lessonId: currentId, index: next })
-      .then(function (res) {
-        appendHint(res.index, res.text);
-        lesson.hintsRevealed = res.hintsRevealed;
-        var btn = document.getElementById('hintBtn');
-        var left = lesson.hintCount - res.hintsRevealed;
-        btn.textContent = left > 0 ? '💡 ヒント（残り' + left + '）' : '💡 ヒントはすべて表示済み';
-        btn.disabled = left <= 0;
-        if (res.solutionUnlocked) { maybeShowSolutionButton(currentId); }
-      })
-      .catch(showError);
+  function revealedHintCount(taskId) {
+    return document.querySelectorAll('#hints-' + taskId + ' [data-hint]').length;
   }
 
-  function maybeShowSolutionButton(lessonId) {
+  function revealNextHint(taskId) {
+    var lesson = findLesson(currentId);
+    var task = findTask(lesson, taskId);
+    var next = revealedHintCount(taskId);
+    if (next >= task.hintCount) { return; }
+    api('hint', { lessonId: currentId, taskId: taskId, index: next })
+      .then(function (res) {
+        appendHint(taskId, res.index, res.text);
+        task.hintsRevealed = res.hintsRevealed;
+        // 手元にも残しておく（このレッスンを開き直したときに再取得しないため）
+        task.revealedHints = task.revealedHints || [];
+        task.revealedHints[res.index] = res.text;
+        var btn = document.querySelector('#task-' + taskId + ' .hint-btn');
+        var left = task.hintCount - res.hintsRevealed;
+        btn.textContent = left > 0 ? '💡 ヒント（残り' + left + '）' : '💡 ヒントはすべて表示済み';
+        btn.disabled = left <= 0;
+        if (res.solutionUnlocked) { maybeShowSolutionButton(currentId, taskId); }
+      })
+      .catch(function (e) { showError(e, taskId); });
+  }
+
+  function maybeShowSolutionButton(lessonId, taskId) {
     var lesson = findLesson(lessonId);
-    if (!lesson || !lesson.hasSolution) { return; }
-    var host = document.getElementById('hints');
+    var task = lesson && findTask(lesson, taskId);
+    if (!task || !task.hasSolution) { return; }
+    var host = document.getElementById('hints-' + taskId);
     if (!host || host.querySelector('.solution-row')) { return; }
-    var revealed = document.querySelectorAll('#hints [data-hint]').length;
-    if (!lesson.cleared && revealed < lesson.hintCount) { return; }
+    if (!task.cleared && revealedHintCount(taskId) < task.hintCount) { return; }
 
     var row = document.createElement('div');
     row.className = 'solution-row';
-    row.innerHTML = '<button class="ghost-btn" id="solutionBtn">📖 模範解答を見る</button>';
+    row.innerHTML = '<button class="ghost-btn" data-role="solution">📖 模範解答を見る</button>';
     host.appendChild(row);
 
-    document.getElementById('solutionBtn').addEventListener('click', function () {
-      api('solution', { lessonId: lessonId })
+    row.querySelector('[data-role="solution"]').addEventListener('click', function () {
+      api('solution', { lessonId: lessonId, taskId: taskId })
         .then(function (res) {
           row.innerHTML = '<div class="card card-solution">'
             + '<div class="solution-head">📖 模範解答'
-            + '<button class="ghost-btn small" id="copySolution">エディタに入れる</button></div>'
+            + '<button class="ghost-btn small" data-role="copy">エディタに入れる</button></div>'
             + '<pre class="code"><code>' + hlJava(res.solution) + '</code></pre>'
             + '<p class="solution-note">写すだけでなく、1行ずつ「なぜそう書くのか」を'
             + '声に出して説明できるか試してみましょう。</p></div>';
-          document.getElementById('copySolution').addEventListener('click', function () {
-            editor.setValue(res.solution);
-            editor.focus();
-            scheduleSave();
+          row.querySelector('[data-role="copy"]').addEventListener('click', function () {
+            editors[taskId].setValue(res.solution);
+            editors[taskId].focus();
+            scheduleSave(taskId);
           });
         })
-        .catch(showError);
+        .catch(function (e) { showError(e, taskId); });
     });
   }
 
@@ -809,35 +1138,42 @@
     setTimeout(function () { el.classList.remove('show'); }, 2600);
   }
 
-  function celebrate(res, lessonId) {
+  function celebrate(res, lessonId, taskId) {
+    var lesson = findLesson(lessonId);
     if (res.newStar) {
-      toast('★ 獲得！　' + (findLesson(lessonId) || {}).title);
+      var task = lesson && findTask(lesson, taskId);
+      // 1レッスンに複数問あるので、どの問題で★が付いたのか分かるようにする
+      var label = lesson ? lesson.title : '';
+      if (task && lesson && lesson.taskCount > 1) { label += '（' + task.label + '）'; }
+      toast('★ 獲得！　' + label);
     }
     if (res.allChaptersCleared) {
-      showOverlay('🏆', '全レッスン制覇！',
-        '基礎6章、すべてクリアです。ここまで自分の手で書いてきたことが、そのまま力になっています。',
+      // 章数・問題数はカリキュラムから取る（章を足しても文言が古びないように）
+      showOverlay('🏆', '全問制覇！',
+        '全' + state.chapters.length + '章 ' + state.totalTasks + '問、すべてクリアです。'
+        + 'ここまで自分の手で書いてきたことが、そのまま力になっています。',
         null);
     } else if (res.chapterCleared) {
       showOverlay('🎉', '第' + res.chapterNumber + '章クリア！',
         '「' + res.chapterTitle + '」を全問クリアしました。この調子で次の章へ進みましょう。',
-        res.nextLessonId);
+        res.next);
     }
   }
 
-  function showOverlay(emoji, title, body, nextLessonId) {
+  function showOverlay(emoji, title, body, next) {
     var overlay = document.getElementById('overlay');
     document.getElementById('overlayEmoji').textContent = emoji;
     document.getElementById('overlayTitle').textContent = title;
     document.getElementById('overlayBody').textContent = body;
 
     var btn = document.getElementById('overlayBtn');
-    btn.textContent = nextLessonId ? '次の章へ進む' : '閉じる';
+    btn.textContent = next ? '次の章へ進む' : '閉じる';
     overlay.hidden = false;
     dropConfetti();
 
     btn.onclick = function () {
       overlay.hidden = true;
-      if (nextLessonId) { selectLesson(nextLessonId); }
+      goToTask(next);
     };
   }
 
@@ -870,11 +1206,11 @@
     var isMenu = currentId === null;
     document.body.classList.toggle('view-menu', isMenu);
     renderHeader();
+    // サイドバーはメニュー画面でも描いておく（☰で開けるように）。
+    renderSidebar();
     if (isMenu) {
-      document.getElementById('sidebar').innerHTML = '';
       renderMenu();
     } else {
-      renderSidebar();
       renderLesson();
     }
   }
@@ -910,17 +1246,39 @@
 
   document.getElementById('homeBtn').addEventListener('click', goHome);
 
+  // ── サイドバー全体の開閉（既定は非表示。集中を妨げないため） ─────
+  var SIDEBAR_HIDE_KEY = 'jq-sidebar-hidden';
+  function isSidebarHidden() {
+    try {
+      var v = localStorage.getItem(SIDEBAR_HIDE_KEY);
+      return v === null ? true : v === '1';   // 未設定なら隠す
+    } catch (e) { return true; }
+  }
+  function applySidebarVisibility() {
+    var hidden = isSidebarHidden();
+    document.body.classList.toggle('sidebar-hidden', hidden);
+    var btn = document.getElementById('sidebarToggle');
+    if (btn) { btn.setAttribute('aria-expanded', String(!hidden)); }
+  }
+  document.getElementById('sidebarToggle').addEventListener('click', function () {
+    var next = !isSidebarHidden();
+    try { localStorage.setItem(SIDEBAR_HIDE_KEY, next ? '1' : '0'); } catch (e) { /* 使えなくても困らない */ }
+    applySidebarVisibility();
+  });
+  applySidebarVisibility();
+
   document.getElementById('resetBtn').addEventListener('click', function () {
     if (!window.confirm('★も書いたコードもすべて消えます。本当にリセットしますか？')) { return; }
     api('reset', {})
       .then(function (data) {
         state = data;
         expanded = {};
+        sideExpanded = {};
         try { localStorage.removeItem('jq-last-lesson'); } catch (e) { /* 同上 */ }
         goHome();
         toast('進捗をリセットしました');
       })
-      .catch(showError);
+      .catch(toastError);
   });
 
   window.addEventListener('hashchange', function () {

@@ -64,7 +64,54 @@
         "`if (type.equals(\"dog\")) { animals[i] = new Dog(name); }` のように分けます。文字列の比較は `equals` です。",
         "鳴かせるループは `for (Animal a : animals) { a.cry(); }` だけです。実体に応じた `cry()` が自動で選ばれます。"
       ],
-      "solution": "import java.util.Scanner;\n\nclass Animal {\n    protected String name;\n\n    Animal(String name) {\n        this.name = name;\n    }\n\n    void cry() {\n        System.out.println(name + \"「…」\");\n    }\n}\n\nclass Dog extends Animal {\n    Dog(String name) {\n        super(name);\n    }\n\n    @Override\n    void cry() {\n        System.out.println(name + \"「ワン」\");\n    }\n}\n\nclass Cat extends Animal {\n    Cat(String name) {\n        super(name);\n    }\n\n    @Override\n    void cry() {\n        System.out.println(name + \"「ニャー」\");\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int k = sc.nextInt();\n        Animal[] animals = new Animal[k];\n\n        for (int i = 0; i < k; i++) {\n            String type = sc.next();\n            String name = sc.next();\n            if (type.equals(\"dog\")) {\n                animals[i] = new Dog(name);\n            } else if (type.equals(\"cat\")) {\n                animals[i] = new Cat(name);\n            } else {\n                animals[i] = new Animal(name);\n            }\n        }\n\n        for (Animal a : animals) {\n            a.cry();\n        }\n    }\n}\n"
+      "solution": "import java.util.Scanner;\n\nclass Animal {\n    protected String name;\n\n    Animal(String name) {\n        this.name = name;\n    }\n\n    void cry() {\n        System.out.println(name + \"「…」\");\n    }\n}\n\nclass Dog extends Animal {\n    Dog(String name) {\n        super(name);\n    }\n\n    @Override\n    void cry() {\n        System.out.println(name + \"「ワン」\");\n    }\n}\n\nclass Cat extends Animal {\n    Cat(String name) {\n        super(name);\n    }\n\n    @Override\n    void cry() {\n        System.out.println(name + \"「ニャー」\");\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int k = sc.nextInt();\n        Animal[] animals = new Animal[k];\n\n        for (int i = 0; i < k; i++) {\n            String type = sc.next();\n            String name = sc.next();\n            if (type.equals(\"dog\")) {\n                animals[i] = new Dog(name);\n            } else if (type.equals(\"cat\")) {\n                animals[i] = new Cat(name);\n            } else {\n                animals[i] = new Animal(name);\n            }\n        }\n\n        for (Animal a : animals) {\n            a.cry();\n        }\n    }\n}\n",
+      "extraTasks": [
+        {
+          "kind": "applied",
+          "task": "解説の最後のワナを、自分の手で確かめます。\n\n> **オーバーライドされたメソッドは実体の型で決まるが、フィールドは変数の型で決まる**\n\n次の3クラスを作ってください。**3つとも `kind` という名前のフィールドを持ちます**（これがワナの仕掛けです）。\n\n| クラス | フィールド | メソッド |\n|---|---|---|\n| `Animal` | `protected String name` / `String kind = \"動物\"` | `Animal(String name)`、`void cry()` … `○○「…」` |\n| `Dog extends Animal` | `String kind = \"犬\"` | `Dog(String name)`、`cry()` を上書き … `○○「ワン」` |\n| `Cat extends Animal` | `String kind = \"猫\"` | `Cat(String name)`、`cry()` を上書き … `○○「ニャー」` |\n\nさらに `Main` に、**親の型で受け取る** メソッドを1つ作ってください。\n\n```java\nstatic void show(Animal a) {\n    // 「種類 ○○」を出力してから a.cry() を呼ぶ\n}\n```\n\n入力は「犬の名前 猫の名前」の2語です。`main` では `Dog` と `Cat` を1つずつ作り、次の順に出力してください。\n\n1. `show(犬)` … 2行\n2. `show(猫)` … 2行\n3. `直接 ` + 犬の変数から見た `kind`\n4. `直接 ` + 猫の変数から見た `kind`\n\n`ポチ タマ` が入力されたときの出力はこうです。\n\n```\n種類 動物\nポチ「ワン」\n種類 動物\nタマ「ニャー」\n直接 犬\n直接 猫\n```\n\n**1行目と3行目が「動物」になる** のがこの問題の核心です。`show` の引数の型は `Animal` なので、`a.kind` は `Animal` のフィールドを読みます。いっぽう `a.cry()` は実体で選ばれるので、ちゃんと「ワン」「ニャー」に分かれます。\n\n最後の2行は `Dog` 型 / `Cat` 型の変数から読むので「犬」「猫」になります。同じオブジェクトなのに、**どの型の変数から見るかで答えが変わります**。",
+          "starterCode": "import java.util.Scanner;\n\nclass Animal {\n    protected String name;\n    String kind = \"動物\";\n\n    Animal(String name) {\n        this.name = name;\n    }\n\n    void cry() {\n        System.out.println(name + \"「…」\");\n    }\n}\n\nclass Dog extends Animal {\n    // kind を \"犬\" にするフィールドと、cry() の上書きを書く\n\n    Dog(String name) {\n        super(name);\n    }\n}\n\nclass Cat extends Animal {\n    // kind を \"猫\" にするフィールドと、cry() の上書きを書く\n\n    Cat(String name) {\n        super(name);\n    }\n}\n\npublic class Main {\n\n    // static void show(Animal a) を書く\n\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        String dogName = sc.next();\n        String catName = sc.next();\n\n        // Dog と Cat を作り、show() を2回呼んでから kind を直接2行出力する\n    }\n}\n",
+          "visibleCases": [
+            {
+              "label": "ポチとタマ",
+              "stdin": "ポチ タマ",
+              "expected": "種類 動物\nポチ「ワン」\n種類 動物\nタマ「ニャー」\n直接 犬\n直接 猫"
+            },
+            {
+              "label": "英字",
+              "stdin": "Rex Mimi",
+              "expected": "種類 動物\nRex「ワン」\n種類 動物\nMimi「ニャー」\n直接 犬\n直接 猫"
+            }
+          ],
+          "hiddenCases": [
+            {
+              "label": "1文字ずつ",
+              "stdin": "A B",
+              "expected": "種類 動物\nA「ワン」\n種類 動物\nB「ニャー」\n直接 犬\n直接 猫"
+            },
+            {
+              "label": "同じ名前",
+              "stdin": "同 同",
+              "expected": "種類 動物\n同「ワン」\n種類 動物\n同「ニャー」\n直接 犬\n直接 猫"
+            },
+            {
+              "label": "数字を含む",
+              "stdin": "d1 c2",
+              "expected": "種類 動物\nd1「ワン」\n種類 動物\nc2「ニャー」\n直接 犬\n直接 猫"
+            },
+            {
+              "label": "カタカナ",
+              "stdin": "ハチ ミケ",
+              "expected": "種類 動物\nハチ「ワン」\n種類 動物\nミケ「ニャー」\n直接 犬\n直接 猫"
+            }
+          ],
+          "hints": [
+            "`Dog` の中に `String kind = \"犬\";` と書きます。親の `kind` を上書きするのではなく、**別のフィールドが増えて親のものを隠している** 状態です（これを隠蔽といいます）。",
+            "`show` の中身は `System.out.println(\"種類 \" + a.kind);` と `a.cry();` の2行です。引数の型が `Animal` なので `a.kind` は必ず `\"動物\"` になります。",
+            "`main` の最後は `System.out.println(\"直接 \" + d.kind);` です。変数 `d` の型が `Dog` なので、こちらは `\"犬\"` が読まれます。"
+          ],
+          "solution": "import java.util.Scanner;\n\nclass Animal {\n    protected String name;\n    String kind = \"動物\";\n\n    Animal(String name) {\n        this.name = name;\n    }\n\n    void cry() {\n        System.out.println(name + \"「…」\");\n    }\n}\n\nclass Dog extends Animal {\n    String kind = \"犬\";\n\n    Dog(String name) {\n        super(name);\n    }\n\n    @Override\n    void cry() {\n        System.out.println(name + \"「ワン」\");\n    }\n}\n\nclass Cat extends Animal {\n    String kind = \"猫\";\n\n    Cat(String name) {\n        super(name);\n    }\n\n    @Override\n    void cry() {\n        System.out.println(name + \"「ニャー」\");\n    }\n}\n\npublic class Main {\n\n    static void show(Animal a) {\n        System.out.println(\"種類 \" + a.kind);\n        a.cry();\n    }\n\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        String dogName = sc.next();\n        String catName = sc.next();\n\n        Dog d = new Dog(dogName);\n        Cat c = new Cat(catName);\n\n        show(d);\n        show(c);\n\n        System.out.println(\"直接 \" + d.kind);\n        System.out.println(\"直接 \" + c.kind);\n    }\n}\n"
+        }
+      ]
     },
     {
       "id": "11-2",
@@ -126,7 +173,59 @@
         "古い書き方なら `if (a instanceof Dog) { Dog d = (Dog) a; d.fetch(); }` です。どちらでも正解です。",
         "`instanceof` を書かずに `((Dog) a).fetch()` とすると、猫のときに `ClassCastException` で落ちます。"
       ],
-      "solution": "import java.util.Scanner;\n\nclass Animal {\n    protected String name;\n\n    Animal(String name) {\n        this.name = name;\n    }\n\n    void cry() {\n        System.out.println(name + \"「…」\");\n    }\n}\n\nclass Dog extends Animal {\n    Dog(String name) {\n        super(name);\n    }\n\n    @Override\n    void cry() {\n        System.out.println(name + \"「ワン」\");\n    }\n\n    void fetch() {\n        System.out.println(name + \"はボールを取ってきた\");\n    }\n}\n\nclass Cat extends Animal {\n    Cat(String name) {\n        super(name);\n    }\n\n    @Override\n    void cry() {\n        System.out.println(name + \"「ニャー」\");\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int k = sc.nextInt();\n        Animal[] animals = new Animal[k];\n\n        for (int i = 0; i < k; i++) {\n            String type = sc.next();\n            String name = sc.next();\n            if (type.equals(\"dog\")) {\n                animals[i] = new Dog(name);\n            } else if (type.equals(\"cat\")) {\n                animals[i] = new Cat(name);\n            } else {\n                animals[i] = new Animal(name);\n            }\n        }\n\n        for (Animal a : animals) {\n            a.cry();\n            if (a instanceof Dog d) {\n                d.fetch();\n            }\n        }\n    }\n}\n"
+      "solution": "import java.util.Scanner;\n\nclass Animal {\n    protected String name;\n\n    Animal(String name) {\n        this.name = name;\n    }\n\n    void cry() {\n        System.out.println(name + \"「…」\");\n    }\n}\n\nclass Dog extends Animal {\n    Dog(String name) {\n        super(name);\n    }\n\n    @Override\n    void cry() {\n        System.out.println(name + \"「ワン」\");\n    }\n\n    void fetch() {\n        System.out.println(name + \"はボールを取ってきた\");\n    }\n}\n\nclass Cat extends Animal {\n    Cat(String name) {\n        super(name);\n    }\n\n    @Override\n    void cry() {\n        System.out.println(name + \"「ニャー」\");\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int k = sc.nextInt();\n        Animal[] animals = new Animal[k];\n\n        for (int i = 0; i < k; i++) {\n            String type = sc.next();\n            String name = sc.next();\n            if (type.equals(\"dog\")) {\n                animals[i] = new Dog(name);\n            } else if (type.equals(\"cat\")) {\n                animals[i] = new Cat(name);\n            } else {\n                animals[i] = new Animal(name);\n            }\n        }\n\n        for (Animal a : animals) {\n            a.cry();\n            if (a instanceof Dog d) {\n                d.fetch();\n            }\n        }\n    }\n}\n",
+      "extraTasks": [
+        {
+          "kind": "applied",
+          "task": "`instanceof` の残りの性質を確かめます。\n\n- `null instanceof どんな型` は **必ず `false`**。だから `null` チェックを兼ねてくれる（例外にはなりません）\n- `instanceof 親クラス` は、実体が子クラスでも **`true`**\n\nひな形には `Animal` `Dog`（`fetch()` を持つ）`Cat`（`climb()` を持つ）が用意してあります。\n\n### 入力\n\n- 1行目 … 個数 `k`（`0` もありえます）\n- 続く `k` 行 … `dog 名前` / `cat 名前` / `none`\n\n`none` の行は、配列のその位置に **`null` を入れて** ください。\n\n### 出力\n\n`Animal[]` に入れたあと、1つのループで要素ごとに次を出力します。\n\n| 実体 | 出力 |\n|---|---|\n| `Dog` | `cry()` と `fetch()` を呼ぶ（2行） |\n| `Cat` | `cry()` と `climb()` を呼ぶ（2行） |\n| `null` | `データなし` と1行出力する |\n\n**`null` の判定は最後の `else` に置いてください。** `if (a instanceof Dog d)` に `null` が来ても例外にならず、静かに `false` になって次へ進むことを確かめるためです。\n\nループが終わったら最後に1行、`Animal` として数えられた要素の数を出力します。\n\n```\nAnimal だったもの ○個\n```\n\nこれは `a instanceof Animal` が `true` になった数です。犬も猫も `Animal` なので数に入り、`null` は入りません。\n\n次の入力なら、\n\n```\n3\ndog ポチ\nnone\ncat タマ\n```\n\n出力はこうなります。\n\n```\nポチ「ワン」\nポチはボールを取ってくる\nデータなし\nタマ「ニャー」\nタマは木に登る\nAnimal だったもの 2個\n```\n\n`k` が `0` のときも、最後の1行は `Animal だったもの 0個` と出力します。",
+          "starterCode": "import java.util.Scanner;\n\nclass Animal {\n    protected String name;\n\n    Animal(String name) {\n        this.name = name;\n    }\n\n    void cry() {\n        System.out.println(name + \"「…」\");\n    }\n}\n\nclass Dog extends Animal {\n    Dog(String name) {\n        super(name);\n    }\n\n    @Override\n    void cry() {\n        System.out.println(name + \"「ワン」\");\n    }\n\n    void fetch() {\n        System.out.println(name + \"はボールを取ってくる\");\n    }\n}\n\nclass Cat extends Animal {\n    Cat(String name) {\n        super(name);\n    }\n\n    @Override\n    void cry() {\n        System.out.println(name + \"「ニャー」\");\n    }\n\n    void climb() {\n        System.out.println(name + \"は木に登る\");\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int k = sc.nextInt();\n        Animal[] animals = new Animal[k];\n\n        for (int i = 0; i < k; i++) {\n            String type = sc.next();\n            // dog / cat なら名前を読んで作る。none なら null のままにする\n        }\n\n        // 要素ごとに出力し、最後に Animal だった数を出力する\n    }\n}\n",
+          "visibleCases": [
+            {
+              "label": "犬・null・猫",
+              "stdin": "3\ndog ポチ\nnone\ncat タマ",
+              "expected": "ポチ「ワン」\nポチはボールを取ってくる\nデータなし\nタマ「ニャー」\nタマは木に登る\nAnimal だったもの 2個"
+            },
+            {
+              "label": "犬2匹",
+              "stdin": "2\ndog A\ndog B",
+              "expected": "A「ワン」\nAはボールを取ってくる\nB「ワン」\nBはボールを取ってくる\nAnimal だったもの 2個"
+            }
+          ],
+          "hiddenCases": [
+            {
+              "label": "null だけ",
+              "stdin": "1\nnone",
+              "expected": "データなし\nAnimal だったもの 0個"
+            },
+            {
+              "label": "0個",
+              "stdin": "0",
+              "expected": "Animal だったもの 0個"
+            },
+            {
+              "label": "null が3つ混ざる",
+              "stdin": "4\nnone\nnone\ncat X\nnone",
+              "expected": "データなし\nデータなし\nX「ニャー」\nXは木に登る\nデータなし\nAnimal だったもの 1個"
+            },
+            {
+              "label": "同じ名前の猫と犬",
+              "stdin": "2\ncat 同\ndog 同",
+              "expected": "同「ニャー」\n同は木に登る\n同「ワン」\n同はボールを取ってくる\nAnimal だったもの 2個"
+            },
+            {
+              "label": "猫だけ",
+              "stdin": "2\ncat p\ncat q",
+              "expected": "p「ニャー」\npは木に登る\nq「ニャー」\nqは木に登る\nAnimal だったもの 2個"
+            }
+          ],
+          "hints": [
+            "`none` のときは `animals[i]` に何も入れません。配列の初期値が `null` なので、そのままで `null` が入った状態になります（第6章）。",
+            "ループの中は `if (a instanceof Dog d) { d.cry(); d.fetch(); } else if (a instanceof Cat c) { c.cry(); c.climb(); } else { System.out.println(\"データなし\"); }` の形です。`null` は2つの `instanceof` をすり抜けて `else` に来ます。",
+            "数えるほうは `int count = 0;` を用意して、同じループの中で `if (a instanceof Animal) { count++; }` と足します。`Dog` も `Cat` も `Animal` なので `true` です。"
+          ],
+          "solution": "import java.util.Scanner;\n\nclass Animal {\n    protected String name;\n\n    Animal(String name) {\n        this.name = name;\n    }\n\n    void cry() {\n        System.out.println(name + \"「…」\");\n    }\n}\n\nclass Dog extends Animal {\n    Dog(String name) {\n        super(name);\n    }\n\n    @Override\n    void cry() {\n        System.out.println(name + \"「ワン」\");\n    }\n\n    void fetch() {\n        System.out.println(name + \"はボールを取ってくる\");\n    }\n}\n\nclass Cat extends Animal {\n    Cat(String name) {\n        super(name);\n    }\n\n    @Override\n    void cry() {\n        System.out.println(name + \"「ニャー」\");\n    }\n\n    void climb() {\n        System.out.println(name + \"は木に登る\");\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int k = sc.nextInt();\n        Animal[] animals = new Animal[k];\n\n        for (int i = 0; i < k; i++) {\n            String type = sc.next();\n            if (type.equals(\"dog\")) {\n                animals[i] = new Dog(sc.next());\n            } else if (type.equals(\"cat\")) {\n                animals[i] = new Cat(sc.next());\n            }\n        }\n\n        int count = 0;\n        for (Animal a : animals) {\n            if (a instanceof Dog d) {\n                d.cry();\n                d.fetch();\n            } else if (a instanceof Cat c) {\n                c.cry();\n                c.climb();\n            } else {\n                System.out.println(\"データなし\");\n            }\n\n            if (a instanceof Animal) {\n                count++;\n            }\n        }\n\n        System.out.println(\"Animal だったもの \" + count + \"個\");\n    }\n}\n"
+        }
+      ]
     },
     {
       "id": "11-3",
@@ -188,7 +287,59 @@
         "`Rect` のコンストラクタでは `super(\"四角形\");` を1行目に書いてラベルを渡します。",
         "`show()` は `Shape` に1つだけ書きます。中で `area()` を呼べば、実行時には子の実装が動きます。"
       ],
-      "solution": "import java.util.Scanner;\n\nabstract class Shape {\n    protected String label;\n\n    Shape(String label) {\n        this.label = label;\n    }\n\n    abstract int area();\n\n    void show() {\n        System.out.println(label + \" 面積 \" + area());\n    }\n}\n\nclass Rect extends Shape {\n    private int width;\n    private int height;\n\n    Rect(int width, int height) {\n        super(\"四角形\");\n        this.width = width;\n        this.height = height;\n    }\n\n    @Override\n    int area() {\n        return width * height;\n    }\n}\n\nclass Square extends Shape {\n    private int side;\n\n    Square(int side) {\n        super(\"正方形\");\n        this.side = side;\n    }\n\n    @Override\n    int area() {\n        return side * side;\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int k = sc.nextInt();\n        Shape[] shapes = new Shape[k];\n\n        for (int i = 0; i < k; i++) {\n            String type = sc.next();\n            if (type.equals(\"R\")) {\n                int width = sc.nextInt();\n                int height = sc.nextInt();\n                shapes[i] = new Rect(width, height);\n            } else {\n                int side = sc.nextInt();\n                shapes[i] = new Square(side);\n            }\n        }\n\n        for (Shape s : shapes) {\n            s.show();\n        }\n    }\n}\n"
+      "solution": "import java.util.Scanner;\n\nabstract class Shape {\n    protected String label;\n\n    Shape(String label) {\n        this.label = label;\n    }\n\n    abstract int area();\n\n    void show() {\n        System.out.println(label + \" 面積 \" + area());\n    }\n}\n\nclass Rect extends Shape {\n    private int width;\n    private int height;\n\n    Rect(int width, int height) {\n        super(\"四角形\");\n        this.width = width;\n        this.height = height;\n    }\n\n    @Override\n    int area() {\n        return width * height;\n    }\n}\n\nclass Square extends Shape {\n    private int side;\n\n    Square(int side) {\n        super(\"正方形\");\n        this.side = side;\n    }\n\n    @Override\n    int area() {\n        return side * side;\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int k = sc.nextInt();\n        Shape[] shapes = new Shape[k];\n\n        for (int i = 0; i < k; i++) {\n            String type = sc.next();\n            if (type.equals(\"R\")) {\n                int width = sc.nextInt();\n                int height = sc.nextInt();\n                shapes[i] = new Rect(width, height);\n            } else {\n                int side = sc.nextInt();\n                shapes[i] = new Square(side);\n            }\n        }\n\n        for (Shape s : shapes) {\n            s.show();\n        }\n    }\n}\n",
+      "extraTasks": [
+        {
+          "kind": "applied",
+          "task": "解説にあった **「実装しないなら、そのサブクラス自身も `abstract` にする」** を使います。継承を3段にして、真ん中のクラスを **抽象のまま** 残します。\n\n**`abstract class Shape`**\n\n| メンバー | 内容 |\n|---|---|\n| `protected String label` | ラベル |\n| `Shape(String label)` | コンストラクタ |\n| `abstract int area()` | 面積（本体を書かない） |\n| `abstract String detail()` | 辺の説明（本体を書かない） |\n| `void show()` | `ラベル 説明 面積 ○○` の形で1行出力（半角スペース区切り） |\n\n**`abstract class Angular extends Shape`** … 2辺を持つ図形の共通部分です。\n\n| メンバー | 内容 |\n|---|---|\n| `protected int w` / `protected int h` | 2辺 |\n| `Angular(String label, int w, int h)` | `super(label)` を呼んでから2辺を入れる |\n| `detail()` | `w` と `h` を `x` でつないだ文字列を返す（例 `3x4`。半角の `x`） |\n\n**`area()` は実装しません。** だから `Angular` も `abstract` を付けなければコンパイルエラーになります。\n\n**`Rect extends Angular`** … `Rect(int w, int h)`、ラベルは `四角形`、面積は `w * h`\n\n**`Tri extends Angular`** … `Tri(int w, int h)`、ラベルは `三角形`、面積は `w * h / 2`（**切り捨て**）\n\n### 入力\n\n- 1行目 … 個数 `k`（`0` もありえます）\n- 続く `k` 行 … `R 幅 高さ` または `T 底辺 高さ`\n\n読み込んだものを `Shape[]` に入れ、1つのループで `show()` を呼んでください。\n\n次の入力なら、\n\n```\n2\nR 3 4\nT 3 4\n```\n\n出力はこうなります。\n\n```\n四角形 3x4 面積 12\n三角形 3x4 面積 6\n```\n\n- `detail()` は `Angular` に **1つだけ** 書きます。`Rect` と `Tri` には書かないでください\n- `show()` は `Shape` に **1つだけ** 書きます\n- `T 3 3` のときは `9 / 2` で `4` です（切り捨て）",
+          "starterCode": "import java.util.Scanner;\n\n// abstract class Shape を書く（label / コンストラクタ / abstract int area() / abstract String detail() / show()）\n\n// abstract class Angular extends Shape を書く（w / h / コンストラクタ / detail() だけ実装）\n\n// class Rect extends Angular と class Tri extends Angular を書く\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int k = sc.nextInt();\n\n        // Shape[] shapes = new Shape[k];\n\n        for (int i = 0; i < k; i++) {\n            String type = sc.next();\n            int a = sc.nextInt();\n            int b = sc.nextInt();\n            // R なら Rect、T なら Tri を作って入れる\n        }\n\n        // すべての要素の show() を呼ぶ\n    }\n}\n",
+          "visibleCases": [
+            {
+              "label": "四角形と三角形",
+              "stdin": "2\nR 3 4\nT 3 4",
+              "expected": "四角形 3x4 面積 12\n三角形 3x4 面積 6"
+            },
+            {
+              "label": "切り捨てが起きる",
+              "stdin": "1\nT 3 3",
+              "expected": "三角形 3x3 面積 4"
+            }
+          ],
+          "hiddenCases": [
+            {
+              "label": "0個",
+              "stdin": "0",
+              "expected": ""
+            },
+            {
+              "label": "面積が 0",
+              "stdin": "2\nR 0 5\nT 0 5",
+              "expected": "四角形 0x5 面積 0\n三角形 0x5 面積 0"
+            },
+            {
+              "label": "細長い",
+              "stdin": "1\nR 1 100",
+              "expected": "四角形 1x100 面積 100"
+            },
+            {
+              "label": "3つ",
+              "stdin": "3\nT 5 5\nR 2 2\nT 1 1",
+              "expected": "三角形 5x5 面積 12\n四角形 2x2 面積 4\n三角形 1x1 面積 0"
+            },
+            {
+              "label": "同じ辺で比べる",
+              "stdin": "2\nR 20 20\nT 20 20",
+              "expected": "四角形 20x20 面積 400\n三角形 20x20 面積 200"
+            }
+          ],
+          "hints": [
+            "`Angular` は `abstract class Angular extends Shape` と宣言します。`area()` を実装していないので、`abstract` を外すと「Angularはabstractではなく、Shape内のabstractメソッドarea()をオーバーライドしません」というコンパイルエラーになります。",
+            "`Angular` のコンストラクタは `Angular(String label, int w, int h) { super(label); this.w = w; this.h = h; }` です。`Rect` からは `super(\"四角形\", w, h);` と呼びます。",
+            "`detail()` は `return w + \"x\" + h;` です。`w` は `int` ですが、`\"x\"` と `+` でつなぐので文字列になります（第3章）。"
+          ],
+          "solution": "import java.util.Scanner;\n\nabstract class Shape {\n    protected String label;\n\n    Shape(String label) {\n        this.label = label;\n    }\n\n    abstract int area();\n\n    abstract String detail();\n\n    void show() {\n        System.out.println(label + \" \" + detail() + \" 面積 \" + area());\n    }\n}\n\nabstract class Angular extends Shape {\n    protected int w;\n    protected int h;\n\n    Angular(String label, int w, int h) {\n        super(label);\n        this.w = w;\n        this.h = h;\n    }\n\n    @Override\n    String detail() {\n        return w + \"x\" + h;\n    }\n}\n\nclass Rect extends Angular {\n    Rect(int w, int h) {\n        super(\"四角形\", w, h);\n    }\n\n    @Override\n    int area() {\n        return w * h;\n    }\n}\n\nclass Tri extends Angular {\n    Tri(int w, int h) {\n        super(\"三角形\", w, h);\n    }\n\n    @Override\n    int area() {\n        return w * h / 2;\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int k = sc.nextInt();\n        Shape[] shapes = new Shape[k];\n\n        for (int i = 0; i < k; i++) {\n            String type = sc.next();\n            int a = sc.nextInt();\n            int b = sc.nextInt();\n            if (type.equals(\"R\")) {\n                shapes[i] = new Rect(a, b);\n            } else {\n                shapes[i] = new Tri(a, b);\n            }\n        }\n\n        for (Shape s : shapes) {\n            s.show();\n        }\n    }\n}\n"
+        }
+      ]
     },
     {
       "id": "11-4",
@@ -251,7 +402,105 @@
         "最大を探すときの初期値は `Shape biggest = shapes[0];` にします。`0` から始めると、面積 `0` の図形しかないときに困ります。",
         "同じ面積のときに先を勝たせるので、条件は `s.area() > biggest.area()` です（`>=` にしないこと）。"
       ],
-      "solution": "import java.util.Scanner;\n\nabstract class Shape {\n    private final String name;\n\n    Shape(String name) {\n        this.name = name;\n    }\n\n    String getName() {\n        return name;\n    }\n\n    abstract int area();\n}\n\nclass Rect extends Shape {\n    private int w;\n    private int h;\n\n    Rect(int w, int h) {\n        super(\"四角形\");\n        this.w = w;\n        this.h = h;\n    }\n\n    @Override\n    int area() {\n        return w * h;\n    }\n}\n\nclass Square extends Shape {\n    private int s;\n\n    Square(int s) {\n        super(\"正方形\");\n        this.s = s;\n    }\n\n    @Override\n    int area() {\n        return s * s;\n    }\n}\n\nclass Triangle extends Shape {\n    private int b;\n    private int h;\n\n    Triangle(int b, int h) {\n        super(\"三角形\");\n        this.b = b;\n        this.h = h;\n    }\n\n    @Override\n    int area() {\n        return b * h / 2;\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int k = sc.nextInt();\n        Shape[] shapes = new Shape[k];\n\n        for (int i = 0; i < k; i++) {\n            String type = sc.next();\n            if (type.equals(\"S\")) {\n                int side = sc.nextInt();\n                shapes[i] = new Square(side);\n            } else {\n                int a = sc.nextInt();\n                int b = sc.nextInt();\n                if (type.equals(\"R\")) {\n                    shapes[i] = new Rect(a, b);\n                } else {\n                    shapes[i] = new Triangle(a, b);\n                }\n            }\n        }\n\n        int total = 0;\n        Shape biggest = shapes[0];\n\n        for (Shape s : shapes) {\n            System.out.println(s.getName() + \" 面積 \" + s.area());\n            total += s.area();\n            if (s.area() > biggest.area()) {\n                biggest = s;\n            }\n        }\n\n        System.out.println(\"合計 \" + total);\n        System.out.println(\"最大 \" + biggest.getName());\n    }\n}\n"
+      "solution": "import java.util.Scanner;\n\nabstract class Shape {\n    private final String name;\n\n    Shape(String name) {\n        this.name = name;\n    }\n\n    String getName() {\n        return name;\n    }\n\n    abstract int area();\n}\n\nclass Rect extends Shape {\n    private int w;\n    private int h;\n\n    Rect(int w, int h) {\n        super(\"四角形\");\n        this.w = w;\n        this.h = h;\n    }\n\n    @Override\n    int area() {\n        return w * h;\n    }\n}\n\nclass Square extends Shape {\n    private int s;\n\n    Square(int s) {\n        super(\"正方形\");\n        this.s = s;\n    }\n\n    @Override\n    int area() {\n        return s * s;\n    }\n}\n\nclass Triangle extends Shape {\n    private int b;\n    private int h;\n\n    Triangle(int b, int h) {\n        super(\"三角形\");\n        this.b = b;\n        this.h = h;\n    }\n\n    @Override\n    int area() {\n        return b * h / 2;\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int k = sc.nextInt();\n        Shape[] shapes = new Shape[k];\n\n        for (int i = 0; i < k; i++) {\n            String type = sc.next();\n            if (type.equals(\"S\")) {\n                int side = sc.nextInt();\n                shapes[i] = new Square(side);\n            } else {\n                int a = sc.nextInt();\n                int b = sc.nextInt();\n                if (type.equals(\"R\")) {\n                    shapes[i] = new Rect(a, b);\n                } else {\n                    shapes[i] = new Triangle(a, b);\n                }\n            }\n        }\n\n        int total = 0;\n        Shape biggest = shapes[0];\n\n        for (Shape s : shapes) {\n            System.out.println(s.getName() + \" 面積 \" + s.area());\n            total += s.area();\n            if (s.area() > biggest.area()) {\n                biggest = s;\n            }\n        }\n\n        System.out.println(\"合計 \" + total);\n        System.out.println(\"最大 \" + biggest.getName());\n    }\n}\n",
+      "extraTasks": [
+        {
+          "kind": "applied",
+          "task": "同じ `Shape` 一族を使って、こんどは **集計を別のメソッドに切り出し**、`instanceof` で種類を数えます。第11章で覚えたことを全部つなげる問題です。\n\nクラスは1問目と同じ4つを作ってください。\n\n| クラス | コンストラクタ | 名前 | 面積 |\n|---|---|---|---|\n| `abstract Shape` | `Shape(String name)` | `getName()` で返す | `abstract int area()` |\n| `Rect` | `Rect(int w, int h)` | `四角形` | `w * h` |\n| `Square` | `Square(int s)` | `正方形` | `s * s` |\n| `Triangle` | `Triangle(int b, int h)` | `三角形` | `b * h / 2`（切り捨て） |\n\nそのうえで、`Main` に **配列を親の型で受け取る** メソッドを2つ作ってください。\n\n```java\nstatic int totalArea(Shape[] shapes)      // 面積の合計を返す\nstatic Shape smallest(Shape[] shapes)     // 面積がいちばん小さい図形を返す\n```\n\n`smallest` は、同じ面積が並んだときは **先に入力された方** を返します。戻り値の型は `Shape` です（実体が何でも入れられます）。\n\n### 入力\n\n- 1行目 … 個数 `k`（必ず **1以上**）\n- 続く `k` 行 … `R 幅 高さ` / `S 一辺` / `T 底辺 高さ`\n\n### 出力（4行）\n\n| 行 | 内容 |\n|---|---|\n| `合計 ○○` | `totalArea` の結果 |\n| `平均 ○○` | 合計 ÷ 個数。**`int` の割り算なので切り捨て** |\n| `最小 名前` | `smallest` が返した図形の名前 |\n| `三角形の数 ○○` | `instanceof Triangle` が `true` になった数 |\n\n次の入力なら、\n\n```\n3\nR 3 4\nS 3\nT 3 3\n```\n\n面積は順に `12` `9` `4` なので、出力はこうなります。\n\n```\n合計 25\n平均 8\n最小 三角形\n三角形の数 1\n```\n\n平均が `8` なのは `25 / 3` が切り捨てられるからです（第3章）。図形ごとの行は出力しません。",
+          "starterCode": "import java.util.Scanner;\n\n// abstract class Shape / Rect / Square / Triangle を書く\n\npublic class Main {\n\n    // static int totalArea(Shape[] shapes) を書く\n\n    // static Shape smallest(Shape[] shapes) を書く\n\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int k = sc.nextInt();\n\n        // Shape[] shapes = new Shape[k];\n\n        for (int i = 0; i < k; i++) {\n            String type = sc.next();\n            if (type.equals(\"S\")) {\n                int side = sc.nextInt();\n                // shapes[i] = new Square(side);\n            } else {\n                int a = sc.nextInt();\n                int b = sc.nextInt();\n                // R なら Rect、T なら Triangle\n            }\n        }\n\n        // 合計 / 平均 / 最小 / 三角形の数 を出力する\n    }\n}\n",
+          "visibleCases": [
+            {
+              "label": "3種類",
+              "stdin": "3\nR 3 4\nS 3\nT 3 3",
+              "expected": "合計 25\n平均 8\n最小 三角形\n三角形の数 1"
+            },
+            {
+              "label": "1つだけ",
+              "stdin": "1\nS 5",
+              "expected": "合計 25\n平均 25\n最小 正方形\n三角形の数 0"
+            }
+          ],
+          "hiddenCases": [
+            {
+              "label": "同じ面積が並ぶ（先が勝つ）",
+              "stdin": "2\nS 4\nR 2 8",
+              "expected": "合計 32\n平均 16\n最小 正方形\n三角形の数 0"
+            },
+            {
+              "label": "三角形だけ",
+              "stdin": "2\nT 5 5\nT 4 3",
+              "expected": "合計 18\n平均 9\n最小 三角形\n三角形の数 2"
+            },
+            {
+              "label": "全部 面積 0",
+              "stdin": "3\nR 0 9\nS 0\nT 0 5",
+              "expected": "合計 0\n平均 0\n最小 四角形\n三角形の数 1"
+            },
+            {
+              "label": "平均が切り捨てられる",
+              "stdin": "3\nT 2 2\nS 2\nR 10 10",
+              "expected": "合計 106\n平均 35\n最小 三角形\n三角形の数 1"
+            },
+            {
+              "label": "5つ",
+              "stdin": "5\nR 1 1\nS 2\nT 6 3\nR 2 3\nS 1",
+              "expected": "合計 21\n平均 4\n最小 四角形\n三角形の数 1"
+            }
+          ],
+          "hints": [
+            "`totalArea` は `int total = 0;` から始めて `for (Shape s : shapes) { total += s.area(); }` と足し、`return total;` です。引数の型が `Shape[]` なので、中に何が入っていても同じコードで動きます。",
+            "`smallest` は `Shape min = shapes[0];` を仮の1位にして、`if (s.area() < min.area()) { min = s; }` と更新します。`<` なので同じ面積のときは先のものが残ります。",
+            "三角形の数は `main` の中で `for (Shape s : shapes) { if (s instanceof Triangle) { count++; } }` と数えます。平均は `totalArea(shapes) / k` です。"
+          ],
+          "solution": "import java.util.Scanner;\n\nabstract class Shape {\n    private final String name;\n\n    Shape(String name) {\n        this.name = name;\n    }\n\n    String getName() {\n        return name;\n    }\n\n    abstract int area();\n}\n\nclass Rect extends Shape {\n    private int w;\n    private int h;\n\n    Rect(int w, int h) {\n        super(\"四角形\");\n        this.w = w;\n        this.h = h;\n    }\n\n    @Override\n    int area() {\n        return w * h;\n    }\n}\n\nclass Square extends Shape {\n    private int s;\n\n    Square(int s) {\n        super(\"正方形\");\n        this.s = s;\n    }\n\n    @Override\n    int area() {\n        return s * s;\n    }\n}\n\nclass Triangle extends Shape {\n    private int b;\n    private int h;\n\n    Triangle(int b, int h) {\n        super(\"三角形\");\n        this.b = b;\n        this.h = h;\n    }\n\n    @Override\n    int area() {\n        return b * h / 2;\n    }\n}\n\npublic class Main {\n\n    static int totalArea(Shape[] shapes) {\n        int total = 0;\n        for (Shape s : shapes) {\n            total += s.area();\n        }\n        return total;\n    }\n\n    static Shape smallest(Shape[] shapes) {\n        Shape min = shapes[0];\n        for (Shape s : shapes) {\n            if (s.area() < min.area()) {\n                min = s;\n            }\n        }\n        return min;\n    }\n\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int k = sc.nextInt();\n        Shape[] shapes = new Shape[k];\n\n        for (int i = 0; i < k; i++) {\n            String type = sc.next();\n            if (type.equals(\"S\")) {\n                int side = sc.nextInt();\n                shapes[i] = new Square(side);\n            } else {\n                int a = sc.nextInt();\n                int b = sc.nextInt();\n                if (type.equals(\"R\")) {\n                    shapes[i] = new Rect(a, b);\n                } else {\n                    shapes[i] = new Triangle(a, b);\n                }\n            }\n        }\n\n        int total = totalArea(shapes);\n        int triangles = 0;\n        for (Shape s : shapes) {\n            if (s instanceof Triangle) {\n                triangles++;\n            }\n        }\n\n        System.out.println(\"合計 \" + total);\n        System.out.println(\"平均 \" + (total / k));\n        System.out.println(\"最小 \" + smallest(shapes).getName());\n        System.out.println(\"三角形の数 \" + triangles);\n    }\n}\n"
+        }
+      ],
+      "quiz": [
+        {
+          "question": "`Dog extends Animal` で、`Dog` にだけ `fetch()` があるとします。次のうち **コンパイルエラーになる** のはどれでしょう。",
+          "choices": [
+            "`Animal a = new Dog(); a.cry();`",
+            "`Animal a = new Dog(); a.fetch();`",
+            "`Dog d = new Dog(); d.cry();`",
+            "`Animal a = new Dog(); ((Dog) a).fetch();`"
+          ],
+          "answer": 1,
+          "explanation": "呼べるメソッドは **変数の型** で決まります。`Animal` に `fetch()` がないのでコンパイルエラーです。実体が `Dog` でも関係ありません。キャストすれば呼べます。"
+        },
+        {
+          "question": "`Animal a = new Cat();` のとき `Dog d = (Dog) a;` はどうなるでしょう。",
+          "choices": [
+            "コンパイルエラーになる",
+            "コンパイルは通り、実行時に `ClassCastException` になる",
+            "`null` が入る",
+            "問題なく動く"
+          ],
+          "answer": 1,
+          "explanation": "`Animal` から `Dog` へのダウンキャストは文法上ありえるのでコンパイルは通ります。しかし実体は `Cat` なので **実行時** に `ClassCastException` です。`instanceof` で確かめてからキャストします。"
+        },
+        {
+          "question": "抽象クラスについて **誤っている** のはどれでしょう。",
+          "choices": [
+            "`abstract` メソッドを持たない `abstract` クラスも作れる",
+            "`abstract` クラスはコンストラクタを持てる",
+            "`abstract` クラス型の変数は宣言できる",
+            "`abstract` クラスも `new` できる"
+          ],
+          "answer": 3,
+          "explanation": "`abstract` クラスは `new` できません。ただし **変数の型としては使えます**（`Shape s = new Rect(3, 4);`）。コンストラクタも持てて、サブクラスから `super(...)` で呼ばれます。"
+        },
+        {
+          "question": "`abstract` メソッドの書き方として正しいのはどれでしょう。",
+          "choices": [
+            "`abstract int area() { }`",
+            "`abstract int area();`",
+            "`abstract int area() { return 0; }`",
+            "`private abstract int area();`"
+          ],
+          "answer": 1,
+          "explanation": "`abstract` メソッドは本体を書かず、セミコロンで終えます。`{}` を付けると「本体があるのに abstract」でエラーです。`private` にもできません（サブクラスから見えないと実装できないため）。"
+        }
+      ]
     }
   ]
 }

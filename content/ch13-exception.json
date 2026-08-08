@@ -64,7 +64,59 @@
         "`catch` の中では `System.out.println(\"0では割れません\");` と出力します。",
         "`try` の中で例外が起きると、その行以降は実行されずに `catch` へ飛びます。だから両方が出力されることはありません。"
       ],
-      "solution": "import java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int a = sc.nextInt();\n        int b = sc.nextInt();\n\n        try {\n            System.out.println(a / b);\n        } catch (ArithmeticException e) {\n            System.out.println(\"0では割れません\");\n        }\n    }\n}\n"
+      "solution": "import java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int a = sc.nextInt();\n        int b = sc.nextInt();\n\n        try {\n            System.out.println(a / b);\n        } catch (ArithmeticException e) {\n            System.out.println(\"0では割れません\");\n        }\n    }\n}\n",
+      "extraTasks": [
+        {
+          "kind": "applied",
+          "task": "「例外が出るのは **整数の** 割り算だけ」という話を、自分の手で確かめます。あわせて `e.getMessage()` も使います。\n\n### 入力\n\n- 1行目 … 組数 `k`（必ず1以上）\n- 続く `k` 行 … 整数2つ `a` `b`\n\n### 出力\n\n1組につき **2行** 出力します。\n\n| 行 | 内容 |\n|---|---|\n| 1行目 | `整数 ` + `a / b` の結果。例外が起きたら `整数 エラー ` + `e.getMessage()` |\n| 2行目 | `小数 ` + `a / (double) b` の結果（こちらは `try` の外でよい） |\n\n次の入力なら、\n\n```\n2\n10 4\n10 0\n```\n\n出力はこうなります。\n\n```\n整数 2\n小数 2.5\n整数 エラー / by zero\n小数 Infinity\n```\n\n1行目は例外になったのに、2行目は何も起きずに `Infinity` が出ています。**小数の割り算は例外を投げません。**\n\n- `e.getMessage()` は `/ by zero` という文字列を返します。自分で書かずに、例外から取り出してください\n- `0` を `0.0` で割ると `NaN` になります\n- マイナスを `0.0` で割ると `-Infinity` になります\n- `(double)` のキャストを忘れると、2行目も整数の割り算になって例外が飛びます",
+          "starterCode": "import java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int k = sc.nextInt();\n\n        for (int i = 0; i < k; i++) {\n            int a = sc.nextInt();\n            int b = sc.nextInt();\n\n            // 1行目: try で整数の割り算、catch で「整数 エラー 」+ メッセージ\n            // 2行目: 小数の割り算（例外にならない）\n        }\n    }\n}\n",
+          "visibleCases": [
+            {
+              "label": "0 で割ると差が出る",
+              "stdin": "2\n10 4\n10 0",
+              "expected": "整数 2\n小数 2.5\n整数 エラー / by zero\n小数 Infinity"
+            },
+            {
+              "label": "0 ÷ 0",
+              "stdin": "1\n0 0",
+              "expected": "整数 エラー / by zero\n小数 NaN"
+            }
+          ],
+          "hiddenCases": [
+            {
+              "label": "マイナス ÷ 0",
+              "stdin": "1\n-10 0",
+              "expected": "整数 エラー / by zero\n小数 -Infinity"
+            },
+            {
+              "label": "割り切れない",
+              "stdin": "1\n7 2",
+              "expected": "整数 3\n小数 3.5"
+            },
+            {
+              "label": "マイナスの割り算",
+              "stdin": "1\n-7 2",
+              "expected": "整数 -3\n小数 -3.5"
+            },
+            {
+              "label": "0 を割る",
+              "stdin": "1\n0 5",
+              "expected": "整数 0\n小数 0.0"
+            },
+            {
+              "label": "3組まぜる",
+              "stdin": "3\n1 8\n5 0\n20 5",
+              "expected": "整数 0\n小数 0.125\n整数 エラー / by zero\n小数 Infinity\n整数 4\n小数 4.0"
+            }
+          ],
+          "hints": [
+            "1行目は `try { System.out.println(\"整数 \" + a / b); } catch (ArithmeticException e) { System.out.println(\"整数 エラー \" + e.getMessage()); }` の形です。",
+            "2行目は `System.out.println(\"小数 \" + a / (double) b);` です。`b` を `double` にキャストすると小数の割り算になり、例外は起きません。",
+            "`try` の中に2行目を入れてしまうと、`b` が `0` のとき2行目に到達できません。2行目は `try` の外（`catch` のあと）に書いてください。"
+          ],
+          "solution": "import java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int k = sc.nextInt();\n\n        for (int i = 0; i < k; i++) {\n            int a = sc.nextInt();\n            int b = sc.nextInt();\n\n            try {\n                System.out.println(\"整数 \" + a / b);\n            } catch (ArithmeticException e) {\n                System.out.println(\"整数 エラー \" + e.getMessage());\n            }\n\n            System.out.println(\"小数 \" + a / (double) b);\n        }\n    }\n}\n"
+        }
+      ]
     },
     {
       "id": "13-2",
@@ -136,7 +188,59 @@
         "この2つに親子関係はないので、順番はどちらが先でもコンパイルできます。`catch (Exception e)` を先に書くとエラーになります。",
         "`arr[i] / d` は左から評価されるので、添字の範囲外が先に判定されます。`i` が範囲外なら `d` が `0` でも `範囲外` です。"
       ],
-      "solution": "import java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n        int[] arr = new int[n];\n        for (int j = 0; j < n; j++) {\n            arr[j] = sc.nextInt();\n        }\n        int i = sc.nextInt();\n        int d = sc.nextInt();\n\n        try {\n            System.out.println(arr[i] / d);\n        } catch (ArrayIndexOutOfBoundsException e) {\n            System.out.println(\"範囲外\");\n        } catch (ArithmeticException e) {\n            System.out.println(\"0除算\");\n        }\n    }\n}\n"
+      "solution": "import java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n        int[] arr = new int[n];\n        for (int j = 0; j < n; j++) {\n            arr[j] = sc.nextInt();\n        }\n        int i = sc.nextInt();\n        int d = sc.nextInt();\n\n        try {\n            System.out.println(arr[i] / d);\n        } catch (ArrayIndexOutOfBoundsException e) {\n            System.out.println(\"範囲外\");\n        } catch (ArithmeticException e) {\n            System.out.println(\"0除算\");\n        }\n    }\n}\n",
+      "extraTasks": [
+        {
+          "kind": "applied",
+          "task": "**マルチキャッチ**（`|`）と、**広い `catch` を後ろに置く** ルールを両方使います。\n\nひな形には、種類に応じて違う例外を起こす `doIt` メソッドが用意してあります。\n\n| 引数 | 起きる例外 |\n|---|---|\n| `A` | `ArrayIndexOutOfBoundsException` |\n| `Z` | `ArithmeticException` |\n| `N` | `NullPointerException` |\n| `P` | `NumberFormatException` |\n| `OK` | 何も起きない |\n\n### 入力\n\n- 1行目 … 個数 `k`（必ず1以上）\n- 続く `k` 行 … `A` / `Z` / `N` / `P` / `OK` のどれか\n\n### 出力\n\n1件につき1行です。`try` の中で `doIt(type)` を呼び、`catch` を **2つだけ** 書いてください。\n\n| 受け止め方 | 出力 |\n|---|---|\n| `ArithmeticException` と `ArrayIndexOutOfBoundsException` を **`|` でまとめた catch** | `計算エラー ` + 例外のクラス名 |\n| `RuntimeException`（広いほう。**後ろ** に書く） | `その他 ` + 例外のクラス名 |\n| 例外なし | `正常` |\n\n例外のクラス名は `e.getClass().getSimpleName()` で取れます。\n\n次の入力なら、\n\n```\n5\nOK\nA\nZ\nN\nP\n```\n\n出力はこうなります。\n\n```\n正常\n計算エラー ArrayIndexOutOfBoundsException\n計算エラー ArithmeticException\nその他 NullPointerException\nその他 NumberFormatException\n```\n\n- `catch (RuntimeException e)` を **先に** 書くと、うしろの `catch` に到達できずコンパイルエラーになります\n- `正常` の出力は `try` の **中** に書きます（`doIt` が例外を投げたら飛ばしたいので）\n- `NumberFormatException` は `IllegalArgumentException` の子で、たどっていくと `RuntimeException` に行き着きます。だから広いほうの `catch` で受け止められます",
+          "starterCode": "import java.util.Scanner;\n\npublic class Main {\n\n    static void doIt(String type) {\n        int[] arr = {1, 2, 3};\n        if (type.equals(\"A\")) {\n            System.out.println(arr[9]);\n        } else if (type.equals(\"Z\")) {\n            System.out.println(10 / 0);\n        } else if (type.equals(\"N\")) {\n            String s = null;\n            System.out.println(s.length());\n        } else if (type.equals(\"P\")) {\n            System.out.println(Integer.parseInt(\"abc\"));\n        }\n    }\n\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int k = sc.nextInt();\n\n        for (int i = 0; i < k; i++) {\n            String type = sc.next();\n            // try で doIt(type) を呼び、catch を2つ書く\n        }\n    }\n}\n",
+          "visibleCases": [
+            {
+              "label": "5種類ぜんぶ",
+              "stdin": "5\nOK\nA\nZ\nN\nP",
+              "expected": "正常\n計算エラー ArrayIndexOutOfBoundsException\n計算エラー ArithmeticException\nその他 NullPointerException\nその他 NumberFormatException"
+            },
+            {
+              "label": "0除算だけ",
+              "stdin": "1\nZ",
+              "expected": "計算エラー ArithmeticException"
+            }
+          ],
+          "hiddenCases": [
+            {
+              "label": "例外なし",
+              "stdin": "1\nOK",
+              "expected": "正常"
+            },
+            {
+              "label": "変換エラーが2回",
+              "stdin": "2\nP\nP",
+              "expected": "その他 NumberFormatException\nその他 NumberFormatException"
+            },
+            {
+              "label": "正常をはさむ",
+              "stdin": "3\nA\nOK\nN",
+              "expected": "計算エラー ArrayIndexOutOfBoundsException\n正常\nその他 NullPointerException"
+            },
+            {
+              "label": "2つの catch を行き来する",
+              "stdin": "2\nN\nZ",
+              "expected": "その他 NullPointerException\n計算エラー ArithmeticException"
+            },
+            {
+              "label": "4件",
+              "stdin": "4\nOK\nOK\nA\nP",
+              "expected": "正常\n正常\n計算エラー ArrayIndexOutOfBoundsException\nその他 NumberFormatException"
+            }
+          ],
+          "hints": [
+            "マルチキャッチは `catch (ArithmeticException | ArrayIndexOutOfBoundsException e)` と書きます。`e` は1つだけ書きます。",
+            "2つ目は `catch (RuntimeException e)` です。マルチキャッチのほうが狭いので、**そちらを先** に書いてください。",
+            "`try { doIt(type); System.out.println(\"正常\"); }` のように、`正常` の出力も `try` の中に入れます。例外が飛んだらこの行は実行されません。"
+          ],
+          "solution": "import java.util.Scanner;\n\npublic class Main {\n\n    static void doIt(String type) {\n        int[] arr = {1, 2, 3};\n        if (type.equals(\"A\")) {\n            System.out.println(arr[9]);\n        } else if (type.equals(\"Z\")) {\n            System.out.println(10 / 0);\n        } else if (type.equals(\"N\")) {\n            String s = null;\n            System.out.println(s.length());\n        } else if (type.equals(\"P\")) {\n            System.out.println(Integer.parseInt(\"abc\"));\n        }\n    }\n\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int k = sc.nextInt();\n\n        for (int i = 0; i < k; i++) {\n            String type = sc.next();\n            try {\n                doIt(type);\n                System.out.println(\"正常\");\n            } catch (ArithmeticException | ArrayIndexOutOfBoundsException e) {\n                System.out.println(\"計算エラー \" + e.getClass().getSimpleName());\n            } catch (RuntimeException e) {\n                System.out.println(\"その他 \" + e.getClass().getSimpleName());\n            }\n        }\n    }\n}\n"
+        }
+      ]
     },
     {
       "id": "13-3",
@@ -193,7 +297,59 @@
         "`try` と `catch` の両方に `return` を書きます。`finally` には出力だけを書き、`return` は書きません。",
         "ひな形の最後にある `return \"\";` は消して構いません（`try` と `catch` の両方が `return` するなら不要です）。"
       ],
-      "solution": "import java.util.Scanner;\n\npublic class Main {\n\n    static String check(int n) {\n        try {\n            if (n < 0) {\n                throw new IllegalArgumentException(\"マイナス\");\n            }\n            return \"正常\";\n        } catch (IllegalArgumentException e) {\n            return \"異常\";\n        } finally {\n            System.out.println(\"finally\");\n        }\n    }\n\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int a = sc.nextInt();\n        int b = sc.nextInt();\n\n        System.out.println(check(a));\n        System.out.println(check(b));\n    }\n}\n"
+      "solution": "import java.util.Scanner;\n\npublic class Main {\n\n    static String check(int n) {\n        try {\n            if (n < 0) {\n                throw new IllegalArgumentException(\"マイナス\");\n            }\n            return \"正常\";\n        } catch (IllegalArgumentException e) {\n            return \"異常\";\n        } finally {\n            System.out.println(\"finally\");\n        }\n    }\n\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int a = sc.nextInt();\n        int b = sc.nextInt();\n\n        System.out.println(check(a));\n        System.out.println(check(b));\n    }\n}\n",
+      "extraTasks": [
+        {
+          "kind": "applied",
+          "task": "`finally` は「必ず実行される」と説明しました。**`catch` を1つも書かなかったとき** でもそうです。それを確かめます。\n\n次のメソッドを作ってください。**`catch` は書きません**（`try` と `finally` だけ）。\n\n```java\nstatic int half(int n) {\n    try {\n        return 100 / n;              // n が 0 なら例外\n    } finally {\n        System.out.println(\"finally \" + n);\n    }\n}\n```\n\n受け止め手がいないので、例外は **呼び出し元へそのまま飛んでいきます**。ただし飛んでいく前に `finally` は実行されます。\n\n### 入力\n\n- 1行目 … 個数 `k`（必ず1以上）\n- 2行目 … `k` 個の整数\n\n### 出力\n\n`main` のループの中で `half(n)` を `try-catch` で囲み、1つにつき次を出力します。\n\n- 成功 … `結果 ` + 戻り値\n- `ArithmeticException` を受け止めた … `受け止めた ` + `e.getMessage()`\n\n`finally` の行は `half` の中から出力されるので、どちらの場合も **先** に出ます。\n\n次の入力なら、\n\n```\n2\n4 0\n```\n\n出力はこうなります。\n\n```\nfinally 4\n結果 25\nfinally 0\n受け止めた / by zero\n```\n\n`n` が `0` のときも `finally 0` が出ていることが大事です。`half` の中に `catch` は1つもないのに、後片付けだけは行われています。\n\n- 割り算は切り捨てです（`100 / 3` は `33`）\n- マイナスでも例外にはなりません",
+          "starterCode": "import java.util.Scanner;\n\npublic class Main {\n\n    // static int half(int n) を書く（try と finally だけ。catch は書かない）\n\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int k = sc.nextInt();\n\n        for (int i = 0; i < k; i++) {\n            int n = sc.nextInt();\n            // half(n) を try-catch で囲んで出力する\n        }\n    }\n}\n",
+          "visibleCases": [
+            {
+              "label": "成功と失敗",
+              "stdin": "2\n4 0",
+              "expected": "finally 4\n結果 25\nfinally 0\n受け止めた / by zero"
+            },
+            {
+              "label": "100 ÷ 100",
+              "stdin": "1\n100",
+              "expected": "finally 100\n結果 1"
+            }
+          ],
+          "hiddenCases": [
+            {
+              "label": "0 だけ",
+              "stdin": "1\n0",
+              "expected": "finally 0\n受け止めた / by zero"
+            },
+            {
+              "label": "切り捨て",
+              "stdin": "1\n3",
+              "expected": "finally 3\n結果 33"
+            },
+            {
+              "label": "マイナス",
+              "stdin": "1\n-4",
+              "expected": "finally -4\n結果 -25"
+            },
+            {
+              "label": "0 が続く",
+              "stdin": "3\n0 0 1",
+              "expected": "finally 0\n受け止めた / by zero\nfinally 0\n受け止めた / by zero\nfinally 1\n結果 100"
+            },
+            {
+              "label": "マイナスの切り捨て",
+              "stdin": "2\n7 -3",
+              "expected": "finally 7\n結果 14\nfinally -3\n結果 -33"
+            }
+          ],
+          "hints": [
+            "`half` は `try { return 100 / n; } finally { System.out.println(\"finally \" + n); }` の2ブロックだけです。`catch` は書きません。",
+            "`catch` がないので、`half` の外側（`main`）で `catch (ArithmeticException e)` を書く必要があります。",
+            "`main` 側は `try { System.out.println(\"結果 \" + half(n)); } catch (ArithmeticException e) { System.out.println(\"受け止めた \" + e.getMessage()); }` です。"
+          ],
+          "solution": "import java.util.Scanner;\n\npublic class Main {\n\n    static int half(int n) {\n        try {\n            return 100 / n;\n        } finally {\n            System.out.println(\"finally \" + n);\n        }\n    }\n\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int k = sc.nextInt();\n\n        for (int i = 0; i < k; i++) {\n            int n = sc.nextInt();\n            try {\n                System.out.println(\"結果 \" + half(n));\n            } catch (ArithmeticException e) {\n                System.out.println(\"受け止めた \" + e.getMessage());\n            }\n        }\n    }\n}\n"
+        }
+      ]
     },
     {
       "id": "13-4",
@@ -255,7 +411,59 @@
         "`try-catch` は **ループの中** に書きます。外に書くと、1つ失敗した時点でループが終わってしまいます。",
         "`NG` の行は `System.out.println(\"NG \" + e.getMessage());` です。メッセージは `super(message)` に預けたものが返ってきます。"
       ],
-      "solution": "import java.util.Scanner;\n\nclass TooSmallException extends Exception {\n    TooSmallException(String message) {\n        super(message);\n    }\n}\n\npublic class Main {\n\n    static int check(int n) throws TooSmallException {\n        if (n < 10) {\n            throw new TooSmallException(\"小さすぎます: \" + n);\n        }\n        return n;\n    }\n\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int k = sc.nextInt();\n\n        for (int i = 0; i < k; i++) {\n            int n = sc.nextInt();\n            try {\n                System.out.println(\"OK \" + check(n));\n            } catch (TooSmallException e) {\n                System.out.println(\"NG \" + e.getMessage());\n            }\n        }\n    }\n}\n"
+      "solution": "import java.util.Scanner;\n\nclass TooSmallException extends Exception {\n    TooSmallException(String message) {\n        super(message);\n    }\n}\n\npublic class Main {\n\n    static int check(int n) throws TooSmallException {\n        if (n < 10) {\n            throw new TooSmallException(\"小さすぎます: \" + n);\n        }\n        return n;\n    }\n\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int k = sc.nextInt();\n\n        for (int i = 0; i < k; i++) {\n            int n = sc.nextInt();\n            try {\n                System.out.println(\"OK \" + check(n));\n            } catch (TooSmallException e) {\n                System.out.println(\"NG \" + e.getMessage());\n            }\n        }\n    }\n}\n",
+      "extraTasks": [
+        {
+          "kind": "applied",
+          "task": "検査例外を渡された側の選択肢は2つありました。「`try-catch` で受け止める」か「自分も `throws` を書いて投げる」です。今回は **2つ目** を使います。\n\nひな形に例外クラスが2つ用意してあります。**継承する親が違う** ことに注目してください。\n\n```java\nclass TooBigException extends Exception { ... }        // 検査例外\nclass NegativeException extends RuntimeException { ... } // 非検査例外\n```\n\n次の2つのメソッドを作ってください。\n\n```java\nstatic int check(int n) throws TooBigException {\n    // n > 100  なら throw new TooBigException(\"大きすぎます: \" + n);\n    // n < 0    なら throw new NegativeException(\"マイナスです: \" + n);\n    // それ以外は n を返す\n}\n\nstatic int relay(int n) throws TooBigException {\n    // check(n) の結果を 2 倍して返す。try-catch は書かない\n}\n```\n\n`relay` は `check` を呼ぶだけで、**受け止めません**。代わりに `throws TooBigException` を書いて呼び出し元へ流します。\n\n`NegativeException` は非検査例外なので、`throws` に書く必要はありません。書かなくてもコンパイルできます。\n\n### 入力\n\n- 1行目 … 個数 `k`（必ず1以上）\n- 2行目 … `k` 個の整数\n\n### 出力\n\n`main` で `relay(n)` を呼び、1つにつき1行です。`catch` は2つ書きます。\n\n| 結果 | 出力 |\n|---|---|\n| 成功 | `OK ` + 戻り値 |\n| `TooBigException` | `検査 ` + `e.getMessage()` |\n| `NegativeException` | `非検査 ` + `e.getMessage()` |\n\n次の入力なら、\n\n```\n3\n5 200 -3\n```\n\n出力はこうなります。\n\n```\nOK 10\n検査 大きすぎます: 200\n非検査 マイナスです: -3\n```\n\n- `100` ちょうどは成功します（`100` より大きいと失敗）\n- `0` は成功します（`0` より小さいと失敗）\n- コロンのあとは **半角スペース1つ** です\n- 2つの例外に親子関係はないので、`catch` の順番は自由です",
+          "starterCode": "import java.util.Scanner;\n\nclass TooBigException extends Exception {\n    TooBigException(String message) {\n        super(message);\n    }\n}\n\nclass NegativeException extends RuntimeException {\n    NegativeException(String message) {\n        super(message);\n    }\n}\n\npublic class Main {\n\n    // static int check(int n) throws TooBigException を書く\n\n    // static int relay(int n) throws TooBigException を書く（catch は書かない）\n\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int k = sc.nextInt();\n\n        for (int i = 0; i < k; i++) {\n            int n = sc.nextInt();\n            // relay(n) を呼び、catch を2つ書いて出力する\n        }\n    }\n}\n",
+          "visibleCases": [
+            {
+              "label": "3通り",
+              "stdin": "3\n5 200 -3",
+              "expected": "OK 10\n検査 大きすぎます: 200\n非検査 マイナスです: -3"
+            },
+            {
+              "label": "境界",
+              "stdin": "2\n100 101",
+              "expected": "OK 200\n検査 大きすぎます: 101"
+            }
+          ],
+          "hiddenCases": [
+            {
+              "label": "0 は成功",
+              "stdin": "1\n0",
+              "expected": "OK 0"
+            },
+            {
+              "label": "-1（境界の失敗）",
+              "stdin": "1\n-1",
+              "expected": "非検査 マイナスです: -1"
+            },
+            {
+              "label": "2倍される",
+              "stdin": "1\n50",
+              "expected": "OK 100"
+            },
+            {
+              "label": "4件まぜる",
+              "stdin": "4\n1 2 -100 1000",
+              "expected": "OK 2\nOK 4\n非検査 マイナスです: -100\n検査 大きすぎます: 1000"
+            },
+            {
+              "label": "境界を並べる",
+              "stdin": "3\n0 100 -100",
+              "expected": "OK 0\nOK 200\n非検査 マイナスです: -100"
+            }
+          ],
+          "hints": [
+            "`check` は `throws TooBigException` だけを書きます。`NegativeException` は非検査例外なので、`throws` に足さなくても `throw` できます。",
+            "`relay` の中身は `return check(n) * 2;` の1行だけです。`try-catch` を書かない代わりに、宣言に `throws TooBigException` が必要です。",
+            "`main` 側は `catch (TooBigException e)` と `catch (NegativeException e)` の2つです。`relay` が `throws` しているので、`main` で受け止めないとコンパイルエラーになります。"
+          ],
+          "solution": "import java.util.Scanner;\n\nclass TooBigException extends Exception {\n    TooBigException(String message) {\n        super(message);\n    }\n}\n\nclass NegativeException extends RuntimeException {\n    NegativeException(String message) {\n        super(message);\n    }\n}\n\npublic class Main {\n\n    static int check(int n) throws TooBigException {\n        if (n > 100) {\n            throw new TooBigException(\"大きすぎます: \" + n);\n        }\n        if (n < 0) {\n            throw new NegativeException(\"マイナスです: \" + n);\n        }\n        return n;\n    }\n\n    static int relay(int n) throws TooBigException {\n        return check(n) * 2;\n    }\n\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int k = sc.nextInt();\n\n        for (int i = 0; i < k; i++) {\n            int n = sc.nextInt();\n            try {\n                System.out.println(\"OK \" + relay(n));\n            } catch (TooBigException e) {\n                System.out.println(\"検査 \" + e.getMessage());\n            } catch (NegativeException e) {\n                System.out.println(\"非検査 \" + e.getMessage());\n            }\n        }\n    }\n}\n"
+        }
+      ]
     },
     {
       "id": "13-5",
@@ -312,7 +520,100 @@
         "ブロックの中は `a.use(n);` と `b.use(n);` の2行だけです。`close()` は自分で呼びません。",
         "`n` が `0` のとき、`a.use(n)` で例外が飛ぶので `b.use(n)` は実行されません。それでも両方のリソースは閉じられます。"
       ],
-      "solution": "import java.util.Scanner;\n\nclass Resource implements AutoCloseable {\n    private final String label;\n\n    Resource(String label) {\n        this.label = label;\n        System.out.println(\"open \" + label);\n    }\n\n    void use(int n) {\n        if (n == 0) {\n            throw new IllegalStateException(\"使えません\");\n        }\n        System.out.println(\"処理 \" + n);\n    }\n\n    @Override\n    public void close() {\n        System.out.println(\"close \" + label);\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n\n        try (Resource a = new Resource(\"A\");\n             Resource b = new Resource(\"B\")) {\n            a.use(n);\n            b.use(n);\n        } catch (IllegalStateException e) {\n            System.out.println(\"エラー\");\n        }\n    }\n}\n"
+      "solution": "import java.util.Scanner;\n\nclass Resource implements AutoCloseable {\n    private final String label;\n\n    Resource(String label) {\n        this.label = label;\n        System.out.println(\"open \" + label);\n    }\n\n    void use(int n) {\n        if (n == 0) {\n            throw new IllegalStateException(\"使えません\");\n        }\n        System.out.println(\"処理 \" + n);\n    }\n\n    @Override\n    public void close() {\n        System.out.println(\"close \" + label);\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n\n        try (Resource a = new Resource(\"A\");\n             Resource b = new Resource(\"B\")) {\n            a.use(n);\n            b.use(n);\n        } catch (IllegalStateException e) {\n            System.out.println(\"エラー\");\n        }\n    }\n}\n",
+      "extraTasks": [
+        {
+          "kind": "applied",
+          "task": "今度は `AutoCloseable` の実装から **自分で** 書きます。さらに `finally` も付けて、`close` → `catch` → `finally` の順番を確かめます。\n\n次のクラスを作ってください。\n\n```java\nclass Box implements AutoCloseable {\n    // private final String name;\n    // Box(String name)   … name を覚えて 開く 名前 と出力\n    // void put(int n)     … n が 0 未満なら throw new IllegalArgumentException(\"入りません\")\n    //                       そうでなければ 名前 + \"に\" + n と出力\n    // public void close() … 閉じる 名前 と出力\n}\n```\n\n整数 `n` が1つ入力されます。`main` では try-with-resources を使い、次のように書いてください。\n\n- `try` のカッコの中で `Box` を **3つ** 作る（名前は順に `X` `Y` `Z`）\n- ブロックの中で `x.put(n)` → `y.put(n)` → `z.put(n)` の順に呼ぶ\n- `catch (IllegalArgumentException e)` で `エラー` と出力\n- `finally` で `おわり` と出力\n\n`1` が入力されたときの出力はこうです。\n\n```\n開く X\n開く Y\n開く Z\nXに1\nYに1\nZに1\n閉じる Z\n閉じる Y\n閉じる X\nおわり\n```\n\n`-1` が入力されたときはこうなります。\n\n```\n開く X\n開く Y\n開く Z\n閉じる Z\n閉じる Y\n閉じる X\nエラー\nおわり\n```\n\n3つとも閉じてから `catch`、その後に `finally` です。**`finally` はいちばん最後** です。\n\n- `close()` には `public` が必要です（インターフェースのメソッドなので）\n- `0` は「`0` 未満」ではないので、`Xに0` のように出力されます\n- `close()` を自分で呼んではいけません",
+          "starterCode": "import java.util.Scanner;\n\n// class Box implements AutoCloseable を書く\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n\n        // try-with-resources で Box を3つ作り、put(n) を3回呼ぶ\n        // catch で「エラー」、finally で「おわり」を出力する\n    }\n}\n",
+          "visibleCases": [
+            {
+              "label": "1（正常）",
+              "stdin": "1",
+              "expected": "開く X\n開く Y\n開く Z\nXに1\nYに1\nZに1\n閉じる Z\n閉じる Y\n閉じる X\nおわり"
+            },
+            {
+              "label": "-1（例外）",
+              "stdin": "-1",
+              "expected": "開く X\n開く Y\n開く Z\n閉じる Z\n閉じる Y\n閉じる X\nエラー\nおわり"
+            }
+          ],
+          "hiddenCases": [
+            {
+              "label": "0 は入る",
+              "stdin": "0",
+              "expected": "開く X\n開く Y\n開く Z\nXに0\nYに0\nZに0\n閉じる Z\n閉じる Y\n閉じる X\nおわり"
+            },
+            {
+              "label": "大きなマイナス",
+              "stdin": "-100",
+              "expected": "開く X\n開く Y\n開く Z\n閉じる Z\n閉じる Y\n閉じる X\nエラー\nおわり"
+            },
+            {
+              "label": "7",
+              "stdin": "7",
+              "expected": "開く X\n開く Y\n開く Z\nXに7\nYに7\nZに7\n閉じる Z\n閉じる Y\n閉じる X\nおわり"
+            },
+            {
+              "label": "100",
+              "stdin": "100",
+              "expected": "開く X\n開く Y\n開く Z\nXに100\nYに100\nZに100\n閉じる Z\n閉じる Y\n閉じる X\nおわり"
+            }
+          ],
+          "hints": [
+            "`close()` は `@Override public void close() { System.out.println(\"閉じる \" + name); }` です。`public` を省くとコンパイルエラーになります（インターフェースのメソッドは `public`）。",
+            "`try (Box x = new Box(\"X\"); Box y = new Box(\"Y\"); Box z = new Box(\"Z\")) {` のようにセミコロンで3つ並べます。最後のあとにセミコロンは要りません。",
+            "`n` が `0` 未満のとき、`x.put(n)` の時点で例外が飛ぶので `y` と `z` の `put` は実行されません。それでも3つとも（逆順に）閉じられます。"
+          ],
+          "solution": "import java.util.Scanner;\n\nclass Box implements AutoCloseable {\n    private final String name;\n\n    Box(String name) {\n        this.name = name;\n        System.out.println(\"開く \" + name);\n    }\n\n    void put(int n) {\n        if (n < 0) {\n            throw new IllegalArgumentException(\"入りません\");\n        }\n        System.out.println(name + \"に\" + n);\n    }\n\n    @Override\n    public void close() {\n        System.out.println(\"閉じる \" + name);\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n\n        try (Box x = new Box(\"X\");\n             Box y = new Box(\"Y\");\n             Box z = new Box(\"Z\")) {\n            x.put(n);\n            y.put(n);\n            z.put(n);\n        } catch (IllegalArgumentException e) {\n            System.out.println(\"エラー\");\n        } finally {\n            System.out.println(\"おわり\");\n        }\n    }\n}\n"
+        }
+      ],
+      "quiz": [
+        {
+          "question": "次のコードはどうなるでしょう。\n\n```java\ntry {\n    ...\n} catch (Exception e) {\n    ...\n} catch (ArithmeticException e) {\n    ...\n}\n```",
+          "choices": [
+            "問題なくコンパイルできる",
+            "2つ目の `catch` でコンパイルエラーになる",
+            "実行時にどちらも動く",
+            "`ArithmeticException` の方が優先される"
+          ],
+          "answer": 1,
+          "explanation": "`catch (Exception e)` が先にすべてを受け止めるので、2つ目には到達できません。コンパイラが「到達不能」と判断してエラーにします。**狭い例外を先** に書きます。"
+        },
+        {
+          "question": "次のメソッドを呼んで出力される順番はどれでしょう。\n\n```java\nstatic String f() {\n    try {\n        return \"A\";\n    } finally {\n        System.out.println(\"B\");\n    }\n}\n// 呼び出し側\nSystem.out.println(f());\n```",
+          "choices": [
+            "`A` → `B`",
+            "`B` → `A`",
+            "`A` だけ",
+            "`B` だけ"
+          ],
+          "answer": 1,
+          "explanation": "`return` で戻り値は決まりますが、呼び出し元へ戻る **直前に `finally` が実行されます**。だから `B` が先に出力され、そのあと `A` が出力されます。"
+        },
+        {
+          "question": "検査例外（`Exception` を継承した独自例外など）について正しいのはどれでしょう。",
+          "choices": [
+            "`try-catch` も `throws` も書かなくてよい",
+            "`try-catch` か `throws` のどちらかが必要",
+            "必ず `try-catch` が必要（`throws` では不可）",
+            "`RuntimeException` と同じ扱いになる"
+          ],
+          "answer": 1,
+          "explanation": "検査例外は「受け止める（`try-catch`）」か「呼び出し元に投げる（`throws`）」のどちらかが必須です。どちらもしないとコンパイルエラーになります。`RuntimeException` 系（非検査例外）は強制されません。"
+        },
+        {
+          "question": "try-with-resources について **誤っている** のはどれでしょう。",
+          "choices": [
+            "複数のリソースを宣言でき、閉じる順は宣言と逆になる",
+            "`catch` があるとき、リソースを閉じてから `catch` に入る",
+            "`AutoCloseable` を実装していないクラスも書ける",
+            "`try` のカッコで宣言した変数は実質 `final` になる"
+          ],
+          "answer": 2,
+          "explanation": "`try` のカッコに書けるのは **`AutoCloseable`（または `Closeable`）を実装したもの** だけです。それ以外を書くとコンパイルエラーになります。"
+        }
+      ]
     }
   ]
 }

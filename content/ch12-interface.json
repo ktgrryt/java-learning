@@ -64,7 +64,59 @@
         "`greet` は文字列を **返す** メソッドです。中で `System.out.println` するのではなく `return` してください。",
         "`Greeter g;` という変数を1つ用意して、`if` で `new JapaneseGreeter()` か `new EnglishGreeter()` を入れると、出力は1行で済みます。"
       ],
-      "solution": "import java.util.Scanner;\n\ninterface Greeter {\n    String greet(String name);\n}\n\nclass JapaneseGreeter implements Greeter {\n    @Override\n    public String greet(String name) {\n        return \"こんにちは、\" + name + \"さん\";\n    }\n}\n\nclass EnglishGreeter implements Greeter {\n    @Override\n    public String greet(String name) {\n        return \"Hello, \" + name + \"!\";\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int k = sc.nextInt();\n\n        for (int i = 0; i < k; i++) {\n            String type = sc.next();\n            String name = sc.next();\n\n            Greeter g;\n            if (type.equals(\"JP\")) {\n                g = new JapaneseGreeter();\n            } else {\n                g = new EnglishGreeter();\n            }\n            System.out.println(g.greet(name));\n        }\n    }\n}\n"
+      "solution": "import java.util.Scanner;\n\ninterface Greeter {\n    String greet(String name);\n}\n\nclass JapaneseGreeter implements Greeter {\n    @Override\n    public String greet(String name) {\n        return \"こんにちは、\" + name + \"さん\";\n    }\n}\n\nclass EnglishGreeter implements Greeter {\n    @Override\n    public String greet(String name) {\n        return \"Hello, \" + name + \"!\";\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int k = sc.nextInt();\n\n        for (int i = 0; i < k; i++) {\n            String type = sc.next();\n            String name = sc.next();\n\n            Greeter g;\n            if (type.equals(\"JP\")) {\n                g = new JapaneseGreeter();\n            } else {\n                g = new EnglishGreeter();\n            }\n            System.out.println(g.greet(name));\n        }\n    }\n}\n",
+      "extraTasks": [
+        {
+          "kind": "applied",
+          "task": "インターフェースに書いたフィールドは、自動で **`public static final`（つまり定数）** になります。それを2通りの読み方で使います。\n\n`Priced` インターフェースはひな形に用意してあります。\n\n```java\ninterface Priced {\n    int TAX = 10;          // public static final が付いている（税率 %）\n    String UNIT = \"円\";    // 同じく定数\n    int price();\n}\n```\n\n次の2クラスを作ってください。どちらも `label()` の中で **`UNIT` を修飾なしで** 使います（実装クラスは定数を受け継ぐので、そのまま書けます）。\n\n| クラス | コンストラクタ | `price()` | `label()` |\n|---|---|---|---|\n| `Book implements Priced` | `Book(int base, int count)` | `base * count` | `\"本 \" + price() + UNIT` |\n| `Ticket implements Priced` | `Ticket(int base)` | `base` | `\"券 \" + price() + UNIT` |\n\nさらに `Main` に、**インターフェースの型で受け取る** メソッドを1つ作ってください。\n\n```java\nstatic int taxOf(Priced item) {\n    // item.price() * Priced.TAX / 100 を返す（整数の割り算なので切り捨て）\n}\n```\n\n### 入力\n\n- 1行目 … 個数 `k`（`0` もありえます）\n- 続く `k` 行 … `B 単価 個数` または `T 金額`\n\n### 出力\n\n1件につき1行、最後に税率の行です。\n\n- `label() の結果 + \" 税 \" + 税額 + UNIT`\n- 最後の1行 … `税率 ○%`（`Priced.TAX` を **インターフェース名から** 読んで出力）\n\n次の入力なら、\n\n```\n2\nB 100 3\nT 500\n```\n\n出力はこうなります。\n\n```\n本 300円 税 30円\n券 500円 税 50円\n税率 10%\n```\n\n- 税額は切り捨てです（`105` 円なら `10` 円）\n- `k` が `0` のときも、最後の `税率 10%` は出力します\n- `%` は半角です",
+          "starterCode": "import java.util.Scanner;\n\ninterface Priced {\n    int TAX = 10;\n    String UNIT = \"円\";\n\n    int price();\n}\n\n// class Book implements Priced を書く\n\n// class Ticket implements Priced を書く\n\npublic class Main {\n\n    // static int taxOf(Priced item) を書く\n\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int k = sc.nextInt();\n\n        for (int i = 0; i < k; i++) {\n            String type = sc.next();\n            // B なら 単価と個数、T なら 金額 を読んで作り、1行出力する\n        }\n\n        // 最後に 税率 を出力する\n    }\n}\n",
+          "visibleCases": [
+            {
+              "label": "本と券",
+              "stdin": "2\nB 100 3\nT 500",
+              "expected": "本 300円 税 30円\n券 500円 税 50円\n税率 10%"
+            },
+            {
+              "label": "切り捨てが起きる",
+              "stdin": "1\nT 105",
+              "expected": "券 105円 税 10円\n税率 10%"
+            }
+          ],
+          "hiddenCases": [
+            {
+              "label": "0件（税率だけ）",
+              "stdin": "0",
+              "expected": "税率 10%"
+            },
+            {
+              "label": "個数はあるが単価 0",
+              "stdin": "1\nB 0 5",
+              "expected": "本 0円 税 0円\n税率 10%"
+            },
+            {
+              "label": "税額が 0 になる",
+              "stdin": "1\nB 9 1",
+              "expected": "本 9円 税 0円\n税率 10%"
+            },
+            {
+              "label": "券を3枚",
+              "stdin": "3\nT 1\nT 10\nT 99",
+              "expected": "券 1円 税 0円\n券 10円 税 1円\n券 99円 税 9円\n税率 10%"
+            },
+            {
+              "label": "掛け算のあとに切り捨て",
+              "stdin": "2\nB 7 3\nT 1000",
+              "expected": "本 21円 税 2円\n券 1000円 税 100円\n税率 10%"
+            }
+          ],
+          "hints": [
+            "`Book` の中で `UNIT` はそのまま書けます。`implements` したクラスは、インターフェースの定数を受け継ぐからです。`Priced.UNIT` と書いても同じです。",
+            "`taxOf` は `return item.price() * Priced.TAX / 100;` の1行です。引数の型が `Priced` なので、`Book` でも `Ticket` でも渡せます。",
+            "最後の行は `System.out.println(\"税率 \" + Priced.TAX + \"%\");` です。`TAX` は `static` なので、インターフェース名から直接読めます。"
+          ],
+          "solution": "import java.util.Scanner;\n\ninterface Priced {\n    int TAX = 10;\n    String UNIT = \"円\";\n\n    int price();\n}\n\nclass Book implements Priced {\n    private int base;\n    private int count;\n\n    Book(int base, int count) {\n        this.base = base;\n        this.count = count;\n    }\n\n    @Override\n    public int price() {\n        return base * count;\n    }\n\n    String label() {\n        return \"本 \" + price() + UNIT;\n    }\n}\n\nclass Ticket implements Priced {\n    private int base;\n\n    Ticket(int base) {\n        this.base = base;\n    }\n\n    @Override\n    public int price() {\n        return base;\n    }\n\n    String label() {\n        return \"券 \" + price() + UNIT;\n    }\n}\n\npublic class Main {\n\n    static int taxOf(Priced item) {\n        return item.price() * Priced.TAX / 100;\n    }\n\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int k = sc.nextInt();\n\n        for (int i = 0; i < k; i++) {\n            String type = sc.next();\n            if (type.equals(\"B\")) {\n                int base = sc.nextInt();\n                int count = sc.nextInt();\n                Book b = new Book(base, count);\n                System.out.println(b.label() + \" 税 \" + taxOf(b) + Priced.UNIT);\n            } else {\n                int base = sc.nextInt();\n                Ticket t = new Ticket(base);\n                System.out.println(t.label() + \" 税 \" + taxOf(t) + Priced.UNIT);\n            }\n        }\n\n        System.out.println(\"税率 \" + Priced.TAX + \"%\");\n    }\n}\n"
+        }
+      ]
     },
     {
       "id": "12-2",
@@ -126,7 +178,59 @@
         "配列の型は `Swimmable[]` です。`Duck` も `Fish` も `Swimmable` なので入れられます。",
         "ループの中は `if (s instanceof Flyable f) { System.out.println(f.fly()); }` のあとに `System.out.println(s.swim());` です。"
       ],
-      "solution": "import java.util.Scanner;\n\ninterface Flyable {\n    String fly();\n}\n\ninterface Swimmable {\n    String swim();\n}\n\nclass Duck implements Flyable, Swimmable {\n    private String name;\n\n    Duck(String name) {\n        this.name = name;\n    }\n\n    @Override\n    public String fly() {\n        return name + \"は飛ぶ\";\n    }\n\n    @Override\n    public String swim() {\n        return name + \"は泳ぐ\";\n    }\n}\n\nclass Fish implements Swimmable {\n    private String name;\n\n    Fish(String name) {\n        this.name = name;\n    }\n\n    @Override\n    public String swim() {\n        return name + \"は泳ぐ\";\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int k = sc.nextInt();\n        Swimmable[] swimmers = new Swimmable[k];\n\n        for (int i = 0; i < k; i++) {\n            String type = sc.next();\n            String name = sc.next();\n            if (type.equals(\"D\")) {\n                swimmers[i] = new Duck(name);\n            } else {\n                swimmers[i] = new Fish(name);\n            }\n        }\n\n        for (Swimmable s : swimmers) {\n            if (s instanceof Flyable f) {\n                System.out.println(f.fly());\n            }\n            System.out.println(s.swim());\n        }\n    }\n}\n"
+      "solution": "import java.util.Scanner;\n\ninterface Flyable {\n    String fly();\n}\n\ninterface Swimmable {\n    String swim();\n}\n\nclass Duck implements Flyable, Swimmable {\n    private String name;\n\n    Duck(String name) {\n        this.name = name;\n    }\n\n    @Override\n    public String fly() {\n        return name + \"は飛ぶ\";\n    }\n\n    @Override\n    public String swim() {\n        return name + \"は泳ぐ\";\n    }\n}\n\nclass Fish implements Swimmable {\n    private String name;\n\n    Fish(String name) {\n        this.name = name;\n    }\n\n    @Override\n    public String swim() {\n        return name + \"は泳ぐ\";\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int k = sc.nextInt();\n        Swimmable[] swimmers = new Swimmable[k];\n\n        for (int i = 0; i < k; i++) {\n            String type = sc.next();\n            String name = sc.next();\n            if (type.equals(\"D\")) {\n                swimmers[i] = new Duck(name);\n            } else {\n                swimmers[i] = new Fish(name);\n            }\n        }\n\n        for (Swimmable s : swimmers) {\n            if (s instanceof Flyable f) {\n                System.out.println(f.fly());\n            }\n            System.out.println(s.swim());\n        }\n    }\n}\n",
+      "extraTasks": [
+        {
+          "kind": "applied",
+          "task": "インターフェースは **別のインターフェースを `extends` できます**（しかも複数）。それを使って「水陸両用」という型を作ります。\n\nひな形に3つのインターフェースが用意してあります。\n\n```java\ninterface Flyable    { String fly();  }\ninterface Swimmable  { String swim(); }\ninterface Amphibious extends Flyable, Swimmable { }   // 中身は空\n```\n\n`Amphibious` は **メソッドを1つも足していません**。それでも、これを実装するクラスは `fly()` と `swim()` の **両方** を実装する義務を負います。\n\n次の3クラスを作ってください。\n\n| クラス | 実装するもの | メソッド |\n|---|---|---|\n| `Duck implements Amphibious` | `Duck(String name)` | `fly()` → `○○は飛ぶ` / `swim()` → `○○は泳ぐ` |\n| `Bird implements Flyable` | `Bird(String name)` | `fly()` → `○○は飛ぶ` |\n| `Fish implements Swimmable` | `Fish(String name)` | `swim()` → `○○は泳ぐ` |\n\n`Duck` `Bird` `Fish` に **共通の親クラスはありません**。だから配列の型は `Object[]` にします。\n\n### 入力\n\n- 1行目 … 個数 `k`（`0` もありえます）\n- 続く `k` 行 … 種類と名前（種類は `A`（両用）/ `B`（鳥）/ `F`（魚））\n\n### 出力\n\n`Object[]` に入れたあと、1つのループで要素ごとに次を出力します（当てはまるものだけ）。\n\n| 判定 | 出力 |\n|---|---|\n| `instanceof Flyable` | `fly()` の結果 |\n| `instanceof Swimmable` | `swim()` の結果 |\n| `instanceof Amphibious` | `○○は水陸両用` |\n\n次の入力なら、\n\n```\n3\nA カモ\nB ツバメ\nF コイ\n```\n\n出力はこうなります。\n\n```\nカモは飛ぶ\nカモは泳ぐ\nカモは水陸両用\nツバメは飛ぶ\nコイは泳ぐ\n```\n\n`Duck` は3つすべてに当てはまるので3行、`Bird` と `Fish` は1行ずつです。\n\n- 名前は `Amphibious` の判定のときにも必要です。`instanceof Amphibious a` のように変数を受けて、`Duck` 側に名前を返すメソッド（例 `String getName()`）を用意すると書きやすくなります\n- `k` が `0` のときは何も出力しません",
+          "starterCode": "import java.util.Scanner;\n\ninterface Flyable {\n    String fly();\n}\n\ninterface Swimmable {\n    String swim();\n}\n\ninterface Amphibious extends Flyable, Swimmable {\n}\n\n// class Duck implements Amphibious を書く\n\n// class Bird implements Flyable を書く\n\n// class Fish implements Swimmable を書く\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int k = sc.nextInt();\n        Object[] items = new Object[k];\n\n        for (int i = 0; i < k; i++) {\n            String type = sc.next();\n            String name = sc.next();\n            // A / B / F に応じて作り、items[i] に入れる\n        }\n\n        // instanceof で判定して出力する\n    }\n}\n",
+          "visibleCases": [
+            {
+              "label": "3種類",
+              "stdin": "3\nA カモ\nB ツバメ\nF コイ",
+              "expected": "カモは飛ぶ\nカモは泳ぐ\nカモは水陸両用\nツバメは飛ぶ\nコイは泳ぐ"
+            },
+            {
+              "label": "両用だけ",
+              "stdin": "1\nA アヒル",
+              "expected": "アヒルは飛ぶ\nアヒルは泳ぐ\nアヒルは水陸両用"
+            }
+          ],
+          "hiddenCases": [
+            {
+              "label": "0匹",
+              "stdin": "0",
+              "expected": ""
+            },
+            {
+              "label": "鳥と魚だけ",
+              "stdin": "2\nB a\nF b",
+              "expected": "aは飛ぶ\nbは泳ぐ"
+            },
+            {
+              "label": "同じ名前",
+              "stdin": "2\nA 同\nF 同",
+              "expected": "同は飛ぶ\n同は泳ぐ\n同は水陸両用\n同は泳ぐ"
+            },
+            {
+              "label": "最後が両用",
+              "stdin": "3\nF x\nB y\nA z",
+              "expected": "xは泳ぐ\nyは飛ぶ\nzは飛ぶ\nzは泳ぐ\nzは水陸両用"
+            },
+            {
+              "label": "4匹",
+              "stdin": "4\nA p\nA q\nB r\nF s",
+              "expected": "pは飛ぶ\npは泳ぐ\npは水陸両用\nqは飛ぶ\nqは泳ぐ\nqは水陸両用\nrは飛ぶ\nsは泳ぐ"
+            }
+          ],
+          "hints": [
+            "`class Duck implements Amphibious` と書くだけで、`fly()` と `swim()` の両方を実装する義務が生まれます。片方を忘れるとコンパイルエラーになるので確かめてみてください。",
+            "判定は3つ並べます。`if (o instanceof Flyable f) { System.out.println(f.fly()); }` / `if (o instanceof Swimmable s) { ... }` / `if (o instanceof Amphibious a) { ... }` を **`else` でつながず順に** 書けば、`Duck` は3つすべてに入ります。",
+            "`Amphibious` には名前を返すメソッドがないので、`Duck` に `String getName()` を足して `Amphibious` にも宣言するか、`instanceof Duck d` で判定して `d.getName()` を使います。"
+          ],
+          "solution": "import java.util.Scanner;\n\ninterface Flyable {\n    String fly();\n}\n\ninterface Swimmable {\n    String swim();\n}\n\ninterface Amphibious extends Flyable, Swimmable {\n}\n\nclass Duck implements Amphibious {\n    private String name;\n\n    Duck(String name) {\n        this.name = name;\n    }\n\n    String getName() {\n        return name;\n    }\n\n    @Override\n    public String fly() {\n        return name + \"は飛ぶ\";\n    }\n\n    @Override\n    public String swim() {\n        return name + \"は泳ぐ\";\n    }\n}\n\nclass Bird implements Flyable {\n    private String name;\n\n    Bird(String name) {\n        this.name = name;\n    }\n\n    @Override\n    public String fly() {\n        return name + \"は飛ぶ\";\n    }\n}\n\nclass Fish implements Swimmable {\n    private String name;\n\n    Fish(String name) {\n        this.name = name;\n    }\n\n    @Override\n    public String swim() {\n        return name + \"は泳ぐ\";\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int k = sc.nextInt();\n        Object[] items = new Object[k];\n\n        for (int i = 0; i < k; i++) {\n            String type = sc.next();\n            String name = sc.next();\n            if (type.equals(\"A\")) {\n                items[i] = new Duck(name);\n            } else if (type.equals(\"B\")) {\n                items[i] = new Bird(name);\n            } else {\n                items[i] = new Fish(name);\n            }\n        }\n\n        for (Object o : items) {\n            if (o instanceof Flyable f) {\n                System.out.println(f.fly());\n            }\n            if (o instanceof Swimmable s) {\n                System.out.println(s.swim());\n            }\n            if (o instanceof Duck d) {\n                System.out.println(d.getName() + \"は水陸両用\");\n            }\n        }\n    }\n}\n"
+        }
+      ]
     },
     {
       "id": "12-3",
@@ -183,7 +287,59 @@
         "`Casual` では `public String greet()` を書いて上書きします。`@Override` を付けて確かめてください。",
         "3行目は `Greeter.rule()` です。`Simple.rule()` や `インスタンス.rule()` はコンパイルエラーになります。"
       ],
-      "solution": "import java.util.Scanner;\n\ninterface Greeter {\n    String name();\n\n    default String greet() {\n        return \"こんにちは、\" + name() + \"さん\";\n    }\n\n    static String rule() {\n        return \"挨拶は大事\";\n    }\n}\n\nclass Simple implements Greeter {\n    private String name;\n\n    Simple(String name) {\n        this.name = name;\n    }\n\n    @Override\n    public String name() {\n        return name;\n    }\n}\n\nclass Casual implements Greeter {\n    private String name;\n\n    Casual(String name) {\n        this.name = name;\n    }\n\n    @Override\n    public String name() {\n        return name;\n    }\n\n    @Override\n    public String greet() {\n        return \"やあ、\" + name + \"！\";\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        String name1 = sc.next();\n        String name2 = sc.next();\n\n        Greeter a = new Simple(name1);\n        Greeter b = new Casual(name2);\n\n        System.out.println(a.greet());\n        System.out.println(b.greet());\n        System.out.println(Greeter.rule());\n    }\n}\n"
+      "solution": "import java.util.Scanner;\n\ninterface Greeter {\n    String name();\n\n    default String greet() {\n        return \"こんにちは、\" + name() + \"さん\";\n    }\n\n    static String rule() {\n        return \"挨拶は大事\";\n    }\n}\n\nclass Simple implements Greeter {\n    private String name;\n\n    Simple(String name) {\n        this.name = name;\n    }\n\n    @Override\n    public String name() {\n        return name;\n    }\n}\n\nclass Casual implements Greeter {\n    private String name;\n\n    Casual(String name) {\n        this.name = name;\n    }\n\n    @Override\n    public String name() {\n        return name;\n    }\n\n    @Override\n    public String greet() {\n        return \"やあ、\" + name + \"！\";\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        String name1 = sc.next();\n        String name2 = sc.next();\n\n        Greeter a = new Simple(name1);\n        Greeter b = new Casual(name2);\n\n        System.out.println(a.greet());\n        System.out.println(b.greet());\n        System.out.println(Greeter.rule());\n    }\n}\n",
+      "extraTasks": [
+        {
+          "kind": "applied",
+          "task": "`default` メソッドは **他の `default` メソッドを呼べます**。すると「上書きしていないメソッドの動きが変わる」という面白いことが起きます。それを確かめます。\n\nひな形に `Item` インターフェースが用意してあります。\n\n```java\ninterface Item {\n    int price();                                    // 実装させる\n\n    default int tax()   { return price() / 10; }    // 既定（1割）\n    default int total() { return price() + tax(); } // 既定（tax() を呼んでいる）\n\n    static String unit() { return \"円\"; }           // static（受け継がれない）\n}\n```\n\n次の2クラスを作ってください。\n\n| クラス | コンストラクタ | 実装するもの |\n|---|---|---|\n| `Normal implements Item` | `Normal(int p)` | `price()` だけ（`tax` も `total` も既定のまま） |\n| `TaxFree implements Item` | `TaxFree(int p)` | `price()` と、**`tax()` だけ** を上書きして `0` を返す |\n\n`TaxFree` は `total()` を **上書きしません**。それでも合計は変わります。`total()` の中の `tax()` が、上書きされたほうに切り替わるからです。\n\n### 入力\n\n- 1行目 … 個数 `k`（`0` もありえます）\n- 続く `k` 行 … `N 価格`（Normal）または `F 価格`（TaxFree）\n\n### 出力\n\n1件につき1行です。単位は **`Item.unit()`** を呼んで付けてください（`Normal.unit()` と書くとコンパイルエラーになります。`static` メソッドは実装クラスに受け継がれません）。\n\n```\n価格円 税 税額円 合計 合計円\n```\n\n次の入力なら、\n\n```\n2\nN 1000\nF 1000\n```\n\n出力はこうなります。\n\n```\n1000円 税 100円 合計 1100円\n1000円 税 0円 合計 1000円\n```\n\n同じ価格でも合計が違います。`total()` はどちらも既定のままなのに、です。\n\n- 税は切り捨てです（`105` 円なら `10` 円）\n- `k` が `0` のときは何も出力しません",
+          "starterCode": "import java.util.Scanner;\n\ninterface Item {\n    int price();\n\n    default int tax() {\n        return price() / 10;\n    }\n\n    default int total() {\n        return price() + tax();\n    }\n\n    static String unit() {\n        return \"円\";\n    }\n}\n\n// class Normal implements Item を書く（price() だけ）\n\n// class TaxFree implements Item を書く（price() と tax() だけ）\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int k = sc.nextInt();\n\n        for (int i = 0; i < k; i++) {\n            String type = sc.next();\n            int p = sc.nextInt();\n            // N / F に応じて作り、1行出力する\n        }\n    }\n}\n",
+          "visibleCases": [
+            {
+              "label": "同じ価格でも合計が違う",
+              "stdin": "2\nN 1000\nF 1000",
+              "expected": "1000円 税 100円 合計 1100円\n1000円 税 0円 合計 1000円"
+            },
+            {
+              "label": "切り捨てが起きる",
+              "stdin": "1\nN 105",
+              "expected": "105円 税 10円 合計 115円"
+            }
+          ],
+          "hiddenCases": [
+            {
+              "label": "0件",
+              "stdin": "0",
+              "expected": ""
+            },
+            {
+              "label": "非課税だけ",
+              "stdin": "1\nF 999",
+              "expected": "999円 税 0円 合計 999円"
+            },
+            {
+              "label": "価格 0",
+              "stdin": "1\nN 0",
+              "expected": "0円 税 0円 合計 0円"
+            },
+            {
+              "label": "税が 0 になる",
+              "stdin": "1\nN 9",
+              "expected": "9円 税 0円 合計 9円"
+            },
+            {
+              "label": "3件まぜる",
+              "stdin": "3\nN 10\nF 0\nN 25",
+              "expected": "10円 税 1円 合計 11円\n0円 税 0円 合計 0円\n25円 税 2円 合計 27円"
+            }
+          ],
+          "hints": [
+            "`Normal` に書くのは `price()` の実装だけです。`tax()` も `total()` も、インターフェースの `default` がそのまま使われます。",
+            "`TaxFree` では `@Override public int tax() { return 0; }` と書きます。`total()` は書きません。",
+            "出力は `System.out.println(item.price() + Item.unit() + \" 税 \" + item.tax() + Item.unit() + \" 合計 \" + item.total() + Item.unit());` のようになります。変数の型を `Item` にしておけば、どちらのクラスでも同じ1行で書けます。"
+          ],
+          "solution": "import java.util.Scanner;\n\ninterface Item {\n    int price();\n\n    default int tax() {\n        return price() / 10;\n    }\n\n    default int total() {\n        return price() + tax();\n    }\n\n    static String unit() {\n        return \"円\";\n    }\n}\n\nclass Normal implements Item {\n    private int p;\n\n    Normal(int p) {\n        this.p = p;\n    }\n\n    @Override\n    public int price() {\n        return p;\n    }\n}\n\nclass TaxFree implements Item {\n    private int p;\n\n    TaxFree(int p) {\n        this.p = p;\n    }\n\n    @Override\n    public int price() {\n        return p;\n    }\n\n    @Override\n    public int tax() {\n        return 0;\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int k = sc.nextInt();\n\n        for (int i = 0; i < k; i++) {\n            String type = sc.next();\n            int p = sc.nextInt();\n\n            Item item;\n            if (type.equals(\"N\")) {\n                item = new Normal(p);\n            } else {\n                item = new TaxFree(p);\n            }\n\n            String u = Item.unit();\n            System.out.println(item.price() + u + \" 税 \" + item.tax() + u + \" 合計 \" + item.total() + u);\n        }\n    }\n}\n"
+        }
+      ]
     },
     {
       "id": "12-4",
@@ -246,7 +402,105 @@
         "`bonus()` は `public` を付けて実装します（インターフェースのメソッドなので）。`role()` は抽象クラス側なので `public` は不要です。",
         "支給額は `int total = e.salary;` から始めて、`if (e instanceof Bonusable b) { total += b.bonus(); }` で足します。合計はそれを積み上げます。"
       ],
-      "solution": "import java.util.Scanner;\n\nabstract class Employee {\n    protected final String name;\n    protected final int salary;\n\n    Employee(String name, int salary) {\n        this.name = name;\n        this.salary = salary;\n    }\n\n    abstract String role();\n}\n\ninterface Bonusable {\n    int bonus();\n}\n\nclass Manager extends Employee implements Bonusable {\n    Manager(String name, int salary) {\n        super(name, salary);\n    }\n\n    @Override\n    String role() {\n        return \"管理職\";\n    }\n\n    @Override\n    public int bonus() {\n        return salary / 10;\n    }\n}\n\nclass Staff extends Employee {\n    Staff(String name, int salary) {\n        super(name, salary);\n    }\n\n    @Override\n    String role() {\n        return \"一般\";\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int k = sc.nextInt();\n        Employee[] employees = new Employee[k];\n\n        for (int i = 0; i < k; i++) {\n            String type = sc.next();\n            String name = sc.next();\n            int salary = sc.nextInt();\n            if (type.equals(\"M\")) {\n                employees[i] = new Manager(name, salary);\n            } else {\n                employees[i] = new Staff(name, salary);\n            }\n        }\n\n        int sum = 0;\n        for (Employee e : employees) {\n            int total = e.salary;\n            if (e instanceof Bonusable b) {\n                total += b.bonus();\n            }\n            System.out.println(e.name + \" \" + e.role() + \" 支給 \" + total);\n            sum += total;\n        }\n        System.out.println(\"合計 \" + sum);\n    }\n}\n"
+      "solution": "import java.util.Scanner;\n\nabstract class Employee {\n    protected final String name;\n    protected final int salary;\n\n    Employee(String name, int salary) {\n        this.name = name;\n        this.salary = salary;\n    }\n\n    abstract String role();\n}\n\ninterface Bonusable {\n    int bonus();\n}\n\nclass Manager extends Employee implements Bonusable {\n    Manager(String name, int salary) {\n        super(name, salary);\n    }\n\n    @Override\n    String role() {\n        return \"管理職\";\n    }\n\n    @Override\n    public int bonus() {\n        return salary / 10;\n    }\n}\n\nclass Staff extends Employee {\n    Staff(String name, int salary) {\n        super(name, salary);\n    }\n\n    @Override\n    String role() {\n        return \"一般\";\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int k = sc.nextInt();\n        Employee[] employees = new Employee[k];\n\n        for (int i = 0; i < k; i++) {\n            String type = sc.next();\n            String name = sc.next();\n            int salary = sc.nextInt();\n            if (type.equals(\"M\")) {\n                employees[i] = new Manager(name, salary);\n            } else {\n                employees[i] = new Staff(name, salary);\n            }\n        }\n\n        int sum = 0;\n        for (Employee e : employees) {\n            int total = e.salary;\n            if (e instanceof Bonusable b) {\n                total += b.bonus();\n            }\n            System.out.println(e.name + \" \" + e.role() + \" 支給 \" + total);\n            sum += total;\n        }\n        System.out.println(\"合計 \" + sum);\n    }\n}\n",
+      "extraTasks": [
+        {
+          "kind": "applied",
+          "task": "表の「`implements` はいくつでも」を実際に使います。**抽象クラス1つ + インターフェース2つ** を1クラスに組み合わせます。\n\nひな形に、抽象クラスとインターフェース2つが用意してあります。\n\n```java\nabstract class Employee {\n    protected final String name;\n    protected final int salary;\n    Employee(String name, int salary) { ... }\n    abstract String role();\n}\n\ninterface Bonusable  { int bonus();   }   // 賞与を出せる\ninterface Trainable  { String train(); }  // 研修に関われる\n```\n\n次の3クラスを作ってください。`extends` は `implements` より **先** に書きます。\n\n| クラス | 宣言 | `role()` | `bonus()` | `train()` |\n|---|---|---|---|---|\n| `Manager` | `extends Employee implements Bonusable, Trainable` | `管理職` | `salary / 10` | `○○は研修を企画` |\n| `Senior` | `extends Employee implements Trainable` | `先輩` | なし | `○○は研修を担当` |\n| `Staff` | `extends Employee` | `一般` | なし | なし |\n\n### 入力\n\n- 1行目 … 人数 `k`\n- 続く `k` 行 … 種類・名前・給与（種類は `M`（Manager）/ `E`（Senior）/ `S`（Staff））\n\n### 出力\n\n`Employee[]` に入れてから、1つのループで次を出力します。\n\n1. 全員 … `名前 役割 支給 金額`（支給 = 給与 + 賞与。`Bonusable` でなければ賞与は 0）\n2. `Trainable` なら続けて1行 … `train()` の結果\n\nループのあと、2行足します。\n\n- `合計 支給の総額`\n- `研修できる人 n人`（`Trainable` だった人数）\n\n次の入力なら、\n\n```\n3\nM 田中 500000\nE 佐藤 400000\nS 鈴木 300000\n```\n\n出力はこうなります。\n\n```\n田中 管理職 支給 550000\n田中は研修を企画\n佐藤 先輩 支給 400000\n佐藤は研修を担当\n鈴木 一般 支給 300000\n合計 1250000\n研修できる人 2人\n```\n\n- 賞与は切り捨てです\n- `k` が `1` 以上であることは保証されます",
+          "starterCode": "import java.util.Scanner;\n\nabstract class Employee {\n    protected final String name;\n    protected final int salary;\n\n    Employee(String name, int salary) {\n        this.name = name;\n        this.salary = salary;\n    }\n\n    abstract String role();\n}\n\ninterface Bonusable {\n    int bonus();\n}\n\ninterface Trainable {\n    String train();\n}\n\n// class Manager extends Employee implements Bonusable, Trainable を書く\n\n// class Senior extends Employee implements Trainable を書く\n\n// class Staff extends Employee を書く\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int k = sc.nextInt();\n        Employee[] list = new Employee[k];\n\n        for (int i = 0; i < k; i++) {\n            String type = sc.next();\n            String name = sc.next();\n            int salary = sc.nextInt();\n            // M / E / S に応じて作り、list[i] に入れる\n        }\n\n        // 1人ずつ出力し、最後に合計と人数を出力する\n    }\n}\n",
+          "visibleCases": [
+            {
+              "label": "3人",
+              "stdin": "3\nM 田中 500000\nE 佐藤 400000\nS 鈴木 300000",
+              "expected": "田中 管理職 支給 550000\n田中は研修を企画\n佐藤 先輩 支給 400000\n佐藤は研修を担当\n鈴木 一般 支給 300000\n合計 1250000\n研修できる人 2人"
+            },
+            {
+              "label": "一般だけ",
+              "stdin": "1\nS x 100",
+              "expected": "x 一般 支給 100\n合計 100\n研修できる人 0人"
+            }
+          ],
+          "hiddenCases": [
+            {
+              "label": "賞与が切り捨てられる",
+              "stdin": "1\nM A 105",
+              "expected": "A 管理職 支給 115\nAは研修を企画\n合計 115\n研修できる人 1人"
+            },
+            {
+              "label": "給与 0",
+              "stdin": "2\nM B 0\nE C 0",
+              "expected": "B 管理職 支給 0\nBは研修を企画\nC 先輩 支給 0\nCは研修を担当\n合計 0\n研修できる人 2人"
+            },
+            {
+              "label": "賞与が 0 になる",
+              "stdin": "1\nM D 9",
+              "expected": "D 管理職 支給 9\nDは研修を企画\n合計 9\n研修できる人 1人"
+            },
+            {
+              "label": "先輩が2人",
+              "stdin": "3\nE p 1\nE q 2\nS r 3",
+              "expected": "p 先輩 支給 1\npは研修を担当\nq 先輩 支給 2\nqは研修を担当\nr 一般 支給 3\n合計 6\n研修できる人 2人"
+            },
+            {
+              "label": "4人",
+              "stdin": "4\nS a 1000\nM b 1000\nE c 500\nM d 505",
+              "expected": "a 一般 支給 1000\nb 管理職 支給 1100\nbは研修を企画\nc 先輩 支給 500\ncは研修を担当\nd 管理職 支給 555\ndは研修を企画\n合計 3155\n研修できる人 3人"
+            }
+          ],
+          "hints": [
+            "宣言の順番が決まっています。`class Manager extends Employee implements Bonusable, Trainable {` です。`implements` を先に書くとコンパイルエラーになります。",
+            "支給額は `int pay = e.salary; if (e instanceof Bonusable b) { pay += b.bonus(); }` のように、賞与を出せる人だけ足します。",
+            "研修の行と人数は同じ判定で処理できます。`if (e instanceof Trainable t) { System.out.println(t.train()); count++; }` と1か所にまとめてください。"
+          ],
+          "solution": "import java.util.Scanner;\n\nabstract class Employee {\n    protected final String name;\n    protected final int salary;\n\n    Employee(String name, int salary) {\n        this.name = name;\n        this.salary = salary;\n    }\n\n    abstract String role();\n}\n\ninterface Bonusable {\n    int bonus();\n}\n\ninterface Trainable {\n    String train();\n}\n\nclass Manager extends Employee implements Bonusable, Trainable {\n    Manager(String name, int salary) {\n        super(name, salary);\n    }\n\n    @Override\n    String role() {\n        return \"管理職\";\n    }\n\n    @Override\n    public int bonus() {\n        return salary / 10;\n    }\n\n    @Override\n    public String train() {\n        return name + \"は研修を企画\";\n    }\n}\n\nclass Senior extends Employee implements Trainable {\n    Senior(String name, int salary) {\n        super(name, salary);\n    }\n\n    @Override\n    String role() {\n        return \"先輩\";\n    }\n\n    @Override\n    public String train() {\n        return name + \"は研修を担当\";\n    }\n}\n\nclass Staff extends Employee {\n    Staff(String name, int salary) {\n        super(name, salary);\n    }\n\n    @Override\n    String role() {\n        return \"一般\";\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int k = sc.nextInt();\n        Employee[] list = new Employee[k];\n\n        for (int i = 0; i < k; i++) {\n            String type = sc.next();\n            String name = sc.next();\n            int salary = sc.nextInt();\n            if (type.equals(\"M\")) {\n                list[i] = new Manager(name, salary);\n            } else if (type.equals(\"E\")) {\n                list[i] = new Senior(name, salary);\n            } else {\n                list[i] = new Staff(name, salary);\n            }\n        }\n\n        int sum = 0;\n        int count = 0;\n\n        for (Employee e : list) {\n            int pay = e.salary;\n            if (e instanceof Bonusable b) {\n                pay += b.bonus();\n            }\n            System.out.println(e.name + \" \" + e.role() + \" 支給 \" + pay);\n            sum += pay;\n\n            if (e instanceof Trainable t) {\n                System.out.println(t.train());\n                count++;\n            }\n        }\n\n        System.out.println(\"合計 \" + sum);\n        System.out.println(\"研修できる人 \" + count + \"人\");\n    }\n}\n"
+        }
+      ],
+      "quiz": [
+        {
+          "question": "`interface Greeter { String greet(); }` を実装するとき、正しいのはどれでしょう。",
+          "choices": [
+            "`class A implements Greeter { String greet() { return \"hi\"; } }`",
+            "`class A implements Greeter { public String greet() { return \"hi\"; } }`",
+            "`class A extends Greeter { public String greet() { return \"hi\"; } }`",
+            "`class A implements Greeter { }`"
+          ],
+          "answer": 1,
+          "explanation": "インターフェースのメソッドは暗黙的に `public` なので、実装側で `public` を省くと「狭くなっている」ためコンパイルエラーです。クラスがインターフェースを実装するときは `implements` を使います。"
+        },
+        {
+          "question": "インターフェースの `static` メソッド `Greeter.rule()` について正しいのはどれでしょう。",
+          "choices": [
+            "実装クラスから `Impl.rule()` として呼べる",
+            "インスタンスから `impl.rule()` として呼べる",
+            "`Greeter.rule()` としてだけ呼べる",
+            "実装クラスで上書きできる"
+          ],
+          "answer": 2,
+          "explanation": "インターフェースの `static` メソッドは **実装クラスに継承されません**。インターフェース名から呼ぶだけです。一方 `default` メソッドは継承され、上書きもできます。"
+        },
+        {
+          "question": "インターフェースに書ける（または自動で付く）ものとして **誤っている** のはどれでしょう。",
+          "choices": [
+            "定数（`public static final` が自動で付く）",
+            "`default` メソッド（実装を書ける）",
+            "インスタンスフィールド（状態を持てる）",
+            "`static` メソッド"
+          ],
+          "answer": 2,
+          "explanation": "インターフェースは **状態を持てません**。フィールドを書くと自動的に `public static final` の定数になり、値の代入が必須になります。状態を共有したいなら抽象クラスを使います。"
+        },
+        {
+          "question": "抽象クラスとインターフェースを両方使うときの正しい書き方はどれでしょう。",
+          "choices": [
+            "`class Manager implements Bonusable extends Employee`",
+            "`class Manager extends Employee implements Bonusable`",
+            "`class Manager extends Employee, Bonusable`",
+            "`class Manager implements Employee, Bonusable`"
+          ],
+          "answer": 1,
+          "explanation": "順番は **`extends` が先、`implements` が後** です。`extends` に書けるクラスは1つだけ、`implements` はカンマでいくつでも並べられます。"
+        }
+      ]
     }
   ]
 }

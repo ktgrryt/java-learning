@@ -138,13 +138,15 @@
       }
 
       // ---- 引用（連続する > をまとめる） ------------------------------------
-      if (/^>\s?/.test(line)) {
+      // 中身をもう一度 render にかける。こうすると引用の中で段落を分けたり、
+      // 箇条書きやコードブロックを置いたりできる（`⚠️ 試験のワナ` を長めに書きたいとき用）。
+      if (/^>\s?/.test(line) || /^>$/.test(line)) {
         var quote = [];
-        while (i < lines.length && /^>\s?/.test(lines[i])) {
+        while (i < lines.length && (/^>\s?/.test(lines[i]) || /^>$/.test(lines[i]))) {
           quote.push(lines[i].replace(/^>\s?/, ''));
           i++;
         }
-        out.push('<blockquote class="md-quote">' + inline(esc(quote.join(' '))) + '</blockquote>');
+        out.push('<blockquote class="md-quote">' + render(quote.join('\n')) + '</blockquote>');
         continue;
       }
 
@@ -161,12 +163,15 @@
 
       // ---- 番号付きリスト --------------------------------------------------
       if (/^\s*\d+\.\s+/.test(line)) {
+        // 「3. から始める」と書いたらその番号から始める（手順の続きを書けるように）
+        var firstNo = parseInt(/^\s*(\d+)\./.exec(line)[1], 10);
         var ordered = [];
         while (i < lines.length && /^\s*\d+\.\s+/.test(lines[i])) {
           ordered.push('<li>' + inline(esc(lines[i].replace(/^\s*\d+\.\s+/, ''))) + '</li>');
           i++;
         }
-        out.push('<ol class="md-list">' + ordered.join('') + '</ol>');
+        var startAttr = firstNo > 1 ? ' start="' + firstNo + '"' : '';
+        out.push('<ol class="md-list"' + startAttr + '>' + ordered.join('') + '</ol>');
         continue;
       }
 

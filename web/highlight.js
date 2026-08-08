@@ -56,11 +56,19 @@
     10: 'tok-fn'
   };
 
+  /**
+   * HTMLに埋め込める形にする。
+   *
+   * 引用符も落とすので、`title="..."` のような属性値の中でも安全に使える
+   * （テキストの位置で使う分には多めのエスケープだが、害はない）。
+   */
   function escapeHtml(text) {
     return String(text)
       .replace(/&/g, '&amp;')
       .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;');
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
   }
 
   /** Javaコードを、色付け用の <span> を含むHTMLにする。 */

@@ -22,9 +22,14 @@ import java.util.TreeSet;
  * 学習の進捗を progress.json に保存する。
  *
  * 保持するもの:
- *  - クリア済みレッスン（クリア日、使ったヒント数、提出回数）
- *  - レッスンごとに最後に書いたコード（再訪時に復元する）
+ *  - クリア済みの問題（クリア日、使ったヒント数、提出回数）
+ *  - 問題ごとに最後に書いたコード（再訪時に復元する）
+ *  - 確認クイズで選んだ選択肢（正解かどうかは保存せず、出題側と突き合わせて毎回求める）
  *  - 何か1問クリアした日付の集合（連続学習日数の計算に使う）
+ *
+ * 1レッスンに練習問題が複数あるので、★もコードもヒントも **問題ごと** に持つ。
+ * キーは {@code レッスンID#連番}（{@link jq.content.Lesson#taskKey}）。
+ * クイズだけはレッスン単位なので {@code レッスンID#クイズ番号} を別のマップに持つ。
  *
  * サーバは複数リクエストを並行に処理するので、状態変更は全て synchronized で守る。
  */
@@ -32,14 +37,18 @@ public final class ProgressStore {
 
     private final Path file;
 
-    /** レッスンID -> クリア情報 */
+    /** 問題キー -> クリア情報 */
     private final Map<String, Cleared> cleared = new LinkedHashMap<>();
-    /** レッスンID -> 最後に書いたコード */
+    /** 問題キー -> 最後に書いたコード */
     private final Map<String, String> codes = new LinkedHashMap<>();
-    /** レッスンID -> 開示済みヒント数 */
+    /** 問題キー -> 開示済みヒント数 */
     private final Map<String, Integer> hintsRevealed = new LinkedHashMap<>();
-    /** レッスンID -> 提出回数 */
+    /** 問題キー -> 提出回数 */
     private final Map<String, Integer> attempts = new LinkedHashMap<>();
+    /** 問題キー -> これまでで最も多く通ったケース数（画面の「通過したテストケース」に使う） */
+    private final Map<String, Integer> bestPassed = new LinkedHashMap<>();
+    /** "レッスンID#クイズ番号" -> 選んだ選択肢の番号 */
+    private final Map<String, Integer> quizChoices = new LinkedHashMap<>();
     /** 何かをクリアした日付 */
     private final Set<String> clearDates = new TreeSet<>();
 
@@ -53,16 +62,27 @@ public final class ProgressStore {
 
     // ------------------------------------------------------------------ read
 
+    /** クリア済みの問題キー。 */
     public synchronized Set<String> clearedIds() {
         return new LinkedHashSet<>(cleared.keySet());
     }
 
-    public synchronized String savedCode(String lessonId) {
-        return codes.get(lessonId);
+    public synchronized String savedCode(String taskKey) {
+        return codes.get(taskKey);
     }
 
-    public synchronized int hintsRevealed(String lessonId) {
-        return hintsRevealed.getOrDefault(lessonId, 0);
+    public synchronized int hintsRevealed(String taskKey) {
+        return hintsRevealed.getOrDefault(taskKey, 0);
+    }
+
+    /** そのクイズに選んだ選択肢の番号。まだ答えていなければ null。 */
+    public synchronized Integer quizChoice(String lessonId, int index) {
+        return quizChoices.get(quizKey(lessonId, index));
+    }
+
+    /** その問題でこれまでに最も多く通ったケース数。一度も提出していなければ 0。 */
+    public synchronized int bestPassed(String taskKey) {
+        return bestPassed.getOrDefault(taskKey, 0);
     }
 
     /** 今日を含む連続学習日数。今日も昨日も学習していなければ 0。 */
@@ -88,40 +108,46 @@ public final class ProgressStore {
         return count;
     }
 
-    public synchronized Object toJson() {
+    /**
+     * ブラウザへ渡す進捗。
+     *
+     * 画面が実際に使うのは★の数・連続日数・提出回数だけなので、それだけを渡す。
+     * 書きかけのコードは各問題の savedCode として別に載るため、ここで
+     * codes を丸ごと足すと同じものを二重に送ることになる（問題が増えるほど重くなる）。
+     */
+    public synchronized Object toClientJson() {
         Map<String, Object> m = new LinkedHashMap<>();
-        Map<String, Object> clearedJson = new LinkedHashMap<>();
-        cleared.forEach((id, c) -> {
-            Map<String, Object> cm = new LinkedHashMap<>();
-            cm.put("clearedAt", c.clearedAt());
-            cm.put("hintsUsed", c.hintsUsed());
-            cm.put("attempts", c.attempts());
-            clearedJson.put(id, cm);
-        });
-        m.put("cleared", clearedJson);
-        m.put("codes", new LinkedHashMap<>(codes));
-        m.put("hintsRevealed", new LinkedHashMap<>(hintsRevealed));
-        m.put("attempts", new LinkedHashMap<>(attempts));
-        m.put("clearDates", new ArrayList<>(clearDates));
-        m.put("streak", streak());
         m.put("starCount", cleared.size());
+        m.put("streak", streak());
+        m.put("attempts", new LinkedHashMap<>(attempts));
         return m;
     }
 
     // ----------------------------------------------------------------- write
 
-    public synchronized void saveCode(String lessonId, String code) {
+    public synchronized void saveCode(String taskKey, String code) {
         if (code == null) {
             return;
         }
-        codes.put(lessonId, code);
+        codes.put(taskKey, code);
         persist();
     }
 
-    public synchronized int recordAttempt(String lessonId) {
-        int n = attempts.merge(lessonId, 1, Integer::sum);
+    public synchronized int recordAttempt(String taskKey) {
+        int n = attempts.merge(taskKey, 1, Integer::sum);
         persist();
         return n;
+    }
+
+    /**
+     * 採点結果のうち「通ったケース数」を記録する。
+     *
+     * これまでの最高記録だけを残す。あと一歩まで来ていた人の記録が、
+     * その後の失敗した提出で下がってしまわないようにするため。
+     */
+    public synchronized void recordPassed(String taskKey, int passed) {
+        bestPassed.merge(taskKey, passed, Math::max);
+        persist();
     }
 
     /**
@@ -129,14 +155,14 @@ public final class ProgressStore {
      *
      * @return 今回はじめてクリアしたなら true（★獲得の演出に使う）
      */
-    public synchronized boolean markCleared(String lessonId) {
-        boolean isNew = !cleared.containsKey(lessonId);
+    public synchronized boolean markCleared(String taskKey) {
+        boolean isNew = !cleared.containsKey(taskKey);
         String today = LocalDate.now().toString();
         if (isNew) {
-            cleared.put(lessonId, new Cleared(
+            cleared.put(taskKey, new Cleared(
                     today,
-                    hintsRevealed.getOrDefault(lessonId, 0),
-                    attempts.getOrDefault(lessonId, 1)));
+                    hintsRevealed.getOrDefault(taskKey, 0),
+                    attempts.getOrDefault(taskKey, 1)));
         }
         clearDates.add(today);
         persist();
@@ -144,12 +170,18 @@ public final class ProgressStore {
     }
 
     /** ヒントを1つ開示したことを記録し、開示済み総数を返す。 */
-    public synchronized int revealHint(String lessonId, int index) {
-        int current = hintsRevealed.getOrDefault(lessonId, 0);
+    public synchronized int revealHint(String taskKey, int index) {
+        int current = hintsRevealed.getOrDefault(taskKey, 0);
         int next = Math.max(current, index + 1);
-        hintsRevealed.put(lessonId, next);
+        hintsRevealed.put(taskKey, next);
         persist();
         return next;
+    }
+
+    /** クイズの回答を記録する（答え直したら上書きする）。 */
+    public synchronized void recordQuiz(String lessonId, int index, int choice) {
+        quizChoices.put(quizKey(lessonId, index), choice);
+        persist();
     }
 
     /** 進捗を全て消す。 */
@@ -158,8 +190,25 @@ public final class ProgressStore {
         codes.clear();
         hintsRevealed.clear();
         attempts.clear();
+        bestPassed.clear();
+        quizChoices.clear();
         clearDates.clear();
         persist();
+    }
+
+    private static String quizKey(String lessonId, int index) {
+        return lessonId + "#" + index;
+    }
+
+    /**
+     * 昔の進捗ファイルのキーを問題キーに読み替える。
+     *
+     * 1レッスン1問だった頃はレッスンIDそのものがキーだった（"5-2"）。
+     * いまは問題ごとに "5-2#1" を使うので、"#" を含まない古いキーを1問目として扱う。
+     * こうしないと、これまでの★が全部消えたように見えてしまう。
+     */
+    private static String migrateKey(String key) {
+        return key.contains("#") ? key : key + "#1";
     }
 
     // ------------------------------------------------------------ 永続化本体
@@ -177,24 +226,34 @@ public final class ProgressStore {
 
             MiniJson.obj(root, "cleared").forEach((id, v) -> {
                 Map<String, Object> c = MiniJson.asObj(v);
-                cleared.put(id, new Cleared(
+                cleared.put(migrateKey(id), new Cleared(
                         MiniJson.str(c, "clearedAt", LocalDate.now().toString()),
                         MiniJson.intOf(c, "hintsUsed", 0),
                         MiniJson.intOf(c, "attempts", 1)));
             });
             MiniJson.obj(root, "codes").forEach((id, v) -> {
                 if (v instanceof String s) {
-                    codes.put(id, s);
+                    codes.put(migrateKey(id), s);
                 }
             });
             MiniJson.obj(root, "hintsRevealed").forEach((id, v) -> {
                 if (v instanceof Number n) {
-                    hintsRevealed.put(id, n.intValue());
+                    hintsRevealed.put(migrateKey(id), n.intValue());
                 }
             });
             MiniJson.obj(root, "attempts").forEach((id, v) -> {
                 if (v instanceof Number n) {
-                    attempts.put(id, n.intValue());
+                    attempts.put(migrateKey(id), n.intValue());
+                }
+            });
+            MiniJson.obj(root, "bestPassed").forEach((id, v) -> {
+                if (v instanceof Number n) {
+                    bestPassed.put(migrateKey(id), n.intValue());
+                }
+            });
+            MiniJson.obj(root, "quizChoices").forEach((key, v) -> {
+                if (v instanceof Number n) {
+                    quizChoices.put(key, n.intValue());
                 }
             });
             for (Object o : MiniJson.list(root, "clearDates")) {
@@ -218,6 +277,8 @@ public final class ProgressStore {
             codes.clear();
             hintsRevealed.clear();
             attempts.clear();
+            bestPassed.clear();
+            quizChoices.clear();
             clearDates.clear();
         }
     }
@@ -248,6 +309,8 @@ public final class ProgressStore {
         m.put("codes", new LinkedHashMap<>(codes));
         m.put("hintsRevealed", new LinkedHashMap<>(hintsRevealed));
         m.put("attempts", new LinkedHashMap<>(attempts));
+        m.put("bestPassed", new LinkedHashMap<>(bestPassed));
+        m.put("quizChoices", new LinkedHashMap<>(quizChoices));
         m.put("clearDates", new ArrayList<>(clearDates));
         return m;
     }

@@ -40,7 +40,7 @@ public final class App {
         int lessonCount = loader.load().totalLessonCount();
 
         int port = parsePort(args);
-        HttpServer server = bind(port);
+        HttpServer server = bind(port, hasFlag(args, "--exact-port"));
 
         server.createContext("/api", new ApiHandler(loader, progress));
         server.createContext("/", new StaticHandler(webDir));
@@ -65,19 +65,52 @@ public final class App {
         }));
     }
 
-    /** 空いているポートを探す。指定ポートが埋まっていたら順に +1 して試す。 */
-    private static HttpServer bind(int startPort) throws IOException {
+    /**
+     * 待ち受けポートを決めてサーバを作る。
+     *
+     * 人が使うときは、指定ポートが埋まっていたら順に +1 して空きを探すのが親切なので
+     * そうしている。ただし「このポートで動いているはず」と決め打ちして繋ぐ相手
+     * （tools/verify-solutions.sh）にとっては、黙って別のポートへ移られると
+     * 別のサーバに繋ぎに行ってしまう。そのため {@code --exact-port} を付けた場合は
+     * ずらさずに失敗させる。
+     *
+     * @param exact true なら startPort 以外では起動しない
+     */
+    private static HttpServer bind(int startPort, boolean exact) throws IOException {
         InetAddress loopback = InetAddress.getLoopbackAddress();
+        if (exact) {
+            try {
+                return HttpServer.create(new InetSocketAddress(loopback, startPort), 0);
+            } catch (IOException e) {
+                throw new IOException("ポート " + startPort + " を使えませんでした"
+                        + "（--exact-port が指定されているのでずらしません）", e);
+            }
+        }
         IOException last = null;
         for (int p = startPort; p < startPort + PORT_ATTEMPTS; p++) {
             try {
-                return HttpServer.create(new InetSocketAddress(loopback, p), 0);
+                HttpServer server = HttpServer.create(new InetSocketAddress(loopback, p), 0);
+                if (p != startPort) {
+                    // 黙ってずらすと「8123 を開いたのに違うサーバが出た」と混乱するので必ず知らせる
+                    System.out.println("  ポート " + startPort + " は使用中だったので "
+                            + p + " で起動します。");
+                }
+                return server;
             } catch (IOException e) {
                 last = e;
             }
         }
         throw new IOException("ポート " + startPort + " から " + (startPort + PORT_ATTEMPTS - 1)
                 + " まで全て使用中でした", last);
+    }
+
+    private static boolean hasFlag(String[] args, String flag) {
+        for (String arg : args) {
+            if (arg.equals(flag)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static int parsePort(String[] args) {

@@ -6,6 +6,8 @@ import jq.content.Chapter;
 import jq.content.ContentLoader;
 import jq.content.Curriculum;
 import jq.content.Lesson;
+import jq.content.Quiz;
+import jq.content.Task;
 import jq.content.TestCase;
 import jq.judge.CaseResult;
 import jq.judge.Judge;
@@ -76,6 +78,7 @@ public final class ApiHandler implements HttpHandler {
                 case "/api/submit" -> sendJson(exchange, 200, doSubmit(body));
                 case "/api/save" -> sendJson(exchange, 200, doSave(body));
                 case "/api/hint" -> sendJson(exchange, 200, doHint(body));
+                case "/api/quiz" -> sendJson(exchange, 200, doQuiz(body));
                 case "/api/solution" -> sendJson(exchange, 200, doSolution(body));
                 case "/api/reset" -> {
                     progress.resetAll();
@@ -105,6 +108,7 @@ public final class ApiHandler implements HttpHandler {
             Map<String, Object> chJson = ch.toPublicJson();
             chJson.put("cleared", c.isChapterCleared(ch, cleared));
             chJson.put("clearedCount", c.clearedCount(ch, cleared));
+            chJson.put("taskCount", c.taskCount(ch));
 
             @SuppressWarnings("unchecked")
             List<Object> lessons = (List<Object>) chJson.get("lessons");
@@ -113,19 +117,160 @@ public final class ApiHandler implements HttpHandler {
                 Map<String, Object> lJson = (Map<String, Object>) lo;
                 String id = (String) lJson.get("id");
                 Lesson lesson = c.lesson(id).orElseThrow();
-                lJson.put("cleared", cleared.contains(id));
-                lJson.put("savedCode", progress.savedCode(id));
-                lJson.put("hintsRevealed", progress.hintsRevealed(id));
-                lJson.put("solutionUnlocked", solutionUnlocked(lesson, cleared));
+                lJson.put("cleared", c.isLessonCleared(lesson, cleared));
+                lJson.put("clearedCount", c.clearedCount(lesson, cleared));
+                lJson.put("quizResults", quizResults(lesson));
+
+                @SuppressWarnings("unchecked")
+                List<Object> tasks = (List<Object>) lJson.get("tasks");
+                for (int i = 0; i < tasks.size(); i++) {
+                    @SuppressWarnings("unchecked")
+                    Map<String, Object> tJson = (Map<String, Object>) tasks.get(i);
+                    Task task = lesson.tasks().get(i);
+                    String key = Lesson.taskKey(id, task.id());
+                    tJson.put("cleared", cleared.contains(key));
+                    tJson.put("savedCode", progress.savedCode(key));
+                    tJson.put("hintsRevealed", progress.hintsRevealed(key));
+                    tJson.put("revealedHints", revealedHints(id, task));
+                    tJson.put("passedCount", progress.bestPassed(key));
+                    tJson.put("solutionUnlocked", solutionUnlocked(id, task, cleared));
+                }
             }
             chapters.add(chJson);
         }
 
+        int quizTotal = 0;
+        int quizCorrect = 0;
+        for (Chapter ch : c.chapters()) {
+            for (Lesson lesson : ch.lessons()) {
+                quizTotal += lesson.quizzes().size();
+                quizCorrect += correctQuizCount(lesson);
+            }
+        }
+
         Map<String, Object> m = new LinkedHashMap<>();
         m.put("chapters", chapters);
-        m.put("progress", progress.toJson());
+        m.put("progress", progress.toClientJson());
         m.put("totalLessons", c.totalLessonCount());
+        m.put("totalTasks", c.totalTaskCount());
+        m.put("quizTotal", quizTotal);
+        m.put("quizCorrect", quizCorrect);
         return m;
+    }
+
+    /**
+     * 提出・クイズ回答のあとに返す差分。
+     *
+     * 全カリキュラムを返すと毎回500KB近くを送り直すことになる（解説やサンプルは
+     * 何も変わっていないのに）。画面が描き直しに必要なのは進捗まわりだけなので、
+     * それだけを返して、ブラウザ側は手元の state に上書きする。
+     *
+     * @param lessonId 影響を受けたレッスン（クイズの回答状況を返すため）。不要なら null
+     */
+    private Object delta(String lessonId) {
+        Curriculum c = curriculum.get();
+        Set<String> cleared = progress.clearedIds();
+
+        List<Object> chapters = new ArrayList<>();
+        List<Object> lessons = new ArrayList<>();
+        List<Object> tasks = new ArrayList<>();
+        int quizCorrect = 0;
+        for (Chapter ch : c.chapters()) {
+            Map<String, Object> cm = new LinkedHashMap<>();
+            cm.put("id", ch.id());
+            cm.put("cleared", c.isChapterCleared(ch, cleared));
+            cm.put("clearedCount", c.clearedCount(ch, cleared));
+            chapters.add(cm);
+
+            for (Lesson lesson : ch.lessons()) {
+                Map<String, Object> lm = new LinkedHashMap<>();
+                lm.put("id", lesson.id());
+                lm.put("cleared", c.isLessonCleared(lesson, cleared));
+                lm.put("clearedCount", c.clearedCount(lesson, cleared));
+                lessons.add(lm);
+
+                for (Task task : lesson.tasks()) {
+                    String key = Lesson.taskKey(lesson.id(), task.id());
+                    Map<String, Object> tm = new LinkedHashMap<>();
+                    tm.put("lessonId", lesson.id());
+                    tm.put("taskId", task.id());
+                    tm.put("cleared", cleared.contains(key));
+                    tm.put("passedCount", progress.bestPassed(key));
+                    tm.put("hintsRevealed", progress.hintsRevealed(key));
+                    tm.put("solutionUnlocked", solutionUnlocked(lesson.id(), task, cleared));
+                    tasks.add(tm);
+                }
+                quizCorrect += correctQuizCount(lesson);
+            }
+        }
+
+        Map<String, Object> m = new LinkedHashMap<>();
+        m.put("progress", progress.toClientJson());
+        m.put("quizCorrect", quizCorrect);
+        m.put("chapters", chapters);
+        m.put("lessons", lessons);
+        m.put("tasks", tasks);
+        if (lessonId != null) {
+            Lesson lesson = c.lesson(lessonId).orElse(null);
+            if (lesson != null) {
+                m.put("lessonId", lessonId);
+                m.put("quizResults", quizResults(lesson));
+            }
+        }
+        return m;
+    }
+
+    /**
+     * すでに開示済みのヒント本文。まだ開けていないものは含めない。
+     *
+     * 開示済みのものは隠す意味がないので最初から state に載せる。こうしないと
+     * レッスンを開き直すたびに、件数ぶんの POST /api/hint を直列に投げることになる。
+     */
+    private List<Object> revealedHints(String lessonId, Task task) {
+        int revealed = Math.min(
+                progress.hintsRevealed(Lesson.taskKey(lessonId, task.id())),
+                task.hints().size());
+        List<Object> texts = new ArrayList<>(revealed);
+        for (int i = 0; i < revealed; i++) {
+            texts.add(task.hints().get(i));
+        }
+        return texts;
+    }
+
+    /**
+     * レッスンのクイズの回答状況。まだ答えていない問題は null にする。
+     *
+     * 答えた問題については正解の番号と解説も返す（答え合わせ済みなので隠す意味がない）。
+     * 答える前に正解が漏れないよう、null のときは何も入れない。
+     */
+    private List<Object> quizResults(Lesson lesson) {
+        List<Object> results = new ArrayList<>();
+        for (int i = 0; i < lesson.quizzes().size(); i++) {
+            Integer choice = progress.quizChoice(lesson.id(), i);
+            if (choice == null) {
+                results.add(null);
+                continue;
+            }
+            Quiz quiz = lesson.quizzes().get(i);
+            Map<String, Object> r = new LinkedHashMap<>();
+            r.put("choice", choice);
+            r.put("correct", choice == quiz.answer());
+            r.put("answer", quiz.answer());
+            r.put("explanation", quiz.explanation());
+            results.add(r);
+        }
+        return results;
+    }
+
+    private int correctQuizCount(Lesson lesson) {
+        int n = 0;
+        for (int i = 0; i < lesson.quizzes().size(); i++) {
+            Integer choice = progress.quizChoice(lesson.id(), i);
+            if (choice != null && choice == lesson.quizzes().get(i).answer()) {
+                n++;
+            }
+        }
+        return n;
     }
 
     /** 採点なしで1回実行する。「まず動かしてみる」ためのボタン。 */
@@ -134,7 +279,7 @@ public final class ApiHandler implements HttpHandler {
         String stdin = MiniJson.str(body, "stdin", "");
         String lessonId = MiniJson.str(body, "lessonId", "");
         if (!lessonId.isEmpty()) {
-            progress.saveCode(lessonId, code);
+            progress.saveCode(Lesson.taskKey(lessonId, taskId(body)), code);
         }
 
         Map<String, Object> result = new LinkedHashMap<>();
@@ -153,19 +298,24 @@ public final class ApiHandler implements HttpHandler {
         return result;
     }
 
-    /** 全テストケースで採点する。全部通ったら★を付ける。 */
+    /** 全テストケースで採点する。全部通ったら★を付ける（★は問題ごと）。 */
     private Object doSubmit(Map<String, Object> body) {
         Curriculum c = curriculum.get();
         String lessonId = requireString(body, "lessonId");
+        String taskId = taskId(body);
         String code = requireString(body, "code");
         Lesson lesson = c.lesson(lessonId)
                 .orElseThrow(() -> new BadRequest("知らないレッスンです: " + lessonId));
+        Task task = lesson.task(taskId)
+                .orElseThrow(() -> new BadRequest("知らない問題です: " + lessonId + "#" + taskId));
+        String key = Lesson.taskKey(lessonId, taskId);
 
-        progress.saveCode(lessonId, code);
-        int attempts = progress.recordAttempt(lessonId);
+        progress.saveCode(key, code);
+        int attempts = progress.recordAttempt(key);
 
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("lessonId", lessonId);
+        result.put("taskId", taskId);
         result.put("attempts", attempts);
 
         try (JavaRunner.Compiled compiled = runner.compile(code)) {
@@ -174,14 +324,14 @@ public final class ApiHandler implements HttpHandler {
             if (!compiled.success()) {
                 result.put("allPass", false);
                 result.put("cases", List.of());
-                result.put("state", state());
+                result.put("delta", delta(lessonId));
                 return result;
             }
 
             // コンパイルは1回だけ。あとは標準入力を変えて必要な回数だけ走らせる
             List<Object> cases = new ArrayList<>();
             int passed = 0;
-            for (TestCase tc : lesson.allCases()) {
+            for (TestCase tc : task.cases()) {
                 RunResult run = runner.run(compiled, tc.stdin());
                 CaseResult cr = Judge.judge(tc, run);
                 if (cr.pass()) {
@@ -189,79 +339,132 @@ public final class ApiHandler implements HttpHandler {
                 }
                 cases.add(cr.toJson());
             }
-            boolean allPass = passed == lesson.allCases().size();
+            boolean allPass = passed == task.cases().size();
             result.put("cases", cases);
             result.put("passedCount", passed);
             result.put("allPass", allPass);
+            progress.recordPassed(key, passed);
 
             if (allPass) {
                 Set<String> before = progress.clearedIds();
                 Chapter chapter = c.chapterOf(lessonId);
                 boolean chapterWasCleared = c.isChapterCleared(chapter, before);
+                boolean lessonWasCleared = c.isLessonCleared(lesson, before);
 
-                boolean firstTime = progress.markCleared(lessonId);
+                boolean firstTime = progress.markCleared(key);
                 Set<String> after = progress.clearedIds();
 
                 result.put("newStar", firstTime);
+                result.put("lessonCleared", !lessonWasCleared && c.isLessonCleared(lesson, after));
                 result.put("chapterCleared", !chapterWasCleared && c.isChapterCleared(chapter, after));
                 result.put("chapterTitle", chapter.title());
                 result.put("chapterNumber", chapter.number());
-                result.put("nextLessonId", c.nextLessonId(lessonId));
-                result.put("allChaptersCleared", after.size() == c.totalLessonCount());
+                Curriculum.TaskRef next = c.nextTask(lessonId, taskId);
+                result.put("next", next == null ? null : next.toJson());
+                result.put("allChaptersCleared", after.size() == c.totalTaskCount());
             }
         }
-        result.put("state", state());
+        result.put("delta", delta(lessonId));
         return result;
     }
 
     private Object doSave(Map<String, Object> body) {
         String lessonId = requireString(body, "lessonId");
-        progress.saveCode(lessonId, requireString(body, "code"));
+        progress.saveCode(Lesson.taskKey(lessonId, taskId(body)), requireString(body, "code"));
         return Map.of("ok", true);
     }
 
-    private Object doHint(Map<String, Object> body) {
+    /**
+     * 選択式クイズの答え合わせ。
+     *
+     * 正解の番号はブラウザへ渡していないので、判定はここでしかできない。
+     * 答え直しは許す（最後に選んだものを記録する）。
+     */
+    private Object doQuiz(Map<String, Object> body) {
         Curriculum c = curriculum.get();
         String lessonId = requireString(body, "lessonId");
-        int index = MiniJson.intOf(body, "index", 0);
+        int index = MiniJson.intOf(body, "index", -1);
+        int choice = MiniJson.intOf(body, "choice", -1);
+
         Lesson lesson = c.lesson(lessonId)
                 .orElseThrow(() -> new BadRequest("知らないレッスンです: " + lessonId));
-        if (index < 0 || index >= lesson.hints().size()) {
+        if (index < 0 || index >= lesson.quizzes().size()) {
+            throw new BadRequest("そのクイズはありません");
+        }
+        Quiz quiz = lesson.quizzes().get(index);
+        if (choice < 0 || choice >= quiz.choices().size()) {
+            throw new BadRequest("その選択肢はありません");
+        }
+
+        progress.recordQuiz(lessonId, index, choice);
+
+        Map<String, Object> m = new LinkedHashMap<>();
+        m.put("lessonId", lessonId);
+        m.put("index", index);
+        m.put("choice", choice);
+        m.put("correct", choice == quiz.answer());
+        m.put("answer", quiz.answer());
+        m.put("explanation", quiz.explanation());
+        m.put("delta", delta(lessonId));
+        return m;
+    }
+
+    private Object doHint(Map<String, Object> body) {
+        String lessonId = requireString(body, "lessonId");
+        String taskId = taskId(body);
+        int index = MiniJson.intOf(body, "index", 0);
+        Task task = requireTask(lessonId, taskId);
+        if (index < 0 || index >= task.hints().size()) {
             throw new BadRequest("そのヒントはありません");
         }
-        int revealed = progress.revealHint(lessonId, index);
+        int revealed = progress.revealHint(Lesson.taskKey(lessonId, taskId), index);
         Map<String, Object> m = new LinkedHashMap<>();
+        m.put("lessonId", lessonId);
+        m.put("taskId", taskId);
         m.put("index", index);
-        m.put("text", lesson.hints().get(index));
+        m.put("text", task.hints().get(index));
         m.put("hintsRevealed", revealed);
-        m.put("hintCount", lesson.hints().size());
-        m.put("solutionUnlocked", solutionUnlocked(lesson, progress.clearedIds()));
+        m.put("hintCount", task.hints().size());
+        m.put("solutionUnlocked", solutionUnlocked(lessonId, task, progress.clearedIds()));
         return m;
     }
 
     private Object doSolution(Map<String, Object> body) {
-        Curriculum c = curriculum.get();
         String lessonId = requireString(body, "lessonId");
-        Lesson lesson = c.lesson(lessonId)
-                .orElseThrow(() -> new BadRequest("知らないレッスンです: " + lessonId));
-        if (!solutionUnlocked(lesson, progress.clearedIds())) {
+        String taskId = taskId(body);
+        Task task = requireTask(lessonId, taskId);
+        if (!solutionUnlocked(lessonId, task, progress.clearedIds())) {
             throw new BadRequest("模範解答はまだ見られません。先にヒントを全部見てみましょう。");
         }
         Map<String, Object> m = new LinkedHashMap<>();
         m.put("lessonId", lessonId);
-        m.put("solution", lesson.solution());
+        m.put("taskId", taskId);
+        m.put("solution", task.solution());
         return m;
     }
 
-    /** 模範解答は「クリア済み」か「ヒントを全部見た」場合に開放する。 */
-    private boolean solutionUnlocked(Lesson lesson, Set<String> cleared) {
-        if (lesson.solution().isEmpty()) {
+    /** 模範解答は「クリア済み」か「ヒントを全部見た」場合に開放する（問題ごと）。 */
+    private boolean solutionUnlocked(String lessonId, Task task, Set<String> cleared) {
+        if (task.solution().isEmpty()) {
             return false;
         }
-        if (cleared.contains(lesson.id())) {
+        String key = Lesson.taskKey(lessonId, task.id());
+        if (cleared.contains(key)) {
             return true;
         }
-        return progress.hintsRevealed(lesson.id()) >= lesson.hints().size();
+        return progress.hintsRevealed(key) >= task.hints().size();
+    }
+
+    private Task requireTask(String lessonId, String taskId) {
+        Lesson lesson = curriculum.get().lesson(lessonId)
+                .orElseThrow(() -> new BadRequest("知らないレッスンです: " + lessonId));
+        return lesson.task(taskId)
+                .orElseThrow(() -> new BadRequest("知らない問題です: " + lessonId + "#" + taskId));
+    }
+
+    /** リクエストの taskId。1レッスン1問だった頃のクライアントでも動くよう既定は1問目。 */
+    private static String taskId(Map<String, Object> body) {
+        return MiniJson.str(body, "taskId", "1");
     }
 
     private void reloadContent() {

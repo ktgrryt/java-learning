@@ -115,7 +115,11 @@ public final class ErrorTranslator {
                 return "式の書き方が崩れています。ひとつ上の行に `;` や `}` の抜けがないか確かめましょう。";
             }
             case "compiler.err.class.public.should.be.in.file" -> {
-                return "クラス名は `Main` にしてください（このアプリは Main.java として保存します）。";
+                // このアプリは「最初に見つかった public 型」の名前でファイルを保存するので、
+                // クラス名が Main でなくても通る。ここに来るのは public な型が2つ以上あるとき。
+                return "1つのファイルに `public` なクラスは1つだけ置けます。"
+                        + "補助のクラスからは `public` を外しましょう"
+                        + "（`public class Dog` → `class Dog`）。";
             }
             case "compiler.err.doesnt.exist" -> {
                 return "その `import` のパッケージが見つかりません。つづりを確かめましょう。"

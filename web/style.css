@@ -221,17 +221,47 @@ button:disabled { cursor: default; opacity: 0.5; }
 .lesson-view { max-width: 860px; margin: 0 auto; }
 .loading { padding: 60px; text-align: center; color: var(--text-dim); }
 
-/* メインメニュー表示中はサイドバーを畳んで全幅で見せる */
-body.view-menu .sidebar { display: none; }
-body.view-menu .content { margin-left: 0; }
+/* メインメニューでもサイドバーの表示は sidebar-hidden トグルに任せる。
+   既定は非表示（＝全幅）だが、☰ボタンでいつでも開ける。 */
 body.view-menu .overall { visibility: hidden; }   /* メニュー側にリングがあるので二重に出さない */
+
+/* ── サイドバー全体の開閉 ───────────────────────────────────────────
+   集中を妨げないよう、レッスン画面でも既定ではサイドバーを隠す。
+   ☰ボタンで必要なときだけ開く。状態は localStorage に保存。 */
+.menu-toggle {
+  flex: none;
+  width: 34px; height: 34px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-dim);
+  font-size: 16px; line-height: 1;
+  transition: color 0.15s, border-color 0.15s, background 0.15s;
+}
+.menu-toggle:hover { color: var(--text); border-color: var(--text-dim); }
+
+body.sidebar-hidden .sidebar { display: none; }
+body.sidebar-hidden .content { margin-left: 0; }
 
 /* ── サイドバー: 章とレッスン ───────────────────────────────────────── */
 
 .ch { margin-bottom: 6px; padding: 8px 8px 10px; border-radius: var(--radius); }
 .ch-current { background: var(--bg-elev-2); }
 
-.ch-head { display: flex; align-items: flex-start; gap: 9px; }
+/* 章の見出しは開閉ボタン。既定ではレッスン一覧をたたんでいる */
+.ch-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
 .ch-emoji { font-size: 16px; line-height: 1.5; flex: none; }
 .ch-titles { flex: 1; min-width: 0; }
 .ch-title {
@@ -256,6 +286,8 @@ body.view-menu .overall { visibility: hidden; }   /* メニュー側にリング
 .ch-count b { color: var(--accent); font-size: 12px; }
 .ch-count-zero b { color: var(--text-faint); font-weight: 400; }
 .ch-done { font-size: 12px; }
+.ch-caret { flex: none; font-size: 8px; line-height: 2.2; color: var(--text-faint); }
+.ch-head:hover .ch-caret { color: var(--text-dim); }
 
 .ch-bar {
   height: 3px;
@@ -273,6 +305,7 @@ body.view-menu .overall { visibility: hidden; }   /* メニュー側にリング
 .ch-cleared .ch-bar-fill { background: var(--ok); }
 
 .lessons { list-style: none; margin: 0; padding: 0; }
+.lessons[hidden] { display: none; }
 .lesson {
   display: flex;
   align-items: baseline;
@@ -302,6 +335,18 @@ body.view-menu .overall { visibility: hidden; }   /* メニュー側にリング
 .lesson-mark { flex: none; width: 13px; font-size: 11px; }
 .lesson-id { flex: none; font-family: var(--mono); font-size: 11px; opacity: 0.7; }
 .lesson-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* 複数問あるレッスンの「1/2」。★が付く前に、あと何問残っているかを示す */
+.lesson-frac {
+  flex: none;
+  font-family: var(--mono);
+  font-size: 10.5px;
+  padding: 1px 5px;
+  border-radius: 999px;
+  background: var(--bg-elev-2);
+  color: var(--text-dim);
+}
+.lesson-current .lesson-frac { background: rgba(0, 0, 0, 0.16); color: #1a1205; }
 
 /* ════════════════════════════════════════════════════════════════════
    メインメニュー
@@ -586,6 +631,57 @@ kbd {
 .card-task { border-left: 3px solid var(--accent); }
 .card-explain { padding-top: 6px; }
 
+/* ── 練習問題のかたまり ─────────────────────────────────────────────
+   1レッスンに複数問あるので、問題ごとに見出しで区切って束ねる。
+   クリア済みの問題は見出しだけに畳んで、いま解く問題を見つけやすくする */
+
+.task-block { margin-bottom: 26px; }
+.task-block-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 11px 14px;
+  margin-bottom: 14px;
+  border: 1px solid var(--border-soft);
+  border-radius: 11px;
+  background: var(--bg-elev-2);
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+}
+.task-block-head:hover { border-color: var(--accent-dim); }
+.task-block-head:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.task-block.is-collapsed .task-block-head { margin-bottom: 0; }
+.task-block.is-collapsed .task-block-body { display: none; }
+
+.task-no { flex: none; font-size: 13.5px; font-weight: 700; }
+.task-kind {
+  flex: none;
+  padding: 2px 9px;
+  border-radius: 999px;
+  font-size: 11.5px;
+  font-weight: 600;
+  background: var(--bg-elev);
+  border: 1px solid var(--border-soft);
+  color: var(--text-dim);
+}
+/* 本題・ドリル・応用を色で見分けられるようにする（どれも「やらなくていい問題」ではない） */
+.task-kind-practice { border-color: var(--accent-dim); color: var(--accent); }
+.task-kind-drill { border-color: var(--info); color: var(--info); }
+.task-kind-applied { border-color: var(--ok); color: var(--ok); }
+
+.task-head-status {
+  flex: 1;
+  min-width: 0;
+  font-size: 12px;
+  color: var(--accent);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.task-caret { flex: none; font-size: 10px; color: var(--text-faint); }
+
 /* ── マークダウン ───────────────────────────────────────────────────── */
 
 .md-h1, .md-h2 { font-size: 19px; margin: 26px 0 12px; line-height: 1.5; }
@@ -608,6 +704,10 @@ kbd {
   color: var(--text-dim);
   font-size: 14px;
 }
+/* 引用の中身はブロック要素（段落・箇条書き・コード）になりうる。
+   最初と最後の余白だけ詰めて、枠の内側で浮かないようにする */
+.md-quote > :first-child { margin-top: 0; }
+.md-quote > :last-child { margin-bottom: 0; }
 
 /* 表。狭い画面でもページ全体が横スクロールしないよう、表の中だけをスクロールさせる */
 .md-table-wrap { overflow-x: auto; margin: 0 0 16px; }
@@ -1059,6 +1159,121 @@ pre.code-plain { color: var(--text-dim); }
 
 /* ── 狭い画面 ───────────────────────────────────────────────────────── */
 
+/* ── 確認クイズ（4択） ─────────────────────────────────────────────── */
+
+.card-quiz { border-left: 3px solid var(--info); }
+.quiz-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.quiz-head .card-h { margin-bottom: 0; }
+.quiz-score {
+  font-size: 12.5px;
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+}
+.quiz-note {
+  margin: 6px 0 18px;
+  font-size: 12px;
+  color: var(--text-faint);
+}
+
+.quiz-item {
+  padding-top: 16px;
+  margin-top: 16px;
+  border-top: 1px solid var(--border-soft);
+}
+.quiz-item:first-of-type { border-top: none; margin-top: 0; padding-top: 0; }
+
+.quiz-q { display: block; }
+.quiz-q > .md-p:first-child { display: inline; }
+.quiz-q .md-p { margin-bottom: 10px; }
+.quiz-no {
+  display: inline-block;
+  margin-right: 8px;
+  padding: 1px 7px;
+  border-radius: 5px;
+  background: var(--bg-elev-2);
+  color: var(--info);
+  font-family: var(--mono);
+  font-size: 11.5px;
+  font-weight: 600;
+  vertical-align: 1px;
+}
+
+.quiz-choices {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 14px 0 0;
+}
+.quiz-choice {
+  display: flex;
+  align-items: flex-start;
+  gap: 11px;
+  width: 100%;
+  padding: 11px 14px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg-elev-2);
+  color: var(--text);
+  font-family: var(--sans);
+  font-size: 13.5px;
+  line-height: 1.6;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.12s, background 0.12s;
+}
+.quiz-choice:hover { border-color: var(--accent-dim); }
+.quiz-choice:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.quiz-mark {
+  flex: 0 0 auto;
+  width: 20px;
+  height: 20px;
+  margin-top: 1px;
+  border-radius: 50%;
+  background: var(--bg);
+  color: var(--text-dim);
+  font-family: var(--mono);
+  font-size: 11.5px;
+  font-weight: 600;
+  line-height: 20px;
+  text-align: center;
+}
+.quiz-choice-text { flex: 1 1 auto; min-width: 0; }
+.quiz-choice-text .md-p { margin: 0; }
+.quiz-choice-text .code-block { margin: 6px 0 0; }
+
+.quiz-choice.is-picked-ok {
+  border-color: var(--ok);
+  background: var(--ok-bg);
+}
+.quiz-choice.is-picked-ok .quiz-mark { background: var(--ok); color: var(--bg-elev); }
+.quiz-choice.is-picked-ng {
+  border-color: var(--ng);
+  background: var(--ng-bg);
+}
+.quiz-choice.is-picked-ng .quiz-mark { background: var(--ng); color: var(--bg-elev); }
+.quiz-choice.is-answer { border-color: var(--ok); }
+.quiz-choice.is-answer .quiz-mark { background: var(--ok); color: var(--bg-elev); }
+
+.quiz-feedback {
+  margin-top: 12px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: var(--bg);
+  border: 1px solid var(--border-soft);
+}
+.quiz-verdict { font-size: 13px; font-weight: 600; }
+.quiz-ok { color: var(--ok); }
+.quiz-ng { color: var(--ng); }
+.quiz-explain { margin-top: 9px; font-size: 13px; color: var(--text-dim); }
+.quiz-explain .md-p:last-child { margin-bottom: 0; }
+
 @media (max-width: 900px) {
   :root { --sidebar-w: 0px; }
   .menu-hero { padding: 22px; gap: 22px; justify-content: center; text-align: center; }
@@ -1078,4 +1293,5 @@ pre.code-plain { color: var(--text-dim); }
   .content { margin-left: 0; height: auto; padding: 20px 16px 80px; }
   .overall { display: none; }
   .card { padding: 18px; }
+  .quiz-choice { font-size: 13px; padding: 10px 12px; }
 }

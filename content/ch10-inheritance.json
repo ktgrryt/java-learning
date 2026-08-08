@@ -59,7 +59,54 @@
         "`cry()` の中では `name` を名前だけで参照できます。`this.name` と書いてもかまいません。",
         "`main` では `Dog d = new Dog(); d.name = name1; d.intro(); d.cry();` の形です。"
       ],
-      "solution": "import java.util.Scanner;\n\nclass Animal {\n    String name;\n\n    void intro() {\n        System.out.println(\"私は\" + name + \"です\");\n    }\n}\n\nclass Dog extends Animal {\n    void cry() {\n        System.out.println(name + \"「ワン」\");\n    }\n}\n\nclass Cat extends Animal {\n    void cry() {\n        System.out.println(name + \"「ニャー」\");\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        String name1 = sc.next();\n        String name2 = sc.next();\n\n        Dog d = new Dog();\n        d.name = name1;\n        d.intro();\n        d.cry();\n\n        Cat c = new Cat();\n        c.name = name2;\n        c.intro();\n        c.cry();\n    }\n}\n"
+      "solution": "import java.util.Scanner;\n\nclass Animal {\n    String name;\n\n    void intro() {\n        System.out.println(\"私は\" + name + \"です\");\n    }\n}\n\nclass Dog extends Animal {\n    void cry() {\n        System.out.println(name + \"「ワン」\");\n    }\n}\n\nclass Cat extends Animal {\n    void cry() {\n        System.out.println(name + \"「ニャー」\");\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        String name1 = sc.next();\n        String name2 = sc.next();\n\n        Dog d = new Dog();\n        d.name = name1;\n        d.intro();\n        d.cry();\n\n        Cat c = new Cat();\n        c.name = name2;\n        c.intro();\n        c.cry();\n    }\n}\n",
+      "extraTasks": [
+        {
+          "kind": "applied",
+          "task": "継承しても **`private` なメンバーはサブクラスから見えません**。`protected` なら見えます。ここを自分の手で確かめます。\n\n**`Base`**\n\n| メンバー | 内容 |\n|---|---|\n| `protected String open` | サブクラスから **直接** 見えるフィールド |\n| `private String hidden` | サブクラスから **見えない** フィールド |\n| `void setHidden(String h)` | `hidden` に入れる |\n| `String getHidden()` | `hidden` を返す |\n\n**`Child extends Base`**\n\n| メンバー | 内容 |\n|---|---|\n| `String own` | `Child` 自身のフィールド |\n| `void show()` | 下の3行を出力する |\n\n`show()` の中では、**アクセスの仕方を使い分けてください**。\n\n| 行 | 書き方 |\n|---|---|\n| `直接見える ○○` | `open` を **そのまま**（`protected` なので見える） |\n| `メソッド経由 ○○` | `getHidden()` を通す（`hidden` と直接書くと **コンパイルエラー**） |\n| `子のもの ○○` | `own` をそのまま |\n\n入力は3語です。1つ目を `open`、2つ目を `hidden`、3つ目を `own` に入れて `show()` を呼び、**3行** 出力してください。\n\n`alpha beta gamma` が入力されたときの出力はこうです。\n\n```\n直接見える alpha\nメソッド経由 beta\n子のもの gamma\n```\n\n`hidden` は `Base` の外からは触れないので、`main` からも `setHidden(...)` を使ってください。",
+          "starterCode": "import java.util.Scanner;\n\nclass Base {\n    protected String open;\n    private String hidden;\n\n    // setHidden(String h) と getHidden() を書く\n}\n\nclass Child extends Base {\n    // own フィールドと show() を書く\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        String a = sc.next();\n        String b = sc.next();\n        String c = sc.next();\n\n        // Child を作り、open / hidden / own を入れて show() を呼ぶ\n    }\n}\n",
+          "visibleCases": [
+            {
+              "label": "alpha beta gamma",
+              "stdin": "alpha beta gamma",
+              "expected": "直接見える alpha\nメソッド経由 beta\n子のもの gamma"
+            },
+            {
+              "label": "1文字ずつ",
+              "stdin": "A B C",
+              "expected": "直接見える A\nメソッド経由 B\n子のもの C"
+            }
+          ],
+          "hiddenCases": [
+            {
+              "label": "全部同じ",
+              "stdin": "同 同 同",
+              "expected": "直接見える 同\nメソッド経由 同\n子のもの 同"
+            },
+            {
+              "label": "数字",
+              "stdin": "1 2 3",
+              "expected": "直接見える 1\nメソッド経由 2\n子のもの 3"
+            },
+            {
+              "label": "カタカナ",
+              "stdin": "ポチ タマ ハチ",
+              "expected": "直接見える ポチ\nメソッド経由 タマ\n子のもの ハチ"
+            },
+            {
+              "label": "長さ違い",
+              "stdin": "x yy zzz",
+              "expected": "直接見える x\nメソッド経由 yy\n子のもの zzz"
+            }
+          ],
+          "hints": [
+            "`Child` の中で `open` はそのまま書けます。`hidden` を書くと「hiddenはBaseでprivateアクセスされます」というコンパイルエラーになります ── これが `private` は継承しても見えないという意味です。",
+            "`setHidden` は `void setHidden(String h) { hidden = h; }`、`getHidden` は `String getHidden() { return hidden; }` です。どちらも `Base` の中なので `hidden` に触れます。",
+            "`main` では `Child ch = new Child(); ch.open = a; ch.setHidden(b); ch.own = c; ch.show();` の形です。"
+          ],
+          "solution": "import java.util.Scanner;\n\nclass Base {\n    protected String open;\n    private String hidden;\n\n    void setHidden(String h) {\n        hidden = h;\n    }\n\n    String getHidden() {\n        return hidden;\n    }\n}\n\nclass Child extends Base {\n    String own;\n\n    void show() {\n        System.out.println(\"直接見える \" + open);\n        System.out.println(\"メソッド経由 \" + getHidden());\n        System.out.println(\"子のもの \" + own);\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        String a = sc.next();\n        String b = sc.next();\n        String c = sc.next();\n\n        Child ch = new Child();\n        ch.open = a;\n        ch.setHidden(b);\n        ch.own = c;\n        ch.show();\n    }\n}\n"
+        }
+      ]
     },
     {
       "id": "10-2",
@@ -116,7 +163,54 @@
         "3つ目は `Animal` をそのまま `new` します。上書きしていないので親の `cry()` が動きます。",
         "`@Override` を付けてコンパイルが通れば、メソッド名と引数が親と一致している証拠です。"
       ],
-      "solution": "import java.util.Scanner;\n\nclass Animal {\n    String name;\n\n    void cry() {\n        System.out.println(name + \"「…」\");\n    }\n}\n\nclass Dog extends Animal {\n    @Override\n    void cry() {\n        System.out.println(name + \"「ワン」\");\n    }\n}\n\nclass Cat extends Animal {\n    @Override\n    void cry() {\n        System.out.println(name + \"「ニャー」\");\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        String name1 = sc.next();\n        String name2 = sc.next();\n        String name3 = sc.next();\n\n        Dog d = new Dog();\n        d.name = name1;\n        d.cry();\n\n        Cat c = new Cat();\n        c.name = name2;\n        c.cry();\n\n        Animal a = new Animal();\n        a.name = name3;\n        a.cry();\n    }\n}\n"
+      "solution": "import java.util.Scanner;\n\nclass Animal {\n    String name;\n\n    void cry() {\n        System.out.println(name + \"「…」\");\n    }\n}\n\nclass Dog extends Animal {\n    @Override\n    void cry() {\n        System.out.println(name + \"「ワン」\");\n    }\n}\n\nclass Cat extends Animal {\n    @Override\n    void cry() {\n        System.out.println(name + \"「ニャー」\");\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        String name1 = sc.next();\n        String name2 = sc.next();\n        String name3 = sc.next();\n\n        Dog d = new Dog();\n        d.name = name1;\n        d.cry();\n\n        Cat c = new Cat();\n        c.name = name2;\n        c.cry();\n\n        Animal a = new Animal();\n        a.name = name3;\n        a.cry();\n    }\n}\n",
+      "extraTasks": [
+        {
+          "kind": "applied",
+          "task": "オーバーライドの条件を2つ、手を動かして確かめます。\n\n- アクセス修飾子は **広げるのはOK**（`protected` → `public`）。狭めるとコンパイルエラー\n- 引数を変えたものは上書きではなく **オーバーロード**。親のメソッドは **そのまま残る**\n\n**`Animal`**\n\n| メンバー | 内容 |\n|---|---|\n| `protected String name` | 名前 |\n| `protected void cry()` | `○○「…」` と出力（**`protected`** で宣言する） |\n\n**`Dog extends Animal`**\n\n| メンバー | 内容 |\n|---|---|\n| `public void cry()` | `cry()` を **`public` に広げて** オーバーライド。`○○「ワン」` と出力。`@Override` を付ける |\n\n**`Parrot extends Animal`**\n\n| メンバー | 内容 |\n|---|---|\n| `void cry(int times)` | `○○「ピー」` を `times` 行出力。**`cry()` は上書きしない** |\n\n入力は「犬の名前 鳥の名前 回数」の3つです。\n\n```\nポチ オウム 3\n```\n\n次の順に呼んでください。\n\n1. `Dog` の `cry()`\n2. `Parrot` の `cry()` … 上書きしていないので **`Animal` のものが動きます**\n3. `Parrot` の `cry(回数)`\n\n出力はこうなります。\n\n```\nポチ「ワン」\nオウム「…」\nオウム「ピー」\nオウム「ピー」\nオウム「ピー」\n```\n\n- `…` は **三点リーダー1文字** です。問題文からコピーすると確実です\n- 回数が `0` のときは3番目の出力が **1行もありません**\n- `Parrot` の `cry(int times)` に `@Override` を付けると **コンパイルエラー** になります（引数が違うので上書きではないから）。試してみてから外してください",
+          "starterCode": "import java.util.Scanner;\n\nclass Animal {\n    protected String name;\n\n    protected void cry() {\n        System.out.println(name + \"「…」\");\n    }\n}\n\nclass Dog extends Animal {\n    // cry() を public に広げてオーバーライドする\n}\n\nclass Parrot extends Animal {\n    // cry(int times) を書く（オーバーロード）\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        String dogName = sc.next();\n        String birdName = sc.next();\n        int times = sc.nextInt();\n\n        // Dog と Parrot を作り、上の順に呼ぶ\n    }\n}\n",
+          "visibleCases": [
+            {
+              "label": "3回",
+              "stdin": "ポチ オウム 3",
+              "expected": "ポチ「ワン」\nオウム「…」\nオウム「ピー」\nオウム「ピー」\nオウム「ピー」"
+            },
+            {
+              "label": "1回",
+              "stdin": "Rex Pico 1",
+              "expected": "Rex「ワン」\nPico「…」\nPico「ピー」"
+            }
+          ],
+          "hiddenCases": [
+            {
+              "label": "0回（3番目は出ない）",
+              "stdin": "A B 0",
+              "expected": "A「ワン」\nB「…」"
+            },
+            {
+              "label": "同じ名前",
+              "stdin": "同 同 2",
+              "expected": "同「ワン」\n同「…」\n同「ピー」\n同「ピー」"
+            },
+            {
+              "label": "5回",
+              "stdin": "d1 p2 5",
+              "expected": "d1「ワン」\np2「…」\np2「ピー」\np2「ピー」\np2「ピー」\np2「ピー」\np2「ピー」"
+            },
+            {
+              "label": "カタカナ",
+              "stdin": "ハチ インコ 1",
+              "expected": "ハチ「ワン」\nインコ「…」\nインコ「ピー」"
+            }
+          ],
+          "hints": [
+            "`Dog` には `@Override public void cry() { ... }` と書きます。親が `protected` なので `public` は **広げる** 方向で、これは許されます。逆に `private void cry()` にするとコンパイルエラーです。",
+            "`Parrot` の `cry(int times)` は名前が同じでも引数が違うので **別のメソッド** です。だから `Parrot` に対して `cry()` と呼ぶと `Animal` のものが動きます。",
+            "3番目は `for (int i = 0; i < times; i++)` で `times` 行出します。`times` が `0` ならループが1度も回らず、何も出力されません。"
+          ],
+          "solution": "import java.util.Scanner;\n\nclass Animal {\n    protected String name;\n\n    protected void cry() {\n        System.out.println(name + \"「…」\");\n    }\n}\n\nclass Dog extends Animal {\n    @Override\n    public void cry() {\n        System.out.println(name + \"「ワン」\");\n    }\n}\n\nclass Parrot extends Animal {\n    void cry(int times) {\n        for (int i = 0; i < times; i++) {\n            System.out.println(name + \"「ピー」\");\n        }\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        String dogName = sc.next();\n        String birdName = sc.next();\n        int times = sc.nextInt();\n\n        Dog d = new Dog();\n        d.name = dogName;\n        d.cry();\n\n        Parrot p = new Parrot();\n        p.name = birdName;\n        p.cry();\n        p.cry(times);\n    }\n}\n"
+        }
+      ]
     },
     {
       "id": "10-3",
@@ -173,7 +267,54 @@
         "`Dog` の `intro()` の中では `super.intro();` と書きます。`intro();` と書くと自分を呼び続けて `StackOverflowError` になります。",
         "出力の順番は「親のコンストラクタ → 子のコンストラクタ → 親の intro → 子の追加分」です。"
       ],
-      "solution": "import java.util.Scanner;\n\nclass Animal {\n    protected String name;\n\n    Animal(String name) {\n        System.out.println(\"Animal\");\n        this.name = name;\n    }\n\n    void intro() {\n        System.out.println(\"私は\" + name + \"です\");\n    }\n}\n\nclass Dog extends Animal {\n    private String trick;\n\n    Dog(String name, String trick) {\n        super(name);\n        System.out.println(\"Dog\");\n        this.trick = trick;\n    }\n\n    @Override\n    void intro() {\n        super.intro();\n        System.out.println(\"得意技は\" + trick + \"です\");\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        String name = sc.next();\n        String trick = sc.next();\n\n        Dog d = new Dog(name, trick);\n        d.intro();\n    }\n}\n"
+      "solution": "import java.util.Scanner;\n\nclass Animal {\n    protected String name;\n\n    Animal(String name) {\n        System.out.println(\"Animal\");\n        this.name = name;\n    }\n\n    void intro() {\n        System.out.println(\"私は\" + name + \"です\");\n    }\n}\n\nclass Dog extends Animal {\n    private String trick;\n\n    Dog(String name, String trick) {\n        super(name);\n        System.out.println(\"Dog\");\n        this.trick = trick;\n    }\n\n    @Override\n    void intro() {\n        super.intro();\n        System.out.println(\"得意技は\" + trick + \"です\");\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        String name = sc.next();\n        String trick = sc.next();\n\n        Dog d = new Dog(name, trick);\n        d.intro();\n    }\n}\n",
+      "extraTasks": [
+        {
+          "kind": "applied",
+          "task": "こんどは継承を **3段** にして、`super(...)` を **書かなかったとき** に何が起きるかを確かめます。書かないと **暗黙の `super();`** が1行目に挿入されるので、親に **引数なしコンストラクタ** が必要になります。\n\n次の3クラスを作ってください。それぞれ **コンストラクタを2つ** 持ちます。\n\n| クラス | 引数なし | 引数あり |\n|---|---|---|\n| `A` | `A()` … `A()` と出力 | `A(String s)` … `A(s)` と出力 |\n| `B extends A` | `B()` … `B()` と出力（**`super(...)` を書かない**） | `B(String s)` … `super(s)` を呼んでから `B(s)` と出力 |\n| `C extends B` | `C()` … `C()` と出力（**`super(...)` を書かない**） | `C(String s)` … `super(s)` を呼んでから `C(s)` と出力 |\n\n出力する文字列は、引数ありのときは **カッコの中に引数をそのまま入れます**。`s` が `x` なら `A(x)` です。\n\n入力は1語です。`main` では次の順に実行してください。\n\n1. `new C()` を作る\n2. `---` を1行出力する\n3. `new C(入力された語)` を作る\n\n`x` が入力されたときの出力はこうです。\n\n```\nA()\nB()\nC()\n---\nA(x)\nB(x)\nC(x)\n```\n\n**上から順に `A` → `B` → `C` になる** のがポイントです。初期化は必ず **親が先に終わってから** 子に移ります。\n\n`A()` の引数なしコンストラクタを消すと、`B()` と `C()` が **暗黙の `super()` を呼べなくなってコンパイルエラー** になります。試してから戻すと、ワナの意味が体で分かります。",
+          "starterCode": "import java.util.Scanner;\n\nclass A {\n    // A() と A(String s) を書く\n}\n\nclass B extends A {\n    // B() と B(String s) を書く\n}\n\nclass C extends B {\n    // C() と C(String s) を書く\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        String s = sc.next();\n\n        // new C() → --- → new C(s) の順に実行する\n    }\n}\n",
+          "visibleCases": [
+            {
+              "label": "x",
+              "stdin": "x",
+              "expected": "A()\nB()\nC()\n---\nA(x)\nB(x)\nC(x)"
+            },
+            {
+              "label": "test",
+              "stdin": "test",
+              "expected": "A()\nB()\nC()\n---\nA(test)\nB(test)\nC(test)"
+            }
+          ],
+          "hiddenCases": [
+            {
+              "label": "大文字1文字",
+              "stdin": "A",
+              "expected": "A()\nB()\nC()\n---\nA(A)\nB(A)\nC(A)"
+            },
+            {
+              "label": "日本語",
+              "stdin": "名前",
+              "expected": "A()\nB()\nC()\n---\nA(名前)\nB(名前)\nC(名前)"
+            },
+            {
+              "label": "数字",
+              "stdin": "1",
+              "expected": "A()\nB()\nC()\n---\nA(1)\nB(1)\nC(1)"
+            },
+            {
+              "label": "記号を含む",
+              "stdin": "long-word",
+              "expected": "A()\nB()\nC()\n---\nA(long-word)\nB(long-word)\nC(long-word)"
+            }
+          ],
+          "hints": [
+            "`B()` の中身は `System.out.println(\"B()\");` の1行だけです。`super();` は **書かなくても自動で入る** ので、その結果 `A()` が先に出ます。",
+            "引数ありの方は1行目に `super(s);` を書きます。2行目以降に置くと「super の呼び出しはコンストラクタの最初の文でなければなりません」というコンパイルエラーになります。",
+            "出力は `System.out.println(\"A(\" + s + \")\");` の形です。`main` では作ったインスタンスを変数に受けなくてもかまいません（`new C();` だけでコンストラクタは走ります）。"
+          ],
+          "solution": "import java.util.Scanner;\n\nclass A {\n    A() {\n        System.out.println(\"A()\");\n    }\n\n    A(String s) {\n        System.out.println(\"A(\" + s + \")\");\n    }\n}\n\nclass B extends A {\n    B() {\n        System.out.println(\"B()\");\n    }\n\n    B(String s) {\n        super(s);\n        System.out.println(\"B(\" + s + \")\");\n    }\n}\n\nclass C extends B {\n    C() {\n        System.out.println(\"C()\");\n    }\n\n    C(String s) {\n        super(s);\n        System.out.println(\"C(\" + s + \")\");\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        String s = sc.next();\n\n        new C();\n        System.out.println(\"---\");\n        new C(s);\n    }\n}\n"
+        }
+      ]
     },
     {
       "id": "10-4",
@@ -235,7 +376,105 @@
         "`equals` の引数は **必ず `Object`** です。`public boolean equals(Object o)` と書き、`@Override` を付けて確かめてください。",
         "`equals` の中では `if (!(o instanceof Point)) { return false; }` で相手を確かめ、`Point other = (Point) o;` とキャストしてから `x` と `y` を比べます。"
       ],
-      "solution": "import java.util.Scanner;\n\nclass Point {\n    private int x;\n    private int y;\n\n    Point(int x, int y) {\n        this.x = x;\n        this.y = y;\n    }\n\n    @Override\n    public String toString() {\n        return \"(\" + x + \", \" + y + \")\";\n    }\n\n    @Override\n    public boolean equals(Object o) {\n        if (!(o instanceof Point)) {\n            return false;\n        }\n        Point other = (Point) o;\n        return this.x == other.x && this.y == other.y;\n    }\n\n    @Override\n    public int hashCode() {\n        return x * 31 + y;\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int x1 = sc.nextInt();\n        int y1 = sc.nextInt();\n        int x2 = sc.nextInt();\n        int y2 = sc.nextInt();\n\n        Point p1 = new Point(x1, y1);\n        Point p2 = new Point(x2, y2);\n        Object o = p2;\n\n        System.out.println(p1);\n        System.out.println(p2);\n        System.out.println(p1.equals(p2));\n        System.out.println(p1 == p2);\n        System.out.println(p1.equals(p1));\n        System.out.println(p1.equals(o));\n    }\n}\n"
+      "solution": "import java.util.Scanner;\n\nclass Point {\n    private int x;\n    private int y;\n\n    Point(int x, int y) {\n        this.x = x;\n        this.y = y;\n    }\n\n    @Override\n    public String toString() {\n        return \"(\" + x + \", \" + y + \")\";\n    }\n\n    @Override\n    public boolean equals(Object o) {\n        if (!(o instanceof Point)) {\n            return false;\n        }\n        Point other = (Point) o;\n        return this.x == other.x && this.y == other.y;\n    }\n\n    @Override\n    public int hashCode() {\n        return x * 31 + y;\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int x1 = sc.nextInt();\n        int y1 = sc.nextInt();\n        int x2 = sc.nextInt();\n        int y2 = sc.nextInt();\n\n        Point p1 = new Point(x1, y1);\n        Point p2 = new Point(x2, y2);\n        Object o = p2;\n\n        System.out.println(p1);\n        System.out.println(p2);\n        System.out.println(p1.equals(p2));\n        System.out.println(p1 == p2);\n        System.out.println(p1.equals(p1));\n        System.out.println(p1.equals(o));\n    }\n}\n",
+      "extraTasks": [
+        {
+          "kind": "applied",
+          "task": "こんどは `hashCode()` まで含めて、`equals` の約束ごとをひととおり確かめます。\n\n> **`equals` が `true` を返す2つのオブジェクトは、`hashCode()` も同じ値でなければならない**\n\n`Book` クラスを作ってください。\n\n| メンバー | 内容 |\n|---|---|\n| `private String title` / `private int year` | フィールド |\n| `Book(String title, int year)` | コンストラクタ |\n| `public String toString()` | `title(year)` の形（例 `Java(2020)`。スペースなし） |\n| `public boolean equals(Object o)` | 相手が `Book` で、`title` と `year` が **両方同じ** なら `true` |\n| `public int hashCode()` | `title.hashCode() * 31 + year` を返す |\n\n`title` は文字列なので、比べるときは **`==` ではなく `equals`** を使ってください。入力から読んだ同じ文字は `==` では `false` になります。\n\n入力は `題名1 年1 題名2 年2` の4つです。`main` では3つのインスタンスを作ります。\n\n```java\nBook b1 = new Book(title1, year1);\nBook b2 = new Book(title2, year2);\nBook b3 = new Book(title1, year1);   // b1 と同じ中身の別インスタンス\n```\n\n次の **7行** を出力してください。\n\n| 行 | 内容 |\n|---|---|\n| 1 | `b1` をそのまま `println` |\n| 2 | `b2` をそのまま `println` |\n| 3 | `equals ` + `b1.equals(b2)` |\n| 4 | `コピーと ` + `b1.equals(b3)` |\n| 5 | `hash一致 ` + `(b1.hashCode() == b3.hashCode())` |\n| 6 | `null ` + `b1.equals(null)` |\n| 7 | `別の型 ` + `b1.equals(\"hello\")` |\n\n`Java 2020 Java 2020` が入力されたときの出力はこうです。\n\n```\nJava(2020)\nJava(2020)\nequals true\nコピーと true\nhash一致 true\nnull false\n別の型 false\n```\n\n- 4行目と5行目は **入力が何であっても必ず `true`** です（同じ中身なら等しく、ハッシュも一致する）\n- 6行目は `instanceof` が `null` を弾くので `false` になります。**例外は起きません**\n- 7行目は相手が `String` なので `false` です",
+          "starterCode": "import java.util.Scanner;\n\nclass Book {\n    private String title;\n    private int year;\n\n    Book(String title, int year) {\n        this.title = title;\n        this.year = year;\n    }\n\n    // toString() / equals(Object) / hashCode() を上書きする\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        String title1 = sc.next();\n        int year1 = sc.nextInt();\n        String title2 = sc.next();\n        int year2 = sc.nextInt();\n\n        Book b1 = new Book(title1, year1);\n        Book b2 = new Book(title2, year2);\n        Book b3 = new Book(title1, year1);\n\n        // 7行出力する\n    }\n}\n",
+          "visibleCases": [
+            {
+              "label": "同じ本",
+              "stdin": "Java 2020 Java 2020",
+              "expected": "Java(2020)\nJava(2020)\nequals true\nコピーと true\nhash一致 true\nnull false\n別の型 false"
+            },
+            {
+              "label": "題名が違う",
+              "stdin": "Java 2020 Python 2020",
+              "expected": "Java(2020)\nPython(2020)\nequals false\nコピーと true\nhash一致 true\nnull false\n別の型 false"
+            }
+          ],
+          "hiddenCases": [
+            {
+              "label": "題名が同じで年が違う",
+              "stdin": "A 0 A 1",
+              "expected": "A(0)\nA(1)\nequals false\nコピーと true\nhash一致 true\nnull false\n別の型 false"
+            },
+            {
+              "label": "日本語で一致",
+              "stdin": "同 2024 同 2024",
+              "expected": "同(2024)\n同(2024)\nequals true\nコピーと true\nhash一致 true\nnull false\n別の型 false"
+            },
+            {
+              "label": "マイナスの年",
+              "stdin": "x -1 x -1",
+              "expected": "x(-1)\nx(-1)\nequals true\nコピーと true\nhash一致 true\nnull false\n別の型 false"
+            },
+            {
+              "label": "年が1違う",
+              "stdin": "hello 2020 hello 2021",
+              "expected": "hello(2020)\nhello(2021)\nequals false\nコピーと true\nhash一致 true\nnull false\n別の型 false"
+            },
+            {
+              "label": "大文字小文字の違い",
+              "stdin": "Java 2020 java 2020",
+              "expected": "Java(2020)\njava(2020)\nequals false\nコピーと true\nhash一致 true\nnull false\n別の型 false"
+            }
+          ],
+          "hints": [
+            "`toString()` は `return title + \"(\" + year + \")\";` です。`println(b1)` と書くだけで自動的に呼ばれます。",
+            "`equals` は `if (!(o instanceof Book)) { return false; } Book other = (Book) o; return this.title.equals(other.title) && this.year == other.year;` です。`title` は文字列なので `==` ではなく `equals` で比べます。",
+            "`hashCode()` は `return title.hashCode() * 31 + year;` の1行です。`b1` と `b3` は中身が同じなので、この式の結果も必ず同じになります ── これが「equals が true なら hashCode も同じ」という約束です。"
+          ],
+          "solution": "import java.util.Scanner;\n\nclass Book {\n    private String title;\n    private int year;\n\n    Book(String title, int year) {\n        this.title = title;\n        this.year = year;\n    }\n\n    @Override\n    public String toString() {\n        return title + \"(\" + year + \")\";\n    }\n\n    @Override\n    public boolean equals(Object o) {\n        if (!(o instanceof Book)) {\n            return false;\n        }\n        Book other = (Book) o;\n        return this.title.equals(other.title) && this.year == other.year;\n    }\n\n    @Override\n    public int hashCode() {\n        return title.hashCode() * 31 + year;\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        String title1 = sc.next();\n        int year1 = sc.nextInt();\n        String title2 = sc.next();\n        int year2 = sc.nextInt();\n\n        Book b1 = new Book(title1, year1);\n        Book b2 = new Book(title2, year2);\n        Book b3 = new Book(title1, year1);\n\n        System.out.println(b1);\n        System.out.println(b2);\n        System.out.println(\"equals \" + b1.equals(b2));\n        System.out.println(\"コピーと \" + b1.equals(b3));\n        System.out.println(\"hash一致 \" + (b1.hashCode() == b3.hashCode()));\n        System.out.println(\"null \" + b1.equals(null));\n        System.out.println(\"別の型 \" + b1.equals(\"hello\"));\n    }\n}\n"
+        }
+      ],
+      "quiz": [
+        {
+          "question": "親の `public void run()` をサブクラスで上書きするとき、**コンパイルエラーになる** のはどれでしょう。",
+          "choices": [
+            "`public void run()`",
+            "`protected void run()`",
+            "`public void run(int n)`",
+            "`@Override public void run()`"
+          ],
+          "answer": 1,
+          "explanation": "オーバーライドではアクセス修飾子を **狭くできません**（`public` → `protected` は不可）。`run(int n)` は引数が違うので上書きではなくオーバーロードになり、エラーにはなりません。"
+        },
+        {
+          "question": "`equals` を上書きするときの正しいシグネチャはどれでしょう。",
+          "choices": [
+            "`public boolean equals(Point p)`",
+            "`public boolean equals(Object o)`",
+            "`public boolean equals(Object o, Object p)`",
+            "`boolean equals(Object o)`"
+          ],
+          "answer": 1,
+          "explanation": "引数は必ず `Object` で、`public` が必要です。`equals(Point p)` と書くと **オーバーロード** になってしまい、`Object` 型の変数から呼ばれたときに親の実装（同じ本体かの判定）が動いてしまいます。`@Override` を付けておけば間違いに気づけます。"
+        },
+        {
+          "question": "次のコードはどうなるでしょう。\n\n```java\nclass Animal {\n    Animal(String name) { }\n}\n\nclass Dog extends Animal {\n    Dog() { }\n}\n```",
+          "choices": [
+            "問題なくコンパイルできる",
+            "`Dog` のコンストラクタでコンパイルエラーになる",
+            "`Animal` のコンストラクタでコンパイルエラーになる",
+            "実行時に例外になる"
+          ],
+          "answer": 1,
+          "explanation": "`super(...)` を書かないと **暗黙の `super()`** が挿入されますが、`Animal` には引数なしのコンストラクタがないので呼べません。`Dog() { super(\"名前\"); }` のように明示すれば解決します。"
+        },
+        {
+          "question": "`toString()` を上書きしていないクラスのインスタンスを `println` するとどうなるでしょう。",
+          "choices": [
+            "何も出力されない",
+            "フィールドの一覧が出力される",
+            "`クラス名@ハッシュ値` が出力される",
+            "コンパイルエラーになる"
+          ],
+          "answer": 2,
+          "explanation": "`Object` の `toString()` が `クラス名@ハッシュ値` を返します。読める形にしたければ `public String toString()` を上書きします（`record` なら自動で作られます）。"
+        }
+      ]
     }
   ]
 }

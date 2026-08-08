@@ -59,7 +59,54 @@
         "`max2` の中では `if (x > y) { return x; } return y;` のように、どの道すじでも値を返します。",
         "`System.out.println(\"最大 \" + max2(a, b));` のように、戻ってきた値を文字列につなげて出力します。"
       ],
-      "solution": "import java.util.Scanner;\n\npublic class Main {\n\n    static int max2(int x, int y) {\n        if (x > y) {\n            return x;\n        }\n        return y;\n    }\n\n    static int sum2(int x, int y) {\n        return x + y;\n    }\n\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int a = sc.nextInt();\n        int b = sc.nextInt();\n\n        System.out.println(\"最大 \" + max2(a, b));\n        System.out.println(\"和 \" + sum2(a, b));\n    }\n}\n"
+      "solution": "import java.util.Scanner;\n\npublic class Main {\n\n    static int max2(int x, int y) {\n        if (x > y) {\n            return x;\n        }\n        return y;\n    }\n\n    static int sum2(int x, int y) {\n        return x + y;\n    }\n\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int a = sc.nextInt();\n        int b = sc.nextInt();\n\n        System.out.println(\"最大 \" + max2(a, b));\n        System.out.println(\"和 \" + sum2(a, b));\n    }\n}\n",
+      "extraTasks": [
+        {
+          "kind": "applied",
+          "task": "サンプルに `max2(sum2(1, 2), 4)` という書き方が出てきました。**メソッドの戻り値を、そのまま別のメソッドの引数にできる** のです。これを使うと、`if` を書き足さずに機能を組み合わせられます。\n\n整数が3つ、`a` `b` `c` の順で入力されます。次の2つのメソッドを作ってください。\n\n| メソッド | すること |\n|---|---|\n| `static int twice(int n)` | 引数を2倍して返す |\n| `static int max2(int x, int y)` | 大きい方を返す（同じならその値） |\n\nそして3行出力してください（`3 8 5` が入力された場合）。\n\n```\n最大 8\n最大の2倍 16\n2倍の和 22\n```\n\n1. **最大** … 3つのうちいちばん大きい値。`max2` を **入れ子にして2回** 使います（`main` に `if` を書かないこと）\n2. **最大の2倍** … 1行目の結果を `twice` に渡した値\n3. **2倍の和** … `twice(a)` と `twice(b)` を足した値（`c` は使いません）\n\nマイナスの数も入力されます。",
+          "starterCode": "import java.util.Scanner;\n\npublic class Main {\n\n    // twice と max2 を作る\n\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int a = sc.nextInt();\n        int b = sc.nextInt();\n        int c = sc.nextInt();\n\n        // 3行出力しよう（メソッドを組み合わせる）\n    }\n}\n",
+          "visibleCases": [
+            {
+              "label": "3 8 5",
+              "stdin": "3 8 5",
+              "expected": "最大 8\n最大の2倍 16\n2倍の和 22"
+            },
+            {
+              "label": "10 2 1",
+              "stdin": "10 2 1",
+              "expected": "最大 10\n最大の2倍 20\n2倍の和 24"
+            }
+          ],
+          "hiddenCases": [
+            {
+              "label": "全部同じ",
+              "stdin": "1 1 1",
+              "expected": "最大 1\n最大の2倍 2\n2倍の和 4"
+            },
+            {
+              "label": "全部マイナス",
+              "stdin": "-3 -5 -1",
+              "expected": "最大 -1\n最大の2倍 -2\n2倍の和 -16"
+            },
+            {
+              "label": "最後が最大",
+              "stdin": "0 0 7",
+              "expected": "最大 7\n最大の2倍 14\n2倍の和 0"
+            },
+            {
+              "label": "打ち消して 0",
+              "stdin": "5 -5 0",
+              "expected": "最大 5\n最大の2倍 10\n2倍の和 0"
+            }
+          ],
+          "hints": [
+            "3つの最大は `max2(max2(a, b), c)` です。内側の `max2` が先に計算され、その結果が外側の引数になります。",
+            "2行目は `twice(max2(max2(a, b), c))` です。長くなるなら `int m = max2(max2(a, b), c);` といったん変数に入れてもかまいません。",
+            "3行目は `twice(a) + twice(b)` です。戻り値は式の中でそのまま足し算に使えます。"
+          ],
+          "solution": "import java.util.Scanner;\n\npublic class Main {\n\n    static int twice(int n) {\n        return n * 2;\n    }\n\n    static int max2(int x, int y) {\n        if (x > y) {\n            return x;\n        }\n        return y;\n    }\n\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int a = sc.nextInt();\n        int b = sc.nextInt();\n        int c = sc.nextInt();\n\n        int m = max2(max2(a, b), c);\n\n        System.out.println(\"最大 \" + m);\n        System.out.println(\"最大の2倍 \" + twice(m));\n        System.out.println(\"2倍の和 \" + (twice(a) + twice(b)));\n    }\n}\n"
+        }
+      ]
     },
     {
       "id": "7-2",
@@ -136,7 +183,59 @@
         "そのあとは `if (score >= 80)` → `else if (score >= 60)` → `else` の3択です。",
         "`0` は `C`、`100` は `A` です。境界の `80` と `60` は「以上」なので含みます。"
       ],
-      "solution": "import java.util.Scanner;\n\npublic class Main {\n\n    static void printGrade(int score) {\n        if (score < 0 || score > 100) {\n            System.out.println(\"範囲外\");\n            return;\n        }\n        if (score >= 80) {\n            System.out.println(\"A\");\n        } else if (score >= 60) {\n            System.out.println(\"B\");\n        } else {\n            System.out.println(\"C\");\n        }\n    }\n\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int score = sc.nextInt();\n        printGrade(score);\n    }\n}\n"
+      "solution": "import java.util.Scanner;\n\npublic class Main {\n\n    static void printGrade(int score) {\n        if (score < 0 || score > 100) {\n            System.out.println(\"範囲外\");\n            return;\n        }\n        if (score >= 80) {\n            System.out.println(\"A\");\n        } else if (score >= 60) {\n            System.out.println(\"B\");\n        } else {\n            System.out.println(\"C\");\n        }\n    }\n\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int score = sc.nextInt();\n        printGrade(score);\n    }\n}\n",
+      "extraTasks": [
+        {
+          "kind": "applied",
+          "task": "解説の最初に出てきた `hello(String name)` のように、`void` メソッドは文字列も受け取れます。そして `void` メソッドは **何度でも呼べる** のが持ち味です。ループの中から呼んでみましょう。\n\n入力は「1行目に人数 `n`、2行目以降に `n` 個の名前」です（名前に空白は含まれません）。\n\n次の `void` メソッドを作り、**ループで `n` 回呼び出して** ください。\n\n- `static void greet(String name)`\n\n`greet` の中の判定は、上から順に次の3つです。\n\n| 条件 | 出力 |\n|---|---|\n| 名前が `-` のとき | `スキップ` |\n| 名前が **7文字以上** のとき | `長い名前: ` + 名前 |\n| それ以外 | `こんにちは、` + 名前 + `さん` |\n\n`Tanaka` `-` `Suzuki` が入力されたときの出力はこうです。\n\n```\nこんにちは、Tanakaさん\nスキップ\nこんにちは、Suzukiさん\n```\n\n- 最初の2つは **`return;` で途中から抜ける** 形で書いてみましょう（`else` を重ねない書き方です）\n- 6文字はふつうの挨拶、7文字から「長い名前」です\n- `n` が `0` のときは何も出力しません",
+          "starterCode": "import java.util.Scanner;\n\npublic class Main {\n\n    static void greet(String name) {\n        // - なら スキップ して return;\n\n        // 7文字以上なら 長い名前 を出して return;\n\n        // それ以外は挨拶\n    }\n\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n\n        // n 回 greet を呼ぼう\n    }\n}\n",
+          "visibleCases": [
+            {
+              "label": "3人（1人スキップ）",
+              "stdin": "3\nTanaka\n-\nSuzuki",
+              "expected": "こんにちは、Tanakaさん\nスキップ\nこんにちは、Suzukiさん"
+            },
+            {
+              "label": "2人（長い名前あり）",
+              "stdin": "2\nYamamotoTaro\nAi",
+              "expected": "長い名前: YamamotoTaro\nこんにちは、Aiさん"
+            }
+          ],
+          "hiddenCases": [
+            {
+              "label": "1人でスキップだけ",
+              "stdin": "1\n-",
+              "expected": "スキップ"
+            },
+            {
+              "label": "0人（何も出ない）",
+              "stdin": "0",
+              "expected": ""
+            },
+            {
+              "label": "4人（3種類が混ざる）",
+              "stdin": "4\na\nbb\n-\nabcdefg",
+              "expected": "こんにちは、aさん\nこんにちは、bbさん\nスキップ\n長い名前: abcdefg"
+            },
+            {
+              "label": "6文字と7文字の境目",
+              "stdin": "2\nabcdef\nabcdefg",
+              "expected": "こんにちは、abcdefさん\n長い名前: abcdefg"
+            },
+            {
+              "label": "全員スキップ",
+              "stdin": "3\n-\n-\n-",
+              "expected": "スキップ\nスキップ\nスキップ"
+            }
+          ],
+          "hints": [
+            "文字列の比較は `==` ではなく `name.equals(\"-\")` です。`if (name.equals(\"-\")) { ... return; }` と書きます。",
+            "文字数は `name.length()` です。「7文字以上」は `name.length() >= 7` です。",
+            "`main` 側は `for (int i = 0; i < n; i++) { greet(sc.next()); }` のように、読んだ名前をそのまま渡せます。`greet` は `void` なので `int x = greet(...)` とは書けません。"
+          ],
+          "solution": "import java.util.Scanner;\n\npublic class Main {\n\n    static void greet(String name) {\n        if (name.equals(\"-\")) {\n            System.out.println(\"スキップ\");\n            return;\n        }\n        if (name.length() >= 7) {\n            System.out.println(\"長い名前: \" + name);\n            return;\n        }\n        System.out.println(\"こんにちは、\" + name + \"さん\");\n    }\n\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n\n        for (int i = 0; i < n; i++) {\n            greet(sc.next());\n        }\n    }\n}\n"
+        }
+      ]
     },
     {
       "id": "7-3",
@@ -193,7 +292,54 @@
         "`n / 2.0` は `double` になるので、`describe(double)` が選ばれます。`n / 2` と書くと整数の割り算になってしまうので注意してください。",
         "4行目は `describe('A')` とシングルクォートで書きます。`char` は `int` に拡張されるので `整数 65` が出ます。"
       ],
-      "solution": "import java.util.Scanner;\n\npublic class Main {\n\n    static void describe(int n) {\n        System.out.println(\"整数 \" + n);\n    }\n\n    static void describe(double d) {\n        System.out.println(\"小数 \" + d);\n    }\n\n    static void describe(String s) {\n        System.out.println(\"文字列 \" + s);\n    }\n\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n        String s = sc.next();\n\n        describe(n);\n        describe(n / 2.0);\n        describe(s);\n        describe('A');\n    }\n}\n"
+      "solution": "import java.util.Scanner;\n\npublic class Main {\n\n    static void describe(int n) {\n        System.out.println(\"整数 \" + n);\n    }\n\n    static void describe(double d) {\n        System.out.println(\"小数 \" + d);\n    }\n\n    static void describe(String s) {\n        System.out.println(\"文字列 \" + s);\n    }\n\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n        String s = sc.next();\n\n        describe(n);\n        describe(n / 2.0);\n        describe(s);\n        describe('A');\n    }\n}\n",
+      "extraTasks": [
+        {
+          "kind": "applied",
+          "task": "上の問題では **型が違う** オーバーロードを作りました。オーバーロードの手がかり（シグネチャ）は型だけではありません。**引数の数** と **並び順** でも見分けられます。その2つを試します。\n\n1行目に整数3つ `a` `b` `c`（半角スペース区切り）、2行目に文字列 `s` が入力されます。\n\nメソッドを **4つ** 作ってください。\n\n| メソッド | 出力する形 |\n|---|---|\n| `static int add(int x, int y)` | （出力せず和を返す） |\n| `static int add(int x, int y, int z)` | （出力せず和を返す） |\n| `static void tag(String s, int n)` | `文字列先 ` + `s` + `:` + `n` |\n| `static void tag(int n, String s)` | `整数先 ` + `n` + `:` + `s` |\n\n`main` からは次の順に呼び出し、4行出力してください。\n\n1. `add(a, b)` の結果を `和2 ` に続けて\n2. `add(a, b, c)` の結果を `和3 ` に続けて\n3. `tag(s, a)`\n4. `tag(a, s)`\n\n`1 2 3` と `abc` が入力されたときの出力はこうです。\n\n```\n和2 3\n和3 6\n文字列先 abc:1\n整数先 1:abc\n```\n\n3行目と4行目は **同じ名前・同じ2つの型** を渡していますが、**並び順が違う** ので別のメソッドが選ばれます。",
+          "starterCode": "import java.util.Scanner;\n\npublic class Main {\n\n    // add を2つ（引数の数が違う）\n\n    // tag を2つ（引数の並び順が違う）\n\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int a = sc.nextInt();\n        int b = sc.nextInt();\n        int c = sc.nextInt();\n        String s = sc.next();\n\n        // 4行出力しよう\n    }\n}\n",
+          "visibleCases": [
+            {
+              "label": "1 2 3 と abc",
+              "stdin": "1 2 3\nabc",
+              "expected": "和2 3\n和3 6\n文字列先 abc:1\n整数先 1:abc"
+            },
+            {
+              "label": "10 20 30 と Java",
+              "stdin": "10 20 30\nJava",
+              "expected": "和2 30\n和3 60\n文字列先 Java:10\n整数先 10:Java"
+            }
+          ],
+          "hiddenCases": [
+            {
+              "label": "全部 0",
+              "stdin": "0 0 0\nx",
+              "expected": "和2 0\n和3 0\n文字列先 x:0\n整数先 0:x"
+            },
+            {
+              "label": "全部マイナス",
+              "stdin": "-1 -2 -3\nz",
+              "expected": "和2 -3\n和3 -6\n文字列先 z:-1\n整数先 -1:z"
+            },
+            {
+              "label": "打ち消して 0",
+              "stdin": "5 -5 100\ntest",
+              "expected": "和2 0\n和3 100\n文字列先 test:5\n整数先 5:test"
+            },
+            {
+              "label": "1文字の文字列",
+              "stdin": "7 8 9\nA",
+              "expected": "和2 15\n和3 24\n文字列先 A:7\n整数先 7:A"
+            }
+          ],
+          "hints": [
+            "`add` は2つとも `static int add(...)` で、引数の数だけが違います。戻り値の型が同じでも、引数の数が違えばオーバーロードになります。",
+            "`tag` は `(String, int)` と `(int, String)` の2つです。並び順が違うので別のシグネチャとして区別されます。",
+            "出力は `System.out.println(\"和2 \" + add(a, b));` のように、戻り値を文字列につなげます。`tag` は `void` なので呼ぶだけです。"
+          ],
+          "solution": "import java.util.Scanner;\n\npublic class Main {\n\n    static int add(int x, int y) {\n        return x + y;\n    }\n\n    static int add(int x, int y, int z) {\n        return x + y + z;\n    }\n\n    static void tag(String s, int n) {\n        System.out.println(\"文字列先 \" + s + \":\" + n);\n    }\n\n    static void tag(int n, String s) {\n        System.out.println(\"整数先 \" + n + \":\" + s);\n    }\n\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int a = sc.nextInt();\n        int b = sc.nextInt();\n        int c = sc.nextInt();\n        String s = sc.next();\n\n        System.out.println(\"和2 \" + add(a, b));\n        System.out.println(\"和3 \" + add(a, b, c));\n        tag(s, a);\n        tag(a, s);\n    }\n}\n"
+        }
+      ]
     },
     {
       "id": "7-4",
@@ -250,7 +396,54 @@
         "`addTen(int[] a)` の中の `a[0] += 10;` は、同じ配列本体を書き換えるので呼び出し元にも見えます。",
         "`replace` の中の `a = new int[]{999};` は「コピーされた参照」の向きを変えるだけです。`arr2[0]` は変わりません。"
       ],
-      "solution": "import java.util.Scanner;\n\npublic class Main {\n\n    static void addTen(int value) {\n        value += 10;\n    }\n\n    static void addTen(int[] a) {\n        a[0] += 10;\n    }\n\n    static void replace(int[] a) {\n        a = new int[]{999};\n    }\n\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n\n        int x = n;\n        addTen(x);\n        System.out.println(x);\n\n        int[] arr = {n};\n        addTen(arr);\n        System.out.println(arr[0]);\n\n        int[] arr2 = {n};\n        replace(arr2);\n        System.out.println(arr2[0]);\n    }\n}\n"
+      "solution": "import java.util.Scanner;\n\npublic class Main {\n\n    static void addTen(int value) {\n        value += 10;\n    }\n\n    static void addTen(int[] a) {\n        a[0] += 10;\n    }\n\n    static void replace(int[] a) {\n        a = new int[]{999};\n    }\n\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n\n        int x = n;\n        addTen(x);\n        System.out.println(x);\n\n        int[] arr = {n};\n        addTen(arr);\n        System.out.println(arr[0]);\n\n        int[] arr2 = {n};\n        replace(arr2);\n        System.out.println(arr2[0]);\n    }\n}\n",
+      "extraTasks": [
+        {
+          "kind": "applied",
+          "task": "サンプル2の「**同じ配列を2つの変数で指す**」を自分で書いてみます。あわせて、値渡しでいちばん有名な落とし穴 — **メソッドで値を入れ替えようとしても入れ替わらない** — も確かめます。\n\n整数3つ `a` `b` `v` が入力されます。次の2つのメソッドを作ってください。\n\n| メソッド | 中でやること |\n|---|---|\n| `static void swap(int x, int y)` | `x` と `y` の中身を入れ替える |\n| `static void setAll(int[] arr, int value)` | `arr` の **全要素** を `value` にする |\n\n`main` では次のようにして3行出力してください。\n\n1. `int p = a; int q = b;` としてから `swap(p, q)` を呼び、`swap後 ` + `p` + 半角スペース + `q`\n2. `int[] nums = {a, b};` と `int[] same = nums;` を用意し、`setAll(same, v)` を呼んでから `配列 ` + `nums[0]` + 半角スペース + `nums[1]`\n3. `同じ本体 ` + `(nums == same)` の結果\n\n`3 8 0` が入力されたときの出力はこうです。\n\n```\nswap後 3 8\n配列 0 0\n同じ本体 true\n```\n\n2行目で注目してほしいのは、**`same` に渡したのに `nums` が変わっている** ことです。`int[] same = nums;` は配列をコピーせず、同じ本体を指す2本目の矢印を作るだけだからです。\n\nメソッドの中では何も出力しません。",
+          "starterCode": "import java.util.Scanner;\n\npublic class Main {\n\n    // swap(int, int) と setAll(int[], int) を作る\n\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int a = sc.nextInt();\n        int b = sc.nextInt();\n        int v = sc.nextInt();\n\n        int p = a;\n        int q = b;\n        // swap を呼んで1行目を出力\n\n        int[] nums = {a, b};\n        int[] same = nums;\n        // setAll を呼んで2行目と3行目を出力\n    }\n}\n",
+          "visibleCases": [
+            {
+              "label": "3 8 を 0 で埋める",
+              "stdin": "3 8 0",
+              "expected": "swap後 3 8\n配列 0 0\n同じ本体 true"
+            },
+            {
+              "label": "1 2 を 99 で埋める",
+              "stdin": "1 2 99",
+              "expected": "swap後 1 2\n配列 99 99\n同じ本体 true"
+            }
+          ],
+          "hiddenCases": [
+            {
+              "label": "マイナスを正の数で埋める",
+              "stdin": "-5 -9 7",
+              "expected": "swap後 -5 -9\n配列 7 7\n同じ本体 true"
+            },
+            {
+              "label": "全部 0",
+              "stdin": "0 0 0",
+              "expected": "swap後 0 0\n配列 0 0\n同じ本体 true"
+            },
+            {
+              "label": "マイナスで埋める",
+              "stdin": "10 20 -3",
+              "expected": "swap後 10 20\n配列 -3 -3\n同じ本体 true"
+            },
+            {
+              "label": "片方と同じ値で埋める",
+              "stdin": "100 1 1",
+              "expected": "swap後 100 1\n配列 1 1\n同じ本体 true"
+            }
+          ],
+          "hints": [
+            "`swap` の中は `int tmp = x; x = y; y = tmp;` です。正しく書いても呼び出し元の `p` `q` は変わりません（渡されたのはコピーだから）。1行目は `a` `b` がそのまま出ます。",
+            "`setAll` の中は `for (int i = 0; i < arr.length; i++) { arr[i] = value; }` です。中身の書き換えなので、呼び出し元の配列にも反映されます。",
+            "3行目の `nums == same` は、**同じ本体を指しているか** の比較です。`int[] same = nums;` で作った参照なので `true` になります。`System.out.println(\"同じ本体 \" + (nums == same));` のように、かっこで囲むのを忘れないでください。"
+          ],
+          "solution": "import java.util.Scanner;\n\npublic class Main {\n\n    static void swap(int x, int y) {\n        int tmp = x;\n        x = y;\n        y = tmp;\n    }\n\n    static void setAll(int[] arr, int value) {\n        for (int i = 0; i < arr.length; i++) {\n            arr[i] = value;\n        }\n    }\n\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int a = sc.nextInt();\n        int b = sc.nextInt();\n        int v = sc.nextInt();\n\n        int p = a;\n        int q = b;\n        swap(p, q);\n        System.out.println(\"swap後 \" + p + \" \" + q);\n\n        int[] nums = {a, b};\n        int[] same = nums;\n        setAll(same, v);\n        System.out.println(\"配列 \" + nums[0] + \" \" + nums[1]);\n        System.out.println(\"同じ本体 \" + (nums == same));\n    }\n}\n"
+        }
+      ]
     },
     {
       "id": "7-5",
@@ -307,7 +500,100 @@
         "読み込んだ `int[] nums` は `sum(nums)` とそのまま渡せます。1つずつ書き並べる必要はありません。",
         "2行目は `sum()` と引数なしで呼びます。`nums.length` が `0` になるので合計は `0` です。"
       ],
-      "solution": "import java.util.Scanner;\n\npublic class Main {\n\n    static int sum(int... nums) {\n        int total = 0;\n        for (int n : nums) {\n            total += n;\n        }\n        return total;\n    }\n\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int k = sc.nextInt();\n        int[] nums = new int[k];\n        for (int i = 0; i < k; i++) {\n            nums[i] = sc.nextInt();\n        }\n\n        System.out.println(\"合計 \" + sum(nums));\n        System.out.println(\"引数なし \" + sum());\n    }\n}\n"
+      "solution": "import java.util.Scanner;\n\npublic class Main {\n\n    static int sum(int... nums) {\n        int total = 0;\n        for (int n : nums) {\n            total += n;\n        }\n        return total;\n    }\n\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int k = sc.nextInt();\n        int[] nums = new int[k];\n        for (int i = 0; i < k; i++) {\n            nums[i] = sc.nextInt();\n        }\n\n        System.out.println(\"合計 \" + sum(nums));\n        System.out.println(\"引数なし \" + sum());\n    }\n}\n",
+      "extraTasks": [
+        {
+          "kind": "applied",
+          "task": "解説には、まだ書いていない大事な形が2つ残っています。\n\n- **固定の引数のあとに可変長引数を置く**（`static void f(String label, int... nums)`）\n- **固定引数と可変長引数のどちらが選ばれるか**（固定引数が優先）\n\nこの2つを書いて確かめます。\n\n入力は次の形です。\n\n```\n1行目: ラベル（空白を含まない1語）\n2行目: 個数 k（0 もありえます）\n3行目: k 個の整数（半角スペース区切り。k が 0 のときこの行はありません）\n```\n\nメソッドを3つ作ってください。\n\n| メソッド | すること |\n|---|---|\n| `static void report(String label, int... nums)` | `label` + ` 個数` + 個数 + ` 合計` + 合計 を出力 |\n| `static void which(int a, int b)` | `固定2つ` を出力 |\n| `static void which(int... a)` | `可変長` + 個数 + `個` を出力 |\n\n`main` からは次の順に呼び出し、4行出力してください。\n\n1. `report(label, nums)` … 読み込んだ配列をそのまま渡します\n2. `report(label)` … 可変長の部分を **省略** して呼びます\n3. `which(1, 2)`\n4. `which(1, 2, 3)`\n\n`total` / `3` / `1 2 3` が入力されたときの出力はこうです。\n\n```\ntotal 個数3 合計6\ntotal 個数0 合計0\n固定2つ\n可変長3個\n```\n\n3行目が `可変長2個` にならない理由を、解説の「固定引数優先」で確かめてください。",
+          "starterCode": "import java.util.Scanner;\n\npublic class Main {\n\n    // report(String, int...) を作る\n\n    // which を2つ作る（固定2つ / 可変長）\n\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        String label = sc.next();\n        int k = sc.nextInt();\n        int[] nums = new int[k];\n        for (int i = 0; i < k; i++) {\n            nums[i] = sc.nextInt();\n        }\n\n        // 4回呼び出そう\n    }\n}\n",
+          "visibleCases": [
+            {
+              "label": "total / 3個（1 2 3）",
+              "stdin": "total\n3\n1 2 3",
+              "expected": "total 個数3 合計6\ntotal 個数0 合計0\n固定2つ\n可変長3個"
+            },
+            {
+              "label": "sum / 1個（10）",
+              "stdin": "sum\n1\n10",
+              "expected": "sum 個数1 合計10\nsum 個数0 合計0\n固定2つ\n可変長3個"
+            }
+          ],
+          "hiddenCases": [
+            {
+              "label": "0個（3行目がない）",
+              "stdin": "x\n0",
+              "expected": "x 個数0 合計0\nx 個数0 合計0\n固定2つ\n可変長3個"
+            },
+            {
+              "label": "マイナス混じり",
+              "stdin": "neg\n4\n-1 -2 3 -4",
+              "expected": "neg 個数4 合計-4\nneg 個数0 合計0\n固定2つ\n可変長3個"
+            },
+            {
+              "label": "打ち消して 0",
+              "stdin": "zero\n2\n5 -5",
+              "expected": "zero 個数2 合計0\nzero 個数0 合計0\n固定2つ\n可変長3個"
+            },
+            {
+              "label": "5個",
+              "stdin": "five\n5\n2 4 6 8 10",
+              "expected": "five 個数5 合計30\nfive 個数0 合計0\n固定2つ\n可変長3個"
+            }
+          ],
+          "hints": [
+            "`static void report(String label, int... nums)` の順番が大事です。可変長引数は **必ず最後** で、`(int... nums, String label)` はコンパイルエラーになります。",
+            "`report` の中で合計を出し、`System.out.println(label + \" 個数\" + nums.length + \" 合計\" + total);` と1行で出力します。個数と合計の前に半角スペース、数字との間にはスペースを入れません。",
+            "`which(1, 2)` は引数2つの固定版がぴったり一致するので、そちらが選ばれます。可変長版が選ばれるのは「ほかに合うものがないとき」だけなので、`which(1, 2, 3)` のときだけ可変長になります。"
+          ],
+          "solution": "import java.util.Scanner;\n\npublic class Main {\n\n    static void report(String label, int... nums) {\n        int total = 0;\n        for (int n : nums) {\n            total += n;\n        }\n        System.out.println(label + \" 個数\" + nums.length + \" 合計\" + total);\n    }\n\n    static void which(int a, int b) {\n        System.out.println(\"固定2つ\");\n    }\n\n    static void which(int... a) {\n        System.out.println(\"可変長\" + a.length + \"個\");\n    }\n\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        String label = sc.next();\n        int k = sc.nextInt();\n        int[] nums = new int[k];\n        for (int i = 0; i < k; i++) {\n            nums[i] = sc.nextInt();\n        }\n\n        report(label, nums);\n        report(label);\n        which(1, 2);\n        which(1, 2, 3);\n    }\n}\n"
+        }
+      ],
+      "quiz": [
+        {
+          "question": "次のうち **オーバーロードとして成立しない** のはどれでしょう（`int f(int a)` がすでにあるとします）。",
+          "choices": [
+            "`int f(int a, int b)`",
+            "`int f(double a)`",
+            "`long f(int a)`",
+            "`int f(String a)`"
+          ],
+          "answer": 2,
+          "explanation": "メソッドを見分ける手がかりは **名前と引数** だけです。戻り値の型が違うだけでは区別できず、コンパイルエラーになります。"
+        },
+        {
+          "question": "`static void f(int n)` と `static void f(double d)` があるとき、`f('A')` はどちらが呼ばれるでしょう。",
+          "choices": [
+            "`int` 版（`char` は `int` に拡張される）",
+            "`double` 版",
+            "どちらでもなくコンパイルエラー",
+            "実行時に決まる"
+          ],
+          "answer": 0,
+          "explanation": "ぴったり一致がないときは **拡張変換で近い方** が選ばれます。`char` → `int` → `long` → `float` → `double` の順なので `int` 版です。`'A'` の文字コードが渡るので `65` が出力されます。"
+        },
+        {
+          "question": "次のコードの出力はどれでしょう。\n\n```java\nstatic void addTen(int[] a) { a[0] += 10; }\n\npublic static void main(String[] args) {\n    int[] arr = {5};\n    addTen(arr);\n    System.out.println(arr[0]);\n}\n```",
+          "choices": [
+            "`5`",
+            "`15`",
+            "`10`",
+            "コンパイルエラー"
+          ],
+          "answer": 1,
+          "explanation": "渡されるのは **参照のコピー** で、指している本体は同じです。だから中身の書き換えは呼び出し元にも見えて `15` になります。メソッドの中で `a = new int[]{999};` と別の配列を代入した場合は、呼び出し元は変わりません。"
+        },
+        {
+          "question": "可変長引数について正しいのはどれでしょう。",
+          "choices": [
+            "`void f(int... a, String b)` と書ける",
+            "1つのメソッドに2つ書ける",
+            "引数を1つも渡さずに呼べる",
+            "受け取った `a` は `null` になることがある"
+          ],
+          "answer": 2,
+          "explanation": "可変長引数は **引数リストの最後に1つだけ** 置けます。引数なしで呼べて、そのときは `length` が `0` の配列が渡ってきます（`null` ではありません）。"
+        }
+      ]
     }
   ]
 }

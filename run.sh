@@ -30,6 +30,14 @@ for ((i = 0; i < ${#JAVA_ARGS[@]}; i++)); do
   fi
 done
 
+# アプリ（tools/make-app.sh で作る Java Quest.app）から起動した分がまだ残っていると、
+# ここで立てるサーバは別のポートにずれる。黙ってずれると混乱するので先に知らせる。
+if curl -fsS --max-time 2 "http://localhost:${PORT}/" 2>/dev/null | grep -q 'Java Quest'; then
+  echo "注意: ポート ${PORT} ではすでに Java Quest が動いています。"
+  echo "      ターミナルから起動し直すなら、先にアプリを終了するか tools/launch.sh --stop してください。"
+  echo ""
+fi
+
 # javac / java を同じJDKに固定してビルドする
 # shellcheck source=tools/build.sh
 source tools/build.sh
