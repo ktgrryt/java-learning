@@ -174,7 +174,7 @@ public final class ApiHandler implements HttpHandler {
         }
         m.put("parts", parts);
         m.put("chapters", chapters);
-        m.put("progress", progress.toClientJson(clearedChapterCount(c, cleared)));
+        m.put("progress", progress.toClientJson(cafeLearningProgress(c, cleared)));
         m.put("totalLessons", c.totalLessonCount());
         m.put("totalTasks", c.totalTaskCount());
         m.put("quizTotal", quizTotal);
@@ -229,7 +229,7 @@ public final class ApiHandler implements HttpHandler {
         }
 
         Map<String, Object> m = new LinkedHashMap<>();
-        m.put("progress", progress.toClientJson(clearedChapterCount(c, cleared)));
+        m.put("progress", progress.toClientJson(cafeLearningProgress(c, cleared)));
         m.put("quizCorrect", quizCorrect);
         m.put("chapters", chapters);
         m.put("lessons", lessons);
@@ -389,19 +389,20 @@ public final class ApiHandler implements HttpHandler {
 
                 boolean firstTime = progress.markCleared(key);
                 Set<String> after = progress.clearedIds();
-                int clearedChaptersAfter = clearedChapterCount(c, after);
+                ProgressStore.CafeLearningProgress cafeLearningAfter =
+                        cafeLearningProgress(c, after);
 
                 boolean chapterCompletedNow = firstTime
                         && !chapterWasCleared
                         && c.isChapterCleared(chapter, after);
                 ProgressStore.CafeAward cafeAward = ProgressStore.CafeAward.NONE;
                 if (firstTime) {
-                    cafeAward = progress.rewardTask(clearedChaptersAfter);
+                    cafeAward = progress.rewardTask(cafeLearningAfter);
                 }
                 boolean chapterCleared = false;
                 if (chapterCompletedNow) {
                     ProgressStore.CafeAward chapterAward = progress.rewardChapter(
-                            chapter.id(), clearedChaptersAfter, c.taskCount(chapter));
+                            chapter.id(), cafeLearningAfter, c.taskCount(chapter));
                     chapterCleared = chapterAward.cash() > 0 || chapterAward.cups() > 0;
                     cafeAward = cafeAward.plus(chapterAward);
                 }
@@ -451,9 +452,10 @@ public final class ApiHandler implements HttpHandler {
 
         boolean correct = choice == quiz.answer();
         progress.recordQuiz(lessonId, index, choice);
-        int clearedChapters = clearedChapterCount(c, progress.clearedIds());
+        ProgressStore.CafeLearningProgress cafeLearning =
+                cafeLearningProgress(c, progress.clearedIds());
         ProgressStore.CafeAward cafeAward = correct
-                ? progress.rewardQuiz(lessonId, index, clearedChapters)
+                ? progress.rewardQuiz(lessonId, index, cafeLearning)
                 : ProgressStore.CafeAward.NONE;
 
         Map<String, Object> m = new LinkedHashMap<>();
@@ -472,7 +474,7 @@ public final class ApiHandler implements HttpHandler {
         String id = requireString(body, "id");
         Curriculum c = curriculum.get();
         Set<String> cleared = progress.clearedIds();
-        int clearedChapters = clearedChapterCount(c, cleared);
+        ProgressStore.CafeLearningProgress cafeLearning = cafeLearningProgress(c, cleared);
         ProgressStore.PurchaseResult purchase = progress.purchaseCafeUpgrade(id);
         if (!purchase.purchased()) {
             throw new BadRequest(purchase.error());
@@ -488,14 +490,15 @@ public final class ApiHandler implements HttpHandler {
 
         Map<String, Object> m = new LinkedHashMap<>();
         m.put("upgrade", upgrade);
-        m.put("delta", Map.of("progress", progress.toClientJson(clearedChapters)));
+        m.put("delta", Map.of("progress", progress.toClientJson(cafeLearning)));
         return m;
     }
 
     private Object doCafeAutomationPurchase(Map<String, Object> body) {
         String id = requireString(body, "id");
         Curriculum c = curriculum.get();
-        int clearedChapters = clearedChapterCount(c, progress.clearedIds());
+        ProgressStore.CafeLearningProgress cafeLearning =
+                cafeLearningProgress(c, progress.clearedIds());
         ProgressStore.AutomationPurchaseResult purchase = progress.purchaseCafeAutomation(id);
         if (!purchase.purchased()) {
             throw new BadRequest(purchase.error());
@@ -511,7 +514,7 @@ public final class ApiHandler implements HttpHandler {
 
         Map<String, Object> m = new LinkedHashMap<>();
         m.put("automation", automation);
-        m.put("delta", Map.of("progress", progress.toClientJson(clearedChapters)));
+        m.put("delta", Map.of("progress", progress.toClientJson(cafeLearning)));
         return m;
     }
 
@@ -521,11 +524,15 @@ public final class ApiHandler implements HttpHandler {
             throw new BadRequest("自動売上のセッションIDが不正です");
         }
         Curriculum c = curriculum.get();
-        int clearedChapters = clearedChapterCount(c, progress.clearedIds());
+        ProgressStore.CafeLearningProgress cafeLearning =
+                cafeLearningProgress(c, progress.clearedIds());
         ProgressStore.PassiveSalesResult passive = switch (action) {
-            case "start" -> progress.startCafePassiveSales(sessionId, clearedChapters);
-            case "collect" -> progress.collectCafePassiveSales(sessionId, clearedChapters);
-            case "stop" -> progress.stopCafePassiveSales(sessionId, clearedChapters);
+            case "start" -> progress.startCafePassiveSales(
+                    sessionId, cafeLearning.masteredChapterTasks());
+            case "collect" -> progress.collectCafePassiveSales(
+                    sessionId, cafeLearning.masteredChapterTasks());
+            case "stop" -> progress.stopCafePassiveSales(
+                    sessionId, cafeLearning.masteredChapterTasks());
             default -> throw new IllegalArgumentException("unknown passive action: " + action);
         };
 
@@ -536,13 +543,14 @@ public final class ApiHandler implements HttpHandler {
 
         Map<String, Object> m = new LinkedHashMap<>();
         m.put("passive", passiveJson);
-        m.put("delta", Map.of("progress", progress.toClientJson(clearedChapters)));
+        m.put("delta", Map.of("progress", progress.toClientJson(cafeLearning)));
         return m;
     }
 
     private Object doCafeExpand() {
         Curriculum c = curriculum.get();
-        int clearedChapters = clearedChapterCount(c, progress.clearedIds());
+        ProgressStore.CafeLearningProgress cafeLearning =
+                cafeLearningProgress(c, progress.clearedIds());
         ProgressStore.ExpansionResult expansion = progress.expandCafeNetwork();
         if (!expansion.expanded()) {
             throw new BadRequest(expansion.error());
@@ -556,14 +564,15 @@ public final class ApiHandler implements HttpHandler {
 
         Map<String, Object> m = new LinkedHashMap<>();
         m.put("expansion", result);
-        m.put("delta", Map.of("progress", progress.toClientJson(clearedChapters)));
+        m.put("delta", Map.of("progress", progress.toClientJson(cafeLearning)));
         return m;
     }
 
     private Object doCafeItemPurchase(Map<String, Object> body) {
         String id = requireString(body, "id");
         Curriculum c = curriculum.get();
-        int clearedChapters = clearedChapterCount(c, progress.clearedIds());
+        ProgressStore.CafeLearningProgress cafeLearning =
+                cafeLearningProgress(c, progress.clearedIds());
         ProgressStore.ItemPurchaseResult purchase = progress.purchaseCafeItem(id);
         if (!purchase.purchased()) {
             throw new BadRequest(purchase.error());
@@ -576,26 +585,30 @@ public final class ApiHandler implements HttpHandler {
 
         Map<String, Object> m = new LinkedHashMap<>();
         m.put("item", item);
-        m.put("delta", Map.of("progress", progress.toClientJson(clearedChapters)));
+        m.put("delta", Map.of("progress", progress.toClientJson(cafeLearning)));
         return m;
     }
 
     private Object doCafeItemsSeen() {
         Curriculum c = curriculum.get();
         progress.markCafeItemsSeen();
-        int clearedChapters = clearedChapterCount(c, progress.clearedIds());
-        return Map.of("delta", Map.of("progress", progress.toClientJson(clearedChapters)));
+        ProgressStore.CafeLearningProgress cafeLearning =
+                cafeLearningProgress(c, progress.clearedIds());
+        return Map.of("delta", Map.of("progress", progress.toClientJson(cafeLearning)));
     }
 
-    /** 制覇した章数。カフェのブランド倍率計算に使う。 */
-    private int clearedChapterCount(Curriculum c, Set<String> cleared) {
-        int count = 0;
+    /** 制覇した章数と、その章に含まれる問題数。短い章だけの先取りを有利にしない。 */
+    private ProgressStore.CafeLearningProgress cafeLearningProgress(
+            Curriculum c, Set<String> cleared) {
+        int chapterCount = 0;
+        int masteredChapterTasks = 0;
         for (Chapter chapter : c.chapters()) {
             if (c.isChapterCleared(chapter, cleared)) {
-                count++;
+                chapterCount++;
+                masteredChapterTasks += c.taskCount(chapter);
             }
         }
-        return count;
+        return new ProgressStore.CafeLearningProgress(chapterCount, masteredChapterTasks);
     }
 
     private Object doHint(Map<String, Object> body) {
