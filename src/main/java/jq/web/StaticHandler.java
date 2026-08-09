@@ -36,6 +36,15 @@ public final class StaticHandler implements HttpHandler {
     @Override
     public void handle(HttpExchange exchange) throws IOException {
         try {
+            // 画面そのものを別の名前（DNSリバインディング）で開かせない。
+            // ここを通すと、その画面のJavaScriptが同一オリジンとして /api を叩けてしまう
+            if (!RequestGuard.isAllowed(exchange)) {
+                RequestGuard.logRejection(exchange);
+                send(exchange, 403, "text/plain; charset=utf-8",
+                        RequestGuard.REJECT_MESSAGE.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+                return;
+            }
+
             String rawPath = exchange.getRequestURI().getPath();
             if (rawPath.equals("/") || rawPath.isEmpty()) {
                 rawPath = "/index.html";

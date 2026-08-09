@@ -43,8 +43,8 @@ public final class JavaRunner {
     private static final long TIMEOUT_MS = 5_000;
     /** stdout / stderr それぞれの取り込み上限（文字数ではなくバイト数）。 */
     private static final int OUTPUT_LIMIT_BYTES = 20_000;
-    /** 受け付けるソースコードの上限。 */
-    private static final int SOURCE_LIMIT_CHARS = 60_000;
+    /** 受け付けるソースコードの上限。保存の上限としても使う（{@code jq.web.ApiHandler}）。 */
+    public static final int SOURCE_LIMIT_CHARS = 60_000;
 
     /** class 宣言（修飾子つき）を拾う。 */
     private static final Pattern CLASS_DECL =
@@ -250,13 +250,12 @@ public final class JavaRunner {
             if (process.waitFor(TIMEOUT_MS, TimeUnit.MILLISECONDS)) {
                 exitCode = process.exitValue();
             } else {
-                process.destroyForcibly();
-                process.waitFor(2, TimeUnit.SECONDS);
+                destroyTree(process);
                 timedOut = true;
                 exitCode = -1;
             }
         } catch (InterruptedException e) {
-            process.destroyForcibly();
+            destroyTree(process);
             Thread.currentThread().interrupt();
             timedOut = true;
             exitCode = -1;
@@ -273,6 +272,30 @@ public final class JavaRunner {
     }
 
     // ------------------------------------------------------------- internals
+
+    /**
+     * 実行中のプロセスを、そこから起動された子孫ごと止める。
+     *
+     * {@code destroyForcibly()} は指定したプロセスだけを止める。学習者のコードが
+     * {@code ProcessBuilder} や {@code Runtime#exec} で別のコマンドを起動していると、
+     * タイムアウトでJVMだけが消えて、その先のコマンドは残り続ける
+     * （「5秒で止めました」と表示されたのにCPUが回り続ける状態になる）。
+     *
+     * 子孫の一覧は<b>親を止める前に</b>取る。親が消えたあとでは親子関係を辿れないため、
+     * 順序が逆だと取り逃がす。
+     */
+    private static void destroyTree(Process process) {
+        List<ProcessHandle> descendants = process.toHandle().descendants().toList();
+        process.destroyForcibly();
+        for (ProcessHandle descendant : descendants) {
+            descendant.destroyForcibly();
+        }
+        try {
+            process.waitFor(2, TimeUnit.SECONDS);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+    }
 
     private static Compiled failed(String hint) {
         return new Compiled(null, "Main", List.of(new Diagnostic("error", 0, 0, hint, "")), false, Set.of());

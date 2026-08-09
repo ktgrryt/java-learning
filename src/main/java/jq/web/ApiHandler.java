@@ -68,6 +68,14 @@ public final class ApiHandler implements HttpHandler {
     @Override
     public void handle(HttpExchange exchange) throws IOException {
         try {
+            // 他サイトのページから叩かれると、そのまま任意コード実行になる。
+            // 中身を読む前に、このマシンの画面から来たリクエストかを確かめる
+            if (!RequestGuard.isAllowed(exchange)) {
+                RequestGuard.logRejection(exchange);
+                sendError(exchange, 403, RequestGuard.REJECT_MESSAGE);
+                return;
+            }
+
             String path = exchange.getRequestURI().getPath();
             String method = exchange.getRequestMethod();
 
@@ -305,11 +313,13 @@ public final class ApiHandler implements HttpHandler {
      * 代わりに {@code libLessonId} を送る（参照専用。保存しない）。
      */
     private Object doRun(Map<String, Object> body) {
-        String code = requireString(body, "code");
+        String code = requireCode(body);
         String stdin = MiniJson.str(body, "stdin", "");
         String lessonId = MiniJson.str(body, "lessonId", "");
         if (!lessonId.isEmpty()) {
-            progress.saveCode(Lesson.taskKey(lessonId, taskId(body)), code);
+            String taskId = taskId(body);
+            requireTask(lessonId, taskId);   // 知らないIDで progress.json を汚さない
+            progress.saveCode(Lesson.taskKey(lessonId, taskId), code);
         }
 
         // 同梱ライブラリの引き当て元。lessonId があればそれを、無ければ参照専用の libLessonId を使う
@@ -336,7 +346,7 @@ public final class ApiHandler implements HttpHandler {
         Curriculum c = curriculum.get();
         String lessonId = requireString(body, "lessonId");
         String taskId = taskId(body);
-        String code = requireString(body, "code");
+        String code = requireCode(body);
         Lesson lesson = c.lesson(lessonId)
                 .orElseThrow(() -> new BadRequest("知らないレッスンです: " + lessonId));
         Task task = lesson.task(taskId)
@@ -424,7 +434,11 @@ public final class ApiHandler implements HttpHandler {
 
     private Object doSave(Map<String, Object> body) {
         String lessonId = requireString(body, "lessonId");
-        progress.saveCode(Lesson.taskKey(lessonId, taskId(body)), requireString(body, "code"));
+        String taskId = taskId(body);
+        // 知らないレッスンIDでも保存できると、progress.json に無関係なキーをいくらでも
+        // 積める（消す手立ては画面に無い）。実在する問題の下書きだけを受け付ける
+        requireTask(lessonId, taskId);
+        progress.saveCode(Lesson.taskKey(lessonId, taskId), requireCode(body));
         return Map.of("ok", true);
     }
 
@@ -728,6 +742,22 @@ public final class ApiHandler implements HttpHandler {
         } catch (RuntimeException e) {
             throw new BadRequest("JSONとして読めません: " + e.getMessage());
         }
+    }
+
+    /**
+     * 実行・保存に渡すコード。長さの上限は {@link JavaRunner#SOURCE_LIMIT_CHARS} に合わせる。
+     *
+     * 上限を超えたコードはそもそもコンパイルできないので、保存だけ通しても意味がない。
+     * それどころか progress.json は保存のたびに全体を書き直すので、巨大な下書きが
+     * 混ざると以降の自動保存がすべて重くなる。受け取る前にここで断る。
+     */
+    private static String requireCode(Map<String, Object> body) {
+        String code = requireString(body, "code");
+        if (code.length() > JavaRunner.SOURCE_LIMIT_CHARS) {
+            throw new BadRequest("コードが長すぎます（上限 " + JavaRunner.SOURCE_LIMIT_CHARS
+                    + " 文字、送られたのは " + code.length() + " 文字）。");
+        }
+        return code;
     }
 
     private static String requireString(Map<String, Object> body, String key) {
