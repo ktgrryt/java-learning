@@ -1,0 +1,61 @@
+{
+  "id":"ch56","title":"本番セキュリティとAPI契約","subtitle":"通信・identity・認可・供給網を境界で守る","emoji":"🛡️",
+  "lessons":[
+    {
+      "id":"56-1","title":"TLS・証明書・鍵を扱う",
+      "explanation":"## 暗号化だけでなく相手を検証する\n\nTLS clientはserver証明書の署名chain、有効期限、hostnameをtrust anchorに対して検証します。truststoreは信頼するCA等、keystoreは自分の秘密鍵と証明書を主に保持します。検証を無効化するtrust-allやhostname verifierは開発用でも残留しやすく危険です。`keytool`、`openssl s_client`、JDKのTLS debugはchainとhandshake調査に使えます。\n\n秘密鍵は最小権限で保管し、証明書更新を自動化して期限前にalertします。service間mTLSではclient側identityも検証します。TLS termination地点からapplicationまでの経路、forwarded headerを信頼するproxy範囲、HTTPからHTTPSへのredirect/HSTSも設計対象です。\n\n> 🧪 画面内問題は更新判定の小さな運用ルールです。実際の証明書、SAN、chain、keystore/truststoreは`labs/security-platform`の`keytool`実習で観察してください。",
+      "samples":[{"caption":"既定のHTTPS検証を使う","code":"import java.net.*;import java.net.http.*;public class Main{public static void main(String[] a){HttpClient c=HttpClient.newHttpClient();System.out.println(c.sslContext().getProtocol());}}\n"}],
+      "task":"証明書の残り日数daysと更新閾値thresholdを読み、daysが負なら `EXPIRED`、threshold以下なら `ROTATE`、それ以外は `OK` と表示してください。",
+      "starterCode":"import java.util.*;public class Main{public static void main(String[] a){Scanner s=new Scanner(System.in);int days=s.nextInt(),threshold=s.nextInt();/* TODO */}}\n",
+      "visibleCases":[{"label":"更新時期","stdin":"20 30","expected":"ROTATE"},{"label":"余裕あり","stdin":"90 30","expected":"OK"}],
+      "hiddenCases":[{"label":"期限切れ","stdin":"-1 30","expected":"EXPIRED"}],
+      "hints":["負数、閾値以下の順で判定します。"],
+      "solution":"import java.util.*;public class Main{public static void main(String[] a){Scanner s=new Scanner(System.in);int days=s.nextInt(),threshold=s.nextInt();System.out.println(days<0?\"EXPIRED\":days<=threshold?\"ROTATE\":\"OK\");}}\n",
+      "quiz":[{"question":"trust-all設定が危険な理由は？","choices":["通信が必ず遅くなる","接続相手の真正性を検証せず中間者攻撃を許す","証明書が自動更新される","HTTP statusが変わる"],"answer":1,"explanation":"暗号化されても偽serverと通信しては機密性を守れません。"}]
+    },
+    {
+      "id":"56-2","title":"OAuth 2.0・OIDC・JWTを検証する",
+      "explanation":"## 委譲、login、token形式を分ける\n\nOAuth 2.0はAPIへの委譲された認可の枠組み、OpenID Connectはその上にidentity/loginを加える仕様です。JWTはtokenの表現形式の一つで、OAuth tokenが必ずJWTとは限りません。browser/mobileの認可code flowではPKCEとstate/nonceを使い、client credentialsはmachine間に限定します。password grantや独自token発行を安易に選びません。\n\nresource serverは信頼できるライブラリで署名と許可algorithmを検証したうえで、issuer、audience、expiry、not-before、必要scopeを用途に照らして確認します。`kid`に応じたJWKS更新はcacheとrotationを考慮します。tokenをlogやURLへ出さず、JWT payloadは暗号化されているとは限らないと考えます。\n\n> 🧪 次の問題は**署名検証後のclaimsに対する認可方針**を実装します。JWTの自作parserや自作署名検証は行いません。実際のresource serverでは採用フレームワークの検証機能を使い、`labs/security-platform`の拒否テスト一覧を実行してください。",
+      "samples":[{"caption":"issuer・audience・時刻・scopeを用途に照らす","code":"import java.util.Set;\n\nrecord Claims(\n        String issuer,\n        String audience,\n        long expiresAt,\n        long notBefore,\n        Set<String> scopes) {\n}\n\npublic class Main {\n    static boolean allowed(Claims claims, long now) {\n        return claims.issuer().equals(\"https://id.example\")\n                && claims.audience().equals(\"orders\")\n                && now < claims.expiresAt()\n                && now >= claims.notBefore()\n                && claims.scopes().contains(\"orders:read\");\n    }\n\n    public static void main(String[] args) {\n        Claims claims = new Claims(\n                \"https://id.example\", \"orders\", 1100, 900,\n                Set.of(\"profile\", \"orders:read\"));\n        System.out.println(allowed(claims, 1000));\n    }\n}\n","expected":"true"}],
+      "task":"署名とalgorithmは信頼できるライブラリですでに検証済みとします。`issuer audience now expiresAt notBefore scopes`を読み、次をすべて満たせば`ALLOW`、1つでも外れれば`DENY`と表示してください。\n\n- issuerが`https://id.example`\n- audienceが`orders`\n- `now < expiresAt`（期限と同時刻は期限切れ）\n- `now >= notBefore`\n- カンマ区切りのscopesに`orders:read`が含まれる\n\n例: `https://id.example orders 1000 1100 900 profile,orders:read`は`ALLOW`です。",
+      "starterCode":"import java.util.*;\n\nrecord Claims(String issuer, String audience, long expiresAt,\n              long notBefore, Set<String> scopes) {\n}\n\npublic class Main {\n    static boolean allowed(Claims claims, long now) {\n        // TODO: 5条件をclaimsの値から検証する\n        return false;\n    }\n\n    public static void main(String[] args) {\n        Scanner scanner = new Scanner(System.in);\n        String issuer = scanner.next();\n        String audience = scanner.next();\n        long now = scanner.nextLong();\n        long expiresAt = scanner.nextLong();\n        long notBefore = scanner.nextLong();\n        Set<String> scopes = new HashSet<>(\n                Arrays.asList(scanner.next().split(\",\")));\n        Claims claims = new Claims(issuer, audience, expiresAt, notBefore, scopes);\n        System.out.println(allowed(claims, now) ? \"ALLOW\" : \"DENY\");\n    }\n}\n",
+      "visibleCases":[
+        {"label":"用途と時刻が有効","stdin":"https://id.example orders 1000 1100 900 profile,orders:read","expected":"ALLOW"},
+        {"label":"期限の境界","stdin":"https://id.example orders 1000 1000 900 orders:read","expected":"DENY"}
+      ],
+      "hiddenCases":[
+        {"label":"issuer不一致","stdin":"https://evil.example orders 1000 1100 900 orders:read","expected":"DENY"},
+        {"label":"audience不一致","stdin":"https://id.example payments 1000 1100 900 orders:read","expected":"DENY"},
+        {"label":"まだ有効でない","stdin":"https://id.example orders 1000 1100 1001 orders:read","expected":"DENY"},
+        {"label":"scope不足","stdin":"https://id.example orders 1000 1100 900 profile,orders:write","expected":"DENY"}
+      ],
+      "hints":["文字列はequals、時刻は`now < claims.expiresAt()`と`now >= claims.notBefore()`、scopeはcontainsで確認します。"],
+      "solution":"import java.util.*;\n\nrecord Claims(String issuer, String audience, long expiresAt,\n              long notBefore, Set<String> scopes) {\n}\n\npublic class Main {\n    static boolean allowed(Claims claims, long now) {\n        return claims.issuer().equals(\"https://id.example\")\n                && claims.audience().equals(\"orders\")\n                && now < claims.expiresAt()\n                && now >= claims.notBefore()\n                && claims.scopes().contains(\"orders:read\");\n    }\n\n    public static void main(String[] args) {\n        Scanner scanner = new Scanner(System.in);\n        String issuer = scanner.next();\n        String audience = scanner.next();\n        long now = scanner.nextLong();\n        long expiresAt = scanner.nextLong();\n        long notBefore = scanner.nextLong();\n        Set<String> scopes = new HashSet<>(\n                Arrays.asList(scanner.next().split(\",\")));\n        Claims claims = new Claims(issuer, audience, expiresAt, notBefore, scopes);\n        System.out.println(allowed(claims, now) ? \"ALLOW\" : \"DENY\");\n    }\n}\n",
+      "quiz":[{"question":"JWT検証で署名以外に必要なのは？","choices":["payloadを信用して即利用","issuer・audience・時刻・scope等の用途検証","Base64 decodeだけ","tokenをURL queryへ記録"],"answer":1,"explanation":"正しく署名された別用途のtokenも拒否する必要があります。"}]
+    },
+    {
+      "id":"56-3","title":"認可と入力・出力を境界で守る",
+      "explanation":"## 認証済みでも何でもできるわけではない\n\n認証は誰か、認可はその主体が対象へ操作できるかを決めます。endpointのrole確認だけでなく、order.ownerIdのようなobject-level authorizationをservice層で行います。deny by default、least privilege、管理操作の再認証・監査を基本にします。tenant IDをrequest bodyだけから信用せず、検証済みidentityと照合します。\n\n入力は型・長さ・範囲・形式をallowlistで検証し、SQLはparameter binding、HTMLは出力contextに応じたescape、外部URLはSSRF対策、file pathは基準directoryからの逸脱を防ぎます。error responseとlogにpassword、token、個人情報、内部stack traceを露出させません。",
+      "samples":[{"caption":"所有者を照合する","code":"record Order(long id,String owner){}public class Main{public static void main(String[] a){String subject=\"u1\";Order o=new Order(1,\"u1\");System.out.println(subject.equals(o.owner())?\"ALLOW\":\"DENY\");}}\n"}],
+      "task":"subject、resourceOwner、roleを読み、roleがadminまたはsubjectとownerが一致すれば `ALLOW`、それ以外は `DENY` と表示してください。",
+      "starterCode":"import java.util.*;public class Main{public static void main(String[] a){Scanner s=new Scanner(System.in);String subject=s.next(),owner=s.next(),role=s.next();/* TODO */}}\n",
+      "visibleCases":[{"label":"所有者","stdin":"u1 u1 user","expected":"ALLOW"},{"label":"他人","stdin":"u1 u2 user","expected":"DENY"}],
+      "hiddenCases":[{"label":"管理者","stdin":"u1 u2 admin","expected":"ALLOW"}],
+      "hints":["adminか、subject.equals(owner)かをORで結びます。"],
+      "solution":"import java.util.*;public class Main{public static void main(String[] a){Scanner s=new Scanner(System.in);String subject=s.next(),owner=s.next(),role=s.next();System.out.println(role.equals(\"admin\")||subject.equals(owner)?\"ALLOW\":\"DENY\");}}\n",
+      "quiz":[{"question":"object-level authorizationの例は？","choices":["login済みかだけを見る","利用者がその注文の所有者かservice層で照合する","JSONを整形する","JDK versionを表示する"],"answer":1,"explanation":"同じroleでもアクセスできるresourceを主体ごとに制限します。"}]
+    },
+    {
+      "id":"56-4","title":"OpenAPI・versioning・供給網security",
+      "explanation":"## APIと成果物を契約として管理する\n\nOpenAPIにはpath、schema、status、error、security schemeを記述し、consumerとのcontract testやclient生成に使います。互換な変更はoptional fieldや新endpointの追加を基本にし、意味変更・必須化・削除はversioningと廃止期間を設けます。`application/problem+json` など一貫したerror形式、idempotency key、pagination、rate limitも契約に含めます。\n\n依存はBOM/lockで固定し、不要なdependencyを減らし、脆弱性だけでなくlicense、maintainer、公開元を確認します。CIでsecret scan、SAST、dependency/container scan、SBOM、署名・provenanceを作り、緊急patch手順を演習します。scannerの指摘は到達可能性と環境で優先順位を付けますが、根拠なく無期限抑制しません。",
+      "samples":[{"caption":"互換性の分類","code":"import java.util.*;public class Main{public static void main(String[] a){Map<String,String> m=Map.of(\"optional-field\",\"compatible\",\"remove-field\",\"breaking\");System.out.println(m.get(\"optional-field\"));}}\n"}],
+      "task":"API変更n件を読み、`add-optional`/`add-endpoint` は `COMPATIBLE`、`remove`/`make-required` は `BREAKING` と表示してください。",
+      "starterCode":"import java.util.*;public class Main{public static void main(String[] a){Scanner s=new Scanner(System.in);int n=s.nextInt();for(int i=0;i<n;i++){String change=s.next();/* TODO */}}}\n",
+      "visibleCases":[{"label":"契約変更","stdin":"4 add-optional remove add-endpoint make-required","expected":"COMPATIBLE\nBREAKING\nCOMPATIBLE\nBREAKING"}],
+      "hiddenCases":[{"label":"削除","stdin":"1 remove","expected":"BREAKING"}],
+      "hints":["`change.startsWith(\"add-\")` ならcompatibleです。"],
+      "solution":"import java.util.*;public class Main{public static void main(String[] a){Scanner s=new Scanner(System.in);int n=s.nextInt();for(int i=0;i<n;i++){String change=s.next();System.out.println(change.startsWith(\"add-\")?\"COMPATIBLE\":\"BREAKING\");}}}\n",
+      "quiz":[{"question":"SBOMの役割は？","choices":["runtimeのheapを増やす","成果物に含まれるcomponentを追跡可能にする","認証を省略する","API互換性を自動保証する"],"answer":1,"explanation":"脆弱性発生時に影響する成果物を迅速に特定する材料になります。"}]
+    }
+  ]
+}

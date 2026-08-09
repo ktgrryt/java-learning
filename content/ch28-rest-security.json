@@ -3,7 +3,7 @@
   "lessons":[
     {
       "id":"28-1","title":"Jakarta RESTでリソースを作る",
-      "explanation":"## URLを資源として設計する\n\n```java\n@ApplicationPath(\"/api\") class ApiConfig extends Application {}\n@Path(\"/users\") @Produces(MediaType.APPLICATION_JSON)\nclass UserResource {\n @GET public List<UserDto> list() { ... }\n @GET @Path(\"/{id}\") public UserDto find(@PathParam(\"id\") long id) { ... }\n @POST @Consumes(MediaType.APPLICATION_JSON) public Response create(CreateUser input) { ... }\n}\n```\n\nURLは `/getUsers` のような動詞でなく `/users` のような名詞にし、操作はHTTPメソッドで表します。Entityではなく入力DTO・出力DTOを境界に使います。JSON変換はJSON-Bなどのproviderが担います。GETは安全かつ冪等、PUT/DELETEは冪等、POSTは通常非冪等です。\n\n教材では注釈を本物と同じ形でコンパイルし、メソッドをmainから直接呼んで結果を採点します。",
+      "explanation":"## はじめて学ぶ人へ\n\nRESTでは、URLを操作名ではなく**扱うもの（リソース）の住所**として設計し、HTTPメソッドで操作を表します。図書館の本棚を住所で選び、「見る」「追加する」「直す」「捨てる」を動詞で指定するイメージです。\n\n```text\nGET    /books       本の一覧を取得\nGET    /books/10    10番の本を取得\nPOST   /books       新しい本を追加\nPUT    /books/10    10番の本を更新\nDELETE /books/10    10番の本を削除\n```\n\nJakarta RESTでは `@Path` が住所、`@GET` などが操作、`@PathParam` や `@QueryParam` がURL内の値をJavaの引数へ結び付けます。まずは「URLは名詞、操作はHTTPメソッド」と分けて読むと整理できます。\n\n## URLを資源として設計する\n\n```java\n@ApplicationPath(\"/api\") class ApiConfig extends Application {}\n@Path(\"/users\") @Produces(MediaType.APPLICATION_JSON)\nclass UserResource {\n @GET public List<UserDto> list() { ... }\n @GET @Path(\"/{id}\") public UserDto find(@PathParam(\"id\") long id) { ... }\n @POST @Consumes(MediaType.APPLICATION_JSON) public Response create(CreateUser input) { ... }\n}\n```\n\nURLは `/getUsers` のような動詞でなく `/users` のような名詞にし、操作はHTTPメソッドで表します。Entityではなく入力DTO・出力DTOを境界に使います。JSON変換はJSON-Bなどのproviderが担います。GETは安全かつ冪等、PUT/DELETEは冪等、POSTは通常非冪等です。\n\n教材では注釈を本物と同じ形でコンパイルし、メソッドをmainから直接呼んで結果を採点します。",
       "samples":[{"caption":"PathとGETを付ける","code":"import jakarta.ws.rs.*;\nimport jakarta.ws.rs.core.*;\n@Path(\"/hello\") class HelloResource{@GET @Produces(MediaType.TEXT_PLAIN) String hello(){return \"hello\";}}\npublic class RestSample{public static void main(String[]a){System.out.println(new HelloResource().hello());}}\n"}],
       "task":"`/products/{id}` 相当のResourceを完成させます。`find(long id)` にGETとPathを付け、ID 1はbook/1200、2はpen/150。main入力IDに対しDTOの `id:name:price`、無ければ `not found`。",
       "starterCode":"import jakarta.ws.rs.*;\nimport jakarta.ws.rs.core.*;\nimport java.util.*;\nrecord ProductDto(long id,String name,int price){}\n// TODO class Path/Produces\nclass ProductResource{private final Map<Long,ProductDto> data=Map.of(1L,new ProductDto(1,\"book\",1200),2L,new ProductDto(2,\"pen\",150));// TODO GET/Path/PathParam\n ProductDto find(long id){return data.get(id);}}\npublic class RestResource{public static void main(String[]a){long id=new Scanner(System.in).nextLong();ProductDto p=new ProductResource().find(id);System.out.println(p==null?\"not found\":p.id()+\":\"+p.name()+\":\"+p.price());}}\n",
@@ -14,7 +14,7 @@
     },
     {
       "id":"28-2","title":"ステータス・エラー・一覧API",
-      "explanation":"## 成功と失敗を機械が判断できる形へ\n\n取得成功200、作成201＋Location、本文なし成功204、入力不正400、未認証401、権限なし403、対象なし404、競合409を使い分けます。エラーDTOは `code`, `message`, `details`, `traceId` など一貫した形にします。内部例外をそのままJSON化しません。\n\n`ExceptionMapper<NotFoundException>` によって例外からResponseへの変換を1か所へ集められます。予期しない例外はログへtraceIdと詳細を残し、応答には一般化したメッセージだけを返します。\n\n一覧は無制限に返さず `limit` に上限を設け、offsetまたはcursorでページングします。並び順は一意になる列（createdAt,idなど）まで指定しないとページ間で重複・欠落します。API変更は後方互換性を意識し、破壊的変更はversioningを検討します。",
+      "explanation":"## はじめて学ぶ人へ\n\nAPIレスポンスは、受け手が機械的に判断できるよう毎回同じ形にします。ステータスコードは封筒の表にある結果ラベル、JSON本文は詳しい説明です。\n\n```json\n{\n  \"code\": \"INVALID_NAME\",\n  \"message\": \"nameは必須です\",\n  \"field\": \"name\"\n}\n```\n\n一覧が増え続けるAPIでは、全件を一度に返さず `?page=2&size=20` のように分割します。入力ミスは400、未認証は401、権限不足は403、対象なしは404など、同じ失敗には同じコードと形式を返します。内部例外をそのまま見せず、ログには調査情報、利用者には修正可能な情報を残します。\n\n## 成功と失敗を機械が判断できる形へ\n\n取得成功200、作成201＋Location、本文なし成功204、入力不正400、未認証401、権限なし403、対象なし404、競合409を使い分けます。エラーDTOは `code`, `message`, `details`, `traceId` など一貫した形にします。内部例外をそのままJSON化しません。\n\n`ExceptionMapper<NotFoundException>` によって例外からResponseへの変換を1か所へ集められます。予期しない例外はログへtraceIdと詳細を残し、応答には一般化したメッセージだけを返します。\n\n一覧は無制限に返さず `limit` に上限を設け、offsetまたはcursorでページングします。並び順は一意になる列（createdAt,idなど）まで指定しないとページ間で重複・欠落します。API変更は後方互換性を意識し、破壊的変更はversioningを検討します。",
       "samples":[{"caption":"ExceptionMapperで404へ変換","code":"import jakarta.ws.rs.core.*;\nimport jakarta.ws.rs.ext.*;\nclass Missing extends RuntimeException{Missing(String m){super(m);}} record ApiError(String code,String message){}\n@Provider class MissingMapper implements ExceptionMapper<Missing>{public Response toResponse(Missing e){return Response.status(404).entity(new ApiError(\"NOT_FOUND\",e.getMessage())).build();}}\npublic class MapperSample{public static void main(String[]a){Response r=new MissingMapper().toResponse(new Missing(\"ありません\"));System.out.println(r.getStatus()+\" \"+r.getEntity());}}\n"}],
       "task":"`find(id)` の結果をResponseにします。ID 1なら200とProductDto、無ければ404とApiError(`NOT_FOUND`,`商品が見つかりません`)。mainは `status entity` を表示します。",
       "starterCode":"import jakarta.ws.rs.core.*;\nimport java.util.*;\nrecord ProductDto(long id,String name){} record ApiError(String code,String message){}\nclass ProductApi{Response find(long id){// TODO\nreturn null;}}\npublic class RestResponse{public static void main(String[]a){long id=new Scanner(System.in).nextLong();Response r=new ProductApi().find(id);System.out.println(r.getStatus()+\" \"+r.getEntity());}}\n",
@@ -25,7 +25,7 @@
     },
     {
       "id":"28-3","title":"認証・認可とWeb攻撃への備え",
-      "explanation":"## 認証と認可を分ける\n\n認証は「誰か」、認可は「その人が操作してよいか」です。ログイン済みでも他人の `/users/123/orders` をIDだけ変えて見られないよう、対象データの所有者を毎回確認します（IDOR対策）。画面でボタンを隠すだけでは認可になりません。\n\nパスワードは平文や復号可能暗号で保存せず、Argon2id/bcrypt/PBKDF2などpassword hashing用アルゴリズム＋saltを使います。秘密鍵やDBパスワードはソース・Git・ログへ置かず、実行環境のsecret管理から受け取ります。\n\nCookie認証の状態変更にはCSRF tokenとSameSite、HTMLには出力エンコード、SQLにはPreparedStatement。CORSはブラウザの別origin制御で、認証やCSRF対策の代わりではありません。ログにはパスワード・token・Cookie・個人情報をそのまま残さず、失敗回数制限と監査も設計します。",
+      "explanation":"## はじめて学ぶ人へ\n\n認証は「あなたは誰か」の確認、認可は「その人がこの操作をしてよいか」の確認です。会社の入口で社員証を確認するのが認証、機密室へ入れる部署か確かめるのが認可に当たります。\n\nたとえばログイン済みの利用者が `/orders/123` を開けても、123番が別人の注文なら拒否しなければなりません。URLのIDを変えるだけで他人のデータを読める問題を防ぐには、取得時に所有者IDも条件へ含めます。\n\nさらに、ブラウザからの変更処理ではCSRF、表示時にはXSS、SQL実行時にはインジェクションへ備えます。入力検証だけに頼らず、認証・認可・安全な出力・PreparedStatementをそれぞれの境界で重ねます。\n\n## 認証と認可を分ける\n\n認証は「誰か」、認可は「その人が操作してよいか」です。ログイン済みでも他人の `/users/123/orders` をIDだけ変えて見られないよう、対象データの所有者を毎回確認します（IDOR対策）。画面でボタンを隠すだけでは認可になりません。\n\nパスワードは平文や復号可能暗号で保存せず、Argon2id/bcrypt/PBKDF2などpassword hashing用アルゴリズム＋saltを使います。秘密鍵やDBパスワードはソース・Git・ログへ置かず、実行環境のsecret管理から受け取ります。\n\nCookie認証の状態変更にはCSRF tokenとSameSite、HTMLには出力エンコード、SQLにはPreparedStatement。CORSはブラウザの別origin制御で、認証やCSRF対策の代わりではありません。ログにはパスワード・token・Cookie・個人情報をそのまま残さず、失敗回数制限と監査も設計します。",
       "samples":[{"caption":"所有者まで確認する","code":"record Order(long id,String owner){}\npublic class AuthorizationSample{static boolean canRead(String caller,Order order){return caller!=null&&caller.equals(order.owner());}public static void main(String[]a){System.out.println(canRead(\"alice\",new Order(1,\"bob\")));}}\n"}],
       "task":"入力 `caller role owner` の認可判定をします。adminは全件、userはcaller==ownerだけ許可。callerが `-` は401、ログイン済みだが不許可は403、許可は200。",
       "starterCode":"import java.util.*;\npublic class RestAuth{public static void main(String[]a){Scanner s=new Scanner(System.in);String caller=s.next(),role=s.next(),owner=s.next();// TODO\n}}\n",
@@ -35,6 +35,123 @@
       "solution":"import java.util.*;\npublic class RestAuth{public static void main(String[]a){Scanner s=new Scanner(System.in);String caller=s.next(),role=s.next(),owner=s.next();if(caller.equals(\"-\")){System.out.println(\"401 Unauthorized\");return;}boolean allowed=role.equals(\"admin\")||(role.equals(\"user\")&&caller.equals(owner));System.out.println(allowed?\"200 OK\":\"403 Forbidden\");}}\n",
       "extraTasks":[{"kind":"applied","task":"セッション内CSRF tokenと送信tokenを比較します。状態変更POSTは一致時だけ200、不一致・欠落は403。入力では欠落を `-` と表します。比較は定数側equalsでnull安全にしてください。","starterCode":"import java.util.*;\npublic class RestCsrf{public static void main(String[]a){Scanner s=new Scanner(System.in);String sessionToken=s.next(),submitted=s.next();if(submitted.equals(\"-\"))submitted=null;// TODO\n}}\n","visibleCases":[{"label":"一致","stdin":"abc abc","expected":"200 Updated"},{"label":"不一致","stdin":"abc xyz","expected":"403 CSRF"}],"hiddenCases":[{"label":"欠落","stdin":"abc -","expected":"403 CSRF"}],"hints":["`sessionToken.equals(submitted)` なら200、それ以外403。sessionTokenはサーバ側に必ずある前提です。"],"solution":"import java.util.*;\npublic class RestCsrf{public static void main(String[]a){Scanner s=new Scanner(System.in);String sessionToken=s.next(),submitted=s.next();if(submitted.equals(\"-\"))submitted=null;System.out.println(sessionToken.equals(submitted)?\"200 Updated\":\"403 CSRF\");}}\n"}],
       "quiz":[{"question":"RESTのURL設計として基本に沿うものは？","choices":["GET /getUsers","POST /createUserNow","GET /users/42","GET /deleteUser/42"],"answer":2,"explanation":"資源を名詞URLで表し、操作をHTTPメソッドで表します。"},{"question":"作成成功でよく使う組み合わせは？","choices":["201とLocation","404とCookie","500とパスワード","200とスタックトレース"],"answer":0,"explanation":"作成した資源の場所をLocationで示します。"},{"question":"認証済み利用者が他人のIDへアクセスできないようにする対策は？","choices":["ボタンを隠すだけ","サーバ側で対象データの所有者・権限を確認","IDを連番にする","CORSだけ設定"],"answer":1,"explanation":"各オブジェクトへの認可をサーバ側で行います。"},{"question":"パスワード保存に適するものは？","choices":["平文","Base64","password hashing用アルゴリズムとsalt","ログへ出力"],"answer":2,"explanation":"Argon2id/bcrypt/PBKDF2など用途に合った低速hashを使います。"}]
+    },
+    {
+      "id": "28-4",
+      "title": "章末演習：REST API",
+      "explanation": "## この章の知識を、自分の手で組み合わせよう\n\nここでは、**リソースURL・HTTP状態・エラー形式・ページング・認証認可**をまとめて使います。新しい文法は登場しません。分からなくなったら、直前までの解説やサンプルへ戻って確認して大丈夫です。\n\n### 3問の進め方\n\n1. **基本**で、中心となる書き方をもう一度使う\n2. **組み合わせ**で、章内の複数の知識を一緒に使う\n3. **実践**で、少し現実的な入力と条件を整理する\n\nまず入力例と期待される出力を紙に書き、処理を小さな手順へ分けてからコードにすると進めやすくなります。",
+      "samples": [
+        {
+          "caption": "復習用サンプル：所有者まで確認する",
+          "code": "record Order(long id,String owner){}\npublic class AuthorizationSample{static boolean canRead(String caller,Order order){return caller!=null&&caller.equals(order.owner());}public static void main(String[]a){System.out.println(canRead(\"alice\",new Order(1,\"bob\")));}}\n"
+        }
+      ],
+      "task": "【基本】BookResourceの `find(int id)` を作ります。ID 1はJava、2はAPIです。見つかれば200と名前、無ければ404と `not found` を持つResponseを返し、mainで `status entity` と表示してください。",
+      "starterCode": "import jakarta.ws.rs.*;\nimport jakarta.ws.rs.core.*;\nimport java.util.*;\n@Path(\"/books\") class BookResource {private final Map<Integer,String> books=Map.of(1,\"Java\",2,\"API\");@GET @Path(\"/{id}\") Response find(@PathParam(\"id\") int id){/* TODO */return null;}}\npublic class Main {public static void main(String[] args){Response r=new BookResource().find(new Scanner(System.in).nextInt());System.out.println(r.getStatus()+\" \"+r.getEntity());}}\n",
+      "visibleCases": [
+        {
+          "label": "存在",
+          "stdin": "1",
+          "expected": "200 Java"
+        },
+        {
+          "label": "不存在",
+          "stdin": "9",
+          "expected": "404 not found"
+        }
+      ],
+      "hiddenCases": [
+        {
+          "label": "ID 2",
+          "stdin": "2",
+          "expected": "200 API"
+        },
+        {
+          "label": "ID 0",
+          "stdin": "0",
+          "expected": "404 not found"
+        }
+      ],
+      "hints": [
+        "Mapから取得した結果がnullかを確認します。",
+        "成功はResponse.ok、未検出はResponse.status(404)を使います。"
+      ],
+      "solution": "import jakarta.ws.rs.*;\nimport jakarta.ws.rs.core.*;\nimport java.util.*;\n@Path(\"/books\") class BookResource {private final Map<Integer,String> books=Map.of(1,\"Java\",2,\"API\");@GET @Path(\"/{id}\") Response find(@PathParam(\"id\") int id){String book=books.get(id);return book==null?Response.status(404).entity(\"not found\").build():Response.ok(book).build();}}\npublic class Main {public static void main(String[] args){Response r=new BookResource().find(new Scanner(System.in).nextInt());System.out.println(r.getStatus()+\" \"+r.getEntity());}}\n",
+      "extraTasks": [
+        {
+          "kind": "drill",
+          "task": "【組み合わせ】1〜10の整数一覧に対し、0始まりのpageと正のsizeを読みます。該当ページをリスト形式で表示し、範囲外なら空リストにしてください。",
+          "starterCode": "import java.util.*;\npublic class Main {public static void main(String[] args){Scanner s=new Scanner(System.in);int page=s.nextInt(),size=s.nextInt();List<Integer> all=new ArrayList<>();for(int i=1;i<=10;i++)all.add(i);/* TODO */}}\n",
+          "visibleCases": [
+            {
+              "label": "1ページ目",
+              "stdin": "0 3",
+              "expected": "[1, 2, 3]"
+            },
+            {
+              "label": "途中",
+              "stdin": "2 3",
+              "expected": "[7, 8, 9]"
+            }
+          ],
+          "hiddenCases": [
+            {
+              "label": "末尾",
+              "stdin": "3 3",
+              "expected": "[10]"
+            },
+            {
+              "label": "範囲外",
+              "stdin": "5 3",
+              "expected": "[]"
+            },
+            {
+              "label": "不正",
+              "stdin": "-1 3",
+              "expected": "400 Bad Request"
+            }
+          ],
+          "hints": [
+            "fromはpage×sizeですが、一覧サイズを超えないようMath.minします。",
+            "page<0またはsize<=0は先に400として処理します。"
+          ],
+          "solution": "import java.util.*;\npublic class Main {public static void main(String[] args){Scanner s=new Scanner(System.in);int page=s.nextInt(),size=s.nextInt();List<Integer> all=new ArrayList<>();for(int i=1;i<=10;i++)all.add(i);if(page<0||size<=0){System.out.println(\"400 Bad Request\");return;}int from=Math.min(page*size,all.size());int to=Math.min(from+size,all.size());System.out.println(all.subList(from,to));}}\n"
+        },
+        {
+          "kind": "applied",
+          "task": "【実践】caller、role、ownerを読みます。callerが `-` なら401、roleがadminまたはcallerとownerが同じなら200、それ以外は403を表示してください。これは認証後に所有者も確認する処理です。",
+          "starterCode": "import java.util.*;\npublic class Main {public static void main(String[] args){Scanner s=new Scanner(System.in);String caller=s.next(),role=s.next(),owner=s.next();/* TODO */}}\n",
+          "visibleCases": [
+            {
+              "label": "所有者",
+              "stdin": "alice user alice",
+              "expected": "200 OK"
+            },
+            {
+              "label": "別人",
+              "stdin": "alice user bob",
+              "expected": "403 Forbidden"
+            }
+          ],
+          "hiddenCases": [
+            {
+              "label": "管理者",
+              "stdin": "admin admin bob",
+              "expected": "200 OK"
+            },
+            {
+              "label": "未認証",
+              "stdin": "- user alice",
+              "expected": "401 Unauthorized"
+            }
+          ],
+          "hints": [
+            "認証の有無を最初に判定します。",
+            "認可はadminか、callerとownerが同じかで判定します。"
+          ],
+          "solution": "import java.util.*;\npublic class Main {public static void main(String[] args){Scanner s=new Scanner(System.in);String caller=s.next(),role=s.next(),owner=s.next();if(caller.equals(\"-\")){System.out.println(\"401 Unauthorized\");return;}boolean allowed=role.equals(\"admin\")||caller.equals(owner);System.out.println(allowed?\"200 OK\":\"403 Forbidden\");}}\n"
+        }
+      ]
     }
   ]
 }

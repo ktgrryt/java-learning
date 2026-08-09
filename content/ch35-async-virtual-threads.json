@@ -2,7 +2,7 @@
   "id":"ch35","title":"非同期処理と新しい並行処理","subtitle":"CompletableFutureとVirtual Threadsを使い分ける","emoji":"🚀",
   "lessons":[{
     "id":"35-1","title":"非同期パイプラインとVirtual Threads",
-    "explanation":"## 非同期の依存関係を表す\n\n`CompletableFuture` は「値が後で得られる」ことと後続処理を表します。`thenApply` は値の変換、`thenCompose` はFutureを返す処理の直列化、`thenCombine` は独立処理の合流です。`join` は待機し、失敗を未検査例外で伝えます。どのExecutorで動くかを決めずにcommon poolへ重いブロッキングI/Oを大量投入しないようにします。\n\n## JDK 21のVirtual Threads\n\nVirtual ThreadはJVMが大量に扱える軽量スレッドです。同期的で読みやすいコードのまま、多数の待ち時間の長いI/Oタスクを扱えます。`Executors.newVirtualThreadPerTaskExecutor()` はタスクごとにVirtual Threadを作るため、従来のように少数スレッドを使い回すためのプールサイズ調整はしません。\n\nVirtual Threadは処理自体を高速化する魔法ではありません。CPU負荷はコア数が上限で、DB接続数や外部APIの同時実行数はSemaphore等で別に制限します。ThreadLocalへ大きな値を置く設計にも注意します。",
+    "explanation":"## はじめて学ぶ人へ\n\n非同期処理は、待ち時間のある仕事をつなぎ、完了した結果から次へ進める考え方です。注文確認→在庫照会→配送手配という流れなら、`CompletableFuture` の各処理が工程になります。\n\n- `thenApply`: 結果を別の値へ変換\n- `thenCompose`: 結果を使う次の非同期処理へつなぐ\n- `exceptionally`: 失敗時の代替処理\n\nVirtual Threadは、通信待ちの多い仕事を大量に扱いやすい軽量スレッドです。窓口係が待っている客ごとに高価な専任席を占有しないイメージです。ただしCPU自体が増えるわけではなく、接続プールや外部APIの上限も消えません。待ち時間・失敗・キャンセルまで含めてパイプラインを設計します。\n\n## 非同期の依存関係を表す\n\n`CompletableFuture` は「値が後で得られる」ことと後続処理を表します。`thenApply` は値の変換、`thenCompose` はFutureを返す処理の直列化、`thenCombine` は独立処理の合流です。`join` は待機し、失敗を未検査例外で伝えます。どのExecutorで動くかを決めずにcommon poolへ重いブロッキングI/Oを大量投入しないようにします。\n\n## JDK 21のVirtual Threads\n\nVirtual ThreadはJVMが大量に扱える軽量スレッドです。同期的で読みやすいコードのまま、多数の待ち時間の長いI/Oタスクを扱えます。`Executors.newVirtualThreadPerTaskExecutor()` はタスクごとにVirtual Threadを作るため、従来のように少数スレッドを使い回すためのプールサイズ調整はしません。\n\nVirtual Threadは処理自体を高速化する魔法ではありません。CPU負荷はコア数が上限で、DB接続数や外部APIの同時実行数はSemaphore等で別に制限します。ThreadLocalへ大きな値を置く設計にも注意します。",
     "samples":[{"caption":"Virtual Threadでタスクを実行","code":"import java.util.concurrent.*;\npublic class Main { public static void main(String[] args) throws Exception { try(ExecutorService executor=Executors.newVirtualThreadPerTaskExecutor()){Future<String> f=executor.submit(()->Thread.currentThread().isVirtual()+\":java\");System.out.println(f.get());} } }\n"}],
     "task":"個数nとn個の整数を読みます。各値について `supplyAsync(() -> value * 2)`、続けて `thenApply(x -> x + 1)` のCompletableFutureを作り、投入順にjoinして結果を1行ずつ表示してください。",
     "starterCode":"import java.util.*;\nimport java.util.concurrent.*;\npublic class Main { public static void main(String[] args) { Scanner s=new Scanner(System.in);int n=s.nextInt();int[] values=new int[n];for(int i=0;i<n;i++)values[i]=s.nextInt(); // TODO\n} }\n",
@@ -12,5 +12,108 @@
     "solution":"import java.util.*;\nimport java.util.concurrent.*;\npublic class Main { public static void main(String[] args) { Scanner s=new Scanner(System.in);int n=s.nextInt();int[] values=new int[n];for(int i=0;i<n;i++)values[i]=s.nextInt();List<CompletableFuture<Integer>> fs=new ArrayList<>();for(int value:values)fs.add(CompletableFuture.supplyAsync(()->value*2).thenApply(x->x+1));for(var f:fs)System.out.println(f.join());} }\n",
     "extraTasks":[{"kind":"applied","task":"単語数nとn個の単語を読み、`Executors.newVirtualThreadPerTaskExecutor()` へ各単語を大文字化するCallableをsubmitします。各Futureから投入順に結果を取り、`大文字:true`（現在のThreadがVirtual Threadか）を表示してください。","starterCode":"import java.util.*;\nimport java.util.concurrent.*;\npublic class Main { public static void main(String[] args) throws Exception { Scanner s=new Scanner(System.in);int n=s.nextInt();List<String> words=new ArrayList<>();for(int i=0;i<n;i++)words.add(s.next()); // TODO\n} }\n","visibleCases":[{"label":"2語","stdin":"2 java jvm","expected":"JAVA:true\nJVM:true"},{"label":"1語","stdin":"1 virtual","expected":"VIRTUAL:true"}],"hiddenCases":[{"label":"0語","stdin":"0","expected":""},{"label":"数字入り","stdin":"2 jdk21 api2","expected":"JDK21:true\nAPI2:true"}],"hints":["ExecutorServiceをtry-with-resourcesで開きます。","Callable内で `word.toUpperCase(Locale.ROOT) + \":\" + Thread.currentThread().isVirtual()` を返します。"],"solution":"import java.util.*;\nimport java.util.concurrent.*;\npublic class Main { public static void main(String[] args) throws Exception { Scanner s=new Scanner(System.in);int n=s.nextInt();List<String> words=new ArrayList<>();for(int i=0;i<n;i++)words.add(s.next());try(ExecutorService executor=Executors.newVirtualThreadPerTaskExecutor()){List<Future<String>> fs=new ArrayList<>();for(String word:words)fs.add(executor.submit(()->word.toUpperCase(Locale.ROOT)+\":\"+Thread.currentThread().isVirtual()));for(Future<String> f:fs)System.out.println(f.get());}} }\n"}],
     "quiz":[{"question":"thenApplyの主な用途は？","choices":["完了値を別の値へ変換","JVMを終了","ロックを強制解除","ファイルを削除"],"answer":0,"explanation":"前段の結果を受けて同期的な変換関数を適用します。"},{"question":"thenComposeが適する場面は？","choices":["Futureを返す処理を直列につなぐ","二つの独立結果を足すだけ","Thread名の変更","GC要求"],"answer":0,"explanation":"Futureの入れ子を平坦化して依存する非同期処理をつなぎます。"},{"question":"Virtual Threadsが特に向く処理は？","choices":["大量の待ち時間を含むI/Oタスク","単一の巨大CPU計算を無限高速化","GPU描画だけ","ロック不要化"],"answer":0,"explanation":"待機中にcarrier threadを占有しにくく、多数の同期I/O処理を表現できます。"},{"question":"Virtual Thread利用時も必要なものは？","choices":["DB接続など下流資源の同時実行制限","固定プールサイズを必ず1","Future禁止","例外の無視"],"answer":0,"explanation":"軽量スレッド数と下流システムの容量は別問題です。"}]
-  }]
+  },
+    {
+      "id": "35-2",
+      "title": "章末演習：非同期処理",
+      "explanation": "## この章の知識を、自分の手で組み合わせよう\n\nここでは、**CompletableFuture・非同期合成・失敗処理・Virtual Threads**をまとめて使います。新しい文法は登場しません。分からなくなったら、直前までの解説やサンプルへ戻って確認して大丈夫です。\n\n### 3問の進め方\n\n1. **基本**で、中心となる書き方をもう一度使う\n2. **組み合わせ**で、章内の複数の知識を一緒に使う\n3. **実践**で、少し現実的な入力と条件を整理する\n\nまず入力例と期待される出力を紙に書き、処理を小さな手順へ分けてからコードにすると進めやすくなります。",
+      "samples": [
+        {
+          "caption": "復習用サンプル：Virtual Threadでタスクを実行",
+          "code": "import java.util.concurrent.*;\npublic class Main { public static void main(String[] args) throws Exception { try(ExecutorService executor=Executors.newVirtualThreadPerTaskExecutor()){Future<String> f=executor.submit(()->Thread.currentThread().isVirtual()+\":java\");System.out.println(f.get());} } }\n"
+        }
+      ],
+      "task": "【基本】整数nをcompletedFutureへ入れ、`thenApply` で2倍、その次の `thenApply` で文字列 `result=...` にしてjoinし、表示してください。",
+      "starterCode": "import java.util.*;\nimport java.util.concurrent.*;\npublic class Main {public static void main(String[] args){int n=new Scanner(System.in).nextInt();CompletableFuture<String> future=CompletableFuture.completedFuture(\"\");/* TODO */System.out.println(future.join());}}\n",
+      "visibleCases": [
+        {
+          "label": "正数",
+          "stdin": "21",
+          "expected": "result=42"
+        },
+        {
+          "label": "0",
+          "stdin": "0",
+          "expected": "result=0"
+        }
+      ],
+      "hiddenCases": [
+        {
+          "label": "負数",
+          "stdin": "-5",
+          "expected": "result=-10"
+        }
+      ],
+      "hints": [
+        "completedFuture(n)の後ろへthenApplyを2つつなぎます。",
+        "最後にjoinで完成したStringを受け取ります。"
+      ],
+      "solution": "import java.util.*;\nimport java.util.concurrent.*;\npublic class Main {public static void main(String[] args){int n=new Scanner(System.in).nextInt();CompletableFuture<String> future=CompletableFuture.completedFuture(n).thenApply(v->v*2).thenApply(v->\"result=\"+v);System.out.println(future.join());}}\n",
+      "extraTasks": [
+        {
+          "kind": "drill",
+          "task": "【組み合わせ】2整数をそれぞれcompletedFutureにし、`thenCombine` で合計して `sum=...` と表示してください。",
+          "starterCode": "import java.util.*;\nimport java.util.concurrent.*;\npublic class Main {public static void main(String[] args){Scanner s=new Scanner(System.in);CompletableFuture<Integer> a=CompletableFuture.completedFuture(s.nextInt());CompletableFuture<Integer> b=CompletableFuture.completedFuture(s.nextInt());/* TODO */}}\n",
+          "visibleCases": [
+            {
+              "label": "加算",
+              "stdin": "10 20",
+              "expected": "sum=30"
+            },
+            {
+              "label": "負数",
+              "stdin": "-5 2",
+              "expected": "sum=-3"
+            }
+          ],
+          "hiddenCases": [
+            {
+              "label": "0",
+              "stdin": "0 0",
+              "expected": "sum=0"
+            }
+          ],
+          "hints": [
+            "`a.thenCombine(b, Integer::sum)` で2結果を合成します。",
+            "合成後のFutureをjoinします。"
+          ],
+          "solution": "import java.util.*;\nimport java.util.concurrent.*;\npublic class Main {public static void main(String[] args){Scanner s=new Scanner(System.in);CompletableFuture<Integer> a=CompletableFuture.completedFuture(s.nextInt());CompletableFuture<Integer> b=CompletableFuture.completedFuture(s.nextInt());int sum=a.thenCombine(b,Integer::sum).join();System.out.println(\"sum=\"+sum);}}\n"
+        },
+        {
+          "kind": "applied",
+          "task": "【実践】n個の整数それぞれをVirtual Threadで2倍し、配列の同じ位置へ保存します。全スレッドをjoin後、結果を半角スペースで入力順に表示してください。",
+          "starterCode": "import java.util.*;\npublic class Main {public static void main(String[] args)throws Exception{Scanner s=new Scanner(System.in);int n=s.nextInt();int[] result=new int[n];List<Thread> threads=new ArrayList<>();for(int i=0;i<n;i++){int index=i,value=s.nextInt();/* TODO */}/* TODO */}}\n",
+          "visibleCases": [
+            {
+              "label": "3個",
+              "stdin": "3 1 2 3",
+              "expected": "2 4 6"
+            },
+            {
+              "label": "負数",
+              "stdin": "2 -2 5",
+              "expected": "-4 10"
+            }
+          ],
+          "hiddenCases": [
+            {
+              "label": "空",
+              "stdin": "0",
+              "expected": ""
+            },
+            {
+              "label": "1個",
+              "stdin": "1 9",
+              "expected": "18"
+            }
+          ],
+          "hints": [
+            "各ループでindexとvalueを別のローカル変数へ保存します。",
+            "`Thread.ofVirtual().unstarted(...)` で作り、全start後にjoinします。"
+          ],
+          "solution": "import java.util.*;\npublic class Main {public static void main(String[] args)throws Exception{Scanner s=new Scanner(System.in);int n=s.nextInt();int[] result=new int[n];List<Thread> threads=new ArrayList<>();for(int i=0;i<n;i++){int index=i,value=s.nextInt();threads.add(Thread.ofVirtual().unstarted(()->result[index]=value*2));}threads.forEach(Thread::start);for(Thread t:threads)t.join();for(int i=0;i<n;i++){if(i>0)System.out.print(\" \");System.out.print(result[i]);}System.out.println();}}\n"
+        }
+      ]
+    }
+  ]
 }

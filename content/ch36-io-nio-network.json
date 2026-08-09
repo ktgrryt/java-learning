@@ -2,7 +2,7 @@
   "id":"ch36","title":"I/O・NIO・ネットワーク","subtitle":"バイト・文字・バッファ・通信境界を扱う","emoji":"💾",
   "lessons":[{
     "id":"36-1","title":"リソース境界とブロッキングを理解する",
-    "explanation":"## バイトと文字を区別する\n\nInputStream/OutputStreamはバイト、Reader/Writerは文字を扱います。文字とバイトを変換するときはUTF-8などのcharsetを明示します。`Files` と `Path` はファイル操作の中心APIで、小さなファイルはreadString/readAllLines、大きなファイルはストリームで逐次処理します。入力サイズを信用して全件をメモリへ載せないことも実務設計です。\n\nNIOのBufferはposition・limit・capacityを持ちます。書込み後の `flip()` はlimitを現在位置へ、positionを0へ変え、読取りモードにします。\n\nソケット通信では接続、読取、書込の各タイムアウト、部分読書き、切断、プロトコル境界を扱います。ブロッキングI/Oは待ちますが、Virtual Threadと組み合わせれば読みやすい同期コードで多数接続を扱えます。Closeableな資源はtry-with-resourcesで必ず閉じます。",
+    "explanation":"## はじめて学ぶ人へ\n\nI/Oは、プログラムの外とデータを出し入れする境界です。byteは荷物の小箱、charは人が読む文字と考えると区別しやすくなります。同じ「こんにちは」でも、UTF-8などの文字コードによって小箱への詰め方が決まります。\n\n```text\n文字列 ──UTF-8でencode──> byte列 ──decode──> 文字列\n```\n\nNIOのBufferは、書き込み位置と読み取り位置を持つ作業台です。書いたあと `flip()` で読み取りモードへ切り替えます。ファイル、ソケット、HTTP通信はいずれも相手を待って止まる可能性があるため、タイムアウト、部分的な読み書き、切断、そしてcloseを通常のケースとして扱います。\n\n## バイトと文字を区別する\n\nInputStream/OutputStreamはバイト、Reader/Writerは文字を扱います。文字とバイトを変換するときはUTF-8などのcharsetを明示します。`Files` と `Path` はファイル操作の中心APIで、小さなファイルはreadString/readAllLines、大きなファイルはストリームで逐次処理します。入力サイズを信用して全件をメモリへ載せないことも実務設計です。\n\nNIOのBufferはposition・limit・capacityを持ちます。書込み後の `flip()` はlimitを現在位置へ、positionを0へ変え、読取りモードにします。\n\nソケット通信では接続、読取、書込の各タイムアウト、部分読書き、切断、プロトコル境界を扱います。ブロッキングI/Oは待ちますが、Virtual Threadと組み合わせれば読みやすい同期コードで多数接続を扱えます。Closeableな資源はtry-with-resourcesで必ず閉じます。",
     "samples":[{"caption":"UTF-8でファイルを往復する","code":"import java.nio.charset.StandardCharsets;\nimport java.nio.file.*;\npublic class Main { public static void main(String[] args) throws Exception { Path p=Path.of(\"sample.txt\");Files.writeString(p,\"Java\\nJVM\",StandardCharsets.UTF_8);System.out.println(Files.readString(p,StandardCharsets.UTF_8)); } }\n"}],
     "task":"行数nとn個の文字列を読み、`data.txt`へUTF-8で1行ずつ書いてください。その後 `Files.readAllLines` で読み、1始まりの `番号:内容` を表示します。",
     "starterCode":"import java.util.*;\nimport java.nio.charset.*;\nimport java.nio.file.*;\npublic class Main { public static void main(String[] args) throws Exception { Scanner s=new Scanner(System.in);int n=s.nextInt();List<String> lines=new ArrayList<>();for(int i=0;i<n;i++)lines.add(s.next()); // TODO\n} }\n",
@@ -12,5 +12,118 @@
     "solution":"import java.util.*;\nimport java.nio.charset.*;\nimport java.nio.file.*;\npublic class Main { public static void main(String[] args) throws Exception { Scanner s=new Scanner(System.in);int n=s.nextInt();List<String> lines=new ArrayList<>();for(int i=0;i<n;i++)lines.add(s.next());Path path=Path.of(\"data.txt\");Files.write(path,lines,StandardCharsets.UTF_8);List<String> read=Files.readAllLines(path,StandardCharsets.UTF_8);for(int i=0;i<read.size();i++)System.out.println((i+1)+\":\"+read.get(i));} }\n",
     "extraTasks":[{"kind":"applied","task":"整数数nとn個のintを読み、`ByteBuffer.allocate(n * Integer.BYTES)` へputIntしてください。flip後、hasRemainingの間getIntして合計を表示します。","starterCode":"import java.util.*;\nimport java.nio.*;\npublic class Main { public static void main(String[] args){ Scanner s=new Scanner(System.in);int n=s.nextInt();ByteBuffer buffer=ByteBuffer.allocate(n*Integer.BYTES); // TODO\n} }\n","visibleCases":[{"label":"3整数","stdin":"3 10 20 -5","expected":"25"},{"label":"0件","stdin":"0","expected":"0"}],"hiddenCases":[{"label":"負数","stdin":"2 -7 -8","expected":"-15"},{"label":"1件","stdin":"1 42","expected":"42"}],"hints":["入力ごとに `buffer.putInt(s.nextInt())` します。","書込み完了後に `buffer.flip()` してから読みます。"],"solution":"import java.util.*;\nimport java.nio.*;\npublic class Main { public static void main(String[] args){ Scanner s=new Scanner(System.in);int n=s.nextInt();ByteBuffer buffer=ByteBuffer.allocate(n*Integer.BYTES);for(int i=0;i<n;i++)buffer.putInt(s.nextInt());buffer.flip();long sum=0;while(buffer.hasRemaining())sum+=buffer.getInt();System.out.println(sum);} }\n"}],
     "quiz":[{"question":"Reader/Writerが主に扱うものは？","choices":["文字","生のCPU命令","DBトランザクション","スレッド状態"],"answer":0,"explanation":"文字を扱い、バイトとの境界ではcharset変換が入ります。"},{"question":"ByteBuffer.flipの役割は？","choices":["書込み状態から読取り状態へ切り替える","バイト順を必ず逆転","容量を2倍","ファイルを閉じる"],"answer":0,"explanation":"limitを現在positionへ設定し、positionを0へ戻します。"},{"question":"大きなファイルの安全な扱いは？","choices":["必ず全バイトを一括読込","上限を考え逐次処理","charsetを無視","closeしない"],"answer":1,"explanation":"全件読込は入力サイズに比例してヒープを消費します。"},{"question":"ネットワークI/Oで必要な設計は？","choices":["無限待ちだけ","接続・読書きのタイムアウトと切断処理","例外を空catch","常に1バイトのみ"],"answer":1,"explanation":"外部通信は遅延・部分失敗・切断を通常ケースとして扱います。"}]
-  }]
+  },
+    {
+      "id": "36-2",
+      "title": "章末演習：I/OとNIO",
+      "explanation": "## この章の知識を、自分の手で組み合わせよう\n\nここでは、**byteと文字・文字コード・Path/Files・Buffer・ブロッキング**をまとめて使います。新しい文法は登場しません。分からなくなったら、直前までの解説やサンプルへ戻って確認して大丈夫です。\n\n### 3問の進め方\n\n1. **基本**で、中心となる書き方をもう一度使う\n2. **組み合わせ**で、章内の複数の知識を一緒に使う\n3. **実践**で、少し現実的な入力と条件を整理する\n\nまず入力例と期待される出力を紙に書き、処理を小さな手順へ分けてからコードにすると進めやすくなります。",
+      "samples": [
+        {
+          "caption": "復習用サンプル：UTF-8でファイルを往復する",
+          "code": "import java.nio.charset.StandardCharsets;\nimport java.nio.file.*;\npublic class Main { public static void main(String[] args) throws Exception { Path p=Path.of(\"sample.txt\");Files.writeString(p,\"Java\\nJVM\",StandardCharsets.UTF_8);System.out.println(Files.readString(p,StandardCharsets.UTF_8)); } }\n"
+        }
+      ],
+      "task": "【基本】1行の文字列を読み、UTF-8のbyte配列へ変換して `chars=文字数 bytes=バイト数` と表示してください。",
+      "starterCode": "import java.nio.charset.*;\nimport java.util.*;\npublic class Main {public static void main(String[] args){Scanner sc=new Scanner(System.in);String text=sc.hasNextLine()?sc.nextLine():\"\";byte[] bytes=new byte[0];/* TODO */System.out.println(\"chars=\"+text.length()+\" bytes=\"+bytes.length);}}\n",
+      "visibleCases": [
+        {
+          "label": "ASCII",
+          "stdin": "Java",
+          "expected": "chars=4 bytes=4"
+        },
+        {
+          "label": "日本語",
+          "stdin": "珈琲",
+          "expected": "chars=2 bytes=6"
+        }
+      ],
+      "hiddenCases": [
+        {
+          "label": "空",
+          "stdin": "",
+          "expected": "chars=0 bytes=0"
+        },
+        {
+          "label": "混在",
+          "stdin": "Aあ",
+          "expected": "chars=2 bytes=4"
+        }
+      ],
+      "hints": [
+        "`text.getBytes(StandardCharsets.UTF_8)` を使います。",
+        "String.lengthとbyte配列lengthを別々に表示します。"
+      ],
+      "solution": "import java.nio.charset.*;\nimport java.util.*;\npublic class Main {public static void main(String[] args){Scanner sc=new Scanner(System.in);String text=sc.hasNextLine()?sc.nextLine():\"\";byte[] bytes=text.getBytes(StandardCharsets.UTF_8);System.out.println(\"chars=\"+text.length()+\" bytes=\"+bytes.length);}}\n",
+      "extraTasks": [
+        {
+          "kind": "drill",
+          "task": "【組み合わせ】1行を `note.txt` へUTF-8で書き、同じPathから読み直して `read=内容` と表示してください。Files.writeStringとreadStringを使います。",
+          "starterCode": "import java.nio.charset.*;\nimport java.nio.file.*;\nimport java.util.*;\npublic class Main {public static void main(String[] args)throws Exception{Scanner sc=new Scanner(System.in);String text=sc.hasNextLine()?sc.nextLine():\"\";Path path=Path.of(\"note.txt\");/* TODO */}}\n",
+          "visibleCases": [
+            {
+              "label": "英語",
+              "stdin": "hello",
+              "expected": "read=hello"
+            },
+            {
+              "label": "日本語",
+              "stdin": "学習メモ",
+              "expected": "read=学習メモ"
+            }
+          ],
+          "hiddenCases": [
+            {
+              "label": "空",
+              "stdin": "",
+              "expected": "read="
+            },
+            {
+              "label": "空白あり",
+              "stdin": "Java NIO",
+              "expected": "read=Java NIO"
+            }
+          ],
+          "hints": [
+            "同じPathをwriteStringとreadStringへ渡します。",
+            "どちらにもUTF-8を明示します。"
+          ],
+          "solution": "import java.nio.charset.*;\nimport java.nio.file.*;\nimport java.util.*;\npublic class Main {public static void main(String[] args)throws Exception{Scanner sc=new Scanner(System.in);String text=sc.hasNextLine()?sc.nextLine():\"\";Path path=Path.of(\"note.txt\");Files.writeString(path,text,StandardCharsets.UTF_8);System.out.println(\"read=\"+Files.readString(path,StandardCharsets.UTF_8));}}\n"
+        },
+        {
+          "kind": "applied",
+          "task": "【実践】n個の整数をIntBufferへputし、flipして読み取りモードへ切り替えたあと、残っている値をすべて合計して表示してください。",
+          "starterCode": "import java.nio.*;\nimport java.util.*;\npublic class Main {public static void main(String[] args){Scanner s=new Scanner(System.in);int n=s.nextInt();IntBuffer buffer=IntBuffer.allocate(n);/* TODO */}}\n",
+          "visibleCases": [
+            {
+              "label": "3個",
+              "stdin": "3 10 20 30",
+              "expected": "60"
+            },
+            {
+              "label": "負数",
+              "stdin": "3 -5 2 1",
+              "expected": "-2"
+            }
+          ],
+          "hiddenCases": [
+            {
+              "label": "空",
+              "stdin": "0",
+              "expected": "0"
+            },
+            {
+              "label": "1個",
+              "stdin": "1 99",
+              "expected": "99"
+            }
+          ],
+          "hints": [
+            "putを終えたら必ずflipします。",
+            "hasRemainingの間getしてsumへ加えます。"
+          ],
+          "solution": "import java.nio.*;\nimport java.util.*;\npublic class Main {public static void main(String[] args){Scanner s=new Scanner(System.in);int n=s.nextInt();IntBuffer buffer=IntBuffer.allocate(n);for(int i=0;i<n;i++)buffer.put(s.nextInt());buffer.flip();int sum=0;while(buffer.hasRemaining())sum+=buffer.get();System.out.println(sum);}}\n"
+        }
+      ]
+    }
+  ]
 }

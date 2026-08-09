@@ -7,7 +7,7 @@
   "lessons":[
     {
       "id":"24-1","title":"Connection・PreparedStatement・ResultSet",
-      "explanation":"## JDBCの3段階\n\n`Connection` がDB接続、`PreparedStatement` がSQLと値、`ResultSet` が検索結果です。すべて閉じる必要があるのでtry-with-resourcesを使います。\n\n```java\nString sql = \"SELECT id, name, balance FROM users WHERE id = ?\";\ntry (Connection con = dataSource.getConnection();\n     PreparedStatement ps = con.prepareStatement(sql)) {\n    ps.setInt(1, id);\n    try (ResultSet rs = ps.executeQuery()) {\n        if (rs.next()) {\n            return new User(rs.getInt(\"id\"), rs.getString(\"name\"));\n        }\n    }\n}\n```\n\n`ResultSet` のカーソルは最初、1行目の手前です。単一件でも `next()` が必要です。一覧は `while (rs.next())`。列名はSQLのaliasを含め正確に合わせます。教材のMiniJdbcは外部DBなしでこの型と流れを再現します。",
+      "explanation":"## はじめて学ぶ人へ\n\nJDBCは、Javaからデータベースへ注文を出すための標準的な窓口です。3つの主要オブジェクトは、レストランのやり取りに置き換えると役割が見えます。\n\n- `Connection`: 店との通話回線\n- `PreparedStatement`: 値を記入できる注文票\n- `ResultSet`: 店から返った結果一覧を順に読む冊子\n\n```text\n接続する → SQLを準備する → 値を設定する → 実行する → 結果を1行ずつ読む → 閉じる\n```\n\n`ResultSet` は最初、1行目の手前にいるため、`while (rs.next())` で行へ進んでから列を読みます。接続や結果を閉じ忘れると資源が枯渇するので、`try-with-resources` に閉じる作業を任せるのが基本です。\n\n## JDBCの3段階\n\n`Connection` がDB接続、`PreparedStatement` がSQLと値、`ResultSet` が検索結果です。すべて閉じる必要があるのでtry-with-resourcesを使います。\n\n```java\nString sql = \"SELECT id, name, balance FROM users WHERE id = ?\";\ntry (Connection con = dataSource.getConnection();\n     PreparedStatement ps = con.prepareStatement(sql)) {\n    ps.setInt(1, id);\n    try (ResultSet rs = ps.executeQuery()) {\n        if (rs.next()) {\n            return new User(rs.getInt(\"id\"), rs.getString(\"name\"));\n        }\n    }\n}\n```\n\n`ResultSet` のカーソルは最初、1行目の手前です。単一件でも `next()` が必要です。一覧は `while (rs.next())`。列名はSQLのaliasを含め正確に合わせます。教材のMiniJdbcは外部DBなしでこの型と流れを再現します。",
       "samples":[{"caption":"IDで1件検索","code":"import java.sql.*;\npublic class JdbcFindSample{public static void main(String[]a)throws Exception{try(Connection c=MiniJdbc.open();PreparedStatement p=c.prepareStatement(\"SELECT id, name, balance FROM users WHERE id = ?\")){p.setInt(1,2);try(ResultSet r=p.executeQuery()){if(r.next())System.out.println(r.getInt(\"id\")+\" \"+r.getString(\"name\")+\" \"+r.getInt(\"balance\"));}}}}\n"}],
       "task":"標準入力のIDで利用者を1件検索し、`id=1 name=山田 balance=1000` の形、無ければ `該当なし` を出してください。JDBC資源はすべてtry-with-resourcesで閉じます。",
       "starterCode":"import java.sql.*;\nimport java.util.*;\npublic class JdbcFind{public static void main(String[]a)throws Exception{int id=new Scanner(System.in).nextInt();String sql=\"SELECT id, name, balance FROM users WHERE id = ?\";// TODO\n}}\n",
@@ -19,7 +19,7 @@
     },
     {
       "id":"24-2","title":"PreparedStatementで安全に更新する",
-      "explanation":"## 値をSQL文字列へ連結しない\n\n```java\n// ❌ 入力がSQLの一部として解釈される\nString sql = \"... WHERE name = '\" + name + \"'\";\n\n// ✅ SQLの構造と値を分離\nPreparedStatement ps = con.prepareStatement(\"... WHERE name = ?\");\nps.setString(1, name);\n```\n\nPreparedStatementはSQLインジェクション対策だけでなく、引用符の処理と型変換も任せられます。テーブル名やORDER BY方向は `?` にできないので、許可リストから選びます。\n\n更新は `executeUpdate()` が変更行数を返します。0件なら対象なし、1件なら成功。ID更新で2件以上なら設計上の異常です。戻り値を無視すると「更新したつもり」を作ります。",
+      "explanation":"## はじめて学ぶ人へ\n\n`PreparedStatement` は、SQLの形を先に決め、あとから値だけを空欄へ入れる**記入式の申込書**です。文字列を連結してSQLを作る方法と違い、入力値がSQL命令として解釈されません。\n\n```java\nPreparedStatement ps = con.prepareStatement(\n    \"UPDATE users SET name = ? WHERE id = ?\");\nps.setString(1, name);\nps.setInt(2, id);\n```\n\nたとえば名前に `' OR 1=1 --` が含まれても、値として扱われ、SQLの条件には化けません。更新系では `executeUpdate()` が返す件数も確認します。IDが存在せず0件だった場合を成功扱いにせず、404など適切な結果へ変換できるからです。\n\n## 値をSQL文字列へ連結しない\n\n```java\n// ❌ 入力がSQLの一部として解釈される\nString sql = \"... WHERE name = '\" + name + \"'\";\n\n// ✅ SQLの構造と値を分離\nPreparedStatement ps = con.prepareStatement(\"... WHERE name = ?\");\nps.setString(1, name);\n```\n\nPreparedStatementはSQLインジェクション対策だけでなく、引用符の処理と型変換も任せられます。テーブル名やORDER BY方向は `?` にできないので、許可リストから選びます。\n\n更新は `executeUpdate()` が変更行数を返します。0件なら対象なし、1件なら成功。ID更新で2件以上なら設計上の異常です。戻り値を無視すると「更新したつもり」を作ります。",
       "samples":[{"caption":"更新件数を確認する","code":"import java.sql.*;\npublic class JdbcUpdateSample{public static void main(String[]a)throws Exception{try(Connection c=MiniJdbc.open();PreparedStatement p=c.prepareStatement(\"UPDATE users SET balance = ? WHERE id = ?\")){p.setInt(1,800);p.setInt(2,2);System.out.println(\"updated=\"+p.executeUpdate());}}}\n"}],
       "task":"入力 `id 新残高` をPreparedStatementで更新し、1件なら `更新しました`、0件なら `対象なし`。負の残高はSQLを実行せず `不正な残高` としてください。",
       "starterCode":"import java.sql.*;\nimport java.util.*;\npublic class JdbcUpdate{public static void main(String[]a)throws Exception{Scanner s=new Scanner(System.in);int id=s.nextInt(),balance=s.nextInt();// TODO\n}}\n",
@@ -31,7 +31,7 @@
     },
     {
       "id":"24-3","title":"トランザクションと接続プール",
-      "explanation":"## 複数更新を全部成功か全部取消にする\n\n送金は出金と入金の両方が成功して初めて完成です。\n\n```java\ncon.setAutoCommit(false);\ntry {\n    debit(con, from, amount);\n    credit(con, to, amount);\n    con.commit();\n} catch (Exception e) {\n    con.rollback();\n    throw e;\n}\n```\n\nトランザクション境界はServiceの業務操作単位に置き、Repositoryメソッドごとにcommitしません。同じトランザクションの更新は同じConnectionを使います。例外時のrollbackを忘れると途中状態が残ります。\n\n実務ではDataSourceからプール済み接続を借ります。try-with-resourcesのcloseは物理切断ではなくプールへの返却になります。ConnectionをServletフィールドへ保持せず、処理ごとに短く借りて返します。分離レベルやロックは同時更新の要件に合わせます。",
+      "explanation":"## はじめて学ぶ人へ\n\nトランザクションは、複数のDB更新を**全部成功か全部取り消し**にまとめる仕組みです。銀行振込で、Aさんの残高だけ減った直後に障害が起き、Bさんの残高が増えない状態を防ぐために必要です。\n\n```text\nBEGIN\n  Aの残高を -1000円\n  Bの残高を +1000円\n成功 → COMMIT（両方確定）\n失敗 → ROLLBACK（両方取り消し）\n```\n\n接続プールは、毎回接続を作る代わりに再利用できる接続を用意しておく仕組みです。ただし借りた接続は必ず返却し、トランザクションを長時間開いたままにしません。外部APIの待ち時間までDB処理に含めると、他の利用者が接続やロックを待つ原因になります。\n\n## 複数更新を全部成功か全部取消にする\n\n送金は出金と入金の両方が成功して初めて完成です。\n\n```java\ncon.setAutoCommit(false);\ntry {\n    debit(con, from, amount);\n    credit(con, to, amount);\n    con.commit();\n} catch (Exception e) {\n    con.rollback();\n    throw e;\n}\n```\n\nトランザクション境界はServiceの業務操作単位に置き、Repositoryメソッドごとにcommitしません。同じトランザクションの更新は同じConnectionを使います。例外時のrollbackを忘れると途中状態が残ります。\n\n実務ではDataSourceからプール済み接続を借ります。try-with-resourcesのcloseは物理切断ではなくプールへの返却になります。ConnectionをServletフィールドへ保持せず、処理ごとに短く借りて返します。分離レベルやロックは同時更新の要件に合わせます。",
       "samples":[{"caption":"rollbackで更新を戻す","code":"import java.sql.*;\npublic class JdbcTxSample{public static void main(String[]a)throws Exception{try(Connection c=MiniJdbc.open()){c.setAutoCommit(false);try(PreparedStatement p=c.prepareStatement(\"UPDATE users SET balance = ? WHERE id = ?\")){p.setInt(1,0);p.setInt(2,1);p.executeUpdate();}c.rollback();try(PreparedStatement p=c.prepareStatement(\"SELECT id, name, balance FROM users WHERE id = ?\")){p.setInt(1,1);try(ResultSet r=p.executeQuery()){r.next();System.out.println(r.getInt(\"balance\"));}}}}}\n"}],
       "task":"入力 `from to amount` で送金してください。残高不足またはIDなしならrollbackして `送金失敗`。成功ならcommitし、`from=<残高> to=<残高>` を表示します。",
       "starterCode":"import java.sql.*;\nimport java.util.*;\npublic class JdbcTransfer{static Integer balance(Connection c,int id)throws SQLException{try(PreparedStatement p=c.prepareStatement(\"SELECT id, name, balance FROM users WHERE id = ?\")){p.setInt(1,id);try(ResultSet r=p.executeQuery()){return r.next()?r.getInt(\"balance\"):null;}}}static void set(Connection c,int id,int value)throws SQLException{try(PreparedStatement p=c.prepareStatement(\"UPDATE users SET balance = ? WHERE id = ?\")){p.setInt(1,value);p.setInt(2,id);p.executeUpdate();}}public static void main(String[]a)throws Exception{Scanner s=new Scanner(System.in);int from=s.nextInt(),to=s.nextInt(),amount=s.nextInt();try(Connection c=MiniJdbc.open()){c.setAutoCommit(false);// TODO\n}}}\n",
@@ -41,6 +41,123 @@
       "solution":"import java.sql.*;\nimport java.util.*;\npublic class JdbcTransfer{static Integer balance(Connection c,int id)throws SQLException{try(PreparedStatement p=c.prepareStatement(\"SELECT id, name, balance FROM users WHERE id = ?\")){p.setInt(1,id);try(ResultSet r=p.executeQuery()){return r.next()?r.getInt(\"balance\"):null;}}}static void set(Connection c,int id,int value)throws SQLException{try(PreparedStatement p=c.prepareStatement(\"UPDATE users SET balance = ? WHERE id = ?\")){p.setInt(1,value);p.setInt(2,id);p.executeUpdate();}}public static void main(String[]a)throws Exception{Scanner s=new Scanner(System.in);int from=s.nextInt(),to=s.nextInt(),amount=s.nextInt();try(Connection c=MiniJdbc.open()){c.setAutoCommit(false);Integer fb=balance(c,from),tb=balance(c,to);if(fb==null||tb==null||amount<=0||fb<amount){c.rollback();System.out.println(\"送金失敗\");return;}set(c,from,fb-amount);set(c,to,tb+amount);c.commit();System.out.println(\"from=\"+(fb-amount)+\" to=\"+(tb+amount));}}}\n",
       "extraTasks":[{"kind":"applied","task":"2回更新した直後に意図的な例外を投げ、catchでrollbackしてください。その後のID 1,2残高が初期値なら `rollback成功: 1000,500` と表示します。","starterCode":"import java.sql.*;\npublic class JdbcRollback{static int get(Connection c,int id)throws Exception{try(PreparedStatement p=c.prepareStatement(\"SELECT id, name, balance FROM users WHERE id = ?\")){p.setInt(1,id);try(ResultSet r=p.executeQuery()){r.next();return r.getInt(\"balance\");}}}static void add(Connection c,int id,int value)throws Exception{try(PreparedStatement p=c.prepareStatement(\"UPDATE users SET balance = balance + ? WHERE id = ?\")){p.setInt(1,value);p.setInt(2,id);p.executeUpdate();}}public static void main(String[]a)throws Exception{try(Connection c=MiniJdbc.open()){c.setAutoCommit(false);try{// TODO: 1から100減らし2へ100足したあと例外\n}catch(Exception e){// TODO rollback\n}System.out.println(\"rollback成功: \"+get(c,1)+\",\"+get(c,2));}}}\n","visibleCases":[{"label":"全更新取消","stdin":"","expected":"rollback成功: 1000,500"}],"hiddenCases":[],"hints":["`add(c,1,-100); add(c,2,100);`。","次に `throw new IllegalStateException()`。","catch内で `c.rollback()`。"],"solution":"import java.sql.*;\npublic class JdbcRollback{static int get(Connection c,int id)throws Exception{try(PreparedStatement p=c.prepareStatement(\"SELECT id, name, balance FROM users WHERE id = ?\")){p.setInt(1,id);try(ResultSet r=p.executeQuery()){r.next();return r.getInt(\"balance\");}}}static void add(Connection c,int id,int value)throws Exception{try(PreparedStatement p=c.prepareStatement(\"UPDATE users SET balance = balance + ? WHERE id = ?\")){p.setInt(1,value);p.setInt(2,id);p.executeUpdate();}}public static void main(String[]a)throws Exception{try(Connection c=MiniJdbc.open()){c.setAutoCommit(false);try{add(c,1,-100);add(c,2,100);throw new IllegalStateException();}catch(Exception e){c.rollback();}System.out.println(\"rollback成功: \"+get(c,1)+\",\"+get(c,2));}}}\n"}],
       "quiz":[{"question":"ResultSetで最初の行を読む前に必要なのは？","choices":["commit()","next()","rollback()","setAutoCommit(true)"],"answer":1,"explanation":"カーソルは最初の行の手前にあるためnextで進めます。"},{"question":"PreparedStatementの `?` にできないものは？","choices":["検索ID","更新する名前","最低金額","ORDER BYの列名"],"answer":3,"explanation":"プレースホルダは値用です。識別子は許可リストから安全なSQL断片を選びます。"},{"question":"送金処理のトランザクション境界として適切なのは？","choices":["出金だけ","入金だけ","出金と入金をまとめた業務操作全体","ResultSetの1行ごと"],"answer":2,"explanation":"一緒に成功すべき更新を同一トランザクションに含めます。"},{"question":"DataSourceから借りたConnectionをcloseする意味は通常どれ？","choices":["必ずDBサーバを停止","接続プールへ返却","テーブルを削除","自動的に全例外を無視"],"answer":1,"explanation":"プール管理下ではcloseで再利用可能な状態にして返します。"}]
+    },
+    {
+      "id": "24-4",
+      "title": "章末演習：JDBC",
+      "explanation": "## この章の知識を、自分の手で組み合わせよう\n\nここでは、**Connection・PreparedStatement・ResultSet・更新件数・トランザクション**をまとめて使います。新しい文法は登場しません。分からなくなったら、直前までの解説やサンプルへ戻って確認して大丈夫です。\n\n### 3問の進め方\n\n1. **基本**で、中心となる書き方をもう一度使う\n2. **組み合わせ**で、章内の複数の知識を一緒に使う\n3. **実践**で、少し現実的な入力と条件を整理する\n\nまず入力例と期待される出力を紙に書き、処理を小さな手順へ分けてからコードにすると進めやすくなります。",
+      "samples": [
+        {
+          "caption": "復習用サンプル：rollbackで更新を戻す",
+          "code": "import java.sql.*;\npublic class JdbcTxSample{public static void main(String[]a)throws Exception{try(Connection c=MiniJdbc.open()){c.setAutoCommit(false);try(PreparedStatement p=c.prepareStatement(\"UPDATE users SET balance = ? WHERE id = ?\")){p.setInt(1,0);p.setInt(2,1);p.executeUpdate();}c.rollback();try(PreparedStatement p=c.prepareStatement(\"SELECT id, name, balance FROM users WHERE id = ?\")){p.setInt(1,1);try(ResultSet r=p.executeQuery()){r.next();System.out.println(r.getInt(\"balance\"));}}}}}\n"
+        }
+      ],
+      "task": "【基本】IDを読み、PreparedStatementでusersを検索して `名前 balance=残高` と表示してください。該当しなければ `not found` です。SQLは `SELECT id, name, balance FROM users WHERE id = ?` を使います。",
+      "starterCode": "import java.sql.*;\nimport java.util.*;\npublic class Main {public static void main(String[] args)throws Exception{int id=new Scanner(System.in).nextInt();try(Connection c=MiniJdbc.open();PreparedStatement p=c.prepareStatement(\"SELECT id, name, balance FROM users WHERE id = ?\")){/* TODO */}}}\n",
+      "visibleCases": [
+        {
+          "label": "山田",
+          "stdin": "1",
+          "expected": "山田 balance=1000"
+        },
+        {
+          "label": "佐藤",
+          "stdin": "2",
+          "expected": "佐藤 balance=500"
+        }
+      ],
+      "hiddenCases": [
+        {
+          "label": "鈴木",
+          "stdin": "3",
+          "expected": "鈴木 balance=0"
+        },
+        {
+          "label": "該当なし",
+          "stdin": "9",
+          "expected": "not found"
+        }
+      ],
+      "hints": [
+        "1番目のプレースホルダへidを設定します。",
+        "ResultSetはnextしてから列を読みます。"
+      ],
+      "solution": "import java.sql.*;\nimport java.util.*;\npublic class Main {public static void main(String[] args)throws Exception{int id=new Scanner(System.in).nextInt();try(Connection c=MiniJdbc.open();PreparedStatement p=c.prepareStatement(\"SELECT id, name, balance FROM users WHERE id = ?\")){p.setInt(1,id);try(ResultSet r=p.executeQuery()){if(r.next())System.out.println(r.getString(\"name\")+\" balance=\"+r.getInt(\"balance\"));else System.out.println(\"not found\");}}}}\n",
+      "extraTasks": [
+        {
+          "kind": "drill",
+          "task": "【組み合わせ】IDと加算額を読み、`UPDATE users SET balance = balance + ? WHERE id = ?` で残高を変更します。更新後の残高を同じConnectionで検索し、`updated=件数 balance=残高`、対象なしなら `updated=0` と表示してください。",
+          "starterCode": "import java.sql.*;\nimport java.util.*;\npublic class Main {public static void main(String[] args)throws Exception{Scanner s=new Scanner(System.in);int id=s.nextInt(),amount=s.nextInt();try(Connection c=MiniJdbc.open()){/* 更新して再検索 */}}}\n",
+          "visibleCases": [
+            {
+              "label": "加算",
+              "stdin": "2 200",
+              "expected": "updated=1 balance=700"
+            },
+            {
+              "label": "減算",
+              "stdin": "1 -300",
+              "expected": "updated=1 balance=700"
+            }
+          ],
+          "hiddenCases": [
+            {
+              "label": "対象なし",
+              "stdin": "9 100",
+              "expected": "updated=0"
+            },
+            {
+              "label": "0加算",
+              "stdin": "3 0",
+              "expected": "updated=1 balance=0"
+            }
+          ],
+          "hints": [
+            "更新SQLの1番へamount、2番へidを設定します。",
+            "更新件数が1のときだけSELECTを実行します。"
+          ],
+          "solution": "import java.sql.*;\nimport java.util.*;\npublic class Main {public static void main(String[] args)throws Exception{Scanner s=new Scanner(System.in);int id=s.nextInt(),amount=s.nextInt();try(Connection c=MiniJdbc.open()){int updated;try(PreparedStatement p=c.prepareStatement(\"UPDATE users SET balance = balance + ? WHERE id = ?\")){p.setInt(1,amount);p.setInt(2,id);updated=p.executeUpdate();}if(updated==0){System.out.println(\"updated=0\");return;}try(PreparedStatement p=c.prepareStatement(\"SELECT id, name, balance FROM users WHERE id = ?\")){p.setInt(1,id);try(ResultSet r=p.executeQuery()){r.next();System.out.println(\"updated=1 balance=\"+r.getInt(\"balance\"));}}}}}\n"
+        },
+        {
+          "kind": "applied",
+          "task": "【実践】from、to、amountを読み、2口座間で送金します。どちらかが無い、amountが0以下、残高不足ならrollbackして `failed`、成功ならcommitして `from=残高 to=残高` と表示してください。",
+          "starterCode": "import java.sql.*;\nimport java.util.*;\npublic class Main {static Integer balance(Connection c,int id)throws Exception{/* TODO */return null;}static void add(Connection c,int id,int amount)throws Exception{/* TODO */}public static void main(String[] args)throws Exception{Scanner s=new Scanner(System.in);int from=s.nextInt(),to=s.nextInt(),amount=s.nextInt();try(Connection c=MiniJdbc.open()){c.setAutoCommit(false);/* TODO */}}}\n",
+          "visibleCases": [
+            {
+              "label": "送金成功",
+              "stdin": "1 2 300",
+              "expected": "from=700 to=800"
+            },
+            {
+              "label": "残高不足",
+              "stdin": "2 1 600",
+              "expected": "failed"
+            }
+          ],
+          "hiddenCases": [
+            {
+              "label": "対象なし",
+              "stdin": "1 9 100",
+              "expected": "failed"
+            },
+            {
+              "label": "全額",
+              "stdin": "2 3 500",
+              "expected": "from=0 to=500"
+            },
+            {
+              "label": "不正額",
+              "stdin": "1 2 0",
+              "expected": "failed"
+            }
+          ],
+          "hints": [
+            "最初に両方の残高を読み、更新前にすべての条件を確認します。",
+            "失敗時はrollback、2回の更新後はcommitします。"
+          ],
+          "solution": "import java.sql.*;\nimport java.util.*;\npublic class Main {static Integer balance(Connection c,int id)throws Exception{try(PreparedStatement p=c.prepareStatement(\"SELECT id, name, balance FROM users WHERE id = ?\")){p.setInt(1,id);try(ResultSet r=p.executeQuery()){return r.next()?r.getInt(\"balance\"):null;}}}static void add(Connection c,int id,int amount)throws Exception{try(PreparedStatement p=c.prepareStatement(\"UPDATE users SET balance = balance + ? WHERE id = ?\")){p.setInt(1,amount);p.setInt(2,id);p.executeUpdate();}}public static void main(String[] args)throws Exception{Scanner s=new Scanner(System.in);int from=s.nextInt(),to=s.nextInt(),amount=s.nextInt();try(Connection c=MiniJdbc.open()){c.setAutoCommit(false);Integer a=balance(c,from),b=balance(c,to);if(a==null||b==null||amount<=0||a<amount){c.rollback();System.out.println(\"failed\");return;}add(c,from,-amount);add(c,to,amount);c.commit();System.out.println(\"from=\"+(a-amount)+\" to=\"+(b+amount));}}}\n"
+        }
+      ]
     }
   ]
 }

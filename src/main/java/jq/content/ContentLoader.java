@@ -134,7 +134,8 @@ public final class ContentLoader {
             samples.add(new Sample(
                     MiniJson.str(s, "caption", "サンプル"),
                     MiniJson.requireStr(s, "code"),
-                    MiniJson.str(s, "stdin", "")));
+                    MiniJson.str(s, "stdin", ""),
+                    s.containsKey("expected") ? MiniJson.str(s, "expected", "") : null));
         }
 
         return new Lesson(
@@ -261,6 +262,16 @@ public final class ContentLoader {
             }
         }
 
+        List<SourceCheck> sourceChecks = new ArrayList<>();
+        for (Object o : MiniJson.list(raw, "sourceChecks")) {
+            Map<String, Object> check = MiniJson.asObj(o);
+            sourceChecks.add(new SourceCheck(
+                    MiniJson.requireStr(check, "pattern"),
+                    MiniJson.intOf(check, "minimum", 1),
+                    MiniJson.intOf(check, "maximum", -1),
+                    MiniJson.requireStr(check, "message")));
+        }
+
         String kind = MiniJson.str(raw, "kind", defaultKind);
         if (!kind.equals("practice") && !kind.equals("drill") && !kind.equals("applied")) {
             throw new IllegalStateException(where + " の kind は practice / drill / applied "
@@ -274,7 +285,8 @@ public final class ContentLoader {
                 MiniJson.str(raw, "starterCode", defaultStarter()),
                 List.copyOf(cases),
                 List.copyOf(hints),
-                MiniJson.str(raw, "solution", ""));
+                MiniJson.str(raw, "solution", ""),
+                List.copyOf(sourceChecks));
     }
 
     /**

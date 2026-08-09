@@ -389,7 +389,7 @@
     {
       "id": "6-5",
       "title": "2次元配列と Arrays",
-      "explanation": "## 表のようなデータを持つ\n\n配列の要素をさらに配列にすると、表（マトリクス）のようなデータを持てます。\nこれを **2次元配列** といいます。\n\n```java\nint[][] table = new int[2][3];   // 2行3列。中身はすべて 0\ntable[0][0] = 5;                 // 1行目の1列目に 5\nSystem.out.println(table[0][0]); // 5\n```\n\n最初から中身を書いて作ることもできます。内側の `{}` が1行分です。\n\n```java\nint[][] table = {\n    {1, 2, 3},\n    {4, 5, 6}\n};\nSystem.out.println(table[1][2]);   // 6（2行目の3列目）\n```\n\n### length は「行数」と「列数」で使い分ける\n\nここが一番大事です。\n\n- `table.length` … **行数**（外側の要素数）\n- `table[i].length` … **`i` 行目の列数**（内側の要素数）\n\n```java\nint[][] table = {{1, 2, 3}, {4, 5, 6}};\nSystem.out.println(table.length);      // 2 ← 行数\nSystem.out.println(table[0].length);   // 3 ← 1行目の列数\n```\n\n2重の `for` で全部を回るときは、外側が行、内側が列です。\n\n```java\nfor (int i = 0; i < table.length; i++) {\n    for (int j = 0; j < table[i].length; j++) {\n        System.out.print(table[i][j] + \" \");\n    }\n    System.out.println();\n}\n```\n\n拡張for でも書けます。「1行分の配列」が順番に取り出されます。\n\n```java\nfor (int[] row : table) {\n    for (int value : row) {\n        System.out.print(value + \" \");\n    }\n    System.out.println();\n}\n```\n\n## 行ごとに長さが違ってもよい（ジャグ配列）\n\nJavaの2次元配列は「配列の配列」なので、行ごとに長さを変えられます。\n`new int[3][]` のように **内側を空けて** 作り、行ごとに用意します。\n\n```java\nint[][] jagged = new int[3][];\njagged[0] = new int[1];\njagged[1] = new int[4];\njagged[2] = new int[2];\nSystem.out.println(jagged[1].length);   // 4\n```\n\n> ⚠️ 試験のワナ … 列数に `table[0].length` を使うと、行ごとに長さが違う配列で落ちます。\n\n```java\nfor (int i = 0; i < table.length; i++) {\n    for (int j = 0; j < table[0].length; j++) {   // ❌ 0行目の長さを全行に使っている\n        System.out.println(table[i][j]);          //    → ArrayIndexOutOfBoundsException\n    }\n}\n```\n\n内側のループは必ず `table[i].length` を見ます。\n\n> ⚠️ 試験のワナ … 外側の要素数は省略できません。`new int[][]` や `new int[][3]` はコンパイルエラーです。\n\n`new int[3][]` は OK（内側は後から）、`new int[3][2]` も OK。\n迷ったら「左から埋める」と覚えます。\n\n## Arrays クラス — 配列の便利道具\n\n配列を扱う定番メソッドが `java.util.Arrays` にまとまっています。\n\n| メソッド | すること |\n|---|---|\n| `Arrays.toString(a)` | 1次元配列を `[1, 2, 3]` の形の文字列にする |\n| `Arrays.deepToString(a)` | 2次元以上を `[[1, 2], [3]]` の形にする |\n| `Arrays.sort(a)` | 小さい順に並べ替える（配列そのものが変わる） |\n| `Arrays.fill(a, v)` | 全要素を `v` にする |\n\n```java\nimport java.util.Arrays;\n\nint[] a = {3, 1, 2};\nSystem.out.println(Arrays.toString(a));   // [3, 1, 2]\nArrays.sort(a);\nSystem.out.println(Arrays.toString(a));   // [1, 2, 3]\n```\n\n> ⚠️ 試験のワナ … 配列をそのまま `println` すると `[I@1b6d3586` のような内部表現が出ます。中身を見たいときは `Arrays.toString` を使います。",
+      "explanation": "## 表のようなデータを持つ\n\n配列の要素をさらに配列にすると、表（マトリクス）のようなデータを持てます。\nこれを **2次元配列** といいます。\n\n```java\nint[][] table = new int[2][3];   // 2行3列。中身はすべて 0\ntable[0][0] = 5;                 // 1行目の1列目に 5\nSystem.out.println(table[0][0]); // 5\n```\n\n最初から中身を書いて作ることもできます。内側の `{}` が1行分です。\n\n```java\nint[][] table = {\n    {1, 2, 3},\n    {4, 5, 6}\n};\nSystem.out.println(table[1][2]);   // 6（2行目の3列目）\n```\n\n### length は「行数」と「列数」で使い分ける\n\nここが一番大事です。\n\n- `table.length` … **行数**（外側の要素数）\n- `table[i].length` … **`i` 行目の列数**（内側の要素数）\n\n```java\nint[][] table = {{1, 2, 3}, {4, 5, 6}};\nSystem.out.println(table.length);      // 2 ← 行数\nSystem.out.println(table[0].length);   // 3 ← 1行目の列数\n```\n\n2重の `for` で全部を回るときは、外側が行、内側が列です。\n\n```java\nfor (int i = 0; i < table.length; i++) {\n    for (int j = 0; j < table[i].length; j++) {\n        System.out.print(table[i][j] + \" \");\n    }\n    System.out.println();\n}\n```\n\n拡張for でも書けます。「1行分の配列」が順番に取り出されます。\n\n```java\nfor (int[] row : table) {\n    for (int value : row) {\n        System.out.print(value + \" \");\n    }\n    System.out.println();\n}\n```\n\n## 行ごとに長さが違ってもよい（ジャグ配列）\n\nJavaの2次元配列は「配列の配列」なので、行ごとに長さを変えられます。\n`new int[3][]` のように **内側を空けて** 作り、行ごとに用意します。\n\n```java\nint[][] jagged = new int[3][];\njagged[0] = new int[1];\njagged[1] = new int[4];\njagged[2] = new int[2];\nSystem.out.println(jagged[1].length);   // 4\n```\n\n> ⚠️ 間違えやすい点 … 列数に `table[0].length` を使うと、行ごとに長さが違う配列で落ちます。\n\n```java\nfor (int i = 0; i < table.length; i++) {\n    for (int j = 0; j < table[0].length; j++) {   // ❌ 0行目の長さを全行に使っている\n        System.out.println(table[i][j]);          //    → ArrayIndexOutOfBoundsException\n    }\n}\n```\n\n内側のループは必ず `table[i].length` を見ます。\n\n> ⚠️ 間違えやすい点 … 外側の要素数は省略できません。`new int[][]` や `new int[][3]` はコンパイルエラーです。\n\n`new int[3][]` は OK（内側は後から）、`new int[3][2]` も OK。\n迷ったら「左から埋める」と覚えます。\n\n## Arrays クラス — 配列の便利道具\n\n配列を扱う定番メソッドが `java.util.Arrays` にまとまっています。\n\n| メソッド | すること |\n|---|---|\n| `Arrays.toString(a)` | 1次元配列を `[1, 2, 3]` の形の文字列にする |\n| `Arrays.deepToString(a)` | 2次元以上を `[[1, 2], [3]]` の形にする |\n| `Arrays.sort(a)` | 小さい順に並べ替える（配列そのものが変わる） |\n| `Arrays.fill(a, v)` | 全要素を `v` にする |\n\n```java\nimport java.util.Arrays;\n\nint[] a = {3, 1, 2};\nSystem.out.println(Arrays.toString(a));   // [3, 1, 2]\nArrays.sort(a);\nSystem.out.println(Arrays.toString(a));   // [1, 2, 3]\n```\n\n> ⚠️ 間違えやすい点 … 配列をそのまま `println` すると `[I@1b6d3586` のような内部表現が出ます。中身を見たいときは `Arrays.toString` を使います。",
       "samples": [
         {
           "caption": "行数と列数、そして中身の並べ方",
@@ -533,6 +533,118 @@
           ],
           "answer": 2,
           "explanation": "配列は `toString()` を上書きしていないので、内部表現が出ます。中身を見たいときは `Arrays.toString(a)` を使います（2次元なら `Arrays.deepToString`）。"
+        }
+      ]
+    },
+    {
+      "id": "6-6",
+      "title": "章末演習：配列",
+      "explanation": "## この章の知識を、自分の手で組み合わせよう\n\nここでは、**配列・拡張for・最大最小・二次元配列**をまとめて使います。新しい文法は登場しません。分からなくなったら、直前までの解説やサンプルへ戻って確認して大丈夫です。\n\n### 3問の進め方\n\n1. **基本**で、中心となる書き方をもう一度使う\n2. **組み合わせ**で、章内の複数の知識を一緒に使う\n3. **実践**で、少し現実的な入力と条件を整理する\n\nまず入力例と期待される出力を紙に書き、処理を小さな手順へ分けてからコードにすると進めやすくなります。",
+      "samples": [
+        {
+          "caption": "復習用サンプル：行数と列数、そして中身の並べ方",
+          "code": "import java.util.Arrays;\n\npublic class Main {\n    public static void main(String[] args) {\n        int[][] table = {\n            {1, 2, 3},\n            {4, 5, 6}\n        };\n\n        System.out.println(\"行数 \" + table.length);\n        System.out.println(\"1行目の列数 \" + table[0].length);\n\n        for (int[] row : table) {\n            System.out.println(Arrays.toString(row));\n        }\n\n        System.out.println(Arrays.deepToString(table));\n        System.out.println(table);              // 中身は出ない\n    }\n}\n"
+        }
+      ],
+      "task": "【基本】要素数nとn個の整数を読み、正の数・0・負の数の個数を `positive=... zero=... negative=...` と表示してください。",
+      "starterCode": "import java.util.*;\npublic class Main { public static void main(String[] args) { Scanner sc=new Scanner(System.in); int n=sc.nextInt(); int[] values=new int[n]; for(int i=0;i<n;i++)values[i]=sc.nextInt(); /* TODO */ } }\n",
+      "visibleCases": [
+        {
+          "label": "混在",
+          "stdin": "5 -2 0 3 4 -1",
+          "expected": "positive=2 zero=1 negative=2"
+        },
+        {
+          "label": "すべて正",
+          "stdin": "3 1 2 3",
+          "expected": "positive=3 zero=0 negative=0"
+        }
+      ],
+      "hiddenCases": [
+        {
+          "label": "空配列",
+          "stdin": "0",
+          "expected": "positive=0 zero=0 negative=0"
+        },
+        {
+          "label": "すべて0",
+          "stdin": "4 0 0 0 0",
+          "expected": "positive=0 zero=4 negative=0"
+        }
+      ],
+      "hints": [
+        "3つのカウンタを0で初期化します。",
+        "拡張forで値を1つずつ分類します。"
+      ],
+      "solution": "import java.util.*;\npublic class Main { public static void main(String[] args) { Scanner sc=new Scanner(System.in); int n=sc.nextInt(); int[] values=new int[n]; for(int i=0;i<n;i++)values[i]=sc.nextInt(); int p=0,z=0,m=0; for(int v:values){if(v>0)p++;else if(v==0)z++;else m++;} System.out.println(\"positive=\"+p+\" zero=\"+z+\" negative=\"+m); } }\n",
+      "extraTasks": [
+        {
+          "kind": "drill",
+          "task": "【組み合わせ】n個の整数を配列へ読み、逆順に半角スペース区切りで表示してください。行末に余分な空白は付けません。",
+          "starterCode": "import java.util.*;\npublic class Main { public static void main(String[] args) { Scanner sc=new Scanner(System.in); int n=sc.nextInt(); int[] a=new int[n]; for(int i=0;i<n;i++)a[i]=sc.nextInt(); /* TODO */ } }\n",
+          "visibleCases": [
+            {
+              "label": "4要素",
+              "stdin": "4 10 20 30 40",
+              "expected": "40 30 20 10"
+            },
+            {
+              "label": "1要素",
+              "stdin": "1 7",
+              "expected": "7"
+            }
+          ],
+          "hiddenCases": [
+            {
+              "label": "空",
+              "stdin": "0",
+              "expected": ""
+            },
+            {
+              "label": "負数を含む",
+              "stdin": "3 -1 0 2",
+              "expected": "2 0 -1"
+            }
+          ],
+          "hints": [
+            "最後の添字は `n - 1` です。",
+            "最初に表示する要素以外の前へ空白を出します。"
+          ],
+          "solution": "import java.util.*;\npublic class Main { public static void main(String[] args) { Scanner sc=new Scanner(System.in); int n=sc.nextInt(); int[] a=new int[n]; for(int i=0;i<n;i++)a[i]=sc.nextInt(); for(int i=n-1;i>=0;i--){if(i<n-1)System.out.print(\" \");System.out.print(a[i]);}System.out.println(); } }\n"
+        },
+        {
+          "kind": "applied",
+          "task": "【実践】行数r、列数c、r×c個の整数を読み、各行の合計を1行ずつ表示してください。",
+          "starterCode": "import java.util.*;\npublic class Main { public static void main(String[] args) { Scanner sc=new Scanner(System.in); int r=sc.nextInt(), c=sc.nextInt(); int[][] table=new int[r][c]; /* 読み込みと集計 */ } }\n",
+          "visibleCases": [
+            {
+              "label": "2行3列",
+              "stdin": "2 3 1 2 3 4 5 6",
+              "expected": "6\n15"
+            },
+            {
+              "label": "1行",
+              "stdin": "1 4 2 4 6 8",
+              "expected": "20"
+            }
+          ],
+          "hiddenCases": [
+            {
+              "label": "3行1列",
+              "stdin": "3 1 -1 0 5",
+              "expected": "-1\n0\n5"
+            },
+            {
+              "label": "0行",
+              "stdin": "0 3",
+              "expected": ""
+            }
+          ],
+          "hints": [
+            "読み込みには行と列の二重ループを使います。",
+            "集計では各rowごとにsumを0へ戻します。"
+          ],
+          "solution": "import java.util.*;\npublic class Main { public static void main(String[] args) { Scanner sc=new Scanner(System.in); int r=sc.nextInt(), c=sc.nextInt(); int[][] table=new int[r][c]; for(int i=0;i<r;i++)for(int j=0;j<c;j++)table[i][j]=sc.nextInt(); for(int[] row:table){int sum=0;for(int v:row)sum+=v;System.out.println(sum);} } }\n"
         }
       ]
     }

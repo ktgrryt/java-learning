@@ -1,0 +1,65 @@
+{
+  "id":"ch53","title":"業務フレームワークの選択肢","subtitle":"Spring Boot・Open Liberty・Quarkusを同じ要件で比較する","emoji":"🧩",
+  "lessons":[
+    {
+      "id":"53-1","title":"フレームワークを選ぶ軸",
+      "explanation":"## 製品名より制約から選ぶ\n\nSpring Boot、Open Liberty、Quarkusはいずれも業務Javaの有力な選択肢です。Spring BootはSpring ecosystemとauto-configuration、Open LibertyはJakarta EE/MicroProfile準拠と構成可能なruntime、Quarkusはbuild-time最適化とcontainer/native用途を特徴とします。ただしstartupやmemoryは依存、設定、JVM、負荷で変わるため、自分のアプリで測ります。\n\n比較表には、必要仕様、既存ライブラリ、組織の運用・サポート、JDK対応、開発体験、起動時間、定常memory、throughput、監視・security、移行性を置きます。小さな同一APIを各候補で作り、本番相当条件でADRを残します。\n\n> 🧪 この章の画面内問題は、選定条件や設定の**小さなモデル**です。フレームワークを使えるようになる実習は`labs/frameworks`で行い、3つの実アプリを起動してHTTP応答、health、test、成果物を比較してください。",
+      "samples":[{"caption":"重み付き評価の考え方","code":"import java.util.*;public class Main{public static void main(String[] a){Map<String,Integer> score=Map.of(\"standards\",5,\"operations\",5,\"startup\",3);System.out.println(score.values().stream().mapToInt(Integer::intValue).sum());}}\n"}],
+      "task":"候補n件を `name standards operations performance` の点数で読み、合計が最大のnameを表示してください。同点は先に入力された候補です。",
+      "starterCode":"import java.util.*;public class Main{public static void main(String[] a){Scanner s=new Scanner(System.in);int n=s.nextInt(),best=-1;String selected=\"\";for(int i=0;i<n;i++){String name=s.next();int total=s.nextInt()+s.nextInt()+s.nextInt();/* TODO */}System.out.println(selected);}}\n",
+      "visibleCases":[{"label":"要件で比較","stdin":"3 SpringBoot 3 5 4 OpenLiberty 5 4 3 Quarkus 4 3 5","expected":"SpringBoot"}],
+      "hiddenCases":[{"label":"最大値","stdin":"2 A 1 1 1 B 5 5 5","expected":"B"}],
+      "hints":["`total>best` のときだけ更新すると同点は先着です。"],
+      "solution":"import java.util.*;public class Main{public static void main(String[] a){Scanner s=new Scanner(System.in);int n=s.nextInt(),best=-1;String selected=\"\";for(int i=0;i<n;i++){String name=s.next();int total=s.nextInt()+s.nextInt()+s.nextInt();if(total>best){best=total;selected=name;}}System.out.println(selected);}}\n",
+      "quiz":[{"question":"フレームワーク選定で最も再現性のある方法は？","choices":["知名度だけで決める","同一要件のprototypeを本番相当条件で測りADRを残す","短いhello worldの起動時間だけで決める","将来のversionを固定して考えない"],"answer":1,"explanation":"機能・非機能・運用・組織制約を同じ条件で比較します。"}]
+    },
+    {
+      "id":"53-2","title":"共通のWebアプリ設計",
+      "explanation":"## HTTPの外側と業務logicを分ける\n\nどのframeworkでも、HTTP adapterが入力を構文解析・検証し、application serviceがuse caseを調整し、domainが業務規則を持ち、repository/clientが外部I/Oを隠す構造は共通です。HTTP status、JSON schema、transaction境界、timeout、認証認可、error responseを契約としてテストします。\n\nframework annotationをdomainへ広げすぎなければ、単体テストが速く、version更新やframework変更の影響範囲も小さくなります。一方、抽象化のためだけのinterfaceを量産せず、実際に変化・試験したい境界へ置きます。DI containerのscopeとlifecycleを理解し、singleton相当のcomponentにrequestごとのmutable stateを持たせません。",
+      "samples":[{"caption":"framework非依存のuse case","code":"record Greeting(String message){}final class Greet{Greeting execute(String name){if(name==null||name.isBlank())throw new IllegalArgumentException();return new Greeting(\"Hello, \"+name);}}public class Main{public static void main(String[] a){System.out.println(new Greet().execute(\"Java\").message());}}\n"}],
+      "task":"名前を1語読み、長さが1〜20なら `200 Hello, name`、それ以外なら `400 INVALID_NAME` と表示してください。`-` は空文字扱いです。",
+      "starterCode":"import java.util.*;public class Main{public static void main(String[] a){String name=new Scanner(System.in).next();if(name.equals(\"-\"))name=\"\";/* TODO */}}\n",
+      "visibleCases":[{"label":"正常","stdin":"Java","expected":"200 Hello, Java"},{"label":"空","stdin":"-","expected":"400 INVALID_NAME"}],
+      "hiddenCases":[{"label":"長すぎる","stdin":"abcdefghijklmnopqrstu","expected":"400 INVALID_NAME"}],
+      "hints":["`!name.isEmpty() && name.length()<=20`。"],
+      "solution":"import java.util.*;public class Main{public static void main(String[] a){String name=new Scanner(System.in).next();if(name.equals(\"-\"))name=\"\";System.out.println(!name.isEmpty()&&name.length()<=20?\"200 Hello, \"+name:\"400 INVALID_NAME\");}}\n",
+      "quiz":[{"question":"frameworkからdomainを分離する効果は？","choices":["HTTP statusが不要になる","業務logicを高速に単体テストし変更影響を限定しやすい","DIが必ず不要になる","DB transactionが自動で完全になる"],"answer":1,"explanation":"純粋な業務規則と入出力adapterの責務を分けられます。"}]
+    },
+    {
+      "id":"53-3","title":"Spring Bootで構成する",
+      "explanation":"## Spring ecosystemを規約で組み立てる\n\nSpring Bootはdependencyのversion整合、auto-configuration、embedded server、外部設定、production機能をまとめ、Spring MVC/WebFlux、Data、Securityなどを組み合わせます。`@SpringBootApplication` が起点となり、constructor injectionで依存を明示します。Actuatorはhealth、metricsなどの運用endpointを提供しますが、公開範囲と詳細表示はsecurity方針に合わせます。\n\nauto-configurationは魔法ではなくclasspath・property・既存beanなどの条件で動きます。条件レポートと起動logを読み、意図しないbeanや依存を確認します。`@SpringBootTest` を全testに使わず、純粋な単体test、slice test、全体testを使い分けます。実装例は `labs/frameworks/spring-boot` にあります。",
+      "samples":[{"caption":"constructor injectionの形（標準Javaで模型化）","code":"interface ClockPort{long millis();}final class Service{private final ClockPort clock;Service(ClockPort clock){this.clock=clock;}long now(){return clock.millis();}}public class Main{public static void main(String[] a){System.out.println(new Service(()->42L).now());}}\n"}],
+      "task":"classpath上の条件を3つ `web json userBean` の0/1で読みます。webとjsonが1でuserBeanが0なら `AUTO_CONFIGURE`、userBeanが1なら `BACK_OFF`、それ以外は `NO_MATCH` と表示してください。",
+      "starterCode":"import java.util.*;public class Main{public static void main(String[] a){Scanner s=new Scanner(System.in);boolean web=s.nextInt()==1,json=s.nextInt()==1,user=s.nextInt()==1;/* TODO */}}\n",
+      "visibleCases":[{"label":"条件一致","stdin":"1 1 0","expected":"AUTO_CONFIGURE"},{"label":"利用者定義を優先","stdin":"1 1 1","expected":"BACK_OFF"}],
+      "hiddenCases":[{"label":"依存不足","stdin":"1 0 0","expected":"NO_MATCH"}],
+      "hints":["userを最初に判定し、次にwebとjsonを判定します。"],
+      "solution":"import java.util.*;public class Main{public static void main(String[] a){Scanner s=new Scanner(System.in);boolean web=s.nextInt()==1,json=s.nextInt()==1,user=s.nextInt()==1;System.out.println(user?\"BACK_OFF\":web&&json?\"AUTO_CONFIGURE\":\"NO_MATCH\");}}\n",
+      "quiz":[{"question":"Spring Bootのauto-configurationを調べる観点は？","choices":["常に無条件で有効と考える","classpath・property・beanなどの条件を見る","annotation名だけ暗記する","本番では起動logを消す"],"answer":1,"explanation":"条件に基づく構成なので、何が一致・不一致かを観測します。"}]
+    },
+    {
+      "id":"53-4","title":"Open Libertyで構成する",
+      "explanation":"## Jakarta EEとMicroProfileを必要な分だけ有効化する\n\nOpen LibertyはJakarta EEとMicroProfileの仕様を実装するapplication serverです。`server.xml` のfeature managerで `jakartaee-11.0` のようなplatform feature、またはREST/CDI/Persistenceなど必要なfeatureを選びます。標準API中心のapplicationは実装間の移植可能性を保ちやすく、既存Jakarta EE資産や組織のserver運用にも適合します。\n\nliberty Maven/Gradle pluginはdev mode、test、packageを支援します。設定・application・server runtimeを分け、container imageではkernel imageへのfeature導入、application追加、`configure.sh` という層を意識します。health、metrics、OpenAPI、JWTなどはMicroProfile機能として組み合わせられます。実装例は `labs/frameworks/open-liberty` にあります。",
+      "samples":[{"caption":"server.xmlでJakarta EE機能を有効化する形","code":"public class Main {\n    public static void main(String[] args) {\n        String serverXml = \"\"\"\n                <featureManager>\n                    <feature>jakartaee-11.0</feature>\n                </featureManager>\n                \"\"\";\n        System.out.print(serverXml);\n    }\n}\n","expected":"<featureManager>\n    <feature>jakartaee-11.0</feature>\n</featureManager>"}],
+      "task":"Open Libertyの`server.xml`に入れる簡略化したfeature断片を作ります。必要機能n件を読み、重複を除いて名前順に`  <feature>名前</feature>`と1行ずつ表示してください。画面ではXML生成の形を確認し、実際のfeature IDと全体設定は`labs/frameworks/open-liberty`で試します。",
+      "starterCode":"import java.util.*;\npublic class Main {\n    public static void main(String[] args) {\n        Scanner scanner = new Scanner(System.in);\n        int count = scanner.nextInt();\n        Set<String> features = new TreeSet<>();\n        for (int i = 0; i < count; i++) {\n            // TODO: featureを追加する\n        }\n        for (String feature : features) {\n            // TODO: <feature>...</feature>を表示する\n        }\n    }\n}\n",
+      "visibleCases":[{"label":"feature構成","stdin":"5 rest cdi health rest persistence","expected":"  <feature>cdi</feature>\n  <feature>health</feature>\n  <feature>persistence</feature>\n  <feature>rest</feature>"}],
+      "hiddenCases":[{"label":"一機能","stdin":"1 rest","expected":"  <feature>rest</feature>"}],
+      "hints":["入力をTreeSetへ追加し、拡張forで`\"  <feature>\" + feature + \"</feature>\"`を表示します。"],
+      "solution":"import java.util.*;\npublic class Main {\n    public static void main(String[] args) {\n        Scanner scanner = new Scanner(System.in);\n        int count = scanner.nextInt();\n        Set<String> features = new TreeSet<>();\n        for (int i = 0; i < count; i++) {\n            features.add(scanner.next());\n        }\n        for (String feature : features) {\n            System.out.println(\"  <feature>\" + feature + \"</feature>\");\n        }\n    }\n}\n",
+      "quiz":[{"question":"Open Libertyで利用機能を宣言する主な場所は？","choices":["server.xmlのfeature manager","Javaのmodule-infoだけ","ブラウザのcookie","Gitのcommit message"],"answer":0,"explanation":"platform featureまたは個別featureをserver構成で有効化します。"}]
+    },
+    {
+      "id":"53-5","title":"Quarkusで構成する",
+      "explanation":"## build-time最適化を活かす\n\nQuarkusはJakarta REST、CDI、Hibernate ORMなどをextensionとして組み込み、多くの処理をbuild timeへ移して高速起動と小さいmemory footprintを狙うframeworkです。dev modeのlive reloadとDev Servicesは開発を速めます。JVM modeに加えnative executableも選べますが、build時間、platform差、reflection・resource登録、debugging、peak throughputを実測して選びます。\n\nextensionは単なるlibrary追加ではなく、Quarkusとの統合単位です。BOMでversionをそろえ、対応表にあるJDKとextensionを使います。SmallRye Health、OpenAPI、JWT、Fault ToleranceなどMicroProfile系機能も利用できます。実装例は `labs/frameworks/quarkus` にあります。",
+      "samples":[{"caption":"build時に既知のmetadataを固定する模型","code":"import java.util.*;public class Main{static final Set<String> ROUTES=Set.of(\"/api/greeting\",\"/q/health\");public static void main(String[] a){System.out.println(ROUTES.contains(a.length==0?\"/q/health\":a[0]));}}\n"}],
+      "task":"起動方式 `jvm`/`native` と要件 `fast-build`/`fast-start` を読み、fast-buildなら `jvm`、fast-startかつnativeなら `native-candidate`、それ以外は `measure` と表示してください。",
+      "starterCode":"import java.util.*;public class Main{public static void main(String[] a){Scanner s=new Scanner(System.in);String mode=s.next(),goal=s.next();/* TODO */}}\n",
+      "visibleCases":[{"label":"build速度優先","stdin":"native fast-build","expected":"jvm"},{"label":"起動速度候補","stdin":"native fast-start","expected":"native-candidate"}],
+      "hiddenCases":[{"label":"JVMも測定","stdin":"jvm fast-start","expected":"measure"}],
+      "hints":["goalがfast-buildかを先に判定します。"],
+      "solution":"import java.util.*;public class Main{public static void main(String[] a){Scanner s=new Scanner(System.in);String mode=s.next(),goal=s.next();System.out.println(goal.equals(\"fast-build\")?\"jvm\":goal.equals(\"fast-start\")&&mode.equals(\"native\")?\"native-candidate\":\"measure\");}}\n",
+      "quiz":[{"question":"native executable採用前に確認することは？","choices":["常にJVM modeより全指標で速いと仮定","build・互換性・debug・memory・実負荷性能を測る","extensionをBOMから外す","reflectionを無制限に使えると仮定"],"answer":1,"explanation":"利点と制約が用途で変わるため、JVM modeと同じ条件で比較します。"}]
+    }
+  ]
+}

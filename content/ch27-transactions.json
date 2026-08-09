@@ -3,18 +3,21 @@
   "lessons":[
     {
       "id":"27-1","title":"@Transactionalとrollback規則",
-      "explanation":"## 業務操作の境界を宣言する\n\n```java\n@Transactional\npublic void transfer(long from, long to, int amount) { ... }\n```\n\nJakarta Transactionsではinterceptorが開始・commit・rollbackを行います。境界はControllerやRepositoryでなくServiceの公開業務メソッドへ置くのが基本です。\n\n既定ではRuntimeExceptionとErrorでrollbackし、検査例外は通常commit対象です。検査例外の業務例外でも取り消したいなら `@Transactional(rollbackOn=BusinessException.class)`、特定例外で取り消したくなければ `dontRollbackOn` を明示します。例外をcatchして返り値へ変換するとinterceptorから成功に見えるため、必要なら再throwするかrollback-onlyにします。\n\n同じクラス内で自分の@Transactionalメソッドを呼ぶself-invocationはproxy/interceptorを通らない実装があり、期待した境界にならない点にも注意します。",
+      "explanation":"## はじめて学ぶ人へ\n\n`@Transactional` は、メソッドのDB処理を囲む**安全な封筒**です。メソッド開始時にトランザクションを始め、正常終了なら確定、例外なら取り消す処理をコンテナのInterceptorが代行します。\n\n```text\nメソッドを呼ぶ\n  → BEGIN\n  → 在庫を減らす・注文を保存する\n  → 正常なら COMMIT / 失敗なら ROLLBACK\n```\n\nただし例外なら何でも同じ動きとは限りません。一般に実行時例外はrollbackされ、チェック例外は設定次第です。例外を途中で握りつぶすとコンテナが失敗を検知できない場合もあります。「どの例外で取り消すか」を業務上の失敗と合わせて明示しましょう。\n\n## 業務操作の境界を宣言する\n\n```java\n@Transactional\npublic void transfer(long from, long to, int amount) { ... }\n```\n\nJakarta Transactionsではinterceptorが開始・commit・rollbackを行います。境界はControllerやRepositoryでなくServiceの公開業務メソッドへ置くのが基本です。\n\n既定ではRuntimeExceptionとErrorでrollbackし、検査例外は通常commit対象です。検査例外の業務例外でも取り消したいなら `@Transactional(rollbackOn=BusinessException.class)`、特定例外で取り消したくなければ `dontRollbackOn` を明示します。例外をcatchして返り値へ変換するとinterceptorから成功に見えるため、必要なら再throwするかrollback-onlyにします。\n\n同じクラス内で自分の@Transactionalメソッドを呼ぶself-invocationはproxy/interceptorを通らない実装があり、期待した境界にならない点にも注意します。",
       "samples":[{"caption":"rollbackOnを宣言する","code":"import jakarta.transaction.Transactional;\nclass BusinessException extends Exception{}\nclass PaymentService{@Transactional(rollbackOn=BusinessException.class) void pay(boolean fail)throws BusinessException{if(fail)throw new BusinessException();}}\npublic class TransactionAnnotationSample{public static void main(String[]a)throws Exception{Transactional t=PaymentService.class.getDeclaredMethod(\"pay\",boolean.class).getAnnotation(Transactional.class);System.out.println(t.rollbackOn()[0].getSimpleName());}}\n"}],
       "task":"口座残高Mapを使う送金Serviceを完成させてください。amount<=0、IDなし、残高不足なら元のMapへ一切変更を残さず `失敗`。成功なら `A=残高 B=残高`。メソッドへ@Transactionalも付けます。",
       "starterCode":"import jakarta.transaction.Transactional;\nimport java.util.*;\nclass TransferService{private final Map<String,Integer> balances=new LinkedHashMap<>(Map.of(\"A\",1000,\"B\",500));String transfer(String from,String to,int amount){// TODO annotation and atomic update\n return \"\";}}\npublic class TxTransfer{public static void main(String[]a){Scanner s=new Scanner(System.in);TransferService service=new TransferService();System.out.println(service.transfer(s.next(),s.next(),s.nextInt()));}}\n",
       "visibleCases":[{"label":"成功","stdin":"A B 300","expected":"A=700 B=800"},{"label":"不足","stdin":"B A 600","expected":"失敗"}],"hiddenCases":[{"label":"全額","stdin":"B A 500","expected":"A=1500 B=0"},{"label":"負数","stdin":"A B -1","expected":"失敗"},{"label":"IDなし","stdin":"X B 100","expected":"失敗"}],
       "hints":["transferへ `@Transactional`。","更新前に両残高のnull、amount<=0、from残高不足を全て確認し、失敗ならreturn。","検証後に2つのputを連続して行います。"],
       "solution":"import jakarta.transaction.Transactional;\nimport java.util.*;\nclass TransferService{private final Map<String,Integer> balances=new LinkedHashMap<>(Map.of(\"A\",1000,\"B\",500));@Transactional String transfer(String from,String to,int amount){Integer f=balances.get(from),t=balances.get(to);if(f==null||t==null||amount<=0||f<amount)return \"失敗\";balances.put(from,f-amount);balances.put(to,t+amount);return \"A=\"+balances.get(\"A\")+\" B=\"+balances.get(\"B\");}}\npublic class TxTransfer{public static void main(String[]a){Scanner s=new Scanner(System.in);TransferService service=new TransferService();System.out.println(service.transfer(s.next(),s.next(),s.nextInt()));}}\n",
+      "sourceChecks":[
+        {"pattern":"@Transactional\\b","minimum":1,"message":"送金を行うtransferメソッドへ@Transactionalを付けてください。"}
+      ],
       "extraTasks":[{"kind":"applied","task":"例外をcatchして握りつぶす危険を直します。saveHistory失敗時は残高変更も戻し、例外を再throwしてください。mainは `rollback balance=1000` と表示します。","starterCode":"import jakarta.transaction.Transactional;\nclass AccountService{int balance=1000;@Transactional void withdraw(int amount){int before=balance;try{balance-=amount;saveHistory();}catch(RuntimeException e){// TODO rollback相当 + rethrow\n}}void saveHistory(){throw new IllegalStateException(\"DB error\");}}\npublic class TxException{public static void main(String[]a){AccountService s=new AccountService();try{s.withdraw(100);}catch(RuntimeException e){System.out.println(\"rollback balance=\"+s.balance);}}}\n","visibleCases":[{"label":"例外を外へ伝える","stdin":"","expected":"rollback balance=1000"}],"hiddenCases":[],"hints":["catch内で `balance=before`。","その後 `throw e`。実コンテナは外へ出たRuntimeExceptionを見てrollbackします。"],"solution":"import jakarta.transaction.Transactional;\nclass AccountService{int balance=1000;@Transactional void withdraw(int amount){int before=balance;try{balance-=amount;saveHistory();}catch(RuntimeException e){balance=before;throw e;}}void saveHistory(){throw new IllegalStateException(\"DB error\");}}\npublic class TxException{public static void main(String[]a){AccountService s=new AccountService();try{s.withdraw(100);}catch(RuntimeException e){System.out.println(\"rollback balance=\"+s.balance);}}}\n"}]
     },
     {
       "id":"27-2","title":"伝播とトランザクションを短く保つ",
-      "explanation":"## 呼び出し先が既存トランザクションへどう参加するか\n\n`REQUIRED`（既定）は既存があれば参加、無ければ開始。`REQUIRES_NEW` は外側を中断して新規開始します。監査ログを外側失敗後も残す用途などがありますが、内側が先にcommitするので整合性を分けてよいか慎重に決めます。`MANDATORY` は既存必須、`SUPPORTS` はあれば参加です。\n\n外部HTTP API呼び出しや重い計算をDBトランザクション内に置くと、接続とロックを長時間保持します。必要データを検証し、DB更新区間を短くします。ただし外部決済とDBは単純な1トランザクションにはできません。outbox、補償処理、再試行可能な状態機械などを使います。分散処理では「一度しか来ない」と仮定しないことが重要です。",
+      "explanation":"## はじめて学ぶ人へ\n\n伝播（propagation）は、トランザクション中のメソッドから別メソッドを呼んだとき、**同じ会計票を使うか、別会計にするか**を決めるルールです。通常の `REQUIRED` は既存のトランザクションへ参加し、無ければ新しく始めます。\n\n注文保存と在庫更新を同じトランザクションにすれば、一方だけ成功するのを防げます。一方、時間のかかる外部API呼び出しまで中へ入れると、その間ずっとDB接続やロックを保持します。\n\n```text\n外部情報を取得 → 短いDBトランザクションで保存 → 通知\n```\n\nこのように境界を設計し、DB整合性に必要な処理だけを短く囲むのが基本です。\n\n## 呼び出し先が既存トランザクションへどう参加するか\n\n`REQUIRED`（既定）は既存があれば参加、無ければ開始。`REQUIRES_NEW` は外側を中断して新規開始します。監査ログを外側失敗後も残す用途などがありますが、内側が先にcommitするので整合性を分けてよいか慎重に決めます。`MANDATORY` は既存必須、`SUPPORTS` はあれば参加です。\n\n外部HTTP API呼び出しや重い計算をDBトランザクション内に置くと、接続とロックを長時間保持します。必要データを検証し、DB更新区間を短くします。ただし外部決済とDBは単純な1トランザクションにはできません。outbox、補償処理、再試行可能な状態機械などを使います。分散処理では「一度しか来ない」と仮定しないことが重要です。",
       "samples":[{"caption":"伝播属性を読み取る","code":"import jakarta.transaction.Transactional;\nclass Audit{@Transactional(Transactional.TxType.REQUIRES_NEW) void write(){}}\npublic class PropagationSample{public static void main(String[]a)throws Exception{System.out.println(Audit.class.getDeclaredMethod(\"write\").getAnnotation(Transactional.class).value());}}\n"}],
       "task":"操作列をトランザクションtraceへ変換します。入力は `outerSuccess` または `outerFail`。外側はREQUIRED、監査はREQUIRES_NEWなので、失敗時も監査commitは残ります。指定の順で行を出してください。",
       "starterCode":"import jakarta.transaction.Transactional;\nimport java.util.*;\nclass AuditService{@Transactional(Transactional.TxType.REQUIRES_NEW) void write(){System.out.println(\"audit commit\");}}\nclass OrderService{private final AuditService audit=new AuditService();@Transactional void order(boolean fail){// TODO trace\n}}\npublic class TxPropagation{public static void main(String[]a){boolean fail=new Scanner(System.in).nextLine().equals(\"outerFail\");try{new OrderService().order(fail);}catch(RuntimeException e){System.out.println(\"outer rollback\");}}}\n",
@@ -25,7 +28,7 @@
     },
     {
       "id":"27-3","title":"同時更新・再試行・冪等性",
-      "explanation":"## 同じ要求が2回来ても壊れない\n\nネットワークでは応答が消え、クライアントが同じPOSTを再試行します。決済や注文に冪等性キーを持たせ、処理済みキーなら以前の結果を返します。DBのUNIQUE制約も併用して競合を最後に止めます。\n\n「残高を読んでJavaで引き算して保存」は同時更新でlost updateを起こします。`UPDATE ... SET stock=stock-? WHERE stock>=?` のような条件付き更新と更新件数、`@Version`、悲観ロックを要件で使い分けます。\n\nデッドロックや一時的な競合は再試行できる場合がありますが、回数上限・指数backoff・処理の冪等性が必要です。例外を無限に即時再試行すると障害を増幅します。",
+      "explanation":"## はじめて学ぶ人へ\n\n利用者が注文ボタンを二度押したり、通信失敗で同じリクエストが再送されたりすることは珍しくありません。冪等性は、同じ操作を複数回受けても結果を1回分に保つ性質です。\n\n```text\nPOST /orders  Idempotency-Key: abc123\n1回目 → 注文を作成し、結果をキーと保存\n2回目 → 新規作成せず、保存済みの結果を返す\n```\n\n同時更新では `@Version` や一意制約で競合を検出し、安全だと判断できる場合だけ再試行します。再試行は失敗した処理を無条件に繰り返す機能ではありません。二重決済など副作用が増えない設計、回数上限、待ち時間をそろえて考えます。\n\n## 同じ要求が2回来ても壊れない\n\nネットワークでは応答が消え、クライアントが同じPOSTを再試行します。決済や注文に冪等性キーを持たせ、処理済みキーなら以前の結果を返します。DBのUNIQUE制約も併用して競合を最後に止めます。\n\n「残高を読んでJavaで引き算して保存」は同時更新でlost updateを起こします。`UPDATE ... SET stock=stock-? WHERE stock>=?` のような条件付き更新と更新件数、`@Version`、悲観ロックを要件で使い分けます。\n\nデッドロックや一時的な競合は再試行できる場合がありますが、回数上限・指数backoff・処理の冪等性が必要です。例外を無限に即時再試行すると障害を増幅します。",
       "samples":[{"caption":"冪等性キーで重複を防ぐ","code":"import java.util.*;\npublic class IdempotencySample{public static void main(String[]a){Set<String> done=new HashSet<>();for(String k:List.of(\"req-1\",\"req-1\"))System.out.println(done.add(k)?\"created\":\"same result\");}}\n"}],
       "task":"複数行の `key item` を処理します。同じkeyの初回は連番注文を作り `created key=... order=n item=...`、再送はitemが違っても初回結果を `replay key=... order=n item=初回値` と返してください。",
       "starterCode":"import java.util.*;\nrecord Result(int order,String item){}\npublic class TxIdempotency{public static void main(String[]a){Scanner s=new Scanner(System.in);Map<String,Result> done=new LinkedHashMap<>();int sequence=0;while(s.hasNext()){String key=s.next(),item=s.next();// TODO\n}}}\n",
@@ -35,6 +38,102 @@
       "solution":"import java.util.*;\nrecord Result(int order,String item){}\npublic class TxIdempotency{public static void main(String[]a){Scanner s=new Scanner(System.in);Map<String,Result> done=new LinkedHashMap<>();int sequence=0;while(s.hasNext()){String key=s.next(),item=s.next();Result r=done.get(key);if(r==null){r=new Result(++sequence,item);done.put(key,r);System.out.println(\"created key=\"+key+\" order=\"+r.order()+\" item=\"+r.item());}else System.out.println(\"replay key=\"+key+\" order=\"+r.order()+\" item=\"+r.item());}}}\n",
       "extraTasks":[{"kind":"applied","task":"在庫5から複数の購入数を順に受け、在庫以上なら原子的に減らして `ok rest=n`、不足なら変更せず `ng rest=n`。0以下もngです。","starterCode":"import java.util.*;\npublic class TxStock{public static void main(String[]a){Scanner s=new Scanner(System.in);int stock=5;while(s.hasNextInt()){int count=s.nextInt();// TODO\n}}}\n","visibleCases":[{"label":"境界と不足","stdin":"2 3 1","expected":"ok rest=3\nok rest=0\nng rest=0"}],"hiddenCases":[{"label":"不正数","stdin":"0 -1 5","expected":"ng rest=5\nng rest=5\nok rest=0"}],"hints":["成功条件は `count > 0 && stock >= count`。","成功時だけstockを減らします。"],"solution":"import java.util.*;\npublic class TxStock{public static void main(String[]a){Scanner s=new Scanner(System.in);int stock=5;while(s.hasNextInt()){int count=s.nextInt();if(count>0&&stock>=count){stock-=count;System.out.println(\"ok rest=\"+stock);}else System.out.println(\"ng rest=\"+stock);}}}\n"}],
       "quiz":[{"question":"@Transactionalの既定でrollback対象になるのは一般にどれ？","choices":["すべての検査例外だけ","RuntimeExceptionとError","戻り値null","ログ出力"],"answer":1,"explanation":"検査例外も戻したい場合はrollbackOnを明示します。"},{"question":"REQUIRES_NEWの動作は？","choices":["必ず既存へ参加","外側を中断して新しいトランザクション","トランザクション禁止","常に読取専用"],"answer":1,"explanation":"内側は独立してcommit/rollbackします。"},{"question":"外部HTTP呼び出しを長いDBトランザクション内に置く問題は？","choices":["接続やロックを長く保持する","JSONが必ず小さくなる","SQL注入が自動解決","Cookieが消える"],"answer":0,"explanation":"遅い外部I/O待ちの間も希少資源を保持します。"},{"question":"冪等性キーの目的は？","choices":["同じ要求の再送で二重処理しない","パスワードを暗号化","EntityをEAGER化","HTMLを装飾"],"answer":0,"explanation":"初回結果をキーに結びつけ、重複要求へ同じ結果を返します。"}]
+    },
+    {
+      "id": "27-4",
+      "title": "章末演習：トランザクション",
+      "explanation": "## この章の知識を、自分の手で組み合わせよう\n\nここでは、**@Transactional・伝播・rollback・競合・冪等性**をまとめて使います。新しい文法は登場しません。分からなくなったら、直前までの解説やサンプルへ戻って確認して大丈夫です。\n\n### 3問の進め方\n\n1. **基本**で、中心となる書き方をもう一度使う\n2. **組み合わせ**で、章内の複数の知識を一緒に使う\n3. **実践**で、少し現実的な入力と条件を整理する\n\nまず入力例と期待される出力を紙に書き、処理を小さな手順へ分けてからコードにすると進めやすくなります。",
+      "samples": [
+        {
+          "caption": "復習用サンプル：冪等性キーで重複を防ぐ",
+          "code": "import java.util.*;\npublic class IdempotencySample{public static void main(String[]a){Set<String> done=new HashSet<>();for(String k:List.of(\"req-1\",\"req-1\"))System.out.println(done.add(k)?\"created\":\"same result\");}}\n"
+        }
+      ],
+      "task": "【基本】OrderServiceの `create()` に `@Transactional` を付けます。リフレクションで注釈を取得し、既定の伝播種別 `REQUIRED` を表示してください。",
+      "starterCode": "import jakarta.transaction.Transactional;\nclass OrderService {@Transactional void create(){}}\npublic class Main {public static void main(String[] args)throws Exception{/* TODO */}}\n",
+      "visibleCases": [
+        {
+          "label": "既定値",
+          "stdin": "",
+          "expected": "REQUIRED"
+        }
+      ],
+      "hiddenCases": [],
+      "hints": [
+        "getDeclaredMethodでcreateメソッドを取得します。",
+        "`getAnnotation(Transactional.class).value()` を表示します。"
+      ],
+      "solution": "import jakarta.transaction.Transactional;\nclass OrderService {@Transactional void create(){}}\npublic class Main {public static void main(String[] args)throws Exception{Transactional tx=OrderService.class.getDeclaredMethod(\"create\").getAnnotation(Transactional.class);System.out.println(tx.value());}}\n",
+      "extraTasks": [
+        {
+          "kind": "drill",
+          "task": "【組み合わせ】初期残高1000円から、n件の出金額を順に処理します。各出金は1トランザクションと考え、正の金額かつ残高以内ならcommitして `commit balance=...`、それ以外は残高を変えず `rollback balance=...` と表示してください。",
+          "starterCode": "import java.util.*;\npublic class Main {public static void main(String[] args){Scanner s=new Scanner(System.in);int n=s.nextInt(),balance=1000;for(int i=0;i<n;i++){int amount=s.nextInt();/* TODO */}}}\n",
+          "visibleCases": [
+            {
+              "label": "成功と失敗",
+              "stdin": "3 300 800 200",
+              "expected": "commit balance=700\nrollback balance=700\ncommit balance=500"
+            },
+            {
+              "label": "全額",
+              "stdin": "1 1000",
+              "expected": "commit balance=0"
+            }
+          ],
+          "hiddenCases": [
+            {
+              "label": "不正額",
+              "stdin": "2 0 -10",
+              "expected": "rollback balance=1000\nrollback balance=1000"
+            },
+            {
+              "label": "連続成功",
+              "stdin": "3 100 200 300",
+              "expected": "commit balance=900\ncommit balance=700\ncommit balance=400"
+            }
+          ],
+          "hints": [
+            "成功条件を満たしたときだけbalanceを減らします。",
+            "失敗時は現在のbalanceをそのまま表示します。"
+          ],
+          "solution": "import java.util.*;\npublic class Main {public static void main(String[] args){Scanner s=new Scanner(System.in);int n=s.nextInt(),balance=1000;for(int i=0;i<n;i++){int amount=s.nextInt();if(amount>0&&amount<=balance){balance-=amount;System.out.println(\"commit balance=\"+balance);}else System.out.println(\"rollback balance=\"+balance);}}}\n"
+        },
+        {
+          "kind": "applied",
+          "task": "【実践】n件の `冪等性キー 商品名` を読みます。初めてのキーなら注文番号を採番して `created key=... order=... item=...`、同じキーなら最初の結果を `replay` として返してください。",
+          "starterCode": "import java.util.*;\nrecord Order(int number,String item){}\npublic class Main {public static void main(String[] args){Scanner s=new Scanner(System.in);int n=s.nextInt(),sequence=0;Map<String,Order> done=new LinkedHashMap<>();for(int i=0;i<n;i++){String key=s.next(),item=s.next();/* TODO */}}}\n",
+          "visibleCases": [
+            {
+              "label": "再送",
+              "stdin": "3 k1 book k2 pen k1 changed",
+              "expected": "created key=k1 order=1 item=book\ncreated key=k2 order=2 item=pen\nreplay key=k1 order=1 item=book"
+            },
+            {
+              "label": "1件",
+              "stdin": "1 a cup",
+              "expected": "created key=a order=1 item=cup"
+            }
+          ],
+          "hiddenCases": [
+            {
+              "label": "すべて再送",
+              "stdin": "3 x book x pen x pc",
+              "expected": "created key=x order=1 item=book\nreplay key=x order=1 item=book\nreplay key=x order=1 item=book"
+            },
+            {
+              "label": "空",
+              "stdin": "0",
+              "expected": ""
+            }
+          ],
+          "hints": [
+            "キーをMapで検索し、無いときだけsequenceを増やします。",
+            "再送時は新しいitemではなく保存済みOrderのitemを返します。"
+          ],
+          "solution": "import java.util.*;\nrecord Order(int number,String item){}\npublic class Main {public static void main(String[] args){Scanner s=new Scanner(System.in);int n=s.nextInt(),sequence=0;Map<String,Order> done=new LinkedHashMap<>();for(int i=0;i<n;i++){String key=s.next(),item=s.next();Order order=done.get(key);if(order==null){order=new Order(++sequence,item);done.put(key,order);System.out.println(\"created key=\"+key+\" order=\"+order.number()+\" item=\"+order.item());}else System.out.println(\"replay key=\"+key+\" order=\"+order.number()+\" item=\"+order.item());}}}\n"
+        }
+      ]
     }
   ]
 }

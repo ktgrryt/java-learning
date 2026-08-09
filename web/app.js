@@ -7,7 +7,7 @@
  *
  * 画面はURLのハッシュで切り替える。
  *   #menu（または空） … 学習ホーム（章メニュー）
- *   #cafe              … Java Café（店舗と設備）
+ *   #cafe              … Java Café（設備から段階的に経営要素を解放）
  *   #3-2 のようなID    … そのレッスン
  * レッスンの順番にロックはかけていない。どこからでも自由に開ける。
  */
@@ -25,7 +25,15 @@
   var saveTimers = {};     // 問題ID -> 自動保存のタイマー
   var busyTask = null;     // 実行・採点中の問題ID（同時に走らせない）
   var sideExpanded = {};   // サイドバーで開いている章のID（既定は全部たたむ）
-  var activePartId = null; // メニューで表示中の大区分（Java SE編 / Jakarta EE編など）
+  var activePartId = null; // メニューで表示中の大区分（Java基礎編 / Web・Jakarta EE編など）
+  var selectedChapterByPart = {}; // ホームの編ごとに、最後に見ていた章を覚える
+  var activeCafeSection = 'equipment'; // equipment / network / items
+  var cafeEffectHelpOpen = false;
+  var cafePassiveTimer = null;
+  var cafePassiveSessionId = null;
+  var cafePassiveBusy = false;
+  var cafeItemsSeenBusy = false;
+  var CAFE_PASSIVE_INTERVAL_MS = 2500;
 
   // ---------------------------------------------------------------- 通信
 
@@ -110,8 +118,8 @@
     return String(text || '').replace(/第(\d+)章/g, function (_, rawNumber) {
       var number = Number(rawNumber);
       return number >= 21
-        ? 'Jakarta EE編 第' + (number - 20) + '章'
-        : 'Java SE編 第' + number + '章';
+        ? 'Web・Jakarta EE編 第' + (number - 20) + '章'
+        : 'Java基礎編 第' + number + '章';
     });
   }
 
@@ -239,22 +247,42 @@
     return state.progress.cafe || {
       cash: 0, cups: 0, cupPrice: 500, bonusPercent: 0, salesBonusPercent: 0,
       streakBonusPercent: 0, extraCups: 0, chapterBonusPercent: 0,
-      quizTipPercent: 0, clearedChapters: 0, ownedUpgrades: [], upgrades: []
+      quizTipPercent: 0, clearedChapters: 0, brandMultiplierBasisPoints: 10000,
+      storeCount: 1, maxStores: 512, nextStoreGain: 1, nextStoreCount: 2,
+      storeLimit: 1, nextStoreUnlockStars: 4,
+      expansionCost: null, lifetimeCash: 0, ownedItems: [], items: [],
+      unseenItemCount: 0,
+      ownedUpgrades: [], upgrades: [], ownedAutomation: [], automation: [],
+      passiveCashPerMinute: 0, passiveRateBasisPoints: 0,
+      passiveCashCap: 0, passiveCashRemaining: 0
     };
+  }
+
+  /** 最初の出店枠（現行は★4）が解放されるまで、店舗経営は画面に出さない。 */
+  function cafeNetworkUnlocked() {
+    var cafe = cafeState();
+    return Number(cafe.storeCount || 1) > 1 || Number(cafe.storeLimit || 1) > 1;
   }
 
   function numberText(value) {
     return Number(value || 0).toLocaleString('ja-JP');
   }
 
-  /** 累計提供数から決まる店の外観。最後の段階だけ上限なし。 */
+  function multiplierText(basisPoints) {
+    return (Number(basisPoints || 10000) / 10000).toLocaleString('ja-JP', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
+    });
+  }
+
+  /** ★の進行から決まる店の外観。最後の段階だけ上限なし。 */
   function cafeLevel() {
     var cafe = cafeState();
     return {
       level: cafe.level || 1,
       title: cafe.levelTitle || '屋台カフェ',
       threshold: cafe.levelThreshold || 0,
-      next: cafe.nextLevelCups == null ? null : cafe.nextLevelCups,
+      next: cafe.nextLevelStars == null ? null : cafe.nextLevelStars,
       cupsPerOrder: cafe.cupsPerOrder || 1
     };
   }
@@ -272,8 +300,11 @@
     var learningActive = currentView !== 'cafe';
     learningBtn.classList.toggle('active', learningActive);
     cafeBtn.classList.toggle('active', !learningActive);
+    cafeBtn.classList.toggle('has-notification', Number(cafeState().unseenItemCount || 0) > 0);
     learningBtn.setAttribute('aria-current', learningActive ? 'page' : 'false');
     cafeBtn.setAttribute('aria-current', learningActive ? 'false' : 'page');
+    cafeBtn.setAttribute('aria-label', Number(cafeState().unseenItemCount || 0) > 0
+      ? 'カフェ（新しいアイテムがあります）' : 'カフェ');
   }
 
   // -------------------------------------------------------- サイドバー描画
@@ -286,21 +317,21 @@
     state.chapters.forEach(function (ch) {
       var part = partOfChapter(ch);
       if (part && part.id !== lastPartId) {
-        var progress = partProgress(part);
         var currentPart = chaptersOfPart(part).some(function (partChapter) {
           return partChapter.lessons.some(function (l) { return l.id === currentId; });
         });
+        var progress = partProgress(part);
+        var partStatus = progress.cleared === progress.total && progress.total > 0
+          ? '✓' : (progress.cleared > 0 ? '学習中' : '');
         var partHead = document.createElement('div');
         partHead.className = 'side-part-head' + (currentPart ? ' current' : '');
         partHead.innerHTML =
           '<span class="side-part-emoji">' + esc(part.emoji) + '</span>' +
           '<span class="side-part-title">' + esc(part.title) + '</span>' +
-          '<span class="side-part-count">' + progress.cleared + '/' + progress.total + '</span>';
+          '<span class="side-part-count">' + partStatus + '</span>';
         nav.appendChild(partHead);
         lastPartId = part.id;
       }
-      var total = ch.taskCount;
-      var pct = Math.round((ch.clearedCount / total) * 100);
       var isCurrentChapter = ch.lessons.some(function (l) { return l.id === currentId; });
 
       // 章は既定でたたんでおく。ただし自分で開閉していない章のうち、
@@ -315,12 +346,9 @@
         + (ch.cleared ? ' ch-cleared' : '')
         + (isCurrentChapter ? ' ch-current' : '');
 
-      // 全部クリアなら ✅、途中なら「2/9」（分母は章の問題数）。
-      // まだ0件の章は数字を強調しない（0が目立つと、進んでいるように見えてしまう）
       var status = ch.cleared
         ? '<span class="ch-done">✅</span>'
-        : '<span class="ch-count' + (ch.clearedCount ? '' : ' ch-count-zero') + '">'
-          + '<b>' + ch.clearedCount + '</b>/' + total + '</span>';
+        : (ch.clearedCount ? '<span class="ch-count">学習中</span>' : '');
 
       section.innerHTML =
         '<button type="button" class="ch-head" aria-expanded="' + open + '">' +
@@ -331,8 +359,7 @@
         '  </span>' +
         '  <span class="ch-status">' + status + '</span>' +
         '  <span class="ch-caret">' + (open ? '▲' : '▼') + '</span>' +
-        '</button>' +
-        '<div class="ch-bar"><div class="ch-bar-fill" style="width:' + pct + '%"></div></div>';
+        '</button>';
 
       var ul = document.createElement('ul');
       ul.className = 'lessons';
@@ -363,21 +390,16 @@
   }
 
   /**
-   * レッスン行に出す「1/2」。
-   *
-   * 1問しかないレッスンでは★か○だけで足りるので出さない。複数問あるレッスンで
-   * 途中まで進んでいるときに、あと何問残っているかが分かるようにする。
+   * 複数問あるレッスンも分母は見せず、途中なら現在の状態だけを示す。
    */
   function lessonTaskProgress(lesson) {
     if (lesson.taskCount < 2 || lesson.cleared) { return ''; }
-    return '<span class="lesson-frac">' + (lesson.clearedCount || 0)
-      + '/' + lesson.taskCount + '</span>';
+    return lesson.clearedCount ? '<span class="lesson-frac">学習中</span>' : '';
   }
 
   function lessonTooltip(lesson) {
     if (lesson.cleared) { return 'クリア済み: ' + lesson.title; }
-    if (lesson.taskCount < 2) { return lesson.title; }
-    return lesson.title + '（' + (lesson.clearedCount || 0) + '/' + lesson.taskCount + '問クリア）';
+    return lesson.clearedCount ? lesson.title + '（学習中）' : lesson.title;
   }
 
   // -------------------------------------------------------- 学習ホーム描画
@@ -389,17 +411,24 @@
 
     var main = document.getElementById('content');
     main.innerHTML =
-      '<div class="menu">' +
-      renderLearningHero(stars, total, done) +
+      '<div class="menu home-page">' +
+      renderLearningHero(stars, done) +
       renderMenuStats() +
-      '  <section class="menu-section">' +
-      '    <h2 class="menu-h2">章を選ぶ</h2>' +
-      '    <p class="menu-note">学びたい編を選んでください。どの章からでも始められます。</p>' +
-      '    <div class="part-tabs" id="partTabs"></div>' +
-      '    <div class="part-intro" id="partIntro"></div>' +
-      '    <div class="ch-grid" id="chGrid"></div>' +
+      '  <section class="menu-section curriculum-section">' +
+      '    <header class="section-heading">' +
+      '      <div><span class="screen-eyebrow">CURRICULUM</span>' +
+      '      <h2 class="menu-h2">章を選ぶ</h2></div>' +
+      '      <p class="menu-note">左で章を選び、右からレッスンへ進めます。</p>' +
+      '    </header>' +
+      '    <div class="part-tabs" id="partTabs" role="tablist" aria-label="カリキュラムの編"></div>' +
+      '    <div class="chapter-browser">' +
+      '      <nav class="chapter-list" id="chGrid" aria-label="章一覧"></nav>' +
+      '      <section class="chapter-detail" id="chapterDetail"></section>' +
+      '    </div>' +
       '  </section>' +
       renderMenuGuide(stars) +
+      '  <footer class="home-utilities"><span>学習データはこの端末に保存されています。</span>' +
+      '  <button class="ghost-btn" id="resetBtn" type="button">進捗をリセット</button></footer>' +
       '</div>';
 
     renderChapterCards();
@@ -408,43 +437,34 @@
     if (goBtn) {
       goBtn.addEventListener('click', function () { selectLesson(goBtn.dataset.target); });
     }
+    document.getElementById('resetBtn').addEventListener('click', resetProgress);
     main.scrollTop = 0;
   }
 
   /** 学習状況と「続ける」ボタン。章メニューの入口として簡潔に見せる。 */
-  function renderLearningHero(stars, total, done) {
+  function renderLearningHero(stars, done) {
     var target = resumeTarget();
     var lesson = findLesson(target);
     var label = done ? '🏆 もう一度見なおす' : (stars === 0 ? '▶ はじめる' : '▶ 続ける');
     var lead = done ? '全レッスン制覇！ おつかれさまでした'
       : (stars === 0 ? 'まずはここから' : '前回の続きはここから');
 
-    var pct = total ? Math.round(stars / total * 100) : 0;
-    var circumference = 2 * Math.PI * 52;
-    var offset = circumference * (1 - pct / 100);
-
     return '' +
       '<section class="menu-hero learning-hero">' +
-      '  <div class="hero-ring">' +
-      '    <svg viewBox="0 0 120 120" aria-hidden="true">' +
-      '      <circle class="ring-track" cx="60" cy="60" r="52"></circle>' +
-      '      <circle class="ring-fill" cx="60" cy="60" r="52"' +
-      '              stroke-dasharray="' + circumference.toFixed(1) + '"' +
-      '              stroke-dashoffset="' + offset.toFixed(1) + '"></circle>' +
-      '    </svg>' +
-      '    <div class="ring-label"><span class="ring-num">' +
-      '      <b>' + pct + '</b><i>%</i></span></div>' +
+      '  <div class="hero-milestone" aria-label="これまでに' + stars + '問クリア">' +
+      '    <span>★</span><b>' + stars + '</b><small>問クリア</small>' +
       '  </div>' +
       '  <div class="hero-body">' +
+      '    <span class="screen-eyebrow">TODAY\'S LEARNING</span>' +
       '    <h1 class="hero-title">Javaを学ぶ</h1>' +
-      '    <p class="hero-sub">手を動かして身につける · ★ ' + stars + ' / ' + total + ' 問クリア</p>' +
-      '    <div class="hero-cta">' +
-      '      <div class="cta-lead">' + esc(lead) + '</div>' +
+      '    <p class="hero-sub">手を動かして身につける · 自分のペースで一問ずつ</p>' +
+      '    <div class="hero-action">' +
+      '      <div class="hero-next"><div class="cta-lead">' + esc(lead) + '</div>' +
+      (lesson ? '      <div class="cta-target"><span class="cta-id">' + esc(displayLessonId(lesson)) + '</span>'
+        + esc(lesson.title) + '</div>' : '') + '</div>' +
       '      <button class="primary-btn big" id="continueBtn" data-target="' + esc(target) + '">' +
              esc(label) +
       '      </button>' +
-      (lesson ? '      <div class="cta-target"><span class="cta-id">' + esc(displayLessonId(lesson)) + '</span>'
-        + esc(lesson.title) + '</div>' : '') +
       '    </div>' +
       '  </div>' +
       '</section>';
@@ -452,155 +472,508 @@
 
   // ---------------------------------------------------------- カフェ描画
 
-  function renderCafe() {
+  function renderCafe(preserveScroll) {
     var stars = state.progress.starCount;
     var main = document.getElementById('content');
+    var previousScroll = preserveScroll ? main.scrollTop : 0;
     main.innerHTML =
       '<div class="menu cafe-page">' +
       '  <header class="screen-heading">' +
       '    <div><span class="screen-eyebrow">LEARNING REWARDS</span>' +
       '    <h1>☕ Java Café</h1>' +
-      '    <p>問題を解いて得た売上で、あなただけのカフェを育てましょう。</p></div>' +
+      '    <p>問題を解いて得たコインで、あなただけのカフェを育てましょう。</p></div>' +
       '    <button class="ghost-btn screen-back" id="backToLearningBtn">📚 章を選ぶ</button>' +
       '  </header>' +
       renderCafeHero(stars) +
-      renderCafeShop() +
+      renderCafeWorkspace() +
       '</div>';
 
     document.getElementById('backToLearningBtn').addEventListener('click', goHome);
-    Array.prototype.forEach.call(document.getElementsByClassName('cafe-buy'), function (btn) {
+    var expandBtn = document.getElementById('cafeExpandBtn');
+    if (expandBtn) { expandBtn.addEventListener('click', expandCafeNetwork); }
+    var effectHelp = document.getElementById('cafeEffectHelp');
+    if (effectHelp) {
+      effectHelp.addEventListener('toggle', function () { cafeEffectHelpOpen = effectHelp.open; });
+    }
+    Array.prototype.forEach.call(document.getElementsByClassName('cafe-item-buy'), function (btn) {
+      btn.addEventListener('click', function () { purchaseCafeItem(btn.dataset.id); });
+    });
+    Array.prototype.forEach.call(document.getElementsByClassName('equipment-upgrade-btn'), function (btn) {
       btn.addEventListener('click', function () { purchaseCafeUpgrade(btn.dataset.id); });
     });
-    main.scrollTop = 0;
+    Array.prototype.forEach.call(document.getElementsByClassName('cafe-automation-buy'), function (btn) {
+      btn.addEventListener('click', function () { purchaseCafeAutomation(btn.dataset.id); });
+    });
+    var cafeTabs = Array.prototype.slice.call(document.getElementsByClassName('cafe-workspace-tab'));
+    cafeTabs.forEach(function (button, index) {
+      button.addEventListener('click', function () { selectCafeSection(button.dataset.section); });
+      button.addEventListener('keydown', function (event) {
+        if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') { return; }
+        event.preventDefault();
+        var direction = event.key === 'ArrowRight' ? 1 : -1;
+        var next = cafeTabs[(index + direction + cafeTabs.length) % cafeTabs.length];
+        selectCafeSection(next.dataset.section);
+        next.focus();
+      });
+    });
+    if (activeCafeSection === 'items') { acknowledgeCafeItems(); }
+    main.scrollTop = previousScroll;
+  }
+
+  function selectCafeSection(section) {
+    if (section === 'network' && !cafeNetworkUnlocked()) { section = 'equipment'; }
+    if (section === 'items' && !(cafeState().items || []).length) { section = 'equipment'; }
+    activeCafeSection = section;
+    Array.prototype.forEach.call(document.getElementsByClassName('cafe-workspace-tab'), function (button) {
+      var active = button.dataset.section === section;
+      button.classList.toggle('active', active);
+      button.setAttribute('aria-selected', active ? 'true' : 'false');
+      button.tabIndex = active ? 0 : -1;
+    });
+    Array.prototype.forEach.call(document.getElementsByClassName('cafe-tab-panel'), function (panel) {
+      panel.hidden = panel.dataset.section !== section;
+    });
+    if (section === 'items') { acknowledgeCafeItems(); }
+  }
+
+  /** アイテムタブを開いた時点で通知を既読にする。カードのNEW表示は現在の描画中だけ残す。 */
+  function acknowledgeCafeItems() {
+    if (cafeItemsSeenBusy || !(cafeState().unseenItemCount > 0)) { return; }
+    cafeItemsSeenBusy = true;
+    api('cafe/items/seen', {})
+      .then(function (res) {
+        applyDelta(res.delta);
+        renderHeader();
+        var tab = document.getElementById('cafeTabitems');
+        if (tab) { tab.classList.remove('has-notification'); }
+      })
+      .catch(function () { /* 次にアイテム画面を開いたとき再試行する */ })
+      .finally(function () { cafeItemsSeenBusy = false; });
+  }
+
+  function renderCafeWorkspace() {
+    var cafe = cafeState();
+    var items = cafe.items || [];
+    var upgrades = cafe.upgrades || [];
+    var networkUnlocked = cafeNetworkUnlocked();
+    if (!networkUnlocked && activeCafeSection === 'network') { activeCafeSection = 'equipment'; }
+    if (!items.length && activeCafeSection === 'items') { activeCafeSection = 'equipment'; }
+    var ownedItems = items.filter(function (item) { return item.owned; }).length;
+    var equipped = upgrades.filter(function (upgrade) { return upgrade.equipped; }).length;
+    var activeAutomation = (cafe.automation || []).some(function (item) { return item.equipped; });
+
+    function tab(id, icon, label, value, notify) {
+      var active = activeCafeSection === id;
+      return '<button type="button" class="cafe-workspace-tab' + (active ? ' active' : '')
+        + (notify ? ' has-notification' : '')
+        + '" id="cafeTab' + id + '" role="tab" aria-selected="' + active + '" aria-controls="cafePanel'
+        + id + '" tabindex="' + (active ? '0' : '-1') + '" data-section="' + id + '">' +
+        '<span class="cafe-workspace-icon">' + icon + '</span><span><strong>' + label + '</strong><small>'
+        + value + '</small></span></button>';
+    }
+
+    return '<section class="menu-section cafe-workspace" aria-label="カフェ経営メニュー">' +
+      '<nav class="cafe-workspace-nav' + (!networkUnlocked ? ' only-equipment' : '')
+        + (items.length ? ' has-items' : '')
+        + '" role="tablist" aria-label="経営メニュー">' +
+      tab('equipment', '⚙️', '設備', (equipped + (activeAutomation ? 1 : 0))
+        ? (equipped + (activeAutomation ? 1 : 0)) + '系統が稼働中' : 'まだ未導入') +
+      (networkUnlocked ? tab('network', '🏪', '店舗', (cafe.storeCount || 1) > 1
+        ? numberText(cafe.storeCount) + '店舗を営業中' : '新しく解放') : '') +
+      (items.length ? tab('items', '🎁', 'アイテム', ownedItems
+        ? numberText(ownedItems) + '個を所持' : '新しく解放', cafe.unseenItemCount > 0) : '') +
+      '</nav>' +
+      '<div class="cafe-workspace-body">' + (networkUnlocked ? renderCafeExpansion() : '')
+        + (items.length ? renderCafeItems() : '') + renderCafeShop() + '</div>' +
+      '</section>';
   }
 
   /** 問題を解くほど育つ、現在の店舗の様子。 */
   function renderCafeHero(stars) {
 
     var cafe = cafeState();
+    var networkUnlocked = cafeNetworkUnlocked();
     var level = cafeLevel();
     var owned = cafe.ownedUpgrades || [];
+    var equippedUpgrades = (cafe.upgrades || []).filter(function (item) {
+      return item.equipped;
+    });
+    var equippedIds = equippedUpgrades.map(function (item) { return item.id; });
+    // 全50設備の序盤だけで内装が完成しないよう、購入数に応じてゆっくり5段階で育てる。
+    var furnishing = owned.length >= 28 ? 5
+      : owned.length >= 16 ? 4
+      : owned.length >= 9 ? 3
+      : owned.length >= 4 ? 2
+      : owned.length >= 1 ? 1 : 0;
+    var ownedClasses = equippedIds.map(function (id) {
+      return 'cafe-has-' + String(id).replace(/[^a-z0-9_-]/gi, '');
+    }).join(' ');
     var levelPct = level.next
-      ? Math.round((cafe.cups - level.threshold) / (level.next - level.threshold) * 100)
+      ? Math.round((stars - level.threshold) / (level.next - level.threshold) * 100)
       : 100;
     levelPct = Math.max(0, Math.min(100, levelPct));
-    var equipment = (cafe.upgrades || [])
-      .filter(function (item) { return owned.indexOf(item.id) >= 0; })
-      .slice(-10)
+    var equipment = equippedUpgrades
       .map(function (item) {
         return '<span title="' + esc(item.name) + '">' + esc(item.emoji) + '</span>';
       }).join('');
-    var orderCups = level.cupsPerOrder + (cafe.extraCups || 0);
-    var nextOrderCash = Math.floor(
-      orderCups * cafe.cupPrice * (100 + cafe.bonusPercent) / 100);
+    var orderCups = cafe.orderCups == null
+      ? (level.cupsPerOrder + (cafe.extraCups || 0)) * (cafe.storeCount || 1)
+      : cafe.orderCups;
+    var nextOrderCash = cafe.nextOrderCash == null
+      ? Math.floor(orderCups * cafe.cupPrice * (100 + cafe.bonusPercent) / 100)
+      : cafe.nextOrderCash;
+    var passiveLabel = cafe.passiveCashPerMinute > 0
+      ? '表示中の自動売上 · 次の★まで残り '
+        + numberText(cafe.passiveCashRemaining) + 'コイン'
+      : '表示中の自動売上';
 
     return '' +
       '<section class="menu-hero cafe-hero">' +
-      '  <div class="cafe-scene cafe-level-' + level.level + '" aria-label="現在のJava Café">' +
-      '    <div class="cafe-sky"><i></i><i></i><i></i></div>' +
-      '    <div class="cafe-building">' +
-      '      <div class="cafe-sign">JAVA CAFÉ</div>' +
-      '      <div class="cafe-awning"></div>' +
-      '      <div class="cafe-window"><span class="cafe-barista">🧑‍💻</span><span class="cafe-cup">☕</span></div>' +
-      '      <div class="cafe-door">OPEN</div>' +
+      '  <div class="cafe-scene cafe-level-' + level.level + ' cafe-furnish-' + furnishing
+             + ' ' + ownedClasses + '" aria-label="現在のJava Café。装備中の設備'
+             + equippedUpgrades.length + '点">' +
+      '    <div class="cafe-sky" aria-hidden="true">' +
+      '      <span class="cafe-sun"></span><i></i><i></i><i></i>' +
+      '      <span class="cafe-plane">✈</span><span class="cafe-fireworks">✦</span>' +
       '    </div>' +
-      '    <div class="cafe-equipment">' + equipment + '</div>' +
-      '    <div class="cafe-customers">' + (level.level >= 2 ? '🚶' : '')
-             + (level.level >= 4 ? '　🚶‍♀️' : '') + (level.level >= 6 ? '　🚴' : '') + '</div>' +
+      '    <div class="cafe-skyline" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i></div>' +
+      '    <div class="cafe-festoon" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>' +
+      '    <div class="cafe-tree cafe-tree-left" aria-hidden="true"><i></i></div>' +
+      '    <div class="cafe-tree cafe-tree-right" aria-hidden="true"><i></i></div>' +
+      '    <div class="cafe-building">' +
+      '      <div class="cafe-roof"><i class="cafe-chimney"></i><i class="cafe-roof-mark">☕</i></div>' +
+      '      <div class="cafe-upper-floor"><i></i><i></i><i></i></div>' +
+      '      <div class="cafe-sign"><span>☕</span><b>JAVA CAFÉ</b><small>COFFEE &amp; CODE</small></div>' +
+      '      <div class="cafe-awning"><i></i></div>' +
+      '      <div class="cafe-wall-lamp lamp-left"></div><div class="cafe-wall-lamp lamp-right"></div>' +
+      '      <div class="cafe-window cafe-window-main">' +
+      '        <div class="cafe-window-shine"></div>' +
+      '        <div class="cafe-pendants"><i></i><i></i></div>' +
+      '        <div class="cafe-shelf"><i></i><i></i><i></i></div>' +
+      '        <span class="cafe-barista">🧑‍💻</span>' +
+      '        <div class="cafe-machine"><i></i><b>JAVA</b><span>☕</span></div>' +
+      '        <div class="cafe-showcase"><i>●</i><i>●</i><i>●</i></div>' +
+      '        <div class="cafe-counter"></div>' +
+      '      </div>' +
+      '      <div class="cafe-window cafe-window-lounge"><div class="cafe-lounge-light"></div>' +
+      '        <div class="cafe-art">&lt;/&gt;</div><div class="cafe-sofa"></div><div class="cafe-lounge-table">☕</div>' +
+      '      </div>' +
+      '      <div class="cafe-door"><span>OPEN</span><i></i></div>' +
+      '      <div class="cafe-planter planter-left">✦</div><div class="cafe-planter planter-right">✦</div>' +
+      '    </div>' +
+      '    <div class="cafe-menu-board" aria-hidden="true"><b>TODAY</b><i></i><i></i><small>Java Blend</small></div>' +
+      '    <div class="cafe-welcome-mat" aria-hidden="true">WELCOME</div>' +
+      '    <div class="cafe-patio" aria-hidden="true"><div class="cafe-parasol"></div>' +
+      '      <i class="cafe-chair chair-left"></i><span class="cafe-table">☕</span><i class="cafe-chair chair-right"></i>' +
+      '    </div>' +
+      '    <div class="cafe-delivery" aria-hidden="true">▣<i></i><i></i></div>' +
+      '    <div class="cafe-rope" aria-hidden="true"><i></i><span></span><i></i></div>' +
+      '    <div class="cafe-customers" aria-hidden="true"><span>🚶</span><span>🚶‍♀️</span><span>🚴</span></div>' +
+      (equipment ? '    <div class="cafe-equipment"><small>導入設備</small>' + equipment + '</div>' : '') +
       '  </div>' +
       '  <div class="hero-body">' +
-      '    <div class="cafe-level-label">SHOP Lv.' + level.level + '</div>' +
+      '    <div class="cafe-level-label">SHOP Lv.' + level.level + ' · INTERIOR ' + furnishing + '</div>' +
       '    <h1 class="hero-title">' + esc(level.title) + '</h1>' +
-      '    <div class="cafe-numbers">' +
-      '      <span><small>使える売上</small><b>¥' + numberText(cafe.cash) + '</b></span>' +
-      '      <span><small>累計提供数</small><b>☕ ' + numberText(cafe.cups) + '杯</b></span>' +
-      '      <span><small>次の注文</small><b>' + numberText(orderCups) + '杯 · 約¥'
-               + numberText(nextOrderCash) + '</b></span>' +
-      '      <span><small>獲得した★</small><b>★ ' + numberText(stars) + '</b></span>' +
+      '    <div class="cafe-balance">' +
+      '      <small>現在使えるコイン</small><b>' + numberText(cafe.cash) + '<em>コイン</em></b>' +
+      '    </div>' +
+      '    <div class="cafe-key-metrics' + (networkUnlocked ? '' : ' equipment-only') + '">' +
+      (networkUnlocked
+        ? '      <span><small>営業中</small><b>🏪 ' + numberText(cafe.storeCount || 1) + '店舗</b></span>'
+        : '') +
+      '      <span><small>次の注文</small><b>' + numberText(orderCups) + '杯 · 約'
+               + numberText(nextOrderCash) + 'コイン</b></span>' +
+      '      <span class="cafe-passive-metric"><small>' + passiveLabel + '</small><b id="cafePassiveLive">'
+               + (cafe.passiveCashPerMinute > 0
+                 ? '⏱️ +' + numberText(cafe.passiveCashPerMinute) + 'コイン / 分'
+                 : '⏱️ 未導入') + '</b></span>' +
+      '    </div>' +
+      '    <div class="cafe-meta-row">' +
+      '      <span>☕ 累計 ' + numberText(cafe.cups) + '杯</span>' +
+      (networkUnlocked
+        ? '      <span>ブランド ×' + multiplierText(cafe.brandMultiplierBasisPoints) + '</span>'
+        : '') +
+      '      <span>★ ' + numberText(stars) + '</span>' +
       '    </div>' +
       '    <div class="cafe-level-progress"><i style="width:' + levelPct + '%"></i></div>' +
       '    <p class="cafe-next-level">' + (level.next
-              ? '次の店舗まであと ' + numberText(level.next - cafe.cups) + '杯'
-              : '最高ランクの店舗です') + '</p>' +
+              ? '次の店構えまであと ★' + numberText(level.next - stars)
+              : '店構えは最高ランクです。次は店舗網を広げましょう') + '</p>' +
       '  </div>' +
       '</section>';
+  }
+
+  /** 繰り返し投資でき、1回ごとの出店数も増えていくチェーン展開。 */
+  function renderCafeExpansion() {
+    var cafe = cafeState();
+    var storeCount = cafe.storeCount || 1;
+    var expansionDiscount = (cafe.items || []).some(function (item) {
+      return item.owned && item.effectType === 'expansion_discount';
+    });
+    var visibleStores = Math.min(storeCount, 18);
+    var branches = '';
+    for (var i = 0; i < visibleStores; i++) {
+      branches += '<span class="cafe-branch' + (i === 0 ? ' flagship' : '')
+        + '" title="' + (i === 0 ? '本店' : (i + 1) + '号店') + '">☕</span>';
+    }
+    if (storeCount > visibleStores) {
+      branches += '<span class="cafe-branch-more">+' + numberText(storeCount - visibleStores) + '</span>';
+    }
+
+    var maximum = storeCount >= (cafe.maxStores || 512);
+    var progressLocked = !maximum && cafe.expansionCost == null;
+    var canExpand = !maximum && !progressLocked;
+    var affordable = canExpand && cafe.cash >= cafe.expansionCost;
+    var buttonText = maximum ? '最大ネットワーク達成'
+      : (progressLocked ? '★' + numberText(cafe.nextStoreUnlockStars) + 'で次の出店枠を解放'
+        : '+' + numberText(cafe.nextStoreGain) + '店舗を出店 · '
+          + numberText(cafe.expansionCost) + 'コイン');
+
+    return '<section class="cafe-tab-panel cafe-expansion" id="cafePanelnetwork" role="tabpanel"'
+      + ' aria-labelledby="cafeTabnetwork" data-section="network"'
+      + (activeCafeSection === 'network' ? '' : ' hidden') + '>' +
+      '<header class="cafe-section-heading"><div><span class="screen-eyebrow">FRANCHISE GROWTH</span>' +
+      '<h2>店舗ネットワーク</h2><p>出店して、1回の学習でもらえる報酬を育てます。</p></div>' +
+      '<span class="cafe-section-status"><b>' + numberText(storeCount) + '</b>店舗'
+        + (canExpand ? '<small>次は +' + numberText(cafe.nextStoreGain) + '店舗</small>'
+          : (!maximum ? '<small>現在の上限 ' + numberText(cafe.storeLimit) + '店舗</small>' : '')) + '</span></header>' +
+      '<div class="cafe-expansion-content">' +
+      '<div class="cafe-expansion-copy">' +
+      '<p class="menu-note">全店舗に設備効果が乗るため、出店するほど1回の学習報酬が大きくなります。'
+        + '出店枠は★で段階的に解放され、ブランド倍率は章クリアごとに15%ずつ加算されます。</p>' +
+      '<div class="cafe-expansion-stats">' +
+      '<span><small>現在</small><b>' + numberText(storeCount) + '店舗</b></span>' +
+      '<span><small>店舗倍率</small><b>×' + numberText(storeCount) + '</b></span>' +
+      '<span><small>現在の出店上限</small><b>' + numberText(cafe.storeLimit || 1) + '店舗</b></span>' +
+      '<span><small>ブランド倍率</small><b>×' + multiplierText(cafe.brandMultiplierBasisPoints) + '</b></span>' +
+      (expansionDiscount ? '<span class="discount-active"><small>地図の効果</small><b>出店費 25%OFF</b></span>' : '') +
+      (canExpand ? '<span><small>出店後</small><b>' + numberText(cafe.nextStoreCount) + '店舗</b></span>' : '') +
+      '</div>' +
+      '<button class="primary-btn cafe-expand-btn" id="cafeExpandBtn"'
+        + (!affordable ? ' disabled' : '') + '>' + buttonText + '</button>' +
+      (canExpand && !affordable
+        ? '<small class="cafe-expansion-short">あと '
+          + numberText(cafe.expansionCost - cafe.cash) + 'コインで出店できます</small>'
+        : '') +
+      '</div>' +
+      '<div class="cafe-network" aria-label="営業中の店舗 ' + numberText(storeCount) + '店">' +
+      '<div class="cafe-network-lines" aria-hidden="true"></div>' +
+      '<div class="cafe-branches">' + branches + '</div>' +
+      '<b>' + (maximum ? 'WORLDWIDE NETWORK' : (progressLocked ? 'NEXT AREA LOCKED' : 'JAVA CAFÉ NETWORK')) + '</b>' +
+      '<small>' + (progressLocked ? '問題を解くと次の地域へ出店できます' : '1 → 2 → 3 → 5 → 8… と出店規模も加速') + '</small>' +
+      '</div>' +
+      '</div></section>';
+  }
+
+  /** 設備とは別に所持できる、抽選・連続達成・割引などのスペシャルアイテム。 */
+  function renderCafeItems() {
+    var cafe = cafeState();
+    var items = cafe.items || [];
+    if (!items.length) { return ''; }
+
+    var ownedCount = items.filter(function (item) { return item.owned; }).length;
+    return '<section class="cafe-tab-panel cafe-item-shop" id="cafePanelitems" role="tabpanel"'
+      + ' aria-labelledby="cafeTabitems" data-section="items"'
+      + (activeCafeSection === 'items' ? '' : ' hidden') + '>' +
+      '<header class="cafe-section-heading"><div><span class="screen-eyebrow">SPECIAL COLLECTION</span>' +
+      '<h2>スペシャルアイテム</h2><p>学習中に見つけた、経営を助ける特別な品です。</p></div>' +
+      '<div class="cafe-item-summary">' +
+      (ownedCount ? '<span>所持 ' + ownedCount + '個</span>' : '') +
+      '<span>累計獲得 ' + numberText(cafe.lifetimeCash) + 'コイン</span></div></header>' +
+      '<p class="menu-note cafe-section-note">新しい品は学習の節目で見つかります。購入した効果は常に有効です。</p>' +
+      '<div class="cafe-item-grid">' + items.map(function (item) {
+        var affordable = !item.owned && cafe.cash >= item.cost;
+        var buttonText = item.owned ? '所持中'
+          : numberText(item.cost) + 'コインで獲得';
+        var shortage = !item.owned && !affordable
+          ? '<small class="cafe-item-shortage">あと ' + numberText(item.cost - cafe.cash) + 'コイン</small>'
+          : '';
+
+        return '<article class="cafe-item-card' + (item.owned ? ' owned' : '')
+          + (item.unseen ? ' newly-discovered' : '') + '">' +
+          '<div class="cafe-item-icon">' + esc(item.emoji) + '</div>' +
+          '<div class="cafe-item-body"><span>' + (item.owned ? 'ACTIVE ITEM' : (item.unseen ? 'NEW ITEM' : 'DISCOVERED'))
+            + '</span><h3>' + esc(item.name) + '</h3><p>' + esc(item.description) + '</p></div>' +
+          '<div class="cafe-item-action"><button class="cafe-buy cafe-item-buy" data-id="'
+            + esc(item.id) + '"' + ((!affordable || item.owned) ? ' disabled' : '') + '>'
+            + esc(buttonText) + '</button>' + shortage + '</div>' +
+          '</article>';
+      }).join('') + '</div></section>';
+  }
+
+  /** アプリを表示している間だけ、学習報酬より低い速度で売上を作る設備。 */
+  function renderCafeAutomation() {
+    var cafe = cafeState();
+    var automation = cafe.automation || [];
+    if (!automation.length) { return ''; }
+
+    var current = automation.filter(function (item) { return item.equipped; })[0] || null;
+    var next = automation.filter(function (item) { return item.available; })[0] || null;
+    var currentTier = current ? current.tier : 0;
+    var affordable = next && next.starReady && cafe.cash >= next.cost;
+    var currentHtml = current
+      ? '<span class="equipment-item-icon">' + esc(current.emoji) + '</span><div><small>現在装備 · Rank '
+        + current.tier + '</small><b>' + esc(current.name) + '</b><em>表示中 +'
+        + numberText(cafe.passiveCashPerMinute) + 'コイン / 分</em></div>'
+      : '<span class="equipment-item-icon empty">－</span><div><small>現在装備</small><b>未導入</b>'
+        + '<em>自動売上なし</em></div>';
+    var nextEstimate = next
+      ? Math.max(1, Math.floor(Number(cafe.nextOrderCash || 0)
+          * next.rateBasisPointsPerMinute / 10000))
+      : 0;
+    var nextHtml = next
+      ? '<span class="equipment-item-icon">' + esc(next.emoji) + '</span><div><small>次の上位設備 · Rank '
+        + next.tier + '</small><b>' + esc(next.name) + '</b><em>表示中 約 +'
+        + numberText(nextEstimate) + 'コイン / 分 · ★' + next.requiredStars + '</em></div>'
+      : '<span class="equipment-item-icon max">★</span><div><small>アップグレード完了</small>'
+        + '<b>最高ランク</b><em>学習1回分の5% / 分</em></div>';
+    var button = next
+      ? '<button class="cafe-buy cafe-automation-buy" data-id="' + esc(next.id) + '"'
+        + (!affordable ? ' disabled' : '') + '>Rank ' + next.tier + 'へ · '
+        + (next.discounted ? '<s>' + numberText(next.baseCost) + '</s> ' : '')
+        + numberText(next.cost) + 'コイン</button>'
+      : '<button class="cafe-buy cafe-automation-buy" disabled>MAX</button>';
+    var shortage = next && !next.starReady
+      ? '<small class="equipment-shortage">★' + next.requiredStars + 'で解放</small>'
+      : (next && !affordable
+        ? '<small class="equipment-shortage">あと ' + numberText(next.cost - cafe.cash) + 'コイン</small>'
+        : '');
+
+    return '<article class="equipment-path effect-automation">' +
+      '<header><div><span class="upgrade-type">自動営業</span><b>自動営業スロット</b></div>' +
+      '<strong>Rank ' + currentTier + '</strong></header>' +
+      '<div class="equipment-swap"><div class="equipment-current">' + currentHtml + '</div>' +
+      '<span class="equipment-arrow" aria-hidden="true">→</span>' +
+      '<div class="equipment-next">' + nextHtml + '</div></div>' +
+      '<p class="equipment-automation-note">アプリ表示中だけ稼働し、オフライン売上はありません。'
+        + '次の★を取るまでの自動売上は最大0.5問分なので、問題を解く方が必ず大きく稼げます。</p>' +
+      '<div class="equipment-action">' + button + shortage + '</div></article>';
+  }
+
+  /** カフェ固有の用語を、発生するタイミングと効果に分けて説明する。 */
+  function renderCafeEffectHelp() {
+    return '<details class="cafe-effect-help" id="cafeEffectHelp"'
+      + (cafeEffectHelpOpen ? ' open' : '') + '>' +
+      '<summary><span class="cafe-help-mark">?</span><span><b>売上・ボーナスの意味</b>' +
+      '<small>「正解チップ」「章ボーナス」などが分からないとき</small></span></summary>' +
+      '<div class="cafe-help-content">' +
+      '<p><strong>基本の売上</strong>は、問題を初めてクリアして★を取ったときに入ります。' +
+      '以下は、その売上や節目の追加報酬を育てる効果です。</p>' +
+      '<dl>' +
+      '<div><dt>販売戦略・注文売上</dt><dd>問題クリアと章クリアでもらうコインを増やします。</dd></div>' +
+      '<div><dt>抽出力・毎注文</dt><dd>一度の学習で提供する杯数を増やします。杯数が増えるほど売上も増えます。</dd></div>' +
+      '<div><dt>章ボーナス</dt><dd>章の問題をすべてクリアしたときだけ入る、まとめの追加売上を増やします。</dd></div>' +
+      '<div><dt>正解チップ</dt><dd>確認クイズに初めて正解したときの追加コインを増やします。★の判定には影響しません。</dd></div>' +
+      '<div><dt>連続効果</dt><dd>連続して学習した日数に応じて注文売上を増やします。効果は7日分が上限です。</dd></div>' +
+      '<div><dt>自動営業</dt><dd>アプリを表示している間だけ少しずつ売上を作ります。オフラインでは増えません。</dd></div>' +
+      (cafeNetworkUnlocked()
+        ? '<div><dt>店舗・ブランド倍率</dt><dd>店舗は一度の注文数を、ブランド倍率はカフェ報酬全体を増やします。</dd></div>'
+        : '') +
+      '</dl>' +
+      '<p class="cafe-help-foot">同じ系統の設備は合算されず、現在装備している一番上のRankの効果に置き換わります。</p>' +
+      '</div></details>';
   }
 
   function renderCafeShop() {
     var cafe = cafeState();
     var upgrades = cafe.upgrades || [];
-    if (!upgrades.length) { return ''; }
+    if (!upgrades.length) {
+      return '<section class="cafe-tab-panel cafe-empty-panel" id="cafePanelequipment" role="tabpanel"'
+        + ' aria-labelledby="cafeTabequipment" data-section="equipment"'
+        + (activeCafeSection === 'equipment' ? '' : ' hidden') + '>設備はまだありません。</section>';
+    }
 
-    var clearedChapters = cafe.clearedChapters || 0;
-    var unlockedTier = 0;
-    upgrades.forEach(function (u) {
-      if (clearedChapters >= u.unlockChapters) { unlockedTier = Math.max(unlockedTier, u.tier); }
-    });
-    // 現在購入できる設備に加え、その2ランク先までは内容を見せて目標にできるようにする。
-    var visibleThroughTier = unlockedTier + 2;
-    var tiers = [];
-    upgrades.forEach(function (u) {
-      if (tiers.indexOf(u.tier) < 0) { tiers.push(u.tier); }
-    });
+    var trackOrder = ['sales', 'cups', 'chapter', 'tips', 'streak'];
 
     function effectLabel(type) {
-      if (type === 'cups') { return '販売数型'; }
-      if (type === 'chapter') { return '章イベント型'; }
-      if (type === 'tips') { return 'クイズ型'; }
-      if (type === 'streak') { return '継続型'; }
-      return '単価型';
+      if (type === 'cups') { return '抽出力'; }
+      if (type === 'chapter') { return 'イベント'; }
+      if (type === 'tips') { return 'クイズ接客'; }
+      if (type === 'streak') { return '常連サービス'; }
+      return '販売戦略';
     }
 
-    function unlockText(required) {
-      if (!required) { return '最初から解放'; }
-      return '章を' + required + '個クリアで解放（現在 ' + clearedChapters + '個）';
+    function effectText(type, value) {
+      if (type === 'cups') { return '毎注文 +' + numberText(value) + '杯'; }
+      if (type === 'chapter') { return '章ボーナス +' + numberText(value) + '%'; }
+      if (type === 'tips') { return '正解チップ +' + numberText(value) + '%'; }
+      if (type === 'streak') { return '連続1日ごと +' + numberText(value) + '%'; }
+      return '注文売上 +' + numberText(value) + '%';
     }
 
-    return '<section class="menu-section cafe-shop">' +
-      '<div class="cafe-shop-head"><div><h2 class="menu-h2">ショップ設備</h2>' +
-      '<p class="menu-note">コーヒーは1杯平均 ¥' + numberText(cafe.cupPrice)
-        + '。同じ価格帯の5系統から作戦を選べます。設備は問題数ではなく、どの章でもよいので章クリアで解放されます。連続効果は7日分まで加算されます。</p></div>' +
+    var activeAutomation = (cafe.automation || []).some(function (item) { return item.equipped; });
+    var equippedCount = upgrades.filter(function (u) { return u.equipped; }).length
+      + (activeAutomation ? 1 : 0);
+    var automationCount = (cafe.ownedAutomation || []).length;
+    return '<section class="cafe-tab-panel cafe-shop" id="cafePanelequipment" role="tabpanel"'
+      + ' aria-labelledby="cafeTabequipment" data-section="equipment"'
+      + (activeCafeSection === 'equipment' ? '' : ' hidden') + '>' +
+      '<header class="cafe-section-heading"><div><span class="screen-eyebrow">EQUIPMENT PATHS</span>' +
+      '<h2>設備アップグレード</h2><p>手持ちの設備を一段ずつ更新します。</p></div>' +
       '<div class="cafe-effects">' +
-      '<span>設備 ' + (cafe.ownedUpgrades || []).length + ' / ' + upgrades.length + '</span>' +
+      '<span>稼働中 ' + equippedCount + '系統</span>' +
+      '<span>設備更新 ' + ((cafe.ownedUpgrades || []).length + automationCount) + '回</span>' +
       '<span>単価 +' + (cafe.salesBonusPercent || 0) + '%</span>' +
       '<span>毎注文 +' + (cafe.extraCups || 0) + '杯</span>' +
       '<span>章ボーナス +' + (cafe.chapterBonusPercent || 0) + '%</span>' +
       '<span>正解チップ +' + (cafe.quizTipPercent || 0) + '%</span>' +
       '<span>連続効果 +' + (cafe.streakBonusPercent || 0) + '%</span>' +
-      '</div></div>' +
-      '<div class="upgrade-tiers">' + tiers.map(function (tier) {
-        var items = upgrades.filter(function (u) { return u.tier === tier; });
-        var first = items[0];
-        var tierLocked = clearedChapters < first.unlockChapters;
-        var tierHidden = tierLocked && tier > visibleThroughTier
-          && !items.some(function (u) { return u.owned; });
-        var tierPrice = tierHidden ? '各 ¥???' : '各 ¥' + numberText(first.cost);
-        return '<section class="upgrade-tier' + (tierLocked ? ' locked' : '') + '">' +
-          '<div class="upgrade-tier-head"><div><b>設備ランク ' + tier + '</b>' +
-          '<small>' + (tierLocked ? unlockText(first.unlockChapters)
-            : '購入できます · ' + unlockText(first.unlockChapters))
-            + '</small></div><span>' + tierPrice + '</span></div>' +
-          '<div class="upgrade-grid">' + items.map(function (u) {
-            var locked = clearedChapters < u.unlockChapters;
-            var hidden = locked && u.tier > visibleThroughTier && !u.owned;
-            var affordable = cafe.cash >= u.cost;
-            var icon = hidden ? '❔' : u.emoji;
-            var name = hidden ? '???' : u.name;
-            var description = hidden ? 'まだ見ぬ設備' : u.description;
-            var status = u.owned ? '購入済み'
-              : (locked ? '章 ' + clearedChapters + ' / ' + u.unlockChapters : '¥' + numberText(u.cost));
-            var disabled = u.owned || locked || !affordable;
-            return '<article class="upgrade-card effect-' + esc(u.effectType)
-              + (u.owned ? ' owned' : '') + (locked ? ' locked' : '') + '">' +
-              '<div class="upgrade-icon">' + esc(icon) + '</div>' +
-              '<div class="upgrade-body"><span class="upgrade-type">'
-                + (hidden ? '???' : effectLabel(u.effectType)) + '</span><b>' + esc(name)
-                + '</b><small>' + esc(description) + '</small></div>' +
-              '<button class="cafe-buy" data-id="' + esc(u.id) + '"' + (disabled ? ' disabled' : '') + '>'
-                + esc(hidden ? '???' : status) + '</button>' +
-              '</article>';
-          }).join('') + '</div></section>';
-      }).join('') + '</div></section>';
+      '<span>自動 +' + numberText(cafe.passiveCashPerMinute) + ' / 分</span>' +
+      '</div></header>' +
+      '<p class="menu-note cafe-section-note">上位設備を買うと、同じ系統の設備と効果が上位性能へ置き換わります。'
+        + ' 各設備は★に応じて段階解放され、自動営業はアプリ表示中だけゆっくり売上を作ります。'
+        + ((cafe.items || []).some(function (item) {
+          return item.owned && item.effectType === 'equipment_discount';
+        }) ? ' マイスター工具箱の20%OFFを適用中です。' : '') + '</p>' +
+      renderCafeEffectHelp() +
+      '<div class="equipment-paths">' + trackOrder.map(function (type) {
+        var items = upgrades.filter(function (u) { return u.effectType === type; })
+          .sort(function (a, b) { return a.tier - b.tier; });
+        var current = null;
+        items.forEach(function (u) {
+          if (u.equipped || (u.owned && (!current || u.tier > current.tier))) { current = u; }
+        });
+        var currentTier = current ? current.tier : 0;
+        var next = null;
+        items.forEach(function (u) {
+          if (!next && u.tier === currentTier + 1) { next = u; }
+        });
+        var starReady = next && next.starReady;
+        var affordable = next && starReady && cafe.cash >= next.cost;
+        var currentHtml = current
+          ? '<span class="equipment-item-icon">' + esc(current.emoji) + '</span><div><small>現在装備 · Rank '
+            + current.tier + '</small><b>' + esc(current.name) + '</b><em>'
+            + esc(effectText(type, current.effectValue)) + '</em></div>'
+          : '<span class="equipment-item-icon empty">－</span><div><small>現在装備</small><b>未導入</b>'
+            + '<em>効果なし</em></div>';
+        var nextHtml = next
+          ? '<span class="equipment-item-icon">' + esc(next.emoji) + '</span><div><small>次の上位設備 · Rank '
+            + next.tier + '</small><b>' + esc(next.name) + '</b><em>'
+            + esc(effectText(type, next.effectValue)) + ' · ★' + next.requiredStars + '</em></div>'
+          : '<span class="equipment-item-icon max">★</span><div><small>アップグレード完了</small>'
+            + '<b>最高ランク</b><em>この系統は完成しました</em></div>';
+        var button = next
+          ? '<button class="cafe-buy equipment-upgrade-btn" data-id="' + esc(next.id) + '"'
+            + (!affordable ? ' disabled' : '') + '>Rank ' + next.tier + 'へ · '
+            + (next.discounted ? '<s>' + numberText(next.baseCost) + '</s> ' : '')
+            + numberText(next.cost) + 'コイン</button>'
+          : '<button class="cafe-buy equipment-upgrade-btn" disabled>MAX</button>';
+        var shortage = next && !starReady
+          ? '<small class="equipment-shortage">★' + next.requiredStars + 'で解放</small>'
+          : (next && !affordable
+            ? '<small class="equipment-shortage">あと ' + numberText(next.cost - cafe.cash) + 'コイン</small>'
+            : '');
+
+        return '<article class="equipment-path effect-' + esc(type) + '">' +
+          '<header><div><span class="upgrade-type">' + esc(effectLabel(type)) + '</span>' +
+          '<b>' + esc(effectLabel(type)) + 'スロット</b></div><strong>Rank ' + currentTier
+            + '</strong></header>' +
+          '<div class="equipment-swap"><div class="equipment-current">' + currentHtml + '</div>' +
+          '<span class="equipment-arrow" aria-hidden="true">→</span>' +
+          '<div class="equipment-next">' + nextHtml + '</div></div>' +
+          '<div class="equipment-action">' + button + shortage + '</div>' +
+          '</article>';
+      }).join('') + renderCafeAutomation() + '</div></section>';
   }
 
   function purchaseCafeUpgrade(id) {
@@ -608,57 +981,166 @@
       .then(function (res) {
         applyDelta(res.delta);
         renderHeader();
-        renderCafe();
-        toast(res.upgrade.emoji + ' 「' + res.upgrade.name + '」を購入しました');
+        renderCafe(true);
+        toast(res.upgrade.replacedName
+          ? res.upgrade.emoji + ' 「' + res.upgrade.replacedName + '」から「'
+            + res.upgrade.name + '」へ更新しました'
+          : res.upgrade.emoji + ' 「' + res.upgrade.name + '」を導入しました');
       })
       .catch(toastError);
   }
 
-  /** 学習の記録。★・連続日数・通過したテストケース・提出回数。 */
+  function purchaseCafeAutomation(id) {
+    api('cafe/automation/purchase', { id: id })
+      .then(function (res) {
+        applyDelta(res.delta);
+        renderHeader();
+        renderCafe(true);
+        syncCafePassiveMode();
+        toast(res.automation.replacedName
+          ? res.automation.emoji + ' 自動営業を「' + res.automation.name + '」へ更新しました'
+          : res.automation.emoji + ' 「' + res.automation.name + '」が自動営業を始めました');
+      })
+      .catch(toastError);
+  }
+
+  function purchaseCafeItem(id) {
+    api('cafe/item/purchase', { id: id })
+      .then(function (res) {
+        applyDelta(res.delta);
+        renderHeader();
+        renderCafe(true);
+        toast(res.item.emoji + ' 「' + res.item.name + '」を獲得しました');
+      })
+      .catch(toastError);
+  }
+
+  function expandCafeNetwork() {
+    api('cafe/expand', {})
+      .then(function (res) {
+        applyDelta(res.delta);
+        renderHeader();
+        renderCafe(true);
+        toast('🏪 +' + numberText(res.expansion.addedStores) + '店舗オープン！ 全'
+          + numberText(res.expansion.storeCount) + '店舗になりました');
+      })
+      .catch(toastError);
+  }
+
+  function newCafePassiveSessionId() {
+    return Date.now().toString(36) + '-' + Math.random().toString(36).slice(2);
+  }
+
+  /** アプリが見えている間だけサーバへ定期連絡し、オフライン収益を作らない。 */
+  function syncCafePassiveMode() {
+    if (!state || document.hidden || !(cafeState().passiveCashPerMinute > 0)) {
+      closeCafePassiveMode(true);
+      return;
+    }
+    if (cafePassiveSessionId) { return; }
+
+    var sessionId = newCafePassiveSessionId();
+    cafePassiveSessionId = sessionId;
+    api('cafe/passive/start', { sessionId: sessionId })
+      .then(function (res) {
+        if (cafePassiveSessionId !== sessionId) { return; }
+        applyDelta(res.delta);
+        renderHeader();
+        cafePassiveTimer = setInterval(collectCafePassiveSales, CAFE_PASSIVE_INTERVAL_MS);
+      })
+      .catch(function () {
+        if (cafePassiveSessionId === sessionId) { cafePassiveSessionId = null; }
+      });
+  }
+
+  function collectCafePassiveSales() {
+    var sessionId = cafePassiveSessionId;
+    if (!sessionId || cafePassiveBusy || document.hidden) { return; }
+    cafePassiveBusy = true;
+    api('cafe/passive/collect', { sessionId: sessionId })
+      .then(function (res) {
+        if (cafePassiveSessionId !== sessionId) { return; }
+        if (!res.passive.active) {
+          closeCafePassiveMode(false);
+          return;
+        }
+        applyDelta(res.delta);
+        renderHeader();
+        if (res.passive.cash > 0 && currentView === 'cafe') {
+          renderCafe(true);
+          var live = document.getElementById('cafePassiveLive');
+          if (live) {
+            var gain = document.createElement('i');
+            gain.className = 'cafe-passive-gain';
+            gain.textContent = '+' + numberText(res.passive.cash);
+            live.appendChild(gain);
+            setTimeout(function () { if (gain.parentNode) { gain.parentNode.removeChild(gain); } }, 1300);
+          }
+        }
+      })
+      .catch(function () { /* 次の定期連絡で再試行する */ })
+      .finally(function () {
+        if (cafePassiveSessionId === sessionId) { cafePassiveBusy = false; }
+      });
+  }
+
+  function closeCafePassiveMode(sendStop) {
+    var sessionId = cafePassiveSessionId;
+    cafePassiveSessionId = null;
+    cafePassiveBusy = false;
+    if (cafePassiveTimer) {
+      clearInterval(cafePassiveTimer);
+      cafePassiveTimer = null;
+    }
+    if (!sessionId || !sendStop) { return; }
+    api('cafe/passive/stop', { sessionId: sessionId })
+      .then(function (res) {
+        applyDelta(res.delta);
+        renderHeader();
+      })
+      .catch(function () { /* 画面を閉じる途中なら精算できなくても継続しない */ });
+  }
+
+  /** 学習の記録。カードを増やさず、1本の常時表示バーで現在地を把握できるようにする。 */
   function renderMenuStats() {
     // クリアした問題だけを数えると、8件中7件通っている問題が0件扱いになって
     // 実際より進んでいないように見える。サーバが持っている最高記録で数える。
     var casesPassed = allTasks().reduce(function (n, t) {
       return n + (t.cleared ? t.totalCaseCount : (t.passedCount || 0));
     }, 0);
-    var casesTotal = allTasks().reduce(function (n, t) { return n + t.totalCaseCount; }, 0);
     var attempts = sumValues(state.progress.attempts);
 
     var tiles = [
       { icon: '★', value: state.progress.starCount, unit: '個', label: '獲得したスター' },
       { icon: '🔥', value: state.progress.streak, unit: '日', label: '連続で学習した日数' },
-      { icon: '✅', value: casesPassed, unit: '/ ' + casesTotal, label: '通過したテストケース' },
+      { icon: '✅', value: casesPassed, unit: '件', label: '通過したテストケース' },
       { icon: '✍️', value: attempts, unit: '回', label: '提出した回数' }
     ];
     if (state.quizTotal) {
       tiles.push({
         icon: '🧠',
         value: state.quizCorrect,
-        unit: '/ ' + state.quizTotal,
+        unit: '問',
         label: '正解した確認クイズ'
       });
     }
 
     return '' +
-      '<section class="menu-section">' +
-      '  <h2 class="menu-h2">学習の記録</h2>' +
-      '  <div class="stat-grid">' +
+      '<section class="menu-section stat-grid" aria-label="学習の記録">' +
       tiles.map(function (t) {
-        return '<div class="stat-tile">' +
-          '<div class="stat-icon">' + t.icon + '</div>' +
-          '<div class="stat-value">' + t.value + '<span class="stat-unit">' + esc(t.unit) + '</span></div>' +
-          '<div class="stat-label">' + esc(t.label) + '</div>' +
-          '</div>';
+        return '<div class="stat-tile"><span class="stat-icon">' + t.icon + '</span>' +
+          '<span class="stat-copy"><span class="stat-label">' + esc(t.label) + '</span>' +
+          '<strong class="stat-value">' + t.value + '<span class="stat-unit">' + esc(t.unit) + '</span></strong>' +
+          '</span></div>';
       }).join('') +
-      '  </div>' +
       '</section>';
   }
 
-  /** 章のカード。各章のレッスン一覧は常に表示する。 */
+  /** 左で章を選び、右でレッスンへ進む。開閉操作のないマスター・詳細UI。 */
   function renderChapterCards() {
-    var grid = document.getElementById('chGrid');
+    var listHost = document.getElementById('chGrid');
+    var detailHost = document.getElementById('chapterDetail');
     var tabs = document.getElementById('partTabs');
-    var intro = document.getElementById('partIntro');
     var todoChapter = chapterOf(firstTodo());
     var parts = curriculumParts();
     var todoPart = todoChapter && partOfChapter(todoChapter);
@@ -670,108 +1152,139 @@
     tabs.innerHTML = '';
     parts.forEach(function (part) {
       var progress = partProgress(part);
+      var progressLabel = progress.cleared === progress.total && progress.total > 0
+        ? 'クリア' : (progress.cleared > 0 ? '学習中' : '');
       var button = document.createElement('button');
       button.type = 'button';
       button.className = 'part-tab' + (part.id === activePartId ? ' active' : '');
-      button.setAttribute('aria-pressed', part.id === activePartId ? 'true' : 'false');
+      button.setAttribute('role', 'tab');
+      button.setAttribute('aria-selected', part.id === activePartId ? 'true' : 'false');
       button.innerHTML =
         '<span class="part-tab-emoji">' + esc(part.emoji) + '</span>' +
         '<span class="part-tab-body">' +
         '  <span class="part-tab-title">' + esc(part.title) + '</span>' +
         '  <span class="part-tab-sub">' + esc(part.subtitle) + '</span>' +
         '</span>' +
-        '<span class="part-tab-progress"><b>' + progress.cleared + '</b> / ' + progress.total + '問</span>';
+        (progressLabel ? '<span class="part-tab-progress">' + progressLabel + '</span>' : '');
       button.addEventListener('click', function () {
         activePartId = part.id;
         renderChapterCards();
+        var activeTab = tabs.querySelector('.part-tab.active');
+        if (activeTab) { activeTab.focus(); }
       });
       tabs.appendChild(button);
     });
 
     var activePart = parts.find(function (part) { return part.id === activePartId; }) || parts[0];
     var activeChapters = chaptersOfPart(activePart);
-    var activeProgress = partProgress(activePart);
-    var firstNumber = activeChapters.length ? displayChapterNumber(activeChapters[0]) : 0;
-    var lastNumber = activeChapters.length ? displayChapterNumber(activeChapters[activeChapters.length - 1]) : 0;
-    var partPct = activeProgress.total ? Math.round(activeProgress.cleared / activeProgress.total * 100) : 0;
-    intro.innerHTML =
-      '<div><b>' + esc(activePart.emoji) + ' ' + esc(activePart.title) + '</b>' +
-      '<span>第' + firstNumber + '〜' + lastNumber + '章 · ' + activeChapters.length + '章</span></div>' +
-      '<div class="part-intro-progress"><span>' + partPct + '%</span>' +
-      '<div><i style="width:' + partPct + '%"></i></div></div>';
+    listHost.innerHTML = '';
 
-    grid.innerHTML = '';
+    var suggestedChapter = null;
+    if (todoChapter && todoPart && todoPart.id === activePart.id) {
+      suggestedChapter = todoChapter;
+    } else {
+      suggestedChapter = activeChapters.find(function (ch) { return !ch.cleared; }) || activeChapters[0];
+    }
+    var selectedChapter = activeChapters.find(function (ch) {
+      return ch.id === selectedChapterByPart[activePart.id];
+    }) || suggestedChapter;
+    if (!selectedChapter) {
+      detailHost.innerHTML = '<div class="chapter-empty">この編には章がありません。</div>';
+      return;
+    }
+    selectedChapterByPart[activePart.id] = selectedChapter.id;
 
     activeChapters.forEach(function (ch) {
-      var total = ch.taskCount;
-      var pct = Math.round((ch.clearedCount / total) * 100);
-      var card = document.createElement('section');
-      card.className = 'ch-card' + (ch.cleared ? ' ch-card-cleared' : '');
-
-      var status = ch.cleared
-        ? '<span class="ch-card-done">✅ クリア</span>'
-        : '<span class="ch-card-count' + (ch.clearedCount ? '' : ' zero') + '">'
-          + '<b>' + ch.clearedCount + '</b> / ' + total + '</span>';
-
-      card.innerHTML =
-        '<div class="ch-card-head">' +
-        '  <span class="ch-card-emoji">' + esc(ch.emoji) + '</span>' +
-        '  <span class="ch-card-titles">' +
-        '    <span class="ch-card-no">第' + displayChapterNumber(ch) + '章</span>' +
-        '    <span class="ch-card-title">' + esc(ch.title) + '</span>' +
-        '    <span class="ch-card-sub">' + esc(ch.subtitle) + '</span>' +
-        '  </span>' +
-        '  <span class="ch-card-right">' + status + '</span>' +
-        '</div>' +
-        '<div class="ch-card-bar"><div class="ch-card-bar-fill" style="width:' + pct + '%"></div></div>' +
-        '<ul class="ch-card-lessons"></ul>';
-
-      var ul = card.querySelector('.ch-card-lessons');
-      ch.lessons.forEach(function (l) {
-        var li = document.createElement('li');
-        li.className = 'ch-card-lesson' + (l.cleared ? ' cleared' : '');
-        li.innerHTML =
-          '<span class="ccl-mark">' + (l.cleared ? '★' : '○') + '</span>' +
-          '<span class="ccl-id">' + esc(displayLessonId(l)) + '</span>' +
-          '<span class="ccl-title">' + esc(l.title) + '</span>' +
-          lessonTaskProgress(l) +
-          '<span class="ccl-go">→</span>';
-        li.addEventListener('click', function () { selectLesson(l.id); });
-        ul.appendChild(li);
+      var recommended = suggestedChapter && suggestedChapter.id === ch.id;
+      var selected = ch.id === selectedChapter.id;
+      var chapterStatus = ch.cleared ? '✓' : (ch.clearedCount ? '学習中' : '');
+      var button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'chapter-list-item' + (selected ? ' active' : '')
+        + (ch.cleared ? ' cleared' : '') + (recommended && !ch.cleared ? ' recommended' : '');
+      button.dataset.chapter = ch.id;
+      button.setAttribute('aria-current', selected ? 'true' : 'false');
+      button.innerHTML =
+        '<span class="chapter-list-emoji">' + esc(ch.emoji) + '</span>' +
+        '<span class="chapter-list-copy"><span class="chapter-list-kicker">第'
+          + displayChapterNumber(ch) + '章' + (recommended && !ch.cleared ? ' · 次におすすめ' : '') + '</span>' +
+        '<strong>' + esc(ch.title) + '</strong></span>' +
+        '<span class="chapter-list-count">' + chapterStatus + '</span>';
+      button.addEventListener('click', function () {
+        selectedChapterByPart[activePart.id] = ch.id;
+        renderChapterCards();
+        var activeButton = listHost.querySelector('[data-chapter="' + ch.id + '"]');
+        if (activeButton) { activeButton.focus(); }
       });
+      listHost.appendChild(button);
+    });
 
-      grid.appendChild(card);
+    var selectedListButton = listHost.querySelector('[data-chapter="' + selectedChapter.id + '"]');
+    if (selectedListButton) {
+      if (listHost.scrollWidth > listHost.clientWidth) {
+        listHost.scrollLeft = Math.max(0, selectedListButton.offsetLeft - 12);
+      } else {
+        listHost.scrollTop = Math.max(0, selectedListButton.offsetTop - listHost.offsetTop - 12);
+      }
+    }
+
+    var nextLessonInChapter = selectedChapter.lessons.find(function (lesson) { return !lesson.cleared; })
+      || selectedChapter.lessons[0];
+    var selectedStatus = selectedChapter.cleared ? 'クリア済み'
+      : (selectedChapter.clearedCount ? '学習中' : '');
+    var chapterAction = selectedChapter.cleared ? 'もう一度復習する'
+      : (selectedChapter.clearedCount ? 'この章を続ける' : 'この章を始める');
+    detailHost.innerHTML =
+      '<header class="chapter-detail-head">' +
+      '  <div class="chapter-detail-title"><span class="chapter-detail-emoji">' + esc(selectedChapter.emoji) + '</span>' +
+      '  <div><span class="screen-eyebrow">第' + displayChapterNumber(selectedChapter) + '章</span>' +
+      '  <h3>' + esc(selectedChapter.title) + '</h3><p>' + esc(selectedChapter.subtitle) + '</p></div></div>' +
+      (selectedStatus
+        ? '  <div class="chapter-detail-progress"><strong>' + selectedStatus + '</strong></div>'
+        : '') +
+      '</header>' +
+      (nextLessonInChapter ? '<button class="primary-btn chapter-start-btn" id="chapterStartBtn" data-target="'
+        + esc(nextLessonInChapter.id) + '">▶ ' + chapterAction + '</button>' : '') +
+      '<ul class="chapter-lesson-list">' + selectedChapter.lessons.map(function (lesson) {
+        var done = lesson.clearedCount || 0;
+        var lessonStatus = lesson.cleared ? 'クリア済み' : (done ? '学習中' : '');
+        return '<li><button type="button" class="chapter-lesson-row' + (lesson.cleared ? ' cleared' : '')
+          + '" data-lesson="' + esc(lesson.id) + '">' +
+          '<span class="chapter-lesson-status">' + (lesson.cleared ? '✓' : displayLessonId(lesson)) + '</span>' +
+          '<span class="chapter-lesson-copy"><strong>' + esc(lesson.title) + '</strong>' +
+          (lessonStatus ? '<small>' + lessonStatus + '</small>' : '') + '</span>' +
+          '<span class="chapter-lesson-arrow">→</span></button></li>';
+      }).join('') + '</ul>';
+
+    var startButton = document.getElementById('chapterStartBtn');
+    if (startButton) {
+      startButton.addEventListener('click', function () { selectLesson(startButton.dataset.target); });
+    }
+    Array.prototype.forEach.call(detailHost.getElementsByClassName('chapter-lesson-row'), function (button) {
+      button.addEventListener('click', function () { selectLesson(button.dataset.lesson); });
     });
   }
 
-  /** 使い方の案内。まだ1問もクリアしていない人には最初から開いて見せる。 */
+  /** 初回だけ、開始に必要な4ステップを常時表示する。 */
   function renderMenuGuide(stars) {
+    if (stars > 0) { return ''; }
     var steps = [
       ['📖', '解説を読む', '具体例つきで、1つの話題に絞って書いてあります。'],
       ['▶', 'サンプルを動かす', '解説中のコードは「▶ サンプルを実行」でその場で動きます。まず動かすのが理解の近道です。'],
       ['⌨️', '自分で書く', 'ひな形から書き始められます。行番号・色付け・自動インデントつきです。'],
-      ['✓', '提出して採点', '隠しテストを含む全ケースで採点します。全部通ればクリア、★が付きます。'],
-      ['🔁', '同じ回に2問目', '解説で出てきた話は、なるべく全部その場で書いて確かめられるようにしています。'],
-      ['💡', '詰まったらヒント', '1つずつ開けます。全部開くと模範解答も見られます。使ってもクリア扱いです。']
+      ['✓', '提出して採点', '全ケースを通ればクリアです。詰まったときはヒントも使えます。']
     ];
 
     return '' +
-      '<section class="menu-section">' +
-      '  <details class="guide"' + (stars === 0 ? ' open' : '') + '>' +
-      '    <summary class="guide-summary">使い方（1レッスンの流れ）</summary>' +
+      '<section class="menu-section onboarding-panel">' +
+      '  <header><span class="screen-eyebrow">FIRST STEP</span><h2>1レッスンの進め方</h2></header>' +
       '    <ol class="guide-steps">' +
       steps.map(function (s) {
         return '<li><span class="guide-icon">' + s[0] + '</span>' +
           '<span class="guide-text"><b>' + esc(s[1]) + '</b>' + esc(s[2]) + '</span></li>';
       }).join('') +
       '    </ol>' +
-      '    <div class="guide-keys">' +
-      '      <span><kbd>⌘</kbd>/<kbd>Ctrl</kbd> + <kbd>Enter</kbd> 提出</span>' +
-      '      <span><kbd>⌘</kbd>/<kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>Enter</kbd> 実行</span>' +
-      '      <span><kbd>Tab</kbd> インデント</span>' +
-      '    </div>' +
       '    <p class="guide-foot">書いたコードは自動で保存されます。ブラウザを閉じても続きから再開できます。</p>' +
-      '  </details>' +
       '</section>';
   }
 
@@ -902,6 +1415,7 @@
 
       '  <div class="hints" id="hints-' + n + '"></div>' +
       '  <div class="result" id="result-' + n + '"></div>' +
+      '  <div class="solution-area" id="solution-' + n + '"></div>' +
       '</div>';
 
     var editor = new window.JQEditor(block.querySelector('#editorHost-' + n));
@@ -1017,7 +1531,9 @@
         var lesson = findLesson(lessonId);
         if (lesson && lessonId === currentId) { renderQuiz(lesson); }
         if (res.cafeAward && res.cafeAward.cash > 0) {
-          toast('🪙 初正解チップ +¥' + numberText(res.cafeAward.cash));
+          var itemEvents = res.cafeAward.itemEvents || [];
+          toast((itemEvents.length ? itemEvents.join(' / ') + '　' : '🪙 初正解チップ ')
+            + '+' + numberText(res.cafeAward.cash) + 'コイン');
         }
       })
       .catch(toastError);
@@ -1204,6 +1720,8 @@
         refreshTaskStatus(wasCurrent, taskId);
         renderJudgement(res, taskId);
         if (res.allPass) {
+          // 正解した直後にも、問題ブロック末尾から模範解答を確認できるようにする。
+          maybeShowSolutionButton(wasCurrent, taskId);
           celebrate(res, wasCurrent, taskId);
         }
       })
@@ -1262,19 +1780,34 @@
     }
 
     var total = res.cases.length;
+    var sourceFailures = res.sourceFailures || [];
+    var outputAllPass = res.passedCount === total;
     html += '<h2 class="card-h"><span class="card-h-icon">' + (res.allPass ? '🎉' : '🔍') + '</span>'
-      + (res.allPass ? 'クリア！全ケース通過' : '結果: ' + res.passedCount + ' / ' + total + ' 通過')
+      + (res.allPass ? 'クリア！全ケース通過'
+        : (sourceFailures.length && outputAllPass
+          ? '出力は全ケース通過・書き方を確認'
+          : '結果: ' + res.passedCount + ' / ' + total + ' 通過'))
       + '</h2>';
 
+    if (sourceFailures.length) {
+      html += '<div class="hint-box"><strong>🧩 問題で指定された書き方を確認してください</strong><ul>'
+        + sourceFailures.map(function (message) { return '<li>' + esc(message) + '</li>'; }).join('')
+        + '</ul></div>';
+    }
+
     if (res.cafeAward && (res.cafeAward.cash > 0 || res.cafeAward.cups > 0)) {
+      var itemEvents = res.cafeAward.itemEvents || [];
       html += '<div class="cafe-receipt">' +
-        '<span><small>注文売上</small><b>+¥' + numberText(res.cafeAward.cash) + '</b></span>' +
+        '<span><small>獲得コイン</small><b>+' + numberText(res.cafeAward.cash) + 'コイン</b></span>' +
         '<span><small>提供しました</small><b>+' + numberText(res.cafeAward.cups) + '杯 ☕</b></span>' +
         (res.chapterCleared ? '<em>章クリアボーナス込み</em>' : '') +
+        (itemEvents.length ? '<div class="cafe-item-events">' + itemEvents.map(function (event) {
+          return '<strong>✨ ' + esc(event) + '</strong>';
+        }).join('') + '</div>' : '') +
         '</div>';
     }
 
-    if (!res.allPass) {
+    if (!res.allPass && !outputAllPass) {
       html += '<p class="result-lead">通らなかったケースを見て、どんな入力で答えがずれるか確かめましょう。</p>';
     }
 
@@ -1418,7 +1951,7 @@
     var lesson = findLesson(lessonId);
     var task = lesson && findTask(lesson, taskId);
     if (!task || !task.hasSolution) { return; }
-    var host = document.getElementById('hints-' + taskId);
+    var host = document.getElementById('solution-' + taskId);
     if (!host || host.querySelector('.solution-row')) { return; }
     if (!task.cleared && revealedHintCount(taskId) < task.hintCount) { return; }
 
@@ -1471,16 +2004,9 @@
         + 'ここまで自分の手で書いてきたことが、そのまま力になっています。',
         null);
     } else if (res.chapterCleared) {
-      var cafe = cafeState();
-      var unlocked = (cafe.upgrades || []).filter(function (u) {
-        return u.unlockChapters === cafe.clearedChapters;
-      });
-      var unlockMessage = unlocked.length
-        ? ' 新しく設備ランク' + unlocked[0].tier + 'の' + unlocked.length + '種類が解放されました！'
-        : '';
       showOverlay('🎉', '第' + res.chapterNumber + '章クリア！',
         '「' + res.chapterTitle + '」を全問クリアしました。カフェにも章制覇ボーナスが届きました。'
-          + unlockMessage,
+          + ' ブランド倍率も15%加算されました！',
         res.next);
     }
   }
@@ -1542,6 +2068,7 @@
     } else {
       renderLesson();
     }
+    syncCafePassiveMode();
   }
 
   function selectLesson(id) {
@@ -1609,8 +2136,8 @@
   });
   applySidebarVisibility();
 
-  document.getElementById('resetBtn').addEventListener('click', function () {
-    if (!window.confirm('★・書いたコード・カフェの売上と設備がすべて消えます。本当にリセットしますか？')) { return; }
+  function resetProgress() {
+    if (!window.confirm('★・書いたコード・カフェのコイン・店舗・設備・アイテムがすべて消えます。本当にリセットしますか？')) { return; }
     api('reset', {})
       .then(function (data) {
         state = data;
@@ -1620,7 +2147,7 @@
         toast('進捗をリセットしました');
       })
       .catch(toastError);
-  });
+  }
 
   window.addEventListener('hashchange', function () {
     var route = routeFromHash();
@@ -1632,6 +2159,28 @@
     }
     render();
   });
+
+  function beaconCafePassiveStop() {
+    var sessionId = cafePassiveSessionId;
+    cafePassiveSessionId = null;
+    cafePassiveBusy = false;
+    if (cafePassiveTimer) {
+      clearInterval(cafePassiveTimer);
+      cafePassiveTimer = null;
+    }
+    if (!sessionId || !navigator.sendBeacon) { return; }
+    var payload = new Blob([JSON.stringify({ sessionId: sessionId })], { type: 'application/json' });
+    navigator.sendBeacon('/api/cafe/passive/stop', payload);
+  }
+
+  document.addEventListener('visibilitychange', function () {
+    if (document.hidden) {
+      beaconCafePassiveStop();
+    } else {
+      syncCafePassiveMode();
+    }
+  });
+  window.addEventListener('pagehide', beaconCafePassiveStop);
 
   boot();
 })();

@@ -1,0 +1,60 @@
+{
+  "id": "ch47",
+  "title": "JSONとHTTPクライアント",
+  "subtitle": "外部APIと安全にデータを交換する",
+  "emoji": "🔌",
+  "lessons": [
+    {
+      "id": "47-1",
+      "title": "JSONの型とエスケープ",
+      "explanation": "## 文字列ではなく構造として扱う\n\nJSONにはobject、array、string、number、boolean、nullがあります。objectのキーは文字列で、文字列内の `\"`、`\\`、改行などはエスケープが必要です。Javaオブジェクトとの変換はJSON-B、木構造や生成はJSON-Pなどのライブラリを使うと、手作業の連結による壊れたJSONや注入を避けられます。\n\n```java\n// JSON-Bの例（Jakarta EE環境または依存関係が必要）\nString json = jsonb.toJson(new User(1, \"Aki\"));\nUser user = jsonb.fromJson(json, User.class);\n```\n\n未知フィールド、必須フィールド欠落、数値範囲、日時形式をどう扱うかはAPI契約として決めます。パスワードやトークンをログへ出してはいけません。",
+      "samples": [{"caption":"最小限の文字列エスケープ","code":"public class Main{static String quote(String s){return \"\\\"\"+s.replace(\"\\\\\",\"\\\\\\\\\").replace(\"\\\"\",\"\\\\\\\"\").replace(\"\\n\",\"\\\\n\")+\"\\\"\";}public static void main(String[] a){System.out.println(quote(\"A\\\"B\"));}}\n"}],
+      "task": "1行の名前を読み、JSON object `{\"name\":\"...\"}` を出力してください。バックスラッシュ、ダブルクォート、改行コード、タブをJSON文字列としてエスケープするstaticメソッドを作ります。",
+      "starterCode": "import java.util.*;public class Main{static String quote(String value){return \"\";}public static void main(String[] a){Scanner s=new Scanner(System.in);String name=s.nextLine();System.out.println(\"{\\\"name\\\":\"+quote(name)+\"}\");}}\n",
+      "visibleCases": [{"label":"通常","stdin":"Java Cafe","expected":"{\"name\":\"Java Cafe\"}"},{"label":"引用符","stdin":"A\"B","expected":"{\"name\":\"A\\\"B\"}"}],
+      "hiddenCases": [{"label":"バックスラッシュ","stdin":"C:\\work","expected":"{\"name\":\"C:\\\\work\"}"}],
+      "hints": ["1文字ずつswitchで処理すると、置換順序の事故を避けられます。","最後に前後へダブルクォートを付けます。"],
+      "solution": "import java.util.*;public class Main{static String quote(String value){StringBuilder b=new StringBuilder(\"\\\"\");for(char c:value.toCharArray())switch(c){case '\\\\'->b.append(\"\\\\\\\\\");case '\"'->b.append(\"\\\\\\\"\");case '\\n'->b.append(\"\\\\n\");case '\\r'->b.append(\"\\\\r\");case '\\t'->b.append(\"\\\\t\");default->b.append(c);}return b.append('\"').toString();}public static void main(String[] a){Scanner s=new Scanner(System.in);String name=s.nextLine();System.out.println(\"{\\\"name\\\":\"+quote(name)+\"}\");}}\n",
+      "quiz": [{"question":"JSON文字列を手作業で連結する主な問題は？","choices":["必ず遅いだけ","エスケープ漏れで不正なJSONや注入につながる","数値が一切使えない","HTTPで送れない"],"answer":1,"explanation":"信頼できるJSONライブラリへ構造を渡して生成するのが基本です。"}]
+    },
+    {
+      "id": "47-2",
+      "title": "HttpClientでリクエストする",
+      "explanation": "## 通信の境界を明示する\n\nJava標準の `java.net.http.HttpClient` でHTTP/1.1とHTTP/2の通信を扱えます。URI、メソッド、ヘッダー、ボディ、タイムアウトを `HttpRequest` へ組み立てます。\n\n```java\nHttpClient client = HttpClient.newBuilder()\n    .connectTimeout(Duration.ofSeconds(3)).build();\nHttpRequest request = HttpRequest.newBuilder(URI.create(url))\n    .timeout(Duration.ofSeconds(5))\n    .header(\"Accept\", \"application/json\")\n    .GET().build();\nHttpResponse<String> response = client.send(\n    request, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));\n```\n\n接続タイムアウトとリクエストタイムアウトは別です。ベースURLや認証情報をコードへ埋め込まず設定から受け取り、クエリ値はURLエンコードします。実通信は `labs/http-client` のローカルサーバーで試せます。",
+      "samples": [{"caption":"送信せずリクエストを組み立てる","code":"import java.net.*;import java.net.http.*;import java.time.*;public class Main{public static void main(String[] a){var r=HttpRequest.newBuilder(URI.create(\"https://example.test/items\")).timeout(Duration.ofSeconds(2)).GET().build();System.out.println(r.method()+\" \"+r.uri().getPath());}}\n"}],
+      "task": "hostと整数idを読み、`https://host/items/id` へのGETリクエストを組み立て、`GET /items/id timeout=3` と表示してください。通信はしません。hostは妥当なホスト名、idは0以上です。",
+      "starterCode": "import java.net.*;import java.net.http.*;import java.time.*;import java.util.*;public class Main{public static void main(String[] a){Scanner s=new Scanner(System.in);String host=s.next();int id=s.nextInt();/* TODO */}}\n",
+      "visibleCases": [{"label":"構築","stdin":"api.example.test 42","expected":"GET /items/42 timeout=3"}],
+      "hiddenCases": [{"label":"ゼロ","stdin":"localhost 0","expected":"GET /items/0 timeout=3"}],
+      "hints": ["`URI.create(\"https://\" + host + \"/items/\" + id)`。","`request.timeout().orElseThrow().toSeconds()` で秒を確認できます。"],
+      "solution": "import java.net.*;import java.net.http.*;import java.time.*;import java.util.*;public class Main{public static void main(String[] a){Scanner s=new Scanner(System.in);String host=s.next();int id=s.nextInt();HttpRequest r=HttpRequest.newBuilder(URI.create(\"https://\"+host+\"/items/\"+id)).timeout(Duration.ofSeconds(3)).GET().build();System.out.println(r.method()+\" \"+r.uri().getPath()+\" timeout=\"+r.timeout().orElseThrow().toSeconds());}}\n",
+      "quiz": [{"question":"HttpRequestのtimeoutが主に制限するものは？","choices":["Javaのコンパイル時間","そのリクエストの完了待ち時間","JSONの文字数","DNS名の長さ"],"answer":1,"explanation":"接続用の設定とは別に、個々のリクエストへ期限を設定します。"}]
+    },
+    {
+      "id": "47-3",
+      "title": "ステータス・再試行・冪等性",
+      "explanation": "## 成功以外を通常の分岐として扱う\n\nHTTPは応答が返っても成功とは限りません。2xxは成功、4xxは要求側の問題、5xxはサーバー側の失敗が中心です。ただし429や503では `Retry-After` を見て再試行できる場合があります。無限再試行せず、回数上限、指数バックオフ、ジッター、全体の期限を持たせます。\n\nGETやPUTのような冪等な操作は同じ要求を再送しても状態の意味が変わりにくい一方、POSTの再送は二重登録を起こすことがあります。APIが対応する冪等性キーを使うなど、サーバー側の契約と合わせます。割り込みは握りつぶさず、必要なら割り込み状態を戻します。",
+      "samples": [{"caption":"再試行対象を分類","code":"public class Main{static boolean retryable(int status){return status==429||status==502||status==503||status==504;}public static void main(String[] a){System.out.println(retryable(503));}}\n"}],
+      "task": "HTTPメソッドとstatusを読み、`SUCCESS`、`RETRY`、`FAIL` のいずれかを表示してください。2xxはSUCCESS。GET/PUT/DELETEの429,502,503,504だけRETRY。それ以外はFAILです。",
+      "starterCode": "import java.util.*;public class Main{static String classify(String method,int status){return \"\";}public static void main(String[] a){Scanner s=new Scanner(System.in);System.out.println(classify(s.next(),s.nextInt()));}}\n",
+      "visibleCases": [{"label":"成功","stdin":"POST 201","expected":"SUCCESS"},{"label":"再試行","stdin":"GET 503","expected":"RETRY"}],
+      "hiddenCases": [{"label":"POSTは再試行しない","stdin":"POST 503","expected":"FAIL"},{"label":"404","stdin":"GET 404","expected":"FAIL"}],
+      "hints": ["まず200〜299を判定します。","冪等メソッドかつ再試行対象statusの積で判定します。"],
+      "solution": "import java.util.*;public class Main{static String classify(String method,int status){if(status>=200&&status<300)return \"SUCCESS\";boolean safe=method.equals(\"GET\")||method.equals(\"PUT\")||method.equals(\"DELETE\");boolean transientFailure=status==429||status==502||status==503||status==504;return safe&&transientFailure?\"RETRY\":\"FAIL\";}public static void main(String[] a){Scanner s=new Scanner(System.in);System.out.println(classify(s.next(),s.nextInt()));}}\n",
+      "quiz": [{"question":"POST再送で特に注意することは？","choices":["二重登録","Javaの型消去","ガベージコレクション停止","import順"],"answer":0,"explanation":"要求が届いた後に応答だけ失われると、単純な再送で処理が重複し得ます。"}]
+    },
+    {
+      "id": "47-4",
+      "title": "API契約と境界のテスト",
+      "explanation": "## 外部形式をドメインへ直接漏らさない\n\n通信DTOは外部APIの形、ドメインモデルはアプリの意味を表します。変換層を置くと、フィールド名変更、null、単位、列挙値の追加を境界で扱えます。recordは不変なDTOに向きますが、入力検証は別途必要です。\n\nAPIテストでは、正常応答だけでなく、不正JSON、必須項目欠落、未知の列挙値、4xx/5xx、遅延、途中切断を確認します。外部の本番APIに毎回依存せず、単体テストではfake、統合テストではローカルサーバーやテスト環境を使います。契約で許容される変更と破壊的変更を区別し、ログには相関IDを残します。",
+      "samples": [{"caption":"DTOから検証済みモデルへ","code":"record UserDto(String name,Integer age){}record User(String name,int age){static User from(UserDto d){if(d.name()==null||d.name().isBlank()||d.age()==null||d.age()<0)throw new IllegalArgumentException();return new User(d.name().strip(),d.age());}}public class Main{public static void main(String[] a){System.out.println(User.from(new UserDto(\" Aki \",20)));}}\n"}],
+      "task": "n件の `name age` を外部DTO相当として読み、名前が`null`、または年齢が0〜150外なら `INVALID 行番号`、それ以外は `name:age` を表示してください。文字列 `null` を欠落値とみなします。",
+      "starterCode": "import java.util.*;record UserDto(String name,int age){}public class Main{static Optional<String> map(UserDto dto){return Optional.empty();}public static void main(String[] a){Scanner s=new Scanner(System.in);int n=s.nextInt();for(int i=1;i<=n;i++){var dto=new UserDto(s.next(),s.nextInt());var value=map(dto);System.out.println(value.orElse(\"INVALID \"+i));}}}\n",
+      "visibleCases": [{"label":"混在","stdin":"3 aki 20 null 30 bob -1","expected":"aki:20\nINVALID 2\nINVALID 3"}],
+      "hiddenCases": [{"label":"上限","stdin":"2 old 150 over 151","expected":"old:150\nINVALID 2"}],
+      "hints": ["不正ならOptional.emptyを返します。","正常なら `Optional.of(dto.name() + \":\" + dto.age())`。"],
+      "solution": "import java.util.*;record UserDto(String name,int age){}public class Main{static Optional<String> map(UserDto dto){if(dto.name().equals(\"null\")||dto.age()<0||dto.age()>150)return Optional.empty();return Optional.of(dto.name()+\":\"+dto.age());}public static void main(String[] a){Scanner s=new Scanner(System.in);int n=s.nextInt();for(int i=1;i<=n;i++){var dto=new UserDto(s.next(),s.nextInt());var value=map(dto);System.out.println(value.orElse(\"INVALID \"+i));}}}\n",
+      "quiz": [{"question":"通信DTOとドメインモデルを分ける利点は？","choices":["HTTPが不要になる","外部形式の変更や不正値を境界へ閉じ込めやすい","テストが不要になる","nullが言語から消える"],"answer":1,"explanation":"変換層が外部契約と内部の不変条件の差を吸収します。"}]
+    }
+  ]
+}

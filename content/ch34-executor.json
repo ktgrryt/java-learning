@@ -2,7 +2,7 @@
   "id":"ch34","title":"スレッドプールとタスク実行","subtitle":"ExecutorService・キュー・終了処理を設計する","emoji":"🏊",
   "lessons":[{
     "id":"34-1","title":"Threadではなくタスクを投入する",
-    "explanation":"## Executorが実行方法を分離する\n\n`ExecutorService`へRunnableやCallableをsubmitすると、業務タスクとスレッド管理を分離できます。固定プールは同時実行数を制限しますが、待ち行列が無制限なら過負荷を先送りするだけです。CPU中心ならコア数を基準に、待ち時間の多いI/O中心なら接続先の許容量も含めて決め、測定します。\n\n`Future.get()` は結果取得と完了待ちを行い、タスク例外を `ExecutionException` で伝えます。タイムアウトとキャンセル時の割込み対応も設計します。受付終了はshutdown、一定時間後も残るならshutdownNowという段階的終了が基本です。JDK 21ではExecutorServiceをtry-with-resourcesでも閉じられます。",
+    "explanation":"## はじめて学ぶ人へ\n\nExecutorは「やる仕事」と「働くスレッド」を分ける仕組みです。レストランで注文票を受付へ置き、空いた料理人が順に調理する形に似ています。注文ごとに料理人を新しく雇う必要はありません。\n\n```text\nTaskをsubmit → キューで待つ → ワーカースレッドが実行 → Futureで結果を受け取る\n```\n\nCPU計算中心ならスレッドを増やしすぎても速くなりにくく、待ち時間の多い処理なら別の設計が合います。キューにも上限を設けないと、仕事が増えたときメモリを圧迫します。終了時は新規受付を止め、実行中の仕事を待つ `shutdown` の手順まで含めて管理します。\n\n## Executorが実行方法を分離する\n\n`ExecutorService`へRunnableやCallableをsubmitすると、業務タスクとスレッド管理を分離できます。固定プールは同時実行数を制限しますが、待ち行列が無制限なら過負荷を先送りするだけです。CPU中心ならコア数を基準に、待ち時間の多いI/O中心なら接続先の許容量も含めて決め、測定します。\n\n`Future.get()` は結果取得と完了待ちを行い、タスク例外を `ExecutionException` で伝えます。タイムアウトとキャンセル時の割込み対応も設計します。受付終了はshutdown、一定時間後も残るならshutdownNowという段階的終了が基本です。JDK 21ではExecutorServiceをtry-with-resourcesでも閉じられます。",
     "samples":[{"caption":"固定プールでCallableを実行","code":"import java.util.*;\nimport java.util.concurrent.*;\npublic class Main { public static void main(String[] args) throws Exception { try(ExecutorService pool=Executors.newFixedThreadPool(2)){List<Future<Integer>> fs=new ArrayList<>();for(int n:List.of(3,4,5))fs.add(pool.submit(()->n*n));for(Future<Integer> f:fs)System.out.println(f.get());} } }\n"}],
     "task":"poolSize、個数n、n個の整数を読み、固定スレッドプールへ各値の平方を返すCallableをsubmitしてください。Futureを投入順にgetして平方を1行ずつ表示し、try-with-resourcesでExecutorServiceを閉じます。",
     "starterCode":"import java.util.*;\nimport java.util.concurrent.*;\npublic class Main { public static void main(String[] args) throws Exception { Scanner s=new Scanner(System.in);int size=s.nextInt(),n=s.nextInt();long[] values=new long[n];for(int i=0;i<n;i++)values[i]=s.nextLong(); // TODO\n} }\n",
@@ -12,5 +12,113 @@
     "solution":"import java.util.*;\nimport java.util.concurrent.*;\npublic class Main { public static void main(String[] args) throws Exception { Scanner s=new Scanner(System.in);int size=s.nextInt(),n=s.nextInt();long[] values=new long[n];for(int i=0;i<n;i++)values[i]=s.nextLong();try(ExecutorService pool=Executors.newFixedThreadPool(size)){List<Future<Long>> fs=new ArrayList<>();for(long v:values)fs.add(pool.submit(()->v*v));for(Future<Long> f:fs)System.out.println(f.get());} } }\n",
     "extraTasks":[{"kind":"applied","task":"poolSize、単語数n、n個の単語を読み、各単語の長さを返すCallable一覧を作って `invokeAll` してください。返されたFutureを順にgetし、長さの合計を表示します。","starterCode":"import java.util.*;\nimport java.util.concurrent.*;\npublic class Main { public static void main(String[] args) throws Exception { Scanner s=new Scanner(System.in);int size=s.nextInt(),n=s.nextInt();List<String> words=new ArrayList<>();for(int i=0;i<n;i++)words.add(s.next()); // TODO\n} }\n","visibleCases":[{"label":"3語","stdin":"2 3 java jvm api","expected":"10"},{"label":"1語","stdin":"1 1 hello","expected":"5"}],"hiddenCases":[{"label":"0語","stdin":"4 0","expected":"0"},{"label":"日本語","stdin":"2 2 猫 Java","expected":"5"}],"hints":["`List<Callable<Integer>> tasks` を作り、各wordについて `() -> word.length()` を追加します。","`pool.invokeAll(tasks)` はFutureのリストを入力と同じ順で返します。"],"solution":"import java.util.*;\nimport java.util.concurrent.*;\npublic class Main { public static void main(String[] args) throws Exception { Scanner s=new Scanner(System.in);int size=s.nextInt(),n=s.nextInt();List<String> words=new ArrayList<>();for(int i=0;i<n;i++)words.add(s.next());try(ExecutorService pool=Executors.newFixedThreadPool(size)){List<Callable<Integer>> tasks=new ArrayList<>();for(String w:words)tasks.add(w::length);int total=0;for(Future<Integer> f:pool.invokeAll(tasks))total+=f.get();System.out.println(total);} } }\n"}],
     "quiz":[{"question":"ExecutorServiceを使う主な利点は？","choices":["業務タスクと実行スレッド管理を分離","例外が消える","共有状態が自動で安全","必ず高速"],"answer":0,"explanation":"投入側はタスクを表し、Executorが実行方法と資源を管理します。"},{"question":"無制限キューを持つ固定プールが過負荷になると？","choices":["常に拒否","待ちタスクと遅延が増え続けうる","自動で無限にスレッド増加","JVMが必ず再起動"],"answer":1,"explanation":"同時実行数を抑えても流入超過をキューへ蓄積します。"},{"question":"Future.getが伝えるタスク内例外は通常何で包まれる？","choices":["IOException","ExecutionException","ClassNotFoundException","Errorだけ"],"answer":1,"explanation":"get時にExecutionExceptionとして原因を取得します。"},{"question":"安全な終了の最初の操作は？","choices":["System.exit","shutdownで新規受付を止める","全Threadをstop","キューを無視"],"answer":1,"explanation":"まず受付を止め、既存タスクの完了を待つ段階的終了にします。"}]
-  }]
+  },
+    {
+      "id": "34-2",
+      "title": "章末演習：Executor",
+      "explanation": "## この章の知識を、自分の手で組み合わせよう\n\nここでは、**タスクとスレッドの分離・Future・プール・終了処理**をまとめて使います。新しい文法は登場しません。分からなくなったら、直前までの解説やサンプルへ戻って確認して大丈夫です。\n\n### 3問の進め方\n\n1. **基本**で、中心となる書き方をもう一度使う\n2. **組み合わせ**で、章内の複数の知識を一緒に使う\n3. **実践**で、少し現実的な入力と条件を整理する\n\nまず入力例と期待される出力を紙に書き、処理を小さな手順へ分けてからコードにすると進めやすくなります。",
+      "samples": [
+        {
+          "caption": "復習用サンプル：固定プールでCallableを実行",
+          "code": "import java.util.*;\nimport java.util.concurrent.*;\npublic class Main { public static void main(String[] args) throws Exception { try(ExecutorService pool=Executors.newFixedThreadPool(2)){List<Future<Integer>> fs=new ArrayList<>();for(int n:List.of(3,4,5))fs.add(pool.submit(()->n*n));for(Future<Integer> f:fs)System.out.println(f.get());} } }\n"
+        }
+      ],
+      "task": "【基本】n個の整数を読み、固定スレッドプールへ平方を求めるCallableとしてsubmitします。Futureを入力順にgetして1行ずつ表示し、最後にshutdownしてください。",
+      "starterCode": "import java.util.*;\nimport java.util.concurrent.*;\npublic class Main {public static void main(String[] args)throws Exception{Scanner s=new Scanner(System.in);int n=s.nextInt();ExecutorService pool=Executors.newFixedThreadPool(2);List<Future<Integer>> futures=new ArrayList<>();/* TODO */}}\n",
+      "visibleCases": [
+        {
+          "label": "3個",
+          "stdin": "3 2 3 4",
+          "expected": "4\n9\n16"
+        },
+        {
+          "label": "負数",
+          "stdin": "2 -3 0",
+          "expected": "9\n0"
+        }
+      ],
+      "hiddenCases": [
+        {
+          "label": "空",
+          "stdin": "0",
+          "expected": ""
+        },
+        {
+          "label": "1個",
+          "stdin": "1 10",
+          "expected": "100"
+        }
+      ],
+      "hints": [
+        "ループ内のvをラムダで平方にします。",
+        "Future一覧はsubmitした順なので、その順にgetします。"
+      ],
+      "solution": "import java.util.*;\nimport java.util.concurrent.*;\npublic class Main {public static void main(String[] args)throws Exception{Scanner s=new Scanner(System.in);int n=s.nextInt();ExecutorService pool=Executors.newFixedThreadPool(2);List<Future<Integer>> futures=new ArrayList<>();for(int i=0;i<n;i++){int v=s.nextInt();futures.add(pool.submit(()->v*v));}for(Future<Integer> f:futures)System.out.println(f.get());pool.shutdown();}}\n",
+      "extraTasks": [
+        {
+          "kind": "drill",
+          "task": "【組み合わせ】n個の整数それぞれについて、`value=値 thread=worker` という文字列を返すCallableをsubmitします。実際のスレッド名ではなく学習用の固定語 `worker` を使い、入力順に表示してください。",
+          "starterCode": "import java.util.*;\nimport java.util.concurrent.*;\npublic class Main {public static void main(String[] args)throws Exception{Scanner s=new Scanner(System.in);int n=s.nextInt();ExecutorService pool=Executors.newFixedThreadPool(3);List<Future<String>> results=new ArrayList<>();/* TODO */}}\n",
+          "visibleCases": [
+            {
+              "label": "2タスク",
+              "stdin": "2 5 9",
+              "expected": "value=5 thread=worker\nvalue=9 thread=worker"
+            },
+            {
+              "label": "1タスク",
+              "stdin": "1 -1",
+              "expected": "value=-1 thread=worker"
+            }
+          ],
+          "hiddenCases": [
+            {
+              "label": "空",
+              "stdin": "0",
+              "expected": ""
+            }
+          ],
+          "hints": [
+            "CallableのラムダはStringを返します。",
+            "getで結果を受け取ったあと、必ずshutdownします。"
+          ],
+          "solution": "import java.util.*;\nimport java.util.concurrent.*;\npublic class Main {public static void main(String[] args)throws Exception{Scanner s=new Scanner(System.in);int n=s.nextInt();ExecutorService pool=Executors.newFixedThreadPool(3);List<Future<String>> results=new ArrayList<>();for(int i=0;i<n;i++){int value=s.nextInt();results.add(pool.submit(()->\"value=\"+value+\" thread=worker\"));}for(Future<String> result:results)System.out.println(result.get());pool.shutdown();}}\n"
+        },
+        {
+          "kind": "applied",
+          "task": "【実践】n個の整数をExecutorServiceで並行に処理し、正数だけを合計します。各Callableは正数ならその値、それ以外なら0を返し、mainでFutureの結果を合計して表示してください。",
+          "starterCode": "import java.util.*;\nimport java.util.concurrent.*;\npublic class Main {public static void main(String[] args)throws Exception{Scanner s=new Scanner(System.in);int n=s.nextInt();ExecutorService pool=Executors.newFixedThreadPool(2);List<Future<Integer>> fs=new ArrayList<>();/* TODO */}}\n",
+          "visibleCases": [
+            {
+              "label": "混在",
+              "stdin": "5 3 -1 4 0 2",
+              "expected": "9"
+            },
+            {
+              "label": "正数なし",
+              "stdin": "3 -2 0 -5",
+              "expected": "0"
+            }
+          ],
+          "hiddenCases": [
+            {
+              "label": "空",
+              "stdin": "0",
+              "expected": "0"
+            },
+            {
+              "label": "全部正",
+              "stdin": "4 1 2 3 4",
+              "expected": "10"
+            }
+          ],
+          "hints": [
+            "submit時に正ならv、そうでなければ0を返します。",
+            "すべてのFuture.getをsumへ加えます。"
+          ],
+          "solution": "import java.util.*;\nimport java.util.concurrent.*;\npublic class Main {public static void main(String[] args)throws Exception{Scanner s=new Scanner(System.in);int n=s.nextInt();ExecutorService pool=Executors.newFixedThreadPool(2);List<Future<Integer>> fs=new ArrayList<>();for(int i=0;i<n;i++){int v=s.nextInt();fs.add(pool.submit(()->v>0?v:0));}int sum=0;for(Future<Integer> f:fs)sum+=f.get();pool.shutdown();System.out.println(sum);}}\n"
+        }
+      ]
+    }
+  ]
 }

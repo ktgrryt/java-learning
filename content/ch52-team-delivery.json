@@ -1,0 +1,65 @@
+{
+  "id":"ch52","title":"チーム開発・ビルド・品質管理","subtitle":"再現でき、レビューでき、継続的に届けられるコードへ","emoji":"🤝",
+  "lessons":[
+    {
+      "id":"52-1","title":"Gitとレビュー可能な変更",
+      "explanation":"## 小さく意図を共有する\n\n業務コードは一人で完成しません。issueで目的と受入条件を合わせ、短いbranchで変更し、意味のまとまりごとにcommitし、pull requestでテスト結果・互換性・移行方法を共有します。生成物、秘密情報、IDE固有ファイルはcommitせず、`.gitignore` とsecret scanで防ぎます。\n\nレビューでは命名と整形だけでなく、境界条件、失敗時の挙動、並行性、SQL、権限、ログへの個人情報、テストの不足を見ます。大きな機能はfeature flagで配備と公開を分けると、mainを長く分岐させずに進められます。",
+      "samples":[{"caption":"変更理由をコード上にも残す","code":"record Change(String scope,String reason){}public class Main{public static void main(String[] a){System.out.println(new Change(\"order\",\"reject negative quantity\"));}}\n"}],
+      "task":"変更ファイル数filesと追加削除行数linesを読み、filesが10以下かつlinesが300以下なら `REVIEWABLE`、それ以外は `SPLIT` と表示してください。",
+      "starterCode":"import java.util.*;public class Main{public static void main(String[] a){Scanner s=new Scanner(System.in);int files=s.nextInt(),lines=s.nextInt();/* TODO */}}\n",
+      "visibleCases":[{"label":"小さい変更","stdin":"4 120","expected":"REVIEWABLE"},{"label":"大きい変更","stdin":"8 450","expected":"SPLIT"}],
+      "hiddenCases":[{"label":"境界値","stdin":"10 300","expected":"REVIEWABLE"}],
+      "hints":["両方の条件を `&&` で結びます。"],
+      "solution":"import java.util.*;public class Main{public static void main(String[] a){Scanner s=new Scanner(System.in);int files=s.nextInt(),lines=s.nextInt();System.out.println(files<=10&&lines<=300?\"REVIEWABLE\":\"SPLIT\");}}\n",
+      "quiz":[{"question":"レビューしやすいpull requestは？","choices":["目的と無関係な整形も大量に含む","受入条件・変更理由・テスト結果があり範囲が小さい","秘密鍵を添付する","失敗時の挙動を隠す"],"answer":1,"explanation":"変更意図と検証結果が追える小さな単位にします。"}]
+    },
+    {
+      "id":"52-2","title":"Maven・Gradleと依存管理",
+      "explanation":"## 誰が実行しても同じビルドにする\n\nMavenはPOMと標準lifecycle、Gradleはtask graphとDSLを中心にビルドを記述します。どちらでもwrapperをcommitし、JDK toolchain、plugin、依存version、repositoryを固定します。MavenのBOMやGradle platformは互換性のある依存群をそろえ、lockfileやdependency treeは推移依存の変化を見えるようにします。\n\n`compile` と `test` だけでなく、静的解析、結合テスト、成果物作成、署名、SBOM生成をCIに組み込みます。multi-module化は境界を強制できますが、細分化しすぎるとビルドとversion管理が複雑になります。循環依存を許さない方向で分割します。",
+      "samples":[{"caption":"循環しないmodule順序を表現","code":"import java.util.*;public class Main{public static void main(String[] a){System.out.println(String.join(\" -> \",List.of(\"domain\",\"application\",\"adapter\")));}}\n"}],
+      "task":"依存 `module dependency` をn件読みます。自分自身への依存があれば `SELF_CYCLE`、なければ `OK` と表示してください。",
+      "starterCode":"import java.util.*;public class Main{public static void main(String[] a){Scanner s=new Scanner(System.in);int n=s.nextInt();boolean bad=false;for(int i=0;i<n;i++){String m=s.next(),d=s.next();/* TODO */}System.out.println(bad?\"SELF_CYCLE\":\"OK\");}}\n",
+      "visibleCases":[{"label":"正常","stdin":"3 api domain web api batch domain","expected":"OK"}],
+      "hiddenCases":[{"label":"自己依存","stdin":"2 api domain web web","expected":"SELF_CYCLE"}],
+      "hints":["`m.equals(d)` を記録します。"],
+      "solution":"import java.util.*;public class Main{public static void main(String[] a){Scanner s=new Scanner(System.in);int n=s.nextInt();boolean bad=false;for(int i=0;i<n;i++){String m=s.next(),d=s.next();if(m.equals(d))bad=true;}System.out.println(bad?\"SELF_CYCLE\":\"OK\");}}\n",
+      "quiz":[{"question":"再現可能なビルドに有効なのは？","choices":["各自が最新versionを手入力","wrapperとtoolchain・plugin・依存versionの管理","推移依存を確認しない","ローカルにしかないJARを参照"],"answer":1,"explanation":"ビルド道具と入力を明示し、CIでも同じ手順を使います。"}]
+    },
+    {
+      "id":"52-3","title":"テスト戦略と実DBの結合テスト",
+      "explanation":"## 境界ごとに確信を積み上げる\n\n単体テストはdomain logicを高速に検証し、component testはHTTPや永続化など一つの境界を、end-to-end testは重要な利用経路を少数検証します。mockは自分が管理しない実装の再現ではなく、自分の境界のinteraction確認に絞ります。SQL方言、制約、transaction isolationはin-memory DBでは再現できないことがあるため、本番と同系統・近いversionのDBをcontainerで起動する結合テストが有効です。\n\nテストはArrange/Act/Assertを読み分け、時刻・乱数・外部I/Oを注入可能にします。失敗を再現できる固定入力を残しつつ、property-based testやfuzzingで境界を広く探索します。flaky testは再実行で隠さず、競合・時刻・共有状態の原因を直します。",
+      "samples":[{"caption":"時計を注入して決定的にする","code":"import java.time.*;class Greeting{static String part(Clock c){return LocalTime.now(c).getHour()<12?\"AM\":\"PM\";}}public class Main{public static void main(String[] a){Clock c=Clock.fixed(Instant.parse(\"2025-01-01T01:00:00Z\"),ZoneOffset.UTC);System.out.println(Greeting.part(c));}}\n"}],
+      "task":"テスト種別n件を読み、`unit` は1、`component` は5、`e2e` は20秒として合計見積りを表示してください。",
+      "starterCode":"import java.util.*;public class Main{public static void main(String[] a){Map<String,Integer> cost=Map.of(\"unit\",1,\"component\",5,\"e2e\",20);Scanner s=new Scanner(System.in);int n=s.nextInt(),sum=0;for(int i=0;i<n;i++){/* TODO */}System.out.println(sum);}}\n",
+      "visibleCases":[{"label":"test suite","stdin":"5 unit unit component e2e unit","expected":"28"}],
+      "hiddenCases":[{"label":"単体のみ","stdin":"3 unit unit unit","expected":"3"}],
+      "hints":["種別を読み、costから値を加算します。"],
+      "solution":"import java.util.*;public class Main{public static void main(String[] a){Map<String,Integer> cost=Map.of(\"unit\",1,\"component\",5,\"e2e\",20);Scanner s=new Scanner(System.in);int n=s.nextInt(),sum=0;for(int i=0;i<n;i++)sum+=cost.get(s.next());System.out.println(sum);}}\n",
+      "quiz":[{"question":"本番がPostgreSQLのとき実DB結合テストが特に見つけやすい問題は？","choices":["純粋関数の足し算","SQL方言・制約・transaction挙動の差","Javaの予約語","READMEの誤字だけ"],"answer":1,"explanation":"本番DB固有の意味は代替DBやmockだけでは確認しきれません。"}]
+    },
+    {
+      "id":"52-4","title":"デバッグ・計算量・静的解析",
+      "explanation":"## 推測せず観測する\n\n不具合は再現条件を固定し、debuggerのbreakpoint・step・watch、構造化log、testで仮説を一つずつ検証します。例外を握りつぶしたり、値を文字列連結で大量出力したりすると原因と機密を同時に見失います。IDEのdebuggerもJDIなどJDKの仕組みの上にあります。\n\n正しさの次に、入力規模nに対する時間・空間計算量を見ます。二重loopを常に避けるのではなく、最大nと実測で判断します。compiler warning、formatter、Checkstyle/SpotBugs/PMD/Error Proneなどの静的解析をCIで同じ設定にし、警告抑制には理由と範囲を持たせます。benchmarkはJMHのwarmupとforkを使い、`System.nanoTime()` 一回だけで結論を出しません。",
+      "samples":[{"caption":"Setで線形に重複を探す","code":"import java.util.*;public class Main{public static void main(String[] a){Set<Integer> seen=new HashSet<>();for(int x:new int[]{2,3,2})if(!seen.add(x))System.out.println(x);}}\n"}],
+      "task":"要素数nと方式 `linear` または `quadratic` を読み、概算操作数（n またはn*n）をlongで表示してください。",
+      "starterCode":"import java.util.*;public class Main{public static void main(String[] a){Scanner s=new Scanner(System.in);long n=s.nextLong();String kind=s.next();/* TODO */}}\n",
+      "visibleCases":[{"label":"線形","stdin":"1000 linear","expected":"1000"},{"label":"二乗","stdin":"1000 quadratic","expected":"1000000"}],
+      "hiddenCases":[{"label":"longで計算","stdin":"100000 quadratic","expected":"10000000000"}],
+      "hints":["nはlongなので `n*n` もlongです。"],
+      "solution":"import java.util.*;public class Main{public static void main(String[] a){Scanner s=new Scanner(System.in);long n=s.nextLong();String kind=s.next();System.out.println(kind.equals(\"linear\")?n:n*n);}}\n",
+      "quiz":[{"question":"microbenchmarkでJMHを使う主な理由は？","choices":["JIT最適化を無効にするため","warmupやforkなどJVM特有の測定誤差を扱うため","単体テストを不要にするため","必ず本番負荷と同じになるため"],"answer":1,"explanation":"JIT、dead-code elimination、GCなどを考慮した測定枠組みを提供します。"}]
+    },
+    {
+      "id":"52-5","title":"CI/CDと供給網を管理する",
+      "explanation":"## commitから同じ手順で成果物を作る\n\nCIはcheckout、JDK設定、依存取得、compile、test、静的解析、packageを自動化します。CDでは同一成果物を環境間で昇格させ、環境ごとの設定だけを外から与えます。branch保護、必須check、artifactのchecksum・署名、provenance、SBOM、依存脆弱性scanを組み合わせると、何を誰がどう作ったか追跡できます。\n\ncacheは高速化できますが、keyにlockfileやJDKを含め、成果物の正しさをcacheに依存させません。database migrationはアプリとの前方・後方互換を考え、expand/migrate/contractの段階に分けます。deploy後はhealthと主要指標を見て、canary/blue-greenと自動rollbackの条件を事前に決めます。",
+      "samples":[{"caption":"品質gateをすべて満たすか","code":"import java.util.*;public class Main{public static void main(String[] a){System.out.println(List.of(true,true,true).stream().allMatch(Boolean::booleanValue)?\"PASS\":\"BLOCK\");}}\n"}],
+      "task":"`compile test scan package` の成否を0/1で読み、すべて1なら `RELEASE`、一つでも0なら `BLOCK` と表示してください。",
+      "starterCode":"import java.util.*;public class Main{public static void main(String[] a){Scanner s=new Scanner(System.in);boolean ok=true;for(int i=0;i<4;i++){/* TODO */}System.out.println(ok?\"RELEASE\":\"BLOCK\");}}\n",
+      "visibleCases":[{"label":"全gate通過","stdin":"1 1 1 1","expected":"RELEASE"}],
+      "hiddenCases":[{"label":"scan失敗","stdin":"1 1 0 1","expected":"BLOCK"}],
+      "hints":["既存のokと `s.nextInt()==1` を `&&` で更新します。"],
+      "solution":"import java.util.*;public class Main{public static void main(String[] a){Scanner s=new Scanner(System.in);boolean ok=true;for(int i=0;i<4;i++)ok=ok&&s.nextInt()==1;System.out.println(ok?\"RELEASE\":\"BLOCK\");}}\n",
+      "quiz":[{"question":"環境間で成果物を作り直さず昇格させる理由は？","choices":["環境ごとに異なるソースを混ぜるため","検証したbyte列と本番投入物を同一にするため","秘密をJARへ埋め込むため","CIを省略するため"],"answer":1,"explanation":"build once, deploy manyにより再現性と追跡性を保ちます。"}]
+    }
+  ]
+}

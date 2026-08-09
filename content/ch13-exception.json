@@ -7,7 +7,7 @@
     {
       "id": "13-1",
       "title": "例外を受け止める（try-catch）",
-      "explanation": "## 例外が起きると、処理は中断する\n\n`0` で割ると、プログラムはこう言って止まります。\n\n```\nException in thread \"main\" java.lang.ArithmeticException: / by zero\n\tat Main.main(Main.java:5)\n```\n\nこれが **例外** です。「続けられない事態が起きた」という通知が **投げられ（throw）**、\n受け止める人がいなければプログラムは終了します。\n\n### スタックトレースの読み方\n\n上のメッセージには3つの情報が入っています。\n\n- `java.lang.ArithmeticException` … 例外の **種類**\n- `/ by zero` … **メッセージ**（何が起きたか）\n- `at Main.main(Main.java:5)` … **どこで起きたか**（`Main.java` の5行目）\n\n**まず見るのは行番号です。** 上から順に「自分が書いたファイル」が出てくる行を探せば、\nたいていそこが原因です。\n\n## try-catch で受け止める\n\n例外が起きても止まらないようにするには、`try` で囲んで `catch` で受け止めます。\n\n```java\ntry {\n    System.out.println(a / b);           // 例外が起きるかもしれない処理\n} catch (ArithmeticException e) {\n    System.out.println(\"0では割れません\");  // 起きたときの処理\n}\n```\n\n動きはこうです。\n\n- 例外が起きなければ `try` の中を最後まで実行し、`catch` は **飛ばされる**\n- 例外が起きた瞬間に `try` の残りは **中断** され、`catch` に飛ぶ\n\n大事なのは「例外が起きた行の続きには戻らない」ことです。\n\n```java\ntry {\n    System.out.println(\"前\");\n    System.out.println(10 / 0);       // ここで例外\n    System.out.println(\"後\");         // ここは実行されない\n} catch (ArithmeticException e) {\n    System.out.println(\"catch\");\n}\n```\n\n出力は `前` → `catch` です。`後` は出ません。\n\n### catch の変数\n\n`catch (ArithmeticException e)` の `e` には、投げられた例外そのものが入っています。\n中身を見たいときは `getMessage()` を使います。\n\n```java\ncatch (ArithmeticException e) {\n    System.out.println(e.getMessage());     // / by zero\n}\n```\n\n## よく出会う例外\n\n| 例外 | いつ起きるか |\n|---|---|\n| `ArithmeticException` | 整数を `0` で割った |\n| `NullPointerException` | `null` に対してメソッドやフィールドを使った |\n| `ArrayIndexOutOfBoundsException` | 配列の範囲外の添字を使った |\n| `NumberFormatException` | 数にできない文字列を `Integer.parseInt` に渡した |\n| `ClassCastException` | できないキャストをした（第11章） |\n\n> ⚠️ 試験のワナ … 小数の `0.0` での割り算は例外になりません。`1.0 / 0` は `Infinity`、`0.0 / 0.0` は `NaN` という特別な値になります。例外が出るのは **整数の** 割り算だけです。\n\n> 💡 例外を「握りつぶす」（`catch` の中を空にする）のは避けましょう。原因が分からなくなり、あとで必ず困ります。",
+      "explanation": "## 例外が起きると、処理は中断する\n\n`0` で割ると、プログラムはこう言って止まります。\n\n```\nException in thread \"main\" java.lang.ArithmeticException: / by zero\n\tat Main.main(Main.java:5)\n```\n\nこれが **例外** です。「続けられない事態が起きた」という通知が **投げられ（throw）**、\n受け止める人がいなければプログラムは終了します。\n\n### スタックトレースの読み方\n\n上のメッセージには3つの情報が入っています。\n\n- `java.lang.ArithmeticException` … 例外の **種類**\n- `/ by zero` … **メッセージ**（何が起きたか）\n- `at Main.main(Main.java:5)` … **どこで起きたか**（`Main.java` の5行目）\n\n**まず見るのは行番号です。** 上から順に「自分が書いたファイル」が出てくる行を探せば、\nたいていそこが原因です。\n\n## try-catch で受け止める\n\n例外が起きても止まらないようにするには、`try` で囲んで `catch` で受け止めます。\n\n```java\ntry {\n    System.out.println(a / b);           // 例外が起きるかもしれない処理\n} catch (ArithmeticException e) {\n    System.out.println(\"0では割れません\");  // 起きたときの処理\n}\n```\n\n動きはこうです。\n\n- 例外が起きなければ `try` の中を最後まで実行し、`catch` は **飛ばされる**\n- 例外が起きた瞬間に `try` の残りは **中断** され、`catch` に飛ぶ\n\n大事なのは「例外が起きた行の続きには戻らない」ことです。\n\n```java\ntry {\n    System.out.println(\"前\");\n    System.out.println(10 / 0);       // ここで例外\n    System.out.println(\"後\");         // ここは実行されない\n} catch (ArithmeticException e) {\n    System.out.println(\"catch\");\n}\n```\n\n出力は `前` → `catch` です。`後` は出ません。\n\n### catch の変数\n\n`catch (ArithmeticException e)` の `e` には、投げられた例外そのものが入っています。\n中身を見たいときは `getMessage()` を使います。\n\n```java\ncatch (ArithmeticException e) {\n    System.out.println(e.getMessage());     // / by zero\n}\n```\n\n## よく出会う例外\n\n| 例外 | いつ起きるか |\n|---|---|\n| `ArithmeticException` | 整数を `0` で割った |\n| `NullPointerException` | `null` に対してメソッドやフィールドを使った |\n| `ArrayIndexOutOfBoundsException` | 配列の範囲外の添字を使った |\n| `NumberFormatException` | 数にできない文字列を `Integer.parseInt` に渡した |\n| `ClassCastException` | できないキャストをした（第11章） |\n\n> ⚠️ 間違えやすい点 … 小数の `0.0` での割り算は例外になりません。`1.0 / 0` は `Infinity`、`0.0 / 0.0` は `NaN` という特別な値になります。例外が出るのは **整数の** 割り算だけです。\n\n> 💡 例外を「握りつぶす」（`catch` の中を空にする）のは避けましょう。原因が分からなくなり、あとで必ず困ります。",
       "samples": [
         {
           "caption": "catch があるとき、ないとき",
@@ -121,7 +121,7 @@
     {
       "id": "13-2",
       "title": "catch の順序と、複数の catch",
-      "explanation": "## catch はいくつでも並べられる\n\n起きうる例外が複数あるなら、`catch` を並べて書き分けられます。\n\n```java\ntry {\n    System.out.println(arr[i] / d);\n} catch (ArrayIndexOutOfBoundsException e) {\n    System.out.println(\"範囲外\");\n} catch (ArithmeticException e) {\n    System.out.println(\"0除算\");\n}\n```\n\n投げられた例外は **上から順に** 照合され、**最初に一致した1つだけ** が実行されます。\n2つ以上の `catch` が動くことはありません。\n\n## 例外にも継承関係がある\n\n例外はクラスなので、親子関係があります。\n\n```\nThrowable\n ├─ Error                     ← 回復できない重大な異常（OutOfMemoryError など）\n └─ Exception\n     ├─ IOException など       ← 検査例外（第13-4で扱います）\n     └─ RuntimeException\n         ├─ ArithmeticException\n         ├─ NullPointerException\n         ├─ ClassCastException\n         └─ IndexOutOfBoundsException\n             └─ ArrayIndexOutOfBoundsException\n```\n\n`catch` は **サブクラスの例外も受け止めます**。だから\n`catch (Exception e)` と書けば、ほとんど何でも受け止められます。\n\n```java\ncatch (RuntimeException e)      // ArithmeticException も NPE も受け止める\ncatch (Exception e)             // さらに広い\n```\n\n> ⚠️ 試験のワナ … **広い `catch` を先に書くとコンパイルエラー** です。\n\n```java\ntry {\n    ...\n} catch (Exception e) {                        // 先に全部受け止めてしまう\n    ...\n} catch (ArithmeticException e) {              // ❌ ここには絶対に来ない\n    ...\n}\n```\n\n後ろの `catch` に到達する可能性がないので、コンパイラが「到達不能」と怒ります。\n**狭い（子の）例外を先、広い（親の）例外を後** に書く、と覚えてください。\n\n## マルチキャッチ\n\n処理が同じなら、`|` で並べて1つにまとめられます。\n\n```java\n} catch (ArithmeticException | ArrayIndexOutOfBoundsException e) {\n    System.out.println(\"計算できません\");\n}\n```\n\n> ⚠️ 試験のワナ … マルチキャッチに **親子関係のある例外を並べるとコンパイルエラー** です（`catch (Exception | ArithmeticException e)` は不可）。片方で足りるからです。\n\n## どちらが先に起きるか\n\n1つの式に危険が2つあるときは、**評価される順** で決まります。\n\n```java\nSystem.out.println(arr[i] / d);\n```\n\n`arr[i]` を取り出してから割り算をするので、`i` が範囲外かつ `d` が `0` なら\n**`ArrayIndexOutOfBoundsException` が先** に投げられます。\n式を左から順に読む、という基本がそのまま効きます。",
+      "explanation": "## catch はいくつでも並べられる\n\n起きうる例外が複数あるなら、`catch` を並べて書き分けられます。\n\n```java\ntry {\n    System.out.println(arr[i] / d);\n} catch (ArrayIndexOutOfBoundsException e) {\n    System.out.println(\"範囲外\");\n} catch (ArithmeticException e) {\n    System.out.println(\"0除算\");\n}\n```\n\n投げられた例外は **上から順に** 照合され、**最初に一致した1つだけ** が実行されます。\n2つ以上の `catch` が動くことはありません。\n\n## 例外にも継承関係がある\n\n例外はクラスなので、親子関係があります。\n\n```\nThrowable\n ├─ Error                     ← 回復できない重大な異常（OutOfMemoryError など）\n └─ Exception\n     ├─ IOException など       ← 検査例外（第13-4で扱います）\n     └─ RuntimeException\n         ├─ ArithmeticException\n         ├─ NullPointerException\n         ├─ ClassCastException\n         └─ IndexOutOfBoundsException\n             └─ ArrayIndexOutOfBoundsException\n```\n\n`catch` は **サブクラスの例外も受け止めます**。だから\n`catch (Exception e)` と書けば、ほとんど何でも受け止められます。\n\n```java\ncatch (RuntimeException e)      // ArithmeticException も NPE も受け止める\ncatch (Exception e)             // さらに広い\n```\n\n> ⚠️ 間違えやすい点 … **広い `catch` を先に書くとコンパイルエラー** です。\n\n```java\ntry {\n    ...\n} catch (Exception e) {                        // 先に全部受け止めてしまう\n    ...\n} catch (ArithmeticException e) {              // ❌ ここには絶対に来ない\n    ...\n}\n```\n\n後ろの `catch` に到達する可能性がないので、コンパイラが「到達不能」と怒ります。\n**狭い（子の）例外を先、広い（親の）例外を後** に書く、と覚えてください。\n\n## マルチキャッチ\n\n処理が同じなら、`|` で並べて1つにまとめられます。\n\n```java\n} catch (ArithmeticException | ArrayIndexOutOfBoundsException e) {\n    System.out.println(\"計算できません\");\n}\n```\n\n> ⚠️ 間違えやすい点 … マルチキャッチに **親子関係のある例外を並べるとコンパイルエラー** です（`catch (Exception | ArithmeticException e)` は不可）。片方で足りるからです。\n\n## どちらが先に起きるか\n\n1つの式に危険が2つあるときは、**評価される順** で決まります。\n\n```java\nSystem.out.println(arr[i] / d);\n```\n\n`arr[i]` を取り出してから割り算をするので、`i` が範囲外かつ `d` が `0` なら\n**`ArrayIndexOutOfBoundsException` が先** に投げられます。\n式を左から順に読む、という基本がそのまま効きます。",
       "samples": [
         {
           "caption": "2種類の例外を書き分ける",
@@ -354,7 +354,7 @@
     {
       "id": "13-4",
       "title": "検査例外と throws",
-      "explanation": "## 2種類の例外\n\n例外は大きく2つに分かれます。この区別がSilverの中心テーマです。\n\n- **非検査例外**（unchecked）… `RuntimeException` とそのサブクラス、および `Error`\n- **検査例外**（checked）… それ以外の `Exception`（`IOException` など）\n\n違いは **コンパイラが対処を強制するかどうか** だけです。\n\n| | 非検査例外 | 検査例外 |\n|---|---|---|\n| 例 | `NullPointerException` `ArithmeticException` | `IOException` `Exception` |\n| `try-catch` は必須か | 不要（書いてもよい） | **必須**（書かないとコンパイルエラー） |\n| 想定される原因 | プログラムの間違い | 外部要因（ファイルがない、通信が切れた） |\n\n`0` で割る可能性のある式に毎回 `try-catch` を書かされたら大変です。\nだから「プログラムを直せば起きない」種類は強制されません。\n一方「ファイルが存在しない」はどう書いても起こりうるので、備えを強制されます。\n\n## throws — 「投げるかもしれない」と宣言する\n\n検査例外を投げるメソッドは、**宣言に `throws` を書く義務** があります。\n\n```java\nstatic int check(int n) throws TooSmallException {\n    if (n < 10) {\n        throw new TooSmallException(\"小さすぎます: \" + n);\n    }\n    return n;\n}\n```\n\n`throws` は「このメソッドを呼ぶと、この例外が飛んでくるかもしれません」という予告です。\n呼び出す側は **2つのうちどちらか** を選ばなければなりません。\n\n1. `try-catch` で受け止める\n2. 自分も `throws` を書いて、さらに呼び出し元に投げる\n\n```java\ntry {\n    System.out.println(check(5));\n} catch (TooSmallException e) {\n    System.out.println(\"NG \" + e.getMessage());\n}\n```\n\nどちらもしないとコンパイルエラーです。\n\n> ⚠️ 試験のワナ … `throw`（文）と `throws`（宣言）を入れ替えた選択肢が出ます。`throw new Xxx();` は投げる文、`throws Xxx` はメソッド宣言の一部です。\n\n## 自分の例外クラスを作る\n\n例外もクラスなので、継承して自分専用のものを作れます。\n\n```java\nclass TooSmallException extends Exception {      // Exception を継承 → 検査例外\n    TooSmallException(String message) {\n        super(message);                          // メッセージを親に預ける\n    }\n}\n```\n\n`super(message)` で預けたメッセージは、`getMessage()` で取り出せます。\n\n継承する親を変えると種類が変わります。\n\n- `extends Exception` … **検査例外**（呼び出し側に対処を強制する）\n- `extends RuntimeException` … **非検査例外**（強制しない）\n\n「呼び出し側に必ず考えさせたい」なら `Exception`、\n「プログラムの間違いだから直してほしい」なら `RuntimeException` を選びます。\n\n> 💡 `Error` は継承しません。`OutOfMemoryError` のように、アプリケーションでは回復できない異常のための階層です。`catch (Throwable t)` で受け止めることは文法上できますが、ふつうはしません。",
+      "explanation": "## 2種類の例外\n\n例外は大きく2つに分かれます。この区別は例外を扱う際の中心テーマです。\n\n- **非検査例外**（unchecked）… `RuntimeException` とそのサブクラス、および `Error`\n- **検査例外**（checked）… それ以外の `Exception`（`IOException` など）\n\n違いは **コンパイラが対処を強制するかどうか** だけです。\n\n| | 非検査例外 | 検査例外 |\n|---|---|---|\n| 例 | `NullPointerException` `ArithmeticException` | `IOException` `Exception` |\n| `try-catch` は必須か | 不要（書いてもよい） | **必須**（書かないとコンパイルエラー） |\n| 想定される原因 | プログラムの間違い | 外部要因（ファイルがない、通信が切れた） |\n\n`0` で割る可能性のある式に毎回 `try-catch` を書かされたら大変です。\nだから「プログラムを直せば起きない」種類は強制されません。\n一方「ファイルが存在しない」はどう書いても起こりうるので、備えを強制されます。\n\n## throws — 「投げるかもしれない」と宣言する\n\n検査例外を投げるメソッドは、**宣言に `throws` を書く義務** があります。\n\n```java\nstatic int check(int n) throws TooSmallException {\n    if (n < 10) {\n        throw new TooSmallException(\"小さすぎます: \" + n);\n    }\n    return n;\n}\n```\n\n`throws` は「このメソッドを呼ぶと、この例外が飛んでくるかもしれません」という予告です。\n呼び出す側は **2つのうちどちらか** を選ばなければなりません。\n\n1. `try-catch` で受け止める\n2. 自分も `throws` を書いて、さらに呼び出し元に投げる\n\n```java\ntry {\n    System.out.println(check(5));\n} catch (TooSmallException e) {\n    System.out.println(\"NG \" + e.getMessage());\n}\n```\n\nどちらもしないとコンパイルエラーです。\n\n> ⚠️ 間違えやすい点 … `throw`（文）と `throws`（宣言）を入れ替えた選択肢が出ます。`throw new Xxx();` は投げる文、`throws Xxx` はメソッド宣言の一部です。\n\n## 自分の例外クラスを作る\n\n例外もクラスなので、継承して自分専用のものを作れます。\n\n```java\nclass TooSmallException extends Exception {      // Exception を継承 → 検査例外\n    TooSmallException(String message) {\n        super(message);                          // メッセージを親に預ける\n    }\n}\n```\n\n`super(message)` で預けたメッセージは、`getMessage()` で取り出せます。\n\n継承する親を変えると種類が変わります。\n\n- `extends Exception` … **検査例外**（呼び出し側に対処を強制する）\n- `extends RuntimeException` … **非検査例外**（強制しない）\n\n「呼び出し側に必ず考えさせたい」なら `Exception`、\n「プログラムの間違いだから直してほしい」なら `RuntimeException` を選びます。\n\n> 💡 `Error` は継承しません。`OutOfMemoryError` のように、アプリケーションでは回復できない異常のための階層です。`catch (Throwable t)` で受け止めることは文法上できますが、ふつうはしません。",
       "samples": [
         {
           "caption": "検査例外を投げて受け止める",
@@ -468,7 +468,7 @@
     {
       "id": "13-5",
       "title": "try-with-resources で後片付けを任せる",
-      "explanation": "## close を忘れない仕組み\n\nファイルやネットワーク接続は、使い終わったら閉じる必要があります。\n`finally` で書くとこうなります。\n\n```java\nResource r = new Resource(\"A\");\ntry {\n    r.use();\n} finally {\n    r.close();          // 例外が起きても閉じられる\n}\n```\n\n動きますが、リソースが2つ3つになると入れ子が深くなり、\n`null` チェックも必要になって、だんだん間違えます。\n\nそこで **try-with-resources** という書き方があります。\n`try` のあとのカッコの中でリソースを作ると、**ブロックを抜けるときに自動で閉じられます**。\n\n```java\ntry (Resource r = new Resource(\"A\")) {\n    r.use();\n}                       // ここで自動的に r.close() が呼ばれる\n```\n\n`finally` は要りません。例外が起きても、正常に終わっても、必ず閉じられます。\n\n## AutoCloseable を実装したものだけ\n\nこの書き方が使えるのは **`AutoCloseable` インターフェースを実装したクラス** だけです。\n`close()` メソッドを1つ持つインターフェースなので、自作クラスでも実装できます。\n\n```java\nclass Resource implements AutoCloseable {\n    private final String label;\n\n    Resource(String label) {\n        this.label = label;\n        System.out.println(\"open \" + label);\n    }\n\n    void use(int n) {\n        if (n == 0) {\n            throw new IllegalStateException(\"使えません\");\n        }\n        System.out.println(\"処理 \" + n);\n    }\n\n    @Override\n    public void close() {\n        System.out.println(\"close \" + label);\n    }\n}\n```\n\n## 複数のリソースと、閉じる順番\n\nセミコロンで区切って並べられます。閉じられるのは **宣言と逆の順** です。\n\n```java\ntry (Resource a = new Resource(\"A\");\n     Resource b = new Resource(\"B\")) {\n    a.use(1);\n    b.use(1);\n}\n```\n\n出力はこうなります。\n\n```\nopen A\nopen B\n処理 1\n処理 1\nclose B      ← 後に開けた方が先に閉じる\nclose A\n```\n\n後から開いたものが先に閉じます。積み上げたものを上から片付けるのと同じ順序です。\n\n## close は catch より先\n\n`catch` を付けた場合の順番も問われます。\n\n```java\ntry (Resource a = new Resource(\"A\")) {\n    a.use(0);                                  // 例外が飛ぶ\n} catch (IllegalStateException e) {\n    System.out.println(\"エラー\");\n}\n```\n\n出力は `open A` → `close A` → `エラー` です。\n**リソースを閉じてから `catch` に入ります**。片付けを終えてから対処する、という順番です。\n\n> ⚠️ 試験のワナ … `try` のカッコの中で宣言した変数は **暗黙的に `final`** です。ブロックの中で別のものを代入し直すことはできません。\n\n> 💡 `try-with-resources` には `catch` も `finally` も付けられます（省略も可）。`finally` だけを付ける昔の書き方より短く、確実です。",
+      "explanation": "## close を忘れない仕組み\n\nファイルやネットワーク接続は、使い終わったら閉じる必要があります。\n`finally` で書くとこうなります。\n\n```java\nResource r = new Resource(\"A\");\ntry {\n    r.use();\n} finally {\n    r.close();          // 例外が起きても閉じられる\n}\n```\n\n動きますが、リソースが2つ3つになると入れ子が深くなり、\n`null` チェックも必要になって、だんだん間違えます。\n\nそこで **try-with-resources** という書き方があります。\n`try` のあとのカッコの中でリソースを作ると、**ブロックを抜けるときに自動で閉じられます**。\n\n```java\ntry (Resource r = new Resource(\"A\")) {\n    r.use();\n}                       // ここで自動的に r.close() が呼ばれる\n```\n\n`finally` は要りません。例外が起きても、正常に終わっても、必ず閉じられます。\n\n## AutoCloseable を実装したものだけ\n\nこの書き方が使えるのは **`AutoCloseable` インターフェースを実装したクラス** だけです。\n`close()` メソッドを1つ持つインターフェースなので、自作クラスでも実装できます。\n\n```java\nclass Resource implements AutoCloseable {\n    private final String label;\n\n    Resource(String label) {\n        this.label = label;\n        System.out.println(\"open \" + label);\n    }\n\n    void use(int n) {\n        if (n == 0) {\n            throw new IllegalStateException(\"使えません\");\n        }\n        System.out.println(\"処理 \" + n);\n    }\n\n    @Override\n    public void close() {\n        System.out.println(\"close \" + label);\n    }\n}\n```\n\n## 複数のリソースと、閉じる順番\n\nセミコロンで区切って並べられます。閉じられるのは **宣言と逆の順** です。\n\n```java\ntry (Resource a = new Resource(\"A\");\n     Resource b = new Resource(\"B\")) {\n    a.use(1);\n    b.use(1);\n}\n```\n\n出力はこうなります。\n\n```\nopen A\nopen B\n処理 1\n処理 1\nclose B      ← 後に開けた方が先に閉じる\nclose A\n```\n\n後から開いたものが先に閉じます。積み上げたものを上から片付けるのと同じ順序です。\n\n## close は catch より先\n\n`catch` を付けた場合の順番も問われます。\n\n```java\ntry (Resource a = new Resource(\"A\")) {\n    a.use(0);                                  // 例外が飛ぶ\n} catch (IllegalStateException e) {\n    System.out.println(\"エラー\");\n}\n```\n\n出力は `open A` → `close A` → `エラー` です。\n**リソースを閉じてから `catch` に入ります**。片付けを終えてから対処する、という順番です。\n\n> ⚠️ 間違えやすい点 … `try` のカッコの中で宣言した変数は **暗黙的に `final`** です。ブロックの中で別のものを代入し直すことはできません。\n\n> 💡 `try-with-resources` には `catch` も `finally` も付けられます（省略も可）。`finally` だけを付ける昔の書き方より短く、確実です。",
       "samples": [
         {
           "caption": "閉じる順番と、例外が起きたときの順番",
@@ -612,6 +612,113 @@
           ],
           "answer": 2,
           "explanation": "`try` のカッコに書けるのは **`AutoCloseable`（または `Closeable`）を実装したもの** だけです。それ以外を書くとコンパイルエラーになります。"
+        }
+      ]
+    },
+    {
+      "id": "13-6",
+      "title": "章末演習：例外処理",
+      "explanation": "## この章の知識を、自分の手で組み合わせよう\n\nここでは、**try-catch・独自例外・finally・try-with-resources**をまとめて使います。新しい文法は登場しません。分からなくなったら、直前までの解説やサンプルへ戻って確認して大丈夫です。\n\n### 3問の進め方\n\n1. **基本**で、中心となる書き方をもう一度使う\n2. **組み合わせ**で、章内の複数の知識を一緒に使う\n3. **実践**で、少し現実的な入力と条件を整理する\n\nまず入力例と期待される出力を紙に書き、処理を小さな手順へ分けてからコードにすると進めやすくなります。",
+      "samples": [
+        {
+          "caption": "復習用サンプル：閉じる順番と、例外が起きたときの順番",
+          "code": "class Resource implements AutoCloseable {\n    private final String label;\n\n    Resource(String label) {\n        this.label = label;\n        System.out.println(\"open \" + label);\n    }\n\n    void use(int n) {\n        if (n == 0) {\n            throw new IllegalStateException(\"使えません\");\n        }\n        System.out.println(\"処理 \" + n);\n    }\n\n    @Override\n    public void close() {\n        System.out.println(\"close \" + label);\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        System.out.println(\"=== 正常なとき ===\");\n        try (Resource a = new Resource(\"A\");\n             Resource b = new Resource(\"B\")) {\n            a.use(1);\n            b.use(1);\n        }\n\n        System.out.println(\"=== 例外が起きたとき ===\");\n        try (Resource a = new Resource(\"A\");\n             Resource b = new Resource(\"B\")) {\n            a.use(0);\n            b.use(1);                 // 実行されない\n        } catch (IllegalStateException e) {\n            System.out.println(\"エラー\");\n        }\n    }\n}\n"
+        }
+      ],
+      "task": "【基本】1行の文字列を読み、整数へ変換できれば2倍を、できなければ `invalid` と表示してください。",
+      "starterCode": "import java.util.*;\npublic class Main {public static void main(String[] args){Scanner sc=new Scanner(System.in);String text=sc.hasNextLine()?sc.nextLine():\"\";/* try-catch */}}\n",
+      "visibleCases": [
+        {
+          "label": "数値",
+          "stdin": "21",
+          "expected": "42"
+        },
+        {
+          "label": "文字",
+          "stdin": "java",
+          "expected": "invalid"
+        }
+      ],
+      "hiddenCases": [
+        {
+          "label": "負数",
+          "stdin": "-5",
+          "expected": "-10"
+        },
+        {
+          "label": "空文字",
+          "stdin": "",
+          "expected": "invalid"
+        }
+      ],
+      "hints": [
+        "`Integer.parseInt` をtry内で呼びます。",
+        "失敗時はNumberFormatExceptionをcatchします。"
+      ],
+      "solution": "import java.util.*;\npublic class Main {public static void main(String[] args){Scanner sc=new Scanner(System.in);String text=sc.hasNextLine()?sc.nextLine():\"\";try{System.out.println(Integer.parseInt(text)*2);}catch(NumberFormatException e){System.out.println(\"invalid\");}}}\n",
+      "extraTasks": [
+        {
+          "kind": "drill",
+          "task": "【組み合わせ】年齢が0未満または150より大きいとき `InvalidAgeException` を投げる `validate` を作ります。正常なら `ok`、例外なら例外メッセージ `age out of range` を表示してください。",
+          "starterCode": "import java.util.*;\nclass InvalidAgeException extends Exception {InvalidAgeException(String message){super(message);}}\npublic class Main {static void validate(int age) throws InvalidAgeException {/* TODO */}public static void main(String[] args){int age=new Scanner(System.in).nextInt();try{validate(age);System.out.println(\"ok\");}catch(InvalidAgeException e){System.out.println(e.getMessage());}}}\n",
+          "visibleCases": [
+            {
+              "label": "正常",
+              "stdin": "20",
+              "expected": "ok"
+            },
+            {
+              "label": "負数",
+              "stdin": "-1",
+              "expected": "age out of range"
+            }
+          ],
+          "hiddenCases": [
+            {
+              "label": "上限",
+              "stdin": "150",
+              "expected": "ok"
+            },
+            {
+              "label": "上限超過",
+              "stdin": "151",
+              "expected": "age out of range"
+            }
+          ],
+          "hints": [
+            "独自の検査例外はExceptionを継承します。",
+            "範囲外なら `throw new InvalidAgeException(...)` します。"
+          ],
+          "solution": "import java.util.*;\nclass InvalidAgeException extends Exception {InvalidAgeException(String message){super(message);}}\npublic class Main {static void validate(int age) throws InvalidAgeException {if(age<0||age>150)throw new InvalidAgeException(\"age out of range\");}public static void main(String[] args){int age=new Scanner(System.in).nextInt();try{validate(age);System.out.println(\"ok\");}catch(InvalidAgeException e){System.out.println(e.getMessage());}}}\n"
+        },
+        {
+          "kind": "applied",
+          "task": "【実践】AutoCloseableなResourceをtry-with-resourcesで使います。`use` と入力されたら `using`、それ以外ならuse内でRuntimeExceptionを投げて `error` を表示し、どちらの場合も最後に `closed` が表示されるようにしてください。",
+          "starterCode": "import java.util.*;\nclass Resource implements AutoCloseable {void use(boolean fail){/* TODO */}public void close(){System.out.println(\"closed\");}}\npublic class Main {public static void main(String[] args){boolean fail=!new Scanner(System.in).next().equals(\"use\");try(Resource r=new Resource()){r.use(fail);/* TODO: 失敗時は例外を投げる */}catch(RuntimeException e){System.out.println(\"error\");}}}\n",
+          "visibleCases": [
+            {
+              "label": "正常",
+              "stdin": "use",
+              "expected": "using\nclosed"
+            },
+            {
+              "label": "失敗",
+              "stdin": "fail",
+              "expected": "closed\nerror"
+            }
+          ],
+          "hiddenCases": [
+            {
+              "label": "別の失敗文字",
+              "stdin": "x",
+              "expected": "closed\nerror"
+            }
+          ],
+          "hints": [
+            "tryの丸かっこ内でResourceを生成します。",
+            "例外が起きてもtryを出る前にcloseが呼ばれ、その後catchへ進みます。"
+          ],
+          "solution": "import java.util.*;\nclass Resource implements AutoCloseable {void use(boolean fail){if(fail)throw new RuntimeException();System.out.println(\"using\");}public void close(){System.out.println(\"closed\");}}\npublic class Main {public static void main(String[] args){boolean fail=!new Scanner(System.in).next().equals(\"use\");try(Resource r=new Resource()){r.use(fail);}catch(RuntimeException e){System.out.println(\"error\");}}}\n"
         }
       ]
     }

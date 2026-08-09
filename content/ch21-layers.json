@@ -282,11 +282,12 @@
     {
       "id": "21-4",
       "title": "例外を層で扱い分ける",
-      "explanation": "## 「想定内の失敗」と「想定外の失敗」は別物\n\n第13章で例外の書き方を学びました。業務アプリでは、書き方より **どう設計するか** が問題になります。\n出発点は、失敗を2種類に分けることです。\n\n| 種類 | 例 | どうする |\n|---|---|---|\n| **業務例外**（想定内） | 在庫切れ、残高不足、期限切れ | 利用者に理由を見せる。**復帰できる** |\n| **システム例外**（想定外） | DB接続失敗、NullPointerException | 利用者には詳細を見せない。ログに出して調査する |\n\nこの2つを混ぜると、次のような困ったことになります。\n\n- 在庫切れ（利用者に伝えるべき）が「システムエラー」と出て、利用者が何をすればいいか分からない\n- DBの接続情報がそのまま画面に出て、攻撃の手がかりになる\n\n## 業務例外は親を作ってまとめる\n\n業務例外には共通の親を作っておくと、Controller 側でまとめて捕まえられます。\n\n```java\n/** 業務例外の親。想定内のエラー */\nclass BusinessException extends Exception {\n    BusinessException(String message) { super(message); }\n    BusinessException(String message, Throwable cause) { super(message, cause); }\n}\n\nclass OutOfStockException extends BusinessException { ... }\nclass ItemNotFoundException extends BusinessException { ... }\n```\n\nController はこう書けます。\n\n```java\ntry {\n    return \"出荷しました: \" + service.ship(name, count);\n} catch (BusinessException e) {\n    return \"エラー: \" + e.getMessage();   // ← 想定内なので、理由をそのまま見せてよい\n}\n```\n\n`OutOfStockException` を足しても Controller は変えなくて済みます。\n\n## 層をまたぐときは「包み直す」\n\nRepository は低い層なので、DBの言葉で失敗します（本物なら `SQLException`）。\nこれをそのまま上の層へ流すと、Service や Controller が **DBの都合を知ってしまいます**。\n\nそこで層の境目で、業務の言葉に **包み直す（ラップする）** のが定石です。\n\n```java\ntry {\n    return repository.findStock(name);\n} catch (DataAccessException e) {\n    // 「SQLが失敗した」を「在庫を確認できなかった」に翻訳する\n    throw new InventoryUnavailableException(\"在庫を確認できませんでした\", e);\n}\n```\n\nこのとき **元の例外を第2引数に渡す** のがとても大事です。これを `cause`（原因）と呼びます。\n\n```java\nthrow new InventoryUnavailableException(\"在庫を確認できませんでした\", e);\n//                                                                  ↑ これを忘れない\n```\n\n`cause` を渡しておけば、あとから `getCause()` で元の失敗をたどれます。\n\n### ⚠️ 現場のワナ：例外を握りつぶす\n\nいちばんやってはいけないのがこれです。\n\n```java\n// ❌ 何も起きなかったことになる。障害の調査が不可能になる\ntry {\n    repository.save(order);\n} catch (Exception e) {\n    // 何もしない\n}\n```\n\n```java\n// ❌ 原因が消える。「在庫を確認できません」しか残らず、DBの何が悪いのか永久に分からない\ncatch (DataAccessException e) {\n    throw new InventoryUnavailableException(\"在庫を確認できませんでした\");\n}\n```\n\n例外を捨てると、**動いているのに結果がおかしい**という最悪の壊れ方をします。\n握りつぶすくらいなら、そのまま上へ投げたほうがましです。\n\n> 💡 目安として、**業務例外は検査例外**（`extends Exception`）にして「呼ぶ側に必ず考えさせる」、\n> **システム例外は非検査例外**（`extends RuntimeException`）にして「途中の層では触らせない」\n> という使い分けがよく使われます。\n",
+      "explanation": "## 「想定内の失敗」と「想定外の失敗」を分ける\n\n| 種類 | 例 | 利用者への応答 | 内部で行うこと |\n|---|---|---|---|\n| **業務例外**（想定内） | 在庫切れ、残高不足 | 次に取れる行動が分かる理由を示す | 必要に応じて監査する |\n| **システム例外**（想定外） | DB接続失敗、予期しない不具合 | 内部詳細を隠した一般的なエラー | causeと相関IDをログへ残して調査する |\n\n業務例外には共通の親を作ると、Controllerでまとめて扱えます。\n\n```java\nclass BusinessException extends Exception {\n    BusinessException(String message) { super(message); }\n}\nclass OutOfStockException extends BusinessException { ... }\n```\n\n## 層をまたいでも例外の種類を変えない\n\nRepositoryの`DataAccessException`を上位層の例外へ包み直すと、ServiceがDB固有の詳細へ依存せずに済みます。ただし、**包み直すことと業務例外へ変えることは別**です。DB接続失敗は、名前を「在庫を確認できない」に変えてもシステム障害のままです。\n\n```java\nclass InventoryUnavailableException extends RuntimeException {\n    InventoryUnavailableException(String message, Throwable cause) {\n        super(message, cause);\n    }\n}\n\ntry {\n    return repository.findStock(name);\n} catch (DataAccessException e) {\n    throw new InventoryUnavailableException(\"在庫を確認できませんでした\", e);\n}\n```\n\n元の例外を第2引数へ渡せば、ログでは`getCause()`から調査できます。一方、HTTP応答や画面へ`DataAccessException`、接続先、SQL、stack traceなどを出してはいけません。\n\n```java\ncatch (InventoryUnavailableException e) {\n    logger.error(\"inventory lookup failed\", e);  // 内部ログ\n    return \"システムエラー: 処理を完了できませんでした\"; // 利用者向け\n}\n```\n\n例外を空のcatchで握りつぶしたり、causeを落として新しい例外を作ったりすると調査できなくなります。検査例外と非検査例外の選択は設計方針によりますが、この教材では業務例外を検査例外、回復不能なシステム例外を非検査例外として区別します。",
       "samples": [
         {
-          "caption": "業務例外を見せる / 低レベルの失敗を包み直す",
-          "code": "public class Main {\n    public static void main(String[] args) {\n        // 業務例外は理由を見せる。cause があれば原因もたどれる\n        try {\n            throw new OutOfStockException(\"apple の在庫が足りません (在庫5個, 要求6個)\");\n        } catch (BusinessException e) {\n            System.out.println(\"エラー: \" + e.getMessage());\n        }\n\n        // 低い層の失敗を、業務の言葉に包み直す\n        try {\n            try {\n                throw new DataAccessException(\"connection refused\");\n            } catch (DataAccessException e) {\n                throw new InventoryUnavailableException(\"在庫を確認できませんでした\", e);\n            }\n        } catch (BusinessException e) {\n            System.out.println(\"エラー: \" + e.getMessage());\n            System.out.println(\"  原因: \" + e.getCause().getClass().getSimpleName());\n            System.out.println(\"  詳細: \" + e.getCause().getMessage());\n        }\n    }\n}\n\nclass BusinessException extends Exception {\n    BusinessException(String message) { super(message); }\n    BusinessException(String message, Throwable cause) { super(message, cause); }\n}\n\nclass OutOfStockException extends BusinessException {\n    OutOfStockException(String message) { super(message); }\n}\n\nclass InventoryUnavailableException extends BusinessException {\n    InventoryUnavailableException(String message, Throwable cause) { super(message, cause); }\n}\n\n/** Repository の層で起きる、低レベルの失敗。 */\nclass DataAccessException extends Exception {\n    DataAccessException(String message) { super(message); }\n}\n"
+          "caption": "利用者向け応答と内部調査情報を分ける",
+          "code": "public class Main {\n    public static void main(String[] args) {\n        try {\n            try {\n                throw new DataAccessException(\"connection refused\");\n            } catch (DataAccessException e) {\n                throw new InventoryUnavailableException(\n                        \"在庫を確認できませんでした\", e);\n            }\n        } catch (InventoryUnavailableException e) {\n            System.out.println(\"利用者向け: システムエラーが発生しました\");\n            System.out.println(\"内部調査用cause: \"\n                    + e.getCause().getClass().getSimpleName());\n        }\n    }\n}\n\nclass InventoryUnavailableException extends RuntimeException {\n    InventoryUnavailableException(String message, Throwable cause) {\n        super(message, cause);\n    }\n}\n\nclass DataAccessException extends Exception {\n    DataAccessException(String message) {\n        super(message);\n    }\n}\n",
+          "expected": "利用者向け: システムエラーが発生しました\n内部調査用cause: DataAccessException"
         }
       ],
       "task": "出荷処理を作ります。`ShipService.ship()` と `ShipController.ship()` の TODO を埋めてください。\n\n標準入力は「**商品名 数量**」の形で1行来ます。\n\n| 状況 | 出力 |\n|---|---|\n| 出荷できる | `出荷しました: apple x3 (残り2個)` |\n| 在庫が足りない | `エラー: apple の在庫が足りません (在庫5個, 要求6個)` |\n| 取り扱いがない | `エラー: grape は取り扱いがありません` |\n\n- `ShipService.ship()` は成功したら **残りの在庫数** を返し、失敗したら業務例外を投げます\n  （取り扱いなし → `ItemNotFoundException`、在庫不足 → `OutOfStockException`）\n- `ShipController.ship()` は `BusinessException` を **まとめて** 捕まえて `エラー: ` を付けます。\n  2種類を別々に `catch` しないでください（親でまとめて捕まえるのが狙いです）\n\n> 在庫と要求がちょうど同じとき（`apple 5`）は **出荷できます**。`<` と `<=` を間違えないように。",
@@ -334,13 +335,13 @@
       "extraTasks": [
         {
           "kind": "applied",
-          "task": "解説のもう1つの要点は「**層をまたぐときは包み直す。そのとき `cause` を落とさない**」でした。\nそれを実装します。\n\n`StockRepository.findStock()` が `DataAccessException`（DB障害のつもり）を投げるようになりました。\n商品名が `ERROR` のときに起きます。埋めるのは2か所です。\n\n1. **`ShipService.ship()`** … `DataAccessException` を捕まえて、\n   `InventoryUnavailableException(\"在庫を確認できませんでした\", 原因)` に **包み直して** 投げる。\n   第2引数に元の例外を渡すのを忘れないこと\n2. **`ShipController.ship()`** … `cause` があれば、後ろに ` (原因: クラス名)` を足す\n\n| 入力 | 出力 |\n|---|---|\n| `ERROR 1` | `エラー: 在庫を確認できませんでした (原因: DataAccessException)` |\n| `apple 3` | `出荷しました: apple x3 (残り2個)` |\n| `apple 6` | `エラー: apple の在庫が足りません (在庫5個, 要求6個)` |\n\n**在庫不足のときは `(原因: ...)` が付きません。** `OutOfStockException` には `cause` を\n渡していないので `getCause()` が `null` になり、自然に付かなくなります。\n「`cause` があるときだけ足す」と書けば、例外の種類で分岐する必要はありません。\n\n> クラス名は `e.getCause().getClass().getSimpleName()` で取れます。\n> `getName()` だとパッケージ名まで付くので `getSimpleName()` を使います。",
-          "starterCode": "import java.util.LinkedHashMap;\nimport java.util.Map;\nimport java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        String[] input = sc.nextLine().trim().split(\"\\\\s+\");\n        String name = input[0];\n        int count = Integer.parseInt(input[1]);\n\n        ShipService service = new ShipService(new StockRepository());\n        System.out.println(new ShipController(service).ship(name, count));\n    }\n}\n\nclass BusinessException extends Exception {\n    BusinessException(String message) { super(message); }\n    BusinessException(String message, Throwable cause) { super(message, cause); }\n}\n\nclass OutOfStockException extends BusinessException {\n    OutOfStockException(String message) { super(message); }\n}\n\nclass ItemNotFoundException extends BusinessException {\n    ItemNotFoundException(String message) { super(message); }\n}\n\n/** 在庫を確認できなかった（低レベルの失敗を業務の言葉にしたもの）。 */\nclass InventoryUnavailableException extends BusinessException {\n    InventoryUnavailableException(String message, Throwable cause) { super(message, cause); }\n}\n\n/** Repository の層で起きる低レベルの失敗。本物なら SQLException にあたる。 */\nclass DataAccessException extends Exception {\n    DataAccessException(String message) { super(message); }\n}\n\n/** この層は完成しています。 */\nclass StockRepository {\n    private final Map<String, Integer> stock = new LinkedHashMap<>();\n\n    StockRepository() {\n        stock.put(\"apple\", 5);\n        stock.put(\"banana\", 0);\n        stock.put(\"melon\", 12);\n    }\n\n    /** 商品名が \"ERROR\" のときは、DB障害のつもりで例外を投げる。 */\n    Integer findStock(String name) throws DataAccessException {\n        if (name.equals(\"ERROR\")) {\n            throw new DataAccessException(\"connection refused\");\n        }\n        return stock.get(name);\n    }\n}\n\nclass ShipService {\n    private final StockRepository repository;\n\n    ShipService(StockRepository repository) {\n        this.repository = repository;\n    }\n\n    int ship(String name, int count) throws BusinessException {\n        Integer current;\n        // TODO: findStock は DataAccessException を投げる。捕まえて\n        //       InventoryUnavailableException(\"在庫を確認できませんでした\", 原因) に包み直す\n        current = null;\n\n        if (current == null) {\n            throw new ItemNotFoundException(name + \" は取り扱いがありません\");\n        }\n        if (current < count) {\n            throw new OutOfStockException(\n                    name + \" の在庫が足りません (在庫\" + current + \"個, 要求\" + count + \"個)\");\n        }\n        return current - count;\n    }\n}\n\nclass ShipController {\n    private final ShipService service;\n\n    ShipController(ShipService service) {\n        this.service = service;\n    }\n\n    String ship(String name, int count) {\n        try {\n            int rest = service.ship(name, count);\n            return \"出荷しました: \" + name + \" x\" + count + \" (残り\" + rest + \"個)\";\n        } catch (BusinessException e) {\n            // TODO: cause があれば \" (原因: クラス名)\" を後ろに足す\n            return \"エラー: \" + e.getMessage();\n        }\n    }\n}\n",
+          "task": "DB障害を、原因を保持したシステム例外へ包み直します。\n\n1. `ShipService.ship()`で`DataAccessException`を捕まえ、`InventoryUnavailableException(\"在庫を確認できませんでした\", e)`を投げてください\n2. `ShipController.ship()`で`InventoryUnavailableException`を捕まえ、内部の例外名やメッセージを含めず`システムエラー: 処理を完了できませんでした`を返してください\n3. 在庫不足と取り扱いなしは業務例外なので、従来どおり具体的な理由を返します\n\n| 入力 | 利用者向け出力 |\n|---|---|\n| `ERROR 1` | `システムエラー: 処理を完了できませんでした` |\n| `apple 3` | `出荷しました: apple x3 (残り2個)` |\n| `apple 6` | `エラー: apple の在庫が足りません (在庫5個, 要求6個)` |\n\n`cause`はログ・監視で調査するために残しますが、利用者向け出力には出しません。",
+          "starterCode": "import java.util.LinkedHashMap;\nimport java.util.Map;\nimport java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        String[] input = sc.nextLine().trim().split(\"\\\\s+\");\n        String name = input[0];\n        int count = Integer.parseInt(input[1]);\n        ShipService service = new ShipService(new StockRepository());\n        System.out.println(new ShipController(service).ship(name, count));\n    }\n}\n\nclass BusinessException extends Exception {\n    BusinessException(String message) { super(message); }\n}\nclass OutOfStockException extends BusinessException {\n    OutOfStockException(String message) { super(message); }\n}\nclass ItemNotFoundException extends BusinessException {\n    ItemNotFoundException(String message) { super(message); }\n}\nclass InventoryUnavailableException extends RuntimeException {\n    InventoryUnavailableException(String message, Throwable cause) { super(message, cause); }\n}\nclass DataAccessException extends Exception {\n    DataAccessException(String message) { super(message); }\n}\n\nclass StockRepository {\n    private final Map<String, Integer> stock = new LinkedHashMap<>();\n    StockRepository() {\n        stock.put(\"apple\", 5);\n        stock.put(\"banana\", 0);\n        stock.put(\"melon\", 12);\n    }\n    Integer findStock(String name) throws DataAccessException {\n        if (name.equals(\"ERROR\")) throw new DataAccessException(\"connection refused\");\n        return stock.get(name);\n    }\n}\n\nclass ShipService {\n    private final StockRepository repository;\n    ShipService(StockRepository repository) { this.repository = repository; }\n    int ship(String name, int count) throws BusinessException {\n        Integer current;\n        // TODO: DataAccessExceptionをcause付きのInventoryUnavailableExceptionへ包み直す\n        current = null;\n        if (current == null) throw new ItemNotFoundException(name + \" は取り扱いがありません\");\n        if (current < count) throw new OutOfStockException(\n                name + \" の在庫が足りません (在庫\" + current + \"個, 要求\" + count + \"個)\");\n        return current - count;\n    }\n}\n\nclass ShipController {\n    private final ShipService service;\n    ShipController(ShipService service) { this.service = service; }\n    String ship(String name, int count) {\n        try {\n            int rest = service.ship(name, count);\n            return \"出荷しました: \" + name + \" x\" + count + \" (残り\" + rest + \"個)\";\n        } catch (InventoryUnavailableException e) {\n            // TODO: 内部詳細を含めない一般的なメッセージを返す\n            return \"\";\n        } catch (BusinessException e) {\n            return \"エラー: \" + e.getMessage();\n        }\n    }\n}\n",
           "visibleCases": [
             {
               "label": "DB障害を包み直す",
               "stdin": "ERROR 1",
-              "expected": "エラー: 在庫を確認できませんでした (原因: DataAccessException)"
+              "expected": "システムエラー: 処理を完了できませんでした"
             },
             {
               "label": "正常な出荷",
@@ -362,7 +363,7 @@
             {
               "label": "数量が多くてもDB障害が先に出る",
               "stdin": "ERROR 999",
-              "expected": "エラー: 在庫を確認できませんでした (原因: DataAccessException)"
+              "expected": "システムエラー: 処理を完了できませんでした"
             },
             {
               "label": "境界はそのまま通る",
@@ -371,18 +372,21 @@
             }
           ],
           "hints": [
-            "`try { current = repository.findStock(name); } catch (DataAccessException e) { ... }` の形にします。`current` は `try` の外で宣言しておきます。",
-            "`catch` の中で `throw new InventoryUnavailableException(\"在庫を確認できませんでした\", e);` とします。第2引数の `e` が `cause` になります。ここを省くと原因が消えます。",
-            "Controller では `if (e.getCause() != null) { message += \" (原因: \" + e.getCause().getClass().getSimpleName() + \")\"; }` とします。`cause` を渡していない例外では `getCause()` が `null` なので、何も足されません。"
+            "`try { current = repository.findStock(name); } catch (DataAccessException e) { ... }` の形にします。`current` はtryの外で宣言します。",
+            "catch内で`throw new InventoryUnavailableException(\"在庫を確認できませんでした\", e);`とし、causeを保持します。",
+            "Controllerのシステム例外用catchでは、`システムエラー: 処理を完了できませんでした`だけを返します。内部のクラス名やメッセージは利用者へ連結しません。"
           ],
-          "solution": "import java.util.LinkedHashMap;\nimport java.util.Map;\nimport java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        String[] input = sc.nextLine().trim().split(\"\\\\s+\");\n        String name = input[0];\n        int count = Integer.parseInt(input[1]);\n\n        ShipService service = new ShipService(new StockRepository());\n        System.out.println(new ShipController(service).ship(name, count));\n    }\n}\n\nclass BusinessException extends Exception {\n    BusinessException(String message) { super(message); }\n    BusinessException(String message, Throwable cause) { super(message, cause); }\n}\n\nclass OutOfStockException extends BusinessException {\n    OutOfStockException(String message) { super(message); }\n}\n\nclass ItemNotFoundException extends BusinessException {\n    ItemNotFoundException(String message) { super(message); }\n}\n\n/** 在庫を確認できなかった（低レベルの失敗を業務の言葉にしたもの）。 */\nclass InventoryUnavailableException extends BusinessException {\n    InventoryUnavailableException(String message, Throwable cause) { super(message, cause); }\n}\n\n/** Repository の層で起きる低レベルの失敗。本物なら SQLException にあたる。 */\nclass DataAccessException extends Exception {\n    DataAccessException(String message) { super(message); }\n}\n\n/** この層は完成しています。 */\nclass StockRepository {\n    private final Map<String, Integer> stock = new LinkedHashMap<>();\n\n    StockRepository() {\n        stock.put(\"apple\", 5);\n        stock.put(\"banana\", 0);\n        stock.put(\"melon\", 12);\n    }\n\n    /** 商品名が \"ERROR\" のときは、DB障害のつもりで例外を投げる。 */\n    Integer findStock(String name) throws DataAccessException {\n        if (name.equals(\"ERROR\")) {\n            throw new DataAccessException(\"connection refused\");\n        }\n        return stock.get(name);\n    }\n}\n\nclass ShipService {\n    private final StockRepository repository;\n\n    ShipService(StockRepository repository) {\n        this.repository = repository;\n    }\n\n    int ship(String name, int count) throws BusinessException {\n        Integer current;\n        try {\n            current = repository.findStock(name);\n        } catch (DataAccessException e) {\n            // 「SQLが失敗した」を「在庫を確認できなかった」に翻訳する。\n            // 第2引数に e を渡すのが大事（原因をたどれなくなるので落とさない）\n            throw new InventoryUnavailableException(\"在庫を確認できませんでした\", e);\n        }\n\n        if (current == null) {\n            throw new ItemNotFoundException(name + \" は取り扱いがありません\");\n        }\n        if (current < count) {\n            throw new OutOfStockException(\n                    name + \" の在庫が足りません (在庫\" + current + \"個, 要求\" + count + \"個)\");\n        }\n        return current - count;\n    }\n}\n\nclass ShipController {\n    private final ShipService service;\n\n    ShipController(ShipService service) {\n        this.service = service;\n    }\n\n    String ship(String name, int count) {\n        try {\n            int rest = service.ship(name, count);\n            return \"出荷しました: \" + name + \" x\" + count + \" (残り\" + rest + \"個)\";\n        } catch (BusinessException e) {\n            String message = \"エラー: \" + e.getMessage();\n            if (e.getCause() != null) {\n                message += \" (原因: \" + e.getCause().getClass().getSimpleName() + \")\";\n            }\n            return message;\n        }\n    }\n}\n"
+          "solution": "import java.util.LinkedHashMap;\nimport java.util.Map;\nimport java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        String[] input = sc.nextLine().trim().split(\"\\\\s+\");\n        String name = input[0];\n        int count = Integer.parseInt(input[1]);\n        ShipService service = new ShipService(new StockRepository());\n        System.out.println(new ShipController(service).ship(name, count));\n    }\n}\n\nclass BusinessException extends Exception {\n    BusinessException(String message) { super(message); }\n}\nclass OutOfStockException extends BusinessException {\n    OutOfStockException(String message) { super(message); }\n}\nclass ItemNotFoundException extends BusinessException {\n    ItemNotFoundException(String message) { super(message); }\n}\nclass InventoryUnavailableException extends RuntimeException {\n    InventoryUnavailableException(String message, Throwable cause) { super(message, cause); }\n}\nclass DataAccessException extends Exception {\n    DataAccessException(String message) { super(message); }\n}\n\nclass StockRepository {\n    private final Map<String, Integer> stock = new LinkedHashMap<>();\n    StockRepository() {\n        stock.put(\"apple\", 5);\n        stock.put(\"banana\", 0);\n        stock.put(\"melon\", 12);\n    }\n    Integer findStock(String name) throws DataAccessException {\n        if (name.equals(\"ERROR\")) throw new DataAccessException(\"connection refused\");\n        return stock.get(name);\n    }\n}\n\nclass ShipService {\n    private final StockRepository repository;\n    ShipService(StockRepository repository) { this.repository = repository; }\n    int ship(String name, int count) throws BusinessException {\n        Integer current;\n        try {\n            current = repository.findStock(name);\n        } catch (DataAccessException e) {\n            throw new InventoryUnavailableException(\"在庫を確認できませんでした\", e);\n        }\n        if (current == null) throw new ItemNotFoundException(name + \" は取り扱いがありません\");\n        if (current < count) throw new OutOfStockException(\n                name + \" の在庫が足りません (在庫\" + current + \"個, 要求\" + count + \"個)\");\n        return current - count;\n    }\n}\n\nclass ShipController {\n    private final ShipService service;\n    ShipController(ShipService service) { this.service = service; }\n    String ship(String name, int count) {\n        try {\n            int rest = service.ship(name, count);\n            return \"出荷しました: \" + name + \" x\" + count + \" (残り\" + rest + \"個)\";\n        } catch (InventoryUnavailableException e) {\n            return \"システムエラー: 処理を完了できませんでした\";\n        } catch (BusinessException e) {\n            return \"エラー: \" + e.getMessage();\n        }\n    }\n}\n",
+          "sourceChecks": [
+            {"pattern": "new\\s+InventoryUnavailableException\\s*\\(\\s*[^,]+,\\s*e\\s*\\)", "minimum": 1, "message": "InventoryUnavailableExceptionの第2引数へ元のDataAccessException（e）を渡し、causeを保持してください。"}
+          ]
         }
       ]
     },
     {
       "id": "21-5",
       "title": "Maven とプロジェクトの形",
-      "explanation": "## Mavenで依存関係とビルドを管理する\n\nMavenは `pom.xml` にプロジェクト情報、成果物の種類、依存ライブラリなどを記述します。\n\n```xml\n<project>\n  <groupId>com.example</groupId>\n  <artifactId>inventory</artifactId>\n  <version>1.0.0</version>\n  <packaging>war</packaging>\n\n  <dependencies>\n    <dependency>\n      <groupId>jakarta.platform</groupId>\n      <artifactId>jakarta.jakartaee-api</artifactId>\n      <version>10.0.0</version>\n      <scope>provided</scope>\n    </dependency>\n  </dependencies>\n</project>\n```\n\n`groupId`、`artifactId`、`version` の組をGAVと呼びます。依存ライブラリがさらに必要とする依存も、\nMavenが推移的依存として解決します。実際に選ばれた構成は `mvn dependency:tree` で確認できます。\n\n## scope\n\n| scope | 主な意味 |\n|---|---|\n| `compile`（既定） | コンパイル時と実行時に必要 |\n| `provided` | コンパイルには必要だが、実行環境から提供されるので成果物へ通常同梱しない |\n| `runtime` | コンパイルには不要だが実行時に必要 |\n| `test` | テストのコンパイル・実行だけで必要 |\n\n### Jakarta EEサーバーとTomcatを区別する\n\nWildFly、Open Liberty、Payaraなど、対象のJakarta EE Platform/Profileに対応するサーバーへ\n従来型WARを配置する場合、そのサーバーが提供するAPIは `provided` にするのが一般的です。\n完全なJakarta EE APIを使うなら、配置先も対応するJakarta EEランタイムでなければなりません。\n\n**TomcatはJakarta EEフルプラットフォームのサーバーではなく、Servletコンテナです。**\nTomcatへ配置するアプリでは、Tomcatが実装するServlet等のAPIには `jakarta.servlet-api` を `provided` で使えますが、\nCDI、JPA、Jakarta RESTなどは別の実装を追加するか、それらを提供する互換サーバーを選びます。\n`jakarta.jakartaee-api` を宣言しただけでは、Tomcatに各仕様の実装が追加されるわけではありません。\n\nまた、`provided` が常に正解とは限りません。組み込みサーバーや自己完結型アプリでは、実行に必要な実装を\n実行可能JARなどへ含める構成があります。**配置先が何を提供するか**に合わせてscopeとパッケージを決めます。\n\n## Mavenの標準ディレクトリ\n\n```\ninventory/\n├── pom.xml\n└── src/\n    ├── main/\n    │   ├── java/\n    │   ├── resources/\n    │   └── webapp/\n    └── test/\n        ├── java/\n        └── resources/\n```\n\n`src/main/resources` はビルド後にクラスパスへ置かれます。WARではWeb資源を `src/main/webapp` に置きます。\n\n## JARとWAR\n\n| | JAR | WAR |\n|---|---|---|\n| 形式 | クラスやリソースをまとめる一般的な形式 | Webアプリ向けで `WEB-INF` などの構造を持つ |\n| 代表例 | ライブラリ、バッチ、実行可能Webアプリ | 外部Servlet/Jakarta EEサーバーへ配置するWebアプリ |\n\nJARはライブラリやバッチに限らず、組み込みWebサーバーを含む実行可能アプリにも使われます。\nWARは通常、対応する外部コンテナやサーバーへ配置します。`WEB-INF/classes` にアプリのクラス、\n`WEB-INF/lib` に同梱する依存JARが入ります。\n\n## よく使うコマンド\n\n| コマンド | 何をするか |\n|---|---|\n| `mvn compile` | コンパイル |\n| `mvn test` | テスト |\n| `mvn package` | JAR/WARを作成 |\n| `mvn clean package` | 生成物を消してから再ビルド |\n| `mvn dependency:tree` | 解決された依存関係を表示 |\n\n依存のバージョン競合はコンパイル時に見えず、実行時の `NoSuchMethodError` などで現れることがあります。\nバージョン番号も単純な文字列比較ではなく、使用するエコシステムの規則に従って扱います。",
+      "explanation": "## Mavenで依存関係とビルドを管理する\n\nMavenは `pom.xml` にプロジェクト情報、成果物の種類、依存ライブラリなどを記述します。\n\n```xml\n<project>\n  <groupId>com.example</groupId>\n  <artifactId>inventory</artifactId>\n  <version>1.0.0</version>\n  <packaging>war</packaging>\n\n  <dependencies>\n    <dependency>\n      <groupId>jakarta.platform</groupId>\n      <artifactId>jakarta.jakartaee-api</artifactId>\n      <version>11.0.0</version>\n      <scope>provided</scope>\n    </dependency>\n  </dependencies>\n</project>\n```\n\n`groupId`、`artifactId`、`version` の組をGAVと呼びます。依存ライブラリがさらに必要とする依存も、\nMavenが推移的依存として解決します。実際に選ばれた構成は `mvn dependency:tree` で確認できます。\n\n## scope\n\n| scope | 主な意味 |\n|---|---|\n| `compile`（既定） | コンパイル時と実行時に必要 |\n| `provided` | コンパイルには必要だが、実行環境から提供されるので成果物へ通常同梱しない |\n| `runtime` | コンパイルには不要だが実行時に必要 |\n| `test` | テストのコンパイル・実行だけで必要 |\n\n### Jakarta EEサーバーとTomcatを区別する\n\nWildFly、Open Liberty、Payaraなど、対象のJakarta EE Platform/Profileに対応するサーバーへ\n従来型WARを配置する場合、そのサーバーが提供するAPIは `provided` にするのが一般的です。\n完全なJakarta EE APIを使うなら、配置先も対応するJakarta EEランタイムでなければなりません。\n\n**TomcatはJakarta EEフルプラットフォームのサーバーではなく、Servletコンテナです。**\nTomcatへ配置するアプリでは、Tomcatが実装するServlet等のAPIには `jakarta.servlet-api` を `provided` で使えますが、\nCDI、JPA、Jakarta RESTなどは別の実装を追加するか、それらを提供する互換サーバーを選びます。\n`jakarta.jakartaee-api` を宣言しただけでは、Tomcatに各仕様の実装が追加されるわけではありません。\n\nまた、`provided` が常に正解とは限りません。組み込みサーバーや自己完結型アプリでは、実行に必要な実装を\n実行可能JARなどへ含める構成があります。**配置先が何を提供するか**に合わせてscopeとパッケージを決めます。\n\n## Mavenの標準ディレクトリ\n\n```\ninventory/\n├── pom.xml\n└── src/\n    ├── main/\n    │   ├── java/\n    │   ├── resources/\n    │   └── webapp/\n    └── test/\n        ├── java/\n        └── resources/\n```\n\n`src/main/resources` はビルド後にクラスパスへ置かれます。WARではWeb資源を `src/main/webapp` に置きます。\n\n## JARとWAR\n\n| | JAR | WAR |\n|---|---|---|\n| 形式 | クラスやリソースをまとめる一般的な形式 | Webアプリ向けで `WEB-INF` などの構造を持つ |\n| 代表例 | ライブラリ、バッチ、実行可能Webアプリ | 外部Servlet/Jakarta EEサーバーへ配置するWebアプリ |\n\nJARはライブラリやバッチに限らず、組み込みWebサーバーを含む実行可能アプリにも使われます。\nWARは通常、対応する外部コンテナやサーバーへ配置します。`WEB-INF/classes` にアプリのクラス、\n`WEB-INF/lib` に同梱する依存JARが入ります。\n\n## よく使うコマンド\n\n| コマンド | 何をするか |\n|---|---|\n| `mvn compile` | コンパイル |\n| `mvn test` | テスト |\n| `mvn package` | JAR/WARを作成 |\n| `mvn clean package` | 生成物を消してから再ビルド |\n| `mvn dependency:tree` | 解決された依存関係を表示 |\n\n依存のバージョン競合はコンパイル時に見えず、実行時の `NoSuchMethodError` などで現れることがあります。\nバージョン番号も単純な文字列比較ではなく、使用するエコシステムの規則に従って扱います。",
       "samples": [
         {
           "caption": "バージョンを文字列で比べると間違える",
@@ -532,6 +536,118 @@
           ],
           "answer": 0,
           "explanation": "Maven は依存が必要とする依存も自動で取ってきます（推移的依存）。同じライブラリに複数のバージョンが要求されたときは **1つだけ** が選ばれるので、選ばれなかった側を前提にしたコードは実行時に `NoSuchMethodError` などで落ちます。コンパイルは通るのに実行時に落ちるのが厄介な点で、`mvn dependency:tree` で実際に入っているバージョンを確認します。`test` スコープは実行時のクラスパスには入りません。"
+        }
+      ]
+    },
+    {
+      "id": "21-6",
+      "title": "章末演習：業務アプリの設計",
+      "explanation": "## この章の知識を、自分の手で組み合わせよう\n\nここでは、**Controller・Service・Repository・DTO・例外変換**をまとめて使います。新しい文法は登場しません。分からなくなったら、直前までの解説やサンプルへ戻って確認して大丈夫です。\n\n### 3問の進め方\n\n1. **基本**で、中心となる書き方をもう一度使う\n2. **組み合わせ**で、章内の複数の知識を一緒に使う\n3. **実践**で、少し現実的な入力と条件を整理する\n\nまず入力例と期待される出力を紙に書き、処理を小さな手順へ分けてからコードにすると進めやすくなります。",
+      "samples": [
+        {
+          "caption": "復習用サンプル：バージョンを文字列で比べると間違える",
+          "code": "public class Main {\n    public static void main(String[] args) {\n        // 文字列として比べると間違える\n        System.out.println(\"文字列比較: \" + \"1.10.2\".compareTo(\"1.2.10\"));   // マイナス = 1.10.2 が小さい？\n        System.out.println(\"正しい比較: \" + compare(\"1.10.2\", \"1.2.10\"));    // プラス = 1.10.2 が大きい\n\n        System.out.println(compare(\"2.0.0\", \"2.0\"));   // 0 = 同じ（足りない区画は 0 とみなす）\n        System.out.println(compare(\"1.0.0\", \"1.0.1\")); // マイナス\n    }\n\n    /** ドットで区切って、区画ごとに数値として比べる。 */\n    static int compare(String a, String b) {\n        String[] x = a.split(\"\\\\.\");\n        String[] y = b.split(\"\\\\.\");\n        int length = Math.max(x.length, y.length);\n        for (int i = 0; i < length; i++) {\n            int xi = i < x.length ? Integer.parseInt(x[i]) : 0;\n            int yi = i < y.length ? Integer.parseInt(y[i]) : 0;\n            if (xi != yi) {\n                return Integer.compare(xi, yi);\n            }\n        }\n        return 0;\n    }\n}\n"
+        }
+      ],
+      "task": "【基本】UserRepositoryをインターフェースにし、Mapを使うMemoryUserRepositoryを実装します。UserServiceへコンストラクタで渡し、ID 1なら `user=山田`、2なら `user=佐藤`、それ以外は `not found` と表示してください。",
+      "starterCode": "import java.util.*;\ninterface UserRepository {String findName(int id);}\nclass MemoryUserRepository implements UserRepository {public String findName(int id){return null;}/* TODO: Mapから検索する */}\nclass UserService {private final UserRepository repository;UserService(UserRepository repository){this.repository=repository;}String show(int id){return \"\";}}\npublic class Main {public static void main(String[] args){int id=new Scanner(System.in).nextInt();System.out.println(new UserService(new MemoryUserRepository()).show(id));}}\n",
+      "visibleCases": [
+        {
+          "label": "ID 1",
+          "stdin": "1",
+          "expected": "user=山田"
+        },
+        {
+          "label": "ID 2",
+          "stdin": "2",
+          "expected": "user=佐藤"
+        }
+      ],
+      "hiddenCases": [
+        {
+          "label": "該当なし",
+          "stdin": "9",
+          "expected": "not found"
+        },
+        {
+          "label": "0",
+          "stdin": "0",
+          "expected": "not found"
+        }
+      ],
+      "hints": [
+        "Repositoryの実装だけがMapを持ちます。",
+        "Serviceはnullならnot found、見つかれば表示用文字列へ変換します。"
+      ],
+      "solution": "import java.util.*;\ninterface UserRepository {String findName(int id);}\nclass MemoryUserRepository implements UserRepository {private final Map<Integer,String> users=Map.of(1,\"山田\",2,\"佐藤\");public String findName(int id){return users.get(id);}}\nclass UserService {private final UserRepository repository;UserService(UserRepository repository){this.repository=repository;}String show(int id){String name=repository.findName(id);return name==null?\"not found\":\"user=\"+name;}}\npublic class Main {public static void main(String[] args){int id=new Scanner(System.in).nextInt();System.out.println(new UserService(new MemoryUserRepository()).show(id));}}\n",
+      "extraTasks": [
+        {
+          "kind": "drill",
+          "task": "【組み合わせ】UserEntityはid・name・passwordHashを持ちます。画面へ返すUserDtoはid・nameだけにし、Serviceの `toDto` で変換してください。3値を読み、DTOだけを表示します。",
+          "starterCode": "import java.util.*;\nrecord UserEntity(int id,String name,String passwordHash){}\nrecord UserDto(int id,String name){}\nclass UserService {UserDto toDto(UserEntity entity){return null;}}\npublic class Main {public static void main(String[] args){Scanner s=new Scanner(System.in);UserEntity e=new UserEntity(s.nextInt(),s.next(),s.next());System.out.println(new UserService().toDto(e));}}\n",
+          "visibleCases": [
+            {
+              "label": "利用者",
+              "stdin": "1 Yamada secret",
+              "expected": "UserDto[id=1, name=Yamada]"
+            },
+            {
+              "label": "別利用者",
+              "stdin": "5 Sato hash123",
+              "expected": "UserDto[id=5, name=Sato]"
+            }
+          ],
+          "hiddenCases": [
+            {
+              "label": "空相当の名前",
+              "stdin": "0 _ x",
+              "expected": "UserDto[id=0, name=_]"
+            }
+          ],
+          "hints": [
+            "DTOのコンストラクタへidとnameだけを渡します。",
+            "passwordHashをDTOへ含めないことが目的です。"
+          ],
+          "solution": "import java.util.*;\nrecord UserEntity(int id,String name,String passwordHash){}\nrecord UserDto(int id,String name){}\nclass UserService {UserDto toDto(UserEntity entity){return new UserDto(entity.id(),entity.name());}}\npublic class Main {public static void main(String[] args){Scanner s=new Scanner(System.in);UserEntity e=new UserEntity(s.nextInt(),s.next(),s.next());System.out.println(new UserService().toDto(e));}}\n"
+        },
+        {
+          "kind": "applied",
+          "task": "【実践】ServiceはIDが0以下ならIllegalArgumentException、登録がなければUserNotFoundExceptionを投げます。Controllerでそれぞれ `400 Bad Request`、`404 Not Found`、成功なら `200 名前` へ変換してください。登録は1=山田、2=佐藤です。",
+          "starterCode": "import java.util.*;\nclass UserNotFoundException extends RuntimeException {}\nclass UserService {private final Map<Integer,String> users=Map.of(1,\"山田\",2,\"佐藤\");String find(int id){/* TODO */return \"\";}}\nclass UserController {private final UserService service=new UserService();String get(int id){/* TODO */return \"\";}}\npublic class Main {public static void main(String[] args){System.out.println(new UserController().get(new Scanner(System.in).nextInt()));}}\n",
+          "visibleCases": [
+            {
+              "label": "成功",
+              "stdin": "1",
+              "expected": "200 山田"
+            },
+            {
+              "label": "未登録",
+              "stdin": "9",
+              "expected": "404 Not Found"
+            }
+          ],
+          "hiddenCases": [
+            {
+              "label": "不正ID",
+              "stdin": "0",
+              "expected": "400 Bad Request"
+            },
+            {
+              "label": "負数",
+              "stdin": "-1",
+              "expected": "400 Bad Request"
+            },
+            {
+              "label": "ID 2",
+              "stdin": "2",
+              "expected": "200 佐藤"
+            }
+          ],
+          "hints": [
+            "Serviceは入力不正と未登録を別の例外で表します。",
+            "Controllerでは具体的な例外から順にcatchし、外向け結果へ変換します。"
+          ],
+          "solution": "import java.util.*;\nclass UserNotFoundException extends RuntimeException {}\nclass UserService {private final Map<Integer,String> users=Map.of(1,\"山田\",2,\"佐藤\");String find(int id){if(id<=0)throw new IllegalArgumentException();String name=users.get(id);if(name==null)throw new UserNotFoundException();return name;}}\nclass UserController {private final UserService service=new UserService();String get(int id){try{return \"200 \"+service.find(id);}catch(IllegalArgumentException e){return \"400 Bad Request\";}catch(UserNotFoundException e){return \"404 Not Found\";}}}\npublic class Main {public static void main(String[] args){System.out.println(new UserController().get(new Scanner(System.in).nextInt()));}}\n"
         }
       ]
     }

@@ -1,0 +1,53 @@
+{
+  "id":"ch55","title":"設定・コンテナ・可観測性","subtitle":"本番で安全に起動し、状態を説明できるようにする","emoji":"🚢",
+  "lessons":[
+    {
+      "id":"55-1","title":"設定とsecretを外から与える",
+      "explanation":"## buildと環境差を分離する\n\n同じartifact/container imageを各環境で使い、接続先、timeout、feature flagなどを環境変数、設定file、config serviceから注入します。既定値、必須値、型、範囲を起動時に検証し、不正設定では早く停止します。設定の優先順位と変更履歴を文書化し、動的変更できる値を限定します。\n\npassword、token、秘密鍵はsource、image、通常logへ入れず、secret managerから短命なcredentialとして受け取ります。読取権限をservice identityごとに最小化し、rotation時に旧新credentialが共存する手順をtestします。secretを伏せても、設定のversionや取得成否は観測可能にします。",
+      "samples":[{"caption":"必須環境変数を検証する形","code":"public class Main{public static void main(String[] a){String v=System.getenv(\"APP_MODE\");System.out.println(v==null?\"missing\":v);}}\n"}],
+      "task":"timeout、poolSize、secretPresent(0/1)を読み、timeoutが1〜30000、poolSizeが1〜100、secretPresentが1なら `START`、それ以外は `CONFIG_ERROR` と表示してください。",
+      "starterCode":"import java.util.*;public class Main{public static void main(String[] a){Scanner s=new Scanner(System.in);int timeout=s.nextInt(),pool=s.nextInt(),secret=s.nextInt();/* TODO */}}\n",
+      "visibleCases":[{"label":"正常設定","stdin":"2000 20 1","expected":"START"},{"label":"secretなし","stdin":"2000 20 0","expected":"CONFIG_ERROR"}],
+      "hiddenCases":[{"label":"範囲外","stdin":"30001 10 1","expected":"CONFIG_ERROR"}],
+      "hints":["3条件を&&で結びます。"],
+      "solution":"import java.util.*;public class Main{public static void main(String[] a){Scanner s=new Scanner(System.in);int timeout=s.nextInt(),pool=s.nextInt(),secret=s.nextInt();boolean ok=timeout>=1&&timeout<=30000&&pool>=1&&pool<=100&&secret==1;System.out.println(ok?\"START\":\"CONFIG_ERROR\");}}\n",
+      "quiz":[{"question":"環境ごとにapplicationを再buildしない理由は？","choices":["設定をsourceへ埋めるため","検証済みartifactを同一に保ち設定だけ分離するため","secretを公開するため","rollbackを難しくするため"],"answer":1,"explanation":"成果物の同一性と環境差の追跡性を保てます。"}]
+    },
+    {
+      "id":"55-2","title":"containerとJVMの資源を合わせる",
+      "explanation":"## memory limitはheapだけではない\n\ncontainer imageは小さく、非root、read-only filesystemを基本にし、JDK/JRE層とapplication層を分けます。base imageのdigest、OS package、JDK patchを継続更新し、multi-stage buildやjlinkも選択肢にします。PID 1へsignalが届くentrypointにし、終了処理を確認します。\n\ncontainer memoryにはheapだけでなくmetaspace、code cache、thread stack、direct buffer、native libraryも入ります。`-Xmx` をlimitいっぱいにせず余白を取り、GC logとNative Memory Trackingなどで実測します。CPU quotaはGC/JIT/thread poolの並列度にも影響します。request/limitとJVM設定を負荷testで組にして決めます。",
+      "samples":[{"caption":"heap以外の予算を引く","code":"public class Main{public static void main(String[] a){long limit=1024,nativeBudget=384;System.out.println(limit-nativeBudget);}}\n"}],
+      "task":"container limit MiB、nonHeap予算MiB、安全余白MiBを読み、heap上限候補 `limit-nonHeap-margin` を表示します。0以下なら `INVALID` と表示してください。",
+      "starterCode":"import java.util.*;public class Main{public static void main(String[] a){Scanner s=new Scanner(System.in);int limit=s.nextInt(),nonHeap=s.nextInt(),margin=s.nextInt();int heap=limit-nonHeap-margin;/* TODO */}}\n",
+      "visibleCases":[{"label":"memory予算","stdin":"1024 300 100","expected":"624"}],
+      "hiddenCases":[{"label":"不足","stdin":"256 200 100","expected":"INVALID"}],
+      "hints":["heapが正なら数値、そうでなければINVALID。"],
+      "solution":"import java.util.*;public class Main{public static void main(String[] a){Scanner s=new Scanner(System.in);int limit=s.nextInt(),nonHeap=s.nextInt(),margin=s.nextInt();int heap=limit-nonHeap-margin;System.out.println(heap>0?heap:\"INVALID\");}}\n",
+      "quiz":[{"question":"container memory limitに含まれるものは？","choices":["Java heapだけ","heapに加えてmetaspace・thread stack・direct/native memoryなど","class fileのsourceだけ","DB serverの全memory"],"answer":1,"explanation":"process全体の使用量を予算化します。"}]
+    },
+    {
+      "id":"55-3","title":"health・graceful shutdown・rollout",
+      "explanation":"## 生存と受付可能を分ける\n\nlivenessはprocessを再起動すべきか、readinessは新しいtrafficを受けられるか、startup probeは遅い初期化中の誤再起動を防ぐために使います。外部DBが一時停止しただけで全instanceのlivenessを失敗させると再起動stormになるため、依存先は主にreadinessと業務metricsで表します。\n\n終了signalを受けたらreadinessを落とし、新規受付を止め、実行中request・messageを期限内に完了し、resourceを閉じます。deployはrolling/canary/blue-greenを選び、error rate、latency、saturationなどの停止条件とrollbackを自動化します。schemaやmessageの互換性がrollback可能期間を決めます。",
+      "samples":[{"caption":"受付状態を明示する模型","code":"import java.util.concurrent.atomic.*;public class Main{public static void main(String[] a){AtomicBoolean ready=new AtomicBoolean(true);ready.set(false);System.out.println(ready.get()?\"READY\":\"DRAINING\");}}\n"}],
+      "task":"状態 `starting`/`ready`/`draining`/`failed` を読み、HTTP health statusを順に `503`/`200`/`503`/`500` と表示してください。",
+      "starterCode":"import java.util.*;public class Main{public static void main(String[] a){String state=new Scanner(System.in).next();/* TODO */}}\n",
+      "visibleCases":[{"label":"受付中","stdin":"ready","expected":"200"},{"label":"排出中","stdin":"draining","expected":"503"}],
+      "hiddenCases":[{"label":"故障","stdin":"failed","expected":"500"}],
+      "hints":["switch expressionで対応付けます。"],
+      "solution":"import java.util.*;public class Main{public static void main(String[] a){String state=new Scanner(System.in).next();System.out.println(switch(state){case \"ready\"->200;case \"failed\"->500;default->503;});}}\n",
+      "quiz":[{"question":"DB一時障害をliveness失敗へ直結しにくい理由は？","choices":["DBは絶対に止まらないため","全instanceの再起動stormを招き復旧を悪化させ得るため","readinessがHTTPを使えないため","JVMはsignalを受けないため"],"answer":1,"explanation":"process自体の故障と外部依存による受付不能を分けます。"}]
+    },
+    {
+      "id":"55-4","title":"log・metrics・traceとSLO",
+      "explanation":"## 症状から一つのrequestへたどる\n\n構造化logにはtimestamp、level、service、event名、trace/request ID、主要な非機密contextを持たせます。metricsはrequest rate、error、latency、saturationを集計し、traceはserviceをまたぐ一回の処理をspanで結びます。高cardinalityなuser IDや生URLをmetric labelにせず、samplingと保存期間を費用・調査要件に合わせます。\n\nSLIは利用者が感じる可用性やlatencyの測定、SLOはその目標、error budgetは許容失敗量です。alertは原因候補ではなく利用者影響に近いburn rateを中心にし、runbookとdashboardへ接続します。障害後は非難ではなくtimeline、検知、影響、寄与要因、再発防止を残します。",
+      "samples":[{"caption":"成功率を計算","code":"public class Main{public static void main(String[] a){long total=1000,good=997;System.out.printf(\"%.2f%%%n\",good*100.0/total);}}\n"}],
+      "task":"totalとfailedを読み、成功率を小数2桁と%で表示してください。totalが0なら `NO_DATA` です。",
+      "starterCode":"import java.util.*;public class Main{public static void main(String[] a){Scanner s=new Scanner(System.in);long total=s.nextLong(),failed=s.nextLong();/* TODO */}}\n",
+      "visibleCases":[{"label":"SLI","stdin":"1000 3","expected":"99.70%"}],
+      "hiddenCases":[{"label":"dataなし","stdin":"0 0","expected":"NO_DATA"}],
+      "hints":["total==0を先に判定し、`(total-failed)*100.0/total`。"],
+      "solution":"import java.util.*;public class Main{public static void main(String[] a){Scanner s=new Scanner(System.in);long total=s.nextLong(),failed=s.nextLong();if(total==0)System.out.println(\"NO_DATA\");else System.out.printf(\"%.2f%%%n\",(total-failed)*100.0/total);}}\n",
+      "quiz":[{"question":"metric labelにuser IDを使いにくい理由は？","choices":["数値でないため","cardinalityが増大し監視基盤の費用と性能を悪化させるため","trace IDと必ず同じため","logが不要になるため"],"answer":1,"explanation":"集計軸は有限で安定した値にし、個別追跡はtrace/logで行います。"}]
+    }
+  ]
+}

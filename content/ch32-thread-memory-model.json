@@ -2,7 +2,7 @@
   "id":"ch32","title":"スレッドとJavaメモリモデル","subtitle":"並行・並列と共有メモリの三つの問題を理解する","emoji":"🧵",
   "lessons":[{
     "id":"32-1","title":"原子性・可視性・順序性",
-    "explanation":"## `count++` は一操作ではない\n\n並行は複数タスクが重なって進むこと、並列は同じ瞬間に複数CPUコアで実行されることです。共有変数では、読み書きが割り込まれない**原子性**、他スレッドの更新が見える**可視性**、処理順が保証される**順序性**を考えます。`count++` は読取・加算・書込なので競合します。\n\n`Thread.start()` より前の書込みは開始したスレッドから見え、スレッド内の処理は `join()` 成功後のスレッドから見える、というhappens-before関係があります。単にsleepして待つのは完了保証ではありません。\n\n単一値の原子的な更新には `AtomicInteger`、複数の値を一緒に守るときはロック、完了待ちには `join`、`CountDownLatch`、`Future`など目的に合う道具を使います。",
+    "explanation":"## はじめて学ぶ人へ\n\n複数スレッドが同じ値を扱うときは、2人の店員が同じ売上表を同時に更新する場面を想像してください。`count++` は1動作に見えても、実際は「読む→1足す→書く」の3段階です。\n\n```text\nAが0を読む ─┐\nBが0を読む ─┤\nAが1を書く   │\nBが1を書く ─┘  本当は2回なのに結果は1\n```\n\n原子性は途中で割り込まれないこと、可視性は他スレッドの更新が見えること、順序性は処理が期待する順で観測されることです。`synchronized` や `AtomicInteger` は必要なhappens-before関係を作り、これらの問題を避けます。\n\n## `count++` は一操作ではない\n\n並行は複数タスクが重なって進むこと、並列は同じ瞬間に複数CPUコアで実行されることです。共有変数では、読み書きが割り込まれない**原子性**、他スレッドの更新が見える**可視性**、処理順が保証される**順序性**を考えます。`count++` は読取・加算・書込なので競合します。\n\n`Thread.start()` より前の書込みは開始したスレッドから見え、スレッド内の処理は `join()` 成功後のスレッドから見える、というhappens-before関係があります。単にsleepして待つのは完了保証ではありません。\n\n単一値の原子的な更新には `AtomicInteger`、複数の値を一緒に守るときはロック、完了待ちには `join`、`CountDownLatch`、`Future`など目的に合う道具を使います。",
     "samples":[{"caption":"AtomicIntegerで安全に数える","code":"import java.util.concurrent.atomic.AtomicInteger;\npublic class Main { public static void main(String[] args) throws Exception { AtomicInteger n=new AtomicInteger(); Thread a=new Thread(()->{for(int i=0;i<1000;i++)n.incrementAndGet();}); Thread b=new Thread(()->{for(int i=0;i<1000;i++)n.incrementAndGet();}); a.start();b.start();a.join();b.join();System.out.println(n.get()); } }\n"}],
     "task":"スレッド数workersと各スレッドの反復回数iterationsを読み、全スレッドで共有するAtomicIntegerをincrementAndGetしてください。全スレッドをstartしてからjoinし、最終値を表示します。",
     "starterCode":"import java.util.*;\nimport java.util.concurrent.atomic.AtomicInteger;\npublic class Main { public static void main(String[] args) throws Exception { Scanner s=new Scanner(System.in); int workers=s.nextInt(),iterations=s.nextInt(); AtomicInteger count=new AtomicInteger(); // TODO\nSystem.out.println(count.get()); } }\n",
@@ -12,5 +12,113 @@
     "solution":"import java.util.*;\nimport java.util.concurrent.atomic.AtomicInteger;\npublic class Main { public static void main(String[] args) throws Exception { Scanner s=new Scanner(System.in); int workers=s.nextInt(),iterations=s.nextInt(); AtomicInteger count=new AtomicInteger(); List<Thread> threads=new ArrayList<>(); for(int w=0;w<workers;w++)threads.add(new Thread(()->{for(int i=0;i<iterations;i++)count.incrementAndGet();})); threads.forEach(Thread::start); for(Thread t:threads)t.join(); System.out.println(count.get()); } }\n",
     "extraTasks":[{"kind":"applied","task":"n個の整数を読み、各整数の平方を別スレッドでAtomicLongへ加算します。CountDownLatchをnで作り、各スレッドはfinallyでcountDown、mainはawaitしてから合計を表示してください。","starterCode":"import java.util.*;\nimport java.util.concurrent.*;\nimport java.util.concurrent.atomic.*;\npublic class Main { public static void main(String[] args) throws Exception { Scanner s=new Scanner(System.in); int n=s.nextInt(); long[] values=new long[n];for(int i=0;i<n;i++)values[i]=s.nextLong(); // TODO\n} }\n","visibleCases":[{"label":"1,2,3","stdin":"3 1 2 3","expected":"14"},{"label":"負数","stdin":"2 -4 5","expected":"41"}],"hiddenCases":[{"label":"0件","stdin":"0","expected":"0"},{"label":"ゼロを含む","stdin":"3 0 10 -10","expected":"200"}],"hints":["`CountDownLatch latch = new CountDownLatch(n)` と `AtomicLong sum` を用意します。","ラムダ内をtry-finallyにし、finallyで `latch.countDown()` します。"],"solution":"import java.util.*;\nimport java.util.concurrent.*;\nimport java.util.concurrent.atomic.*;\npublic class Main { public static void main(String[] args) throws Exception { Scanner s=new Scanner(System.in); int n=s.nextInt(); long[] values=new long[n];for(int i=0;i<n;i++)values[i]=s.nextLong(); CountDownLatch latch=new CountDownLatch(n);AtomicLong sum=new AtomicLong();for(long v:values)new Thread(()->{try{sum.addAndGet(v*v);}finally{latch.countDown();}}).start();latch.await();System.out.println(sum.get()); } }\n"}],
     "quiz":[{"question":"count++が競合する理由は？","choices":["一つの原子的命令だから","読取・加算・書込の複数操作だから","intが不変だから","joinを内包するから"],"answer":1,"explanation":"複数スレッドが同じ古い値を読み、更新を失うことがあります。"},{"question":"Thread.joinの主な意味は？","choices":["スレッドを複製","対象スレッドの終了を待つ","優先度を最大化","ロックを破棄"],"answer":1,"explanation":"終了待ちに加え、join後に結果が見えるhappens-before関係を作ります。"},{"question":"sleepで他スレッドの完了を待つ設計の問題は？","choices":["必ず速すぎる","完了を保証せず環境依存になる","コンパイルできない","メモリを共有しない"],"answer":1,"explanation":"時間経過と処理完了は同じ条件ではありません。"},{"question":"単一カウンタの原子的加算に適したものは？","choices":["StringBuilder","AtomicInteger","ArrayList","ClassLoader"],"answer":1,"explanation":"AtomicIntegerはロックなしで原子的な更新操作を提供します。"}]
-  }]
+  },
+    {
+      "id": "32-2",
+      "title": "章末演習：Javaメモリモデル",
+      "explanation": "## この章の知識を、自分の手で組み合わせよう\n\nここでは、**原子性・可視性・順序性・happens-before・atomic型**をまとめて使います。新しい文法は登場しません。分からなくなったら、直前までの解説やサンプルへ戻って確認して大丈夫です。\n\n### 3問の進め方\n\n1. **基本**で、中心となる書き方をもう一度使う\n2. **組み合わせ**で、章内の複数の知識を一緒に使う\n3. **実践**で、少し現実的な入力と条件を整理する\n\nまず入力例と期待される出力を紙に書き、処理を小さな手順へ分けてからコードにすると進めやすくなります。",
+      "samples": [
+        {
+          "caption": "復習用サンプル：AtomicIntegerで安全に数える",
+          "code": "import java.util.concurrent.atomic.AtomicInteger;\npublic class Main { public static void main(String[] args) throws Exception { AtomicInteger n=new AtomicInteger(); Thread a=new Thread(()->{for(int i=0;i<1000;i++)n.incrementAndGet();}); Thread b=new Thread(()->{for(int i=0;i<1000;i++)n.incrementAndGet();}); a.start();b.start();a.join();b.join();System.out.println(n.get()); } }\n"
+        }
+      ],
+      "task": "【基本】スレッド数nと、各スレッドが増やす回数mを読みます。AtomicIntegerを共有し、n本のThreadでm回ずつincrementして、全join後に値を表示してください。",
+      "starterCode": "import java.util.*;\nimport java.util.concurrent.atomic.*;\npublic class Main {public static void main(String[] args)throws Exception{Scanner s=new Scanner(System.in);int n=s.nextInt(),m=s.nextInt();AtomicInteger count=new AtomicInteger();List<Thread> threads=new ArrayList<>();/* TODO */}}\n",
+      "visibleCases": [
+        {
+          "label": "4×100",
+          "stdin": "4 100",
+          "expected": "400"
+        },
+        {
+          "label": "1×5",
+          "stdin": "1 5",
+          "expected": "5"
+        }
+      ],
+      "hiddenCases": [
+        {
+          "label": "0スレッド",
+          "stdin": "0 100",
+          "expected": "0"
+        },
+        {
+          "label": "8×250",
+          "stdin": "8 250",
+          "expected": "2000"
+        }
+      ],
+      "hints": [
+        "各Threadのラムダ内でm回incrementAndGetします。",
+        "すべてstartしたあと、すべてjoinしてからgetします。"
+      ],
+      "solution": "import java.util.*;\nimport java.util.concurrent.atomic.*;\npublic class Main {public static void main(String[] args)throws Exception{Scanner s=new Scanner(System.in);int n=s.nextInt(),m=s.nextInt();AtomicInteger count=new AtomicInteger();List<Thread> threads=new ArrayList<>();for(int i=0;i<n;i++)threads.add(new Thread(()->{for(int j=0;j<m;j++)count.incrementAndGet();}));threads.forEach(Thread::start);for(Thread t:threads)t.join();System.out.println(count.get());}}\n",
+      "extraTasks": [
+        {
+          "kind": "drill",
+          "task": "【組み合わせ】ワーカースレッドで入力値の2倍をHolder.valueへ書き、CountDownLatchをcountDownします。mainはawait後に `value=...` と表示してください。",
+          "starterCode": "import java.util.*;\nimport java.util.concurrent.*;\nclass Holder {int value;}\npublic class Main {public static void main(String[] args)throws Exception{int input=new Scanner(System.in).nextInt();Holder h=new Holder();CountDownLatch done=new CountDownLatch(1);Thread worker=new Thread(()->{/* TODO */});/* TODO */System.out.println(\"value=\"+h.value);}}\n",
+          "visibleCases": [
+            {
+              "label": "正数",
+              "stdin": "21",
+              "expected": "value=42"
+            },
+            {
+              "label": "0",
+              "stdin": "0",
+              "expected": "value=0"
+            }
+          ],
+          "hiddenCases": [
+            {
+              "label": "負数",
+              "stdin": "-5",
+              "expected": "value=-10"
+            }
+          ],
+          "hints": [
+            "workerは値を書いたあとcountDownします。",
+            "mainはstart後にawaitし、完了通知より後で値を読みます。"
+          ],
+          "solution": "import java.util.*;\nimport java.util.concurrent.*;\nclass Holder {int value;}\npublic class Main {public static void main(String[] args)throws Exception{int input=new Scanner(System.in).nextInt();Holder h=new Holder();CountDownLatch done=new CountDownLatch(1);Thread worker=new Thread(()->{h.value=input*2;done.countDown();});worker.start();done.await();System.out.println(\"value=\"+h.value);}}\n"
+        },
+        {
+          "kind": "applied",
+          "task": "【実践】AtomicIntegerの在庫stockに対し、n件の購入数を順に処理します。`updateAndGet` を使い、在庫不足なら変えず `ng rest=...`、購入できれば `ok rest=...` と表示してください。購入数は正です。",
+          "starterCode": "import java.util.*;\nimport java.util.concurrent.atomic.*;\npublic class Main {public static void main(String[] args){Scanner s=new Scanner(System.in);AtomicInteger stock=new AtomicInteger(s.nextInt());int n=s.nextInt();for(int i=0;i<n;i++){int amount=s.nextInt();/* TODO */}}}\n",
+          "visibleCases": [
+            {
+              "label": "成功と失敗",
+              "stdin": "5 3 2 4 3",
+              "expected": "ok rest=3\nng rest=3\nok rest=0"
+            },
+            {
+              "label": "全成功",
+              "stdin": "4 2 1 3",
+              "expected": "ok rest=3\nok rest=0"
+            }
+          ],
+          "hiddenCases": [
+            {
+              "label": "在庫0",
+              "stdin": "0 2 1 1",
+              "expected": "ng rest=0\nng rest=0"
+            },
+            {
+              "label": "全量",
+              "stdin": "10 1 10",
+              "expected": "ok rest=0"
+            }
+          ],
+          "hints": [
+            "updateAndGetのラムダで、足りる場合だけ減算します。",
+            "今回は購入数が正なので、beforeとafterが同じなら失敗と判定できます。"
+          ],
+          "solution": "import java.util.*;\nimport java.util.concurrent.atomic.*;\npublic class Main {public static void main(String[] args){Scanner s=new Scanner(System.in);AtomicInteger stock=new AtomicInteger(s.nextInt());int n=s.nextInt();for(int i=0;i<n;i++){int amount=s.nextInt();int before=stock.get();int after=stock.updateAndGet(v->v>=amount?v-amount:v);System.out.println(after==before?\"ng rest=\"+after:\"ok rest=\"+after);}}}\n"
+        }
+      ]
+    }
+  ]
 }

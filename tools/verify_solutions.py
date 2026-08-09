@@ -11,7 +11,7 @@ verify-solutions.sh から呼ばれる（直接実行する場合は第1引数�
   1. content/*.json が読み込めること
   2. 各問題の starterCode がコンパイルできること（ひな形が壊れていないか）
   3. 各問題の solution が全テストケースを通ること
-  4. 各サンプルコードが実行できること（解説に載せたコードが動かないと最悪なので）
+  4. 各サンプルコードが実行でき、expected があれば出力も一致すること
   5. 確認クイズに正解がちょうど1つあり、解説が書かれていること
 """
 import json
@@ -29,6 +29,15 @@ BASE = f"http://localhost:{PORT}/api/"
 ONLY = [p for p in sys.argv[2:] if p]
 
 GREEN, RED, YELLOW, DIM, RESET = "\033[32m", "\033[31m", "\033[33m", "\033[2m", "\033[0m"
+
+
+def normalize_output(text):
+    """Judge.normalize と同じ規則で、行末空白と末尾空行を無視する。"""
+    lines = str(text or "").replace("\r\n", "\n").replace("\r", "\n").split("\n")
+    lines = [line.rstrip() for line in lines]
+    while lines and not lines[-1]:
+        lines.pop()
+    return "\n".join(lines)
 
 
 def post(endpoint, payload):
@@ -96,7 +105,14 @@ def verify_task(lid, task, problems, warnings):
     total = len(res["cases"])
     passed = res.get("passedCount", 0)
     if not res.get("allPass"):
-        problems.append(f"{where}の模範解答が {total - passed}件のケースで落ちた")
+        output_failures = total - passed
+        source_failures = res.get("sourceFailures", [])
+        if output_failures:
+            problems.append(f"{where}の模範解答が {output_failures}件のケースで落ちた")
+        if source_failures:
+            problems.append(f"{where}の模範解答が指定された書き方を満たしていない")
+        for failure in source_failures:
+            print(f"      {RED}✗ 書き方: {failure}{RESET}")
         for c in res["cases"]:
             if c["pass"]:
                 continue
@@ -152,6 +168,12 @@ def main():
                 elif res["run"]["stderr"]:
                     problems.append(f"サンプル{i + 1}で実行時エラー")
                     print(f"      {RED}{res['run']['stderr'].splitlines()[0]}{RESET}")
+                elif "expected" in sample:
+                    actual = res["run"].get("stdout", "")
+                    if normalize_output(actual) != normalize_output(sample["expected"]):
+                        problems.append(f"サンプル{i + 1}の出力が期待値と違う")
+                        print(f"      {RED}期待: {sample['expected']!r}{RESET}")
+                        print(f"      {RED}実際: {actual!r}{RESET}")
 
             # ── 問題ごとに、ひな形・模範解答・ヒントを検査 ────────────
             passed = total = 0

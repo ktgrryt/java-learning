@@ -1,0 +1,47 @@
+{
+  "id": "ch49",
+  "title": "JVM計測ラボ",
+  "subtitle": "thread dump・JFR・GCログを証拠として読む",
+  "emoji": "🔬",
+  "lessons": [
+    {
+      "id": "49-1",
+      "title": "スレッドダンプとデッドロック",
+      "explanation": "## 止まって見える理由を切り分ける\n\nスレッドダンプには各スレッドの状態とスタックが記録されます。RUNNABLEは必ずCPU実行中とは限らず、OS待ちを含むことがあります。BLOCKEDはモニター獲得待ち、WAITING/TIMED_WAITINGは条件や期限を待つ状態です。1枚だけでなく時間を空けて複数回取り、同じ場所に止まるかを見ます。\n\n`jcmd <pid> Thread.print` または `jstack <pid>` で取得できます。デッドロックでは、複数スレッドが互いの保持するロックを待ちます。ロック取得順を統一し、ロック中のI/Oを避けます。`labs/diagnostics/DeadlockDemo.java` で安全に再現して観察できます。",
+      "samples": [{"caption":"JVMからデッドロックを検出","code":"import java.lang.management.*;public class Main{public static void main(String[] a){long[] ids=ManagementFactory.getThreadMXBean().findDeadlockedThreads();System.out.println(ids==null?0:ids.length);}}\n"}],
+      "task": "n行の `thread state resource` を読み、BLOCKEDのスレッドだけをthread名の辞書順で `thread waits resource` と表示してください。なければ `NONE`。",
+      "starterCode": "import java.util.*;record Entry(String thread,String state,String resource){}public class Main{public static void main(String[] a){Scanner s=new Scanner(System.in);int n=s.nextInt();List<Entry> entries=new ArrayList<>();for(int i=0;i<n;i++)entries.add(new Entry(s.next(),s.next(),s.next()));/* TODO */}}\n",
+      "visibleCases": [{"label":"待機あり","stdin":"3 workerB BLOCKED lockA workerA RUNNABLE cpu timer TIMED_WAITING clock","expected":"workerB waits lockA"}],
+      "hiddenCases": [{"label":"複数","stdin":"3 z BLOCKED L2 a BLOCKED L1 b WAITING Q","expected":"a waits L1\nz waits L2"},{"label":"無し","stdin":"1 main RUNNABLE cpu","expected":"NONE"}],
+      "hints": ["filterしてthread名でsortedします。","結果をListへ確定し、emptyを判定します。"],
+      "solution": "import java.util.*;record Entry(String thread,String state,String resource){}public class Main{public static void main(String[] a){Scanner s=new Scanner(System.in);int n=s.nextInt();List<Entry> entries=new ArrayList<>();for(int i=0;i<n;i++)entries.add(new Entry(s.next(),s.next(),s.next()));List<Entry> blocked=entries.stream().filter(e->e.state().equals(\"BLOCKED\")).sorted(Comparator.comparing(Entry::thread)).toList();if(blocked.isEmpty())System.out.println(\"NONE\");else blocked.forEach(e->System.out.println(e.thread()+\" waits \"+e.resource()));}}\n",
+      "quiz": [{"question":"ハング調査で時間を空けた複数のダンプを取る理由は？","choices":["ファイルを大きくするため","状態が継続している場所と一時的な待ちを区別するため","コンパイルするため","必ずGCを止めるため"],"answer":1,"explanation":"時系列で比べると、動き続けているか同じ箇所に滞留しているかが分かります。"}]
+    },
+    {
+      "id": "49-2",
+      "title": "JFR・JMC・GCログ",
+      "explanation": "## 低負荷の記録から仮説を作る\n\nJava Flight Recorder（JFR）はCPUサンプル、割り当て、GC、ロック、I/Oなどのイベントを記録します。`jcmd <pid> JFR.start name=investigation duration=60s filename=app.jfr` のように取得し、JDK Mission Control（JMC）などで確認します。設定と保存先の容量を決め、機密データを含む独自イベントにも注意します。\n\nGCログではヒープ使用量、停止時間、頻度、原因を見ます。古い世代が回収後も増え続けるならリークを疑いますが、1回の高使用率だけでは断定できません。遅延の時刻とGC/JFR/アプリ指標を揃えて相関を見ます。`labs/diagnostics/AllocationDemo.java` で記録手順を試せます。",
+      "samples": [{"caption":"独自JFRイベント","code":"import jdk.jfr.*;class WorkEvent extends Event{int count;}public class Main{public static void main(String[] a){var e=new WorkEvent();e.count=3;e.commit();System.out.println(\"recorded\");}}\n"}],
+      "task": "n件の1秒ごとの `second pauseMillis` を読み、停止が50ms以上の秒を `SPIKE second pauseMillis` と表示してください。なければ `STABLE`。",
+      "starterCode": "import java.util.*;public class Main{public static void main(String[] a){Scanner s=new Scanner(System.in);int n=s.nextInt();boolean spike=false;for(int i=0;i<n;i++){int second=s.nextInt(),pause=s.nextInt();/* TODO */}if(!spike)System.out.println(\"STABLE\");}}\n",
+      "visibleCases": [{"label":"スパイク","stdin":"4 1 2 2 60 3 10 4 120","expected":"SPIKE 2 60\nSPIKE 4 120"}],
+      "hiddenCases": [{"label":"境界","stdin":"2 1 49 2 50","expected":"SPIKE 2 50"},{"label":"安定","stdin":"1 5 0","expected":"STABLE"}],
+      "hints": ["pause>=50なら表示しspike=trueにします。","入力順のまま表示します。"],
+      "solution": "import java.util.*;public class Main{public static void main(String[] a){Scanner s=new Scanner(System.in);int n=s.nextInt();boolean spike=false;for(int i=0;i<n;i++){int second=s.nextInt(),pause=s.nextInt();if(pause>=50){System.out.println(\"SPIKE \"+second+\" \"+pause);spike=true;}}if(!spike)System.out.println(\"STABLE\");}}\n",
+      "quiz": [{"question":"GCがメモリリークの原因だと断定する前に見るものは？","choices":["高使用率の瞬間だけ","回収後使用量の推移と割り当て元など複数の証拠","クラス名の長さ","READMEだけ"],"answer":1,"explanation":"時系列と割り当ての証拠を合わせ、仮説を検証します。"}]
+    },
+    {
+      "id": "49-3",
+      "title": "ベンチマークと改善サイクル",
+      "explanation": "## 先に基準と再現条件を固定する\n\n性能改善は、利用者に影響する指標（p50/p95/p99遅延、スループット、エラー率など）を選び、代表負荷で基準値を測るところから始めます。変更は一度に一つ、ウォームアップ後に複数回測り、平均だけでなく分布を見るようにします。マイクロベンチマークではJIT最適化やデッドコード除去があるため、JMHのような専用ハーネスを使います。\n\nプロファイルで支配的な箇所を見つけ、仮説→変更→同条件で再測定→回帰テストの順に進めます。高速化のために正しさ、可読性、運用性を失わないよう、目標と上限を先に決めます。",
+      "samples": [{"caption":"percentileの前に並べる","code":"import java.util.*;public class Main{public static void main(String[] a){long[] ms={20,5,8,100,7};Arrays.sort(ms);System.out.println(Arrays.toString(ms));}}\n"}],
+      "task": "n個の遅延値を読み、昇順に並べたnearest-rank方式のp50とp95を `p50=x p95=y` と表示してください。順位は `ceil(p*n/100)` の1始まりです。nは1以上。",
+      "starterCode": "import java.util.*;public class Main{static long percentile(long[] sorted,int percent){return 0;}public static void main(String[] a){Scanner s=new Scanner(System.in);int n=s.nextInt();long[] xs=new long[n];for(int i=0;i<n;i++)xs[i]=s.nextLong();Arrays.sort(xs);System.out.println(\"p50=\"+percentile(xs,50)+\" p95=\"+percentile(xs,95));}}\n",
+      "visibleCases": [{"label":"5件","stdin":"5 20 5 8 100 7","expected":"p50=8 p95=100"}],
+      "hiddenCases": [{"label":"1件","stdin":"1 42","expected":"p50=42 p95=42"},{"label":"20件","stdin":"20 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20","expected":"p50=10 p95=19"}],
+      "hints": ["整数だけなら順位は `(percent * n + 99) / 100`。","配列添字は順位から1を引きます。"],
+      "solution": "import java.util.*;public class Main{static long percentile(long[] sorted,int percent){int rank=(percent*sorted.length+99)/100;return sorted[rank-1];}public static void main(String[] a){Scanner s=new Scanner(System.in);int n=s.nextInt();long[] xs=new long[n];for(int i=0;i<n;i++)xs[i]=s.nextLong();Arrays.sort(xs);System.out.println(\"p50=\"+percentile(xs,50)+\" p95=\"+percentile(xs,95));}}\n",
+      "quiz": [{"question":"マイクロベンチマークに専用ハーネスを使う理由は？","choices":["Javaコードを書かないため","ウォームアップやJIT最適化の影響を扱うため","ネットワークを必ず使うため","平均を禁止するため"],"answer":1,"explanation":"単純なnanoTimeの差だけではJITや除去最適化により誤解しやすいためです。"}]
+    }
+  ]
+}

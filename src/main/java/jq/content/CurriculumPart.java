@@ -6,7 +6,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * 複数の章をまとめる大区分（「Java SE編」「Jakarta EE編」など）。
+ * 複数の章をまとめる大区分（「Java基礎編」「Web・Jakarta EE編」など）。
  * 章番号や進捗キーには影響せず、カリキュラムを見つけやすくするためだけに使う。
  */
 public record CurriculumPart(

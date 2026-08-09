@@ -1,5 +1,7 @@
 package jq.content;
 
+import jq.format.JavaSnippetFormatter;
+
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -66,8 +68,11 @@ public record Lesson(
         for (Sample s : samples) {
             Map<String, Object> sm = new LinkedHashMap<>();
             sm.put("caption", s.caption());
-            sm.put("code", s.code());
+            sm.put("code", JavaSnippetFormatter.formatIfCompact(s.code()));
             sm.put("stdin", s.stdin());
+            if (s.expected() != null) {
+                sm.put("expected", s.expected());
+            }
             sampleList.add(sm);
         }
         m.put("samples", sampleList);

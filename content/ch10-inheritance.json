@@ -7,7 +7,7 @@
     {
       "id": "10-1",
       "title": "extends で受け継ぐ",
-      "explanation": "## 同じものを2回書きたくない\n\n犬のクラスと猫のクラスを作るとします。名前を持ち、自己紹介する — ここは同じです。\n\n```java\nclass Dog {\n    String name;\n    void intro() { System.out.println(\"私は\" + name + \"です\"); }\n    void cry()   { System.out.println(name + \"「ワン」\"); }\n}\n\nclass Cat {\n    String name;                                              // 同じ\n    void intro() { System.out.println(\"私は\" + name + \"です\"); }  // 同じ\n    void cry()   { System.out.println(name + \"「ニャー」\"); }\n}\n```\n\n共通部分を1か所にまとめたい。そのための仕組みが **継承** です。\n\n```java\nclass Animal {                    // 共通部分をここに集める\n    String name;\n\n    void intro() {\n        System.out.println(\"私は\" + name + \"です\");\n    }\n}\n\nclass Dog extends Animal {        // Animal を受け継ぐ\n    void cry() {\n        System.out.println(name + \"「ワン」\");\n    }\n}\n\nclass Cat extends Animal {\n    void cry() {\n        System.out.println(name + \"「ニャー」\");\n    }\n}\n```\n\n`extends` を書くだけで、`Dog` は `Animal` のフィールドとメソッドを\n**自分のものとして** 使えます。\n\n```java\nDog d = new Dog();\nd.name = \"ポチ\";       // Animal から受け継いだフィールド\nd.intro();             // Animal から受け継いだメソッド\nd.cry();               // Dog 自身のメソッド\n```\n\n### 呼び方\n\n- `Animal` … **スーパークラス**（親クラス、基底クラス）\n- `Dog` `Cat` … **サブクラス**（子クラス、派生クラス）\n\n継承は「**Dog は Animal である**（is-a 関係）」が成り立つときに使います。\n「犬は動物である」は自然なので継承が合っています。\n逆に「車はエンジンである」は変なので、そこは継承ではなくフィールドとして持たせます。\n\n## 継承で受け継がないもの\n\nすべてが受け継がれるわけではありません。\n\n- **`private` なメンバー** … サブクラスからは見えません\n- **コンストラクタ** … 受け継がれません（次のレッスンで扱います）\n\n`private` の代わりに **`protected`** を使うと、サブクラスからは見えるようになります\n（第9章の表を思い出してください）。\n\n```java\nclass Animal {\n    private String secret;      // Dog からは見えない\n    protected String name;      // Dog からは見える\n}\n```\n\n## Java の継承は1つだけ\n\n**`extends` に書けるクラスは1つだけ** です。2つ以上の親を持つことはできません。\n\n```java\nclass Dog extends Animal, Pet { }    // ❌ コンパイルエラー\n```\n\n「複数の性質を持たせたい」ときはインターフェース（第12章）を使います。\n\n> 💡 何も `extends` しないクラスは、暗黙のうちに `Object` クラスを継承しています。だからどんなクラスでも `toString()` や `equals()` を持っています（第10章の最後で扱います）。\n\n> ⚠️ 試験のワナ … `final` を付けたクラスは継承できません。`String` が `final class` なのは、勝手に振る舞いを変えられると困るからです。",
+      "explanation": "## 同じものを2回書きたくない\n\n犬のクラスと猫のクラスを作るとします。名前を持ち、自己紹介する — ここは同じです。\n\n```java\nclass Dog {\n    String name;\n    void intro() { System.out.println(\"私は\" + name + \"です\"); }\n    void cry()   { System.out.println(name + \"「ワン」\"); }\n}\n\nclass Cat {\n    String name;                                              // 同じ\n    void intro() { System.out.println(\"私は\" + name + \"です\"); }  // 同じ\n    void cry()   { System.out.println(name + \"「ニャー」\"); }\n}\n```\n\n共通部分を1か所にまとめたい。そのための仕組みが **継承** です。\n\n```java\nclass Animal {                    // 共通部分をここに集める\n    String name;\n\n    void intro() {\n        System.out.println(\"私は\" + name + \"です\");\n    }\n}\n\nclass Dog extends Animal {        // Animal を受け継ぐ\n    void cry() {\n        System.out.println(name + \"「ワン」\");\n    }\n}\n\nclass Cat extends Animal {\n    void cry() {\n        System.out.println(name + \"「ニャー」\");\n    }\n}\n```\n\n`extends` を書くだけで、`Dog` は `Animal` のフィールドとメソッドを\n**自分のものとして** 使えます。\n\n```java\nDog d = new Dog();\nd.name = \"ポチ\";       // Animal から受け継いだフィールド\nd.intro();             // Animal から受け継いだメソッド\nd.cry();               // Dog 自身のメソッド\n```\n\n### 呼び方\n\n- `Animal` … **スーパークラス**（親クラス、基底クラス）\n- `Dog` `Cat` … **サブクラス**（子クラス、派生クラス）\n\n継承は「**Dog は Animal である**（is-a 関係）」が成り立つときに使います。\n「犬は動物である」は自然なので継承が合っています。\n逆に「車はエンジンである」は変なので、そこは継承ではなくフィールドとして持たせます。\n\n## 継承で受け継がないもの\n\nすべてが受け継がれるわけではありません。\n\n- **`private` なメンバー** … サブクラスからは見えません\n- **コンストラクタ** … 受け継がれません（次のレッスンで扱います）\n\n`private` の代わりに **`protected`** を使うと、サブクラスからは見えるようになります\n（第9章の表を思い出してください）。\n\n```java\nclass Animal {\n    private String secret;      // Dog からは見えない\n    protected String name;      // Dog からは見える\n}\n```\n\n## Java の継承は1つだけ\n\n**`extends` に書けるクラスは1つだけ** です。2つ以上の親を持つことはできません。\n\n```java\nclass Dog extends Animal, Pet { }    // ❌ コンパイルエラー\n```\n\n「複数の性質を持たせたい」ときはインターフェース（第12章）を使います。\n\n> 💡 何も `extends` しないクラスは、暗黙のうちに `Object` クラスを継承しています。だからどんなクラスでも `toString()` や `equals()` を持っています（第10章の最後で扱います）。\n\n> ⚠️ 間違えやすい点 … `final` を付けたクラスは継承できません。`String` が `final class` なのは、勝手に振る舞いを変えられると困るからです。",
       "samples": [
         {
           "caption": "共通部分を Animal にまとめる",
@@ -111,7 +111,7 @@
     {
       "id": "10-2",
       "title": "オーバーライドと @Override",
-      "explanation": "## 受け継いだメソッドを作り直す\n\n親のメソッドが自分に合わないなら、**同じ形のメソッドをサブクラスで書き直せます**。\nこれを **オーバーライド（上書き）** といいます。\n\n```java\nclass Animal {\n    String name;\n\n    void cry() {\n        System.out.println(name + \"「…」\");\n    }\n}\n\nclass Dog extends Animal {\n    @Override\n    void cry() {                                   // 上書きする\n        System.out.println(name + \"「ワン」\");\n    }\n}\n```\n\n`Dog` に対して `cry()` を呼ぶと、**サブクラスの方** が動きます。\n\n```java\nDog d = new Dog();\nd.name = \"ポチ\";\nd.cry();              // ポチ「ワン」 ← Animal の方は動かない\n```\n\n## @Override は保険\n\n`@Override` は「これは上書きのつもりです」というコンパイラへの申告です。\n書かなくても動きますが、**書いておくと間違いをコンパイルエラーで教えてくれます**。\n\n```java\nclass Dog extends Animal {\n    @Override\n    void cly() { }         // ❌ コンパイルエラー：親にそんなメソッドはない\n}\n```\n\n`@Override` がないと、これは「`cly` という新しいメソッドを作った」と解釈され、\n**エラーにならないまま `cry()` は親のまま** になります。原因を探すのに苦労する種類のバグです。\n上書きするときは必ず付けましょう。\n\n## オーバーライドの条件\n\n「同じ形」の意味は厳密に決まっています。Silver では必ず問われます。\n\n| 項目 | 条件 |\n|---|---|\n| メソッド名 | 完全に同じ |\n| 引数の型と数と順番 | 完全に同じ |\n| 戻り値の型 | 同じ、またはそのサブクラス（共変戻り値） |\n| アクセス修飾子 | 同じか、**より広い**（`protected` → `public` はOK） |\n| 検査例外 | 同じか、**より狭い**（増やせない） |\n\n> ⚠️ 試験のワナ … 引数の型を変えると、それは上書きではなく **オーバーロード**（別のメソッド）になります。\n\n```java\nclass Animal {\n    void cry() { }\n}\n\nclass Dog extends Animal {\n    void cry(int times) { }     // 上書きではない。cry() は親のまま残る\n}\n```\n\n> ⚠️ 試験のワナ … アクセス修飾子を **狭く** するとコンパイルエラーです。\n\n```java\nclass Animal {\n    public void cry() { }\n}\n\nclass Dog extends Animal {\n    private void cry() { }      // ❌ public より狭いのでエラー\n}\n```\n\n「親の型で使えていたものが、子になったら使えなくなる」ことを防ぐためです。\n\n## 上書きできないもの\n\n- **`final` なメソッド** … 上書き禁止の宣言です\n- **`static` なメソッド** … 上書きではなく **隠蔽（hiding）** になります。どちらが呼ばれるかは変数の型で決まり、実体の型では決まりません\n\n> 💡 `static` メソッドを継承先で同じ名前で書くのは混乱の元なので、避けるのが無難です。",
+      "explanation": "## 受け継いだメソッドを作り直す\n\n親のメソッドが自分に合わないなら、**同じ形のメソッドをサブクラスで書き直せます**。\nこれを **オーバーライド（上書き）** といいます。\n\n```java\nclass Animal {\n    String name;\n\n    void cry() {\n        System.out.println(name + \"「…」\");\n    }\n}\n\nclass Dog extends Animal {\n    @Override\n    void cry() {                                   // 上書きする\n        System.out.println(name + \"「ワン」\");\n    }\n}\n```\n\n`Dog` に対して `cry()` を呼ぶと、**サブクラスの方** が動きます。\n\n```java\nDog d = new Dog();\nd.name = \"ポチ\";\nd.cry();              // ポチ「ワン」 ← Animal の方は動かない\n```\n\n## @Override は保険\n\n`@Override` は「これは上書きのつもりです」というコンパイラへの申告です。\n書かなくても動きますが、**書いておくと間違いをコンパイルエラーで教えてくれます**。\n\n```java\nclass Dog extends Animal {\n    @Override\n    void cly() { }         // ❌ コンパイルエラー：親にそんなメソッドはない\n}\n```\n\n`@Override` がないと、これは「`cly` という新しいメソッドを作った」と解釈され、\n**エラーにならないまま `cry()` は親のまま** になります。原因を探すのに苦労する種類のバグです。\n上書きするときは必ず付けましょう。\n\n## オーバーライドの条件\n\n「同じ形」の意味は厳密に決まっています。安全に実装するために押さえましょう。\n\n| 項目 | 条件 |\n|---|---|\n| メソッド名 | 完全に同じ |\n| 引数の型と数と順番 | 完全に同じ |\n| 戻り値の型 | 同じ、またはそのサブクラス（共変戻り値） |\n| アクセス修飾子 | 同じか、**より広い**（`protected` → `public` はOK） |\n| 検査例外 | 同じか、**より狭い**（増やせない） |\n\n> ⚠️ 間違えやすい点 … 引数の型を変えると、それは上書きではなく **オーバーロード**（別のメソッド）になります。\n\n```java\nclass Animal {\n    void cry() { }\n}\n\nclass Dog extends Animal {\n    void cry(int times) { }     // 上書きではない。cry() は親のまま残る\n}\n```\n\n> ⚠️ 間違えやすい点 … アクセス修飾子を **狭く** するとコンパイルエラーです。\n\n```java\nclass Animal {\n    public void cry() { }\n}\n\nclass Dog extends Animal {\n    private void cry() { }      // ❌ public より狭いのでエラー\n}\n```\n\n「親の型で使えていたものが、子になったら使えなくなる」ことを防ぐためです。\n\n## 上書きできないもの\n\n- **`final` なメソッド** … 上書き禁止の宣言です\n- **`static` なメソッド** … 上書きではなく **隠蔽（hiding）** になります。どちらが呼ばれるかは変数の型で決まり、実体の型では決まりません\n\n> 💡 `static` メソッドを継承先で同じ名前で書くのは混乱の元なので、避けるのが無難です。",
       "samples": [
         {
           "caption": "同じ cry() が、実体によって変わる",
@@ -215,7 +215,7 @@
     {
       "id": "10-3",
       "title": "super とコンストラクタの連鎖",
-      "explanation": "## コンストラクタは受け継がれない\n\n継承されるのはフィールドとメソッドだけで、**コンストラクタは受け継がれません**。\nだから親に `Animal(String name)` があっても、`new Dog(\"ポチ\")` とは書けません。\n\nサブクラスでは自分のコンストラクタを書き、**親の初期化を `super(...)` で頼みます**。\n\n```java\nclass Animal {\n    protected String name;\n\n    Animal(String name) {\n        this.name = name;\n    }\n}\n\nclass Dog extends Animal {\n    private String trick;\n\n    Dog(String name, String trick) {\n        super(name);              // 親のコンストラクタを呼ぶ\n        this.trick = trick;\n    }\n}\n```\n\n`super(...)` は **コンストラクタの1行目** に書かなければなりません。\n`this(...)`（第8章）と同じ決まりで、**両方を同時に書くことはできません**。\n\n## 書かないと super() が自動で入る\n\n`super(...)` を書かなかった場合、コンパイラが **引数なしの `super();` を1行目に挿入します**。\n\n```java\nclass Dog extends Animal {\n    Dog() {\n        // ここに super(); が自動で入る\n    }\n}\n```\n\nだから親に **引数なしのコンストラクタがない** と、これがコンパイルエラーになります。\n\n> ⚠️ 試験のワナ … これが「親にコンストラクタを1つ書いた瞬間、子がコンパイルエラーになる」現象の正体です。\n\n```java\nclass Animal {\n    Animal(String name) { }       // 引数ありだけを書いた\n}\n\nclass Dog extends Animal {\n    Dog() { }                     // ❌ 暗黙の super() が呼べない\n}\n```\n\n直し方は2つ。子で `super(\"名前\")` と明示するか、親に引数なしコンストラクタも用意します。\n\n## 初期化は親から先に走る\n\n`new Dog(...)` すると、実行順はこうなります。\n\n1. `Dog` のコンストラクタに入る\n2. `super(...)` で `Animal` のコンストラクタが **先に** 終わる\n3. そのあと `Dog` のコンストラクタの残りが走る\n\nつまり **親から子へ** 順に組み立てられます。土台ができてから上に積む、と考えると自然です。\n\n## super. で親の実装を呼ぶ\n\nオーバーライドしたメソッドの中から、**親の実装** を呼びたいことがあります。\nそのときは `super.メソッド名()` と書きます。\n\n```java\nclass Animal {\n    void intro() {\n        System.out.println(\"私は\" + name + \"です\");\n    }\n}\n\nclass Dog extends Animal {\n    @Override\n    void intro() {\n        super.intro();                                   // まず親の自己紹介\n        System.out.println(\"得意技は\" + trick + \"です\");   // そのあと追加分\n    }\n}\n```\n\n`super.intro()` を書かずに `intro()` と書くと **自分自身を呼んでしまい**、\n永遠に呼び出しが続いて `StackOverflowError` になります。ここは要注意です。\n\n> 💡 `super(...)` は「親のコンストラクタ」、`super.xxx` は「親のメソッド・フィールド」。カッコの有無で別物です。",
+      "explanation": "## コンストラクタは受け継がれない\n\n継承されるのはフィールドとメソッドだけで、**コンストラクタは受け継がれません**。\nだから親に `Animal(String name)` があっても、`new Dog(\"ポチ\")` とは書けません。\n\nサブクラスでは自分のコンストラクタを書き、**親の初期化を `super(...)` で頼みます**。\n\n```java\nclass Animal {\n    protected String name;\n\n    Animal(String name) {\n        this.name = name;\n    }\n}\n\nclass Dog extends Animal {\n    private String trick;\n\n    Dog(String name, String trick) {\n        super(name);              // 親のコンストラクタを呼ぶ\n        this.trick = trick;\n    }\n}\n```\n\n`super(...)` は **コンストラクタの1行目** に書かなければなりません。\n`this(...)`（第8章）と同じ決まりで、**両方を同時に書くことはできません**。\n\n## 書かないと super() が自動で入る\n\n`super(...)` を書かなかった場合、コンパイラが **引数なしの `super();` を1行目に挿入します**。\n\n```java\nclass Dog extends Animal {\n    Dog() {\n        // ここに super(); が自動で入る\n    }\n}\n```\n\nだから親に **引数なしのコンストラクタがない** と、これがコンパイルエラーになります。\n\n> ⚠️ 間違えやすい点 … これが「親にコンストラクタを1つ書いた瞬間、子がコンパイルエラーになる」現象の正体です。\n\n```java\nclass Animal {\n    Animal(String name) { }       // 引数ありだけを書いた\n}\n\nclass Dog extends Animal {\n    Dog() { }                     // ❌ 暗黙の super() が呼べない\n}\n```\n\n直し方は2つ。子で `super(\"名前\")` と明示するか、親に引数なしコンストラクタも用意します。\n\n## 初期化は親から先に走る\n\n`new Dog(...)` すると、実行順はこうなります。\n\n1. `Dog` のコンストラクタに入る\n2. `super(...)` で `Animal` のコンストラクタが **先に** 終わる\n3. そのあと `Dog` のコンストラクタの残りが走る\n\nつまり **親から子へ** 順に組み立てられます。土台ができてから上に積む、と考えると自然です。\n\n## super. で親の実装を呼ぶ\n\nオーバーライドしたメソッドの中から、**親の実装** を呼びたいことがあります。\nそのときは `super.メソッド名()` と書きます。\n\n```java\nclass Animal {\n    void intro() {\n        System.out.println(\"私は\" + name + \"です\");\n    }\n}\n\nclass Dog extends Animal {\n    @Override\n    void intro() {\n        super.intro();                                   // まず親の自己紹介\n        System.out.println(\"得意技は\" + trick + \"です\");   // そのあと追加分\n    }\n}\n```\n\n`super.intro()` を書かずに `intro()` と書くと **自分自身を呼んでしまい**、\n永遠に呼び出しが続いて `StackOverflowError` になります。ここは要注意です。\n\n> 💡 `super(...)` は「親のコンストラクタ」、`super.xxx` は「親のメソッド・フィールド」。カッコの有無で別物です。",
       "samples": [
         {
           "caption": "親→子の順で初期化される",
@@ -319,7 +319,7 @@
     {
       "id": "10-4",
       "title": "toString と equals を上書きする",
-      "explanation": "## すべてのクラスは Object を継承している\n\n何も `extends` しないクラスも、実は `Object` クラスを継承しています。\nだから自作クラスにも、最初から `toString()` や `equals()` があります。\n\n### toString — 文字列にしたときの姿\n\n`Object` の `toString()` は `クラス名@ハッシュ値` を返します。人間には読めません。\n\n```java\nPoint p = new Point(1, 2);\nSystem.out.println(p);        // Point@1b6d3586\n```\n\n`println` にオブジェクトを渡すと、Javaは自動で `toString()` を呼びます。\n文字列と `+` でつないだときも同じです。だから **`toString()` を上書きすると表示が変わります**。\n\n```java\nclass Point {\n    private int x;\n    private int y;\n\n    @Override\n    public String toString() {\n        return \"(\" + x + \", \" + y + \")\";\n    }\n}\n\nSystem.out.println(p);        // (1, 2)\n```\n\nデバッグのときに中身がそのまま見えるので、値を持つクラスには書いておくと便利です。\n\n> 💡 `toString()` は `public String toString()` という形が決まっています。第10章のオーバーライドの条件を思い出してください。アクセス修飾子を狭くするとエラーです。\n\n## equals — 「中身が同じ」を自分で決める\n\n`Object` の `equals()` は `==` と同じで、**同じ本体かどうか** しか見ません（第8章）。\n「座標が同じなら等しい」と言いたいなら、自分で上書きします。\n\n```java\n@Override\npublic boolean equals(Object o) {\n    if (!(o instanceof Point)) {\n        return false;               // Point でなければ等しくない\n    }\n    Point other = (Point) o;        // Point として見直す\n    return this.x == other.x && this.y == other.y;\n}\n```\n\nやっていることは3段階です。\n\n1. 相手が `Point` かどうか確かめる（`null` もここで弾かれます）\n2. `Point` 型に変換する（キャスト）\n3. フィールドを比べる\n\n> ⚠️ 試験のワナ … 引数の型は **必ず `Object`** です。`equals(Point p)` と書くと、それは上書きではなく **オーバーロード**（別のメソッド）になります。\n\n```java\npublic boolean equals(Point p) { ... }     // ❌ 上書きになっていない\n```\n\nこの間違いが厄介なのは、`p1.equals(p2)` と直接書いたときは自分のメソッドが呼ばれて\n**うまく動いてしまう** ことです。ところが `Object` 型の変数を経由すると、\n親の `equals` が動いて `false` になります。\n\n```java\nObject o = p2;\nSystem.out.println(p1.equals(o));    // 上書きできていないと false\n```\n\n`@Override` を付けておけば、この間違いは最初からコンパイルエラーになります。\n\n### hashCode も一緒に\n\n`equals` を上書きしたら **`hashCode()` も上書きする** のが約束です。\n`HashMap` や `HashSet`（第16章）が正しく動かなくなるからです。\n\n```java\n@Override\npublic int hashCode() {\n    return x * 31 + y;\n}\n```\n\n> ⚠️ 試験のワナ … 「`equals` が `true` を返す2つのオブジェクトは、`hashCode` も同じでなければならない」が規約です。逆（`hashCode` が同じなら `equals` も `true`）は成り立ちません。",
+      "explanation": "## すべてのクラスは Object を継承している\n\n何も `extends` しないクラスも、実は `Object` クラスを継承しています。\nだから自作クラスにも、最初から `toString()` や `equals()` があります。\n\n### toString — 文字列にしたときの姿\n\n`Object` の `toString()` は `クラス名@ハッシュ値` を返します。人間には読めません。\n\n```java\nPoint p = new Point(1, 2);\nSystem.out.println(p);        // Point@1b6d3586\n```\n\n`println` にオブジェクトを渡すと、Javaは自動で `toString()` を呼びます。\n文字列と `+` でつないだときも同じです。だから **`toString()` を上書きすると表示が変わります**。\n\n```java\nclass Point {\n    private int x;\n    private int y;\n\n    @Override\n    public String toString() {\n        return \"(\" + x + \", \" + y + \")\";\n    }\n}\n\nSystem.out.println(p);        // (1, 2)\n```\n\nデバッグのときに中身がそのまま見えるので、値を持つクラスには書いておくと便利です。\n\n> 💡 `toString()` は `public String toString()` という形が決まっています。第10章のオーバーライドの条件を思い出してください。アクセス修飾子を狭くするとエラーです。\n\n## equals — 「中身が同じ」を自分で決める\n\n`Object` の `equals()` は `==` と同じで、**同じ本体かどうか** しか見ません（第8章）。\n「座標が同じなら等しい」と言いたいなら、自分で上書きします。\n\n```java\n@Override\npublic boolean equals(Object o) {\n    if (!(o instanceof Point)) {\n        return false;               // Point でなければ等しくない\n    }\n    Point other = (Point) o;        // Point として見直す\n    return this.x == other.x && this.y == other.y;\n}\n```\n\nやっていることは3段階です。\n\n1. 相手が `Point` かどうか確かめる（`null` もここで弾かれます）\n2. `Point` 型に変換する（キャスト）\n3. フィールドを比べる\n\n> ⚠️ 間違えやすい点 … 引数の型は **必ず `Object`** です。`equals(Point p)` と書くと、それは上書きではなく **オーバーロード**（別のメソッド）になります。\n\n```java\npublic boolean equals(Point p) { ... }     // ❌ 上書きになっていない\n```\n\nこの間違いが厄介なのは、`p1.equals(p2)` と直接書いたときは自分のメソッドが呼ばれて\n**うまく動いてしまう** ことです。ところが `Object` 型の変数を経由すると、\n親の `equals` が動いて `false` になります。\n\n```java\nObject o = p2;\nSystem.out.println(p1.equals(o));    // 上書きできていないと false\n```\n\n`@Override` を付けておけば、この間違いは最初からコンパイルエラーになります。\n\n### hashCode も一緒に\n\n`equals` を上書きしたら **`hashCode()` も上書きする** のが約束です。\n`HashMap` や `HashSet`（第16章）が正しく動かなくなるからです。\n\n```java\n@Override\npublic int hashCode() {\n    return x * 31 + y;\n}\n```\n\n> ⚠️ 間違えやすい点 … 「`equals` が `true` を返す2つのオブジェクトは、`hashCode` も同じでなければならない」が規約です。逆（`hashCode` が同じなら `equals` も `true`）は成り立ちません。",
       "samples": [
         {
           "caption": "上書きする前と、した後",
@@ -473,6 +473,92 @@
           ],
           "answer": 2,
           "explanation": "`Object` の `toString()` が `クラス名@ハッシュ値` を返します。読める形にしたければ `public String toString()` を上書きします（`record` なら自動で作られます）。"
+        }
+      ]
+    },
+    {
+      "id": "10-5",
+      "title": "章末演習：継承",
+      "explanation": "## この章の知識を、自分の手で組み合わせよう\n\nここでは、**extends・オーバーライド・super・Objectメソッド**をまとめて使います。新しい文法は登場しません。分からなくなったら、直前までの解説やサンプルへ戻って確認して大丈夫です。\n\n### 3問の進め方\n\n1. **基本**で、中心となる書き方をもう一度使う\n2. **組み合わせ**で、章内の複数の知識を一緒に使う\n3. **実践**で、少し現実的な入力と条件を整理する\n\nまず入力例と期待される出力を紙に書き、処理を小さな手順へ分けてからコードにすると進めやすくなります。",
+      "samples": [
+        {
+          "caption": "復習用サンプル：上書きする前と、した後",
+          "code": "class Plain {\n    int x = 1;\n}\n\nclass Nice {\n    int x = 1;\n\n    @Override\n    public String toString() {\n        return \"Nice(x=\" + x + \")\";\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        System.out.println(new Plain());     // クラス名@ハッシュ値\n        System.out.println(new Nice());      // 読める形\n\n        // 文字列と + でつないでも toString() が呼ばれる\n        System.out.println(\"中身は \" + new Nice());\n    }\n}\n"
+        }
+      ],
+      "task": "【基本】Vehicleの `run()` は `移動` を返します。Vehicleを継承したBicycleで `自転車で移動` にオーバーライドし、表示してください。",
+      "starterCode": "class Vehicle { String run(){return \"移動\";} }\nclass Bicycle extends Vehicle { /* TODO */ }\npublic class Main {public static void main(String[] args){System.out.println(new Bicycle().run());}}\n",
+      "visibleCases": [
+        {
+          "label": "オーバーライド",
+          "stdin": "",
+          "expected": "自転車で移動"
+        }
+      ],
+      "hiddenCases": [],
+      "hints": [
+        "Bicycleに同じ引数・戻り値のrunを書きます。",
+        "`@Override` を付けると書き間違いを検出できます。"
+      ],
+      "solution": "class Vehicle { String run(){return \"移動\";} }\nclass Bicycle extends Vehicle { @Override String run(){return \"自転車で移動\";} }\npublic class Main {public static void main(String[] args){System.out.println(new Bicycle().run());}}\n",
+      "extraTasks": [
+        {
+          "kind": "drill",
+          "task": "【組み合わせ】Personはnameをコンストラクタで受け取ります。Studentはsuperでnameを渡し、さらにgradeを持ちます。名前と学年を読み、`name(grade年)` と返す `profile()` を作ってください。",
+          "starterCode": "import java.util.*;\nclass Person { protected String name; Person(String name){this.name=name;} }\nclass Student extends Person { private int grade; Student(String name,int grade){super(name);/* TODO */} String profile(){return \"\";} }\npublic class Main {public static void main(String[] args){Scanner s=new Scanner(System.in);System.out.println(new Student(s.next(),s.nextInt()).profile());}}\n",
+          "visibleCases": [
+            {
+              "label": "1年生",
+              "stdin": "Aki 1",
+              "expected": "Aki(1年)"
+            },
+            {
+              "label": "3年生",
+              "stdin": "Ren 3",
+              "expected": "Ren(3年)"
+            }
+          ],
+          "hiddenCases": [
+            {
+              "label": "6年生",
+              "stdin": "Mio 6",
+              "expected": "Mio(6年)"
+            }
+          ],
+          "hints": [
+            "子のコンストラクタの先頭で `super(name)` を呼びます。",
+            "gradeは `this.grade = grade` で保存します。"
+          ],
+          "solution": "import java.util.*;\nclass Person { protected String name; Person(String name){this.name=name;} }\nclass Student extends Person { private int grade; Student(String name,int grade){super(name);this.grade=grade;} String profile(){return name+\"(\"+grade+\"年)\";} }\npublic class Main {public static void main(String[] args){Scanner s=new Scanner(System.in);System.out.println(new Student(s.next(),s.nextInt()).profile());}}\n"
+        },
+        {
+          "kind": "applied",
+          "task": "【実践】Pointを継承するPoint3Dを作り、`toString()` を `(x,y,z)` の形にオーバーライドしてください。3整数を読み、Point型の変数へPoint3Dを入れて表示します。",
+          "starterCode": "import java.util.*;\nclass Point { protected int x,y; Point(int x,int y){this.x=x;this.y=y;} }\nclass Point3D extends Point { private int z; Point3D(int x,int y,int z){super(x,y);this.z=z;} /* TODO */ }\npublic class Main {public static void main(String[] args){Scanner s=new Scanner(System.in);Point p=new Point3D(s.nextInt(),s.nextInt(),s.nextInt());System.out.println(p);}}\n",
+          "visibleCases": [
+            {
+              "label": "正の座標",
+              "stdin": "1 2 3",
+              "expected": "(1,2,3)"
+            },
+            {
+              "label": "原点",
+              "stdin": "0 0 0",
+              "expected": "(0,0,0)"
+            }
+          ],
+          "hiddenCases": [
+            {
+              "label": "負の座標",
+              "stdin": "-1 5 -3",
+              "expected": "(-1,5,-3)"
+            }
+          ],
+          "hints": [
+            "`toString` はpublicでオーバーライドします。",
+            "親のprotectedなxとyは子クラスから参照できます。"
+          ],
+          "solution": "import java.util.*;\nclass Point { protected int x,y; Point(int x,int y){this.x=x;this.y=y;} }\nclass Point3D extends Point { private int z; Point3D(int x,int y,int z){super(x,y);this.z=z;} @Override public String toString(){return \"(\"+x+\",\"+y+\",\"+z+\")\";} }\npublic class Main {public static void main(String[] args){Scanner s=new Scanner(System.in);Point p=new Point3D(s.nextInt(),s.nextInt(),s.nextInt());System.out.println(p);}}\n"
         }
       ]
     }

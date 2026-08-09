@@ -8,7 +8,7 @@
     {
       "id": "23-1",
       "title": "request属性とforward",
-      "explanation": "## 値を渡して別の処理へ進む\n\nControllerでデータを用意し、ビューへ表示を任せるときはリクエスト属性を使います。\n\n```java\nreq.setAttribute(\"user\", user);\nreq.getRequestDispatcher(\"/view\").forward(req, res);\n```\n\n`getParameter` は利用者から来た文字列、`getAttribute` はサーバ内で置いたObjectです。同名でも別物です。requestスコープは1リクエストだけなので、別の利用者と混ざりません。forwardはサーバ内部で同じrequest/responseを引き継ぎます。\n\n一方 `sendRedirect(\"/login\")` は302を返し、ブラウザに別リクエストを依頼します。URLは変わりますがrequest属性は失われます。保存成功後は再読み込みによる二重登録を避けるため、POST→Redirect→GET（PRG）を使うのが定石です。",
+      "explanation": "## はじめて学ぶ人へ\n\n`forward` は、同じサーバの中で処理を引き継ぐ**バトン渡し**です。最初の処理が用意した値をrequest属性へ入れ、表示担当へ同じrequestごと渡します。ブラウザから見ると1回のアクセスのままなのでURLも変わりません。\n\n```text\nブラウザ → /user → requestへ userName を保存 → forward → /user-view\n```\n\n`redirect` はブラウザへ「次はこのURLへ行ってください」と返す案内です。そこで新しいリクエストが始まるため、request属性は引き継がれずURLも変わります。検索結果の表示などはforward、登録後の再読み込みによる二重登録を防ぎたいときは `POST → redirect → GET` と使い分けるのが基本です。\n\n## 値を渡して別の処理へ進む\n\nControllerでデータを用意し、ビューへ表示を任せるときはリクエスト属性を使います。\n\n```java\nreq.setAttribute(\"user\", user);\nreq.getRequestDispatcher(\"/view\").forward(req, res);\n```\n\n`getParameter` は利用者から来た文字列、`getAttribute` はサーバ内で置いたObjectです。同名でも別物です。requestスコープは1リクエストだけなので、別の利用者と混ざりません。forwardはサーバ内部で同じrequest/responseを引き継ぎます。\n\n一方 `sendRedirect(\"/login\")` は302を返し、ブラウザに別リクエストを依頼します。URLは変わりますがrequest属性は失われます。保存成功後は再読み込みによる二重登録を避けるため、POST→Redirect→GET（PRG）を使うのが定石です。",
       "samples": [{"caption":"forwardではrequest属性が残る","code":"import jakarta.servlet.*;\nimport jakarta.servlet.annotation.WebServlet;\nimport jakarta.servlet.http.*;\nimport java.io.*;\n\n@WebServlet(\"/start\")\npublic class ForwardSample extends HttpServlet {\n protected void doGet(HttpServletRequest req, HttpServletResponse res) throws ServletException, IOException {\n  req.setAttribute(\"message\", \"同じリクエスト\");\n  req.getRequestDispatcher(\"/view\").forward(req, res);\n }\n public static void main(String[] args) { MiniWeb.app().register(ForwardSample.class).register(View.class).serve(); }\n}\n@WebServlet(\"/view\") class View extends HttpServlet {\n protected void doGet(HttpServletRequest req, HttpServletResponse res) throws IOException {\n  res.getWriter().println(req.getAttribute(\"message\"));\n }\n}\n","stdin":"GET /start"}],
       "task": "`/user?id=...` で利用者を検索し、見つかったときだけ `userName` をrequest属性に入れて `/user-view` へforwardしてください。ID 1は山田、2は佐藤。それ以外と不正なIDは404を返します。",
       "starterCode": "import jakarta.servlet.*;\nimport jakarta.servlet.annotation.WebServlet;\nimport jakarta.servlet.http.*;\nimport java.io.*;\nimport java.util.*;\n\n@WebServlet(\"/user\")\npublic class UserServlet extends HttpServlet {\n private final Map<Integer,String> users = Map.of(1, \"山田\", 2, \"佐藤\");\n protected void doGet(HttpServletRequest req, HttpServletResponse res) throws ServletException, IOException {\n  // TODO: idを安全に数値化して検索。見つからなければ404\n  // TODO: userName属性を設定して /user-view へforward\n }\n public static void main(String[] args) { MiniWeb.app().register(UserServlet.class).register(UserView.class).serve(); }\n}\n@WebServlet(\"/user-view\") class UserView extends HttpServlet {\n protected void doGet(HttpServletRequest req, HttpServletResponse res) throws IOException {\n  res.getWriter().println(\"利用者: \" + req.getAttribute(\"userName\"));\n }\n}\n",
@@ -29,7 +29,7 @@
     {
       "id":"23-2",
       "title":"セッションで利用者ごとの状態を持つ",
-      "explanation":"## HTTPをまたいで覚える\n\n`req.getSession()` はセッションを取得し、無ければ作ります。属性は同じブラウザの次のリクエストにも残ります。\n\n```java\nHttpSession session = req.getSession();\nsession.setAttribute(\"loginUser\", \"yamada\");\nString user = (String) session.getAttribute(\"loginUser\");\n```\n\n存在確認だけなら `getSession(false)` を使います。これなら未ログイン利用者に空セッションを大量作成しません。ログアウトでは `invalidate()` でセッション全体を破棄します。セッションには認証済みIDやカートIDなど小さな値だけを置き、パスワードや巨大な一覧は置きません。\n\n教材の入力では3つ目の語がブラウザ名です。`GET /count alice` と `GET /count bob` は別セッションになります。",
+      "explanation":"## はじめて学ぶ人へ\n\nHTTPは本来、前回のアクセスを覚えていません。セッションは、受付が利用者ごとに預かり物を保管する**ロッカー**のような仕組みです。ブラウザはロッカー番号を持ち、サーバはその番号に対応する小さなデータを保管します。\n\n```text\n1回目: alice が商品Aを追加 → alice用セッションに保存\n2回目: alice が表示       → 商品Aが残っている\n3回目: bob が表示         → bob用なので空のまま\n```\n\n`getSession()` は無ければ新しいロッカーを作り、`getSession(false)` は既存のものだけを探します。ログアウトでは `invalidate()` で中身を破棄します。パスワードや巨大な一覧ではなく、ログイン中の利用者IDやカートIDなど、次のリクエストに必要な小さな値だけを置きましょう。\n\n## HTTPをまたいで覚える\n\n`req.getSession()` はセッションを取得し、無ければ作ります。属性は同じブラウザの次のリクエストにも残ります。\n\n```java\nHttpSession session = req.getSession();\nsession.setAttribute(\"loginUser\", \"yamada\");\nString user = (String) session.getAttribute(\"loginUser\");\n```\n\n存在確認だけなら `getSession(false)` を使います。これなら未ログイン利用者に空セッションを大量作成しません。ログアウトでは `invalidate()` でセッション全体を破棄します。セッションには認証済みIDやカートIDなど小さな値だけを置き、パスワードや巨大な一覧は置きません。\n\n教材の入力では3つ目の語がブラウザ名です。`GET /count alice` と `GET /count bob` は別セッションになります。",
       "samples":[{"caption":"利用者ごとに別のカウンタ","code":"import jakarta.servlet.annotation.WebServlet;\nimport jakarta.servlet.http.*;\nimport java.io.*;\n@WebServlet(\"/count\") public class CountSample extends HttpServlet {\n protected void doGet(HttpServletRequest req, HttpServletResponse res) throws IOException {\n  HttpSession s=req.getSession(); Integer n=(Integer)s.getAttribute(\"count\"); n=n==null?1:n+1; s.setAttribute(\"count\",n); res.getWriter().println(n);\n }\n public static void main(String[] args){MiniWeb.app().register(CountSample.class).serve();}\n}\n","stdin":"GET /count alice\nGET /count alice\nGET /count bob"}],
       "task":"`/cart?add=商品名` でセッション内のカート（`List<String>`）に追加し、現在の中身を `カート(n件): a, b` と表示してください。addが無いリクエストは追加せず表示だけします。利用者ごとにカートが分かれることもテストします。",
       "starterCode":"import jakarta.servlet.annotation.WebServlet;\nimport jakarta.servlet.http.*;\nimport java.io.*;\nimport java.util.*;\n@WebServlet(\"/cart\") public class CartServlet extends HttpServlet {\n protected void doGet(HttpServletRequest req,HttpServletResponse res) throws IOException {\n  // TODO: セッションからcartを取得。無ければ作って保存\n  // TODO: addがあれば追加し、件数と内容を表示\n }\n public static void main(String[] args){MiniWeb.app().register(CartServlet.class).serve();}\n}\n",
@@ -42,7 +42,7 @@
     {
       "id":"23-3",
       "title":"Cookieを安全に使う",
-      "explanation":"## ブラウザ側に保存する小さな文字列\n\nCookieはレスポンスで渡され、次回からブラウザが送り返します。設定保存やセッションIDに使います。\n\n```java\nCookie c = new Cookie(\"theme\", \"dark\");\nc.setMaxAge(60 * 60 * 24 * 30);\nc.setPath(\"/\");\nc.setHttpOnly(true);\nc.setSecure(true);\nres.addCookie(c);\n```\n\n削除は同名・同PathのCookieを `maxAge=0` で返します。`getCookies()` は無いときnullです。認証情報そのものや個人情報をCookieへ平文保存してはいけません。セッションCookieにはHttpOnly、HTTPS運用ではSecure、状態変更にはSameSiteとCSRF対策が重要です。教材のCookieは学習用でSameSiteまでは再現しません。",
+      "explanation":"## はじめて学ぶ人へ\n\nCookieは、サーバがブラウザへ渡して保管してもらう**小さなカード**です。次のアクセスでブラウザがそのカードを返すため、言語設定やセッション識別子などを覚えられます。\n\n```text\nレスポンス: Set-Cookie: theme=dark\n次のリクエスト: Cookie: theme=dark\n```\n\nCookieの内容は利用者から見たり書き換えたりできるため、「Cookieにあるから正しい」と信用してはいけません。パスワードや権限そのものは保存せず、`HttpOnly`、`Secure`、`SameSite`、有効期限、送信先のPathを目的に合わせて設定します。サーバ側で管理すべき情報と、ブラウザ側に置いてよい設定値を分けることが大切です。\n\n## ブラウザ側に保存する小さな文字列\n\nCookieはレスポンスで渡され、次回からブラウザが送り返します。設定保存やセッションIDに使います。\n\n```java\nCookie c = new Cookie(\"theme\", \"dark\");\nc.setMaxAge(60 * 60 * 24 * 30);\nc.setPath(\"/\");\nc.setHttpOnly(true);\nc.setSecure(true);\nres.addCookie(c);\n```\n\n削除は同名・同PathのCookieを `maxAge=0` で返します。`getCookies()` は無いときnullです。認証情報そのものや個人情報をCookieへ平文保存してはいけません。セッションCookieにはHttpOnly、HTTPS運用ではSecure、状態変更にはSameSiteとCSRF対策が重要です。教材のCookieは学習用でSameSiteまでは再現しません。",
       "samples":[{"caption":"Cookieを設定して次回読む","code":"import jakarta.servlet.annotation.WebServlet;\nimport jakarta.servlet.http.*;\nimport java.io.*;\n@WebServlet(\"/theme\") public class CookieSample extends HttpServlet{\n protected void doGet(HttpServletRequest req,HttpServletResponse res)throws IOException{\n  String value=req.getParameter(\"set\");\n  if(value!=null){Cookie c=new Cookie(\"theme\",value);c.setPath(\"/\");res.addCookie(c);}\n  String found=\"light\";Cookie[] cs=req.getCookies();if(cs!=null)for(Cookie c:cs)if(c.getName().equals(\"theme\"))found=c.getValue();\n  res.getWriter().println(\"theme=\"+(value!=null?value:found));\n }\n public static void main(String[]a){MiniWeb.app().register(CookieSample.class).showCookies().serve();}\n}\n","stdin":"GET /theme?set=dark alice\nGET /theme alice"}],
       "task":"`/lang?set=ja` または `en` でlang Cookieを30日保存し、指定が無いときはCookie、Cookieも無ければ `ja` を表示してください。不正値は400です。",
       "starterCode":"import jakarta.servlet.annotation.WebServlet;\nimport jakarta.servlet.http.*;\nimport java.io.*;\n@WebServlet(\"/lang\") public class LangServlet extends HttpServlet{\n protected void doGet(HttpServletRequest req,HttpServletResponse res)throws IOException{\n  // TODO\n }\n public static void main(String[]a){MiniWeb.app().register(LangServlet.class).showCookies().serve();}\n}\n",
@@ -55,7 +55,7 @@
     {
       "id":"23-4",
       "title":"Filterで共通処理を切り出す",
-      "explanation":"## 入口を横切る処理\n\n文字コード、認証、ログのように全サーブレット共通の処理はFilterへ置きます。\n\n```java\n@WebFilter(\"/admin/*\")\nclass AuthFilter implements Filter {\n public void doFilter(HttpServletRequest req, HttpServletResponse res, FilterChain chain)\n         throws ServletException, IOException {\n   if (req.getSession(false) == null) {\n     res.sendError(401);\n     return;                 // chainを呼ばない＝ここで止める\n   }\n   chain.doFilter(req, res); // 次のFilter、最後はServlet\n }\n}\n```\n\n前処理はchainより前、後処理はchainから戻った後です。Filterの順序は結果に影響します。認証と権限（誰か／何をしてよいか）を分け、URLだけでなくService層でも重要な業務操作を守ります。",
+      "explanation":"## はじめて学ぶ人へ\n\nFilterは、各サーブレットの手前に置く**共通の受付ゲート**です。入館証の確認を各部屋で繰り返す代わりに、入口で一度確認するイメージです。認証、文字コード設定、ログ、処理時間の計測など、複数画面に共通する処理を集められます。\n\n```text\nFilterの前処理 → chain.doFilter(...) → Servlet → Filterの後処理\n```\n\n`chain.doFilter` を呼ばないと、その先のサーブレットへ進みません。未ログインなら401を返して止め、問題なければchainへ渡す、という分岐ができます。後処理はサーブレットから戻ったあとに動くため、開始時刻との差から処理時間を測る用途にも向いています。\n\n## 入口を横切る処理\n\n文字コード、認証、ログのように全サーブレット共通の処理はFilterへ置きます。\n\n```java\n@WebFilter(\"/admin/*\")\nclass AuthFilter implements Filter {\n public void doFilter(HttpServletRequest req, HttpServletResponse res, FilterChain chain)\n         throws ServletException, IOException {\n   if (req.getSession(false) == null) {\n     res.sendError(401);\n     return;                 // chainを呼ばない＝ここで止める\n   }\n   chain.doFilter(req, res); // 次のFilter、最後はServlet\n }\n}\n```\n\n前処理はchainより前、後処理はchainから戻った後です。Filterの順序は結果に影響します。認証と権限（誰か／何をしてよいか）を分け、URLだけでなくService層でも重要な業務操作を守ります。",
       "samples":[{"caption":"前処理と後処理の順序","code":"import jakarta.servlet.*;\nimport jakarta.servlet.annotation.*;\nimport jakarta.servlet.http.*;\nimport java.io.*;\n@WebServlet(\"/hello\") public class FilterSample extends HttpServlet{protected void doGet(HttpServletRequest q,HttpServletResponse s)throws IOException{s.getWriter().println(\"servlet\");}public static void main(String[]a){MiniWeb.app().register(LogFilter.class).register(FilterSample.class).serve();}}\n@WebFilter(\"/*\") class LogFilter implements Filter{public void doFilter(HttpServletRequest q,HttpServletResponse s,FilterChain c)throws ServletException,IOException{System.out.println(\"before\");c.doFilter(q,s);System.out.println(\"after\");}}\n","stdin":"GET /hello"}],
       "task":"`/admin/*` を守るAuthFilterを作ってください。セッションの `role` が `admin` のときだけchainへ進め、未ログインは401、別roleは403です。`/login?role=...` は対象外です。",
       "starterCode":"import jakarta.servlet.*;\nimport jakarta.servlet.annotation.*;\nimport jakarta.servlet.http.*;\nimport java.io.*;\n@WebServlet(\"/admin/home\") public class AdminServlet extends HttpServlet{protected void doGet(HttpServletRequest q,HttpServletResponse s)throws IOException{s.getWriter().println(\"管理画面\");}public static void main(String[]a){MiniWeb.app().register(AuthFilter.class).register(AdminServlet.class).register(LoginServlet.class).serve();}}\n@WebServlet(\"/login\") class LoginServlet extends HttpServlet{protected void doGet(HttpServletRequest q,HttpServletResponse s)throws IOException{q.getSession().setAttribute(\"role\",q.getParameter(\"role\"));s.getWriter().println(\"login\");}}\n@WebFilter(\"/admin/*\") class AuthFilter implements Filter{public void doFilter(HttpServletRequest q,HttpServletResponse s,FilterChain chain)throws ServletException,IOException{\n // TODO\n chain.doFilter(q,s);\n}}\n",
@@ -69,6 +69,109 @@
         {"question":"ログイン確認だけをしたいとき `getSession(false)` を使う主な理由は？","choices":["必ず新規セッションにするため","未ログイン時に不要なセッションを作らないため","セッションを破棄するため","Cookieを無効化するため"],"answer":1,"explanation":"falseなら存在しない場合nullを返し、確認しただけの利用者に新規セッションを作りません。"},
         {"question":"Filterで認証失敗を返した直後に必要なことは？","choices":["必ずchain.doFilterを呼ぶ","returnしてchainを呼ばない","新しいServletをnewする","request属性を全削除する"],"answer":1,"explanation":"chainを呼ぶと保護対象まで処理が進みます。エラー送信後はreturnして止めます。"},
         {"question":"Cookieへ保存すべきでないものは？","choices":["表示テーマ","言語設定","平文のパスワード","匿名の同意フラグ"],"answer":2,"explanation":"Cookieは利用者側にあり改ざん・閲覧され得ます。パスワードや機密情報を平文保存してはいけません。"}
+      ]
+    },
+    {
+      "id": "23-5",
+      "title": "章末演習：Webの状態管理",
+      "explanation": "## この章の知識を、自分の手で組み合わせよう\n\nここでは、**forward・request属性・session・Cookie・Filter**をまとめて使います。新しい文法は登場しません。分からなくなったら、直前までの解説やサンプルへ戻って確認して大丈夫です。\n\n### 3問の進め方\n\n1. **基本**で、中心となる書き方をもう一度使う\n2. **組み合わせ**で、章内の複数の知識を一緒に使う\n3. **実践**で、少し現実的な入力と条件を整理する\n\nまず入力例と期待される出力を紙に書き、処理を小さな手順へ分けてからコードにすると進めやすくなります。",
+      "samples": [
+        {
+          "caption": "復習用サンプル：前処理と後処理の順序",
+          "code": "import jakarta.servlet.*;\nimport jakarta.servlet.annotation.*;\nimport jakarta.servlet.http.*;\nimport java.io.*;\n@WebServlet(\"/hello\") public class FilterSample extends HttpServlet{protected void doGet(HttpServletRequest q,HttpServletResponse s)throws IOException{s.getWriter().println(\"servlet\");}public static void main(String[]a){MiniWeb.app().register(LogFilter.class).register(FilterSample.class).serve();}}\n@WebFilter(\"/*\") class LogFilter implements Filter{public void doFilter(HttpServletRequest q,HttpServletResponse s,FilterChain c)throws ServletException,IOException{System.out.println(\"before\");c.doFilter(q,s);System.out.println(\"after\");}}\n",
+          "stdin": "GET /hello"
+        }
+      ],
+      "task": "【基本】GET `/profile?name=...` でnameをrequest属性 `displayName` に入れ、`/profile-view` へforwardしてください。表示側は `利用者: 名前` を返します。nameが無ければ400です。",
+      "starterCode": "import jakarta.servlet.*;\nimport jakarta.servlet.annotation.WebServlet;\nimport jakarta.servlet.http.*;\nimport java.io.*;\n@WebServlet(\"/profile\") public class Main extends HttpServlet {protected void doGet(HttpServletRequest req,HttpServletResponse res)throws ServletException,IOException{/* TODO */}public static void main(String[] args){MiniWeb.app().register(Main.class).register(ProfileView.class).serve();}}\n@WebServlet(\"/profile-view\") class ProfileView extends HttpServlet {protected void doGet(HttpServletRequest req,HttpServletResponse res)throws IOException{res.getWriter().println(\"利用者: \"+req.getAttribute(\"displayName\"));}}\n",
+      "visibleCases": [
+        {
+          "label": "forward",
+          "stdin": "GET /profile?name=Aki",
+          "expected": "200 OK\n利用者: Aki"
+        },
+        {
+          "label": "不足",
+          "stdin": "GET /profile",
+          "expected": "400 Bad Request\n! nameは必須です"
+        }
+      ],
+      "hiddenCases": [
+        {
+          "label": "別名",
+          "stdin": "GET /profile?name=Ren",
+          "expected": "200 OK\n利用者: Ren"
+        }
+      ],
+      "hints": [
+        "nameを検証してから `setAttribute` します。",
+        "同じrequestをRequestDispatcherのforwardへ渡します。"
+      ],
+      "solution": "import jakarta.servlet.*;\nimport jakarta.servlet.annotation.WebServlet;\nimport jakarta.servlet.http.*;\nimport java.io.*;\n@WebServlet(\"/profile\") public class Main extends HttpServlet {protected void doGet(HttpServletRequest req,HttpServletResponse res)throws ServletException,IOException{String name=req.getParameter(\"name\");if(name==null||name.isBlank()){res.sendError(400,\"nameは必須です\");return;}req.setAttribute(\"displayName\",name);req.getRequestDispatcher(\"/profile-view\").forward(req,res);}public static void main(String[] args){MiniWeb.app().register(Main.class).register(ProfileView.class).serve();}}\n@WebServlet(\"/profile-view\") class ProfileView extends HttpServlet {protected void doGet(HttpServletRequest req,HttpServletResponse res)throws IOException{res.getWriter().println(\"利用者: \"+req.getAttribute(\"displayName\"));}}\n",
+      "extraTasks": [
+        {
+          "kind": "drill",
+          "task": "【組み合わせ】GET `/visits` のたびにセッション属性countを1増やし、`visits=n` と表示してください。3つ目の入力語が異なるブラウザ名なら別に数えられます。",
+          "starterCode": "import jakarta.servlet.annotation.WebServlet;\nimport jakarta.servlet.http.*;\nimport java.io.*;\n@WebServlet(\"/visits\") public class Main extends HttpServlet {protected void doGet(HttpServletRequest req,HttpServletResponse res)throws IOException{/* TODO */}public static void main(String[] args){MiniWeb.app().register(Main.class).serve();}}\n",
+          "visibleCases": [
+            {
+              "label": "同じ利用者",
+              "stdin": "GET /visits alice\nGET /visits alice",
+              "expected": "200 OK\nvisits=1\n200 OK\nvisits=2"
+            },
+            {
+              "label": "別利用者",
+              "stdin": "GET /visits alice\nGET /visits bob",
+              "expected": "200 OK\nvisits=1\n200 OK\nvisits=1"
+            }
+          ],
+          "hiddenCases": [
+            {
+              "label": "3回",
+              "stdin": "GET /visits x\nGET /visits x\nGET /visits x",
+              "expected": "200 OK\nvisits=1\n200 OK\nvisits=2\n200 OK\nvisits=3"
+            }
+          ],
+          "hints": [
+            "最初は属性がnullなので1にします。",
+            "更新したcountを同じセッションへ保存し直します。"
+          ],
+          "solution": "import jakarta.servlet.annotation.WebServlet;\nimport jakarta.servlet.http.*;\nimport java.io.*;\n@WebServlet(\"/visits\") public class Main extends HttpServlet {protected void doGet(HttpServletRequest req,HttpServletResponse res)throws IOException{HttpSession session=req.getSession();Integer count=(Integer)session.getAttribute(\"count\");count=count==null?1:count+1;session.setAttribute(\"count\",count);res.getWriter().println(\"visits=\"+count);}public static void main(String[] args){MiniWeb.app().register(Main.class).serve();}}\n"
+        },
+        {
+          "kind": "applied",
+          "task": "【実践】GET `/theme?set=dark` またはlightでCookie `theme` を保存し、`theme=値` と表示します。setがないときはCookieを読み、未保存ならlightを使います。不正なsetは400です。CookieのPathは `/` にしてください。",
+          "starterCode": "import jakarta.servlet.annotation.WebServlet;\nimport jakarta.servlet.http.*;\nimport java.io.*;\n@WebServlet(\"/theme\") public class Main extends HttpServlet {protected void doGet(HttpServletRequest req,HttpServletResponse res)throws IOException{/* TODO */}public static void main(String[] args){MiniWeb.app().register(Main.class).showCookies().serve();}}\n",
+          "visibleCases": [
+            {
+              "label": "保存して再利用",
+              "stdin": "GET /theme?set=dark alice\nGET /theme alice",
+              "expected": "200 OK\n+ Cookie: theme=dark\ntheme=dark\n200 OK\ntheme=dark"
+            },
+            {
+              "label": "初期値",
+              "stdin": "GET /theme bob",
+              "expected": "200 OK\ntheme=light"
+            }
+          ],
+          "hiddenCases": [
+            {
+              "label": "不正",
+              "stdin": "GET /theme?set=blue x",
+              "expected": "400 Bad Request\n! themeはlightまたはdarkです"
+            },
+            {
+              "label": "利用者別",
+              "stdin": "GET /theme?set=dark a\nGET /theme b",
+              "expected": "200 OK\n+ Cookie: theme=dark\ntheme=dark\n200 OK\ntheme=light"
+            }
+          ],
+          "hints": [
+            "最初にCookieから現在値を探します。",
+            "setが正しければ新しいCookieへPathを設定してレスポンスに追加します。"
+          ],
+          "solution": "import jakarta.servlet.annotation.WebServlet;\nimport jakarta.servlet.http.*;\nimport java.io.*;\n@WebServlet(\"/theme\") public class Main extends HttpServlet {protected void doGet(HttpServletRequest req,HttpServletResponse res)throws IOException{String theme=\"light\";Cookie[] cookies=req.getCookies();if(cookies!=null)for(Cookie c:cookies)if(c.getName().equals(\"theme\"))theme=c.getValue();String set=req.getParameter(\"set\");if(set!=null){if(!set.equals(\"light\")&&!set.equals(\"dark\")){res.sendError(400,\"themeはlightまたはdarkです\");return;}theme=set;Cookie c=new Cookie(\"theme\",theme);c.setPath(\"/\");res.addCookie(c);}res.getWriter().println(\"theme=\"+theme);}public static void main(String[] args){MiniWeb.app().register(Main.class).showCookies().serve();}}\n"
+        }
       ]
     }
   ]

@@ -1,0 +1,60 @@
+{
+  "id": "ch45",
+  "title": "テストとビルド",
+  "subtitle": "変更を安全に届けるためのJUnit・Maven・設計",
+  "emoji": "🧪",
+  "lessons": [
+    {
+      "id": "45-1",
+      "title": "テストしやすいコード",
+      "explanation": "## 入力と出力を小さくする\n\n自動テストでは、同じ入力なら同じ結果を返す小さなメソッドが扱いやすくなります。時刻、乱数、ファイル、通信を処理の内部で直接取得すると結果が環境に依存します。値や役割を引数で受け取り、計算と入出力を分けます。\n\n```java\nstatic int fee(int price, int rate) {\n    if (price < 0 || rate < 0) throw new IllegalArgumentException();\n    return Math.multiplyExact(price, rate) / 100;\n}\n```\n\nテストケースは正常値だけでなく、境界値（0、上限の前後）、同値分割、例外も選びます。実装の行をなぞるのではなく、利用者から見える振る舞いを検証します。",
+      "samples": [{"caption":"手作業の最小テスト","code":"public class Main {\n  static int discount(int price, int rate){if(price<0||rate<0||rate>100)throw new IllegalArgumentException();return price-price*rate/100;}\n  public static void main(String[] args){if(discount(1000,20)!=800)throw new AssertionError();System.out.println(\"OK\");}\n}\n"}],
+      "task": "価格priceと割引率rateを読み、割引後価格を表示してください。負の価格、または0〜100外の率は `INVALID`。整数の切り捨てで構いません。計算はstaticメソッドへ分離します。",
+      "starterCode": "import java.util.*;\npublic class Main {static int discounted(int price,int rate){return 0;}public static void main(String[] args){Scanner s=new Scanner(System.in);int price=s.nextInt(),rate=s.nextInt();/* TODO */}}\n",
+      "visibleCases": [{"label":"通常","stdin":"1000 20","expected":"800"},{"label":"境界","stdin":"500 100","expected":"0"}],
+      "hiddenCases": [{"label":"不正","stdin":"100 -1","expected":"INVALID"}],
+      "hints": ["不正値では `IllegalArgumentException` を投げます。","mainでは例外をcatchしてINVALIDを表示します。"],
+      "solution": "import java.util.*;\npublic class Main {static int discounted(int price,int rate){if(price<0||rate<0||rate>100)throw new IllegalArgumentException();return price-price*rate/100;}public static void main(String[] args){Scanner s=new Scanner(System.in);int price=s.nextInt(),rate=s.nextInt();try{System.out.println(discounted(price,rate));}catch(IllegalArgumentException e){System.out.println(\"INVALID\");}}}\n",
+      "quiz": [{"question":"単体テストを安定させやすい設計は？","choices":["現在時刻をメソッド内で必ず取得する","計算と入出力を分け、依存値を引数で受け取る","全処理をmainへ書く","テストごとに期待値を変える"],"answer":1,"explanation":"外部要因を境界の外へ出すと、入力と期待結果を固定できます。"}]
+    },
+    {
+      "id": "45-2",
+      "title": "JUnitの基本",
+      "explanation": "## 実行可能な仕様を書く\n\nJUnitでは `@Test` の付いたメソッドをテストランナーが実行します。期待値を左、実測値を右に置く `assertEquals(expected, actual)`、条件の `assertTrue`、例外の `assertThrows` などを使います。\n\n```java\n@Test\nvoid rateZeroKeepsPrice() {\n    assertEquals(1200, PriceService.discounted(1200, 0));\n}\n\n@ParameterizedTest\n@CsvSource({\"1000,20,800\", \"500,100,0\"})\nvoid discounts(int price, int rate, int expected) {\n    assertEquals(expected, PriceService.discounted(price, rate));\n}\n```\n\nテスト名には条件と期待結果を表します。Arrange（準備）、Act（実行）、Assert（検証）を意識すると失敗原因を追いやすくなります。実際のJUnitプロジェクトは `labs/testing-maven` で実行できます。",
+      "samples": [{"caption":"例外も仕様として検証","code":"public class Main {static int parsePort(String s){int n=Integer.parseInt(s);if(n<1||n>65535)throw new IllegalArgumentException();return n;}public static void main(String[] args){try{parsePort(\"0\");throw new AssertionError(\"例外が必要\");}catch(IllegalArgumentException expected){System.out.println(\"OK\");}}}\n"}],
+      "task": "n個の整数と期待合計を読み、実際の合計が一致すれば `PASS`、違えば `FAIL expected=x actual=y` と表示してください。検証結果を作るstaticメソッドへ分けます。",
+      "starterCode": "import java.util.*;\npublic class Main {static String verify(int expected,int actual){return \"\";}public static void main(String[] args){Scanner s=new Scanner(System.in);int n=s.nextInt(),expected=s.nextInt(),actual=0;for(int i=0;i<n;i++)actual+=s.nextInt();System.out.println(verify(expected,actual));}}\n",
+      "visibleCases": [{"label":"成功","stdin":"3 6 1 2 3","expected":"PASS"},{"label":"失敗","stdin":"2 10 3 4","expected":"FAIL expected=10 actual=7"}],
+      "hiddenCases": [{"label":"空","stdin":"0 0","expected":"PASS"}],
+      "hints": ["三項演算子でもifでも構いません。","失敗メッセージは期待値と実測値の順です。"],
+      "solution": "import java.util.*;\npublic class Main {static String verify(int expected,int actual){return expected==actual?\"PASS\":\"FAIL expected=\"+expected+\" actual=\"+actual;}public static void main(String[] args){Scanner s=new Scanner(System.in);int n=s.nextInt(),expected=s.nextInt(),actual=0;for(int i=0;i<n;i++)actual+=s.nextInt();System.out.println(verify(expected,actual));}}\n",
+      "quiz": [{"question":"例外が投げられることをJUnitで検証するものは？","choices":["assertEquals","assertThrows","assertNullだけ","System.exit"],"answer":1,"explanation":"assertThrowsは期待する例外型と実行処理を受け取ります。"}]
+    },
+    {
+      "id": "45-3",
+      "title": "テストダブルとテストの層",
+      "explanation": "## 置き換える境界を選ぶ\n\n単体テストは1つのクラスを速く検証します。統合テストはDBやHTTPなど複数部品の接続を確かめ、E2Eテストは利用者の一連の操作を通します。下の層を多く、上の層を重要な経路に絞ると、速さと信頼性を両立しやすくなります。\n\n外部サービスを置き換える小さな実装をテストダブルと呼びます。呼び出し結果を返すstub、呼び出された事実も検証するmockなどがあります。まずインターフェースで境界を作り、必要な範囲だけ置き換えます。内部実装の呼び出し回数を細かく固定しすぎると、振る舞いが同じリファクタリングでもテストが壊れます。",
+      "samples": [{"caption":"依存を差し替える","code":"interface RateSource{int rate();}class Price{static int total(int base,RateSource r){return base+base*r.rate()/100;}}public class Main{public static void main(String[] a){RateSource stub=()->10;System.out.println(Price.total(1000,stub));}}\n"}],
+      "task": "基準価格baseと税率rateを読みます。`RateSource` をラムダで差し替えて税込価格を表示してください。負の入力は `INVALID` です。",
+      "starterCode": "import java.util.*;interface RateSource{int rate();}class PriceService{static int total(int base,RateSource source){return 0;}}public class Main{public static void main(String[] a){Scanner s=new Scanner(System.in);int base=s.nextInt(),rate=s.nextInt();/* TODO */}}\n",
+      "visibleCases": [{"label":"10パーセント","stdin":"1000 10","expected":"1100"}],
+      "hiddenCases": [{"label":"不正","stdin":"-1 10","expected":"INVALID"},{"label":"ゼロ","stdin":"0 8","expected":"0"}],
+      "hints": ["`RateSource source = () -> rate;` と差し替えられます。","検証はPriceService内に置きます。"],
+      "solution": "import java.util.*;interface RateSource{int rate();}class PriceService{static int total(int base,RateSource source){int rate=source.rate();if(base<0||rate<0)throw new IllegalArgumentException();return base+base*rate/100;}}public class Main{public static void main(String[] a){Scanner s=new Scanner(System.in);int base=s.nextInt(),rate=s.nextInt();try{RateSource source=()->rate;System.out.println(PriceService.total(base,source));}catch(IllegalArgumentException e){System.out.println(\"INVALID\");}}}\n",
+      "quiz": [{"question":"DBとの接続も含めて確認するテストは主にどの層？","choices":["単体テスト","統合テスト","コンパイル警告","コード整形"],"answer":1,"explanation":"実物またはテスト用DBとの連携は統合テストで確認します。"}]
+    },
+    {
+      "id": "45-4",
+      "title": "Mavenと成果物",
+      "explanation": "## 再現可能なビルドを作る\n\nMavenは `pom.xml` にJavaバージョン、依存関係、プラグインを宣言し、標準ディレクトリ `src/main/java` と `src/test/java` を使います。`mvn test` はテスト、`mvn package` はJARなどの成果物作成まで進めます。依存バージョンは明示し、成果物とソースを同じ手順で再現できるようにします。\n\nJARはクラスやリソースをまとめたZIP形式です。実行可能JARではmanifestのMain-Classなどが必要です。JPMSを使う場合は `module-info.java` の `requires` と `exports` でモジュール境界を宣言します。クラスパス方式とモジュールパス方式を混同せず、まず小さなプロジェクトで構造を確認します。",
+      "samples": [{"caption":"実行中のクラスパスを確認","code":"public class Main{public static void main(String[] a){System.out.println(System.getProperty(\"java.class.path\").isBlank()?\"empty\":\"configured\");}}\n"}],
+      "task": "依存関係を `group:artifact:version` の形でn件読み、同一のgroupとartifactが複数バージョンで宣言されていれば辞書順で `CONFLICT group:artifact` と表示してください。なければ `OK`。",
+      "starterCode": "import java.util.*;public class Main{public static void main(String[] a){Scanner s=new Scanner(System.in);int n=s.nextInt();Map<String,Set<String>> versions=new TreeMap<>();for(int i=0;i<n;i++){String[] p=s.next().split(\":\",-1);/* TODO */}/* TODO */}}\n",
+      "visibleCases": [{"label":"競合","stdin":"3 org.demo:core:1.0 org.demo:web:1.0 org.demo:core:2.0","expected":"CONFLICT org.demo:core"},{"label":"なし","stdin":"2 a:b:1 a:c:2","expected":"OK"}],
+      "hiddenCases": [{"label":"同一版重複","stdin":"2 a:b:1 a:b:1","expected":"OK"}],
+      "hints": ["キーは `p[0] + \":\" + p[1]` です。","`computeIfAbsent` でTreeSetを作り、sizeが2以上のキーを出します。"],
+      "solution": "import java.util.*;public class Main{public static void main(String[] a){Scanner s=new Scanner(System.in);int n=s.nextInt();Map<String,Set<String>> versions=new TreeMap<>();for(int i=0;i<n;i++){String[] p=s.next().split(\":\",-1);versions.computeIfAbsent(p[0]+\":\"+p[1],k->new TreeSet<>()).add(p[2]);}boolean ok=true;for(var e:versions.entrySet())if(e.getValue().size()>1){System.out.println(\"CONFLICT \"+e.getKey());ok=false;}if(ok)System.out.println(\"OK\");}}\n",
+      "quiz": [{"question":"Mavenの標準的なテストソース配置は？","choices":["src/test/java","test/main/java","build/test","lib/java"],"answer":0,"explanation":"標準配置に従うと追加設定を減らせます。"}]
+    }
+  ]
+}

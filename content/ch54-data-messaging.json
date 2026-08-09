@@ -1,0 +1,53 @@
+{
+  "id":"ch54","title":"実DB・migration・非同期連携","subtitle":"データを壊さず、境界を越えて届ける","emoji":"🗄️",
+  "lessons":[
+    {
+      "id":"54-1","title":"本番同等DBで検証する",
+      "explanation":"## SQLだけでなく挙動を合わせる\n\nrepositoryの単体testに加え、本番と同系統・近いversionのDBをcontainerで起動し、schema migrationを先頭から適用して結合testします。型、照合順序、timezone、制約、index、lock、isolation、実行計画はDB製品で異なります。testごとにrollbackする方法は速い一方、commit後に起きる制約やeventを見逃すことがあるため、用途でdata cleanupと使い分けます。\n\nconnection poolには上限、取得timeout、検証方法を設定します。poolを増やせば速くなるとは限らず、DBの最大接続とquery時間から全instanceの接続予算を決めます。N+1や無制限取得をSQL log、metrics、実行計画で検出します。",
+      "samples":[{"caption":"全instanceの接続予算","code":"public class Main{public static void main(String[] a){int instances=4,pool=20,reserved=10;System.out.println(instances*pool+reserved);}}\n"}],
+      "task":"DB最大接続max、予約reserved、instance数nを読み、1 instance当たりの安全なpool上限 `(max-reserved)/n` を表示してください。",
+      "starterCode":"import java.util.*;public class Main{public static void main(String[] a){Scanner s=new Scanner(System.in);int max=s.nextInt(),reserved=s.nextInt(),n=s.nextInt();/* TODO */}}\n",
+      "visibleCases":[{"label":"接続予算","stdin":"100 10 3","expected":"30"}],
+      "hiddenCases":[{"label":"端数切捨て","stdin":"50 5 4","expected":"11"}],
+      "hints":["整数除算で `(max-reserved)/n`。"],
+      "solution":"import java.util.*;public class Main{public static void main(String[] a){Scanner s=new Scanner(System.in);int max=s.nextInt(),reserved=s.nextInt(),n=s.nextInt();System.out.println((max-reserved)/n);}}\n",
+      "quiz":[{"question":"実DB結合testでschemaを作る望ましい方法は？","choices":["本番と別の手書きDDLだけ","本番と同じmigrationを先頭から適用","JPA classだけ見て毎回推測","制約をすべて外す"],"answer":1,"explanation":"migrationそのものと最終schemaの両方を検証できます。"}]
+    },
+    {
+      "id":"54-2","title":"schema migrationを段階化する",
+      "explanation":"## applicationとDBを同時に切り替えない\n\nrolling deployでは旧版と新版が一時的に同居します。列名変更なら、まず新列をnullableで追加（expand）、両方へ書くかbackfillし、読取を切替え（migrate）、旧版が消えた後に旧列を削除（contract）します。大tableへのlockを伴うDDLは、所要時間とcancel/rollback手順を事前に測ります。\n\nFlywayやLiquibaseなどのmigration toolは履歴とchecksumを管理します。適用済みfileを書き換えず、新しいmigrationで前進します。backupがあることとrollback可能であることは別なので、破壊的変更前にはrestore rehearsalも行います。",
+      "samples":[{"caption":"expand/migrate/contractの順序","code":"import java.util.*;public class Main{public static void main(String[] a){List.of(\"expand\",\"migrate\",\"contract\").forEach(System.out::println);}}\n"}],
+      "task":"phaseを1語読み、`expand`なら `ADD_COMPATIBLE`、`migrate`なら `BACKFILL_AND_SWITCH`、`contract`なら `REMOVE_OLD` と表示してください。",
+      "starterCode":"import java.util.*;public class Main{public static void main(String[] a){String phase=new Scanner(System.in).next();/* TODO */}}\n",
+      "visibleCases":[{"label":"移行中","stdin":"migrate","expected":"BACKFILL_AND_SWITCH"}],
+      "hiddenCases":[{"label":"削除段階","stdin":"contract","expected":"REMOVE_OLD"}],
+      "hints":["switch expressionで3段階を対応付けます。"],
+      "solution":"import java.util.*;public class Main{public static void main(String[] a){String phase=new Scanner(System.in).next();System.out.println(switch(phase){case \"expand\"->\"ADD_COMPATIBLE\";case \"migrate\"->\"BACKFILL_AND_SWITCH\";case \"contract\"->\"REMOVE_OLD\";default->\"UNKNOWN\";});}}\n",
+      "quiz":[{"question":"rolling deploy中に列を即削除すると危険な理由は？","choices":["新版しか動かないため","同居する旧版がその列を参照する可能性があるため","indexが必ず増えるため","Javaが再コンパイルされるため"],"answer":1,"explanation":"旧新versionが共存できる互換期間を設けます。"}]
+    },
+    {
+      "id":"54-3","title":"cacheの整合性を設計する",
+      "explanation":"## 高速化と古さを引き受ける\n\ncache-asideではmiss時にDBから読み、cacheへ保存します。更新時はDB commit後にinvalidateするのが基本ですが、その間のraceや削除失敗を考える必要があります。TTLは最大の古さ、容量、障害時のDB負荷を踏まえます。cache stampedeにはrequest coalescing、jitter付きTTL、事前更新を使います。\n\ncache keyへtenant、locale、認可で変わる条件を含めないと、情報漏えいになります。negative cacheは存在しない結果への連打を防ぎますが、作成直後も見えない期間を生みます。cacheはsource of truthにせず、消失・再構築できる設計にします。",
+      "samples":[{"caption":"tenantを含むkey","code":"record Key(String tenant,long id){}public class Main{public static void main(String[] a){System.out.println(new Key(\"acme\",42));}}\n"}],
+      "task":"base TTL秒とjitter秒、keyを読み、決定的なTTL `base + floorMod(key.hashCode(), jitter+1)` を表示してください。",
+      "starterCode":"import java.util.*;public class Main{public static void main(String[] a){Scanner s=new Scanner(System.in);int base=s.nextInt(),jitter=s.nextInt();String key=s.next();/* TODO */}}\n",
+      "visibleCases":[{"label":"jitterなし","stdin":"60 0 user42","expected":"60"}],
+      "hiddenCases":[{"label":"範囲内","stdin":"100 10 a","expected":"109"}],
+      "hints":["`Math.floorMod(key.hashCode(),jitter+1)` を加えます。文字列aのhashCodeは97です。"],
+      "solution":"import java.util.*;public class Main{public static void main(String[] a){Scanner s=new Scanner(System.in);int base=s.nextInt(),jitter=s.nextInt();String key=s.next();System.out.println(base+Math.floorMod(key.hashCode(),jitter+1));}}\n",
+      "quiz":[{"question":"cache keyへtenantを含める重要な理由は？","choices":["keyを長く見せるため","tenant間の値混同と情報漏えいを防ぐため","DB transactionを不要にするため","TTLを無限にするため"],"answer":1,"explanation":"値を変えるすべての文脈をkeyへ反映します。"}]
+    },
+    {
+      "id":"54-4","title":"messagingとoutbox",
+      "explanation":"## 少なくとも一回を前提にする\n\nmessage brokerはproducerとconsumerを時間的に分離しますが、network failureにより「処理したがackできない」状態が起きます。そのためat-least-once deliveryでは重複を前提に、event IDの処理済み記録や業務上の一意制約でconsumerをidempotentにします。retryは指数backoffと上限を持ち、恒久エラーはdead-letter queueへ隔離して再処理手順を用意します。\n\nDB更新とpublishを別々に行うdual writeは片方だけ成功し得ます。transactional outboxは業務dataとeventを同じDB transactionで保存し、別processがoutboxをpublishします。順序が必要な範囲をaggregate keyなどに限定し、event schemaの互換性と個人情報保持も管理します。",
+      "samples":[{"caption":"event IDで重複排除","code":"import java.util.*;public class Main{public static void main(String[] a){Set<String> done=new HashSet<>();for(String id:List.of(\"e1\",\"e1\",\"e2\"))if(done.add(id))System.out.println(id);}}\n"}],
+      "task":"event IDをn件読み、初回だけ `PROCESS id`、重複は `SKIP id` と表示してください。",
+      "starterCode":"import java.util.*;public class Main{public static void main(String[] a){Scanner s=new Scanner(System.in);int n=s.nextInt();Set<String> done=new HashSet<>();for(int i=0;i<n;i++){String id=s.next();/* TODO */}}}\n",
+      "visibleCases":[{"label":"再配送","stdin":"4 e1 e2 e1 e3","expected":"PROCESS e1\nPROCESS e2\nSKIP e1\nPROCESS e3"}],
+      "hiddenCases":[{"label":"すべて重複","stdin":"3 x x x","expected":"PROCESS x\nSKIP x\nSKIP x"}],
+      "hints":["Set.addの戻り値は新規ならtrueです。"],
+      "solution":"import java.util.*;public class Main{public static void main(String[] a){Scanner s=new Scanner(System.in);int n=s.nextInt();Set<String> done=new HashSet<>();for(int i=0;i<n;i++){String id=s.next();System.out.println((done.add(id)?\"PROCESS \":\"SKIP \")+id);}}}\n",
+      "quiz":[{"question":"transactional outboxが解決する中心課題は？","choices":["Javaの型消去","DB更新とmessage publishのdual-write不整合","JSONのindent","JVMのclass loading"],"answer":1,"explanation":"業務更新と送信予定を一つのDB transactionで確定します。"}]
+    }
+  ]
+}

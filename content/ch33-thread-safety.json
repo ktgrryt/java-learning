@@ -2,7 +2,7 @@
   "id":"ch33","title":"同期とスレッドセーフ","subtitle":"ロック・atomic・並行コレクションを使い分ける","emoji":"🔒",
   "lessons":[{
     "id":"33-1","title":"共有状態を不変条件ごと守る",
-    "explanation":"## ロックはデータの不変条件を守る\n\n`synchronized` は同じモニタを使う区間を一度に1スレッドへ限定し、可視性も保証します。残高確認と減算のような複数操作は一つの臨界区間にします。`volatile` は最新値を見せますが、複合操作を原子的にはしません。\n\n`ConcurrentHashMap` は並行アクセス向けですが、`get`して計算して`put`という組合せ全体が自動で原子的になるわけではありません。`merge`、`compute`、`putIfAbsent`などの複合APIを使います。複数ロックを取る場合は順序を統一し、ロック中に遅いI/Oや外部コールをしないことがデッドロックと詰まりを避ける基本です。",
+    "explanation":"## はじめて学ぶ人へ\n\nスレッドセーフとは、共有データの**守るべき条件（不変条件）**が同時実行でも壊れないことです。残高が0円未満にならない口座から、2人が同時に800円ずつ引き出す例を考えます。\n\n```text\n残高1000円\nA: 1000円あると確認\nB: 1000円あると確認\nA/Bとも800円を引く → 条件が壊れる\n```\n\n確認と更新を別々ではなく、1本の鍵でまとめて守る必要があります。`synchronized` は部屋の鍵、`Lock` は期限付き取得などもできる高機能な鍵です。`volatile` は最新値を見えやすくしますが、「確認してから更新」の複合操作を原子的にはしません。\n\n## ロックはデータの不変条件を守る\n\n`synchronized` は同じモニタを使う区間を一度に1スレッドへ限定し、可視性も保証します。残高確認と減算のような複数操作は一つの臨界区間にします。`volatile` は最新値を見せますが、複合操作を原子的にはしません。\n\n`ConcurrentHashMap` は並行アクセス向けですが、`get`して計算して`put`という組合せ全体が自動で原子的になるわけではありません。`merge`、`compute`、`putIfAbsent`などの複合APIを使います。複数ロックを取る場合は順序を統一し、ロック中に遅いI/Oや外部コールをしないことがデッドロックと詰まりを避ける基本です。",
     "samples":[{"caption":"ConcurrentHashMap.mergeで集計","code":"import java.util.concurrent.*;\npublic class Main { public static void main(String[] args) throws Exception { var counts=new ConcurrentHashMap<String,Integer>(); Thread a=new Thread(()->counts.merge(\"java\",1,Integer::sum));Thread b=new Thread(()->counts.merge(\"java\",1,Integer::sum));a.start();b.start();a.join();b.join();System.out.println(counts); } }\n"}],
     "task":"単語数nとn個の単語を読み、単語ごとに1本のThreadを作ってConcurrentHashMap.mergeで件数を加算してください。全Threadをjoin後、TreeMapへ移して `単語=件数` を1行ずつ表示します。",
     "starterCode":"import java.util.*;\nimport java.util.concurrent.*;\npublic class Main { public static void main(String[] args) throws Exception { Scanner s=new Scanner(System.in);int n=s.nextInt();String[] words=new String[n];for(int i=0;i<n;i++)words[i]=s.next(); // TODO\n} }\n",
@@ -12,5 +12,118 @@
     "solution":"import java.util.*;\nimport java.util.concurrent.*;\npublic class Main { public static void main(String[] args) throws Exception { Scanner s=new Scanner(System.in);int n=s.nextInt();String[] words=new String[n];for(int i=0;i<n;i++)words[i]=s.next();Map<String,Integer> counts=new ConcurrentHashMap<>();List<Thread> ts=new ArrayList<>();for(String w:words)ts.add(new Thread(()->counts.merge(w,1,Integer::sum)));ts.forEach(Thread::start);for(Thread t:ts)t.join();new TreeMap<>(counts).forEach((k,v)->System.out.println(k+\"=\"+v)); } }\n",
     "extraTasks":[{"kind":"applied","task":"初期残高balance、同額の出金要求数requests、1回の金額amountを読みます。`synchronized boolean withdraw(int amount)` を持つAccountを作り、各要求を別Threadで実行してください。成功数はAtomicIntegerで数え、全join後に `balance=残高` と `success=成功数` を表示します。","starterCode":"import java.util.*;\nimport java.util.concurrent.atomic.*;\nclass Account { private int balance; Account(int balance){this.balance=balance;} synchronized boolean withdraw(int amount){return false;} synchronized int balance(){return balance;} }\npublic class Main { public static void main(String[] args) throws Exception { Scanner s=new Scanner(System.in);int initial=s.nextInt(),requests=s.nextInt(),amount=s.nextInt(); // TODO\n} }\n","visibleCases":[{"label":"一部成功","stdin":"100 5 30","expected":"balance=10\nsuccess=3"},{"label":"全成功","stdin":"200 4 50","expected":"balance=0\nsuccess=4"}],"hiddenCases":[{"label":"全失敗","stdin":"10 3 20","expected":"balance=10\nsuccess=0"},{"label":"金額0","stdin":"10 4 0","expected":"balance=10\nsuccess=4"}],"hints":["withdraw内で残高不足ならfalse、そうでなければ減算してtrueを返します。","成功したThreadだけAtomicIntegerをincrementします。"],"solution":"import java.util.*;\nimport java.util.concurrent.atomic.*;\nclass Account { private int balance; Account(int balance){this.balance=balance;} synchronized boolean withdraw(int amount){if(balance<amount)return false;balance-=amount;return true;} synchronized int balance(){return balance;} }\npublic class Main { public static void main(String[] args) throws Exception { Scanner s=new Scanner(System.in);int initial=s.nextInt(),requests=s.nextInt(),amount=s.nextInt();Account a=new Account(initial);AtomicInteger success=new AtomicInteger();List<Thread> ts=new ArrayList<>();for(int i=0;i<requests;i++)ts.add(new Thread(()->{if(a.withdraw(amount))success.incrementAndGet();}));ts.forEach(Thread::start);for(Thread t:ts)t.join();System.out.println(\"balance=\"+a.balance());System.out.println(\"success=\"+success.get());} }\n"}],
     "quiz":[{"question":"volatileが単独では保証しないものは？","choices":["単純な書込みの可視性","count++全体の原子性","読取りの可視性","一定の順序制約"],"answer":1,"explanation":"read-modify-writeの複合操作にはatomic型やロックが必要です。"},{"question":"ConcurrentHashMapで安全な件数加算に適したAPIは？","choices":["getして通常HashMapへput","merge","iterator.removeだけ","clone"],"answer":1,"explanation":"mergeはキー単位の複合更新を提供します。"},{"question":"デッドロックを避ける基本策は？","choices":["ロック取得順序を毎回変える","複数ロックの取得順序を統一する","ロック中に長い通信をする","すべてvolatileにする"],"answer":1,"explanation":"循環待ちを作らない一定順序が重要です。"},{"question":"同期範囲について望ましい設計は？","choices":["外部API呼出しも常にロック内","不変条件を守る最小限の範囲","アプリ全体を一つのロック","ロックなしで確認後に更新"],"answer":1,"explanation":"必要な原子性を保ちつつ、競合時間を短くします。"}]
-  }]
+  },
+    {
+      "id": "33-2",
+      "title": "章末演習：スレッドセーフ",
+      "explanation": "## この章の知識を、自分の手で組み合わせよう\n\nここでは、**synchronized・Lock・ConcurrentHashMap・不変条件**をまとめて使います。新しい文法は登場しません。分からなくなったら、直前までの解説やサンプルへ戻って確認して大丈夫です。\n\n### 3問の進め方\n\n1. **基本**で、中心となる書き方をもう一度使う\n2. **組み合わせ**で、章内の複数の知識を一緒に使う\n3. **実践**で、少し現実的な入力と条件を整理する\n\nまず入力例と期待される出力を紙に書き、処理を小さな手順へ分けてからコードにすると進めやすくなります。",
+      "samples": [
+        {
+          "caption": "復習用サンプル：ConcurrentHashMap.mergeで集計",
+          "code": "import java.util.concurrent.*;\npublic class Main { public static void main(String[] args) throws Exception { var counts=new ConcurrentHashMap<String,Integer>(); Thread a=new Thread(()->counts.merge(\"java\",1,Integer::sum));Thread b=new Thread(()->counts.merge(\"java\",1,Integer::sum));a.start();b.start();a.join();b.join();System.out.println(counts); } }\n"
+        }
+      ],
+      "task": "【基本】synchronizedな `increment()` を持つCounterを作ります。n本のThreadがそれぞれm回増やし、join後に正しい合計を表示してください。",
+      "starterCode": "import java.util.*;\nclass Counter {private int value;synchronized void increment(){/* TODO */}synchronized int get(){return value;}}\npublic class Main {public static void main(String[] args)throws Exception{Scanner s=new Scanner(System.in);int n=s.nextInt(),m=s.nextInt();Counter c=new Counter();List<Thread> ts=new ArrayList<>();/* TODO */}}\n",
+      "visibleCases": [
+        {
+          "label": "4スレッド",
+          "stdin": "4 100",
+          "expected": "400"
+        },
+        {
+          "label": "1スレッド",
+          "stdin": "1 3",
+          "expected": "3"
+        }
+      ],
+      "hiddenCases": [
+        {
+          "label": "空",
+          "stdin": "0 10",
+          "expected": "0"
+        },
+        {
+          "label": "高回数",
+          "stdin": "8 500",
+          "expected": "4000"
+        }
+      ],
+      "hints": [
+        "increment全体をsynchronizedにします。",
+        "全Threadをjoinしてからgetします。"
+      ],
+      "solution": "import java.util.*;\nclass Counter {private int value;synchronized void increment(){value++;}synchronized int get(){return value;}}\npublic class Main {public static void main(String[] args)throws Exception{Scanner s=new Scanner(System.in);int n=s.nextInt(),m=s.nextInt();Counter c=new Counter();List<Thread> ts=new ArrayList<>();for(int i=0;i<n;i++)ts.add(new Thread(()->{for(int j=0;j<m;j++)c.increment();}));ts.forEach(Thread::start);for(Thread t:ts)t.join();System.out.println(c.get());}}\n",
+      "extraTasks": [
+        {
+          "kind": "drill",
+          "task": "【組み合わせ】残高balance、要求数n、出金額amountを読みます。Accountの `withdraw` で残高確認と減算をまとめてsynchronizedにし、各要求を別Threadで実行します。成功数と最終残高を表示してください。",
+          "starterCode": "import java.util.*;\nimport java.util.concurrent.atomic.*;\nclass Account {private int balance;Account(int b){balance=b;}synchronized boolean withdraw(int amount){/* TODO */return false;}synchronized int balance(){return balance;}}\npublic class Main {public static void main(String[] args)throws Exception{Scanner s=new Scanner(System.in);Account a=new Account(s.nextInt());int n=s.nextInt(),amount=s.nextInt();AtomicInteger ok=new AtomicInteger();List<Thread> ts=new ArrayList<>();/* TODO */}}\n",
+          "visibleCases": [
+            {
+              "label": "一部成功",
+              "stdin": "100 5 30",
+              "expected": "success=3 balance=10"
+            },
+            {
+              "label": "全成功",
+              "stdin": "200 4 50",
+              "expected": "success=4 balance=0"
+            }
+          ],
+          "hiddenCases": [
+            {
+              "label": "全失敗",
+              "stdin": "10 3 20",
+              "expected": "success=0 balance=10"
+            },
+            {
+              "label": "0円要求",
+              "stdin": "10 2 0",
+              "expected": "success=0 balance=10"
+            }
+          ],
+          "hints": [
+            "withdraw内で残高不足を確認し、そのまま減算します。",
+            "成功したThreadだけAtomicIntegerを増やします。"
+          ],
+          "solution": "import java.util.*;\nimport java.util.concurrent.atomic.*;\nclass Account {private int balance;Account(int b){balance=b;}synchronized boolean withdraw(int amount){if(amount<=0||balance<amount)return false;balance-=amount;return true;}synchronized int balance(){return balance;}}\npublic class Main {public static void main(String[] args)throws Exception{Scanner s=new Scanner(System.in);Account a=new Account(s.nextInt());int n=s.nextInt(),amount=s.nextInt();AtomicInteger ok=new AtomicInteger();List<Thread> ts=new ArrayList<>();for(int i=0;i<n;i++)ts.add(new Thread(()->{if(a.withdraw(amount))ok.incrementAndGet();}));ts.forEach(Thread::start);for(Thread t:ts)t.join();System.out.println(\"success=\"+ok.get()+\" balance=\"+a.balance());}}\n"
+        },
+        {
+          "kind": "applied",
+          "task": "【実践】n個の単語を読み、単語ごとに1本のThreadを作り、ConcurrentHashMapの `merge` で件数を数えてください。全join後、TreeMapへ移してキー順に表示します。",
+          "starterCode": "import java.util.*;\nimport java.util.concurrent.*;\npublic class Main {public static void main(String[] args)throws Exception{Scanner s=new Scanner(System.in);int n=s.nextInt();Map<String,Integer> counts=new ConcurrentHashMap<>();List<Thread> ts=new ArrayList<>();for(int i=0;i<n;i++){String word=s.next();/* TODO */}/* TODO */}}\n",
+          "visibleCases": [
+            {
+              "label": "重複",
+              "stdin": "5 java api java jvm api",
+              "expected": "api=2\njava=2\njvm=1"
+            },
+            {
+              "label": "1語",
+              "stdin": "1 x",
+              "expected": "x=1"
+            }
+          ],
+          "hiddenCases": [
+            {
+              "label": "空",
+              "stdin": "0",
+              "expected": ""
+            },
+            {
+              "label": "全部同じ",
+              "stdin": "4 z z z z",
+              "expected": "z=4"
+            }
+          ],
+          "hints": [
+            "各Threadの処理で `counts.merge(word, 1, Integer::sum)` を呼びます。",
+            "すべてjoinしたあとTreeMapを作ります。"
+          ],
+          "solution": "import java.util.*;\nimport java.util.concurrent.*;\npublic class Main {public static void main(String[] args)throws Exception{Scanner s=new Scanner(System.in);int n=s.nextInt();Map<String,Integer> counts=new ConcurrentHashMap<>();List<Thread> ts=new ArrayList<>();for(int i=0;i<n;i++){String word=s.next();ts.add(new Thread(()->counts.merge(word,1,Integer::sum)));}ts.forEach(Thread::start);for(Thread t:ts)t.join();new TreeMap<>(counts).forEach((k,v)->System.out.println(k+\"=\"+v));}}\n"
+        }
+      ]
+    }
+  ]
 }

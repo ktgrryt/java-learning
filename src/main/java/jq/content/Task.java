@@ -1,5 +1,7 @@
 package jq.content;
 
+import jq.format.JavaSnippetFormatter;
+
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -14,6 +16,7 @@ import java.util.Map;
  * @param id       レッスン内での連番（"1" が従来の練習問題、"2" 以降が追加問題）
  * @param kind     "practice"（レッスンの本題） / "drill"（直後の再現） / "applied"（応用）
  * @param cases    表示・隠しを合わせた全テストケース
+ * @param sourceChecks 出力だけでは確認できない、指定構文の検査
  */
 public record Task(
         String id,
@@ -22,7 +25,8 @@ public record Task(
         String starterCode,
         List<TestCase> cases,
         List<String> hints,
-        String solution) {
+        String solution,
+        List<SourceCheck> sourceChecks) {
 
     /** 画面に出す種別ラベル。 */
     public String label() {
@@ -40,7 +44,7 @@ public record Task(
         m.put("kind", kind);
         m.put("label", label());
         m.put("task", task);
-        m.put("starterCode", starterCode);
+        m.put("starterCode", JavaSnippetFormatter.formatIfCompact(starterCode));
 
         List<Object> caseList = new ArrayList<>();
         int hiddenCount = 0;

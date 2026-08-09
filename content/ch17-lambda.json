@@ -7,7 +7,7 @@
     {
       "id": "17-1",
       "title": "匿名クラスからラムダへ",
-      "explanation": "## メソッドが1つだけのインターフェース\n\n第12章で作った `Greeter` のように、**抽象メソッドがちょうど1つ** の\nインターフェースを **関数型インターフェース** と呼びます。\n\n```java\ninterface Calc {\n    int apply(int a, int b);      // 抽象メソッドが1つだけ\n}\n```\n\nこれを実装するには、いままでクラスを作っていました。\n\n```java\nclass Adder implements Calc {\n    @Override\n    public int apply(int a, int b) {\n        return a + b;\n    }\n}\n\nCalc add = new Adder();\nSystem.out.println(add.apply(3, 4));      // 7\n```\n\n「足し算をする」ためだけにクラスを1つ作るのは大げさです。\n\n## 匿名クラス — 名前を付けずに実装する\n\nそこで、その場で作って使い捨てにできます。**匿名クラス** です。\n\n```java\nCalc add = new Calc() {          // 名前のないクラスをその場で作る\n    @Override\n    public int apply(int a, int b) {\n        return a + b;\n    }\n};\n```\n\n`new インターフェース名() { 実装 }` という形です。クラス宣言が要らなくなりました。\nけれど本当に必要なのは `return a + b;` の1行だけなのに、まだ5行あります。\n\n## ラムダ式 — 中身だけを書く\n\nインターフェース名もメソッド名も、**変数の型から分かっています**。\nだから省略できます。それが **ラムダ式** です。\n\n```java\nCalc add = (a, b) -> a + b;\n```\n\n`(引数) -> 処理` と書くだけです。5行が1行になりました。\n\n```java\nCalc add      = (a, b) -> a + b;\nCalc multiply = (a, b) -> a * b;\nCalc subtract = (a, b) -> a - b;\n\nSystem.out.println(add.apply(3, 4));         // 7\nSystem.out.println(multiply.apply(3, 4));    // 12\n```\n\n**処理そのものを変数に入れて持ち歩ける** ようになったのがポイントです。\n\n## 書き方の省略ルール\n\n| 書き方 | 例 |\n|---|---|\n| 基本形 | `(int a, int b) -> { return a + b; }` |\n| 引数の型を省略 | `(a, b) -> { return a + b; }` |\n| 1文なら `{}` と `return` を省略 | `(a, b) -> a + b` |\n| 引数が1つならカッコも省略 | `s -> s.length()` |\n| 引数がないときはカッコだけ | `() -> \"固定値\"` |\n\n引数の型は **インターフェースの宣言から分かる** ので省略できます。\n`{}` を書く場合は `return` が必要、書かない場合は式の値がそのまま戻り値になります。\n\n> ⚠️ 試験のワナ … `{}` を付けたら `return` も必要です。`(a, b) -> { a + b; }` はコンパイルエラーになります（値を返していない）。\n\n## @FunctionalInterface\n\n「抽象メソッドは1つだけ」と宣言しておくと、増やしたときにエラーで気づけます。\n\n```java\n@FunctionalInterface\ninterface Calc {\n    int apply(int a, int b);\n    // int other();        ← 2つ目を書くとコンパイルエラー\n}\n```\n\n付けるのは任意ですが、ラムダで使うつもりのインターフェースには付けておくと安全です。\n`default` メソッドや `static` メソッドは何個あっても構いません（抽象メソッドではないため）。\n\n> 💡 ラムダ式は「関数型インターフェースの実装を短く書く記法」です。新しい種類の何かではなく、匿名クラスの書き換えだと考えると理解しやすくなります。",
+      "explanation": "## メソッドが1つだけのインターフェース\n\n第12章で作った `Greeter` のように、**抽象メソッドがちょうど1つ** の\nインターフェースを **関数型インターフェース** と呼びます。\n\n```java\ninterface Calc {\n    int apply(int a, int b);      // 抽象メソッドが1つだけ\n}\n```\n\nこれを実装するには、いままでクラスを作っていました。\n\n```java\nclass Adder implements Calc {\n    @Override\n    public int apply(int a, int b) {\n        return a + b;\n    }\n}\n\nCalc add = new Adder();\nSystem.out.println(add.apply(3, 4));      // 7\n```\n\n「足し算をする」ためだけにクラスを1つ作るのは大げさです。\n\n## 匿名クラス — 名前を付けずに実装する\n\nそこで、その場で作って使い捨てにできます。**匿名クラス** です。\n\n```java\nCalc add = new Calc() {          // 名前のないクラスをその場で作る\n    @Override\n    public int apply(int a, int b) {\n        return a + b;\n    }\n};\n```\n\n`new インターフェース名() { 実装 }` という形です。クラス宣言が要らなくなりました。\nけれど本当に必要なのは `return a + b;` の1行だけなのに、まだ5行あります。\n\n## ラムダ式 — 中身だけを書く\n\nインターフェース名もメソッド名も、**変数の型から分かっています**。\nだから省略できます。それが **ラムダ式** です。\n\n```java\nCalc add = (a, b) -> a + b;\n```\n\n`(引数) -> 処理` と書くだけです。5行が1行になりました。\n\n```java\nCalc add      = (a, b) -> a + b;\nCalc multiply = (a, b) -> a * b;\nCalc subtract = (a, b) -> a - b;\n\nSystem.out.println(add.apply(3, 4));         // 7\nSystem.out.println(multiply.apply(3, 4));    // 12\n```\n\n**処理そのものを変数に入れて持ち歩ける** ようになったのがポイントです。\n\n## 書き方の省略ルール\n\n| 書き方 | 例 |\n|---|---|\n| 基本形 | `(int a, int b) -> { return a + b; }` |\n| 引数の型を省略 | `(a, b) -> { return a + b; }` |\n| 1文なら `{}` と `return` を省略 | `(a, b) -> a + b` |\n| 引数が1つならカッコも省略 | `s -> s.length()` |\n| 引数がないときはカッコだけ | `() -> \"固定値\"` |\n\n引数の型は **インターフェースの宣言から分かる** ので省略できます。\n`{}` を書く場合は `return` が必要、書かない場合は式の値がそのまま戻り値になります。\n\n> ⚠️ 間違えやすい点 … `{}` を付けたら `return` も必要です。`(a, b) -> { a + b; }` はコンパイルエラーになります（値を返していない）。\n\n## @FunctionalInterface\n\n「抽象メソッドは1つだけ」と宣言しておくと、増やしたときにエラーで気づけます。\n\n```java\n@FunctionalInterface\ninterface Calc {\n    int apply(int a, int b);\n    // int other();        ← 2つ目を書くとコンパイルエラー\n}\n```\n\n付けるのは任意ですが、ラムダで使うつもりのインターフェースには付けておくと安全です。\n`default` メソッドや `static` メソッドは何個あっても構いません（抽象メソッドではないため）。\n\n> 💡 ラムダ式は「関数型インターフェースの実装を短く書く記法」です。新しい種類の何かではなく、匿名クラスの書き換えだと考えると理解しやすくなります。",
       "samples": [
         {
           "caption": "クラス → 匿名クラス → ラムダ",
@@ -126,7 +126,7 @@
     {
       "id": "17-2",
       "title": "Predicate と removeIf",
-      "explanation": "## 標準の関数型インターフェース\n\n自分で `Calc` を作ったように、よく使う形は **`java.util.function`** に用意されています。\n自分で宣言しなくても使えます。\n\nまずは **`Predicate<T>`** です。「条件を判定する」ためのもので、\nメソッドは `test` の1つだけ、戻り値は `boolean` です。\n\n```java\nimport java.util.function.Predicate;\n\nPredicate<Integer> isEven = n -> n % 2 == 0;\n\nSystem.out.println(isEven.test(4));      // true\nSystem.out.println(isEven.test(5));      // false\n```\n\n「条件」を変数に入れて持ち回せるようになります。\n\n## 組み合わせる\n\n`Predicate` には `default` メソッド（第12章）が用意されていて、条件をつなげられます。\n\n| メソッド | 意味 |\n|---|---|\n| `and(other)` | 両方が真 |\n| `or(other)` | どちらかが真 |\n| `negate()` | 反転する |\n\n```java\nPredicate<Integer> isEven = n -> n % 2 == 0;\nPredicate<Integer> isPositive = n -> n > 0;\n\nPredicate<Integer> bothOk = isEven.and(isPositive);\nPredicate<Integer> isOdd = isEven.negate();\n```\n\n## removeIf — 条件に合うものを消す\n\n`List` には `Predicate` を渡せるメソッドがあります。**`removeIf`** です。\n\n```java\nList<Integer> list = new ArrayList<>(List.of(1, 2, 3, 4, 5));\nlist.removeIf(n -> n % 2 == 0);        // 偶数を削除\nSystem.out.println(list);              // [1, 3, 5]\n```\n\n第16章で見た「ループの中で削除すると添字がずれる」問題を、これが解決します。\n`removeIf` は内部で `Iterator` を使って安全に削除してくれるので、\n取りこぼしも `ConcurrentModificationException` も起きません。\n\n`while (list.contains(v))` でくり返す必要もありません。**1行で全部消えます**。\n\n```java\nlist.removeIf(n -> n == v);            // 値 v をすべて削除\n```\n\n> ⚠️ 試験のワナ … `removeIf` は不変リストには使えません。`List.of(...)` に対して呼ぶと `UnsupportedOperationException` です（第16章）。\n\n## マイナスの余りに注意\n\n「偶数か」を `n % 2 == 0` と書くのは正しいですが、\n「奇数か」を **`n % 2 == 1` と書くと間違い** です。\n\n```java\nSystem.out.println(-3 % 2);        // -1（1 ではない）\n```\n\nJavaの `%` は **左側の符号** を引き継ぎます。だから負の奇数では `-1` になり、\n`== 1` の判定をすり抜けてしまいます。\n\n```java\nn % 2 == 1        // ❌ 負の奇数を見落とす\nn % 2 != 0        // ✅ どんな数でも正しい\n```\n\n> 💡 `0` は偶数です。`0 % 2` は `0` なので、`n % 2 == 0` で正しく判定されます。",
+      "explanation": "## 標準の関数型インターフェース\n\n自分で `Calc` を作ったように、よく使う形は **`java.util.function`** に用意されています。\n自分で宣言しなくても使えます。\n\nまずは **`Predicate<T>`** です。「条件を判定する」ためのもので、\nメソッドは `test` の1つだけ、戻り値は `boolean` です。\n\n```java\nimport java.util.function.Predicate;\n\nPredicate<Integer> isEven = n -> n % 2 == 0;\n\nSystem.out.println(isEven.test(4));      // true\nSystem.out.println(isEven.test(5));      // false\n```\n\n「条件」を変数に入れて持ち回せるようになります。\n\n## 組み合わせる\n\n`Predicate` には `default` メソッド（第12章）が用意されていて、条件をつなげられます。\n\n| メソッド | 意味 |\n|---|---|\n| `and(other)` | 両方が真 |\n| `or(other)` | どちらかが真 |\n| `negate()` | 反転する |\n\n```java\nPredicate<Integer> isEven = n -> n % 2 == 0;\nPredicate<Integer> isPositive = n -> n > 0;\n\nPredicate<Integer> bothOk = isEven.and(isPositive);\nPredicate<Integer> isOdd = isEven.negate();\n```\n\n## removeIf — 条件に合うものを消す\n\n`List` には `Predicate` を渡せるメソッドがあります。**`removeIf`** です。\n\n```java\nList<Integer> list = new ArrayList<>(List.of(1, 2, 3, 4, 5));\nlist.removeIf(n -> n % 2 == 0);        // 偶数を削除\nSystem.out.println(list);              // [1, 3, 5]\n```\n\n第16章で見た「ループの中で削除すると添字がずれる」問題を、これが解決します。\n`removeIf` は内部で `Iterator` を使って安全に削除してくれるので、\n取りこぼしも `ConcurrentModificationException` も起きません。\n\n`while (list.contains(v))` でくり返す必要もありません。**1行で全部消えます**。\n\n```java\nlist.removeIf(n -> n == v);            // 値 v をすべて削除\n```\n\n> ⚠️ 間違えやすい点 … `removeIf` は不変リストには使えません。`List.of(...)` に対して呼ぶと `UnsupportedOperationException` です（第16章）。\n\n## マイナスの余りに注意\n\n「偶数か」を `n % 2 == 0` と書くのは正しいですが、\n「奇数か」を **`n % 2 == 1` と書くと間違い** です。\n\n```java\nSystem.out.println(-3 % 2);        // -1（1 ではない）\n```\n\nJavaの `%` は **左側の符号** を引き継ぎます。だから負の奇数では `-1` になり、\n`== 1` の判定をすり抜けてしまいます。\n\n```java\nn % 2 == 1        // ❌ 負の奇数を見落とす\nn % 2 != 0        // ✅ どんな数でも正しい\n```\n\n> 💡 `0` は偶数です。`0 % 2` は `0` なので、`n % 2 == 0` で正しく判定されます。",
       "samples": [
         {
           "caption": "Predicate を作って組み合わせる",
@@ -255,11 +255,11 @@
     {
       "id": "17-3",
       "title": "Function / Consumer / Supplier",
-      "explanation": "## 4つの基本形\n\n`java.util.function` の中で、まず覚えるのは4つです。\n**「引数があるか」「戻り値があるか」** の組み合わせで整理できます。\n\n| インターフェース | メソッド | 引数 | 戻り値 | 用途 |\n|---|---|---|---|---|\n| `Predicate<T>` | `test(T)` | あり | `boolean` | 条件を判定する |\n| `Function<T, R>` | `apply(T)` | あり | あり | 変換する |\n| `Consumer<T>` | `accept(T)` | あり | **なし** | 受け取って何かする |\n| `Supplier<T>` | `get()` | **なし** | あり | 値を作って返す |\n\n名前が役割そのままなので、対応を覚えれば迷いません。\n\n```java\nimport java.util.function.Consumer;\nimport java.util.function.Function;\nimport java.util.function.Predicate;\nimport java.util.function.Supplier;\n\nFunction<String, Integer> length = s -> s.length();      // String → Integer\nConsumer<String> shout = s -> System.out.println(s + \"!\");\nSupplier<String> greeting = () -> \"こんにちは\";\nPredicate<String> isEmpty = s -> s.isEmpty();\n\nSystem.out.println(length.apply(\"Java\"));     // 4\nshout.accept(\"Hello\");                        // Hello!\nSystem.out.println(greeting.get());           // こんにちは\n```\n\n### Function は型を2つ書く\n\n`Function<T, R>` の `T` が引数の型、`R` が戻り値の型です。順番を間違えないように。\n\n```java\nFunction<String, Integer> length = s -> s.length();     // String を受けて Integer を返す\nFunction<Integer, String> label = n -> \"値は\" + n;      // Integer を受けて String を返す\n```\n\n`andThen` でつなげることもできます。\n\n```java\nFunction<String, Integer> len = s -> s.length();\nFunction<Integer, String> msg = n -> n + \"文字\";\nSystem.out.println(len.andThen(msg).apply(\"Java\"));      // 4文字\n```\n\n### Consumer は戻り値なし\n\n`Consumer` のラムダは値を返しません。だから `{}` の中で `return 値;` は書けません。\n出力や登録のように「受け取って終わり」の処理に使います。\n\n`List` の `forEach` が `Consumer` を受け取ります。\n\n```java\nList<String> words = List.of(\"a\", \"b\");\nwords.forEach(s -> System.out.println(s));\n```\n\n### Supplier は引数なし\n\n`Supplier` は `() -> 値` の形です。「あとで必要になったら作る」ために使います。\n\n## メソッド参照\n\nラムダが「既にあるメソッドを呼ぶだけ」のときは、さらに短く書けます。\n\n```java\nFunction<String, Integer> f1 = s -> s.length();     // ラムダ\nFunction<String, Integer> f2 = String::length;      // メソッド参照\n\nConsumer<String> c1 = s -> System.out.println(s);\nConsumer<String> c2 = System.out::println;\n```\n\n`クラス名::メソッド名` の形です。**引数をそのまま渡すだけ** のときにしか使えませんが、\n`forEach(System.out::println)` のような定番の書き方でよく登場します。\n\n> ⚠️ 試験のワナ … `Consumer` のラムダで値を返そうとするとコンパイルエラーです。逆に `Supplier` のラムダで値を返さないのもエラーです。「戻り値があるか」が合っていないと使えません。\n\n> 💡 基本型を扱う `IntPredicate` や `IntFunction` などもありますが、まずは上の4つを押さえれば十分です。",
+      "explanation": "## 4つの基本形\n\n`java.util.function` の中で、まず覚えるのは4つです。\n**「引数があるか」「戻り値があるか」** の組み合わせで整理できます。\n\n| インターフェース | メソッド | 引数 | 戻り値 | 用途 |\n|---|---|---|---|---|\n| `Predicate<T>` | `test(T)` | あり | `boolean` | 条件を判定する |\n| `Function<T, R>` | `apply(T)` | あり | あり | 変換する |\n| `Consumer<T>` | `accept(T)` | あり | **なし** | 受け取って何かする |\n| `Supplier<T>` | `get()` | **なし** | あり | 値を作って返す |\n\n名前が役割そのままなので、対応を覚えれば迷いません。\n\n```java\nimport java.util.function.Consumer;\nimport java.util.function.Function;\nimport java.util.function.Predicate;\nimport java.util.function.Supplier;\n\nFunction<String, Integer> length = s -> s.length();      // String → Integer\nConsumer<String> shout = s -> System.out.println(s + \"!\");\nSupplier<String> greeting = () -> \"こんにちは\";\nPredicate<String> isEmpty = s -> s.isEmpty();\n\nSystem.out.println(length.apply(\"Java\"));     // 4\nshout.accept(\"Hello\");                        // Hello!\nSystem.out.println(greeting.get());           // こんにちは\n```\n\n### Function は型を2つ書く\n\n`Function<T, R>` の `T` が引数の型、`R` が戻り値の型です。順番を間違えないように。\n\n```java\nFunction<String, Integer> length = s -> s.length();     // String を受けて Integer を返す\nFunction<Integer, String> label = n -> \"値は\" + n;      // Integer を受けて String を返す\n```\n\n`andThen` でつなげることもできます。\n\n```java\nFunction<String, Integer> len = s -> s.length();\nFunction<Integer, String> msg = n -> n + \"文字\";\nSystem.out.println(len.andThen(msg).apply(\"Java\"));      // 4文字\n```\n\n### Consumer は戻り値なし\n\n`Consumer` のラムダは値を返しません。だから `{}` の中で `return 値;` は書けません。\n出力や登録のように「受け取って終わり」の処理に使います。\n\n`List` の `forEach` が `Consumer` を受け取ります。\n\n```java\nList<String> words = List.of(\"a\", \"b\");\nwords.forEach(s -> System.out.println(s));\n```\n\n### Supplier は引数なし\n\n`Supplier` は `() -> 値` の形です。「あとで必要になったら作る」ために使います。\n\n## メソッド参照\n\nラムダが「既にあるメソッドを呼ぶだけ」のときは、さらに短く書けます。\n\n```java\nFunction<String, Integer> f1 = s -> s.length();     // ラムダ\nFunction<String, Integer> f2 = String::length;      // メソッド参照\n\nConsumer<String> c1 = s -> System.out.println(s);\nConsumer<String> c2 = System.out::println;\n```\n\n`クラス名::メソッド名` の形です。**引数をそのまま渡すだけ** のときにしか使えませんが、\n`forEach(System.out::println)` のような定番の書き方でよく登場します。\n\n> ⚠️ 間違えやすい点 … `Consumer` のラムダで値を返そうとするとコンパイルエラーです。逆に `Supplier` のラムダで値を返さないのもエラーです。「戻り値があるか」が合っていないと使えません。\n\n> 💡 基本型を扱う `IntPredicate` や `IntFunction` などもありますが、まずは上の4つを押さえれば十分です。",
       "samples": [
         {
           "caption": "4つを並べて使う",
-          "code": "import java.util.function.Consumer;\nimport java.util.function.Function;\nimport java.util.function.Predicate;\nimport java.util.function.Supplier;\n\npublic class Main {\n    public static void main(String[] args) {\n        Function<String, Integer> length = s -> s.length();\n        Consumer<String> shout = s -> System.out.println(s + \"!\");\n        Supplier<String> greeting = () -> \"こんにちは\";\n        Predicate<String> isLong = s -> s.length() > 3;\n\n        System.out.println(\"Function : \" + length.apply(\"Java\"));\n        System.out.print(\"Consumer : \");\n        shout.accept(\"Hello\");\n        System.out.println(\"Supplier : \" + greeting.get());\n        System.out.println(\"Predicate: \" + isLong.test(\"Java\"));\n\n        // つなげる\n        Function<Integer, String> label = n -> n + \"文字\";\n        System.out.println(\"andThen  : \" + length.andThen(label).apply(\"Silver\"));\n    }\n}\n"
+          "code": "import java.util.function.Consumer;\nimport java.util.function.Function;\nimport java.util.function.Predicate;\nimport java.util.function.Supplier;\n\npublic class Main {\n    public static void main(String[] args) {\n        Function<String, Integer> length = s -> s.length();\n        Consumer<String> shout = s -> System.out.println(s + \"!\");\n        Supplier<String> greeting = () -> \"こんにちは\";\n        Predicate<String> isLong = s -> s.length() > 3;\n\n        System.out.println(\"Function : \" + length.apply(\"Java\"));\n        System.out.print(\"Consumer : \");\n        shout.accept(\"Hello\");\n        System.out.println(\"Supplier : \" + greeting.get());\n        System.out.println(\"Predicate: \" + isLong.test(\"Java\"));\n\n        // つなげる\n        Function<Integer, String> label = n -> n + \"文字\";\n        System.out.println(\"andThen  : \" + length.andThen(label).apply(\"Stream\"));\n    }\n}\n"
         },
         {
           "caption": "forEach とメソッド参照",
@@ -538,6 +538,118 @@
           ],
           "answer": 0,
           "explanation": "負なら `a` が前、正なら `a` が後、`0` なら同じ扱いです。整数比較を `a - b` で書くとオーバーフローし得るため、昇順は `Integer.compare(a, b)`、降順は `Integer.compare(b, a)` と書きます。"
+        }
+      ]
+    },
+    {
+      "id": "17-5",
+      "title": "章末演習：ラムダ式",
+      "explanation": "## この章の知識を、自分の手で組み合わせよう\n\nここでは、**関数型インターフェース・filter・map・Comparator**をまとめて使います。`filter` と `map` はStream APIの操作です。コレクションから `stream()` で処理の流れを作り、`filter` で残す要素を選び、`map` で値を変換し、`sum` や `toList` などの終端操作で結果を確定します。\n\n```java\nint sum = values.stream()\n        .filter(v -> v % 2 == 0)\n        .mapToInt(Integer::intValue)\n        .sum();\n```\n\nこのレッスンでは上の最小形を使います。遅延評価、Optional、Collectors、並列処理を含む体系的なStream APIは、後続のJavaコア実践編で学びます。\n\n### 3問の進め方\n\n1. **基本**で、中心となる書き方をもう一度使う\n2. **組み合わせ**で、章内の複数の知識を一緒に使う\n3. **実践**で、少し現実的な入力と条件を整理する\n\nまず入力例と期待される出力を紙に書き、処理を小さな手順へ分けてからコードにすると進めやすくなります。",
+      "samples": [
+        {
+          "caption": "復習用サンプル：いろいろな順で並べ替える",
+          "code": "import java.util.ArrayList;\nimport java.util.Comparator;\nimport java.util.List;\n\npublic class Main {\n    public static void main(String[] args) {\n        List<String> base = List.of(\"banana\", \"apple\", \"fig\", \"date\");\n\n        List<String> a = new ArrayList<>(base);\n        a.sort(Comparator.naturalOrder());\n        System.out.println(\"辞書順      : \" + a);\n\n        List<String> b = new ArrayList<>(base);\n        b.sort(Comparator.comparingInt(String::length));\n        System.out.println(\"短い順      : \" + b);\n\n        List<String> c = new ArrayList<>(base);\n        c.sort(Comparator.comparingInt(String::length).reversed());\n        System.out.println(\"長い順      : \" + c);\n\n        List<String> d = new ArrayList<>(base);\n        d.sort(Comparator.reverseOrder());\n        System.out.println(\"辞書順の逆  : \" + d);\n\n        System.out.println(\"元のリスト  : \" + base);\n    }\n}\n"
+        }
+      ],
+      "task": "【基本】n個の整数を読み、streamとラムダ式で偶数だけを合計して表示してください。",
+      "starterCode": "import java.util.*;\npublic class Main {public static void main(String[] args){Scanner s=new Scanner(System.in);int n=s.nextInt();List<Integer> values=new ArrayList<>();for(int i=0;i<n;i++)values.add(s.nextInt());int sum=0;/* TODO: streamで求める */System.out.println(sum);}}\n",
+      "visibleCases": [
+        {
+          "label": "混在",
+          "stdin": "5 1 2 3 4 6",
+          "expected": "12"
+        },
+        {
+          "label": "偶数なし",
+          "stdin": "3 1 3 5",
+          "expected": "0"
+        }
+      ],
+      "hiddenCases": [
+        {
+          "label": "空",
+          "stdin": "0",
+          "expected": "0"
+        },
+        {
+          "label": "負の偶数",
+          "stdin": "4 -2 -3 8 1",
+          "expected": "6"
+        }
+      ],
+      "hints": [
+        "filterの条件は `v -> v % 2 == 0` です。",
+        "mapToIntのあとsumを呼びます。"
+      ],
+      "solution": "import java.util.*;\npublic class Main {public static void main(String[] args){Scanner s=new Scanner(System.in);int n=s.nextInt();List<Integer> values=new ArrayList<>();for(int i=0;i<n;i++)values.add(s.nextInt());int sum=values.stream().filter(v->v%2==0).mapToInt(Integer::intValue).sum();System.out.println(sum);}}\n",
+      "extraTasks": [
+        {
+          "kind": "drill",
+          "task": "【組み合わせ】n個の単語を、文字数の短い順、同じ長さなら辞書順に並べて1行ずつ表示してください。Comparatorのラムダまたはメソッドを組み合わせます。",
+          "starterCode": "import java.util.*;\npublic class Main {public static void main(String[] args){Scanner s=new Scanner(System.in);int n=s.nextInt();List<String> words=new ArrayList<>();for(int i=0;i<n;i++)words.add(s.next());/* TODO */words.forEach(System.out::println);}}\n",
+          "visibleCases": [
+            {
+              "label": "長さ違い",
+              "stdin": "4 java api c code",
+              "expected": "c\napi\ncode\njava"
+            },
+            {
+              "label": "同じ長さ",
+              "stdin": "3 dog ant cat",
+              "expected": "ant\ncat\ndog"
+            }
+          ],
+          "hiddenCases": [
+            {
+              "label": "空",
+              "stdin": "0",
+              "expected": ""
+            },
+            {
+              "label": "混在",
+              "stdin": "5 bb a aa b ccc",
+              "expected": "a\nb\naa\nbb\nccc"
+            }
+          ],
+          "hints": [
+            "まず `comparingInt(String::length)` で文字数を比べます。",
+            "`thenComparing` で同じ長さのときの自然順を足します。"
+          ],
+          "solution": "import java.util.*;\npublic class Main {public static void main(String[] args){Scanner s=new Scanner(System.in);int n=s.nextInt();List<String> words=new ArrayList<>();for(int i=0;i<n;i++)words.add(s.next());words.sort(Comparator.comparingInt(String::length).thenComparing(Comparator.naturalOrder()));words.forEach(System.out::println);}}\n"
+        },
+        {
+          "kind": "applied",
+          "task": "【実践】整数nを読み、`Function<Integer,Integer>` を2つ作ります。1つ目で2倍、2つ目で3を足し、`andThen` でつないだ結果を表示してください。",
+          "starterCode": "import java.util.*;\nimport java.util.function.*;\npublic class Main {public static void main(String[] args){int n=new Scanner(System.in).nextInt();Function<Integer,Integer> twice=x->x;Function<Integer,Integer> plusThree=x->x;/* TODO: 2つのラムダを完成させる */System.out.println(twice.andThen(plusThree).apply(n));}}\n",
+          "visibleCases": [
+            {
+              "label": "5",
+              "stdin": "5",
+              "expected": "13"
+            },
+            {
+              "label": "0",
+              "stdin": "0",
+              "expected": "3"
+            }
+          ],
+          "hiddenCases": [
+            {
+              "label": "負数",
+              "stdin": "-4",
+              "expected": "-5"
+            },
+            {
+              "label": "10",
+              "stdin": "10",
+              "expected": "23"
+            }
+          ],
+          "hints": [
+            "twiceは `x -> x * 2` です。",
+            "`twice.andThen(plusThree).apply(n)` の順に処理されます。"
+          ],
+          "solution": "import java.util.*;\nimport java.util.function.*;\npublic class Main {public static void main(String[] args){int n=new Scanner(System.in).nextInt();Function<Integer,Integer> twice=x->x*2;Function<Integer,Integer> plusThree=x->x+3;System.out.println(twice.andThen(plusThree).apply(n));}}\n"
         }
       ]
     }

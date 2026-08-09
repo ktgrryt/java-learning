@@ -7,7 +7,7 @@
     {
       "id": "11-1",
       "title": "親の型で受ける（ポリモーフィズム）",
-      "explanation": "## 子は親の型の変数に入れられる\n\n`Dog` は `Animal` でもあります。だから **`Animal` 型の変数に `Dog` を入れられます**。\n\n```java\nAnimal a = new Dog(\"ポチ\");     // OK\n```\n\nこれを **アップキャスト** といいます（子 → 親の向きなので、書かなくても自動で行われます）。\n逆に `Dog d = new Animal(\"ぬし\");` はできません。動物が犬とは限らないからです。\n\n## 変数の型と、実体の型は別\n\nここがこの章の山場です。**2つの型を区別して考えます**。\n\n- **変数の型**（コンパイル時の型）… `Animal a` の `Animal`。**何を呼べるか** を決める\n- **実体の型**（実行時の型）… `new Dog(...)` の `Dog`。**どう動くか** を決める\n\n```java\nAnimal a = new Dog(\"ポチ\");\na.cry();        // ポチ「ワン」 ← Dog の cry() が動く\n```\n\n変数の型は `Animal` なのに、動くのは `Dog` の `cry()` です。\nオーバーライドされたメソッドは **必ず実体の型のものが動きます**。\nこの仕組みを **ポリモーフィズム（多態性）** と呼びます。\n\n一方で、**呼べるメソッドは変数の型で決まります**。\n\n```java\nAnimal a = new Dog(\"ポチ\");\na.fetch();      // ❌ コンパイルエラー：Animal に fetch() はない\n```\n\n実体が `Dog` であっても、`Animal` として見ているあいだは `Animal` のメソッドしか呼べません。\n「見え方」と「正体」は別、と覚えてください。\n\n> 💡 コンパイラは変数の型しか知りません。実体が何になるかは実行時にしか分からないからです。\n\n## 何がうれしいのか\n\n**種類の違うものを1つの配列にまとめて、同じように扱えます。**\n\n```java\nAnimal[] animals = new Animal[3];\nanimals[0] = new Dog(\"ポチ\");\nanimals[1] = new Cat(\"タマ\");\nanimals[2] = new Animal(\"ぬし\");\n\nfor (Animal a : animals) {\n    a.cry();        // それぞれの cry() が動く\n}\n```\n\nループの中に `if (a instanceof Dog)` のような分岐は **1つもありません**。\nそれでも犬は「ワン」、猫は「ニャー」と鳴きます。\n\n新しく `Bird` を追加したくなっても、このループは **1文字も変えずに済みます**。\n「増えても壊れない」形にできるのが、継承とオーバーライドの一番の価値です。\n\n同じ理由で、メソッドの引数も親の型で受けておくと使い回せます。\n\n```java\nstatic void makeCry(Animal a) {      // Dog でも Cat でも受け取れる\n    a.cry();\n}\n```\n\n> ⚠️ 試験のワナ … オーバーライドされたメソッドは実体の型で決まりますが、**フィールド** と **static メソッド** は **変数の型** で決まります。フィールドはポリモーフィズムの対象外です。",
+      "explanation": "## 子は親の型の変数に入れられる\n\n`Dog` は `Animal` でもあります。だから **`Animal` 型の変数に `Dog` を入れられます**。\n\n```java\nAnimal a = new Dog(\"ポチ\");     // OK\n```\n\nこれを **アップキャスト** といいます（子 → 親の向きなので、書かなくても自動で行われます）。\n逆に `Dog d = new Animal(\"ぬし\");` はできません。動物が犬とは限らないからです。\n\n## 変数の型と、実体の型は別\n\nここがこの章の山場です。**2つの型を区別して考えます**。\n\n- **変数の型**（コンパイル時の型）… `Animal a` の `Animal`。**何を呼べるか** を決める\n- **実体の型**（実行時の型）… `new Dog(...)` の `Dog`。**どう動くか** を決める\n\n```java\nAnimal a = new Dog(\"ポチ\");\na.cry();        // ポチ「ワン」 ← Dog の cry() が動く\n```\n\n変数の型は `Animal` なのに、動くのは `Dog` の `cry()` です。\nオーバーライドされたメソッドは **必ず実体の型のものが動きます**。\nこの仕組みを **ポリモーフィズム（多態性）** と呼びます。\n\n一方で、**呼べるメソッドは変数の型で決まります**。\n\n```java\nAnimal a = new Dog(\"ポチ\");\na.fetch();      // ❌ コンパイルエラー：Animal に fetch() はない\n```\n\n実体が `Dog` であっても、`Animal` として見ているあいだは `Animal` のメソッドしか呼べません。\n「見え方」と「正体」は別、と覚えてください。\n\n> 💡 コンパイラは変数の型しか知りません。実体が何になるかは実行時にしか分からないからです。\n\n## 何がうれしいのか\n\n**種類の違うものを1つの配列にまとめて、同じように扱えます。**\n\n```java\nAnimal[] animals = new Animal[3];\nanimals[0] = new Dog(\"ポチ\");\nanimals[1] = new Cat(\"タマ\");\nanimals[2] = new Animal(\"ぬし\");\n\nfor (Animal a : animals) {\n    a.cry();        // それぞれの cry() が動く\n}\n```\n\nループの中に `if (a instanceof Dog)` のような分岐は **1つもありません**。\nそれでも犬は「ワン」、猫は「ニャー」と鳴きます。\n\n新しく `Bird` を追加したくなっても、このループは **1文字も変えずに済みます**。\n「増えても壊れない」形にできるのが、継承とオーバーライドの一番の価値です。\n\n同じ理由で、メソッドの引数も親の型で受けておくと使い回せます。\n\n```java\nstatic void makeCry(Animal a) {      // Dog でも Cat でも受け取れる\n    a.cry();\n}\n```\n\n> ⚠️ 間違えやすい点 … オーバーライドされたメソッドは実体の型で決まりますが、**フィールド** と **static メソッド** は **変数の型** で決まります。フィールドはポリモーフィズムの対象外です。",
       "samples": [
         {
           "caption": "変数の型は Animal、動くのは Dog",
@@ -116,7 +116,7 @@
     {
       "id": "11-2",
       "title": "キャストと instanceof",
-      "explanation": "## 親の型に入れたあと、子に戻したい\n\n`Animal` として持っているものが、実は `Dog` で、`fetch()` を呼びたい。\nそういうときは **ダウンキャスト**（親 → 子）します。カッコで型を書きます。\n\n```java\nAnimal a = new Dog(\"ポチ\");\nDog d = (Dog) a;        // Animal を Dog として見直す\nd.fetch();\n```\n\nアップキャスト（子 → 親）は必ず安全なので自動ですが、\nダウンキャストは **本当に子なのか分からない** ので、明示的に書かせられます。\n\nそして実体が違っていたら、実行時に落ちます。\n\n```java\nAnimal a = new Cat(\"タマ\");\nDog d = (Dog) a;        // 実行時に ClassCastException\n```\n\nコンパイルは通ります。**猫を犬として扱おうとした瞬間** に例外になります。\n\n## instanceof で確かめてから\n\n事故を防ぐには、キャストの前に **`instanceof`** で確認します。\n\n```java\nif (a instanceof Dog) {\n    Dog d = (Dog) a;\n    d.fetch();\n}\n```\n\n`a instanceof Dog` は「`a` の実体が `Dog`（またはそのサブクラス）なら `true`」です。\n`a` が `null` のときは `false` になるので、`null` チェックも兼ねてくれます。\n\n## パターンマッチで1行に\n\n確認してキャストして変数に入れる、という3ステップは毎回同じです。\nそこで新しいJavaでは **確認と同時に変数を作れます**。\n\n```java\nif (a instanceof Dog d) {      // 確認できたら d に入れてくれる\n    d.fetch();\n}\n```\n\n`instanceof` のあとに変数名を書くだけです。キャストの行が要らなくなり、\n「確認したのに違う型にキャストしてしまう」間違いも起きません。\nSilver の範囲でも新しい書き方として問われます。\n\n> 💡 `if (a instanceof Dog d)` の `d` が使えるのは、条件が成り立つ範囲（`if` の中）だけです。\n\n> ⚠️ 試験のワナ … `instanceof` の左右に **継承関係がまったくない** 型を書くとコンパイルエラーです（実行時 `false` ではありません）。\n\n```java\nString s = \"abc\";\nif (s instanceof Dog) { }      // ❌ String と Dog は無関係なのでコンパイルエラー\n```",
+      "explanation": "## 親の型に入れたあと、子に戻したい\n\n`Animal` として持っているものが、実は `Dog` で、`fetch()` を呼びたい。\nそういうときは **ダウンキャスト**（親 → 子）します。カッコで型を書きます。\n\n```java\nAnimal a = new Dog(\"ポチ\");\nDog d = (Dog) a;        // Animal を Dog として見直す\nd.fetch();\n```\n\nアップキャスト（子 → 親）は必ず安全なので自動ですが、\nダウンキャストは **本当に子なのか分からない** ので、明示的に書かせられます。\n\nそして実体が違っていたら、実行時に落ちます。\n\n```java\nAnimal a = new Cat(\"タマ\");\nDog d = (Dog) a;        // 実行時に ClassCastException\n```\n\nコンパイルは通ります。**猫を犬として扱おうとした瞬間** に例外になります。\n\n## instanceof で確かめてから\n\n事故を防ぐには、キャストの前に **`instanceof`** で確認します。\n\n```java\nif (a instanceof Dog) {\n    Dog d = (Dog) a;\n    d.fetch();\n}\n```\n\n`a instanceof Dog` は「`a` の実体が `Dog`（またはそのサブクラス）なら `true`」です。\n`a` が `null` のときは `false` になるので、`null` チェックも兼ねてくれます。\n\n## パターンマッチで1行に\n\n確認してキャストして変数に入れる、という3ステップは毎回同じです。\nそこで新しいJavaでは **確認と同時に変数を作れます**。\n\n```java\nif (a instanceof Dog d) {      // 確認できたら d に入れてくれる\n    d.fetch();\n}\n```\n\n`instanceof` のあとに変数名を書くだけです。キャストの行が要らなくなり、\n「確認したのに違う型にキャストしてしまう」間違いも起きません。\n現在のJavaで標準的な書き方です。\n\n> 💡 `if (a instanceof Dog d)` の `d` が使えるのは、条件が成り立つ範囲（`if` の中）だけです。\n\n> ⚠️ 間違えやすい点 … `instanceof` の左右に **継承関係がまったくない** 型を書くとコンパイルエラーです（実行時 `false` ではありません）。\n\n```java\nString s = \"abc\";\nif (s instanceof Dog) { }      // ❌ String と Dog は無関係なのでコンパイルエラー\n```",
       "samples": [
         {
           "caption": "instanceof で確かめてから fetch を呼ぶ",
@@ -230,7 +230,7 @@
     {
       "id": "11-3",
       "title": "抽象クラスと抽象メソッド",
-      "explanation": "## 「図形」そのものは作れない\n\n図形を継承で表すとします。四角形の面積は `幅 × 高さ`、正方形は `一辺 × 一辺`。\nでは **「図形」の面積** はどう書けばよいでしょう。書けません。\n\n```java\nclass Shape {\n    int area() {\n        return 0;        // ← 意味のない値を返すしかない\n    }\n}\n```\n\n`return 0;` は嘘です。そして `new Shape()` という「面積が0の図形」を\n作れてしまうのも困ります。\n\nこういうときは **抽象クラス** にします。\n\n```java\nabstract class Shape {              // new できないクラス\n    protected String label;\n\n    Shape(String label) {\n        this.label = label;\n    }\n\n    abstract int area();            // 中身を書かない（サブクラスに任せる）\n\n    void show() {                   // 普通のメソッドも書ける\n        System.out.println(label + \" 面積 \" + area());\n    }\n}\n```\n\n- `abstract class` … **`new` できない**。継承されるためだけに存在する\n- `abstract` なメソッド … **本体（`{}`）を書かず、セミコロンで終える**\n\n```java\nabstract int area();        // ✅ 中身なし。セミコロンで終わる\nabstract int area() { }     // ❌ 本体があるのに abstract\n```\n\n## サブクラスは実装する義務を負う\n\n`abstract` メソッドを持つクラスを継承したら、**必ず実装しなければなりません**。\n\n```java\nclass Rect extends Shape {\n    private int width;\n    private int height;\n\n    Rect(int width, int height) {\n        super(\"四角形\");\n        this.width = width;\n        this.height = height;\n    }\n\n    @Override\n    int area() {\n        return width * height;      // ここで初めて中身が決まる\n    }\n}\n```\n\n実装しないと **そのサブクラス自身も `abstract`** にしなければコンパイルエラーになります。\n「実装を忘れる」ことがコンパイル時に分かるのが、抽象クラスの大きな利点です。\n\n## show() が area() を呼べる不思議\n\n`Shape` の `show()` は、中身のない `area()` を呼んでいます。\nこれは動きます。実行されるときには必ず **サブクラスの `area()`** が入っているからです。\n\n```java\nShape s = new Rect(3, 4);\ns.show();                   // 四角形 面積 12\n```\n\n「共通の流れは親に書き、変わる部分だけ子に任せる」という設計です。\n`show()` の形式を変えたければ親を1か所直すだけで、すべての図形に効きます。\n\n## 抽象クラスの決まり\n\n- `abstract` クラスも **コンストラクタとフィールドを持てます**（`super(...)` で呼びます）\n- `abstract` メソッドが1つもなくても `abstract` クラスにできます（`new` させたくないだけのとき）\n- `abstract` と `final` は **同時に付けられません**（継承されないと実装できないので矛盾）\n- `abstract` メソッドを `private` にはできません（サブクラスから見えないと実装できない）\n\n> ⚠️ 試験のワナ … 抽象クラスは `new` できませんが、**抽象クラス型の変数は作れます**。`Shape s = new Rect(3, 4);` は正しい書き方です。\n\n> 💡 `abstract` は「未完成である」という宣言です。未完成なものは組み立てられないけれど、置き場所（変数）は用意できる、と考えると分かりやすいです。",
+      "explanation": "## 「図形」そのものは作れない\n\n図形を継承で表すとします。四角形の面積は `幅 × 高さ`、正方形は `一辺 × 一辺`。\nでは **「図形」の面積** はどう書けばよいでしょう。書けません。\n\n```java\nclass Shape {\n    int area() {\n        return 0;        // ← 意味のない値を返すしかない\n    }\n}\n```\n\n`return 0;` は嘘です。そして `new Shape()` という「面積が0の図形」を\n作れてしまうのも困ります。\n\nこういうときは **抽象クラス** にします。\n\n```java\nabstract class Shape {              // new できないクラス\n    protected String label;\n\n    Shape(String label) {\n        this.label = label;\n    }\n\n    abstract int area();            // 中身を書かない（サブクラスに任せる）\n\n    void show() {                   // 普通のメソッドも書ける\n        System.out.println(label + \" 面積 \" + area());\n    }\n}\n```\n\n- `abstract class` … **`new` できない**。継承されるためだけに存在する\n- `abstract` なメソッド … **本体（`{}`）を書かず、セミコロンで終える**\n\n```java\nabstract int area();        // ✅ 中身なし。セミコロンで終わる\nabstract int area() { }     // ❌ 本体があるのに abstract\n```\n\n## サブクラスは実装する義務を負う\n\n`abstract` メソッドを持つクラスを継承したら、**必ず実装しなければなりません**。\n\n```java\nclass Rect extends Shape {\n    private int width;\n    private int height;\n\n    Rect(int width, int height) {\n        super(\"四角形\");\n        this.width = width;\n        this.height = height;\n    }\n\n    @Override\n    int area() {\n        return width * height;      // ここで初めて中身が決まる\n    }\n}\n```\n\n実装しないと **そのサブクラス自身も `abstract`** にしなければコンパイルエラーになります。\n「実装を忘れる」ことがコンパイル時に分かるのが、抽象クラスの大きな利点です。\n\n## show() が area() を呼べる不思議\n\n`Shape` の `show()` は、中身のない `area()` を呼んでいます。\nこれは動きます。実行されるときには必ず **サブクラスの `area()`** が入っているからです。\n\n```java\nShape s = new Rect(3, 4);\ns.show();                   // 四角形 面積 12\n```\n\n「共通の流れは親に書き、変わる部分だけ子に任せる」という設計です。\n`show()` の形式を変えたければ親を1か所直すだけで、すべての図形に効きます。\n\n## 抽象クラスの決まり\n\n- `abstract` クラスも **コンストラクタとフィールドを持てます**（`super(...)` で呼びます）\n- `abstract` メソッドが1つもなくても `abstract` クラスにできます（`new` させたくないだけのとき）\n- `abstract` と `final` は **同時に付けられません**（継承されないと実装できないので矛盾）\n- `abstract` メソッドを `private` にはできません（サブクラスから見えないと実装できない）\n\n> ⚠️ 間違えやすい点 … 抽象クラスは `new` できませんが、**抽象クラス型の変数は作れます**。`Shape s = new Rect(3, 4);` は正しい書き方です。\n\n> 💡 `abstract` は「未完成である」という宣言です。未完成なものは組み立てられないけれど、置き場所（変数）は用意できる、と考えると分かりやすいです。",
       "samples": [
         {
           "caption": "共通の流れは親、変わる部分は子",
@@ -344,7 +344,7 @@
     {
       "id": "11-4",
       "title": "総合問題：図形の面積を集計する",
-      "explanation": "## 抽象クラスとポリモーフィズムを使い切る\n\n第10章と第11章の総まとめです。3種類の図形を1つの配列で扱い、\n面積を集計して、いちばん大きい図形を探します。\n\n### 設計\n\n```java\nabstract class Shape {\n    private final String name;      // 図形の名前（変わらないので final）\n\n    Shape(String name) { this.name = name; }\n\n    String getName() { return name; }\n\n    abstract int area();            // 面積の求め方は図形ごとに違う\n}\n```\n\nサブクラスは3つです。\n\n| クラス | コンストラクタ | 面積 |\n|---|---|---|\n| `Rect` | `Rect(int w, int h)` | `w * h` |\n| `Square` | `Square(int s)` | `s * s` |\n| `Triangle` | `Triangle(int b, int h)` | `b * h / 2` |\n\n三角形は `底辺 × 高さ ÷ 2` ですが、`int` の割り算なので **小数は切り捨て** られます。\n`底辺 3`・`高さ 3` なら `9 / 2` で `4` です（`4.5` ではありません）。第3章の割り算の罠がここで出てきます。\n\n### 集計のしかた\n\n「合計」と「最大」は、配列を1周しながら覚えていくだけです。\n\n```java\nint total = 0;\nShape biggest = shapes[0];       // 最初の要素を仮の1位にする\n\nfor (Shape s : shapes) {\n    total += s.area();\n    if (s.area() > biggest.area()) {\n        biggest = s;\n    }\n}\n```\n\n`>` にしているので、同じ面積が並んだときは **先に出てきた方** が勝ちます。\n`>=` にすると後の方に入れ替わってしまうので、仕様に合わせて選びます。\n\n> 💡 最大値の初期値を `0` にしないこと（第6章でも出てきました）。この問題では面積が `0` の図形もありうるので、「最初の要素を仮の1位にする」やり方が安全です。\n\n> ⚠️ 試験のワナ … `biggest` の型は `Shape` です。実体が `Rect` でも `Triangle` でも入れられて、`getName()` と `area()` はそれぞれの実装が動きます。これがポリモーフィズムの実用形です。",
+      "explanation": "## 抽象クラスとポリモーフィズムを使い切る\n\n第10章と第11章の総まとめです。3種類の図形を1つの配列で扱い、\n面積を集計して、いちばん大きい図形を探します。\n\n### 設計\n\n```java\nabstract class Shape {\n    private final String name;      // 図形の名前（変わらないので final）\n\n    Shape(String name) { this.name = name; }\n\n    String getName() { return name; }\n\n    abstract int area();            // 面積の求め方は図形ごとに違う\n}\n```\n\nサブクラスは3つです。\n\n| クラス | コンストラクタ | 面積 |\n|---|---|---|\n| `Rect` | `Rect(int w, int h)` | `w * h` |\n| `Square` | `Square(int s)` | `s * s` |\n| `Triangle` | `Triangle(int b, int h)` | `b * h / 2` |\n\n三角形は `底辺 × 高さ ÷ 2` ですが、`int` の割り算なので **小数は切り捨て** られます。\n`底辺 3`・`高さ 3` なら `9 / 2` で `4` です（`4.5` ではありません）。第3章の割り算の罠がここで出てきます。\n\n### 集計のしかた\n\n「合計」と「最大」は、配列を1周しながら覚えていくだけです。\n\n```java\nint total = 0;\nShape biggest = shapes[0];       // 最初の要素を仮の1位にする\n\nfor (Shape s : shapes) {\n    total += s.area();\n    if (s.area() > biggest.area()) {\n        biggest = s;\n    }\n}\n```\n\n`>` にしているので、同じ面積が並んだときは **先に出てきた方** が勝ちます。\n`>=` にすると後の方に入れ替わってしまうので、仕様に合わせて選びます。\n\n> 💡 最大値の初期値を `0` にしないこと（第6章でも出てきました）。この問題では面積が `0` の図形もありうるので、「最初の要素を仮の1位にする」やり方が安全です。\n\n> ⚠️ 間違えやすい点 … `biggest` の型は `Shape` です。実体が `Rect` でも `Triangle` でも入れられて、`getName()` と `area()` はそれぞれの実装が動きます。これがポリモーフィズムの実用形です。",
       "samples": [
         {
           "caption": "3種類の図形を集計する",
@@ -499,6 +499,118 @@
           ],
           "answer": 1,
           "explanation": "`abstract` メソッドは本体を書かず、セミコロンで終えます。`{}` を付けると「本体があるのに abstract」でエラーです。`private` にもできません（サブクラスから見えないと実装できないため）。"
+        }
+      ]
+    },
+    {
+      "id": "11-5",
+      "title": "章末演習：ポリモーフィズム",
+      "explanation": "## この章の知識を、自分の手で組み合わせよう\n\nここでは、**親の型で受ける設計・instanceof・抽象クラス**をまとめて使います。新しい文法は登場しません。分からなくなったら、直前までの解説やサンプルへ戻って確認して大丈夫です。\n\n### 3問の進め方\n\n1. **基本**で、中心となる書き方をもう一度使う\n2. **組み合わせ**で、章内の複数の知識を一緒に使う\n3. **実践**で、少し現実的な入力と条件を整理する\n\nまず入力例と期待される出力を紙に書き、処理を小さな手順へ分けてからコードにすると進めやすくなります。",
+      "samples": [
+        {
+          "caption": "復習用サンプル：3種類の図形を集計する",
+          "code": "abstract class Shape {\n    private final String name;\n\n    Shape(String name) { this.name = name; }\n\n    String getName() { return name; }\n\n    abstract int area();\n}\n\nclass Rect extends Shape {\n    private int w, h;\n    Rect(int w, int h) { super(\"四角形\"); this.w = w; this.h = h; }\n    @Override int area() { return w * h; }\n}\n\nclass Square extends Shape {\n    private int s;\n    Square(int s) { super(\"正方形\"); this.s = s; }\n    @Override int area() { return s * s; }\n}\n\nclass Triangle extends Shape {\n    private int b, h;\n    Triangle(int b, int h) { super(\"三角形\"); this.b = b; this.h = h; }\n    @Override int area() { return b * h / 2; }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Shape[] shapes = { new Rect(3, 4), new Square(3), new Triangle(3, 3) };\n\n        int total = 0;\n        Shape biggest = shapes[0];\n\n        for (Shape s : shapes) {\n            System.out.println(s.getName() + \" 面積 \" + s.area());\n            total += s.area();\n            if (s.area() > biggest.area()) {\n                biggest = s;\n            }\n        }\n\n        System.out.println(\"合計 \" + total);\n        System.out.println(\"最大 \" + biggest.getName());\n    }\n}\n"
+        }
+      ],
+      "task": "【基本】抽象クラスShapeに `abstract int area()` を定義し、SquareとRectangleで実装します。`square size` または `rectangle width height` を読み、面積を表示してください。",
+      "starterCode": "import java.util.*;\nabstract class Shape { abstract int area(); }\nclass Square extends Shape { int size; Square(int size){this.size=size;} int area(){return 0;} }\nclass Rectangle extends Shape { int w,h; Rectangle(int w,int h){this.w=w;this.h=h;} int area(){return 0;} }\npublic class Main {public static void main(String[] args){Scanner s=new Scanner(System.in);String type=s.next();Shape shape=type.equals(\"square\")?new Square(s.nextInt()):new Rectangle(s.nextInt(),s.nextInt());System.out.println(shape.area());}}\n",
+      "visibleCases": [
+        {
+          "label": "正方形",
+          "stdin": "square 4",
+          "expected": "16"
+        },
+        {
+          "label": "長方形",
+          "stdin": "rectangle 3 5",
+          "expected": "15"
+        }
+      ],
+      "hiddenCases": [
+        {
+          "label": "辺0",
+          "stdin": "square 0",
+          "expected": "0"
+        },
+        {
+          "label": "細長い",
+          "stdin": "rectangle 1 9",
+          "expected": "9"
+        }
+      ],
+      "hints": [
+        "各子クラスでareaをオーバーライドします。",
+        "mainではどちらもShape型で受け取れます。"
+      ],
+      "solution": "import java.util.*;\nabstract class Shape { abstract int area(); }\nclass Square extends Shape { int size; Square(int size){this.size=size;} int area(){return size*size;} }\nclass Rectangle extends Shape { int w,h; Rectangle(int w,int h){this.w=w;this.h=h;} int area(){return w*h;} }\npublic class Main {public static void main(String[] args){Scanner s=new Scanner(System.in);String type=s.next();Shape shape=type.equals(\"square\")?new Square(s.nextInt()):new Rectangle(s.nextInt(),s.nextInt());System.out.println(shape.area());}}\n",
+      "extraTasks": [
+        {
+          "kind": "drill",
+          "task": "【組み合わせ】Animalの子としてDogとCatを作ります。n個の `dog` / `cat` をAnimal配列へ入れ、`instanceof` で数えて `dogs=... cats=...` と表示してください。",
+          "starterCode": "import java.util.*;\nclass Animal {} class Dog extends Animal {} class Cat extends Animal {}\npublic class Main {public static void main(String[] args){Scanner s=new Scanner(System.in);int n=s.nextInt();Animal[] animals=new Animal[n];for(int i=0;i<n;i++)animals[i]=s.next().equals(\"dog\")?new Dog():new Cat();/* TODO */}}\n",
+          "visibleCases": [
+            {
+              "label": "混在",
+              "stdin": "5 dog cat dog dog cat",
+              "expected": "dogs=3 cats=2"
+            },
+            {
+              "label": "猫だけ",
+              "stdin": "3 cat cat cat",
+              "expected": "dogs=0 cats=3"
+            }
+          ],
+          "hiddenCases": [
+            {
+              "label": "空",
+              "stdin": "0",
+              "expected": "dogs=0 cats=0"
+            },
+            {
+              "label": "犬だけ",
+              "stdin": "2 dog dog",
+              "expected": "dogs=2 cats=0"
+            }
+          ],
+          "hints": [
+            "配列の型はAnimalにします。",
+            "`a instanceof Dog` で実際の型を確認できます。"
+          ],
+          "solution": "import java.util.*;\nclass Animal {} class Dog extends Animal {} class Cat extends Animal {}\npublic class Main {public static void main(String[] args){Scanner s=new Scanner(System.in);int n=s.nextInt();Animal[] animals=new Animal[n];for(int i=0;i<n;i++)animals[i]=s.next().equals(\"dog\")?new Dog():new Cat();int dogs=0,cats=0;for(Animal a:animals){if(a instanceof Dog)dogs++;else if(a instanceof Cat)cats++;}System.out.println(\"dogs=\"+dogs+\" cats=\"+cats);}}\n"
+        },
+        {
+          "kind": "applied",
+          "task": "【実践】抽象Employeeに `abstract int pay()` を定義します。Hourlyは時給×時間、Salariedは固定給を返します。n人分を読み、Employeeとして合計給与を表示してください。入力は `hourly 時給 時間` または `salaried 固定給` です。",
+          "starterCode": "import java.util.*;\nabstract class Employee {abstract int pay();}\nclass Hourly extends Employee {int rate,hours;Hourly(int r,int h){rate=r;hours=h;}int pay(){return 0;}}\nclass Salaried extends Employee {int salary;Salaried(int s){salary=s;}int pay(){return 0;}}\npublic class Main {public static void main(String[] args){Scanner s=new Scanner(System.in);int n=s.nextInt(),total=0;for(int i=0;i<n;i++){String type=s.next();Employee e=type.equals(\"hourly\")?new Hourly(s.nextInt(),s.nextInt()):new Salaried(s.nextInt());/* TODO */}System.out.println(total);}}\n",
+          "visibleCases": [
+            {
+              "label": "2種類",
+              "stdin": "2 hourly 1000 8 salaried 20000",
+              "expected": "28000"
+            },
+            {
+              "label": "固定給だけ",
+              "stdin": "2 salaried 30000 salaried 25000",
+              "expected": "55000"
+            }
+          ],
+          "hiddenCases": [
+            {
+              "label": "0人",
+              "stdin": "0",
+              "expected": "0"
+            },
+            {
+              "label": "時給だけ",
+              "stdin": "2 hourly 1200 5 hourly 900 3",
+              "expected": "8700"
+            }
+          ],
+          "hints": [
+            "生成後はEmployee型のeとして扱います。",
+            "種類に関係なく `total += e.pay()` と呼べます。"
+          ],
+          "solution": "import java.util.*;\nabstract class Employee {abstract int pay();}\nclass Hourly extends Employee {int rate,hours;Hourly(int r,int h){rate=r;hours=h;}int pay(){return rate*hours;}}\nclass Salaried extends Employee {int salary;Salaried(int s){salary=s;}int pay(){return salary;}}\npublic class Main {public static void main(String[] args){Scanner s=new Scanner(System.in);int n=s.nextInt(),total=0;for(int i=0;i<n;i++){String type=s.next();Employee e=type.equals(\"hourly\")?new Hourly(s.nextInt(),s.nextInt()):new Salaried(s.nextInt());total+=e.pay();}System.out.println(total);}}\n"
         }
       ]
     }

@@ -1,0 +1,60 @@
+{
+  "id": "ch46",
+  "title": "SQLとリレーショナルデータベース",
+  "subtitle": "表の設計・問い合わせ・トランザクションをコードにつなぐ",
+  "emoji": "🗄️",
+  "lessons": [
+    {
+      "id": "46-1",
+      "title": "テーブル設計と制約",
+      "explanation": "## データのルールをDBにも持たせる\n\nテーブルは行と列でデータを表します。主キー（PRIMARY KEY）は行を一意に識別し、外部キー（FOREIGN KEY）は参照先の存在を保証します。NOT NULL、UNIQUE、CHECKも不正データを入口で拒否する制約です。アプリの検証だけに頼らず、DBを最後の防波堤にします。\n\n正規化では、注文行へ顧客名を何度も複製する代わりに顧客IDで参照します。更新箇所を一つにし、不整合を避けるためです。ただし読み取り性能のための非正規化は、測定と整合性維持の方法を決めてから行います。\n\n```sql\nCREATE TABLE orders (\n  id BIGINT PRIMARY KEY,\n  customer_id BIGINT NOT NULL REFERENCES customers(id),\n  total DECIMAL(12,2) NOT NULL CHECK (total >= 0)\n);\n```",
+      "samples": [{"caption":"主キーの重複を検出","code":"import java.util.*;public class Main{public static void main(String[] a){var ids=List.of(10L,20L,10L);var seen=new HashSet<Long>();for(long id:ids)if(!seen.add(id))System.out.println(\"duplicate: \"+id);}}\n"}],
+      "task": "n件の `id customerId` を読み、idの重複またはcustomerIdが0以下の行を `INVALID 行番号` と表示してください。問題がなければ `OK`。行番号は1始まりです。",
+      "starterCode": "import java.util.*;public class Main{public static void main(String[] a){Scanner s=new Scanner(System.in);int n=s.nextInt();Set<Long> ids=new HashSet<>();List<Integer> invalid=new ArrayList<>();for(int i=1;i<=n;i++){long id=s.nextLong(),customerId=s.nextLong();/* TODO */}/* TODO */}}\n",
+      "visibleCases": [{"label":"正常","stdin":"3 1 10 2 10 3 20","expected":"OK"},{"label":"制約違反","stdin":"3 1 10 1 20 3 0","expected":"INVALID 2\nINVALID 3"}],
+      "hiddenCases": [{"label":"複合違反","stdin":"2 5 -1 5 -2","expected":"INVALID 1\nINVALID 2"}],
+      "hints": ["`ids.add(id)` がfalseなら重複です。","不正な行番号をリストへ入れ、最後に表示します。"],
+      "solution": "import java.util.*;public class Main{public static void main(String[] a){Scanner s=new Scanner(System.in);int n=s.nextInt();Set<Long> ids=new HashSet<>();List<Integer> invalid=new ArrayList<>();for(int i=1;i<=n;i++){long id=s.nextLong(),customerId=s.nextLong();if(!ids.add(id)||customerId<=0)invalid.add(i);}if(invalid.isEmpty())System.out.println(\"OK\");else invalid.forEach(i->System.out.println(\"INVALID \"+i));}}\n",
+      "quiz": [{"question":"参照先の行が存在することを保証する制約は？","choices":["FOREIGN KEY","ORDER BY","GROUP BY","INDEXだけ"],"answer":0,"explanation":"外部キーは表どうしの参照整合性を守ります。"}]
+    },
+    {
+      "id": "46-2",
+      "title": "SELECT・JOIN・集約",
+      "explanation": "## 問いを集合の操作へ変える\n\n`WHERE` は行の絞り込み、`JOIN ... ON` は表の対応付け、`GROUP BY` はグループ化、`HAVING` は集約後の絞り込みです。論理的には FROM/JOIN、WHERE、GROUP BY、HAVING、SELECT、ORDER BY の順で考えると、別名がどこで使えるかを理解しやすくなります。\n\n```sql\nSELECT c.name, SUM(o.total) AS amount\nFROM customers c\nJOIN orders o ON o.customer_id = c.id\nWHERE o.status = ?\nGROUP BY c.id, c.name\nHAVING SUM(o.total) >= ?\nORDER BY amount DESC, c.name;\n```\n\n値は文字列連結せずプレースホルダへバインドします。識別子やORDER BYの列名はプレースホルダにできないため、許可リストから選びます。NULLは `= NULL` ではなく `IS NULL`、外部結合ではWHERE条件の位置にも注意します。",
+      "samples": [{"caption":"JavaでJOIN相当を考える","code":"import java.util.*;record Customer(int id,String name){}record Order(int customerId,int amount){}public class Main{public static void main(String[] a){var names=Map.of(1,\"A\",2,\"B\");var orders=List.of(new Order(1,100),new Order(1,50));var totals=new TreeMap<String,Integer>();for(var o:orders)totals.merge(names.get(o.customerId()),o.amount(),Integer::sum);System.out.println(totals);}}\n"}],
+      "task": "顧客n件を `id name`、注文m件を `customerId amount` で読み、注文合計を顧客名の辞書順で `name=total` と表示してください。注文のない顧客も0で表示します。",
+      "starterCode": "import java.util.*;public class Main{public static void main(String[] a){Scanner s=new Scanner(System.in);int n=s.nextInt();Map<Integer,String> names=new HashMap<>();Map<String,Integer> totals=new TreeMap<>();for(int i=0;i<n;i++){int id=s.nextInt();String name=s.next();names.put(id,name);totals.put(name,0);}int m=s.nextInt();for(int i=0;i<m;i++){int id=s.nextInt(),amount=s.nextInt();/* TODO */}totals.forEach((k,v)->System.out.println(k+\"=\"+v));}}\n",
+      "visibleCases": [{"label":"外部結合相当","stdin":"3 1 alice 2 bob 3 carol 3 1 100 2 80 1 20","expected":"alice=120\nbob=80\ncarol=0"}],
+      "hiddenCases": [{"label":"注文なし","stdin":"1 7 user 0","expected":"user=0"}],
+      "hints": ["customerIdから名前を引き、`totals.merge(name, amount, Integer::sum)`。","この問題では注文のcustomerIdは必ず存在します。"],
+      "solution": "import java.util.*;public class Main{public static void main(String[] a){Scanner s=new Scanner(System.in);int n=s.nextInt();Map<Integer,String> names=new HashMap<>();Map<String,Integer> totals=new TreeMap<>();for(int i=0;i<n;i++){int id=s.nextInt();String name=s.next();names.put(id,name);totals.put(name,0);}int m=s.nextInt();for(int i=0;i<m;i++){int id=s.nextInt(),amount=s.nextInt();totals.merge(names.get(id),amount,Integer::sum);}totals.forEach((k,v)->System.out.println(k+\"=\"+v));}}\n",
+      "quiz": [{"question":"集約結果に条件を付ける句は？","choices":["HAVING","VALUES","ALTER","COMMIT"],"answer":0,"explanation":"WHEREは集約前の行、HAVINGはグループ化した結果を絞ります。"}]
+    },
+    {
+      "id": "46-3",
+      "title": "インデックスと実行計画",
+      "explanation": "## 推測せず実行計画を見る\n\nインデックスは検索を速くできる一方、保存領域とINSERT/UPDATE/DELETEの保守コストが増えます。複合インデックスでは列順が重要です。等価条件、範囲条件、並び順、選択性を実際の問い合わせから考えます。全列へ機械的に作るものではありません。\n\n`EXPLAIN`（製品によって `EXPLAIN ANALYZE`）で走査方法、見積行数、実測行数、結合方法を確認します。関数を列へ適用する条件、先頭ワイルドカード、暗黙の型変換などはインデックスを使いにくくすることがあります。遅いSQLはDB製品・データ量・統計情報と一緒に測定します。",
+      "samples": [{"caption":"複合キーの先頭一致を意識する","code":"record Index(String first,String second){}public class Main{public static void main(String[] a){var i=new Index(\"status\",\"created_at\");System.out.println(i.first()+\" -> \"+i.second());}}\n"}],
+      "task": "問い合わせ回数nと、各行の `queryName rowsRead rowsReturned` を読みます。rowsReadが1000以上かつreturnedの100倍以上なら、辞書順で `CHECK queryName` と表示してください。なければ `OK`。returned=0ならrowsReadが1000以上でCHECKです。",
+      "starterCode": "import java.util.*;public class Main{public static void main(String[] a){Scanner s=new Scanner(System.in);int n=s.nextInt();Set<String> checks=new TreeSet<>();for(int i=0;i<n;i++){String name=s.next();long read=s.nextLong(),returned=s.nextLong();/* TODO */}/* TODO */}}\n",
+      "visibleCases": [{"label":"要確認","stdin":"3 findUser 1 1 report 10000 10 list 100 20","expected":"CHECK report"}],
+      "hiddenCases": [{"label":"0件","stdin":"2 emptyScan 1000 0 small 999 0","expected":"CHECK emptyScan"},{"label":"問題なし","stdin":"1 lookup 100 1","expected":"OK"}],
+      "hints": ["比率は割り算せず `read >= returned * 100` と比較します。","オーバーフローを避けるためreturnedが0かを先に分けます。"],
+      "solution": "import java.util.*;public class Main{public static void main(String[] a){Scanner s=new Scanner(System.in);int n=s.nextInt();Set<String> checks=new TreeSet<>();for(int i=0;i<n;i++){String name=s.next();long read=s.nextLong(),returned=s.nextLong();if(read>=1000&&(returned==0||read/100>=returned))checks.add(name);}if(checks.isEmpty())System.out.println(\"OK\");else checks.forEach(x->System.out.println(\"CHECK \"+x));}}\n",
+      "quiz": [{"question":"インデックス追加前後でまず確認するものは？","choices":["ファイル名だけ","代表データでの実行計画と時間","コメントの数","CPU名だけ"],"answer":1,"explanation":"データ分布と問い合わせにより効果が変わるため、計画と実測で確認します。"}]
+    },
+    {
+      "id": "46-4",
+      "title": "分離レベルとマイグレーション",
+      "explanation": "## 同時実行と変更履歴を設計する\n\nトランザクションは一連の更新をまとめます。分離レベルは同時実行時にどの変化を見せるかの選択で、強くするほど常に良いわけではありません。ロック順序が逆になるとデッドロックが起こり得るため、取得順を統一し、短いトランザクションにし、失敗時は処理全体を安全に再試行できるようにします。\n\nスキーマ変更は番号付きマイグレーションとして版管理します。本番稼働中の変更では、列追加→両対応コード→データ移行→旧列削除のように段階化します。適用済みSQLを書き換えず、新しい変更を追加します。バックアップだけでなく復元手順も試します。`labs/sql` には実際に読み書きできる小さなスキーマがあります。",
+      "samples": [{"caption":"ロック順を統一する","code":"import java.util.*;public class Main{public static void main(String[] a){int x=9,y=3;var ids=new int[]{Math.min(x,y),Math.max(x,y)};System.out.println(Arrays.toString(ids));}}\n"}],
+      "task": "n件の送金について `from to` を読み、各処理がロックすべきIDを小さい順に `low high` と表示してください。同じIDなら1つだけ表示します。",
+      "starterCode": "import java.util.*;public class Main{public static void main(String[] a){Scanner s=new Scanner(System.in);int n=s.nextInt();for(int i=0;i<n;i++){long from=s.nextLong(),to=s.nextLong();/* TODO */}}}\n",
+      "visibleCases": [{"label":"順序統一","stdin":"3 9 3 2 8 5 5","expected":"3 9\n2 8\n5"}],
+      "hiddenCases": [{"label":"負値も順序化","stdin":"1 2 -1","expected":"-1 2"}],
+      "hints": ["`Math.min` と `Math.max` を使います。","同じなら一度だけ表示します。"],
+      "solution": "import java.util.*;public class Main{public static void main(String[] a){Scanner s=new Scanner(System.in);int n=s.nextInt();for(int i=0;i<n;i++){long from=s.nextLong(),to=s.nextLong();long low=Math.min(from,to),high=Math.max(from,to);System.out.println(low==high?String.valueOf(low):low+\" \"+high);}}}\n",
+      "quiz": [{"question":"適用済みマイグレーションを修正する代わりに行うことは？","choices":["DBを毎回削除する","次の版の変更を追加する","履歴を消す","本番だけ手作業にする"],"answer":1,"explanation":"履歴を不変に保つと、環境間で同じ順序を再現できます。"}]
+    }
+  ]
+}

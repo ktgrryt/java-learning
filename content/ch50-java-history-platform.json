@@ -1,0 +1,53 @@
+{
+  "id":"ch50","title":"Javaの成り立ちとプラットフォーム","subtitle":"OakからOpenJDKまで、設計思想と仕組みをつなぐ","emoji":"🌳",
+  "lessons":[
+    {
+      "id":"50-1","title":"OakからJavaへ",
+      "explanation":"## 家電向けの言語からネットワーク時代へ\n\nJavaの前身Oakは、1990年代初頭にJames GoslingらのGreen Projectで、機器の種類に依存しにくい組み込みソフトウェアを作るために設計されました。その後インターネットへ対象を移し、Javaと改名され、1995年に公開されました。\n\n当時はCPUやOSごとに実行形式を作り直す負担が大きく、ネットワークから取得したコードを安全に動かす必要もありました。そこで、ソースを共通のbytecodeへ変換し、各環境のJVMが実行する二段構造、型検査、例外、GC、標準ライブラリを一体として提供しました。歴史は年号暗記ではなく、現在の移植性・安全性・互換性を重んじる理由を理解するために学びます。",
+      "samples":[{"caption":"実行環境からプラットフォーム情報を得る","code":"public class Main{public static void main(String[] a){System.out.println(System.getProperty(\"java.vm.name\"));System.out.println(Runtime.version().feature());}}\n"}],
+      "task":"3件の出来事を `year name` で読み、年の昇順に `year:name` と表示してください。同年は名前順です。歴史を時系列として扱う練習です。",
+      "starterCode":"import java.util.*;record Event(int year,String name){}public class Main{public static void main(String[] a){Scanner s=new Scanner(System.in);List<Event> events=new ArrayList<>();for(int i=0;i<3;i++)events.add(new Event(s.nextInt(),s.next()));/* TODO */}}\n",
+      "visibleCases":[{"label":"Javaの節目","stdin":"1995 Java 1991 Oak 2006 OpenJDK","expected":"1991:Oak\n1995:Java\n2006:OpenJDK"}],
+      "hiddenCases":[{"label":"同年","stdin":"2000 B 1999 Z 2000 A","expected":"1999:Z\n2000:A\n2000:B"}],
+      "hints":["`Comparator.comparingInt(Event::year).thenComparing(Event::name)`。"],
+      "solution":"import java.util.*;record Event(int year,String name){}public class Main{public static void main(String[] a){Scanner s=new Scanner(System.in);List<Event> events=new ArrayList<>();for(int i=0;i<3;i++)events.add(new Event(s.nextInt(),s.next()));events.stream().sorted(Comparator.comparingInt(Event::year).thenComparing(Event::name)).forEach(e->System.out.println(e.year()+\":\"+e.name()));}}\n",
+      "quiz":[{"question":"Oak/Javaで環境依存を減らす中心的な構造は？","choices":["OSごとのソース複製","bytecodeとJVMの分離","型検査の廃止","手動メモリ解放だけ"],"answer":1,"explanation":"共通bytecodeを各環境のJVMが実行する構造が移植性の土台です。"}]
+    },
+    {
+      "id":"50-2","title":"Javaの設計目標",
+      "explanation":"## 言語だけでなくプラットフォームとして設計された\n\n初期の設計文書はJavaを、simple、object-oriented、robust、secure、architecture-neutral、portable、high-performance、interpreted、threaded、dynamicな環境として説明しています。すべてが完全に両立するわけではなく、JVM上の検証とGCで安全性を高め、JITで実行状況に応じた性能を得るなど、層を分けてトレードオフを扱います。\n\nポインタ演算や多重クラス継承を持たないこと、配列境界を検査すること、例外と型検査を備えることも、単純さと堅牢性を優先した選択です。業務ではこの思想を引き継ぎ、暗黙の技巧より読みやすい型、管理された資源、明示的な失敗を選びます。",
+      "samples":[{"caption":"配列の範囲外アクセスは検査される","code":"public class Main {\n    public static void main(String[] args) {\n        int[] values = new int[1];\n        try {\n            System.out.println(values[2]);\n        } catch (ArrayIndexOutOfBoundsException e) {\n            System.out.println(\"checked\");\n        }\n    }\n}\n","expected":"checked"}],
+      "task":"設計上の要求n件を `portable/robust/secure/performance` のいずれかで読み、それぞれの件数を固定順で表示してください。",
+      "starterCode":"import java.util.*;public class Main{public static void main(String[] a){Scanner s=new Scanner(System.in);int n=s.nextInt();Map<String,Integer> m=new LinkedHashMap<>();for(String k:List.of(\"portable\",\"robust\",\"secure\",\"performance\"))m.put(k,0);for(int i=0;i<n;i++){String k=s.next();/* TODO */}m.forEach((k,v)->System.out.println(k+\"=\"+v));}}\n",
+      "visibleCases":[{"label":"分類","stdin":"5 portable robust secure portable performance","expected":"portable=2\nrobust=1\nsecure=1\nperformance=1"}],
+      "hiddenCases":[{"label":"0件","stdin":"0","expected":"portable=0\nrobust=0\nsecure=0\nperformance=0"}],
+      "hints":["既存キーへ `merge(k,1,Integer::sum)`。"],
+      "solution":"import java.util.*;public class Main{public static void main(String[] a){Scanner s=new Scanner(System.in);int n=s.nextInt();Map<String,Integer> m=new LinkedHashMap<>();for(String k:List.of(\"portable\",\"robust\",\"secure\",\"performance\"))m.put(k,0);for(int i=0;i<n;i++){String k=s.next();m.merge(k,1,Integer::sum);}m.forEach((k,v)->System.out.println(k+\"=\"+v));}}\n",
+      "quiz":[{"question":"Javaが安全性と性能を両立する仕組みの組み合わせは？","choices":["型検査をせず常に解釈","bytecode検証・GCとJIT","OS APIだけを直接呼ぶ","すべて手動解放"],"answer":1,"explanation":"検証と管理された実行環境を土台に、JITでホットなコードを最適化します。"}]
+    },
+    {
+      "id":"50-3","title":"JDK・JRE・JVMとSE・EE・ME",
+      "explanation":"## 名前が指す範囲を分ける\n\nJVMはbytecodeを実行する仕様と実装、JREはJVMと実行に必要なライブラリ群、JDKはさらにjavac、jar、javadoc、診断ツールなど開発用ツールを含む集合です。現在は独立したJRE配布を前提にせず、JDKやjlinkで作ったruntime imageを使う構成も一般的です。\n\nJava SEは言語・JVM・標準APIの基盤です。Jakarta EEはSE上で業務Webやトランザクションなどの仕様を定めます。Java MEは制約のある機器向けです。Spring Boot、Open Liberty、QuarkusはJavaそのものではなく、SEやJakarta仕様を利用・実装してアプリケーションを組み立てる選択肢です。",
+      "samples":[{"caption":"JDKの場所とJVM名","code":"public class Main{public static void main(String[] a){System.out.println(System.getProperty(\"java.home\"));System.out.println(System.getProperty(\"java.vm.name\"));}}\n"}],
+      "task":"必要な操作を読み、`run`ならJVM、`compile`/`javadoc`/`jar`ならJDKと表示してください。n件処理します。",
+      "starterCode":"import java.util.*;public class Main{public static void main(String[] a){Scanner s=new Scanner(System.in);int n=s.nextInt();for(int i=0;i<n;i++){String op=s.next();/* TODO */}}}\n",
+      "visibleCases":[{"label":"道具の範囲","stdin":"4 run compile jar javadoc","expected":"JVM\nJDK\nJDK\nJDK"}],
+      "hiddenCases":[{"label":"実行のみ","stdin":"2 run run","expected":"JVM\nJVM"}],
+      "hints":["runだけをJVM、それ以外をJDKとします。"],
+      "solution":"import java.util.*;public class Main{public static void main(String[] a){Scanner s=new Scanner(System.in);int n=s.nextInt();for(int i=0;i<n;i++){String op=s.next();System.out.println(op.equals(\"run\")?\"JVM\":\"JDK\");}}}\n",
+      "quiz":[{"question":"javacやjarを含むものは？","choices":["JVMだけ","JDK","bytecodeだけ","Jakarta RESTだけ"],"answer":1,"explanation":"JDKは実行環境に加えてコンパイラなどの開発ツールを含みます。"}]
+    },
+    {
+      "id":"50-4","title":"JCP・JSR・OpenJDK・JEP",
+      "explanation":"## 仕様、実装、提案を混同しない\n\nJCPはJava技術仕様を標準化するプロセスで、JSRはそこで扱う仕様要求です。Java SEの参照実装を含むOpenJDKは、オープンソースでJDKを開発するコミュニティとプロジェクト群です。JEPはOpenJDKで大きなJDK変更を提案・追跡する文書です。JEPがそのまま全Java実装の標準になるのではなく、仕様変更はJCPのPlatform JSRなどとも連携します。\n\n複数ベンダーがOpenJDKを基にJDKを提供します。Java feature versionが同じでも、ビルド、更新期間、サポート、ライセンス、含まれる追加機能は同一とは限りません。会社では製品名だけでなく、vendor、version、更新方針、利用条件を台帳化します。Java EEがEclipse Foundationへ移管された後はJakarta EEとして発展し、API名前空間も `javax.*` から `jakarta.*` へ変わりました。",
+      "samples":[{"caption":"vendorとversionを確認","code":"public class Main{public static void main(String[] a){System.out.println(System.getProperty(\"java.vendor\"));System.out.println(System.getProperty(\"java.runtime.version\"));}}\n"}],
+      "task":"識別子n件を読み、`JEP`で始まれば `implementation`、`JSR`で始まれば `specification`、それ以外は `unknown` と表示してください。",
+      "starterCode":"import java.util.*;public class Main{public static void main(String[] a){Scanner s=new Scanner(System.in);int n=s.nextInt();for(int i=0;i<n;i++){String id=s.next();/* TODO */}}}\n",
+      "visibleCases":[{"label":"提案の区別","stdin":"3 JEP444 JSR401 RFC9110","expected":"implementation\nspecification\nunknown"}],
+      "hiddenCases":[{"label":"大小は区別","stdin":"2 jep1 JSR1","expected":"unknown\nspecification"}],
+      "hints":["`startsWith(\"JEP\")` と `startsWith(\"JSR\")`。"],
+      "solution":"import java.util.*;public class Main{public static void main(String[] a){Scanner s=new Scanner(System.in);int n=s.nextInt();for(int i=0;i<n;i++){String id=s.next();System.out.println(id.startsWith(\"JEP\")?\"implementation\":id.startsWith(\"JSR\")?\"specification\":\"unknown\");}}}\n",
+      "quiz":[{"question":"OpenJDKについて適切な説明は？","choices":["単一企業の非公開アプリ","Java SEのオープンソース実装を共同開発するコミュニティとプロジェクト","Jakarta RESTの別名","IDEのデバッガだけ"],"answer":1,"explanation":"OpenJDKはJDK実装を公開プロセスで開発します。仕様策定のJCPとは役割が異なります。"}]
+    }
+  ]
+}
