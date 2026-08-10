@@ -28,7 +28,6 @@
   var activePartId = null; // メニューで表示中の大区分（Java基礎編 / Web・Jakarta EE編など）
   var selectedChapterByPart = {}; // ホームの編ごとに、最後に見ていた章を覚える
   var activeCafeSection = 'equipment'; // equipment / network / items
-  var cafeEffectHelpOpen = false;
   var cafePassiveTimer = null;
   var cafePassiveSessionId = null;
   var cafePassiveBusy = false;
@@ -285,6 +284,14 @@
     });
   }
 
+  /**
+   * 「12,345コイン / 分」のような単位表記。
+   * 単位は途中で改行させず、幅が足りないときだけ数値との間で折り返す。
+   */
+  function perMinuteText(amount, unit) {
+    return amount + '<span class="per-minute-unit">' + (unit || '') + ' / 分</span>';
+  }
+
   function multiplierText(basisPoints) {
     return (Number(basisPoints || 10000) / 10000).toLocaleString('ja-JP', {
       minimumFractionDigits: 2,
@@ -508,10 +515,6 @@
     document.getElementById('backToLearningBtn').addEventListener('click', goHome);
     var expandBtn = document.getElementById('cafeExpandBtn');
     if (expandBtn) { expandBtn.addEventListener('click', expandCafeNetwork); }
-    var effectHelp = document.getElementById('cafeEffectHelp');
-    if (effectHelp) {
-      effectHelp.addEventListener('toggle', function () { cafeEffectHelpOpen = effectHelp.open; });
-    }
     Array.prototype.forEach.call(document.getElementsByClassName('cafe-item-buy'), function (btn) {
       btn.addEventListener('click', function () { purchaseCafeItem(btn.dataset.id); });
     });
@@ -703,7 +706,7 @@
                + cafeNumberText(nextOrderCash) + 'コイン</b></span>' +
       '      <span class="cafe-passive-metric"><small>' + passiveLabel + '</small><b id="cafePassiveLive">'
                + (cafe.passiveCashPerMinute > 0
-                 ? '⏱️ +' + cafeNumberText(cafe.passiveCashPerMinute) + 'コイン / 分'
+                 ? perMinuteText('⏱️ +' + cafeNumberText(cafe.passiveCashPerMinute), 'コイン')
                  : '⏱️ 未導入') + '</b></span>' +
       '    </div>' +
       '    <div class="cafe-meta-row">' +
@@ -820,6 +823,56 @@
       }).join('') + '</div></section>';
   }
 
+  /**
+   * 設備カードの「?」に出す説明。
+   * 系統ごとに「何が増えるのか」と「いつ入るのか」を1つにまとめる。
+   */
+  var EQUIPMENT_HELP = {
+    sales: {
+      name: '注文売上',
+      body: '問題を初めてクリアして★を取ったとき、章をすべてクリアしたときにもらうコインが増えます。'
+    },
+    cups: {
+      name: '毎注文',
+      body: '1回の学習で提供する杯数が増えます。杯数が増えるほど、そのときの売上も増えます。'
+    },
+    chapter: {
+      name: '章ボーナス',
+      body: '章の問題をすべてクリアしたときだけ入る、まとめの追加売上が増えます。'
+    },
+    tips: {
+      name: '正解チップ',
+      body: '確認クイズに初めて正解したときの追加コインが増えます。★の判定には影響しません。'
+    },
+    streak: {
+      name: '連続効果',
+      body: '連続して学習した日数に応じて注文売上が増えます。効果は7日分が上限です。'
+    },
+    automation: {
+      name: '自動売上',
+      body: 'アプリを表示している間だけ、ゆっくり売上を作ります。オフラインでは増えません。'
+        + '次の★を取るまでの自動売上は最大0.5問分なので、問題を解く方が必ず大きく稼げます。'
+    }
+  };
+
+  /** 設備カードの見出し。「?」にカーソルを当てると、その系統の説明が出る。 */
+  function equipmentHeadHtml(type, label, tier) {
+    var help = EQUIPMENT_HELP[type] || EQUIPMENT_HELP.sales;
+    var tipId = 'equipmentHelp-' + type;
+    return '<header><div><span class="upgrade-type">' + esc(label) + '</span>' +
+      '<span class="equipment-title-row"><b>' + esc(label) + 'スロット</b>' +
+      '<span class="equipment-help">' +
+      '<button class="equipment-help-btn" type="button" aria-describedby="' + tipId + '"' +
+      ' aria-label="' + esc(label) + 'の説明">?</button>' +
+      '<span class="equipment-help-tip" id="' + tipId + '" role="tooltip">' +
+      '<span class="equipment-help-title">' + esc(help.name) + '</span>' +
+      '<span class="equipment-help-body">' + esc(help.body) + '</span>' +
+      '<span class="equipment-help-foot">同じ系統の設備は合算されず、' +
+      '現在装備している一番上のRankの効果に置き換わります。</span>' +
+      '</span></span></span></div>' +
+      '<strong>Rank ' + tier + '</strong></header>';
+  }
+
   /** アプリを表示している間だけ、学習報酬より低い速度で売上を作る設備。 */
   function renderCafeAutomation() {
     var cafe = cafeState();
@@ -831,9 +884,9 @@
     var currentTier = current ? current.tier : 0;
     var affordable = next && next.starReady && cafe.cash >= next.cost;
     var currentHtml = current
-      ? '<span class="equipment-item-icon">' + esc(current.emoji) + '</span><div><small>現在装備 · Rank '
-        + current.tier + '</small><b>' + esc(current.name) + '</b><em>表示中 +'
-        + cafeNumberText(cafe.passiveCashPerMinute) + 'コイン / 分</em></div>'
+      ? '<span class="equipment-item-icon">' + esc(current.emoji) + '</span><div><small>現在装備 · Rank&nbsp;'
+        + current.tier + '</small><b>' + esc(current.name) + '</b><em>'
+        + perMinuteText('+' + cafeNumberText(cafe.passiveCashPerMinute), 'コイン') + '</em></div>'
       : '<span class="equipment-item-icon empty">－</span><div><small>現在装備</small><b>未導入</b>'
         + '<em>自動売上なし</em></div>';
     var nextEstimate = next
@@ -841,14 +894,15 @@
           * next.rateBasisPointsPerMinute / 10000))
       : 0;
     var nextHtml = next
-      ? '<span class="equipment-item-icon">' + esc(next.emoji) + '</span><div><small>次の上位設備 · Rank '
-        + next.tier + '</small><b>' + esc(next.name) + '</b><em>表示中 約 +'
-        + cafeNumberText(nextEstimate) + 'コイン / 分 · ★' + next.requiredStars + '</em></div>'
+      ? '<span class="equipment-item-icon">' + esc(next.emoji) + '</span><div><small>次の上位設備 · Rank&nbsp;'
+        + next.tier + '</small><b>' + esc(next.name) + '</b><em>'
+        + perMinuteText('約 +' + cafeNumberText(nextEstimate), 'コイン')
+        + ' ·&nbsp;★' + next.requiredStars + '</em></div>'
       : '<span class="equipment-item-icon max">★</span><div><small>アップグレード完了</small>'
-        + '<b>最高ランク</b><em>学習1回分の5% / 分</em></div>';
+        + '<b>最高ランク</b><em>' + perMinuteText('学習1回分の5%', '') + '</em></div>';
     var button = next
       ? '<button class="cafe-buy cafe-automation-buy" data-id="' + esc(next.id) + '"'
-        + (!affordable ? ' disabled' : '') + '>Rank ' + next.tier + 'へ · '
+        + (!affordable ? ' disabled' : '') + '>Rank&nbsp;' + next.tier + 'へ · '
         + (next.discounted ? '<s>' + cafeNumberText(next.baseCost) + '</s> ' : '')
         + cafeNumberText(next.cost) + 'コイン</button>'
       : '<button class="cafe-buy cafe-automation-buy" disabled>MAX</button>';
@@ -859,38 +913,11 @@
         : '');
 
     return '<article class="equipment-path effect-automation">' +
-      '<header><div><span class="upgrade-type">自動営業</span><b>自動営業スロット</b></div>' +
-      '<strong>Rank ' + currentTier + '</strong></header>' +
+      equipmentHeadHtml('automation', '自動営業', currentTier) +
       '<div class="equipment-swap"><div class="equipment-current">' + currentHtml + '</div>' +
       '<span class="equipment-arrow" aria-hidden="true">→</span>' +
       '<div class="equipment-next">' + nextHtml + '</div></div>' +
-      '<p class="equipment-automation-note">アプリ表示中だけ稼働し、オフライン売上はありません。'
-        + '次の★を取るまでの自動売上は最大0.5問分なので、問題を解く方が必ず大きく稼げます。</p>' +
       '<div class="equipment-action">' + button + shortage + '</div></article>';
-  }
-
-  /** カフェ固有の用語を、発生するタイミングと効果に分けて説明する。 */
-  function renderCafeEffectHelp() {
-    return '<details class="cafe-effect-help" id="cafeEffectHelp"'
-      + (cafeEffectHelpOpen ? ' open' : '') + '>' +
-      '<summary><span class="cafe-help-mark">?</span><span><b>売上・ボーナスの意味</b>' +
-      '<small>「正解チップ」「章ボーナス」などが分からないとき</small></span></summary>' +
-      '<div class="cafe-help-content">' +
-      '<p><strong>基本の売上</strong>は、問題を初めてクリアして★を取ったときに入ります。' +
-      '以下は、その売上や節目の追加報酬を育てる効果です。</p>' +
-      '<dl>' +
-      '<div><dt>販売戦略・注文売上</dt><dd>問題クリアと章クリアでもらうコインを増やします。</dd></div>' +
-      '<div><dt>抽出力・毎注文</dt><dd>一度の学習で提供する杯数を増やします。杯数が増えるほど売上も増えます。</dd></div>' +
-      '<div><dt>章ボーナス</dt><dd>章の問題をすべてクリアしたときだけ入る、まとめの追加売上を増やします。</dd></div>' +
-      '<div><dt>正解チップ</dt><dd>確認クイズに初めて正解したときの追加コインを増やします。★の判定には影響しません。</dd></div>' +
-      '<div><dt>連続効果</dt><dd>連続して学習した日数に応じて注文売上を増やします。効果は7日分が上限です。</dd></div>' +
-      '<div><dt>自動営業</dt><dd>アプリを表示している間だけ少しずつ売上を作ります。オフラインでは増えません。</dd></div>' +
-      (cafeNetworkUnlocked()
-        ? '<div><dt>店舗・ブランド倍率</dt><dd>店舗は一度の注文数を、ブランド倍率はカフェ報酬全体を増やします。</dd></div>'
-        : '') +
-      '</dl>' +
-      '<p class="cafe-help-foot">同じ系統の設備は合算されず、現在装備している一番上のRankの効果に置き換わります。</p>' +
-      '</div></details>';
   }
 
   function renderCafeShop() {
@@ -937,14 +964,15 @@
       '<span>章ボーナス +' + (cafe.chapterBonusPercent || 0) + '%</span>' +
       '<span>正解チップ +' + (cafe.quizTipPercent || 0) + '%</span>' +
       '<span>連続効果 +' + (cafe.streakBonusPercent || 0) + '%</span>' +
-      '<span>自動 +' + cafeNumberText(cafe.passiveCashPerMinute) + ' / 分</span>' +
+      '<span>' + perMinuteText('自動 +' + cafeNumberText(cafe.passiveCashPerMinute), '') + '</span>' +
       '</div></header>' +
-      '<p class="menu-note cafe-section-note">上位設備を買うと、同じ系統の設備と効果が上位性能へ置き換わります。'
-        + ' 各設備は★に応じて段階解放され、自動営業はアプリ表示中だけゆっくり売上を作ります。'
+      '<p class="menu-note cafe-section-note">売上は、問題を初めてクリアして★を取ったときに入ります。'
+        + '上位設備を買うと、同じ系統の設備と効果が上位性能へ置き換わります。'
+        + ' 各設備は★に応じて段階解放されます。'
+        + 'それぞれの設備が何を増やすのかは、カードの「?」にカーソルを当てると出ます。'
         + ((cafe.items || []).some(function (item) {
           return item.owned && item.effectType === 'equipment_discount';
         }) ? ' マイスター工具箱の20%OFFを適用中です。' : '') + '</p>' +
-      renderCafeEffectHelp() +
       '<div class="equipment-paths">' + trackOrder.map(function (type) {
         var items = upgrades.filter(function (u) { return u.effectType === type; })
           .sort(function (a, b) { return a.tier - b.tier; });
@@ -960,20 +988,20 @@
         var starReady = next && next.starReady;
         var affordable = next && starReady && cafe.cash >= next.cost;
         var currentHtml = current
-          ? '<span class="equipment-item-icon">' + esc(current.emoji) + '</span><div><small>現在装備 · Rank '
+          ? '<span class="equipment-item-icon">' + esc(current.emoji) + '</span><div><small>現在装備 · Rank&nbsp;'
             + current.tier + '</small><b>' + esc(current.name) + '</b><em>'
             + esc(effectText(type, current.effectValue)) + '</em></div>'
           : '<span class="equipment-item-icon empty">－</span><div><small>現在装備</small><b>未導入</b>'
             + '<em>効果なし</em></div>';
         var nextHtml = next
-          ? '<span class="equipment-item-icon">' + esc(next.emoji) + '</span><div><small>次の上位設備 · Rank '
+          ? '<span class="equipment-item-icon">' + esc(next.emoji) + '</span><div><small>次の上位設備 · Rank&nbsp;'
             + next.tier + '</small><b>' + esc(next.name) + '</b><em>'
-            + esc(effectText(type, next.effectValue)) + ' · ★' + next.requiredStars + '</em></div>'
+            + esc(effectText(type, next.effectValue)) + ' ·&nbsp;★' + next.requiredStars + '</em></div>'
           : '<span class="equipment-item-icon max">★</span><div><small>アップグレード完了</small>'
             + '<b>最高ランク</b><em>この系統は完成しました</em></div>';
         var button = next
           ? '<button class="cafe-buy equipment-upgrade-btn" data-id="' + esc(next.id) + '"'
-            + (!affordable ? ' disabled' : '') + '>Rank ' + next.tier + 'へ · '
+            + (!affordable ? ' disabled' : '') + '>Rank&nbsp;' + next.tier + 'へ · '
             + (next.discounted ? '<s>' + cafeNumberText(next.baseCost) + '</s> ' : '')
             + cafeNumberText(next.cost) + 'コイン</button>'
           : '<button class="cafe-buy equipment-upgrade-btn" disabled>MAX</button>';
@@ -984,9 +1012,7 @@
             : '');
 
         return '<article class="equipment-path effect-' + esc(type) + '">' +
-          '<header><div><span class="upgrade-type">' + esc(effectLabel(type)) + '</span>' +
-          '<b>' + esc(effectLabel(type)) + 'スロット</b></div><strong>Rank ' + currentTier
-            + '</strong></header>' +
+          equipmentHeadHtml(type, effectLabel(type), currentTier) +
           '<div class="equipment-swap"><div class="equipment-current">' + currentHtml + '</div>' +
           '<span class="equipment-arrow" aria-hidden="true">→</span>' +
           '<div class="equipment-next">' + nextHtml + '</div></div>' +
