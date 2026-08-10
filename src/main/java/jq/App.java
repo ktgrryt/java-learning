@@ -23,6 +23,8 @@ public final class App {
 
     private static final int DEFAULT_PORT = 8123;
     private static final int PORT_ATTEMPTS = 20;
+    /** リクエスト処理スレッド数。実行の上限（{@link ApiHandler#MAX_CONCURRENT_RUNS}）より十分多くする。 */
+    private static final int THREAD_POOL_SIZE = 16;
 
     public static void main(String[] args) throws IOException {
         Path projectRoot = resolveProjectRoot();
@@ -44,8 +46,13 @@ public final class App {
 
         server.createContext("/api", new ApiHandler(loader, progress));
         server.createContext("/", new StaticHandler(webDir));
-        // 提出1件でケース数だけ子プロセスを起動する。並行実行しても詰まらない程度に確保する
-        server.setExecutor(Executors.newFixedThreadPool(8));
+        // このプールは画面ファイルの配信もコードの実行も一緒に処理する（httpserver は
+        // コンテキストごとにプールを分けられない）。実行は1件で最大5秒×ケース数かかるので、
+        // 実行だけでプールを埋めると画面が丸ごと固まる。そこで
+        //   ・プールは余裕をもって確保する
+        //   ・同時に走らせる実行は ApiHandler 側で数を絞る（MAX_CONCURRENT_RUNS）
+        // の2段構えにして、実行が混み合っていても画面の表示と /api/state は必ず通す。
+        server.setExecutor(Executors.newFixedThreadPool(THREAD_POOL_SIZE));
         server.start();
 
         String url = "http://localhost:" + server.getAddress().getPort();
@@ -61,6 +68,8 @@ public final class App {
 
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
             server.stop(0);
+            // 進捗の書き出しはまとめて遅らせているので、終了前に必ず1回吐き出す
+            progress.flushNow();
             System.out.println("Java Café を終了しました。おつかれさまでした。");
         }));
     }

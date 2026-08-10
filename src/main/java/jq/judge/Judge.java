@@ -15,6 +15,16 @@ import java.util.List;
  */
 public final class Judge {
 
+    /**
+     * 画面に並べる差分の行数の上限。
+     *
+     * 出力は20,000バイトまで受け取るので、ループの中の println が暴走すると
+     * 数千行になる。全部返すと応答が膨らみ、1行1行が表の行になってブラウザも重くなる。
+     * ずれの原因は先頭の数十行を見れば分かるので、そこで打ち切って
+     * 「まだ続きがある」ことを画面に伝える（{@link CaseResult#diffTruncated()}）。
+     */
+    private static final int MAX_DIFF_LINES = 200;
+
     private Judge() {
     }
 
@@ -23,7 +33,11 @@ public final class Judge {
         String actual = normalize(run.stdout());
 
         boolean pass = !run.timedOut() && !run.crashed() && expected.equals(actual);
-        List<CaseResult.DiffLine> diff = pass ? List.of() : diff(expected, actual);
+        List<CaseResult.DiffLine> allDiff = pass ? List.of() : diff(expected, actual);
+        boolean diffTruncated = allDiff.size() > MAX_DIFF_LINES;
+        List<CaseResult.DiffLine> diff = diffTruncated
+                ? List.copyOf(allDiff.subList(0, MAX_DIFF_LINES))
+                : allDiff;
 
         String hint;
         if (run.timedOut()) {
@@ -41,6 +55,7 @@ public final class Judge {
                 expected,
                 actual,
                 diff,
+                diffTruncated,
                 run.stderr(),
                 hint,
                 run.timedOut());

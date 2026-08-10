@@ -5,7 +5,6 @@ import jq.content.SourceCheck;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 /** 学習対象の構文がソース中にあるかを、コメントやリテラルを除外して検査する。 */
 public final class SourceChecker {
@@ -20,8 +19,8 @@ public final class SourceChecker {
         String code = codeOnly(source);
         List<String> failures = new ArrayList<>();
         for (SourceCheck check : checks) {
-            Pattern pattern = Pattern.compile(check.pattern(), Pattern.MULTILINE | Pattern.DOTALL);
-            Matcher matcher = pattern.matcher(code);
+            // 正規表現はコンテンツ読み込み時にコンパイル済み（SourceCheck.of）
+            Matcher matcher = check.pattern().matcher(code);
             int count = 0;
             while (matcher.find()) {
                 count++;

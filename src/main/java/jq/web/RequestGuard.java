@@ -28,6 +28,8 @@ import java.util.Locale;
  * どちらも {@code Host} と {@code Origin} で見分けられる。この2つはブラウザが必ず
  * 自分で付けるヘッダで、ページ側のJavaScriptからは書き換えられないため、
  * 「このアプリの画面から来たか」の判断材料になる。
+ * 加えて {@code Sec-Fetch-Site} も見て、Origin が付かない要求でも別サイト由来なら
+ * 断れるようにしている（{@link #isAllowedFetchSite}）。
  */
 final class RequestGuard {
 
@@ -46,6 +48,12 @@ final class RequestGuard {
         // その名前を 127.0.0.1 に向けた誰かがいる（DNSリバインディング）
         Authority host = parseHostHeader(headers.getFirst("Host"));
         if (host == null || !isLoopbackName(host.name())) {
+            return false;
+        }
+
+        // Origin と同じくブラウザが自分で付けるヘッダ。Origin が付かない要求でも
+        // 「別サイト由来か」だけは分かるので、下の Origin 判定の二重化として先に見る。
+        if (!isAllowedFetchSite(headers)) {
             return false;
         }
 
@@ -74,6 +82,37 @@ final class RequestGuard {
 
     /** ホスト名とポートの組。ポートが省略されていたら 80 として扱う。 */
     private record Authority(String name, int port) {
+    }
+
+    /**
+     * {@code Sec-Fetch-Site} から見て、通してよい相手か。
+     *
+     * <p>下の Origin 判定は「ブラウザはGET以外に必ず Origin を付ける」という前提に
+     * 寄りかかっている。前提が崩れた相手（Origin を付けない古い実装や将来の変更）には
+     * フェイルオープンするので、別サイト由来だと分かる手がかりをもう1つ見ておく。</p>
+     *
+     * <p>値の意味は次の通り。{@code same-origin} はこの画面の中から出た要求、
+     * {@code none} はアドレス欄への入力・ブックマーク・{@code open} コマンドのような
+     * 利用者自身が始めた移動。どちらも正当なので通す。</p>
+     *
+     * <p>{@code cross-site} / {@code same-site}（同じ localhost の別ポートはこれ）は
+     * 別サイト由来なので原則断るが、<b>画面そのものを開くための移動だけは通す</b>。
+     * 他のサイトに置かれたリンクから {@code http://localhost:8123/} を開く使い方があり、
+     * これは単にこのアプリが開くだけで害がない（開いた先のJSは同一生成元になるが、
+     * それは自分の画面のJSであってリンク元のページのものではない）。
+     * 一方 iframe への埋め込みは {@code Sec-Fetch-Dest: iframe} で来るのでここで断る。</p>
+     */
+    private static boolean isAllowedFetchSite(Headers headers) {
+        String site = headers.getFirst("Sec-Fetch-Site");
+        if (site == null) {
+            return true;   // curl などブラウザ以外。ブラウザは必ず付ける
+        }
+        String value = site.trim().toLowerCase(Locale.ROOT);
+        if (value.equals("same-origin") || value.equals("none")) {
+            return true;
+        }
+        return "navigate".equalsIgnoreCase(headers.getFirst("Sec-Fetch-Mode"))
+                && "document".equalsIgnoreCase(headers.getFirst("Sec-Fetch-Dest"));
     }
 
     /** 弾いた理由をコンソールに出す。SSHトンネル経由などで戸惑ったときの手がかり。 */

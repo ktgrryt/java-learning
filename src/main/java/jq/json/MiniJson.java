@@ -13,6 +13,21 @@ import java.util.Map;
  */
 public final class MiniJson {
 
+    /**
+     * 入れ子の深さの上限。
+     *
+     * 配列とオブジェクトは相互再帰で読むので、深く入れ子になった入力は
+     * そのままスタックを食い尽くす（{@code [[[[…]]]]} を数万段送るだけで
+     * StackOverflowError になる）。{@code Error} は {@code RuntimeException} を
+     * 捕まえている側では受け止められず、リクエストは応答なしで切れ、
+     * 進捗ファイルの読み込みでは「壊れていたら退避して作り直す」復旧も働かない。
+     * 深さで先に断ればどちらも普通のエラーとして扱える。
+     *
+     * このアプリが実際に扱うJSON（コンテンツファイル・APIのやり取り）は
+     * 10段も使わないので、64もあれば正当な入力を弾く心配はない。
+     */
+    private static final int MAX_DEPTH = 64;
+
     private MiniJson() {
     }
 
@@ -41,6 +56,8 @@ public final class MiniJson {
     private static final class Parser {
         private final String src;
         private int pos;
+        /** いま何段の入れ子の中にいるか。{@link #MAX_DEPTH} を超えたら読むのをやめる。 */
+        private int depth;
 
         Parser(String src) {
             this.src = src;
@@ -84,11 +101,13 @@ public final class MiniJson {
         }
 
         Map<String, Object> readObject() {
+            enter();
             Map<String, Object> map = new LinkedHashMap<>();
             pos++; // '{'
             skipWs();
             if (peek() == '}') {
                 pos++;
+                depth--;
                 return map;
             }
             while (true) {
@@ -110,6 +129,7 @@ public final class MiniJson {
                     pos++;
                 } else if (c == '}') {
                     pos++;
+                    depth--;
                     return map;
                 } else {
                     throw new JsonException("オブジェクト内で , か } を期待しました (位置 " + pos + ")");
@@ -118,11 +138,13 @@ public final class MiniJson {
         }
 
         List<Object> readArray() {
+            enter();
             List<Object> list = new ArrayList<>();
             pos++; // '['
             skipWs();
             if (peek() == ']') {
                 pos++;
+                depth--;
                 return list;
             }
             while (true) {
@@ -134,6 +156,7 @@ public final class MiniJson {
                     pos++;
                 } else if (c == ']') {
                     pos++;
+                    depth--;
                     return list;
                 } else {
                     throw new JsonException("配列内で , か ] を期待しました (位置 " + pos + ")");
@@ -193,6 +216,19 @@ public final class MiniJson {
                 return Double.valueOf(token);
             } catch (NumberFormatException e) {
                 throw new JsonException("数値として読めません: \"" + token + "\"");
+            }
+        }
+
+        /**
+         * 入れ子へ1段入る。深すぎる入力はここで断る。
+         *
+         * 抜けるときの {@code depth--} は、配列・オブジェクトを読み終えて return する
+         * 直前に置いてある。例外で抜けるときは復元しないが、そのパーサはもう使わないので
+         * 問題にならない（try/finally を挟むより読みやすさを取った）。
+         */
+        void enter() {
+            if (++depth > MAX_DEPTH) {
+                throw new JsonException("入れ子が深すぎます（上限 " + MAX_DEPTH + " 段, 位置 " + pos + "）");
             }
         }
 

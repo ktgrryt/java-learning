@@ -14,6 +14,7 @@ import java.util.Map;
  * @param expected  期待した出力
  * @param actual    実際の出力
  * @param diff      不一致の行（合格時は空リスト）
+ * @param diffTruncated 差分が長すぎて途中で打ち切ったか
  * @param stderr    実行時エラーの内容（無ければ空文字）
  * @param hint      実行時エラーへの日本語ヒント（無ければ空文字）
  * @param timedOut  実行時間の上限を超えたか
@@ -26,6 +27,7 @@ public record CaseResult(
         String expected,
         String actual,
         List<DiffLine> diff,
+        boolean diffTruncated,
         String stderr,
         String hint,
         boolean timedOut) {
@@ -59,6 +61,7 @@ public record CaseResult(
         m.put("actual", actual);
         List<Object> diffJson = diff.stream().map(DiffLine::toJson).map(Object.class::cast).toList();
         m.put("diff", diffJson);
+        m.put("diffTruncated", diffTruncated);
         m.put("stderr", stderr);
         m.put("hint", hint);
         m.put("timedOut", timedOut);

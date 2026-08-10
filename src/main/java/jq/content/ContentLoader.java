@@ -265,7 +265,7 @@ public final class ContentLoader {
         List<SourceCheck> sourceChecks = new ArrayList<>();
         for (Object o : MiniJson.list(raw, "sourceChecks")) {
             Map<String, Object> check = MiniJson.asObj(o);
-            sourceChecks.add(new SourceCheck(
+            sourceChecks.add(SourceCheck.of(
                     MiniJson.requireStr(check, "pattern"),
                     MiniJson.intOf(check, "minimum", 1),
                     MiniJson.intOf(check, "maximum", -1),

@@ -35,6 +35,13 @@
   var cafeItemsSeenBusy = false;
   var CAFE_PASSIVE_INTERVAL_MS = 2500;
 
+  // 店舗シーンのSVGを載せる要素。カフェ画面を描き直すたびに作り直すのではなく、
+  // 一度作ったものを使い回して新しい置き場所へ移し替える。
+  // 設備を1つ買うたびに絵が作り直されると、湯気や電飾のアニメーションが
+  // そのたびに頭へ戻ってしまい、画面がちらついて見えるため。
+  var cafeSceneNode = null;
+  var pendingCafeScene = null;
+
   // ---------------------------------------------------------------- 通信
 
   function api(path, payload) {
@@ -526,8 +533,29 @@
         next.focus();
       });
     });
+    mountCafeScene();
     if (activeCafeSection === 'items') { acknowledgeCafeItems(); }
     main.scrollTop = previousScroll;
+  }
+
+  /**
+   * 店舗シーンを置き場所へ移し、必要なら描き直す。
+   * すでにDOMにある要素を insertBefore すると「移動」になるので、
+   * 絵とアニメーションは切れずにそのまま新しい親へ移る。
+   */
+  function mountCafeScene() {
+    var slot = document.getElementById('cafeSceneSlot');
+    if (!slot || !pendingCafeScene) { return; }
+
+    if (!cafeSceneNode) {
+      cafeSceneNode = document.createElement('div');
+      cafeSceneNode.className = 'cafe-scene';
+      cafeSceneNode.setAttribute('role', 'img');
+    }
+    // 導入設備の帯より下に入れる（絵に覆われないように）
+    slot.insertBefore(cafeSceneNode, slot.firstChild);
+    cafeSceneNode.setAttribute('aria-label', pendingCafeScene.label);
+    CafeScene.render(cafeSceneNode, pendingCafeScene);
   }
 
   function selectCafeSection(section) {
@@ -618,12 +646,8 @@
       : owned.length >= 9 ? 3
       : owned.length >= 4 ? 2
       : owned.length >= 1 ? 1 : 0;
-    // Lv.8以降もLv.7の完成した建物構造を土台に、era classで色と演出を変える。
-    var visualLevel = Math.min(level.level, 7);
-    var visualFurnishing = Math.min(furnishing, 5);
-    var ownedClasses = equippedIds.map(function (id) {
-      return 'cafe-has-' + String(id).replace(/[^a-z0-9_-]/gi, '');
-    }).join(' ');
+    // Lv.8以降もLv.7の完成した建物を土台に、配色と終盤演出だけを変える。
+    var structure = Math.min(level.level, CafeScene.maxStructure);
     var levelPct = level.next
       ? Math.round((stars - level.threshold) / (level.next - level.threshold) * 100)
       : 100;
@@ -647,50 +671,23 @@
       : '店構えは最高ランクです。次は店舗網を広げましょう';
     var orderMetricLabel = stars >= Number(state.totalTasks || 0) ? '最高注文' : '次の注文';
 
+    // 絵そのものは cafe-scene.js が1枚のSVGとして描く。ここでは置き場所だけ用意して、
+    // 描画は mountCafeScene() が担当する（毎回作り直すとアニメーションが頭に戻るため）。
+    pendingCafeScene = {
+      level: level.level,
+      structure: structure,
+      interior: furnishing,
+      storeCount: cafe.storeCount || 1,
+      equippedIds: equippedIds,
+      // setAttribute で渡すので、ここはHTMLエスケープしない（するとそのまま読まれる）
+      label: '現在のJava Café。' + level.title + '（店構えLv.' + level.level
+        + '・内装' + furnishing + '）。装備中の設備' + equippedUpgrades.length + '点'
+    };
+
     return '' +
       '<section class="menu-hero cafe-hero">' +
-      '  <div class="cafe-scene cafe-level-' + visualLevel + ' cafe-era-' + level.level
-             + ' cafe-furnish-' + visualFurnishing + ' cafe-interior-' + furnishing
-             + ' ' + ownedClasses + '" aria-label="現在のJava Café。装備中の設備'
-             + equippedUpgrades.length + '点">' +
-      '    <div class="cafe-sky" aria-hidden="true">' +
-      '      <span class="cafe-sun"></span><i></i><i></i><i></i>' +
-      '      <span class="cafe-plane">✈</span><span class="cafe-fireworks">✦</span>' +
-      '    </div>' +
-      '    <div class="cafe-skyline" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i></div>' +
-      '    <div class="cafe-festoon" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>' +
-      '    <div class="cafe-tree cafe-tree-left" aria-hidden="true"><i></i></div>' +
-      '    <div class="cafe-tree cafe-tree-right" aria-hidden="true"><i></i></div>' +
-      '    <div class="cafe-building">' +
-      '      <div class="cafe-roof"><i class="cafe-chimney"></i><i class="cafe-roof-mark">☕</i></div>' +
-      '      <div class="cafe-upper-floor"><i></i><i></i><i></i></div>' +
-      '      <div class="cafe-sign"><span>☕</span><b>JAVA CAFÉ</b><small>COFFEE &amp; CODE</small></div>' +
-      '      <div class="cafe-awning"><i></i></div>' +
-      '      <div class="cafe-wall-lamp lamp-left"></div><div class="cafe-wall-lamp lamp-right"></div>' +
-      '      <div class="cafe-window cafe-window-main">' +
-      '        <div class="cafe-window-shine"></div>' +
-      '        <div class="cafe-pendants"><i></i><i></i></div>' +
-      '        <div class="cafe-shelf"><i></i><i></i><i></i></div>' +
-      '        <span class="cafe-barista">🧑‍💻</span>' +
-      '        <div class="cafe-machine"><i></i><b>JAVA</b><span>☕</span></div>' +
-      '        <div class="cafe-showcase"><i>●</i><i>●</i><i>●</i></div>' +
-      '        <div class="cafe-counter"></div>' +
-      '      </div>' +
-      '      <div class="cafe-window cafe-window-lounge"><div class="cafe-lounge-light"></div>' +
-      '        <div class="cafe-art">&lt;/&gt;</div><div class="cafe-sofa"></div><div class="cafe-lounge-table">☕</div>' +
-      '      </div>' +
-      '      <div class="cafe-door"><span>OPEN</span><i></i></div>' +
-      '      <div class="cafe-planter planter-left">✦</div><div class="cafe-planter planter-right">✦</div>' +
-      '    </div>' +
-      '    <div class="cafe-menu-board" aria-hidden="true"><b>TODAY</b><i></i><i></i><small>Java Blend</small></div>' +
-      '    <div class="cafe-welcome-mat" aria-hidden="true">WELCOME</div>' +
-      '    <div class="cafe-patio" aria-hidden="true"><div class="cafe-parasol"></div>' +
-      '      <i class="cafe-chair chair-left"></i><span class="cafe-table">☕</span><i class="cafe-chair chair-right"></i>' +
-      '    </div>' +
-      '    <div class="cafe-delivery" aria-hidden="true">▣<i></i><i></i></div>' +
-      '    <div class="cafe-rope" aria-hidden="true"><i></i><span></span><i></i></div>' +
-      '    <div class="cafe-customers" aria-hidden="true"><span>🚶</span><span>🚶‍♀️</span><span>🚴</span></div>' +
-      (equipment ? '    <div class="cafe-equipment"><small>導入設備</small>' + equipment + '</div>' : '') +
+      '  <div class="cafe-scene-slot" id="cafeSceneSlot">' +
+      (equipment ? '<div class="cafe-equipment"><small>導入設備</small>' + equipment + '</div>' : '') +
       '  </div>' +
       '  <div class="hero-body">' +
       '    <div class="cafe-level-label">SHOP Lv.' + level.level + ' · INTERIOR ' + furnishing + '</div>' +
@@ -731,16 +728,6 @@
     var expansionDiscount = (cafe.items || []).some(function (item) {
       return item.owned && item.effectType === 'expansion_discount';
     });
-    var visibleStores = Math.min(storeCount, 18);
-    var branches = '';
-    for (var i = 0; i < visibleStores; i++) {
-      branches += '<span class="cafe-branch' + (i === 0 ? ' flagship' : '')
-        + '" title="' + (i === 0 ? '本店' : (i + 1) + '号店') + '">☕</span>';
-    }
-    if (storeCount > visibleStores) {
-      branches += '<span class="cafe-branch-more">+' + numberText(storeCount - visibleStores) + '</span>';
-    }
-
     var maximum = storeCount >= (cafe.maxStores || 512);
     var progressLocked = !maximum && cafe.expansionCost == null;
     var canExpand = !maximum && !progressLocked;
@@ -777,11 +764,21 @@
           + cafeNumberText(cafe.expansionCost - cafe.cash) + 'コインで出店できます</small>'
         : '') +
       '</div>' +
-      '<div class="cafe-network" aria-label="営業中の店舗 ' + numberText(storeCount) + '店">' +
-      '<div class="cafe-network-lines" aria-hidden="true"></div>' +
-      '<div class="cafe-branches">' + branches + '</div>' +
+      '<div class="cafe-network">' +
+      // role="img" は地図だけに付ける。カードごとに付けると、
+      // 下の見出しと説明文が「画像の一部」として読み上げから外れてしまう
+      '<div class="cafe-network-map" role="img" aria-label="営業中の店舗 '
+        + numberText(storeCount) + '店">' +
+      CafeScene.networkMap({
+        storeCount: storeCount,
+        locked: progressLocked,
+        maximum: maximum
+      }) +
+      '</div>' +
+      '<div class="cafe-network-caption">' +
       '<b>' + (maximum ? 'WORLDWIDE NETWORK' : (progressLocked ? 'NEXT AREA LOCKED' : 'JAVA CAFÉ NETWORK')) + '</b>' +
       '<small>' + (progressLocked ? '問題を解くと次の地域へ出店できます' : '1 → 2 → 3 → 5 → 8… と出店規模も加速') + '</small>' +
+      '</div>' +
       '</div>' +
       '</div></section>';
   }
@@ -1903,10 +1900,17 @@
       ? '<div class="diff-input">入力: <code>' + esc(c.stdin).replace(/\n/g, '␤') + '</code></div>'
       : '';
 
+    // 出力が長すぎるときはサーバ側で行を切っている。黙って隠すと
+    // 「ここから先は合っている」と誤解させるので、切ったことを書いておく
+    var truncatedNote = c.diffTruncated
+      ? '<div class="out-note">差分が長いため最初の' + c.diff.length
+        + '行だけを表示しています。まずはこの範囲を直してみましょう。</div>'
+      : '';
+
     return inputRow +
       '<table class="diff-table">' +
       '<thead><tr><th></th><th>期待する出力</th><th>あなたの出力</th></tr></thead>' +
-      '<tbody>' + rows + '</tbody></table>';
+      '<tbody>' + rows + '</tbody></table>' + truncatedNote;
   }
 
   function showError(e, taskId) {

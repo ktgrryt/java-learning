@@ -29,7 +29,10 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.Semaphore;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Supplier;
 
 /**
  * /api/* のリクエストを処理する。
@@ -54,10 +57,26 @@ public final class ApiHandler implements HttpHandler {
 
     private static final int MAX_BODY_BYTES = 200_000;
 
+    /**
+     * 同時に走らせるコード実行の数。
+     *
+     * 実行は1件でも最大5秒×ケース数のあいだリクエスト処理スレッドを占有する。
+     * 数を絞らないと、タブを何枚か開いて提出しただけで全スレッドが実行で埋まり、
+     * 画面ファイルの配信まで待たされてアプリが固まったように見える。
+     * 普通の使い方（1タブで1問ずつ）なら1〜2件しか同時に走らないので、
+     * 4件あれば足りる。
+     */
+    static final int MAX_CONCURRENT_RUNS = 4;
+
+    /** 実行スロットが空くのを待つ上限。これを過ぎたら混雑として断る。 */
+    private static final long RUN_SLOT_WAIT_MS = 2_000;
+
     private final ContentLoader loader;
     private final ProgressStore progress;
     private final JavaRunner runner = new JavaRunner();
     private final AtomicReference<Curriculum> curriculum = new AtomicReference<>();
+    /** 先に待った人から順に通す（fair）。混んでいるときに特定の提出だけ待たされ続けないように。 */
+    private final Semaphore runSlots = new Semaphore(MAX_CONCURRENT_RUNS, true);
 
     public ApiHandler(ContentLoader loader, ProgressStore progress) {
         this.loader = loader;
@@ -92,8 +111,9 @@ public final class ApiHandler implements HttpHandler {
 
             Map<String, Object> body = readJsonBody(exchange);
             switch (path) {
-                case "/api/run" -> sendJson(exchange, 200, doRun(body));
-                case "/api/submit" -> sendJson(exchange, 200, doSubmit(body));
+                // この2つだけが子プロセスを起こす。他の口を待たせないよう数を絞る
+                case "/api/run" -> sendJson(exchange, 200, inRunSlot(() -> doRun(body)));
+                case "/api/submit" -> sendJson(exchange, 200, inRunSlot(() -> doSubmit(body)));
                 case "/api/save" -> sendJson(exchange, 200, doSave(body));
                 case "/api/hint" -> sendJson(exchange, 200, doHint(body));
                 case "/api/quiz" -> sendJson(exchange, 200, doQuiz(body));
@@ -115,6 +135,8 @@ public final class ApiHandler implements HttpHandler {
             }
         } catch (BadRequest e) {
             sendError(exchange, 400, e.getMessage());
+        } catch (Busy e) {
+            sendError(exchange, 503, e.getMessage());
         } catch (RuntimeException e) {
             e.printStackTrace();
             sendError(exchange, 500, "サーバ内部でエラーが起きました: " + e);
@@ -778,11 +800,45 @@ public final class ApiHandler implements HttpHandler {
         sendJson(exchange, status, Map.of("error", message));
     }
 
+    /**
+     * コード実行のスロットを1つ確保してから実行する。
+     *
+     * 空くまで少しだけ待ち、それでも空かなければ 503 で断る。ここで無制限に待つと
+     * 待っているリクエストがスレッドを抱えたままになり、絞った意味がなくなる。
+     */
+    private <T> T inRunSlot(Supplier<T> work) {
+        boolean acquired;
+        try {
+            acquired = runSlots.tryAcquire(RUN_SLOT_WAIT_MS, TimeUnit.MILLISECONDS);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new Busy("実行を中断しました。もう一度試してください。");
+        }
+        if (!acquired) {
+            throw new Busy("いま別のコードの実行で混み合っています（同時に実行できるのは "
+                    + MAX_CONCURRENT_RUNS + " 件までです）。少し待ってからもう一度試してください。");
+        }
+        try {
+            return work.get();
+        } finally {
+            runSlots.release();
+        }
+    }
+
     /** クライアント側の入力が不正なときに投げる。 */
     private static final class BadRequest extends RuntimeException {
         private static final long serialVersionUID = 1L;
 
         BadRequest(String message) {
+            super(message);
+        }
+    }
+
+    /** 実行が混み合っていて受けられないときに投げる。 */
+    private static final class Busy extends RuntimeException {
+        private static final long serialVersionUID = 1L;
+
+        Busy(String message) {
             super(message);
         }
     }

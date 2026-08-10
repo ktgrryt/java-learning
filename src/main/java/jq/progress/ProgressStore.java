@@ -5,6 +5,7 @@ import jq.json.MiniJson;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
@@ -17,6 +18,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 
 /**
  * 学習の進捗を progress.json に保存する。
@@ -33,6 +37,11 @@ import java.util.TreeSet;
  * クイズだけはレッスン単位なので {@code レッスンID#クイズ番号} を別のマップに持つ。
  *
  * サーバは複数リクエストを並行に処理するので、状態変更は全て synchronized で守る。
+ *
+ * 保存はファイル全体の書き直しになるため、変更のたびには書かない。
+ * {@link #saveSoon()}（★や購入など）と {@link #saveEventually()}（自動売上のtick）で
+ * 溜めて、{@link #flushNow()} がまとめて1回書く。終了時は {@code jq.App} の
+ * シャットダウンフックが最後に {@link #flushNow()} を呼ぶ。
  */
 public final class ProgressStore {
 
@@ -57,7 +66,42 @@ public final class ProgressStore {
     /** ブラウザのタイマー停止を「放置中の売上」として誤加算しないための1回あたり上限。 */
     private static final long MAX_PASSIVE_TICK_MILLIS = 10_000L;
 
+    /**
+     * ★の獲得や購入のような「失うと痛い変更」を書き出すまでの待ち時間。
+     *
+     * 保存はファイル全体の書き直しなので、変更のたびに書くと自動保存（打鍵0.8秒後）が
+     * そのままディスク書き込みになる。少しだけ待ってまとめると、続けて起きる変更が
+     * 1回の書き込みに畳まれる。
+     */
+    private static final long SAVE_DELAY_MS = 1_000L;
+
+    /**
+     * {@link #saveEventually()} で溜めた変更を書き出す間隔。
+     *
+     * 自動売上のtickは2.5秒ごとに届く（{@code web/app.js} の CAFE_PASSIVE_INTERVAL_MS）。
+     * これを毎回ディスクに書くと、アプリを開いているだけでファイル全体の書き直しが
+     * 延々と続く。tickぶんの売上は次のtickで作り直せる程度のものなので、
+     * この間隔でまとめて書けば十分（最悪でもこの秒数ぶんの自動売上しか失われない）。
+     */
+    private static final long TRICKLE_SAVE_INTERVAL_SEC = 30L;
+
     private final Path file;
+
+    /** 書き込みを直列化する錠。{@code this} より外側で取る（取る順序を逆にしないこと）。 */
+    private final Object writeLock = new Object();
+
+    /** ディスクに書けていない変更があるか。 */
+    private boolean dirty;
+
+    /** {@link #SAVE_DELAY_MS} 後の書き出しを予約済みか。二重に予約しないための印。 */
+    private boolean saveScheduled;
+
+    /** 遅延書き出し用。1本のデーモンスレッドなので、書き出しが交錯しない。 */
+    private final ScheduledExecutorService saver = Executors.newSingleThreadScheduledExecutor(r -> {
+        Thread t = new Thread(r, "jq-progress-save");
+        t.setDaemon(true);
+        return t;
+    });
 
     /** 問題キー -> クリア情報 */
     private final Map<String, Cleared> cleared = new LinkedHashMap<>();
@@ -409,6 +453,9 @@ public final class ProgressStore {
     public ProgressStore(Path file) {
         this.file = file;
         load();
+        // saveEventually() で溜まったぶんを定期的に書き出す。変更が無い回は何もしない
+        saver.scheduleWithFixedDelay(this::flushNow,
+                TRICKLE_SAVE_INTERVAL_SEC, TRICKLE_SAVE_INTERVAL_SEC, TimeUnit.SECONDS);
     }
 
     // ------------------------------------------------------------------ read
@@ -684,7 +731,7 @@ public final class ProgressStore {
         cafeCash -= cost;
         cafeUpgrades.add(id);
         resetCafePassiveClock();
-        persist();
+        saveSoon();
         return new PurchaseResult(true, null, upgrade, equipped);
     }
 
@@ -720,7 +767,7 @@ public final class ProgressStore {
         cafeCash -= cost;
         cafeAutomationUpgrades.add(id);
         resetCafePassiveClock();
-        persist();
+        saveSoon();
         return new AutomationPurchaseResult(true, null, automation, equipped);
     }
 
@@ -758,7 +805,9 @@ public final class ProgressStore {
             cafeCash = saturatedAdd(cafeCash, earned);
             cafeLifetimeCash = saturatedAdd(cafeLifetimeCash, earned);
             cafePassiveCashSinceTask = saturatedAdd(cafePassiveCashSinceTask, earned);
-            persist();
+            // ここは2.5秒ごとに来る。毎回書くとファイル全体の書き直しが延々と続くので、
+            // 定期便に任せる（★や購入と違い、失っても次のtickで取り戻せる額）
+            saveEventually();
         }
         return new PassiveSalesResult(earned, ratePerMinute, true);
     }
@@ -796,7 +845,7 @@ public final class ProgressStore {
         cafeCash -= item.cost();
         cafeItems.add(id);
         resetCafePassiveClock();
-        persist();
+        saveSoon();
         return new ItemPurchaseResult(true, null, item);
     }
 
@@ -810,7 +859,7 @@ public final class ProgressStore {
             }
         }
         if (changed) {
-            persist();
+            saveSoon();
         }
     }
 
@@ -838,7 +887,7 @@ public final class ProgressStore {
         cafeCash -= cost;
         cafeStores += addedStores;
         resetCafePassiveClock();
-        persist();
+        saveSoon();
         return new ExpansionResult(true, null, previousStores, addedStores, cafeStores, cost);
     }
 
@@ -910,7 +959,7 @@ public final class ProgressStore {
         cafeCash = saturatedAdd(cafeCash, rewardedCash);
         cafeLifetimeCash = saturatedAdd(cafeLifetimeCash, rewardedCash);
         cafeCups = saturatedAdd(cafeCups, cups);
-        persist();
+        saveSoon();
         return new CafeAward(rewardedCash, cups, List.copyOf(itemEvents));
     }
 
@@ -1186,12 +1235,12 @@ public final class ProgressStore {
             return;
         }
         codes.put(taskKey, code);
-        persist();
+        saveSoon();
     }
 
     public synchronized int recordAttempt(String taskKey) {
         int n = attempts.merge(taskKey, 1, Integer::sum);
-        persist();
+        saveSoon();
         return n;
     }
 
@@ -1203,7 +1252,7 @@ public final class ProgressStore {
      */
     public synchronized void recordPassed(String taskKey, int passed) {
         bestPassed.merge(taskKey, passed, Math::max);
-        persist();
+        saveSoon();
     }
 
     /**
@@ -1221,7 +1270,7 @@ public final class ProgressStore {
                     attempts.getOrDefault(taskKey, 1)));
         }
         clearDates.add(today);
-        persist();
+        saveSoon();
         return isNew;
     }
 
@@ -1230,14 +1279,14 @@ public final class ProgressStore {
         int current = hintsRevealed.getOrDefault(taskKey, 0);
         int next = Math.max(current, index + 1);
         hintsRevealed.put(taskKey, next);
-        persist();
+        saveSoon();
         return next;
     }
 
     /** クイズの回答を記録する（答え直したら上書きする）。 */
     public synchronized void recordQuiz(String lessonId, int index, int choice) {
         quizChoices.put(quizKey(lessonId, index), choice);
-        persist();
+        saveSoon();
     }
 
     /** 進捗を全て消す。 */
@@ -1265,7 +1314,7 @@ public final class ProgressStore {
         cafePassiveSessionId = null;
         cafePassiveLastTickNanos = 0;
         cafePassiveRemainder = 0;
-        persist();
+        saveSoon();
     }
 
     private static String quizKey(String lessonId, int index) {
@@ -1400,7 +1449,7 @@ public final class ProgressStore {
                 Files.move(file, file.resolveSibling(file.getFileName() + ".broken"),
                         StandardCopyOption.REPLACE_EXISTING);
             } catch (IOException ignored) {
-                // 退避に失敗しても、以降の persist() で上書きされる
+                // 退避に失敗しても、以降の書き出しで上書きされる
             }
             cleared.clear();
             codes.clear();
@@ -1428,14 +1477,87 @@ public final class ProgressStore {
         }
     }
 
-    /** 一時ファイルへ書いてから置き換える（書き込み中に落ちても壊れないように）。 */
-    private void persist() {
+    /**
+     * 変更を記録し、少し待ってから書き出すよう予約する。
+     *
+     * 状態を変える synchronized メソッドの最後で呼ぶ（{@code dirty} と
+     * {@code saveScheduled} は {@code this} の保護下で触る前提）。
+     * ここから {@link #flushNow()} を直接呼んではいけない ―
+     * {@code this} を持ったまま {@code writeLock} を取りに行くことになり、
+     * 錠の順序が逆になる。
+     */
+    private void saveSoon() {
+        dirty = true;
+        if (!saveScheduled) {
+            saveScheduled = true;
+            saver.schedule(this::flushFromTimer, SAVE_DELAY_MS, TimeUnit.MILLISECONDS);
+        }
+    }
+
+    /**
+     * 変更を記録するが、書き出しは定期便に任せる。
+     *
+     * 自動売上のように「短い間隔で何度も起き、失っても次の機会に作り直せる」変更用。
+     * {@link #TRICKLE_SAVE_INTERVAL_SEC} ごとの書き出しか、次に
+     * {@link #saveSoon()} が呼ばれたときに、まとめてディスクへ載る。
+     */
+    private void saveEventually() {
+        dirty = true;
+    }
+
+    private void flushFromTimer() {
+        synchronized (this) {
+            // 先に下ろす。書き出している間に起きた変更を取りこぼさない
+            saveScheduled = false;
+        }
+        flushNow();
+    }
+
+    /**
+     * 溜まっている変更を今すぐ書き出す。変更が無ければ何もしない。
+     *
+     * 一時ファイルへ書いてから置き換えるので、書き込み中に落ちても
+     * 進捗ファイルが半端な状態にはならない。
+     *
+     * <p>ディスクを待つのは {@code this} の外（{@code writeLock} の中）で行う。
+     * 進捗ファイルが大きくなっても、書き込みのあいだ他のリクエストを止めない。
+     * 状態の写し取りも {@code writeLock} の中でやるので、写した順と書いた順が
+     * 入れ替わって古い内容を残すことはない。</p>
+     */
+    public void flushNow() {
+        synchronized (writeLock) {
+            String json;
+            synchronized (this) {
+                if (!dirty) {
+                    return;
+                }
+                dirty = false;
+                json = MiniJson.write(toJsonRaw());
+            }
+            try {
+                Path tmp = file.resolveSibling(file.getFileName() + ".tmp");
+                Files.writeString(tmp, json, StandardCharsets.UTF_8);
+                replace(tmp, file);
+            } catch (IOException e) {
+                System.err.println("進捗を保存できませんでした: " + e.getMessage());
+                synchronized (this) {
+                    dirty = true;   // 次の機会に書き直す
+                }
+            }
+        }
+    }
+
+    /**
+     * 一時ファイルを本体へ差し替える。
+     *
+     * 差し替えの途中で落ちても壊れないように、まず不可分な移動を試す。
+     * 対応していないファイルシステムでは通常の上書きに落とす。
+     */
+    private static void replace(Path tmp, Path target) throws IOException {
         try {
-            Path tmp = file.resolveSibling(file.getFileName() + ".tmp");
-            Files.writeString(tmp, MiniJson.write(toJsonRaw()), StandardCharsets.UTF_8);
-            Files.move(tmp, file, StandardCopyOption.REPLACE_EXISTING);
-        } catch (IOException e) {
-            System.err.println("進捗を保存できませんでした: " + e.getMessage());
+            Files.move(tmp, target, StandardCopyOption.ATOMIC_MOVE);
+        } catch (AtomicMoveNotSupportedException | UnsupportedOperationException e) {
+            Files.move(tmp, target, StandardCopyOption.REPLACE_EXISTING);
         }
     }
 
