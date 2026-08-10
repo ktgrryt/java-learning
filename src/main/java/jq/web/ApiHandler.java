@@ -429,7 +429,10 @@ public final class ApiHandler implements HttpHandler {
                         && c.isChapterCleared(chapter, after);
                 ProgressStore.CafeAward cafeAward = ProgressStore.CafeAward.NONE;
                 if (firstTime) {
-                    cafeAward = progress.rewardTask(cafeLearningAfter);
+                    cafeAward = progress.rewardTask(cafeLearningAfter, key);
+                }
+                if (chapter != null && c.isChapterCleared(chapter, after)) {
+                    progress.noteChapterAchievements(chapterTaskKeys(chapter));
                 }
                 boolean chapterCleared = false;
                 if (chapterCompletedNow) {
@@ -487,7 +490,7 @@ public final class ApiHandler implements HttpHandler {
         }
 
         boolean correct = choice == quiz.answer();
-        progress.recordQuiz(lessonId, index, choice);
+        progress.recordQuiz(lessonId, index, choice, correct);
         ProgressStore.CafeLearningProgress cafeLearning =
                 cafeLearningProgress(c, progress.clearedIds());
         ProgressStore.CafeAward cafeAward = correct
@@ -602,6 +605,15 @@ public final class ApiHandler implements HttpHandler {
         m.put("expansion", result);
         m.put("delta", Map.of("progress", progress.toClientJson(cafeLearning)));
         return m;
+    }
+
+    /** 章に属する全問題のキー。達成条件（ヒントなし制覇・1日制覇）の判定に渡す。 */
+    private static List<String> chapterTaskKeys(Chapter chapter) {
+        List<String> keys = new ArrayList<>();
+        for (Lesson lesson : chapter.lessons()) {
+            keys.addAll(lesson.taskKeys());
+        }
+        return keys;
     }
 
     private Object doCafeItemPurchase(Map<String, Object> body) {

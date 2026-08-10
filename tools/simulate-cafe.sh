@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# 本番と同じ ProgressStore で、全489問のカフェ経済を最後まで試算する。
+# 本番と同じ ProgressStore で、全507問のカフェ経済を最後まで試算する。
 set -euo pipefail
 
 cd "$(dirname "$0")/.."

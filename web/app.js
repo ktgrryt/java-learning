@@ -802,7 +802,8 @@
       (ownedCount ? '<span>所持 ' + ownedCount + '個</span>' : '') +
       '<span title="正確な累計 ' + numberText(cafe.lifetimeCash) + 'コイン">累計獲得 '
         + cafeNumberText(cafe.lifetimeCash) + 'コイン</span></div></header>' +
-      '<p class="menu-note cafe-section-note">新しい品は学習の節目で見つかります。購入した効果は常に有効です。</p>' +
+      '<p class="menu-note cafe-section-note">新しい品は学習の節目、または特別な達成条件で見つかります。'
+        + '購入した効果は常に有効です。</p>' +
       '<div class="cafe-item-grid">' + items.map(function (item) {
         var affordable = !item.owned && cafe.cash >= item.cost;
         var buttonText = item.owned ? '所持中'
@@ -815,7 +816,10 @@
           + (item.unseen ? ' newly-discovered' : '') + '">' +
           '<div class="cafe-item-icon">' + esc(item.emoji) + '</div>' +
           '<div class="cafe-item-body"><span>' + (item.owned ? 'ACTIVE ITEM' : (item.unseen ? 'NEW ITEM' : 'DISCOVERED'))
-            + '</span><h3>' + esc(item.name) + '</h3><p>' + esc(item.description) + '</p></div>' +
+            + '</span><h3>' + esc(item.name) + '</h3><p>' + esc(item.description) + '</p>'
+            + (item.unlockNote
+              ? '<p class="cafe-item-unlock">🎯 達成：' + esc(item.unlockNote) + '</p>' : '')
+            + '</div>' +
           '<div class="cafe-item-action"><button class="cafe-buy cafe-item-buy" data-id="'
             + esc(item.id) + '"' + ((!affordable || item.owned) ? ' disabled' : '') + '>'
             + esc(buttonText) + '</button>' + shortage + '</div>' +

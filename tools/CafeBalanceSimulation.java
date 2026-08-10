@@ -20,7 +20,7 @@ import java.util.Set;
 public final class CafeBalanceSimulation {
 
     private static final Set<Integer> MILESTONES = Set.of(
-            1, 20, 50, 100, 170, 240, 310, 370, 420, 460, 475, 482, 485, 489);
+            1, 20, 50, 100, 170, 240, 310, 370, 420, 460, 480, 493, 500, 503, 507);
 
     private record Candidate(String kind, String id, long cost) {
     }
@@ -42,8 +42,9 @@ public final class CafeBalanceSimulation {
                     for (Task task : lesson.tasks()) {
                         progress.markCleared(Lesson.taskKey(lesson.id(), task.id()));
                         ProgressStore.CafeLearningProgress learning = learning(curriculum, progress);
-                        progress.rewardTask(learning);
+                        progress.rewardTask(learning, Lesson.taskKey(lesson.id(), task.id()));
                         if (curriculum.isChapterCleared(chapter, progress.clearedIds())) {
+                            progress.noteChapterAchievements(chapterTaskKeys(chapter));
                             progress.rewardChapter(chapter.id(), learning, curriculum.taskCount(chapter));
                         }
                         buyAllAffordable(progress, learning);
@@ -53,6 +54,7 @@ public final class CafeBalanceSimulation {
                     }
                     for (int i = 0; i < lesson.quizzes().size(); i++) {
                         ProgressStore.CafeLearningProgress learning = learning(curriculum, progress);
+                        progress.recordQuiz(lesson.id(), i, lesson.quizzes().get(i).answer(), true);
                         progress.rewardQuiz(lesson.id(), i, learning);
                         buyAllAffordable(progress, learning);
                     }
@@ -72,6 +74,15 @@ public final class CafeBalanceSimulation {
             Files.deleteIfExists(progressFile);
             Files.deleteIfExists(tempDir);
         }
+    }
+
+    /** 章に属する全問題のキー。達成条件の判定へ渡す。 */
+    private static List<String> chapterTaskKeys(Chapter chapter) {
+        List<String> keys = new ArrayList<>();
+        for (Lesson lesson : chapter.lessons()) {
+            keys.addAll(lesson.taskKeys());
+        }
+        return keys;
     }
 
     private static ProgressStore.CafeLearningProgress learning(
@@ -156,8 +167,10 @@ public final class CafeBalanceSimulation {
                 "通常設備60個を全購入できません");
         require(list(cafe.get("ownedAutomation")).size() == 12,
                 "自動営業設備12個を全購入できません");
-        require(list(cafe.get("ownedItems")).size() == 12,
-                "スペシャルアイテム12個を全購入できません");
+        // 21種のうち「7日連続で学習」「10回以上提出してクリア」の2つは、
+        // 全問を同じ日に一発クリアするこの試算では原理的に達成できない。
+        require(list(cafe.get("ownedItems")).size() == 19,
+                "この試算で達成できるスペシャルアイテム19個を全購入できません");
         require(spendPercent >= 25.0 && spendPercent <= 45.0,
                 "全購入時の投資率が目標25〜45%を外れています: " + spendPercent + "%");
 
