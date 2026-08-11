@@ -1345,6 +1345,10 @@
         ? '  <div class="chapter-detail-progress"><strong>' + selectedStatus + '</strong></div>'
         : '') +
       '</header>' +
+      (activePart.prerequisite
+        ? '<div class="part-prerequisite"><strong>学習の前提</strong><span>'
+          + esc(activePart.prerequisite) + '</span></div>'
+        : '') +
       (nextLessonInChapter ? '<button class="primary-btn chapter-start-btn" id="chapterStartBtn" data-target="'
         + esc(nextLessonInChapter.id) + '">▶ ' + chapterAction + '</button>' : '') +
       '<ul class="chapter-lesson-list">' + selectedChapter.lessons.map(function (lesson) {

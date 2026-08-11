@@ -377,7 +377,7 @@
     },
     {
       "id": "57-4",
-      "title": "章末演習：ファイル入出力",
+      "title": "中間演習：ファイル入出力の基本",
       "explanation": "## この章の知識を、自分の手で組み合わせよう\n\nここでは、**Path・writeString / readString・readAllLines / Files.write・exists・\nIOException** をまとめて使います。新しい文法は登場しません。\n分からなくなったら、直前までの解説やサンプルへ戻って確認して大丈夫です。\n\n### 3問の進め方\n\n1. **基本**で、中心となる書き方をもう一度使う\n2. **組み合わせ**で、章内の複数の知識を一緒に使う\n3. **実践**で、少し現実的な入力と条件を整理する\n\nファイルを作る問題では、**まず書く（上書き）か、まず消す** から始めると、\n何回動かしても同じ結果になります。",
       "samples": [
         {
@@ -527,6 +527,397 @@
               "pattern": "Files\\.write\\s*\\(|Files\\.writeString\\s*\\(",
               "minimum": 2,
               "message": "`all.txt` と `long.txt` の2つのファイルへ書いてください。"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "57-5",
+      "title": "実務で安全にファイルを扱う",
+      "intro": "文字コード、大きなファイル、利用者が指定するパス、安全な上書きをまとめて学びます。",
+      "explanation": "## まず「文字」と「バイト」を区別する\n\nテキストファイルの実体はバイト列です。Javaの `String` とバイト列を相互に変換する規則が**文字コード（charset）**です。書く側と読む側で規則が違うと、文字化けしたり読み込みに失敗したりします。\n\n`Files.readString(path)` と `Files.writeString(path, text)` の文字コードを省略したオーバーロードはUTF-8を使います。ただし、外部システムと受け渡すファイルでは `StandardCharsets.UTF_8` を明記すると、ファイル仕様がコードから分かります。\n\n```java\nFiles.writeString(path, text, StandardCharsets.UTF_8);\nString restored = Files.readString(path, StandardCharsets.UTF_8);\n```\n\n相手からUTF-16LEやShift_JISを指定された場合は、その仕様に合わせます。推測で決めず、入出力の両側で同じ文字コードを契約にしてください。\n\n## 大きなファイルは少しずつ読む\n\n`readString` と `readAllLines` はファイル全体をメモリへ載せます。設定ファイルのように小さいと分かっている場合には便利ですが、ログやCSVのように大きくなり得るファイルには向きません。\n\n`Files.lines(path, UTF_8)` は行を必要になった分だけ読む `Stream<String>` を返します。ファイルを開いているため、try-with-resourcesで確実に閉じます。途中で処理を止めたい、行番号やエラー復旧を細かく制御したい場合は `Files.newBufferedReader` と `readLine()` のループも選択肢です。\n\n```java\ntry (Stream<String> lines = Files.lines(path, StandardCharsets.UTF_8)) {\n    long errors = lines.filter(line -> line.startsWith(\"ERROR\")).count();\n}\n```\n\nStreamは一度しか使えません。件数と合計など複数の集計が必要なら、1回の走査で両方を更新するか、ファイルを開き直します。\n\n## ディレクトリもPathとFilesで扱う\n\n`Files.createDirectories(dir)` は、存在しない親ディレクトリも含めて作ります。すでに存在していても成功するため、業務処理の準備に使いやすいメソッドです。`Files.list(dir)` は直下だけ、`Files.walk(dir)` は子孫までたどります。どちらも開いたディレクトリを保持するStreamなのでtry-with-resourcesで閉じます。\n\n## パストラバーサルを防ぐ\n\n利用者が `../secret.txt` や絶対パスを入力できると、意図した保存先の外を読んだり書いたりする**パストラバーサル**につながります。基準ディレクトリを絶対パスにして正規化し、入力を結合した結果が基準の内側か確認します。\n\n```java\nPath base = Path.of(\"uploads\").toAbsolutePath().normalize();\nPath candidate = base.resolve(userInput).normalize();\nif (!candidate.startsWith(base) || candidate.equals(base)) {\n    throw new IllegalArgumentException(\"許可されていないパス\");\n}\n```\n\nこの確認は `..` や絶対パスによる脱出を防ぎます。ただし `normalize()` は文字列上の整理で、シンボリックリンクの行き先までは確認しません。攻撃者が基準ディレクトリ内にリンクを作れる環境では、リンクを禁止するか、存在するパスを `toRealPath()` で解決して基準の実体パス内か追加確認します。\n\n## 上書き中の中途半端なファイルを見せない\n\n対象ファイルへ直接書くと、書き込み中の停止で途中までの内容が残ります。そこで同じディレクトリに一時ファイルを作り、書き込みを閉じてから移動で置き換えます。\n\n```java\nPath temp = Files.createTempFile(target.getParent(), \"settings-\", \".tmp\");\ntry {\n    Files.writeString(temp, newText, StandardCharsets.UTF_8);\n    Files.move(temp, target,\n            StandardCopyOption.ATOMIC_MOVE,\n            StandardCopyOption.REPLACE_EXISTING);\n} finally {\n    Files.deleteIfExists(temp);\n}\n```\n\n`ATOMIC_MOVE` は対応するファイルシステムなら、移動を不可分な操作として行います。ただしJava仕様では、これを指定すると他のオプションは無視され、対象がすでに存在する場合に置き換えるか失敗するかは実装依存です。つまり `REPLACE_EXISTING` も一緒に渡すだけで、すべての環境に原子的な置き換えを保証できるわけではありません。対象のファイルシステムで動作を確認し、未対応なら `AtomicMoveNotSupportedException` を受けて、非原子的な移動へ切り替えるか処理を失敗させるかを要件で決めます。権限不足など別の `IOException` まで安易にフォールバックさせないことも重要です。また、原子的な切り替えは「停電後も必ずディスクに残る」という耐久性まで保証するものではありません。\n\n公式資料: [Files](https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/nio/file/Files.html) / [Path](https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/nio/file/Path.html) / [StandardCopyOption](https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/nio/file/StandardCopyOption.html)",
+      "points": [
+        "外部とのテキスト入出力では文字コードを明示し、書く側と読む側の契約をそろえる",
+        "大きくなり得るファイルは `Files.lines` や `BufferedReader` で少しずつ処理する",
+        "利用者のパスは基準ディレクトリから解決し、正規化後も内側か検査する",
+        "重要なファイルは同じディレクトリの一時ファイルへ書き、閉じてから原子的な移動を試す"
+      ],
+      "samples": [
+        {
+          "title": "UTF-8で明示的に書いて読む",
+          "code": "import java.nio.charset.StandardCharsets;\nimport java.nio.file.Files;\nimport java.nio.file.Path;\n\npublic class Main {\n    public static void main(String[] args) throws Exception {\n        Path path = Path.of(\"message.txt\");\n        Files.writeString(path, \"こんにちは\", StandardCharsets.UTF_8);\n        System.out.println(Files.readString(path, StandardCharsets.UTF_8));\n    }\n}\n",
+          "expected": "こんにちは"
+        },
+        {
+          "title": "大きなファイルを1行ずつ処理する",
+          "code": "import java.nio.charset.StandardCharsets;\nimport java.nio.file.Files;\nimport java.nio.file.Path;\nimport java.util.List;\nimport java.util.stream.Stream;\n\npublic class Main {\n    public static void main(String[] args) throws Exception {\n        Path path = Path.of(\"events.txt\");\n        Files.write(path, List.of(\"OK 1\", \"ERROR 2\", \"ERROR 3\"), StandardCharsets.UTF_8);\n        try (Stream<String> lines = Files.lines(path, StandardCharsets.UTF_8)) {\n            System.out.println(lines.filter(line -> line.startsWith(\"ERROR\")).count());\n        }\n    }\n}\n",
+          "expected": "2"
+        }
+      ],
+      "task": "単語数 `n`、検索する接頭辞 `prefix`、続けて `n` 個の単語を読みます。単語を `large.txt` へUTF-8で1行ずつ書いたあと、`Files.lines` で少しずつ読み、`prefix` から始まる行数を `MATCH 件数` と出力してください。`readAllLines` は使いません。",
+      "starterCode": "import java.nio.charset.StandardCharsets;\nimport java.nio.file.Files;\nimport java.nio.file.Path;\nimport java.util.ArrayList;\nimport java.util.List;\nimport java.util.Scanner;\nimport java.util.stream.Stream;\n\npublic class Main {\n    public static void main(String[] args) throws Exception {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n        String prefix = sc.next();\n        List<String> words = new ArrayList<>();\n        for (int i = 0; i < n; i++) words.add(sc.next());\n\n        Path path = Path.of(\"large.txt\");\n        // UTF-8で書き、try-with-resourcesでFiles.linesを閉じよう\n    }\n}\n",
+      "visibleCases": [
+        {
+          "label": "3件一致",
+          "stdin": "5 ap apple banana application pear apricot",
+          "expected": "MATCH 3"
+        },
+        {
+          "label": "一致なし",
+          "stdin": "3 z apple banana cherry",
+          "expected": "MATCH 0"
+        }
+      ],
+      "hiddenCases": [
+        {
+          "label": "空ファイル",
+          "stdin": "0 any",
+          "expected": "MATCH 0"
+        },
+        {
+          "label": "すべて一致",
+          "stdin": "3 j java junit jakarta",
+          "expected": "MATCH 3"
+        },
+        {
+          "label": "大文字小文字を区別",
+          "stdin": "4 Ja Java java Jakarta jakarta",
+          "expected": "MATCH 2"
+        }
+      ],
+      "hints": [
+        "書き込みは `Files.write(path, words, StandardCharsets.UTF_8)` とします。",
+        "`try (Stream<String> lines = Files.lines(path, StandardCharsets.UTF_8))` の中で `filter` と `count` を使います。",
+        "Streamをtryの外へ持ち出すと、ファイルを閉じたあとに読もうとする危険があります。集計までtryの中で終えてください。"
+      ],
+      "solution": "import java.nio.charset.StandardCharsets;\nimport java.nio.file.Files;\nimport java.nio.file.Path;\nimport java.util.ArrayList;\nimport java.util.List;\nimport java.util.Scanner;\nimport java.util.stream.Stream;\n\npublic class Main {\n    public static void main(String[] args) throws Exception {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n        String prefix = sc.next();\n        List<String> words = new ArrayList<>();\n        for (int i = 0; i < n; i++) words.add(sc.next());\n\n        Path path = Path.of(\"large.txt\");\n        Files.write(path, words, StandardCharsets.UTF_8);\n        try (Stream<String> lines = Files.lines(path, StandardCharsets.UTF_8)) {\n            long count = lines.filter(line -> line.startsWith(prefix)).count();\n            System.out.println(\"MATCH \" + count);\n        }\n    }\n}\n",
+      "sourceChecks": [
+        {
+          "pattern": "Files\\s*\\.\\s*lines\\s*\\(",
+          "minimum": 1,
+          "message": "全件をListへ読むのではなく、`Files.lines` で少しずつ処理してください。"
+        },
+        {
+          "pattern": "try\\s*\\(",
+          "minimum": 1,
+          "message": "Files.linesが開くファイルはtry-with-resourcesで閉じてください。"
+        },
+        {
+          "pattern": "StandardCharsets\\s*\\.\\s*UTF_8",
+          "minimum": 2,
+          "message": "書くときと読むときの両方でUTF-8を明示してください。"
+        },
+        {
+          "pattern": "readAllLines",
+          "minimum": 0,
+          "maximum": 0,
+          "message": "この問題では全件をメモリへ載せるreadAllLinesは使いません。"
+        }
+      ],
+      "quiz": [
+        {
+          "question": "外部システムへ渡すテキストファイルで文字コードを明示する主な理由はどれですか。",
+          "choices": [
+            "ファイルが必ず小さくなるから",
+            "書く側と読む側が同じ変換規則を使う契約を明確にするため",
+            "IOExceptionが発生しなくなるから",
+            "OSに関係なく改行コードも必ず同じになるから"
+          ],
+          "answer": 1,
+          "explanation": "文字コードは文字とバイトの変換規則です。明示すると相手側と合わせるべき仕様が見えます。改行コードは別の論点です。"
+        },
+        {
+          "question": "数GBまで増える可能性があるログを条件検索する方法として適切なのはどれですか。",
+          "choices": [
+            "Files.readAllLinesで全行をListにしてから検索する",
+            "Files.readStringで1つのStringにしてから検索する",
+            "Files.linesをtry-with-resourcesで開き、Stream上で絞り込む",
+            "同じファイルを小さくなるまで何度もコピーする"
+          ],
+          "answer": 2,
+          "explanation": "Files.linesは必要な行を順次読みます。ファイル資源を保持するため、Streamはtry-with-resourcesで閉じます。"
+        },
+        {
+          "question": "基準ディレクトリに利用者入力をresolveしたあとに必要な確認はどれですか。",
+          "choices": [
+            "normalizeした結果が基準ディレクトリから始まるか確認する",
+            "拡張子が3文字かだけ確認する",
+            "入力にドットが1つでもあれば許可する",
+            "PathをStringへ変換すれば安全になる"
+          ],
+          "answer": 0,
+          "explanation": "normalize後のcandidateがbase.startsWithではなく、candidate.startsWith(base)を満たすか確認します。シンボリックリンクを作れる環境では実体パスも別途検討します。"
+        },
+        {
+          "question": "ATOMIC_MOVEが未対応だった場合の扱いとして正しいものはどれですか。",
+          "choices": [
+            "Javaが必ず同じ保証で通常のmoveへ変える",
+            "AtomicMoveNotSupportedExceptionを踏まえ、失敗させるか保証を弱めて移動するか要件で決める",
+            "一時ファイルを閉じずに直接コピーする",
+            "REPLACE_EXISTINGだけで必ず原子的になる"
+          ],
+          "answer": 1,
+          "explanation": "原子的移動はファイルシステム依存です。未対応時に保証を弱めてよいかはデータの重要度に応じて設計します。"
+        }
+      ],
+      "extraTasks": [
+        {
+          "kind": "drill",
+          "task": "基準ディレクトリを `uploads` とし、入力された相対パス候補を安全に検査してください。`base` は絶対パス化して `normalize` し、`candidate = base.resolve(input).normalize()` とします。candidateがbase自身、またはbaseの外なら `REJECT`、内側なら `ALLOW 相対パス` を出力してください。出力する相対パスは `base.relativize(candidate)` で求めます。",
+          "starterCode": "import java.nio.file.Path;\nimport java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        String input = new Scanner(System.in).next();\n        Path base = Path.of(\"uploads\").toAbsolutePath().normalize();\n        // resolveしてから、baseの内側か確認しよう\n    }\n}\n",
+          "visibleCases": [
+            {
+              "label": "通常の子ファイル",
+              "stdin": "images/a.txt",
+              "expected": "ALLOW images/a.txt"
+            },
+            {
+              "label": "親へ脱出",
+              "stdin": "../secret.txt",
+              "expected": "REJECT"
+            }
+          ],
+          "hiddenCases": [
+            {
+              "label": "途中から親へ脱出",
+              "stdin": "images/../../secret.txt",
+              "expected": "REJECT"
+            },
+            {
+              "label": "カレント表記を整理",
+              "stdin": "./safe.txt",
+              "expected": "ALLOW safe.txt"
+            },
+            {
+              "label": "基準自身はファイルとして拒否",
+              "stdin": ".",
+              "expected": "REJECT"
+            },
+            {
+              "label": "絶対パス",
+              "stdin": "/tmp/outside.txt",
+              "expected": "REJECT"
+            }
+          ],
+          "hints": [
+            "比較する前にbaseとcandidateの両方を `toAbsolutePath().normalize()` した状態へそろえます。",
+            "許可条件は `candidate.startsWith(base) && !candidate.equals(base)` です。",
+            "表示には入力文字列をそのまま使わず、検査済みの `base.relativize(candidate)` を使います。"
+          ],
+          "solution": "import java.nio.file.Path;\nimport java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        String input = new Scanner(System.in).next();\n        Path base = Path.of(\"uploads\").toAbsolutePath().normalize();\n        Path candidate = base.resolve(input).normalize();\n        if (!candidate.startsWith(base) || candidate.equals(base)) {\n            System.out.println(\"REJECT\");\n        } else {\n            System.out.println(\"ALLOW \" + base.relativize(candidate));\n        }\n    }\n}\n",
+          "sourceChecks": [
+            {
+              "pattern": "\\.resolve\\s*\\(",
+              "minimum": 1,
+              "message": "利用者入力は基準ディレクトリからresolveしてください。"
+            },
+            {
+              "pattern": "\\.normalize\\s*\\(",
+              "minimum": 2,
+              "message": "`..` を整理してから比較できるよう、baseとcandidateをnormalizeしてください。"
+            },
+            {
+              "pattern": "\\.startsWith\\s*\\(",
+              "minimum": 1,
+              "message": "解決後のcandidateがbaseの内側かstartsWithで確認してください。"
+            },
+            {
+              "pattern": "\\.relativize\\s*\\(",
+              "minimum": 1,
+              "message": "許可後の表示には、検査済みのパスからrelativizeした値を使ってください。"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "57-6",
+      "title": "章末演習：文字コード・大容量・安全な更新",
+      "intro": "実務ファイル操作の境界条件を、3つの演習で仕上げます。",
+      "explanation": "ここでは、文字コードの違いをバイト数で確かめる問題、ディレクトリを閉じながら一覧する問題、一時ファイルから安全に置き換える問題に取り組みます。いずれも「たまたま動く」ではなく、入出力の契約と失敗時の状態を意識してください。",
+      "points": [
+        "StandardCharsetsの定数を使い、同じ文字コードで往復する",
+        "Files.listが返すStreamもtry-with-resourcesで閉じる",
+        "一時ファイルは対象と同じディレクトリに作り、成功・失敗のどちらでも掃除する"
+      ],
+      "samples": [],
+      "task": "1つの文字列を読み、`utf8.txt` へUTF-8で、`utf16le.txt` へUTF-16LEで書いてください。それぞれ正しい文字コードで読み戻し、次の3行を出力します。\n\n```\nUTF8 バイト数\nUTF16LE バイト数\nTEXT UTF-8で戻した文字列|UTF-16LEで戻した文字列\n```",
+      "starterCode": "import java.nio.charset.StandardCharsets;\nimport java.nio.file.Files;\nimport java.nio.file.Path;\nimport java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) throws Exception {\n        String text = new Scanner(System.in).next();\n        Path utf8 = Path.of(\"utf8.txt\");\n        Path utf16 = Path.of(\"utf16le.txt\");\n        // 2つの文字コードで書き、サイズと読み戻した結果を出そう\n    }\n}\n",
+      "visibleCases": [
+        {
+          "label": "ASCII",
+          "stdin": "java",
+          "expected": "UTF8 4\nUTF16LE 8\nTEXT java|java"
+        },
+        {
+          "label": "日本語1文字",
+          "stdin": "猫",
+          "expected": "UTF8 3\nUTF16LE 2\nTEXT 猫|猫"
+        }
+      ],
+      "hiddenCases": [
+        {
+          "label": "ひらがな2文字",
+          "stdin": "あい",
+          "expected": "UTF8 6\nUTF16LE 4\nTEXT あい|あい"
+        },
+        {
+          "label": "BMP内の記号",
+          "stdin": "☕",
+          "expected": "UTF8 3\nUTF16LE 2\nTEXT ☕|☕"
+        },
+        {
+          "label": "サロゲートペア",
+          "stdin": "😀",
+          "expected": "UTF8 4\nUTF16LE 4\nTEXT 😀|😀"
+        }
+      ],
+      "hints": [
+        "`Files.writeString` と `Files.readString` には文字コードを渡せます。",
+        "ファイルのバイト数は `Files.size(path)` で取得します。",
+        "UTF-16LEはASCIIの英字にも1文字あたり2バイトを使います。"
+      ],
+      "solution": "import java.nio.charset.StandardCharsets;\nimport java.nio.file.Files;\nimport java.nio.file.Path;\nimport java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) throws Exception {\n        String text = new Scanner(System.in).next();\n        Path utf8 = Path.of(\"utf8.txt\");\n        Path utf16 = Path.of(\"utf16le.txt\");\n        Files.writeString(utf8, text, StandardCharsets.UTF_8);\n        Files.writeString(utf16, text, StandardCharsets.UTF_16LE);\n        System.out.println(\"UTF8 \" + Files.size(utf8));\n        System.out.println(\"UTF16LE \" + Files.size(utf16));\n        System.out.println(\"TEXT \"\n                + Files.readString(utf8, StandardCharsets.UTF_8) + \"|\"\n                + Files.readString(utf16, StandardCharsets.UTF_16LE));\n    }\n}\n",
+      "sourceChecks": [
+        {
+          "pattern": "StandardCharsets\\s*\\.\\s*UTF_8",
+          "minimum": 2,
+          "message": "UTF-8は書くときと読むときの両方で明示してください。"
+        },
+        {
+          "pattern": "StandardCharsets\\s*\\.\\s*UTF_16LE",
+          "minimum": 2,
+          "message": "UTF-16LEは書くときと読むときの両方で明示してください。"
+        },
+        {
+          "pattern": "Files\\s*\\.\\s*size\\s*\\(",
+          "minimum": 2,
+          "message": "文字数ではなく、2つのファイルのバイト数をFiles.sizeで調べてください。"
+        }
+      ],
+      "extraTasks": [
+        {
+          "kind": "drill",
+          "task": "`work/incoming` ディレクトリを `Files.createDirectories` で作ります。前回の実行で残った直下のファイルがあれば、`Files.list` をtry-with-resourcesで開いて `Files.deleteIfExists` で削除し、作業領域を空にしてください。個数 `n` と `n` 個のファイル名を読み、各名前の空ファイルをその中へ作ります。そのあともう一度 `Files.list` をtry-with-resourcesで開き、直下の通常ファイルのうち名前が `.txt` で終わるものだけを辞書順に並べ、`TXT 件数 名前1,名前2,...` と出力してください。0件なら `TXT 0` だけを出力します。",
+          "starterCode": "import java.nio.file.Files;\nimport java.nio.file.Path;\nimport java.util.ArrayList;\nimport java.util.List;\nimport java.util.Scanner;\nimport java.util.stream.Stream;\n\npublic class Main {\n    public static void main(String[] args) throws Exception {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n        Path dir = Path.of(\"work\", \"incoming\");\n        // ディレクトリを作成して前回のファイルを消し、作成後にFiles.listで.txtだけ集めよう\n    }\n}\n",
+          "visibleCases": [
+            {
+              "label": "拡張子で絞る",
+              "stdin": "4 b.txt memo.csv a.txt image.png",
+              "expected": "TXT 2 a.txt,b.txt"
+            },
+            {
+              "label": "該当なし",
+              "stdin": "2 a.csv b.log",
+              "expected": "TXT 0"
+            }
+          ],
+          "hiddenCases": [
+            {
+              "label": "入力0件",
+              "stdin": "0",
+              "expected": "TXT 0"
+            },
+            {
+              "label": "1件",
+              "stdin": "1 report.txt",
+              "expected": "TXT 1 report.txt"
+            },
+            {
+              "label": "大文字拡張子は別",
+              "stdin": "3 A.TXT b.txt c.txt",
+              "expected": "TXT 2 b.txt,c.txt"
+            }
+          ],
+          "hints": [
+            "`Files.createDirectories(dir)` のあと、`try (Stream<Path> old = Files.list(dir))` で既存ファイルを集め、`Files.deleteIfExists` で作業領域を空にします。",
+            "ファイルは `Files.writeString(dir.resolve(name), \"\")` で作れます。",
+            "Files.listの各Pathから `getFileName().toString()` を取り、`sorted()` してListにします。"
+          ],
+          "solution": "import java.nio.file.Files;\nimport java.nio.file.Path;\nimport java.util.List;\nimport java.util.Scanner;\nimport java.util.stream.Stream;\n\npublic class Main {\n    public static void main(String[] args) throws Exception {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n        Path dir = Path.of(\"work\", \"incoming\");\n        Files.createDirectories(dir);\n        try (Stream<Path> oldEntries = Files.list(dir)) {\n            for (Path old : oldEntries.toList()) Files.deleteIfExists(old);\n        }\n        for (int i = 0; i < n; i++) {\n            Files.writeString(dir.resolve(sc.next()), \"\");\n        }\n        List<String> names;\n        try (Stream<Path> entries = Files.list(dir)) {\n            names = entries\n                    .filter(Files::isRegularFile)\n                    .map(p -> p.getFileName().toString())\n                    .filter(name -> name.endsWith(\".txt\"))\n                    .sorted()\n                    .toList();\n        }\n        System.out.println(\"TXT \" + names.size()\n                + (names.isEmpty() ? \"\" : \" \" + String.join(\",\", names)));\n    }\n}\n",
+          "sourceChecks": [
+            {
+              "pattern": "Files\\s*\\.\\s*createDirectories\\s*\\(",
+              "minimum": 1,
+              "message": "親も含めてディレクトリを準備するFiles.createDirectoriesを使ってください。"
+            },
+            {
+              "pattern": "Files\\s*\\.\\s*list\\s*\\(",
+              "minimum": 2,
+              "message": "作業前の掃除と作成後の一覧の両方でFiles.listを使ってください。"
+            },
+            {
+              "pattern": "try\\s*\\(",
+              "minimum": 1,
+              "message": "Files.listが返すStreamはtry-with-resourcesで閉じてください。"
+            },
+            {
+              "pattern": "Files\\s*\\.\\s*deleteIfExists\\s*\\(",
+              "minimum": 1,
+              "message": "前回実行のファイルが結果へ混ざらないよう、直下の既存ファイルを削除してください。"
+            }
+          ]
+        },
+        {
+          "kind": "applied",
+          "task": "`config/settings.txt` を安全に置き換えます。旧内容と新内容を1語ずつ読み、ディレクトリを作って対象へ旧内容をUTF-8で書きます。次に**同じディレクトリ**へ `Files.createTempFile` で一時ファイルを作り、新内容をUTF-8で書いて閉じてから、`ATOMIC_MOVE` と `REPLACE_EXISTING` を付けた `Files.move` で置き換えてください。`AtomicMoveNotSupportedException` の場合だけ、`REPLACE_EXISTING` を付けた通常のmoveへフォールバックします。finallyで一時ファイルを削除し、次の3行を出力します。\n\n```\nTARGET 新内容\nTEMP_EXISTS false\nDIRECTORY true\n```",
+          "starterCode": "import java.nio.charset.StandardCharsets;\nimport java.nio.file.AtomicMoveNotSupportedException;\nimport java.nio.file.Files;\nimport java.nio.file.Path;\nimport java.nio.file.StandardCopyOption;\nimport java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) throws Exception {\n        Scanner sc = new Scanner(System.in);\n        String oldText = sc.next();\n        String newText = sc.next();\n        Path dir = Path.of(\"config\");\n        Path target = dir.resolve(\"settings.txt\");\n        Path temp = null;\n        // 同じdirの一時ファイルへ書いてから置き換えよう\n    }\n}\n",
+          "visibleCases": [
+            {
+              "label": "設定を更新",
+              "stdin": "old new",
+              "expected": "TARGET new\nTEMP_EXISTS false\nDIRECTORY true"
+            },
+            {
+              "label": "日本語",
+              "stdin": "旧設定 新設定",
+              "expected": "TARGET 新設定\nTEMP_EXISTS false\nDIRECTORY true"
+            }
+          ],
+          "hiddenCases": [
+            {
+              "label": "同じ内容",
+              "stdin": "same same",
+              "expected": "TARGET same\nTEMP_EXISTS false\nDIRECTORY true"
+            },
+            {
+              "label": "数字を含む",
+              "stdin": "v1 v2",
+              "expected": "TARGET v2\nTEMP_EXISTS false\nDIRECTORY true"
+            }
+          ],
+          "hints": [
+            "最初に `Files.createDirectories(dir)`、次に `Files.createTempFile(dir, \"settings-\", \".tmp\")` と進めます。",
+            "try本体で一時ファイルへ書いたあと、原子的なmoveをtryし、`AtomicMoveNotSupportedException` だけをcatchします。",
+            "finallyでは `temp != null` を確認して `Files.deleteIfExists(temp)` を呼びます。移動済みならfalseが返るだけです。"
+          ],
+          "solution": "import java.nio.charset.StandardCharsets;\nimport java.nio.file.AtomicMoveNotSupportedException;\nimport java.nio.file.Files;\nimport java.nio.file.Path;\nimport java.nio.file.StandardCopyOption;\nimport java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) throws Exception {\n        Scanner sc = new Scanner(System.in);\n        String oldText = sc.next();\n        String newText = sc.next();\n        Path dir = Path.of(\"config\");\n        Path target = dir.resolve(\"settings.txt\");\n        Path temp = null;\n\n        Files.createDirectories(dir);\n        Files.writeString(target, oldText, StandardCharsets.UTF_8);\n        try {\n            temp = Files.createTempFile(dir, \"settings-\", \".tmp\");\n            Files.writeString(temp, newText, StandardCharsets.UTF_8);\n            try {\n                Files.move(temp, target,\n                        StandardCopyOption.ATOMIC_MOVE,\n                        StandardCopyOption.REPLACE_EXISTING);\n            } catch (AtomicMoveNotSupportedException e) {\n                Files.move(temp, target, StandardCopyOption.REPLACE_EXISTING);\n            }\n        } finally {\n            if (temp != null) Files.deleteIfExists(temp);\n        }\n\n        System.out.println(\"TARGET \" + Files.readString(target, StandardCharsets.UTF_8));\n        System.out.println(\"TEMP_EXISTS \" + (temp != null && Files.exists(temp)));\n        System.out.println(\"DIRECTORY \" + Files.isDirectory(dir));\n    }\n}\n",
+          "sourceChecks": [
+            {
+              "pattern": "Files\\s*\\.\\s*createTempFile\\s*\\(\\s*dir",
+              "minimum": 1,
+              "message": "対象と同じディレクトリへ一時ファイルを作ってください。"
+            },
+            {
+              "pattern": "StandardCopyOption\\s*\\.\\s*ATOMIC_MOVE",
+              "minimum": 1,
+              "message": "置き換えではATOMIC_MOVEを指定してください。"
+            },
+            {
+              "pattern": "StandardCopyOption\\s*\\.\\s*REPLACE_EXISTING",
+              "minimum": 2,
+              "message": "原子的な移動とフォールバックの両方で既存対象を置き換えてください。"
+            },
+            {
+              "pattern": "catch\\s*\\(\\s*AtomicMoveNotSupportedException",
+              "minimum": 1,
+              "message": "原子的移動が未対応の場合を明示的に扱ってください。"
+            },
+            {
+              "pattern": "finally",
+              "minimum": 1,
+              "message": "成功・失敗に関係なく一時ファイルを掃除できるようfinallyを使ってください。"
             }
           ]
         }

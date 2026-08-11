@@ -7,14 +7,14 @@
     {
       "id": "54-1",
       "title": "本番同等DBで検証する",
-      "explanation": "## SQLだけでなく挙動を合わせる\n\nリポジトリの単体テストに加えて、本番と同じ系統でバージョンも近いDBをコンテナで起動し、スキーマ移行を先頭から適用してから結合テストを行います。型、照合順序、タイムゾーン、制約、インデックス、ロック、分離レベル、実行計画は、DB製品によって違います。テストごとにロールバックする方式は速い一方で、コミット後に働く制約やイベントを見逃すことがあるため、用途に応じてデータの後片付け方式と使い分けます。\n\nコネクションプールには上限、取得のタイムアウト、接続の検証方法を設定します。プールを増やせば速くなるとは限りません。DBの最大接続数とクエリの所要時間から、全インスタンス分の接続予算を決めます。N+1問題や無制限な全件取得は、SQLログ・メトリクス・実行計画で検出します。\n\n### 何が違うのかを具体で見る\n\n「SQLが通る」ことと「同じ挙動になる」ことは別です。よく食い違うのはこのあたりです。\n\n| 観点 | 食い違いの例 |\n|---|---|\n| 文字列比較 | 照合順序（collation）によって大文字小文字の区別が変わる |\n| NULLの並び | `ORDER BY` でNULLが先か後か（PostgreSQLは既定で後） |\n| 自動採番 | `IDENTITY` / `SERIAL` / シーケンスの挙動と、ロールバック時の欠番 |\n| 型の丸め | `DECIMAL` と浮動小数の扱い、日時の精度 |\n| 実行計画 | 同じSQLでもインデックスを使うかが製品と件数で変わる |\n\nだから「開発はH2、本番はPostgreSQL」だと、**テストが通るのに本番で落ちる**、あるいは\n逆に本番だけ遅いという形で出ます。結合テストは本番と同じ製品・同じメジャーバージョンで\n動かすのが原則です。\n\n### ロールバック方式で見逃すもの\n\n各テストの最後にロールバックする方式は速い一方、**コミットしないと現れない挙動** を\n見逃します。\n\n- コミット時に評価される制約（遅延制約）\n- コミット後に動くトリガーや通知\n- 別トランザクションから見えるかどうか（分離レベルの影響）\n\n> ⚠️ 間違えやすい点 … ロールバック方式は「テストの後片付けが速い」だけで、\n> 本番と同じ経路を通ったわけではありません。コミットを伴う経路が要るテストは、\n> 後片付け方式（truncate や毎回作り直し）に分けて用意します。\n> どちらか一方に統一しようとすると、必ずどちらかが検証できなくなります。",
+      "explanation": "## はじめて学ぶ人へ\n\n第46章では、テーブル、制約、インデックスなどDBの基本を学びました。この章では一歩進み、**開発環境では通ったのに本番だけ失敗する**状況をどう減らすかを考えます。中心は、①本番に近いDBで試す、②変更を安全な段階に分ける、③キャッシュの古さを管理する、④メッセージの重複を前提にする、の4点です。専門用語は、それが防ぐ事故と一緒に確認していきます。\n\n## SQLだけでなく挙動を合わせる\n\nリポジトリの単体テストに加えて、本番と同じ系統でバージョンも近いDBをコンテナで起動し、スキーマ移行を先頭から適用してから結合テストを行います。型、照合順序、タイムゾーン、制約、インデックス、ロック、分離レベル、実行計画は、DB製品によって違います。テストごとにロールバックする方式は速い一方で、コミット時に初めて評価される遅延制約や、PostgreSQLの `NOTIFY` のように、コミットして初めて外部へ届く通知を確認できません。用途に応じて、実際にコミットしてからデータを削除する方式と使い分けます。\n\nコネクションプールには上限、取得のタイムアウト、接続の検証方法を設定します。プールを増やせば速くなるとは限りません。DBの最大接続数とクエリの所要時間から、全インスタンス分の接続予算を決めます。N+1問題や無制限な全件取得は、SQLログ・メトリクス・実行計画で検出します。\n\n### 何が違うのかを具体で見る\n\n「SQLが通る」ことと「同じ挙動になる」ことは別です。よく食い違うのはこのあたりです。\n\n| 観点 | 食い違いの例 |\n|---|---|\n| 文字列比較 | 照合順序（collation）によって大文字小文字の区別が変わる |\n| NULLの並び | `ORDER BY` でNULLが先か後か（PostgreSQLは既定で、昇順なら後・降順なら前） |\n| 自動採番 | `IDENTITY` / `SERIAL` / シーケンスの挙動と、ロールバック時の欠番 |\n| 型の丸め | `DECIMAL` と浮動小数の扱い、日時の精度 |\n| 実行計画 | 同じSQLでもインデックスを使うかが製品と件数で変わる |\n\nだから「開発はH2、本番はPostgreSQL」だと、**テストが通るのに本番で落ちる**、あるいは\n逆に本番だけ遅いという形で出ます。結合テストは本番と同じ製品・同じメジャーバージョンで\n動かすのが原則です。\n\n### ロールバック方式で見逃すもの\n\n各テストの最後にロールバックする方式は速い一方、**コミットしないと現れない挙動** を\n見逃します。\n\n- コミット時に評価される制約（遅延制約）\n- コミットするまで配送されない通知\n- コミット後の状態を別トランザクションから読んだときの挙動\n\n通常のDBトリガーは、文の実行中または文の終わりに動きます。制約トリガーはトランザクションの終わりまで遅延できることがありますが、**コミットが完了したあとに通常のトリガーが起動する**という意味ではありません。\n\n> ⚠️ 間違えやすい点 … ロールバック方式は「テストの後片付けが速い」だけで、\n> 本番と同じ経路を通ったわけではありません。コミットを伴う経路が要るテストは、\n> 後片付け方式（truncate や毎回作り直し）に分けて用意します。\n> どちらか一方に統一しようとすると、必ずどちらかが検証できなくなります。",
       "samples": [
         {
           "caption": "全インスタンス分の接続予算",
           "code": "public class Main {\n    public static void main(String[] a) {\n        int instances = 4, pool = 20, reserved = 10;\n        System.out.println(instances * pool + reserved);\n    }\n}\n"
         }
       ],
-      "task": "DBの最大接続数、予約分、インスタンス数nを読み、1インスタンスあたりの安全なプール上限 `(max-reserved)/n` を表示してください。",
+      "task": "教材用に接続予算を全インスタンスへ均等配分します。DBの最大接続数、予約分、インスタンス数nを読み、1インスタンスあたりのプール上限 `(max-reserved)/n` を表示してください。",
       "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] a) {\n        Scanner s = new Scanner(System.in);\n        int max = s.nextInt(), reserved = s.nextInt(), n = s.nextInt();\n        /* TODO */\n    }\n}\n",
       "visibleCases": [
         {
@@ -55,7 +55,18 @@
             "コミットしないと現れない制約やイベントの挙動"
           ],
           "answer": 3,
-          "explanation": "構文エラーや型の不一致は、実行した時点で分かります。インデックス定義の誤りによる遅さやプールの上限も、ロールバックとは別に観測できます。見逃すのは、遅延して評価される制約や、コミット後に動く仕組み（トリガーや通知）のように、**確定しないと現れない**挙動です。"
+          "explanation": "構文エラーや型の不一致は、実行した時点で分かります。インデックス定義の誤りによる遅さやプールの上限も、ロールバックとは別に観測できます。見逃すのは、コミット時に評価される遅延制約や、コミットするまで配送されない通知、別トランザクションから見た確定後の状態のように、**実際に確定しないと確認できない**挙動です。"
+        },
+        {
+          "question": "PostgreSQLでNULLの並びを明示しない場合の既定として正しいものはどれでしょう。",
+          "choices": [
+            "昇順でも降順でも常にNULLが最後",
+            "昇順はNULLが最後、降順はNULLが最初",
+            "昇順はNULLが最初、降順はNULLが最後",
+            "NULLを含む列はORDER BYできない"
+          ],
+          "answer": 1,
+          "explanation": "PostgreSQLではNULLを通常の値より大きいものとして扱うため、既定はASCでNULLS LAST、DESCでNULLS FIRSTです。意図を明確にしたい場合は `NULLS FIRST` / `NULLS LAST` を明示します。"
         }
       ]
     },
@@ -226,7 +237,7 @@
     },
     {
       "id": "54-5",
-      "title": "章末演習：実DB・スキーマ移行・非同期連携",
+      "title": "中間演習：実DB・スキーマ移行・非同期連携",
       "explanation": "## この章の知識を、自分の手で組み合わせよう\n\nここでは、**接続予算の配分・スキーマ移行の段階・少なくとも一回の配送・冪等な受信側**をまとめて使います。新しい文法は登場しません。分からなくなったら、直前までの解説やサンプルへ戻って確認して大丈夫です。\n\n### 3問の進め方\n\n1. **基本**で、中心となる書き方をもう一度使う\n2. **組み合わせ**で、章内の複数の知識を一緒に使う\n3. **実践**で、少し現実的な入力と条件を整理する\n\n実DBとメッセージブローカーを動かすのは `labs/integration-data` です。ここで書くのは、**そこで壊れないために先に決めておく規則**のほうです。\n\n> 🧪 アプリで確かめること / labs で動かすこと … この問題で確かめるのは実DB・スキーマ移行・非同期連携の判断です。\n> 実DBとメッセージングを実際に動かすことは、1ファイル・標準入力だけのこの画面では扱えません。`labs/integration-data` に本物を置いてあります。\n> ★はアプリの問題に対して付きます。labs をやったかどうかは★には出ないので、\n> 手を動かした記録は labs 側のREADMEの手順で残してください。",
       "samples": [
         {
@@ -235,7 +246,7 @@
           "expected": "PROCESS e1\nPROCESS e2\nSKIP e1"
         }
       ],
-      "task": "【基本】DBの最大接続数 max、DB管理用に空けておく reserved（max 以下）、サービス数nを読み、続けてn件を `service instances` の形で読みます。\n\n1行目に、アプリで使える接続数を `BUDGET 値` の形で表示してください（`max - reserved`）。2行目に、1インスタンス当たりの上限を `PER_INSTANCE 値` の形で表示します。これは使える接続数を全サービスのインスタンス総数で割った切り捨ての値で、インスタンス総数が0のときは0とします。\n\n続けて、サービスごとの合計接続数を読んだ順に `service 値`（インスタンス数 × 1インスタンス当たりの上限）と表示します。次に配り切れなかった数を `SPARE 値` と表示します。最後に、インスタンスが1つ以上あるのに1インスタンス当たりの上限が0になってしまった場合は `INSUFFICIENT`、そうでなければ `OK` と表示します。",
+      "task": "【基本】接続予算の考え方をつかむため、全サービスへ均等に配る教材用モデルを使います。実運用ではサービスごとの負荷、問い合わせ時間、ほかのDB利用者も考慮します。DBの最大接続数 max、DB管理用に空けておく reserved（max 以下）、サービス数nを読み、続けてn件を `service instances` の形で読みます。\n\n1行目に、アプリで使える接続数を `BUDGET 値` の形で表示してください（`max - reserved`）。2行目に、1インスタンス当たりの上限を `PER_INSTANCE 値` の形で表示します。これは使える接続数を全サービスのインスタンス総数で割った切り捨ての値で、インスタンス総数が0のときは0とします。\n\n続けて、サービスごとの合計接続数を読んだ順に `service 値`（インスタンス数 × 1インスタンス当たりの上限）と表示します。次に配り切れなかった数を `SPARE 値` と表示します。最後に、インスタンスが1つ以上あるのに1インスタンス当たりの上限が0になってしまった場合は `INSUFFICIENT`、そうでなければ `OK` と表示します。",
       "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        int max = s.nextInt(), reserved = s.nextInt(), n = s.nextInt();\n        String[] names = new String[n];\n        int[] instances = new int[n];\n        int totalInstances = 0;\n        for (int i = 0; i < n; i++) {\n            names[i] = s.next();\n            instances[i] = s.nextInt();\n            totalInstances += instances[i];\n        }\n        int budget = max - reserved;\n        /* TODO BUDGET と PER_INSTANCE */ /* TODO サービスごとの割り当てと SPARE */ /* TODO INSUFFICIENT の判定 */\n    }\n}\n",
       "visibleCases": [
         {
@@ -404,6 +415,388 @@
               "pattern": "maxAttempts",
               "minimum": 1,
               "message": "試行回数が上限に達したものはDLQへ送ってください。際限なく再試行しないための境界です。"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "54-6",
+      "title": "バッチ処理と定期実行",
+      "intro": "大量の仕事を分け、失敗しても安全に再開できる処理を設計します。",
+      "explanation": "## バッチとスケジューラは役割が違う\n\n**バッチ処理**は、請求締め、日次集計、CSV取込のように、まとまったデータを開始から終了まで処理する仕事です。**スケジューラ**は「毎日2時」「5分ごと」のように、その仕事を開始するきっかけを作ります。\n\ncron、クラウドのスケジューラ、ジョブ管理製品などは起動時刻を決められますが、処理済みデータや再開位置までは自動では守ってくれません。「毎日2時に起動する」だけでなく、次をバッチ側で設計します。\n\n- どの業務日・どの入力を処理するジョブか\n- 成功、実行中、失敗のどの状態か\n- どこまで確定済みか\n- 同じ仕事がもう一度起動したらどうするか\n\n起動時刻そのものをIDにせず、`売上集計@2026-08-10` のような**ジョブ名と業務日**を一意なキーにすると、起動が遅れたり翌日に再実行したりしても同じ仕事だと判断できます。\n\n## 大量データは安定した順序で分割する\n\n100万件を1回で読み、1つのトランザクションで更新すると、メモリ、ロック時間、失敗時のやり直しが大きくなります。そこで例えば1000件ずつの**chunk（チャンク）**に分けます。\n\n```text\n読み取り → 必要なら変換 → 1000件を書き込み → commit → checkpoint更新\n```\n\n「何ページ目」だけを再開位置にすると、途中で行が追加・削除されたときに重複や抜けが起こり得ます。`ORDER BY id` と `WHERE id > :lastId` のように、変化しない一意キーで順序と境界を決める**keyset方式**が再開に向きます。\n\nチャンクを小さくすると再実行範囲とロック時間は短くなりますが、commit回数は増えます。大きくするとその逆です。件数を固定値として暗記せず、1件の重さ、DB負荷、許容再実行時間を測って決めます。\n\n## checkpointはcommit後に進める\n\n**checkpoint（チェックポイント）**は「ここまでは確定した」という再開位置です。1チャンクのDB更新とcheckpoint更新を同じトランザクションに入れます。\n\n1. チャンクを読み、更新する\n2. 更新と新しいcheckpointを同じトランザクションでcommitする\n3. commit後に次のチャンクへ進む\n\n先にcheckpointだけ進めて更新が失敗すると、再開時に未処理データを飛ばします。反対に更新だけ確定してcheckpointが古いと再処理が起きます。同じトランザクションにできない外部APIやファイル出力がある場合は、後述する冪等性キーやoutboxなどで境界を補います。\n\nJakarta Batchのchunk stepも、item reader・processor・writerを一定件数ごとに実行してcheckpointを記録し、原則として各chunkを別トランザクションで扱います。失敗後は最後に確定したcheckpointから再開できます。\n\n## 再実行できる処理は冪等にする\n\n失敗直前に外部送信だけ成功し、checkpoint更新前に停止すると、再開時に同じ送信が起こります。そのため、同じ `jobName + businessDate + itemId` を何度処理しても結果が1回分と同じになる**冪等性**を持たせます。\n\n- 処理済みキーへ一意制約を置き、同じキーの副作用を2回作らない\n- 上書きで同じ最終状態にする\n- 外部APIへidempotency keyを渡す\n- 通知はoutboxへ一意キー付きで記録する\n\n「2回呼ばれないはず」ではなく「2回呼ばれても壊れない」を目標にします。\n\n## 二重起動は永続的な状態で止める\n\nアプリ内の `boolean running` だけでは、複数インスタンスや再起動をまたげません。DBに `jobName + businessDate` の一意制約を持つ実行表を作り、状態を `RUNNING / DONE / FAILED` として原子的に獲得します。同じキーがRUNNINGなら後続を止め、DONEなら再実行不要と判断します。\n\n実行プロセスが突然落ちるとRUNNINGが残るため、必要なら期限付きの**lease（実行権）**、heartbeat、管理者による安全な解放を設計します。単に一定時間後にロックを消すと、遅い旧プロセスと新プロセスが同時に動く可能性があります。重要な処理では世代番号も書き込み時に確認するfencingを検討します。\n\nなおJakarta Batchはジョブ実行と再開を定義しますが、いつ起動するかというスケジューリングは別の仕組みの責務です。\n\n公式資料: [Jakarta Batch specification](https://jakarta.ee/specifications/batch/2.1/jakarta-batch-spec-2.1) / [Jakarta EE Tutorial: Batch Processing](https://jakarta.ee/learn/docs/jakartaee-tutorial/current/supporttechs/batch-processing/batch-processing.html)",
+      "points": [
+        "スケジューラは起動契機、バッチは対象・状態・再開・重複防止を担当する",
+        "大量データは安定した一意キー順でchunkへ分ける",
+        "データ更新とcheckpointを同じトランザクションでcommitする",
+        "処理済みキーと一意制約で再実行を冪等にする",
+        "ジョブ名と業務日の実行権を永続化し、複数プロセスの二重起動を防ぐ"
+      ],
+      "samples": [
+        {
+          "caption": "確定済みIDの次からチャンクを作る",
+          "code": "public class Main {\n    public static void main(String[] args) {\n        int total = 8;\n        int chunkSize = 3;\n        int checkpoint = 3;\n        for (int from = checkpoint + 1; from <= total; from += chunkSize) {\n            int to = Math.min(total, from + chunkSize - 1);\n            System.out.println(from + \"-\" + to);\n            checkpoint = to; // 実務ではchunkの更新と同じtransactionで確定\n        }\n    }\n}\n",
+          "expected": "4-6\n7-8"
+        }
+      ],
+      "task": "IDが1から `total` までのデータを、`chunkSize` 件ずつ処理します。入力は `total chunkSize checkpoint failAt` です。`checkpoint + 1` から開始し、各チャンクを `from-to` で表します。\n\n- `failAt` がそのチャンク内なら `ROLLBACK from-to` を出して停止し、checkpointを進めない\n- それ以外なら `COMMIT from-to` を出し、checkpointをtoまで進める\n- `failAt` が `-1`、またはすでにcheckpoint以下なら失敗しない\n\n最後に `CHECKPOINT 値` と、この実行でcommitできた件数を `PROCESSED 件数` と出力してください。1チャンクの途中だけを確定してはいけません。",
+      "starterCode": "import java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int total = sc.nextInt();\n        int chunkSize = sc.nextInt();\n        int checkpoint = sc.nextInt();\n        int failAt = sc.nextInt();\n        int processed = 0;\n\n        // checkpointの次からchunkを作り、commit後だけ進めよう\n    }\n}\n",
+      "visibleCases": [
+        {
+          "label": "最後まで成功",
+          "stdin": "10 3 0 -1",
+          "expected": "COMMIT 1-3\nCOMMIT 4-6\nCOMMIT 7-9\nCOMMIT 10-10\nCHECKPOINT 10\nPROCESSED 10"
+        },
+        {
+          "label": "2番目のchunkで失敗",
+          "stdin": "10 3 0 5",
+          "expected": "COMMIT 1-3\nROLLBACK 4-6\nCHECKPOINT 3\nPROCESSED 3"
+        }
+      ],
+      "hiddenCases": [
+        {
+          "label": "checkpointから再開",
+          "stdin": "10 3 3 -1",
+          "expected": "COMMIT 4-6\nCOMMIT 7-9\nCOMMIT 10-10\nCHECKPOINT 10\nPROCESSED 7"
+        },
+        {
+          "label": "最初のchunkで失敗",
+          "stdin": "5 2 0 1",
+          "expected": "ROLLBACK 1-2\nCHECKPOINT 0\nPROCESSED 0"
+        },
+        {
+          "label": "すでに完了",
+          "stdin": "5 2 5 -1",
+          "expected": "CHECKPOINT 5\nPROCESSED 0"
+        },
+        {
+          "label": "確定済み位置の失敗指定は無視",
+          "stdin": "10 3 6 5",
+          "expected": "COMMIT 7-9\nCOMMIT 10-10\nCHECKPOINT 10\nPROCESSED 4"
+        }
+      ],
+      "hints": [
+        "ループは `for (int from = checkpoint + 1; from <= total; from += chunkSize)` で始めます。",
+        "終端は `Math.min(total, from + chunkSize - 1)` です。",
+        "失敗判定を先に行い、成功側でだけ `checkpoint = to` と `processed += to - from + 1` を実行します。"
+      ],
+      "solution": "import java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int total = sc.nextInt();\n        int chunkSize = sc.nextInt();\n        int checkpoint = sc.nextInt();\n        int failAt = sc.nextInt();\n        int processed = 0;\n\n        for (int from = checkpoint + 1; from <= total; from += chunkSize) {\n            int to = Math.min(total, from + chunkSize - 1);\n            if (failAt >= from && failAt <= to) {\n                System.out.println(\"ROLLBACK \" + from + \"-\" + to);\n                break;\n            }\n            System.out.println(\"COMMIT \" + from + \"-\" + to);\n            checkpoint = to;\n            processed += to - from + 1;\n        }\n        System.out.println(\"CHECKPOINT \" + checkpoint);\n        System.out.println(\"PROCESSED \" + processed);\n    }\n}\n",
+      "sourceChecks": [
+        {
+          "pattern": "Math\\s*\\.\\s*min\\s*\\(",
+          "minimum": 1,
+          "message": "最後のchunkがtotalを超えないようMath.minを使ってください。"
+        },
+        {
+          "pattern": "\\bbreak\\s*;",
+          "minimum": 1,
+          "message": "失敗したchunkより後は処理せず、そこで停止してください。"
+        },
+        {
+          "pattern": "checkpoint\\s*=\\s*to",
+          "minimum": 1,
+          "message": "checkpointはチャンク全体が成功した側でだけtoへ進めてください。"
+        }
+      ],
+      "quiz": [
+        {
+          "question": "毎日2時の請求バッチについて、スケジューラの主な責務はどれですか。",
+          "choices": [
+            "処理済み明細をすべて記録する",
+            "指定した時刻にジョブを起動する契機を作る",
+            "各業務更新を必ず冪等にする",
+            "失敗したSQLを自動で修正する"
+          ],
+          "answer": 1,
+          "explanation": "起動時刻はスケジューラ、対象・状態・checkpoint・冪等性はバッチ側の設計です。"
+        },
+        {
+          "question": "更新対象が増減するテーブルを途中再開する境界として比較的適切なのはどれですか。",
+          "choices": [
+            "OFFSETで数えたページ番号だけ",
+            "ORDER BYなしの現在の行順",
+            "安定した一意IDを並べ、最後に確定したIDより大きいものを読む",
+            "JVM内のループ回数だけ"
+          ],
+          "answer": 2,
+          "explanation": "安定した一意キーによるkeyset方式なら、行の増減による位置ずれを避けやすくなります。"
+        },
+        {
+          "question": "checkpointを進める正しいタイミングはどれですか。",
+          "choices": [
+            "チャンクの更新を始める前",
+            "1件読むたびに、更新結果と無関係に進める",
+            "チャンクの更新と同じトランザクションで確定するとき",
+            "次の日のスケジューラが起動したとき"
+          ],
+          "answer": 2,
+          "explanation": "更新とcheckpointを同じ確定単位にすると、未処理の飛ばしや不要な再処理を防ぎやすくなります。"
+        },
+        {
+          "question": "外部APIへの送信後、checkpoint更新前に停止する可能性への備えはどれですか。",
+          "choices": [
+            "同じitemIdを再送しても二重効果にならないidempotency keyを使う",
+            "例外をすべて無視する",
+            "chunkを必ず全件にする",
+            "送信前にcheckpointだけ進める"
+          ],
+          "answer": 0,
+          "explanation": "異なるトランザクション境界をまたぐ副作用では、再試行される前提で冪等性を持たせます。"
+        },
+        {
+          "question": "複数インスタンスで同じ業務日のジョブが二重起動するのを防ぐ方法として適切なのはどれですか。",
+          "choices": [
+            "各JVMにbooleanフィールドを置くだけ",
+            "開始時刻を少しずつずらすだけ",
+            "ジョブ名と業務日の一意キーをDBで原子的に獲得する",
+            "ログにRUNNINGと書くだけ"
+          ],
+          "answer": 2,
+          "explanation": "全インスタンスが共有する永続ストアと一意制約で、実行権を1つだけ獲得させます。"
+        }
+      ],
+      "extraTasks": [
+        {
+          "kind": "applied",
+          "task": "ジョブ実行表をMapで模擬し、二重起動を防ぎます。入力はコマンド数nとn個のコマンドです。\n\n- `START job date worker`: キーは `job@date`。未登録またはFAILEDならRUNNINGとして所有者をworkerにし `STARTED key worker`。RUNNINGなら `BUSY key 現所有者`。DONEなら `ALREADY_DONE key`\n- `FINISH job date worker SUCCESS|FAIL`: そのworkerが所有するRUNNINGだけ終了できる。SUCCESSならDONE、FAILならFAILEDにし `FINISHED key 状態`。それ以外は `REJECTED key`\n\n最後に `SUMMARY running=件数 done=件数 failed=件数` を出力します。同じjobでもdateが違えば別の実行です。",
+          "starterCode": "import java.util.*;\n\nrecord RunState(String status, String owner) {}\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n        Map<String, RunState> runs = new LinkedHashMap<>();\n        for (int i = 0; i < n; i++) {\n            String command = sc.next();\n            String job = sc.next(), date = sc.next(), worker = sc.next();\n            String key = job + \"@\" + date;\n            // TODO STARTまたはFINISHを原子的な状態遷移として模擬\n        }\n        // TODO 状態別に集計\n    }\n}\n",
+          "visibleCases": [
+            {
+              "label": "同じキーの二重起動",
+              "stdin": "3 START sales 2026-08-10 w1 START sales 2026-08-10 w2 FINISH sales 2026-08-10 w1 SUCCESS",
+              "expected": "STARTED sales@2026-08-10 w1\nBUSY sales@2026-08-10 w1\nFINISHED sales@2026-08-10 DONE\nSUMMARY running=0 done=1 failed=0"
+            },
+            {
+              "label": "失敗後は再実行できる",
+              "stdin": "4 START billing 2026-08-10 a FINISH billing 2026-08-10 a FAIL START billing 2026-08-10 b FINISH billing 2026-08-10 b SUCCESS",
+              "expected": "STARTED billing@2026-08-10 a\nFINISHED billing@2026-08-10 FAILED\nSTARTED billing@2026-08-10 b\nFINISHED billing@2026-08-10 DONE\nSUMMARY running=0 done=1 failed=0"
+            }
+          ],
+          "hiddenCases": [
+            {
+              "label": "別業務日は別キー",
+              "stdin": "2 START sales 2026-08-10 w1 START sales 2026-08-11 w2",
+              "expected": "STARTED sales@2026-08-10 w1\nSTARTED sales@2026-08-11 w2\nSUMMARY running=2 done=0 failed=0"
+            },
+            {
+              "label": "別workerは終了できない",
+              "stdin": "2 START sales 2026-08-10 w1 FINISH sales 2026-08-10 w2 SUCCESS",
+              "expected": "STARTED sales@2026-08-10 w1\nREJECTED sales@2026-08-10\nSUMMARY running=1 done=0 failed=0"
+            },
+            {
+              "label": "完了済みは再起動しない",
+              "stdin": "3 START sales 2026-08-10 w1 FINISH sales 2026-08-10 w1 SUCCESS START sales 2026-08-10 w2",
+              "expected": "STARTED sales@2026-08-10 w1\nFINISHED sales@2026-08-10 DONE\nALREADY_DONE sales@2026-08-10\nSUMMARY running=0 done=1 failed=0"
+            },
+            {
+              "label": "実行0件",
+              "stdin": "0",
+              "expected": "SUMMARY running=0 done=0 failed=0"
+            }
+          ],
+          "hints": [
+            "STARTでは現在値がnullまたはstatusがFAILEDのときだけ、新しい `RunState(\"RUNNING\", worker)` をputします。",
+            "FINISHでは現在値がRUNNINGかつownerがworkerと一致することを確認してから状態を変えます。",
+            "最後はruns.values()を1回走査してstatus別に数えます。"
+          ],
+          "solution": "import java.util.*;\n\nrecord RunState(String status, String owner) {}\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n        Map<String, RunState> runs = new LinkedHashMap<>();\n        for (int i = 0; i < n; i++) {\n            String command = sc.next();\n            String job = sc.next(), date = sc.next(), worker = sc.next();\n            String key = job + \"@\" + date;\n            RunState current = runs.get(key);\n            if (command.equals(\"START\")) {\n                if (current == null || current.status().equals(\"FAILED\")) {\n                    runs.put(key, new RunState(\"RUNNING\", worker));\n                    System.out.println(\"STARTED \" + key + \" \" + worker);\n                } else if (current.status().equals(\"RUNNING\")) {\n                    System.out.println(\"BUSY \" + key + \" \" + current.owner());\n                } else {\n                    System.out.println(\"ALREADY_DONE \" + key);\n                }\n            } else {\n                String outcome = sc.next();\n                if (current != null && current.status().equals(\"RUNNING\")\n                        && current.owner().equals(worker)) {\n                    String next = outcome.equals(\"SUCCESS\") ? \"DONE\" : \"FAILED\";\n                    runs.put(key, new RunState(next, worker));\n                    System.out.println(\"FINISHED \" + key + \" \" + next);\n                } else {\n                    System.out.println(\"REJECTED \" + key);\n                }\n            }\n        }\n        int running = 0, done = 0, failed = 0;\n        for (RunState state : runs.values()) {\n            if (state.status().equals(\"RUNNING\")) running++;\n            else if (state.status().equals(\"DONE\")) done++;\n            else failed++;\n        }\n        System.out.println(\"SUMMARY running=\" + running + \" done=\" + done + \" failed=\" + failed);\n    }\n}\n",
+          "sourceChecks": [
+            {
+              "pattern": "Map\\s*<\\s*String\\s*,\\s*RunState\\s*>",
+              "minimum": 1,
+              "message": "全workerが共有する実行表の代わりとして、キーごとのRunStateをMapに持ってください。"
+            },
+            {
+              "pattern": "String\\s+key\\s*=\\s*job\\s*\\+",
+              "minimum": 1,
+              "message": "同じ業務を識別するキーはjobとdateの組み合わせにしてください。"
+            },
+            {
+              "pattern": "current\\s*\\.\\s*status\\s*\\(\\s*\\)",
+              "minimum": 2,
+              "message": "STARTとFINISHの両方でRUNNING状態を確認してください。"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "54-7",
+      "title": "章末演習：再開できるバッチを設計する",
+      "intro": "起動漏れの回収、安定した分割、チャンク単位の確定を一続きで確認します。",
+      "explanation": "バッチは正常終了だけでなく、遅延、二重起動、途中停止からの復旧まで含めて完成です。業務日を明示して未完了日を拾い、安定したキーで対象を分割し、副作用とcheckpointを同じ確定単位で扱います。",
+      "points": [
+        "前回成功した業務日から未処理日を列挙し、起動漏れを回収する",
+        "IDの大小関係を再開位置に使い、入力順に依存しない",
+        "チャンク内の1件が失敗したら、そのチャンクの副作用とcheckpointを両方戻す"
+      ],
+      "samples": [],
+      "task": "最後に完了した業務日 `lastCompleted`、処理対象の最終日 `today`、1回の起動で処理する最大日数 `maxCatchUp` を読みます。lastCompletedの翌日からtodayまで、最大maxCatchUp日を `RUN yyyy-MM-dd` と出力してください。1日もなければ `UP_TO_DATE` を出します。最後に `CHECKPOINT 最後に完了した日` と `REMAINING 未処理日数` を出力してください。",
+      "starterCode": "import java.time.LocalDate;\nimport java.time.temporal.ChronoUnit;\nimport java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        LocalDate lastCompleted = LocalDate.parse(sc.next());\n        LocalDate today = LocalDate.parse(sc.next());\n        int maxCatchUp = sc.nextInt();\n        // 翌日から最大maxCatchUp日を処理し、残りを数えよう\n    }\n}\n",
+      "visibleCases": [
+        {
+          "label": "2日だけ回収",
+          "stdin": "2026-08-07 2026-08-11 2",
+          "expected": "RUN 2026-08-08\nRUN 2026-08-09\nCHECKPOINT 2026-08-09\nREMAINING 2"
+        },
+        {
+          "label": "追いついている",
+          "stdin": "2026-08-11 2026-08-11 3",
+          "expected": "UP_TO_DATE\nCHECKPOINT 2026-08-11\nREMAINING 0"
+        }
+      ],
+      "hiddenCases": [
+        {
+          "label": "すべて回収",
+          "stdin": "2026-08-09 2026-08-11 5",
+          "expected": "RUN 2026-08-10\nRUN 2026-08-11\nCHECKPOINT 2026-08-11\nREMAINING 0"
+        },
+        {
+          "label": "1日",
+          "stdin": "2026-12-31 2027-01-01 1",
+          "expected": "RUN 2027-01-01\nCHECKPOINT 2027-01-01\nREMAINING 0"
+        },
+        {
+          "label": "最終日より先まで完了済み",
+          "stdin": "2026-08-12 2026-08-11 3",
+          "expected": "UP_TO_DATE\nCHECKPOINT 2026-08-12\nREMAINING 0"
+        }
+      ],
+      "hints": [
+        "次の日は `lastCompleted.plusDays(1)`、最終日を超えたかは `isAfter(today)` で判定します。",
+        "処理するたびにlastCompletedをその日へ進めます。",
+        "残りはlastCompletedがtodayより前の場合だけ `ChronoUnit.DAYS.between(lastCompleted, today)` です。"
+      ],
+      "solution": "import java.time.LocalDate;\nimport java.time.temporal.ChronoUnit;\nimport java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        LocalDate lastCompleted = LocalDate.parse(sc.next());\n        LocalDate today = LocalDate.parse(sc.next());\n        int maxCatchUp = sc.nextInt();\n        int runs = 0;\n        LocalDate next = lastCompleted.plusDays(1);\n        while (!next.isAfter(today) && runs < maxCatchUp) {\n            System.out.println(\"RUN \" + next);\n            lastCompleted = next;\n            next = next.plusDays(1);\n            runs++;\n        }\n        if (runs == 0) System.out.println(\"UP_TO_DATE\");\n        long remaining = lastCompleted.isBefore(today)\n                ? ChronoUnit.DAYS.between(lastCompleted, today) : 0;\n        System.out.println(\"CHECKPOINT \" + lastCompleted);\n        System.out.println(\"REMAINING \" + remaining);\n    }\n}\n",
+      "sourceChecks": [
+        {
+          "pattern": "LocalDate\\s*\\.\\s*parse\\s*\\(",
+          "minimum": 2,
+          "message": "業務日は文字列のまま比べずLocalDateとして扱ってください。"
+        },
+        {
+          "pattern": "\\.plusDays\\s*\\(",
+          "minimum": 1,
+          "message": "最後に完了した日の翌日から順に進めてください。"
+        },
+        {
+          "pattern": "ChronoUnit\\s*\\.\\s*DAYS\\s*\\.\\s*between",
+          "minimum": 1,
+          "message": "残りの未処理日数はChronoUnit.DAYS.betweenで求めてください。"
+        }
+      ],
+      "extraTasks": [
+        {
+          "kind": "drill",
+          "task": "入力順がばらばらで重複もあるIDを、keyset方式の候補へ整えます。`n`、n個のID、`checkpoint`、`chunkSize` を読みます。重複を除き、checkpointより大きいIDだけを昇順にし、chunkSize件ごとに `CHUNK id1,id2,...` と出力してください。最後に、処理対象があれば最大ID、なければ元のcheckpointを `CHECKPOINT 値` と出力します。",
+          "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n        List<Long> ids = new ArrayList<>();\n        for (int i = 0; i < n; i++) ids.add(sc.nextLong());\n        long checkpoint = sc.nextLong();\n        int chunkSize = sc.nextInt();\n        // TreeSetで重複を除き、checkpointより後をchunkへ分けよう\n    }\n}\n",
+          "visibleCases": [
+            {
+              "label": "並べ替えと重複除去",
+              "stdin": "7 10 3 7 3 12 9 15 7 3",
+              "expected": "CHUNK 9,10,12\nCHUNK 15\nCHECKPOINT 15"
+            },
+            {
+              "label": "対象なし",
+              "stdin": "3 1 2 3 5 2",
+              "expected": "CHECKPOINT 5"
+            }
+          ],
+          "hiddenCases": [
+            {
+              "label": "1件ずつ",
+              "stdin": "4 8 6 7 5 5 1",
+              "expected": "CHUNK 6\nCHUNK 7\nCHUNK 8\nCHECKPOINT 8"
+            },
+            {
+              "label": "全件対象",
+              "stdin": "5 20 10 30 20 40 0 2",
+              "expected": "CHUNK 10,20\nCHUNK 30,40\nCHECKPOINT 40"
+            },
+            {
+              "label": "入力0件",
+              "stdin": "0 9 3",
+              "expected": "CHECKPOINT 9"
+            }
+          ],
+          "hints": [
+            "`TreeSet<Long>` へ入れると重複が消え、昇順になります。",
+            "拡張forの中で `id <= checkpoint` をcontinueします。",
+            "チャンク用ListがchunkSizeになったとき出力してclearし、最後の端数も忘れず出します。"
+          ],
+          "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n        Set<Long> sorted = new TreeSet<>();\n        for (int i = 0; i < n; i++) sorted.add(sc.nextLong());\n        long checkpoint = sc.nextLong();\n        int chunkSize = sc.nextInt();\n        List<String> chunk = new ArrayList<>();\n        long nextCheckpoint = checkpoint;\n        for (long id : sorted) {\n            if (id <= checkpoint) continue;\n            chunk.add(String.valueOf(id));\n            nextCheckpoint = id;\n            if (chunk.size() == chunkSize) {\n                System.out.println(\"CHUNK \" + String.join(\",\", chunk));\n                chunk.clear();\n            }\n        }\n        if (!chunk.isEmpty()) System.out.println(\"CHUNK \" + String.join(\",\", chunk));\n        System.out.println(\"CHECKPOINT \" + nextCheckpoint);\n    }\n}\n",
+          "sourceChecks": [
+            {
+              "pattern": "new\\s+TreeSet\\s*<",
+              "minimum": 1,
+              "message": "重複を除き、ID順を安定させるためTreeSetを使ってください。"
+            },
+            {
+              "pattern": "id\\s*<=\\s*checkpoint",
+              "minimum": 1,
+              "message": "確定済みID以下は再開対象から除いてください。"
+            },
+            {
+              "pattern": "String\\s*\\.\\s*join\\s*\\(",
+              "minimum": 1,
+              "message": "チャンク内のIDはカンマで連結してください。"
+            }
+          ]
+        },
+        {
+          "kind": "applied",
+          "task": "1つのバッチチャンクのトランザクションを模擬します。入力は `checkpoint`、処理済みID数 `d` とd個のID、チャンク件数 `n` とn組の `id outcome`（outcomeは `ok` / `fail`）です。\n\nチャンクに1件でもfailがあれば全体を `ROLLBACK` し、処理済み集合もcheckpointも変更しません。全件okなら `COMMIT` し、未処理IDだけを処理済みに追加します（重複IDの効果は1回）。checkpointはチャンク内の最大IDまで進めます。次の4行を出力してください。\n\n```\nRESULT COMMITまたはROLLBACK\nCHECKPOINT 値\nEFFECTS このチャンクで新たに確定したID数\nDONE 処理済みID総数\n```",
+          "starterCode": "import java.util.*;\n\nrecord Item(long id, String outcome) {}\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        long checkpoint = sc.nextLong();\n        int d = sc.nextInt();\n        Set<Long> done = new HashSet<>();\n        for (int i = 0; i < d; i++) done.add(sc.nextLong());\n        int n = sc.nextInt();\n        List<Item> chunk = new ArrayList<>();\n        for (int i = 0; i < n; i++) chunk.add(new Item(sc.nextLong(), sc.next()));\n        // まず失敗を調べ、成功時だけ集合とcheckpointをまとめて更新しよう\n    }\n}\n",
+          "visibleCases": [
+            {
+              "label": "チャンクをcommit",
+              "stdin": "10 1 10 3 11 ok 12 ok 13 ok",
+              "expected": "RESULT COMMIT\nCHECKPOINT 13\nEFFECTS 3\nDONE 4"
+            },
+            {
+              "label": "1件失敗で全体rollback",
+              "stdin": "10 1 10 3 11 ok 12 fail 13 ok",
+              "expected": "RESULT ROLLBACK\nCHECKPOINT 10\nEFFECTS 0\nDONE 1"
+            }
+          ],
+          "hiddenCases": [
+            {
+              "label": "再処理の重複を飛ばす",
+              "stdin": "10 2 10 11 3 11 ok 12 ok 12 ok",
+              "expected": "RESULT COMMIT\nCHECKPOINT 12\nEFFECTS 1\nDONE 3"
+            },
+            {
+              "label": "空チャンク",
+              "stdin": "7 2 6 7 0",
+              "expected": "RESULT COMMIT\nCHECKPOINT 7\nEFFECTS 0\nDONE 2"
+            },
+            {
+              "label": "重複でも失敗ならrollback",
+              "stdin": "5 1 5 2 5 fail 6 ok",
+              "expected": "RESULT ROLLBACK\nCHECKPOINT 5\nEFFECTS 0\nDONE 1"
+            }
+          ],
+          "hints": [
+            "最初のループで `outcome.equals(\"fail\")` があるかだけを調べます。更新はまだしません。",
+            "失敗がなければ2回目のループで `done.add(id)` の戻り値がtrueだった件数をEFFECTSへ足します。",
+            "checkpointには、チャンクが空でない場合の最大IDを使います。rollback側では代入しません。"
+          ],
+          "solution": "import java.util.*;\n\nrecord Item(long id, String outcome) {}\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        long checkpoint = sc.nextLong();\n        int d = sc.nextInt();\n        Set<Long> done = new HashSet<>();\n        for (int i = 0; i < d; i++) done.add(sc.nextLong());\n        int n = sc.nextInt();\n        List<Item> chunk = new ArrayList<>();\n        for (int i = 0; i < n; i++) chunk.add(new Item(sc.nextLong(), sc.next()));\n\n        boolean failed = false;\n        for (Item item : chunk) {\n            if (item.outcome().equals(\"fail\")) failed = true;\n        }\n        int effects = 0;\n        if (!failed) {\n            for (Item item : chunk) {\n                if (done.add(item.id())) effects++;\n                checkpoint = Math.max(checkpoint, item.id());\n            }\n        }\n        System.out.println(\"RESULT \" + (failed ? \"ROLLBACK\" : \"COMMIT\"));\n        System.out.println(\"CHECKPOINT \" + checkpoint);\n        System.out.println(\"EFFECTS \" + effects);\n        System.out.println(\"DONE \" + done.size());\n    }\n}\n",
+          "sourceChecks": [
+            {
+              "pattern": "Set\\s*<\\s*Long\\s*>",
+              "minimum": 1,
+              "message": "処理済みIDはSetで持ち、同じIDの効果を1回にしてください。"
+            },
+            {
+              "pattern": "done\\s*\\.\\s*add\\s*\\(",
+              "minimum": 1,
+              "message": "Set.addの戻り値で、新たに確定したIDだけを数えてください。"
+            },
+            {
+              "pattern": "Math\\s*\\.\\s*max\\s*\\(",
+              "minimum": 1,
+              "message": "commit側でチャンク内の最大IDまでcheckpointを進めてください。"
             }
           ]
         }

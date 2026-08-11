@@ -7,7 +7,7 @@
     {
       "id": "37-1",
       "title": "計測結果から原因を絞る",
-      "explanation": "## はじめて学ぶ人へ\n\n性能改善は、体調不良を診断するのと同じで、測らずに原因を決めつけないことが出発点です。CPU、メモリ、GC、ロック、DB、外部通信のどこで時間を使っているか、観測結果から絞ります。\n\n```text\n応答時間: 40, 45, 50, 55, 900 ms\n平均: 218 ms / 多くは約50 ms / 遅い1件は900 ms\n```\n\n平均だけでは一部の遅い利用者を隠すため、p95やp99も確認します。小さなコードの比較にはJMH、停止原因にはスレッドダンプ、メモリにはヒープダンプ、継続的な実行記録にはJFRを使います。まず再現条件と基準値を残し、変更後に同じ条件で比較します。\n\n## まず現象を分類する\n\n遅いときはCPU使用率、待ち時間、スループット、エラー率、キュー長、GC停止などを同じ時間軸で見ます。平均だけでは一部の遅い利用者が隠れるため、p95/p99などのパーセンタイルも使います。ウォームアップやJIT最適化があるため、`nanoTime`を一度測っただけのマイクロベンチマークは信用できません。厳密な比較にはJMHを使います。\n\nThread dumpはRUNNABLE、BLOCKED、WAITINGなどの状態とスタックを示します。同じロックで多数BLOCKEDなら競合、同じ外部I/Oで待つなら下流遅延を疑います。Heap dumpは大きなオブジェクトだけでなく、誰が参照を保持しているか（dominator/retained size）を追います。\n\nJDK Flight Recorder（JFR）はCPU、割当て、ロック、GC、I/Oなどを低い負荷で記録できます。`jcmd`、`jstack`、`jmap`、GCログも、事象に合わせて使います。",
+      "explanation": "## 性能調査は、遅いと感じた場面を数値にするところから始める\n\n「アプリが遅い」だけでは、調べる場所を決められません。まず、利用者が困っている現象を測れる言葉へ変えます。\n\n- **レイテンシ**: 1回の処理が終わるまでの時間。API応答が800ミリ秒、など\n- **スループット**: 1秒あたりに処理できる件数。毎秒200リクエスト、など\n- **エラー率**: 全処理のうち失敗した割合\n- **パーセンタイル**: 測定値を小さい順に並べたとき、何%がその値以下かを示す値。p95が800ミリ秒なら、おおむね95%の処理が800ミリ秒以内という意味\n\n平均値だけでは、一部の非常に遅い処理が隠れます。たとえば9件が10ミリ秒、1件が1秒なら、平均だけを見ても「ときどき1秒待つ」体験が伝わりません。p95やp99を併せて確認します。\n\n数値が分かったら、症状に合う証拠を集めます。\n\n| 症状 | 最初に見る証拠 | 分かること |\n|---|---|---|\n| CPU使用率が高い | JFRやプロファイラのCPUサンプル | どのメソッドに実行時間が集まるか |\n| 応答が止まる | 複数時点のスレッドダンプ | ロック待ち、外部I/O待ち、デッドロックの候補 |\n| GC付近で遅れる | JFRのGCイベント、GCログ、レイテンシ | 停止と遅延の時刻が重なるか |\n| メモリが増え続ける | ヒープ使用量の推移、必要ならヒープダンプ | どのオブジェクトが保持され続けるか |\n| 小さな処理を比較したい | JMHベンチマーク | JITやウォームアップを考慮した相対比較 |\n\nここで重要なのは、1つの数値だけで原因を断定しないことです。`RUNNABLE` のスレッドが多くても、全員がCPUを使っているとは限りません。GC停止と遅延が同じ時刻でも、因果関係は追加調査が必要です。仮説を立て、別の証拠で確かめ、変更前後を同じ条件で測ります。\n\n今回の演習では、スレッド状態を集計します。これは原因を決める問題ではなく、次にどこを詳しく見るかを選ぶための材料を作る練習です。",
       "samples": [
         {
           "caption": "パーセンタイルを計算する",
@@ -143,7 +143,7 @@
     {
       "id": "37-2",
       "title": "スレッドダンプとデッドロック",
-      "explanation": "## 止まって見える理由を切り分ける\n\nスレッドダンプには各スレッドの状態とスタックが記録されます。RUNNABLEは必ずCPU実行中とは限らず、OS待ちを含むことがあります。BLOCKEDはモニター獲得待ち、WAITING/TIMED_WAITINGは条件や期限を待つ状態です。1枚だけでなく時間を空けて複数回取り、同じ場所に止まるかを見ます。\n\n`jcmd <pid> Thread.print` または `jstack <pid>` で取得できます。デッドロックでは、複数スレッドが互いの保持するロックを待ちます。ロック取得順を統一し、ロック中のI/Oを避けます。`labs/diagnostics/DeadlockDemo.java` で安全に再現して観察できます。\n\n```svg デッドロックは「互いが相手の持っているロックを待つ」状態。どちらも進めない\n<svg viewBox=\"0 0 720 236\">\n  <rect class=\"fig-box\" x=\"30\" y=\"90\" width=\"160\" height=\"50\" rx=\"6\"/>\n  <text class=\"fig-t fig-small\" x=\"110\" y=\"108\" text-anchor=\"middle\">スレッドA</text>\n  <text class=\"fig-t fig-mono fig-small fig-t-ng\" x=\"110\" y=\"128\" text-anchor=\"middle\">BLOCKED</text>\n  <rect class=\"fig-box\" x=\"530\" y=\"90\" width=\"160\" height=\"50\" rx=\"6\"/>\n  <text class=\"fig-t fig-small\" x=\"610\" y=\"108\" text-anchor=\"middle\">スレッドB</text>\n  <text class=\"fig-t fig-mono fig-small fig-t-ng\" x=\"610\" y=\"128\" text-anchor=\"middle\">BLOCKED</text>\n\n  <rect class=\"fig-box-accent\" x=\"290\" y=\"40\" width=\"140\" height=\"44\" rx=\"6\"/>\n  <text class=\"fig-t fig-mono fig-small fig-t-accent\" x=\"360\" y=\"62\" text-anchor=\"middle\">ロック1</text>\n  <rect class=\"fig-box-accent\" x=\"290\" y=\"150\" width=\"140\" height=\"44\" rx=\"6\"/>\n  <text class=\"fig-t fig-mono fig-small fig-t-accent\" x=\"360\" y=\"172\" text-anchor=\"middle\">ロック2</text>\n\n  <line class=\"fig-line-ok\" x1=\"194\" y1=\"102\" x2=\"286\" y2=\"70\" marker-end=\"arrow-ok\"/>\n  <text class=\"fig-t fig-t-ok fig-small\" x=\"204\" y=\"76\">保持</text>\n  <line class=\"fig-line-ng fig-dashed\" x1=\"194\" y1=\"130\" x2=\"286\" y2=\"164\" marker-end=\"arrow-ng\"/>\n  <text class=\"fig-t fig-t-ng fig-small\" x=\"204\" y=\"162\">待つ</text>\n  <line class=\"fig-line-ok\" x1=\"526\" y1=\"130\" x2=\"434\" y2=\"164\" marker-end=\"arrow-ok\"/>\n  <text class=\"fig-t fig-t-ok fig-small\" x=\"480\" y=\"162\">保持</text>\n  <line class=\"fig-line-ng fig-dashed\" x1=\"526\" y1=\"102\" x2=\"434\" y2=\"70\" marker-end=\"arrow-ng\"/>\n  <text class=\"fig-t fig-t-ng fig-small\" x=\"480\" y=\"76\">待つ</text>\n  <text class=\"fig-t fig-t-ng fig-small\" x=\"360\" y=\"117\" text-anchor=\"middle\">互いに待ち合う</text>\n\n  <text class=\"fig-t fig-t-dim fig-small\" x=\"14\" y=\"216\">直し方はロックの取得順を全員で統一すること。ロックを持ったまま I/O をしないのも効く</text>\n</svg>\n```\n\n> 🧪 アプリで確かめること / labs で動かすこと … この問題で確かめるのはダンプに出た2つのスレッドを突き合わせ、どちらがどのロックを待っているか読むことです。\n> 実際にデッドロックを起こしてダンプを採る操作は、1ファイル・標準入力だけのこの画面では扱えません。`labs/diagnostics` に本物を置いてあります。",
+      "explanation": "## スレッドダンプは「その瞬間、各処理がどこで待っているか」の写真\n\n画面が固まった、リクエストが返らない、といった症状では、まずJavaの各スレッドが何をしているかを確認します。**スレッドダンプ** は、ある瞬間のスレッド名、状態、実行中のメソッド、保持・待機しているロックを記録したものです。実行中のJVMに対して `jcmd <PID> Thread.print -l` などで取得できます。\n\n主な状態を、調査で必要な意味に絞ると次のようになります。\n\n- `RUNNABLE`: JVMから見て実行可能。CPUで実行中とは限らず、一部のOS処理を待つ場合もある\n- `BLOCKED`: `synchronized` のロックを別スレッドが持っており、入れない\n- `WAITING`: 終了時刻を決めず、通知や別処理の完了を待つ\n- `TIMED_WAITING`: `sleep` や時間指定の待機など、期限付きで待つ\n\n2つ以上のスレッドが、互いの持つロックを待って永久に進めない状態が **デッドロック** です。一方、1つのロックへ処理が集中して遅くなるだけなら **ロック競合** であり、必ずしもデッドロックではありません。\n\n1枚のダンプは一瞬の写真なので、正常な短い待機も写ります。数秒おきに複数回取り、同じスレッドが同じ場所で待ち続けているか、ロック所有者が変化しているかを比べます。次にJFRのロックイベントや処理時間と照合すると、影響の大きさを判断しやすくなります。\n\n今回の演習では、単純化したダンプから `BLOCKED` のスレッドと待っている資源を抽出します。`BLOCKED` を見つけることは調査の入口であり、それだけでデッドロックと決めない点も意識してください。",
       "samples": [
         {
           "caption": "JVMからデッドロックを検出",
@@ -204,7 +204,7 @@
     {
       "id": "37-3",
       "title": "JFR・JMC・GCログ",
-      "explanation": "## 低負荷の記録から仮説を作る\n\nJava Flight Recorder（JFR）はCPUサンプル、割り当て、GC、ロック、I/Oなどのイベントを記録します。`jcmd <pid> JFR.start name=investigation duration=60s filename=app.jfr` のように取得し、JDK Mission Control（JMC）などで確認します。設定と保存先の容量を決め、機密データを含む独自イベントにも注意します。\n\nGCログではヒープ使用量、停止時間、頻度、原因を見ます。古い世代が回収後も増え続けるならリークを疑いますが、1回の高使用率だけでは断定できません。遅延の時刻とGC/JFR/アプリ指標を揃えて相関を見ます。`labs/diagnostics/AllocationDemo.java` で記録手順を試せます。\n\n### 記録して、中身を確かめる\n\n```sh\njcmd <pid> JFR.start name=lab duration=20s filename=lab.jfr settings=profile\n```\n\n`settings=profile` は詳しく取る設定で、そのぶん負荷と容量が増えます。軽いほうは\n`settings=default` です。**どちらを使うかは、調べたいものと本番への影響で決めます。**\n\nできたファイルは、JDK同梱の `jfr` コマンドで中身を確かめられます。\n\n```sh\njfr summary lab.jfr\n```\n\n```\n Event Type                     Count  Size (bytes)\n===================================================\n jdk.ExecutionSample              479         10402\n jdk.ThreadSleep                  433         11170\n```\n\nどのイベントが何件取れたかが分かるので、**設定が意図どおりだったか** をここで確認します。\n`jdk.ExecutionSample` が少なすぎれば、記録時間が短すぎたか負荷が軽すぎたということです。\n詳しく見るときは JDK Mission Control で開き、Allocation・GC・Method Profiling を見ます。\n\n### GCログは「回収後」を見る\n\n```sh\njava -Xlog:gc*:file=gc.log:time,uptime,level,tags -Xms64m -Xmx64m App\n```\n\n見るのは瞬間の使用量ではなく、**回収したあとの使用量が増え続けているか** です。\n増え続けていればリーク、上下しているだけなら正常な変動です。\n\n> ⚠️ `JFR.check` は HotSpot のコマンドで、IBM Semeru (OpenJ9) では\n> `Command JFR.check not recognized` になります。状況を確かめるコマンド名は\n> JDKによって違うので、手順書には **使うJDKを明記** します。\n> 記録ファイルの中身を見る `jfr summary` はどのJDKでも使えます。\n\n> 💡 記録には環境変数やコマンドライン引数も入ります。共有する前に機密値がないか\n> 確かめてください。\n\n> 🧪 アプリで確かめること / labs で動かすこと … この問題で確かめるのは記録の設定の決め方と、出てきたイベントの読み方です。\n> JFRを実際に記録して開く操作は、1ファイル・標準入力だけのこの画面では扱えません。`labs/diagnostics` に本物を置いてあります。",
+      "explanation": "## 時間の流れを記録し、遅延とJVM内の出来事を重ねる\n\nスレッドダンプが一瞬の写真なら、**JFR（Java Flight Recorder）** はJVMとアプリケーションで起きた出来事を時刻付きで記録する仕組みです。CPU使用、GC、オブジェクト割り当て、ロック待ちなどのイベントをまとめて追えるため、「遅くなった時刻に何が起きたか」を調べられます。\n\n**JMC（JDK Mission Control）** はJFR記録を画面で分析するためのツールです。JFRが記録側、JMCが主な閲覧・分析側、と分けると理解しやすくなります。実行中のJVMでは、たとえば次のように一定時間だけ記録できます。\n\n```text\njcmd <PID> JFR.start name=slow duration=60s filename=slow.jfr settings=profile\n```\n\n`settings=profile` は詳細な調査向けで、継続記録用の軽い設定より収集量と負荷が増える場合があります。まず検証環境で影響を確かめ、期間・保存サイズ・収集イベントを決めます。記録にはクラス名、メソッド名、場合によってはアプリケーション由来の情報が含まれるため、保存先と閲覧権限も管理します。\n\n**GCログ** は、不要なオブジェクトを回収するGCの種類、所要時間、回収前後のメモリ量などを追うための記録です。レイテンシの急上昇時刻と長いGC停止が重なるかを見れば、GCが候補かどうかを絞れます。ただし時刻が重なっただけでは原因確定ではありません。CPU飽和や外部サービスの遅延も同時に確認します。\n\nまた、**アロケーション** は新しいオブジェクト用のメモリを確保することです。割り当て量が多い箇所を減らすとGC頻度が下がる場合がありますが、可読性を犠牲にする変更を先に行わず、記録上の大きな箇所から検証します。\n\n今回の演習では、GC停止時間がしきい値以上の記録を抽出します。これは「調べるべき時刻」を見つける処理であり、その時点でGCを原因と断定する処理ではありません。",
       "samples": [
         {
           "caption": "独自JFRイベント",
@@ -265,7 +265,7 @@
     {
       "id": "37-4",
       "title": "ベンチマークと改善サイクル",
-      "explanation": "## 先に基準と再現条件を固定する\n\n性能改善は、利用者に影響する指標（p50/p95/p99遅延、スループット、エラー率など）を選び、代表負荷で基準値を測るところから始めます。変更は一度に一つ、ウォームアップ後に複数回測り、平均だけでなく分布を見るようにします。マイクロベンチマークではJIT最適化やデッドコード除去があるため、JMHのような専用ハーネスを使います。\n\nプロファイルで支配的な箇所を見つけ、仮説→変更→同条件で再測定→回帰テストの順に進めます。高速化のために正しさ、可読性、運用性を失わないよう、目標と上限を先に決めます。\n\n### 1回測って比べてはいけない\n\n同じコードでも、測るたびに結果は動きます。JVMは実行しながら最適化するので、\n**最初の数回は遅い**のが普通です。\n\n```\n1回目   120 ms   ← インタプリタ実行、クラスロードも含む\n2回目    45 ms\n3回目    12 ms\n...\n20回目    3 ms   ← ここが定常状態\n```\n\nだから「変更前は120ms、変更後は3ms」のような比較は、変更の効果ではなく\n**ウォームアップの差**を測っているだけかもしれません。\n\n### JMHが面倒を見てくれること\n\n| 項目 | 内容 |\n|---|---|\n| ウォームアップ | 測定前に何度も回して定常状態にする |\n| fork | 別プロセスで測り、前の測定の影響を切る |\n| 最適化除去の防止 | 結果を使わないと処理ごと消されるのを防ぐ |\n| ばらつきの報告 | 平均だけでなく誤差を出す |\n\n### 改善のサイクル\n\n1. 代表的な入力と**目標**を決める（p95で何ミリ秒か）\n2. 測って、いちばん時間を使っているところを1つ特定する\n3. **一度に1か所**だけ変える\n4. 同じ条件で測り直す。変わらなければ元に戻す\n\n> ⚠️ 間違えやすい点 … 平均だけを見ないこと。平均が改善しても p95/p99 が悪化していれば、\n> 多くの利用者は遅くなったと感じます。\n> また、3か所を同時に変えて速くなっても、**どれが効いたか分かりません**。\n> 効かなかった変更を抱え続けることになるので、1つずつ測ります。",
+      "explanation": "## 改善は「同じ条件で測る→1つ変える→もう一度測る」で判断する\n\n処理を書き換えて速く見えても、測定条件が違えば比較できません。性能改善では、入力データ、JDK、JVMオプション、マシン、負荷、計測時間をそろえ、変更点をできるだけ1つに絞ります。\n\nJavaでは、実行中によく使うコードをJITコンパイラが最適化します。そのため起動直後の数回は、十分に最適化された後より遅いことがあります。計測前に同じ処理を繰り返す **ウォームアップ** が必要です。また、計算結果を使わないコードは最適化で消えることがあり、単純な `System.nanoTime()` ループだけでは誤った結論になる場合があります。\n\n**JMH（Java Microbenchmark Harness）** は、Javaの小さな処理を比較するためのベンチマーク基盤です。ウォームアップ、複数回の計測、別JVMプロセスでの反復、結果が消される最適化への対策を支援します。JMHでメソッドが速くても、ネットワークやデータベースを含むアプリ全体が速くなるとは限らないため、本番に近い負荷試験も別に必要です。\n\n結果は1回の最速値ではなく、分布で見ます。今回使うnearest-rank方式では、値を小さい順へ並べ、`ceil(p / 100 × 件数)` 番目をpパーセンタイルとします。たとえば20件のp95は19番目です。方式によって補間方法が異なるため、比較する結果では同じ定義を使います。\n\n改善前後の差が小さい場合は、測定のばらつきかもしれません。反復回数を増やし、誤差や信頼区間も確認します。性能だけでなく、メモリ使用量、エラー率、可読性への影響を含めて採用を決めます。\n\n今回の演習では、測定値を並べてp50とp95を求めます。まずアルゴリズムを理解し、その後の実務ではJMHや監視基盤が採用するパーセンタイル定義を確認してください。",
       "samples": [
         {
           "caption": "percentileの前に並べる",
@@ -326,7 +326,7 @@
     {
       "id": "37-5",
       "title": "章末演習：性能測定とJVM計測ラボ",
-      "explanation": "## この章の知識を、自分の手で組み合わせよう\n\nここでは、**スレッド状態の読み分け・パーセンタイル・GC停止との相関・ウォームアップを捨てた比較**をまとめて使います。新しい文法は登場しません。分からなくなったら、直前までの解説やサンプルへ戻って確認して大丈夫です。\n\n### 3問の進め方\n\n1. **基本**で、中心となる書き方をもう一度使う\n2. **組み合わせ**で、章内の複数の知識を一緒に使う\n3. **実践**で、少し現実的な入力と条件を整理する\n\nこの章の要は、**1つの証拠だけで結論を出さない**ことです。3問はどれも、集計した数値から言えることと言えないことを分ける形にしてあります。",
+      "explanation": "## 章末では、観測事実と原因の推測を分ける\n\nこの章では、利用者の症状をレイテンシやスループットへ置き換え、症状に合う証拠を選ぶ流れを学びました。スレッドダンプは一瞬の待機状態、JFRは時系列のJVMイベント、GCログは回収の詳細、JMHは小さな処理の比較に使います。\n\n性能調査は次の順で進めます。\n\n1. 遅い操作、発生時刻、頻度、影響範囲を決める\n2. レイテンシ、p95、スループット、エラー率などで再現条件を数値化する\n3. CPU、ロック、GC、メモリ、外部I/Oなどの仮説を立てる\n4. 仮説に合う記録を取り、複数の証拠を時刻や処理単位で照合する\n5. 1つの変更だけを入れ、同じ条件で前後を測る\n\nスレッド状態の件数だけでは、CPUバウンドかどうかは判断できません。`RUNNABLE` はCPUで実行中とは限らず、`WAITING` や `TIMED_WAITING` には正常な待機も含まれます。`BLOCKED` があればロック競合を調べる手掛かりになりますが、影響時間や繰り返し発生を追加で確認します。\n\n章末の基本問題では、状態を集計した後に「次に調べる候補」を表示します。組み合わせ問題ではGC停止と遅延の同時発生を相関の候補として扱い、実践問題ではウォームアップを除いた改善前後を比べます。どの出力も最終診断ではなく、次の測定を決めるための判断材料です。",
       "samples": [
         {
           "caption": "復習用サンプル：列挙の宣言順は values() の順で取り出せる",
@@ -334,48 +334,53 @@
           "expected": "NEW RUNNABLE BLOCKED WAITING TIMED_WAITING TERMINATED"
         }
       ],
-      "task": "【基本】スレッドダンプを単純化した入力として、件数nと続くn組の `スレッド名 状態` を読みます（状態は `Thread.State` の名前）。まず状態ごとの件数を `Thread.State` の宣言順に、**0件の状態は除いて** `STATE=件数` と表示してください。次に、`BLOCKED`・`WAITING`・`TIMED_WAITING` の合計と `RUNNABLE` の件数を `waiting=合計 runnable=件数` と表示します。最後に、待ちの合計が `RUNNABLE` より多ければ `SUSPECT_CONTENTION`、そうでなければ `CPU_BOUND` と表示してください。",
+      "task": "【基本】スレッドダンプを単純化した入力として、件数nと続くn組の `スレッド名 状態` を読みます（状態は `Thread.State` の名前）。まず状態ごとの件数を `Thread.State` の宣言順に、**0件の状態は除いて** `STATE=件数` と表示してください。次に、`BLOCKED`・`WAITING`・`TIMED_WAITING` の合計と `RUNNABLE` の件数を `waiting=合計 runnable=件数` と表示します。最後に、`BLOCKED` が1件以上なら `CHECK_LOCK_CONTENTION`、`BLOCKED` はないが待ちの合計が `RUNNABLE` より多ければ `CHECK_WAITING_CAUSE`、それ以外は `NEEDS_MORE_EVIDENCE` と表示してください。これは原因の断定ではなく、次に集める証拠の候補です。",
       "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        int n = s.nextInt();\n        Map<Thread.State, Integer> counts = new EnumMap<>(Thread.State.class);\n        for (int i = 0; i < n; i++) {\n            String name = s.next();\n            Thread.State state = Thread.State.valueOf(s.next());\n            /* TODO 集計 */\n        }\n        /* TODO 宣言順に表示（0件は除く） */ /* TODO waiting と runnable、最後の判定 */\n    }\n}\n",
       "visibleCases": [
         {
           "label": "詰まりを疑う",
           "stdin": "5 a RUNNABLE b BLOCKED c BLOCKED d WAITING e RUNNABLE",
-          "expected": "RUNNABLE=2\nBLOCKED=2\nWAITING=1\nwaiting=3 runnable=2\nSUSPECT_CONTENTION"
+          "expected": "RUNNABLE=2\nBLOCKED=2\nWAITING=1\nwaiting=3 runnable=2\nCHECK_LOCK_CONTENTION"
         },
         {
-          "label": "CPUを使っている",
+          "label": "追加の証拠が必要",
           "stdin": "3 a RUNNABLE b RUNNABLE c TIMED_WAITING",
-          "expected": "RUNNABLE=2\nTIMED_WAITING=1\nwaiting=1 runnable=2\nCPU_BOUND"
+          "expected": "RUNNABLE=2\nTIMED_WAITING=1\nwaiting=1 runnable=2\nNEEDS_MORE_EVIDENCE"
         }
       ],
       "hiddenCases": [
         {
           "label": "1件も無い",
           "stdin": "0",
-          "expected": "waiting=0 runnable=0\nCPU_BOUND"
+          "expected": "waiting=0 runnable=0\nNEEDS_MORE_EVIDENCE"
         },
         {
           "label": "NEWとTERMINATEDも宣言順に",
           "stdin": "4 a TERMINATED b NEW c RUNNABLE d BLOCKED",
-          "expected": "NEW=1\nRUNNABLE=1\nBLOCKED=1\nTERMINATED=1\nwaiting=1 runnable=1\nCPU_BOUND"
+          "expected": "NEW=1\nRUNNABLE=1\nBLOCKED=1\nTERMINATED=1\nwaiting=1 runnable=1\nCHECK_LOCK_CONTENTION"
         },
         {
           "label": "全部BLOCKED",
           "stdin": "2 a BLOCKED b BLOCKED",
-          "expected": "BLOCKED=2\nwaiting=2 runnable=0\nSUSPECT_CONTENTION"
+          "expected": "BLOCKED=2\nwaiting=2 runnable=0\nCHECK_LOCK_CONTENTION"
+        },
+        {
+          "label": "ロック以外の待機が多い",
+          "stdin": "3 a WAITING b TIMED_WAITING c RUNNABLE",
+          "expected": "RUNNABLE=1\nWAITING=1\nTIMED_WAITING=1\nwaiting=2 runnable=1\nCHECK_WAITING_CAUSE"
         },
         {
           "label": "全部RUNNABLE",
           "stdin": "3 a RUNNABLE b RUNNABLE c RUNNABLE",
-          "expected": "RUNNABLE=3\nwaiting=0 runnable=3\nCPU_BOUND"
+          "expected": "RUNNABLE=3\nwaiting=0 runnable=3\nNEEDS_MORE_EVIDENCE"
         }
       ],
       "hints": [
         "`Thread.State.valueOf(...)` で文字列から列挙値に変換できます。`EnumMap` に集計すると宣言順で扱えます。",
         "表示は `Thread.State.values()` を回し、集計に入っている状態だけを出します。",
-        "`RUNNABLE` はCPUを使っているとは限らず、OS待ちも含みます。だからこの判定は `SUSPECT`（疑い）までで、断定はしません。"
+        "`RUNNABLE` はCPUを使っているとは限らず、`WAITING` にも正常な待機があります。状態の件数だけで原因を断定せず、次に調べる候補だけを表示します。"
       ],
-      "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        int n = s.nextInt();\n        Map<Thread.State, Integer> counts = new EnumMap<>(Thread.State.class);\n        for (int i = 0; i < n; i++) {\n            String name = s.next();\n            Thread.State state = Thread.State.valueOf(s.next());\n            counts.merge(state, 1, Integer::sum);\n        }\n        for (Thread.State st : Thread.State.values()) if (counts.containsKey(st)) System.out.println(st + \"=\" + counts.get(st));\n        int waiting = counts.getOrDefault(Thread.State.BLOCKED, 0) + counts.getOrDefault(Thread.State.WAITING, 0) + counts.getOrDefault(Thread.State.TIMED_WAITING, 0);\n        int runnable = counts.getOrDefault(Thread.State.RUNNABLE, 0);\n        System.out.println(\"waiting=\" + waiting + \" runnable=\" + runnable);\n        System.out.println(waiting > runnable ? \"SUSPECT_CONTENTION\" : \"CPU_BOUND\");\n    }\n}\n",
+      "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        int n = s.nextInt();\n        Map<Thread.State, Integer> counts = new EnumMap<>(Thread.State.class);\n        for (int i = 0; i < n; i++) {\n            String name = s.next();\n            Thread.State state = Thread.State.valueOf(s.next());\n            counts.merge(state, 1, Integer::sum);\n        }\n        for (Thread.State st : Thread.State.values()) if (counts.containsKey(st)) System.out.println(st + \"=\" + counts.get(st));\n        int blocked = counts.getOrDefault(Thread.State.BLOCKED, 0);\n        int waiting = blocked + counts.getOrDefault(Thread.State.WAITING, 0) + counts.getOrDefault(Thread.State.TIMED_WAITING, 0);\n        int runnable = counts.getOrDefault(Thread.State.RUNNABLE, 0);\n        System.out.println(\"waiting=\" + waiting + \" runnable=\" + runnable);\n        if (blocked > 0) System.out.println(\"CHECK_LOCK_CONTENTION\");\n        else if (waiting > runnable) System.out.println(\"CHECK_WAITING_CAUSE\");\n        else System.out.println(\"NEEDS_MORE_EVIDENCE\");\n    }\n}\n",
       "extraTasks": [
         {
           "kind": "drill",

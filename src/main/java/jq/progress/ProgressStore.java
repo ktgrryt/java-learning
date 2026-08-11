@@ -45,8 +45,8 @@ import java.util.concurrent.TimeUnit;
  */
 public final class ProgressStore {
 
-    // 12: 教材が全516問へ増えたぶん、出店費を上げて投資率を戻した
-    private static final int CAFE_ECONOMY_VERSION = 12;
+    // 15: 教材が全547問へ増えたぶん、終盤の出店費を上げて投資率を戻した
+    private static final int CAFE_ECONOMY_VERSION = 15;
     private static final int CUP_PRICE = 500;
     private static final int MAX_CAFE_STORES = 512;
     private static final long FIRST_EXPANSION_COST = 2_500L;
@@ -59,11 +59,12 @@ public final class ProgressStore {
      * 投資率（購入費 ÷ 生涯売上）が下がり、目標の25〜45%を割る。
      * 売上側を削ると学習の報酬感が変わるため、終盤の消費先であるここで吸収している。</p>
      *
-     * <p>実測: 全509問で8,500だと22.9%、全516問だと20.9%まで落ちた。
-     * 15,000にすると全516問で27.7%で、問題を増やす前（全507問・8,500）の27.5%とほぼ同じになる。</p>
+     * <p>実測: 全509問で8,500だと22.9%、全516問で15,000だと27.7%、
+     * 全532問で25,000だと25.92%、全547問で25,000だと18.49%まで落ちた。
+     * 38,000へ上げて終盤の消費先で吸収した。</p>
      */
-    private static final long EXPANSION_CUBIC_COST = 15_000L;
-    /** 完成した章の問題1問あたりのブランド成長。全516問で約x9.77になる。 */
+    private static final long EXPANSION_CUBIC_COST = 38_000L;
+    /** 完成した章の問題1問あたりのブランド成長。全547問で約x10.30になる。 */
     private static final int BRAND_GROWTH_BASIS_POINTS_PER_TASK = 170;
     private static final int LUCKY_COIN_CHANCE_PERCENT = 12;
     private static final int TASK_COMBO_INTERVAL = 5;

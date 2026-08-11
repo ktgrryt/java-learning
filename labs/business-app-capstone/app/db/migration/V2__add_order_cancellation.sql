@@ -1,0 +1,3 @@
+-- TODO: requirements.md のexpand段階を実装する
+-- 1. ordersへcancel_reasonとcancelled_atを追加する
+-- 2. order_outboxを作り、event_idを主キーにする

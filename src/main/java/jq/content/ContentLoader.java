@@ -59,7 +59,8 @@ public final class ContentLoader {
                 number++;
             }
             if (!chapters.isEmpty()) {
-                parts.add(new CurriculumPart("main", "カリキュラム", "", "📚", List.copyOf(chapters)));
+                parts.add(new CurriculumPart(
+                        "main", "カリキュラム", "", "", "📚", List.copyOf(chapters)));
             }
         } else {
             for (Object partEntry : partEntries) {
@@ -80,6 +81,7 @@ public final class ContentLoader {
                         partId,
                         MiniJson.requireStr(rawPart, "title"),
                         MiniJson.str(rawPart, "subtitle", ""),
+                        MiniJson.str(rawPart, "prerequisite", ""),
                         MiniJson.str(rawPart, "emoji", "📚"),
                         List.copyOf(chapters)));
             }

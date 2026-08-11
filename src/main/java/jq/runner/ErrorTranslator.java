@@ -51,20 +51,19 @@ public final class ErrorTranslator {
                  "compiler.err.cant.resolve.location", "compiler.err.cant.resolve.location.args" -> {
                 String name = symbolName(msg);
                 String subject = name != null ? "「" + name + "」" : "この名前";
-                return subject + " が見つかりません。つづりが合っているか、使う前に宣言できているか、"
+                return subject + " が見つかりません。つづりが合っているか、使う前に値を用意できているか、"
                         + "大文字と小文字が合っているかを確かめましょう（Javaは大文字と小文字を区別します）。";
             }
             case "compiler.err.prob.found.req", "compiler.err.prob.found.req.1" -> {
                 if (msg.contains("double") && msg.contains("int")) {
                     return "小数（double）を整数（int）にそのままは入れられません。"
-                            + "切り捨ててよければ `(int)` を付けて変換します。例: `int n = (int) 1.5;`";
+                            + "小数のまま使うなら左側を `double` にし、整数として使うなら右側を整数にしましょう。";
                 }
                 if (msg.contains("String") && msg.contains("int")) {
-                    return "文字列と数値は別の型です。文字列を数値にするには `Integer.parseInt(s)`、"
-                            + "数値を文字列にするには `\"\" + n` や `String.valueOf(n)` を使います。";
+                    return "文字列と整数は別の型です。`\"123\"` は文字列、`123` は整数です。"
+                            + "クォートの有無と、左側に書いた型を確かめましょう。";
                 }
-                return "型が合っていません。左辺の型と右辺の型が同じか確かめましょう。"
-                        + "変換したい場合は `(int)` のようなキャストや、`Integer.parseInt` などを使います。";
+                return "型が合っていません。左側の箱の型と、右側の値の型が同じか確かめましょう。";
             }
             case "compiler.err.var.might.not.have.been.initialized" -> {
                 return "変数を宣言しただけで、まだ値を入れていません。使う前に値を代入しましょう。"
@@ -92,8 +91,7 @@ public final class ErrorTranslator {
                 String op = firstQuoted(msg);
                 String opText = op != null ? "演算子 `" + op + "` " : "その演算子";
                 if (msg.contains("String")) {
-                    return opText + "は文字列には使えません。"
-                            + "文字列が同じかどうかは `==` ではなく `a.equals(b)` で調べます。";
+                    return opText + "はこの文字列には使えません。記号と左右の値の型を確かめましょう。";
                 }
                 return opText + "はこの型どうしでは使えません。左右の値の型を確かめましょう。";
             }

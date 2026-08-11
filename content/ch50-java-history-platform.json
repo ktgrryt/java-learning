@@ -7,7 +7,7 @@
     {
       "id": "50-1",
       "title": "OakからJavaへ",
-      "explanation": "## 家電向けの言語からネットワーク時代へ\n\nJavaの前身Oakは、1990年代初頭にJames GoslingらのGreen Projectで、機器の種類に依存しにくい組み込みソフトウェアを作るために設計されました。その後インターネットへ対象を移し、Javaと改名され、1995年に公開されました。\n\n当時はCPUやOSごとに実行形式を作り直す負担が大きく、ネットワークから取得したコードを安全に動かす必要もありました。そこで、ソースを共通のバイトコードへ変換し、各環境のJVMが実行する二段構造、型検査、例外、GC、標準ライブラリを一体として提供しました。歴史は年号暗記ではなく、現在の移植性・安全性・互換性を重んじる理由を理解するために学びます。\n\n### 何のために作られたか\n\n| 年 | 出来事 |\n|---|---|\n| 1991 | 家電向けの言語として開発が始まる（当時の名前が **Oak**） |\n| 1995 | **Java** として公開。ブラウザ上のAppletで広まる |\n| 1998 | Java 2。用途別にJ2SE / J2EE / J2MEへ分かれる |\n| 2006〜 | OpenJDKとしてソースが公開される |\n| 2018〜 | 半年ごとのフィーチャーリリースへ移行 |\n\n家電を狙っていたことが、いまの性質に残っています。**機種ごとに作り直したくない**という\n要求が「バイトコードへコンパイルし、各機種向けのJVMが実行する」形になりました。\n\n### だから「一度書けばどこでも動く」\n\n```sh\njavac Main.java     # Main.class（バイトコード）ができる\njava Main           # JVMがバイトコードを解釈・実行する\n```\n\n`Main.class` はOSに依存しません。OSごとに違うのは **JVM** のほうで、\nWindows用・macOS用・Linux用のJVMがそれぞれ用意されています。\n\n> 💡 「どこでも動く」はJVMがある環境に限った話です。JVMは各OS向けに作られた\n> ネイティブなプログラムなので、**JVMそのものは持ち運べません**。\n> 配る成果物（JAR）と、それを動かす環境（JDK/JRE）を分けて考えます。",
+      "explanation": "## 歴史を知ると、Javaの設計理由が見える\n\nJavaの歴史は年号を覚えるためのものではありません。現在も使う「JVM」「バイトコード」「互換性」が、どんな困りごとを解決するために生まれたのかを理解するために学びます。\n\n1990年代初め、家電や携帯端末は製品ごとにCPUやOSが異なり、同じプログラムを機種ごとに作り直す必要がありました。ここでいう **CPU** は命令を実行する部品、**OS** はハードウェアを管理する基本ソフトです。Sun MicrosystemsのGreenプロジェクトでは、この違いをプログラムから隠すためにOakという言語が作られました。Oakは後にJavaへ改名され、1995年に公開されます。\n\nJavaはソースコードを、特定のCPUの命令へ直接変換せず、まず **バイトコード** という中間形式へ変換します。そのバイトコードを、各OS向けに用意された **JVM（Java Virtual Machine）** が実行します。\n\n```text\nJavaのソースコード\n       ↓ コンパイル\n共通のバイトコード\n       ↓ 各環境のJVMが実行\nWindows / Linux / macOS\n```\n\nこの分担により、同じバイトコードを複数の環境で動かしやすくなりました。これが「Write Once, Run Anywhere」の考え方です。ただし、OS固有のファイルパスやネイティブライブラリへ依存すれば差は残ります。「何も考えなくても必ず同じ」ではなく、**共通仕様に沿って作れば移植しやすい**という意味です。\n\nまた、不要になったオブジェクトのメモリをJVMが回収する **GC（ガベージコレクション）** も、安全性を高める重要な仕組みです。今回の演習では、出来事を古い順へ並べ、Oakから現在のJavaへつながる流れを確認します。",
       "samples": [
         {
           "caption": "実行環境からプラットフォーム情報を得る",
@@ -72,7 +72,7 @@
     {
       "id": "50-2",
       "title": "Javaの設計目標",
-      "explanation": "## 言語だけでなくプラットフォームとして設計された\n\n初期の設計文書はJavaを、simple、object-oriented、robust、secure、architecture-neutral、portable、high-performance、interpreted、threaded、dynamicな環境として説明しています。すべてが完全に両立するわけではなく、JVM上の検証とGCで安全性を高め、JITで実行状況に応じた性能を得るなど、層を分けてトレードオフを扱います。\n\nポインタ演算や多重クラス継承を持たないこと、配列境界を検査すること、例外と型検査を備えることも、単純さと堅牢性を優先した選択です。業務ではこの思想を引き継ぎ、暗黙の技巧より読みやすい型、管理された資源、明示的な失敗を選びます。\n\n### 設計目標が、いまのどこに現れているか\n\n| 目標 | 具体的にどう現れたか |\n|---|---|\n| 移植しやすさ | バイトコードとJVM。`javac` は機種を選ばない |\n| 安全さ | 配列の範囲検査、型検査、ポインタ演算が無い |\n| メモリ管理を任せる | GC。`free` を書かないので解放忘れ・二重解放が起きない |\n| 後方互換 | 古いクラスファイルが新しいJVMで動く |\n| 並行処理を言語に入れる | `synchronized` とスレッドが最初からある |\n\n「安全さ」は、たとえば範囲外アクセスが**未定義動作ではなく例外**になることです。\n\n```java\nint[] a = {1, 2, 3};\nSystem.out.println(a[5]);   // ArrayIndexOutOfBoundsException（黙って他の領域を読まない）\n```\n\nC系の言語ならメモリの別の場所を読んでしまい、原因の分かりにくい不具合になります。\nJavaは**その場で止める**ことを選びました。\n\n### 後方互換の代償\n\n古いものが動き続けるということは、**設計を間違えても消せない**ということです。\nだから `Date` のような古いAPIが残り、代わりに新しいAPI（`java.time`）が追加されます。\n非推奨（`@Deprecated`）は「消す予定」ではなく「新しく使わないでほしい」という印です。\n\n> 💡 GCがあってもメモリリークは起きます。参照が残っていればGCは回収できないからです\n> （第30章）。「解放を書かなくてよい」は「メモリを気にしなくてよい」ではありません。",
+      "explanation": "## Javaは、実行環境の違いと危険なメモリ操作を減らすために設計された\n\nプログラムを別のOSへ移すたびに書き直したり、誤ったメモリ操作で突然停止したりすると、開発と運用に大きな負担がかかります。Javaの設計目標は、こうした問題を言語と実行環境の両方で減らすことです。\n\n- **移植性**: ソースをバイトコードへ変換し、環境ごとのJVMで実行することで、OSやCPUへの依存を小さくする\n- **堅牢性**: 配列の範囲検査、型検査、例外、GCにより、壊れた状態のまま処理が進む危険を減らす\n- **安全性**: 任意のメモリアドレスを直接操作するポインタ演算を提供せず、読み込んだクラスもJVMが検査する\n- **実用的な性能**: 実行中によく使われるコードを機械語へ変換する **JITコンパイラ** により、繰り返し処理を高速化する\n\nJITは *Just-In-Time* の略で、「実行の直前・実行中に必要な部分をコンパイルする」という意味です。最初からすべてを機械語にする方式と、1命令ずつ解釈する方式の中間にあたります。\n\nこれらは個別の機能ではなく、組み合わせて効果を発揮します。たとえば配列外アクセスを検出して例外にすることで、別のデータを誤って破壊する代わりに、失敗した場所を追跡できます。一方で、GCの停止時間やJITのウォームアップなど、JVMが管理するからこそ生じる特性もあります。安全性や移植性と性能のバランスを取る設計だと理解してください。\n\n今回の演習では、設計目標を表す語を数えます。英単語の暗記ではなく、それぞれがどの困りごとに対応するかを意識して分類しましょう。",
       "samples": [
         {
           "caption": "配列の範囲外アクセスは検査される",
@@ -138,7 +138,7 @@
     {
       "id": "50-3",
       "title": "JDK・JRE・JVMとSE・EE・ME",
-      "explanation": "## 名前が指す範囲を分ける\n\nJVMはバイトコードを実行する仕様と実装、JREはJVMと実行に必要なライブラリ群、JDKはさらにjavac、jar、javadoc、診断ツールなど開発用ツールを含む集合です。現在は独立したJREの配布を前提にせず、JDKや、`jlink` で作ったランタイムイメージを使う構成も一般的です。\n\n```svg JDK ⊃ JRE ⊃ JVM の包含関係と、SE・Jakarta EE・ME という仕様の並び\n<svg viewBox=\"0 0 720 248\">\n  <rect class=\"fig-region\" x=\"14\" y=\"44\" width=\"330\" height=\"150\" rx=\"8\"/>\n  <text class=\"fig-t fig-mono fig-small fig-t-accent\" x=\"30\" y=\"62\">JDK</text>\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"74\" y=\"62\">javac / jar / javadoc / 診断ツール</text>\n  <rect class=\"fig-region\" x=\"38\" y=\"80\" width=\"282\" height=\"100\" rx=\"8\"/>\n  <text class=\"fig-t fig-mono fig-small\" x=\"54\" y=\"98\">JRE</text>\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"94\" y=\"98\">実行に必要なライブラリ</text>\n  <rect class=\"fig-box\" x=\"62\" y=\"116\" width=\"234\" height=\"50\" rx=\"6\"/>\n  <text class=\"fig-t fig-mono fig-small\" x=\"179\" y=\"134\" text-anchor=\"middle\">JVM</text>\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"179\" y=\"154\" text-anchor=\"middle\">バイトコード を実行する</text>\n\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"543\" y=\"26\" text-anchor=\"middle\">仕様の並び</text>\n  <rect class=\"fig-box-accent\" x=\"380\" y=\"44\" width=\"326\" height=\"44\" rx=\"6\"/>\n  <text class=\"fig-t fig-mono fig-small fig-t-accent\" x=\"398\" y=\"60\">Java SE</text>\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"398\" y=\"78\">言語・JVM・標準API の基盤</text>\n  <rect class=\"fig-box\" x=\"380\" y=\"96\" width=\"326\" height=\"44\" rx=\"6\"/>\n  <text class=\"fig-t fig-mono fig-small\" x=\"398\" y=\"112\">Jakarta EE</text>\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"398\" y=\"130\">SE の上に業務Web・トランザクションの仕様を定める</text>\n  <rect class=\"fig-box\" x=\"380\" y=\"148\" width=\"326\" height=\"44\" rx=\"6\"/>\n  <text class=\"fig-t fig-mono fig-small\" x=\"398\" y=\"164\">Java ME</text>\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"398\" y=\"182\">制約のある機器向け</text>\n\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"14\" y=\"228\">Spring Boot / Open Liberty / Quarkus は Java そのものではなく、SE・Jakarta の仕様を使ってアプリを組み立てる選択肢</text>\n</svg>\n```\n\nJava SEは言語・JVM・標準APIの基盤です。Jakarta EEはSE上で業務Webやトランザクションなどの仕様を定めます。Java MEは制約のある機器向けです。Spring Boot、Open Liberty、QuarkusはJavaそのものではなく、SEやJakarta仕様を利用・実装してアプリケーションを組み立てる選択肢です。\n\n> 🧪 画面内問題は、名前が指す範囲を判定する小さなモデルです。`javac`（JDK）でコンパイルし `java`（JVM）で実行し、`jlink` で必要なモジュールだけのランタイムイメージを作る流れは、`labs/jdk-tools` で実際に確かめてください。\n\n> 🧪 アプリで確かめること / labs で動かすこと … この問題で確かめるのはJDK・JRE・JVM と SE・EE・ME の区別です。\n> `java --version` や `jlink` で中身を実際に見ることは、1ファイル・標準入力だけのこの画面では扱えません。`labs/jdk-tools` に本物を置いてあります。",
+      "explanation": "## 「何を入れれば動くのか」を、役割で分ける\n\nJavaを学び始めると、JVM・JRE・JDK・Java SEなど似た名前が続きます。これらは同じものの別名ではありません。まず「実行する仕組み」「開発用の道具」「APIの仕様」に分けると整理できます。\n\n### 実行と開発の道具\n\n- **JVM**: バイトコードを実行するエンジン。メモリ管理やGCも担当する\n- **JRE**: JVMと、実行に必要な標準ライブラリをまとめた「実行環境」という考え方\n- **JDK**: JVMと標準ライブラリに加え、`javac`（コンパイラ）、`java`（起動）、`javadoc`、診断ツールなどを含む開発キット\n\n古い資料では「JDKの中にJREが入る」と図示されます。概念の理解には役立ちますが、現在はベンダーが単独のJRE製品を必ず配布するとは限りません。開発者は通常JDKを入れ、配布時はJDKそのもの、コンテナイメージ、または必要なモジュールから作った実行環境を使います。\n\n### APIの範囲を定める仕様\n\n- **Java SE**: 言語、JVM、コレクション、入出力など、Javaの土台となる標準仕様\n- **Jakarta EE**: Java SEの上で、Web、REST、データベース、トランザクションなど業務サーバー向けAPIを定める仕様群\n- **Java ME**: 組み込み機器など、資源が限られた環境向けの仕様\n\n仕様は「どんなAPIや動作を提供するか」という約束で、JDKやアプリケーションサーバーはその約束を動く形にした **実装** です。たとえばJava SEは製品名ではなく、複数ベンダーのJDKが実装できる共通仕様です。\n\n今回の演習では、コンパイルや実行といった操作をJDKとJVMへ対応付けます。`javac`が必要なら開発用のJDK、すでにあるバイトコードを動かす中心はJVM、と目的から判断してください。",
       "samples": [
         {
           "caption": "JDKの場所とJVM名",
@@ -203,27 +203,27 @@
     {
       "id": "50-4",
       "title": "JCP・JSR・OpenJDK・JEP",
-      "explanation": "## 仕様、実装、提案を混同しない\n\nJCPはJava技術仕様を標準化するプロセスで、JSRはそこで扱う仕様要求です。Java SEの参照実装を含むOpenJDKは、オープンソースでJDKを開発するコミュニティとプロジェクト群です。JEPはOpenJDKで大きなJDK変更を提案・追跡する文書です。JEPがそのまま全Java実装の標準になるのではなく、仕様変更はJCPのPlatform JSRなどとも連携します。\n\n複数のベンダーがOpenJDKを基にJDKを提供しています。フィーチャーバージョン（21、25といった番号）が同じでも、ビルド、更新の提供期間、サポート、ライセンス、含まれる追加機能は同一とは限りません。会社では製品名だけでなく、ベンダー・バージョン・更新方針・利用条件を台帳にまとめます。Java EEがEclipse Foundationへ移管された後はJakarta EEとして発展し、API名前空間も `javax.*` から `jakarta.*` へ変わりました。\n\n### 誰が何を決めているのか\n\n| 組織・文書 | 役割 |\n|---|---|\n| **JCP** | Java SE / EE の仕様を決める手続きの枠組み |\n| **JSR** | JCPで扱う個々の仕様提案（例: JSR 380 = Bean Validation 2.0） |\n| **OpenJDK** | Java SE の **実装** をオープンソースで開発するプロジェクト |\n| **JEP** | OpenJDKでの変更提案（例: JEP 395 = Records） |\n| **TCK** | 仕様に適合しているかを検査するテスト群 |\n\n大づかみに言うと、**仕様はJCP/JSR、実装はOpenJDK/JEP** です。\n「Javaに機能が入る」と言うとき、実際にはJEPが提案され、プレビューを経て標準化される、\nという流れをたどります。\n\n```\nJEPの提案 → 実装 → プレビュー（--enable-preview）→ フィードバック → 標準化\n                        ↑ ここで仕様が変わる・撤回されることがある\n```\n\nJakarta EE は経緯が違い、Java EE が Eclipse Foundation へ移管されたときに\n名前と手続きが変わりました。だからパッケージ名も `javax.*` から `jakarta.*` へ\n変わっています（第28章）。\n\n> 💡 「JDK」と「Java SE」を混ぜないこと。Java SEは仕様、JDKはそれを実装した配布物です。\n> だから同じJava SE 21に対して、ベンダーの違う複数のJDKが存在します（第31章）。",
+      "explanation": "## 似た略語を「手続き・提案・実装・検査」に分ける\n\nJavaの新機能の記事にはJCP、JSR、OpenJDK、JEP、TCKが一度に出てきます。役割を混同すると、「提案された」だけなのか「標準仕様になった」のか「製品で使える」のかを誤って判断します。\n\n| 名前 | 何のためのものか | たとえるなら |\n|---|---|---|\n| **JCP** | Java技術の仕様を審議・承認する手続き | 標準を決める会議のルール |\n| **JSR** | 新しい仕様や大きな仕様変更を提案し、仕様書・参照実装・TCKを作る作業単位 | 標準化する案件 |\n| **OpenJDK** | JDKをオープンソースで開発するコミュニティとプロジェクト群 | 実際の製品の土台を作る開発現場 |\n| **JEP** | OpenJDKで大きなJDK変更を提案し、目的・設計・進捗を追跡する文書 | 開発計画書 |\n| **TCK** | 実装が仕様へ適合するかを確かめるテスト、道具、文書の一式 | 共通ルールへの適合試験 |\n\n大切なのは、**JEPは実装そのものではない**という点です。JEPは変更の提案と計画を表し、採用後のコードはOpenJDKなどで実装されます。また、JEPの中にはJDK内部の変更もあり、すべてがJava SEの標準API変更になるわけではありません。標準仕様に影響する変更は、JCP側の仕様策定とも整合させます。\n\nたとえばrecordsでは、JEP 395がJDKへの変更目的と設計を記録し、OpenJDKにコードが実装され、Java SE仕様にも言語機能として反映されました。ここには「提案」「実装」「標準仕様」という別の段階があります。\n\n```text\nJEPで変更を提案・追跡\n        ↓\nOpenJDKで実装・検証\n        ↓ 仕様に影響する場合は整合\nJCP / JSRによる標準仕様\n        ↓\nTCKなどで実装の適合性を確認\n```\n\n同じJava SEの版でも、JDK配布物はベンダーごとに更新期間、サポート、ライセンス、追加構成が異なります。採用時は「Java 21」のような版だけでなく、ベンダーと更新方針も確認します。今回の演習では、識別子を提案・仕様・適合試験・実装プロジェクトへ分類し、略語の役割を確かめます。",
       "samples": [
         {
           "caption": "vendorとversionを確認",
           "code": "public class Main {\n    public static void main(String[] a) {\n        System.out.println(System.getProperty(\"java.vendor\"));\n        System.out.println(System.getProperty(\"java.runtime.version\"));\n    }\n}\n"
         }
       ],
-      "task": "識別子n件を読み、`JEP`で始まれば `implementation`、`JSR`で始まれば `specification`、それ以外は `unknown` と表示してください。",
+      "task": "識別子n件を読み、`JEP`で始まれば `proposal`、`JSR`で始まれば `specification-request`、`TCK`で始まれば `compatibility-test`、`OpenJDK`で始まれば `implementation-project`、それ以外は `unknown` と表示してください。大文字と小文字は区別します。",
       "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] a) {\n        Scanner s = new Scanner(System.in);\n        int n = s.nextInt();\n        for (int i = 0; i < n; i++) {\n            String id = s.next();\n            /* TODO */\n        }\n    }\n}\n",
       "visibleCases": [
         {
           "label": "提案の区別",
-          "stdin": "3 JEP444 JSR401 RFC9110",
-          "expected": "implementation\nspecification\nunknown"
+          "stdin": "5 JEP444 JSR401 TCK21 OpenJDK RFC9110",
+          "expected": "proposal\nspecification-request\ncompatibility-test\nimplementation-project\nunknown"
         }
       ],
       "hiddenCases": [
         {
           "label": "大小は区別",
           "stdin": "2 jep1 JSR1",
-          "expected": "unknown\nspecification"
+          "expected": "unknown\nspecification-request"
         },
         {
           "label": "0件",
@@ -232,14 +232,14 @@
         },
         {
           "label": "接頭辞だけ",
-          "stdin": "2 JEP JSR",
-          "expected": "implementation\nspecification"
+          "stdin": "4 JEP JSR TCK OpenJDK",
+          "expected": "proposal\nspecification-request\ncompatibility-test\nimplementation-project"
         }
       ],
       "hints": [
-        "`startsWith(\"JEP\")` と `startsWith(\"JSR\")`。"
+        "`startsWith` を使い、JEP・JSR・TCK・OpenJDKの4種類を順に判定します。"
       ],
-      "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] a) {\n        Scanner s = new Scanner(System.in);\n        int n = s.nextInt();\n        for (int i = 0; i < n; i++) {\n            String id = s.next();\n            System.out.println(id.startsWith(\"JEP\") ? \"implementation\" : id.startsWith(\"JSR\") ? \"specification\" : \"unknown\");\n        }\n    }\n}\n",
+      "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] a) {\n        Scanner s = new Scanner(System.in);\n        int n = s.nextInt();\n        for (int i = 0; i < n; i++) {\n            String id = s.next();\n            String role;\n            if (id.startsWith(\"JEP\")) role = \"proposal\";\n            else if (id.startsWith(\"JSR\")) role = \"specification-request\";\n            else if (id.startsWith(\"TCK\")) role = \"compatibility-test\";\n            else if (id.startsWith(\"OpenJDK\")) role = \"implementation-project\";\n            else role = \"unknown\";\n            System.out.println(role);\n        }\n    }\n}\n",
       "quiz": [
         {
           "question": "OpenJDKについて適切な説明は？",
@@ -253,7 +253,7 @@
           "explanation": "OpenJDKはJDK実装を公開プロセスで開発します。仕様策定のJCPとは役割が異なります。"
         },
         {
-          "question": "「JEPとして提案・実装された」と「JSRで仕様化された」の違いを説明したものはどれでしょう。",
+          "question": "「JEPでJDK変更が提案された」と「JSRで仕様策定が進められた」の違いを説明したものはどれでしょう。",
           "choices": [
             "JEPは主にOpenJDKでの変更提案、JSRはJCPでの仕様策定の単位",
             "JEPはJakarta EE専用、JSRはJava SE専用",
@@ -268,7 +268,7 @@
     {
       "id": "50-5",
       "title": "章末演習：Javaの成り立ちとプラットフォーム",
-      "explanation": "## この章の知識を、自分の手で組み合わせよう\n\nここでは、**年表を時系列として扱う・名前が指す範囲の切り分け・仕様と実装と提案の区別・JDK台帳の点検**をまとめて使います。新しい文法は登場しません。分からなくなったら、直前までの解説やサンプルへ戻って確認して大丈夫です。\n\n### 3問の進め方\n\n1. **基本**で、中心となる書き方をもう一度使う\n2. **組み合わせ**で、章内の複数の知識を一緒に使う\n3. **実践**で、少し現実的な入力と条件を整理する\n\n年号の暗記が目的ではありません。**どの名前がどこまでを指すのかを取り違えないための整理**を、コードの形で確かめます。",
+      "explanation": "## 章末では、名称ではなく役割から判断する\n\nこの章では、Javaが異なるOSやCPUで同じプログラムを動かしやすくするために、ソースコード・バイトコード・JVMを分けたことを学びました。さらに、実行エンジンのJVM、開発道具を含むJDK、APIの約束であるJava SE、標準化と実装を支えるJCP・JSR・OpenJDK・JEP・TCKを区別しました。\n\n迷ったときは、次の順で問い直します。\n\n1. これはプログラムを **実行するもの** か、仕様を **決めるもの** か、コードを **実装するもの** か\n2. 「提案済み」「実装済み」「標準化済み」「製品で利用可能」のどの段階か\n3. 移植性や安全性を支える仕組みと、OS・ベンダー・設定によって残る差は何か\n\n章末演習では、歴史上の出来事の順序、設計目標、JDKとJVMの役割、標準化に関わる識別子を組み合わせます。略語だけを暗記せず、「何のために存在するか」を一文で説明できる状態を目指してください。",
       "samples": [
         {
           "caption": "復習用サンプル：同じ順位のときの2番目のものさしを決める",
@@ -321,48 +321,48 @@
       "extraTasks": [
         {
           "kind": "drill",
-          "task": "【組み合わせ】用語をn件読み、次のように分類して読んだ順に `用語=分類` と表示してください。上から順に当てはめます。\n\n1. `JSR` で始まる → `specification`\n2. `JEP` で始まる → `implementation`\n3. `javac` / `java` / `jar` / `javadoc` / `jlink` / `jshell` のいずれか → `jdk-tool`\n4. `SpringBoot` / `OpenLiberty` / `Quarkus` のいずれか → `framework`\n5. それ以外 → `unknown`\n\n最後に、分類ごとの件数を `specification` → `implementation` → `jdk-tool` → `framework` → `unknown` の固定順で `分類=件数` と表示します。",
-          "starterCode": "import java.util.*;\n\npublic class Main {\n    static String classify(String term) {\n        /* TODO 上から順に判定 */ return \"unknown\";\n    }\n\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        int n = s.nextInt();\n        List<String> kinds = List.of(\"specification\", \"implementation\", \"jdk-tool\", \"framework\", \"unknown\");\n        Map<String, Integer> count = new LinkedHashMap<>();\n        for (String k : kinds) count.put(k, 0);\n        for (int i = 0; i < n; i++) {\n            String term = s.next();\n            /* TODO 表示と集計 */\n        }\n        /* TODO 件数の表示 */\n    }\n}\n",
+          "task": "【組み合わせ】用語をn件読み、次のように分類して読んだ順に `用語=分類` と表示してください。上から順に当てはめます。\n\n1. `JSR` で始まる → `specification-request`\n2. `JEP` で始まる → `proposal`\n3. `javac` / `java` / `jar` / `javadoc` / `jlink` / `jshell` のいずれか → `jdk-tool`\n4. `SpringBoot` / `Quarkus` のいずれか → `framework`\n5. `OpenLiberty` → `runtime`\n6. それ以外 → `unknown`\n\n最後に、分類ごとの件数を `specification-request` → `proposal` → `jdk-tool` → `framework` → `runtime` → `unknown` の固定順で `分類=件数` と表示します。",
+          "starterCode": "import java.util.*;\n\npublic class Main {\n    static String classify(String term) {\n        /* TODO 上から順に判定 */ return \"unknown\";\n    }\n\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        int n = s.nextInt();\n        List<String> kinds = List.of(\"specification-request\", \"proposal\", \"jdk-tool\", \"framework\", \"runtime\", \"unknown\");\n        Map<String, Integer> count = new LinkedHashMap<>();\n        for (String k : kinds) count.put(k, 0);\n        for (int i = 0; i < n; i++) {\n            String term = s.next();\n            /* TODO 表示と集計 */\n        }\n        /* TODO 件数の表示 */\n    }\n}\n",
           "visibleCases": [
             {
               "label": "5種類が1つずつ",
               "stdin": "5 JSR400 JEP444 javac Quarkus RFC9110",
-              "expected": "JSR400=specification\nJEP444=implementation\njavac=jdk-tool\nQuarkus=framework\nRFC9110=unknown\nspecification=1\nimplementation=1\njdk-tool=1\nframework=1\nunknown=1"
+              "expected": "JSR400=specification-request\nJEP444=proposal\njavac=jdk-tool\nQuarkus=framework\nRFC9110=unknown\nspecification-request=1\nproposal=1\njdk-tool=1\nframework=1\nruntime=0\nunknown=1"
             },
             {
               "label": "道具とフレームワーク",
               "stdin": "3 jlink SpringBoot OpenLiberty",
-              "expected": "jlink=jdk-tool\nSpringBoot=framework\nOpenLiberty=framework\nspecification=0\nimplementation=0\njdk-tool=1\nframework=2\nunknown=0"
+              "expected": "jlink=jdk-tool\nSpringBoot=framework\nOpenLiberty=runtime\nspecification-request=0\nproposal=0\njdk-tool=1\nframework=1\nruntime=1\nunknown=0"
             }
           ],
           "hiddenCases": [
             {
               "label": "用語0件",
               "stdin": "0",
-              "expected": "specification=0\nimplementation=0\njdk-tool=0\nframework=0\nunknown=0"
+              "expected": "specification-request=0\nproposal=0\njdk-tool=0\nframework=0\nruntime=0\nunknown=0"
             },
             {
               "label": "仕様と提案が混ざる",
               "stdin": "4 JSR366 JSR369 JEP330 JEP400",
-              "expected": "JSR366=specification\nJSR369=specification\nJEP330=implementation\nJEP400=implementation\nspecification=2\nimplementation=2\njdk-tool=0\nframework=0\nunknown=0"
+              "expected": "JSR366=specification-request\nJSR369=specification-request\nJEP330=proposal\nJEP400=proposal\nspecification-request=2\nproposal=2\njdk-tool=0\nframework=0\nruntime=0\nunknown=0"
             },
             {
               "label": "同じ用語が2回",
               "stdin": "2 javac javac",
-              "expected": "javac=jdk-tool\njavac=jdk-tool\nspecification=0\nimplementation=0\njdk-tool=2\nframework=0\nunknown=0"
+              "expected": "javac=jdk-tool\njavac=jdk-tool\nspecification-request=0\nproposal=0\njdk-tool=2\nframework=0\nruntime=0\nunknown=0"
             },
             {
               "label": "Javaの外にあるもの",
               "stdin": "2 Kubernetes POSIX",
-              "expected": "Kubernetes=unknown\nPOSIX=unknown\nspecification=0\nimplementation=0\njdk-tool=0\nframework=0\nunknown=2"
+              "expected": "Kubernetes=unknown\nPOSIX=unknown\nspecification-request=0\nproposal=0\njdk-tool=0\nframework=0\nruntime=0\nunknown=2"
             }
           ],
           "hints": [
             "`term.startsWith(\"JSR\")` と `term.startsWith(\"JEP\")` を先に見ます。",
             "道具とフレームワークは `Set.of(...).contains(term)` で判定できます。",
-            "JSRは標準化する仕様の要求、JEPはOpenJDKという実装での変更提案です。フレームワークはJavaそのものではなく、その上に建てる選択肢です。"
+            "JSRは標準化する仕様の要求、JEPはOpenJDKでの変更提案です。Open Libertyはフレームワークではなく、Jakarta EEアプリを動かすサーバー実装です。"
           ],
-          "solution": "import java.util.*;\n\npublic class Main {\n    static String classify(String term) {\n        if (term.startsWith(\"JSR\")) return \"specification\";\n        if (term.startsWith(\"JEP\")) return \"implementation\";\n        if (Set.of(\"javac\", \"java\", \"jar\", \"javadoc\", \"jlink\", \"jshell\").contains(term)) return \"jdk-tool\";\n        if (Set.of(\"SpringBoot\", \"OpenLiberty\", \"Quarkus\").contains(term)) return \"framework\";\n        return \"unknown\";\n    }\n\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        int n = s.nextInt();\n        List<String> kinds = List.of(\"specification\", \"implementation\", \"jdk-tool\", \"framework\", \"unknown\");\n        Map<String, Integer> count = new LinkedHashMap<>();\n        for (String k : kinds) count.put(k, 0);\n        for (int i = 0; i < n; i++) {\n            String term = s.next(), kind = classify(term);\n            System.out.println(term + \"=\" + kind);\n            count.merge(kind, 1, Integer::sum);\n        }\n        for (String k : kinds) System.out.println(k + \"=\" + count.get(k));\n    }\n}\n",
+          "solution": "import java.util.*;\n\npublic class Main {\n    static String classify(String term) {\n        if (term.startsWith(\"JSR\")) return \"specification-request\";\n        if (term.startsWith(\"JEP\")) return \"proposal\";\n        if (Set.of(\"javac\", \"java\", \"jar\", \"javadoc\", \"jlink\", \"jshell\").contains(term)) return \"jdk-tool\";\n        if (Set.of(\"SpringBoot\", \"Quarkus\").contains(term)) return \"framework\";\n        if (term.equals(\"OpenLiberty\")) return \"runtime\";\n        return \"unknown\";\n    }\n\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        int n = s.nextInt();\n        List<String> kinds = List.of(\"specification-request\", \"proposal\", \"jdk-tool\", \"framework\", \"runtime\", \"unknown\");\n        Map<String, Integer> count = new LinkedHashMap<>();\n        for (String k : kinds) count.put(k, 0);\n        for (int i = 0; i < n; i++) {\n            String term = s.next(), kind = classify(term);\n            System.out.println(term + \"=\" + kind);\n            count.merge(kind, 1, Integer::sum);\n        }\n        for (String k : kinds) System.out.println(k + \"=\" + count.get(k));\n    }\n}\n",
           "sourceChecks": [
             {
               "pattern": "startsWith\\s*\\(",

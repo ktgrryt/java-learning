@@ -4,8 +4,12 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.MethodSource;
+
+import java.util.stream.Stream;
 
 class PriceServiceTest {
     @ParameterizedTest(name = "price={0}, rate={1} -> {2}")
@@ -25,9 +29,17 @@ class PriceServiceTest {
                 () -> PriceService.discounted(-1, 10));
     }
 
-    @Test
-    void rejectsRateOverOneHundred() {
+    static Stream<Arguments> invalidRates() {
+        return Stream.of(
+                Arguments.of(-1),
+                Arguments.of(101)
+        );
+    }
+
+    @ParameterizedTest(name = "rate={0} is invalid")
+    @MethodSource("invalidRates")
+    void rejectsInvalidRates(int rate) {
         assertThrows(IllegalArgumentException.class,
-                () -> PriceService.discounted(100, 101));
+                () -> PriceService.discounted(100, rate));
     }
 }

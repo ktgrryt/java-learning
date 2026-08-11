@@ -88,7 +88,7 @@
     {
       "id": "45-2",
       "title": "JUnitの基本",
-      "explanation": "## 実行可能な仕様を書く\n\nJUnitでは `@Test` の付いたメソッドをテストランナーが実行します。期待値を左、実測値を右に置く `assertEquals(expected, actual)`、条件の `assertTrue`、例外の `assertThrows` などを使います。\n\n```java\n@Test\nvoid rateZeroKeepsPrice() {\n    assertEquals(1200, PriceService.discounted(1200, 0));\n}\n\n@ParameterizedTest\n@CsvSource({\"1000,20,800\", \"500,100,0\"})\nvoid discounts(int price, int rate, int expected) {\n    assertEquals(expected, PriceService.discounted(price, rate));\n}\n```\n\nテスト名には条件と期待結果を表します。Arrange（準備）、Act（実行）、Assert（検証）を意識すると失敗原因を追いやすくなります。実際のJUnitプロジェクトは `labs/testing-maven` で実行できます。\n\n### 実際に走らせるとこうなる\n\n```\n$ mvn test\n[INFO] Running cafe.lab.PriceServiceTest\n[INFO] Tests run: 6, Failures: 0, Errors: 0, Skipped: 0\n[INFO] BUILD SUCCESS\n```\n\n失敗すると、件数と一緒に **どのテストのどこが違ったか** が出ます。だから\nテストは「落ちたときに読める」形に書きます。\n\n### よく使う書き方\n\n```java\n@Test\nvoid 正常系() {\n    assertEquals(900, PriceService.discounted(1000, 10));   // 期待値を左、実測を右\n}\n\n@Test\nvoid 範囲外は例外() {\n    assertThrows(IllegalArgumentException.class,\n            () -> PriceService.discounted(1000, 101));\n}\n\n@ParameterizedTest\n@CsvSource({\"1000,0,1000\", \"1000,100,0\", \"999,10,900\"})\nvoid 境界値(int price, int rate, int expected) {\n    assertEquals(expected, PriceService.discounted(price, rate));\n}\n```\n\n`@ParameterizedTest` は、同じ検証を値だけ変えて回せます。境界値（`0`、上限、\n割り切れない数）をまとめて置くのに向きます。\n\n> ⚠️ 間違えやすい点 … `assertEquals` の引数は **期待値が先、実測があと** です。\n> 逆に書いても等価判定の結果は同じですが、失敗時のメッセージの\n> expected と actual が入れ替わり、原因を読み違えます。\n> また、1つのテストで複数のことを確かめると、落ちたときにどれが原因か分かりません。\n> テスト名は「何を確かめたか」が読めるように付けます。\n\n### このアプリでの走らせ方\n本物のJUnitは Maven や Gradle がテストクラスを探して起動します。このアプリには\n`MiniJUnit` という小さなランナーを同梱してあるので、`main` から呼んで走らせます。\n**書くテストの側は本物と同じ**（`@Test`、`assertEquals`、`assertThrows`、\n`@ParameterizedTest`）で、起動のしかただけが違います。\n\n```java\npublic static void main(String[] args) {\n    MiniJUnit.run(PriceRulesTest.class);\n}\n```\n\n出力は surefire に似せた形で出ます。\n\n```\nRunning PriceRulesTest\n  PASS rate0KeepsPrice\n  FAIL rate100IsFree -- expected: <0> but was: <12>\nTests run: 2, Failures: 1, Errors: 0\n```\n\n`FAIL` は検証が合わなかったもの、`ERROR` は検証以外の例外で落ちたものです。分けて数えるのは、\n**テスト側の書き間違いと、対象コードの不具合を混同しない**ためです。\n\n> ⚠️ 実行順に頼らない … `MiniJUnit` はメソッド名の順に走らせますが、\n> **本物のJUnitは実行順を保証しません**。「前のテストが作った状態」を当てにすると、\n> 順番が変わった日に落ちます。だからJUnitはテストごとにインスタンスを作り直します\n> （`MiniJUnit` も同じにしてあります）。共通の準備は `@BeforeEach` へ書きます。\n\n> 🧪 アプリで確かめること / labs で動かすこと … この問題で確かめるのは`@Test` とアサーションの書き方。同梱の `MiniJUnit` で本物と同じテストが実際に走りますです。\n> Maven がテストクラスを探して起動する流れと、surefire のレポートは、1ファイル・標準入力だけのこの画面では扱えません。`labs/testing-maven` に本物を置いてあります。",
+      "explanation": "## 実行可能な仕様を書く\n\nJUnitでは `@Test` の付いたメソッドをテストランナーが実行します。期待値を左、実測値を右に置く `assertEquals(expected, actual)`、条件の `assertTrue`、例外の `assertThrows` などを使います。\n\n```java\n@Test\nvoid rateZeroKeepsPrice() {\n    assertEquals(1200, PriceService.discounted(1200, 0));\n}\n\n@ParameterizedTest\n@CsvSource({\"1000,20,800\", \"500,100,0\"})\nvoid discounts(int price, int rate, int expected) {\n    assertEquals(expected, PriceService.discounted(price, rate));\n}\n```\n\nテスト名には条件と期待結果を表します。Arrange（準備）、Act（実行）、Assert（検証）を意識すると失敗原因を追いやすくなります。実際のJUnitプロジェクトは `labs/testing-maven` で実行できます。\n\n### 実際に走らせるとこうなる\n\n```\n$ mvn test\n[INFO] Running cafe.lab.PriceServiceTest\n[INFO] Tests run: 6, Failures: 0, Errors: 0, Skipped: 0\n[INFO] BUILD SUCCESS\n```\n\n失敗すると、件数と一緒に **どのテストのどこが違ったか** が出ます。だから\nテストは「落ちたときに読める」形に書きます。\n\n### よく使う書き方\n\n```java\n@Test\nvoid 正常系() {\n    assertEquals(900, PriceService.discounted(1000, 10));   // 期待値を左、実測を右\n}\n\n@Test\nvoid 範囲外は例外() {\n    assertThrows(IllegalArgumentException.class,\n            () -> PriceService.discounted(1000, 101));\n}\n\n@ParameterizedTest\n@CsvSource({\"1000,0,1000\", \"1000,100,0\", \"999,10,900\"})\nvoid 境界値(int price, int rate, int expected) {\n    assertEquals(expected, PriceService.discounted(price, rate));\n}\n```\n\n`@ParameterizedTest` は、同じ検証を値だけ変えて回せます。境界値（`0`、上限、\n割り切れない数）をまとめて置くのに向きます。\n\n> ⚠️ 間違えやすい点 … `assertEquals` の引数は **期待値が先、実測があと** です。\n> 逆に書いても等価判定の結果は同じですが、失敗時のメッセージの\n> expected と actual が入れ替わり、原因を読み違えます。\n> また、1つのテストで複数のことを確かめると、落ちたときにどれが原因か分かりません。\n> テスト名は「何を確かめたか」が読めるように付けます。\n\n### このアプリでの走らせ方\n本物のJUnitは Maven や Gradle がテストクラスを探して起動します。このアプリには\n`MiniJUnit` という小さなランナーを同梱してあるので、`main` から呼んで走らせます。\n教材が対応している範囲では、本物のJUnitと同じ形（`@Test`、`assertEquals`、`assertThrows`、\n`@ParameterizedTest`）で書き方を練習できます。ただし `MiniJUnit` は教材用の小さな互換実装で、JUnitの全機能や細かな動作を再現するものではありません。\n\n```java\npublic static void main(String[] args) {\n    MiniJUnit.run(PriceRulesTest.class);\n}\n```\n\n出力は surefire に似せた形で出ます。\n\n```\nRunning PriceRulesTest\n  PASS rate0KeepsPrice\n  FAIL rate100IsFree -- expected: <0> but was: <12>\nTests run: 2, Failures: 1, Errors: 0\n```\n\n`FAIL` は検証が合わなかったもの、`ERROR` は検証以外の例外で落ちたものです。分けて数えるのは、\n**テスト側の書き間違いと、対象コードの不具合を混同しない**ためです。\n\n> ⚠️ 実行順に頼らない … `MiniJUnit` は教材の出力を安定させるためメソッド名順に走らせます。本物のJUnitの既定順序は再現可能ですが、意図的に分かりにくいアルゴリズムで決まります。「前のテストが作った状態」を当てにせず、各テストを独立させてください。JUnitは既定でテストごとにインスタンスを作り直します（`MiniJUnit` も同じです）。共通の準備は `@BeforeEach` へ書きます。\n\n> 🧪 アプリで確かめること / labs で動かすこと … この問題で確かめるのは`@Test` とアサーションの書き方。同梱の `MiniJUnit` で、JUnitの主要な書き方を使ったテストを実際に動かします。\n> Maven がテストクラスを探して起動する流れと、surefire のレポートは、1ファイル・標準入力だけのこの画面では扱えません。`labs/testing-maven` に本物を置いてあります。",
       "samples": [
         {
           "caption": "例外も仕様として検証",
@@ -258,7 +258,7 @@
     {
       "id": "45-4",
       "title": "Mavenと成果物",
-      "explanation": "## 再現可能なビルドを作る\n\nMavenは `pom.xml` にJavaバージョン、依存関係、プラグインを宣言し、標準ディレクトリ `src/main/java` と `src/test/java` を使います。`mvn test` はテスト、`mvn package` はJARなどの成果物作成まで進めます。依存バージョンは明示し、成果物とソースを同じ手順で再現できるようにします。\n\nJARはクラスやリソースをまとめたZIP形式です。実行可能JARではmanifestのMain-Classなどが必要です。JPMSを使う場合は `module-info.java` の `requires` と `exports` でモジュール境界を宣言します。クラスパス方式とモジュールパス方式を混同せず、まず小さなプロジェクトで構造を確認します。`labs/modules` には2モジュールの最小例があり、JARへまとめて実行したあと `exports` を外すと、公開境界がコンパイル時に守られることを確かめられます。\n\n### ビルドすると何ができるか\n\n```\n$ mvn test\n[INFO] Running cafe.lab.PriceServiceTest\n[INFO] Tests run: 6, Failures: 0, Errors: 0, Skipped: 0\n[INFO] BUILD SUCCESS\n\n$ mvn package\ntarget/testing-maven-lab-1.0.0-SNAPSHOT.jar\n```\n\n`target/` の中は役割で分かれています。\n\n| 場所 | 中身 |\n|---|---|\n| `target/classes` | 本体のクラス（JARに入る） |\n| `target/test-classes` | テストのクラス（**JARに入らない**） |\n| `target/*.jar` | 配布する成果物 |\n\n### scope は「いつ必要か」の宣言\n\n| scope | コンパイル | 実行 | 成果物に入る |\n|---|---|---|---|\n| `compile`（既定） | ○ | ○ | ○ |\n| `test` | テストのみ | テストのみ | × |\n| `provided` | ○ | 動かす環境が用意する | **×** |\n| `runtime` | × | ○ | ○ |\n\nJUnitが `test` なのは、テストを動かすときだけ必要で、利用者へ配る必要がないからです。\nJakarta EEのAPIが `provided` なのは、アプリサーバーが同じものを持っているからです\n（同梱すると同じクラスが2つになって事故になります。第21章）。\n\n> ⚠️ 間違えやすい点 … `SNAPSHOT` は「まだ確定していない版」で、同じバージョン番号のまま\n> 中身が差し替わります。再現性が要るビルド（本番へ出すもの）では、依存に `SNAPSHOT` を\n> 使わないこと。「昨日は通ったのに今日落ちる」の原因になります。\n\n> 🧪 アプリで確かめること / labs で動かすこと … この問題で確かめるのはバージョンが衝突していることを見つける手順です。\n> `mvn dependency:tree` や `jlink` を実際に叩くことは、1ファイル・標準入力だけのこの画面では扱えません。`labs/modules` に本物を置いてあります。",
+      "explanation": "## 再現可能なビルドを作る\n\nMavenは `pom.xml` にJavaバージョン、依存関係、プラグインを宣言し、標準ディレクトリ `src/main/java` と `src/test/java` を使います。`mvn test` はテスト、`mvn package` はJARなどの成果物作成まで進めます。依存バージョンは明示し、成果物とソースを同じ手順で再現できるようにします。\n\nJARはクラスやリソースをまとめたZIP形式です。実行可能JARではmanifestのMain-Classなどが必要です。JPMSを使う場合は `module-info.java` の `requires` と `exports` でモジュール境界を宣言します。クラスパス方式とモジュールパス方式を混同せず、まず小さなプロジェクトで構造を確認します。`labs/modules` には2モジュールの最小例があり、JARへまとめて実行したあと `exports` を外すと、公開境界がコンパイル時に守られることを確かめられます。\n\n### ビルドすると何ができるか\n\n```\n$ mvn test\n[INFO] Running cafe.lab.PriceServiceTest\n[INFO] Tests run: 6, Failures: 0, Errors: 0, Skipped: 0\n[INFO] BUILD SUCCESS\n\n$ mvn package\ntarget/testing-maven-lab-1.0.0-SNAPSHOT.jar\n```\n\n`target/` の中は役割で分かれています。\n\n| 場所 | 中身 |\n|---|---|\n| `target/classes` | 本体のクラス（JARに入る） |\n| `target/test-classes` | テストのクラス（**JARに入らない**） |\n| `target/*.jar` | 配布する成果物 |\n\n### scopeは「どの場面のクラスパスで必要か」の宣言\n\n依存ライブラリは、コンパイル時・通常実行時・テスト時のどこで必要かが違います。Mavenのscopeは、そのライブラリを**どのクラスパスへ載せるか**と、依存先へ伝播させるかを指定します。\n\n| scope | 本体のコンパイル | 通常実行 | テスト | 主な用途 |\n|---|---|---|---|---|\n| `compile`（既定） | ○ | ○ | ○ | 本体コードから使い、実行時にも必要 |\n| `test` | × | × | ○ | JUnitなどテストだけで使う |\n| `provided` | ○ | × | ○ | 実行環境やアプリサーバーが用意する |\n| `runtime` | × | ○ | ○ | JDBCドライバーなど実行時に初めて必要 |\n\nここで注意したいのは、scopeだけでは「依存ライブラリの中身を成果物へ詰め込むか」は決まらないことです。通常のMaven JARへ自動的に入るのは、基本的に自分の `target/classes` のクラスとリソースです。依存JARは別に置いてクラスパスへ追加します。依存まで1つへまとめたfat JAR（uber JAR）を作るなら、Maven Shade Pluginなどの追加設定が必要です。WARでは、`compile` や `runtime` の依存が通常 `WEB-INF/lib` へ入るため、**JAR・WAR・fat JARを分けて考えます**。\n\nJUnitが `test` なのは、テストを動かすときだけ必要だからです。Jakarta EEのAPIが `provided` なのは、アプリサーバーが実行時に同じAPIを提供するからです（第21章）。\n\n> ⚠️ 間違えやすい点 … `SNAPSHOT` は「まだ確定していない版」で、同じバージョン番号のまま\n> 中身が差し替わります。再現性が要るビルド（本番へ出すもの）では、依存に `SNAPSHOT` を\n> 使わないこと。「昨日は通ったのに今日落ちる」の原因になります。\n\n> 🧪 アプリで確かめること / labs で動かすこと … この問題で確かめるのはバージョンが衝突していることを見つける手順です。\n> `mvn dependency:tree` や `jlink` を実際に叩くことは、1ファイル・標準入力だけのこの画面では扱えません。`labs/modules` に本物を置いてあります。",
       "samples": [
         {
           "caption": "実行中のクラスパスを確認",
@@ -328,12 +328,23 @@
           ],
           "answer": 1,
           "explanation": "公開境界はコンパイル時に検査されます。`labs/modules` で実際に外して確かめられます。"
+        },
+        {
+          "question": "通常のMaven JARで、`compile` scopeの依存ライブラリはどう扱われるでしょう。",
+          "choices": [
+            "依存ライブラリの全クラスが必ず自分のJARへコピーされる",
+            "通常実行のクラスパスには必要だが、自分のJARへ自動同梱されるわけではない",
+            "テスト時にしか利用できない",
+            "実行環境が必ず提供するので配布を考えなくてよい"
+          ],
+          "answer": 1,
+          "explanation": "scopeは主に、どのクラスパスで依存を使うかを決めます。通常のJARへ依存のクラスをまとめる機能ではありません。1つのfat JARへまとめる場合はShade Pluginなどを別途設定します。"
         }
       ]
     },
     {
       "id": "45-5",
-      "title": "章末演習：テストとビルド",
+      "title": "中間演習：テストとビルドの基本",
       "explanation": "## この章の知識を、自分の手で組み合わせよう\n\nここでは、**テストしやすい分割・境界値と例外の検証・テストの層・依存バージョンの競合**をまとめて使います。新しい文法は登場しません。分からなくなったら、直前までの解説やサンプルへ戻って確認して大丈夫です。\n\n### 3問の進め方\n\n1. **基本**で、中心となる書き方をもう一度使う\n2. **組み合わせ**で、章内の複数の知識を一緒に使う\n3. **実践**で、少し現実的な入力と条件を整理する\n\nJUnitやMavenそのものは動かしません。ここで書くのは、**テストランナーやビルドツールが内側でしている判断**をJavaへ書き起こしたものです。",
       "samples": [
         {
@@ -506,6 +517,386 @@
               "pattern": "\\.split\\s*\\(",
               "minimum": 1,
               "message": "`group:artifact:major.minor` は `split` で分解してください。"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "45-6",
+      "title": "実際のJUnitで保守しやすいテストを書く",
+      "intro": "データを変えて繰り返すテスト、テストごとの準備、テストダブルの選び方を実務の形へ広げます。",
+      "explanation": "## パラメータ化テストで同じ仕様を表にする\n\n境界値ごとにほぼ同じテストメソッドを複製すると、修正漏れが起きます。JUnitの `@ParameterizedTest` は、1つの検証を複数の入力で実行します。\n\n単純な文字列や数値なら `@CsvSource` が読みやすい選択です。\n\n```java\n@ParameterizedTest\n@CsvSource({\n    \"1000, 0, 1000\",\n    \"1000, 100, 0\",\n    \"999, 10, 900\"\n})\nvoid discounts(int price, int rate, int expected) {\n    assertEquals(expected, service.discounted(price, rate));\n}\n```\n\nレコードや業務オブジェクトを渡す、長いデータに意味のある名前を付ける、といった場合は `@MethodSource` を使います。通常、供給メソッドは `static` にし、`Stream<Arguments>` などを返します。\n\n```java\nstatic Stream<Arguments> invalidPrices() {\n    return Stream.of(\n        Arguments.of(-1, 10),\n        Arguments.of(1000, 101)\n    );\n}\n\n@ParameterizedTest\n@MethodSource(\"invalidPrices\")\nvoid rejectsInvalidInput(int price, int rate) {\n    assertThrows(IllegalArgumentException.class,\n            () -> service.discounted(price, rate));\n}\n```\n\n教材画面の `MiniJUnit` は `@CsvSource` までの小さな練習用実装です。`@MethodSource` を含む実際のJUnitは `labs/testing-maven` で動かします。\n\n## 準備と後片付けはテストごとに閉じる\n\n`@BeforeEach` は各テストの直前、`@AfterEach` は各テストの直後に動きます。前のテストが残したListやDB行を次のテストに使わせず、毎回既知の状態から始めます。\n\n```java\n@BeforeEach\nvoid setUp() {\n    repository = new FakeOrderRepository();\n    repository.save(new Order(1L, \"NEW\"));\n}\n```\n\n一時ファイルを使うテストでは `@TempDir Path tempDir` が便利です。JUnitがテスト専用ディレクトリを用意し、既定ではテスト終了後に削除します。固定の `/tmp/test.txt` を全テストで共有すると、並列実行や前回の残骸で結果が変わります。\n\nDBや外部サーバーの後片付けは、作ったデータをそのテストが削除するか、トランザクションをロールバックします。後片付けが失敗した場合も見逃さず、次のテストを汚さない仕組みにします。\n\n## 不安定なテストを作らない\n\n同じコードなのに成功と失敗を繰り返すテストを**flaky test（不安定なテスト）**と呼びます。代表的な原因と対策は次のとおりです。\n\n| 原因 | 安定させる方法 |\n|---|---|\n| 現在時刻を直接読む | `Clock` を注入し、`Clock.fixed` で固定する |\n| 乱数が毎回変わる | `Random` を注入し、テストではseedを固定する |\n| テスト間でstatic状態・同じファイル・同じDB行を共有 | テストごとに新しく作り、固有IDを使って後片付けする |\n| 実行順を前提にする | どのテストも単独で通る状態にする |\n| 非同期処理を `Thread.sleep` で待つ | 条件が成立するまで期限付きで待ち、超過時に状態を表示する |\n| 実ネットワークや現在の外部データに依存 | 境界をstub/fakeへ替え、外部連携は別の統合テストで確かめる |\n\nJUnitの既定順序は再現可能ですが、意図的に分かりにくいアルゴリズムです。順序を推測して依存するのではなく、各テストを独立させます。「落ちたら再実行して通るまで待つ」は原因を隠すだけで、安定化ではありません。\n\n## stub・fakeを理解してからMockitoを選ぶ\n\nテスト対象の外側を置き換えるものを**テストダブル**と呼びます。\n\n- **stub**: 決めた問い合わせに決めた値を返す。ラムダや小さな無名クラスでも作れる\n- **fake**: メモリ上のリポジトリなど、簡略化した実装として状態を持ち、ある程度本物らしく動く\n- **mock**: 「何回呼ばれたか」「どの引数で呼ばれたか」というやり取りも検証する\n\nまず手書きのstubやfakeを作ると、どの境界を差し替えるのか、状態と振る舞いのどちらを検証したいのかが分かります。Mockitoは必須ではありません。依存インターフェースが多く手書きが雑音になる場合や、通知を1回送ること自体が仕様である場合に、テストを読みやすくできる選択肢です。\n\n```java\nRateSource source = mock(RateSource.class);\nwhen(source.rate()).thenReturn(10);       // stubbing\nPriceService service = new PriceService(source);\nassertEquals(1100, service.total(1000));  // 結果を検証\nverify(source).rate();                    // 呼び出し自体が契約のときだけ\n```\n\n内部メソッドの呼び順まで細かく `verify` すると、外から見える結果が同じリファクタリングでもテストが壊れます。まず戻り値や保存結果を検証し、相互作用が業務上の契約である箇所にだけmockを使います。\n\n公式資料: [JUnitのアノテーション](https://docs.junit.org/current/writing-tests/annotations.html) / [Parameterized Tests](https://docs.junit.org/6.0.3/writing-tests/parameterized-classes-and-tests.html) / [@TempDir](https://docs.junit.org/current/writing-tests/built-in-extensions.html) / [Mockito API](https://javadoc.io/doc/org.mockito/mockito-core/latest/index.html)",
+      "points": [
+        "単純な表は@CsvSource、オブジェクトを組み立てるデータは@MethodSourceを使い分ける",
+        "@BeforeEachや@TempDirで、テストごとに既知の状態を作る",
+        "時刻・乱数・共有状態・固定sleep・実ネットワークをテストから制御できる形にする",
+        "手書きstubとfakeで境界を理解し、Mockitoは読みやすくなる場合に選ぶ"
+      ],
+      "samples": [
+        {
+          "caption": "同じ検証を3組の値で実行する",
+          "code": "import org.junit.jupiter.params.ParameterizedTest;\nimport org.junit.jupiter.params.provider.CsvSource;\n\nimport static org.junit.jupiter.api.Assertions.assertEquals;\n\nclass MathTest {\n    @ParameterizedTest\n    @CsvSource({\"2, 3, 5\", \"0, 0, 0\", \"-2, 5, 3\"})\n    void adds(int a, int b, int expected) {\n        assertEquals(expected, a + b);\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        MiniJUnit.run(MathTest.class);\n    }\n}\n",
+          "expected": "Running MathTest\n  PASS adds[2, 3, 5]\n  PASS adds[0, 0, 0]\n  PASS adds[-2, 5, 3]\nTests run: 3, Failures: 0, Errors: 0"
+        }
+      ],
+      "task": "`PriceRules.discounted` の3つの境界条件を、1つの `@ParameterizedTest` と `@CsvSource` でテストしてください。CSVは `price, rate, expected, throwsExpected` の順で、次の3行をこの順に置きます。\n\n- `1200, 0, 1200, false`\n- `1200, 100, 0, false`\n- `-1, 10, 0, true`\n\n`throwsExpected` がtrueなら `assertThrows`、falseなら `assertEquals` を使います。入力された版番号を `PriceRules.select` で選び、`MiniJUnit.run(DiscountCasesTest.class)` を実行してください。",
+      "starterCode": "import org.junit.jupiter.params.ParameterizedTest;\nimport org.junit.jupiter.params.provider.CsvSource;\n\nimport java.util.Scanner;\n\nimport static org.junit.jupiter.api.Assertions.assertEquals;\nimport static org.junit.jupiter.api.Assertions.assertThrows;\n\nclass DiscountCasesTest {\n    @ParameterizedTest\n    @CsvSource({\n        // TODO 3行\n    })\n    void discountedPrice(int price, int rate, int expected, boolean throwsExpected) {\n        // TODO trueなら例外、falseなら戻り値を検証\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        PriceRules.select(new Scanner(System.in).nextInt());\n        MiniJUnit.run(DiscountCasesTest.class);\n    }\n}\n",
+      "visibleCases": [
+        {
+          "label": "正しい実装",
+          "stdin": "0",
+          "expected": "Running DiscountCasesTest\n  PASS discountedPrice[1200, 0, 1200, false]\n  PASS discountedPrice[1200, 100, 0, false]\n  PASS discountedPrice[-1, 10, 0, true]\nTests run: 3, Failures: 0, Errors: 0"
+        },
+        {
+          "label": "100パーセント境界の不具合",
+          "stdin": "1",
+          "expected": "Running DiscountCasesTest\n  PASS discountedPrice[1200, 0, 1200, false]\n  FAIL discountedPrice[1200, 100, 0, false] -- expected: <0> but was: <12>\n  PASS discountedPrice[-1, 10, 0, true]\nTests run: 3, Failures: 1, Errors: 0"
+        }
+      ],
+      "hiddenCases": [
+        {
+          "label": "入力検査の不具合",
+          "stdin": "2",
+          "expected": "Running DiscountCasesTest\n  PASS discountedPrice[1200, 0, 1200, false]\n  PASS discountedPrice[1200, 100, 0, false]\n  FAIL discountedPrice[-1, 10, 0, true] -- Expected java.lang.IllegalArgumentException to be thrown, but nothing was thrown.\nTests run: 3, Failures: 1, Errors: 0"
+        },
+        {
+          "label": "率0境界の不具合",
+          "stdin": "3",
+          "expected": "Running DiscountCasesTest\n  FAIL discountedPrice[1200, 0, 1200, false] -- expected: <1200> but was: <1140>\n  PASS discountedPrice[1200, 100, 0, false]\n  PASS discountedPrice[-1, 10, 0, true]\nTests run: 3, Failures: 1, Errors: 0"
+        }
+      ],
+      "hints": [
+        "`@CsvSource({\"1200, 0, 1200, false\", ...})` の各セルは、メソッド引数のintとbooleanへ変換されます。",
+        "true側は `assertThrows(IllegalArgumentException.class, () -> PriceRules.discounted(price, rate))` です。",
+        "false側は `assertEquals(expected, PriceRules.discounted(price, rate))` です。"
+      ],
+      "solution": "import org.junit.jupiter.params.ParameterizedTest;\nimport org.junit.jupiter.params.provider.CsvSource;\n\nimport java.util.Scanner;\n\nimport static org.junit.jupiter.api.Assertions.assertEquals;\nimport static org.junit.jupiter.api.Assertions.assertThrows;\n\nclass DiscountCasesTest {\n    @ParameterizedTest\n    @CsvSource({\n        \"1200, 0, 1200, false\",\n        \"1200, 100, 0, false\",\n        \"-1, 10, 0, true\"\n    })\n    void discountedPrice(int price, int rate, int expected, boolean throwsExpected) {\n        if (throwsExpected) {\n            assertThrows(IllegalArgumentException.class,\n                    () -> PriceRules.discounted(price, rate));\n        } else {\n            assertEquals(expected, PriceRules.discounted(price, rate));\n        }\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        PriceRules.select(new Scanner(System.in).nextInt());\n        MiniJUnit.run(DiscountCasesTest.class);\n    }\n}\n",
+      "libs": [
+        "junit-jupiter",
+        "cafe-price-rules"
+      ],
+      "sourceChecks": [
+        {
+          "pattern": "@ParameterizedTest",
+          "minimum": 1,
+          "message": "同じ検証をデータだけ変えて実行する@ParameterizedTestを使ってください。"
+        },
+        {
+          "pattern": "@CsvSource",
+          "minimum": 1,
+          "message": "3組の境界値は@CsvSourceへ表として置いてください。"
+        },
+        {
+          "pattern": "assertThrows\\s*\\(",
+          "minimum": 1,
+          "message": "例外になる行はassertThrowsで確かめてください。"
+        },
+        {
+          "pattern": "assertEquals\\s*\\(",
+          "minimum": 1,
+          "message": "正常に値を返す行はassertEqualsで確かめてください。"
+        }
+      ],
+      "quiz": [
+        {
+          "question": "数値3つだけを変えて同じ検証を繰り返す場合、まず適したデータ源はどれですか。",
+          "choices": [
+            "@AfterEach",
+            "@CsvSource",
+            "@TempDir",
+            "@Disabled"
+          ],
+          "answer": 1,
+          "explanation": "単純な数値・文字列の表は@CsvSourceでテストの近くに読みやすく置けます。"
+        },
+        {
+          "question": "複数フィールドを持つ業務オブジェクトを組み立ててパラメータ化テストへ渡したい場合の選択肢はどれですか。",
+          "choices": [
+            "@MethodSourceからStream<Arguments>などを返す",
+            "各テストの実行順を固定する",
+            "System.inを毎回手で入力する",
+            "本番DBの現在の行をそのまま使う"
+          ],
+          "answer": 0,
+          "explanation": "@MethodSourceならJavaコードで意味のあるテストデータを組み立てられます。"
+        },
+        {
+          "question": "@BeforeEachでリポジトリを毎回作り直す主な目的はどれですか。",
+          "choices": [
+            "テスト数を減らすため",
+            "前のテストが残した状態へ依存させないため",
+            "本番データを変更するため",
+            "テストを必ず同じ順で動かすため"
+          ],
+          "answer": 1,
+          "explanation": "各テストを既知の初期状態から始めると、単独でも一括でも同じ結果になります。"
+        },
+        {
+          "question": "一時ファイルを使うJUnitテストで@TempDirを使う利点はどれですか。",
+          "choices": [
+            "全テストが同じ固定ファイルを共有できる",
+            "テスト専用ディレクトリを受け取り、既定で終了後の削除も任せられる",
+            "文字コードの指定が不要になる",
+            "ファイルI/Oが自動的にmockへ変わる"
+          ],
+          "answer": 1,
+          "explanation": "@TempDirはテストの隔離と後片付けを助けます。文字コードや検証は別途必要です。"
+        },
+        {
+          "question": "非同期処理のテストを安定させる考え方として適切なのはどれですか。",
+          "choices": [
+            "十分長いはずのThread.sleepだけで待つ",
+            "失敗したら成功するまで無制限に再実行する",
+            "期待条件を期限付きで待ち、超過時には観測した状態を報告する",
+            "テスト順をランダムにして失敗を隠す"
+          ],
+          "answer": 2,
+          "explanation": "固定sleepは環境差で短すぎたり無駄に長かったりします。条件と期限を明示します。"
+        },
+        {
+          "question": "Mockitoの位置づけとして、この教材が勧めるものはどれですか。",
+          "choices": [
+            "単体テストでは必ず全依存をMockitoにする",
+            "stubやfakeを理解したうえで、相互作用検証や記述量の削減が読みやすさにつながる場合に選ぶ",
+            "戻り値の検証をすべてverifyへ置き換える",
+            "実装内部の全メソッド呼び順を固定する"
+          ],
+          "answer": 1,
+          "explanation": "Mockitoは便利な選択肢ですが必須ではありません。外から見える結果の検証を優先し、相互作用が契約のときにmockを使います。"
+        }
+      ],
+      "extraTasks": [
+        {
+          "kind": "applied",
+          "task": "注文を保存する `OrderRepository` の**手書きfake**を完成させます。`FakeOrderRepository` は `LinkedHashMap<Long, Order>` を持ち、`findById` はOptional、`save` は同じIDの注文を保存してください。\n\n入力は初期注文数 `n`、続けて `id status` をn組、最後に取り消す `targetId` です。`OrderService.cancel` は、存在しなければ `NOT_FOUND`、`PAID` なら `CONFLICT`、すでに `CANCELLED` なら `NO_CHANGE`、それ以外なら状態をCANCELLEDにして保存し `CANCELLED` を返します。1行目に結果、2行目に `FINAL 最終状態`（存在しなければ `NONE`）を出力してください。",
+          "starterCode": "import java.util.*;\n\nrecord Order(long id, String status) {}\n\ninterface OrderRepository {\n    Optional<Order> findById(long id);\n    void save(Order order);\n}\n\nclass FakeOrderRepository implements OrderRepository {\n    private final Map<Long, Order> orders = new LinkedHashMap<>();\n\n    public Optional<Order> findById(long id) {\n        return Optional.empty();\n    }\n\n    public void save(Order order) {\n        // TODO\n    }\n}\n\nclass OrderService {\n    private final OrderRepository repository;\n    OrderService(OrderRepository repository) { this.repository = repository; }\n\n    String cancel(long id) {\n        // TODO\n        return \"\";\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n        FakeOrderRepository repository = new FakeOrderRepository();\n        for (int i = 0; i < n; i++) repository.save(new Order(sc.nextLong(), sc.next()));\n        long targetId = sc.nextLong();\n        System.out.println(new OrderService(repository).cancel(targetId));\n        System.out.println(\"FINAL \" + repository.findById(targetId).map(Order::status).orElse(\"NONE\"));\n    }\n}\n",
+          "visibleCases": [
+            {
+              "label": "NEWを取り消す",
+              "stdin": "2 1 NEW 2 PAID 1",
+              "expected": "CANCELLED\nFINAL CANCELLED"
+            },
+            {
+              "label": "存在しない",
+              "stdin": "1 1 NEW 9",
+              "expected": "NOT_FOUND\nFINAL NONE"
+            }
+          ],
+          "hiddenCases": [
+            {
+              "label": "支払い済み",
+              "stdin": "1 5 PAID 5",
+              "expected": "CONFLICT\nFINAL PAID"
+            },
+            {
+              "label": "すでに取り消し済み",
+              "stdin": "1 7 CANCELLED 7",
+              "expected": "NO_CHANGE\nFINAL CANCELLED"
+            },
+            {
+              "label": "保存はIDで上書き",
+              "stdin": "2 3 NEW 3 PAID 3",
+              "expected": "CONFLICT\nFINAL PAID"
+            }
+          ],
+          "hints": [
+            "fakeは `orders.get(id)` と `orders.put(order.id(), order)` で、本物の保存先を単純化して再現します。",
+            "`findById` は `Optional.ofNullable(orders.get(id))` です。",
+            "NEWを取り消すときは新しい `Order(id, \"CANCELLED\")` をsaveします。サービスはMapへ直接触れません。"
+          ],
+          "solution": "import java.util.*;\n\nrecord Order(long id, String status) {}\n\ninterface OrderRepository {\n    Optional<Order> findById(long id);\n    void save(Order order);\n}\n\nclass FakeOrderRepository implements OrderRepository {\n    private final Map<Long, Order> orders = new LinkedHashMap<>();\n\n    public Optional<Order> findById(long id) {\n        return Optional.ofNullable(orders.get(id));\n    }\n\n    public void save(Order order) {\n        orders.put(order.id(), order);\n    }\n}\n\nclass OrderService {\n    private final OrderRepository repository;\n    OrderService(OrderRepository repository) { this.repository = repository; }\n\n    String cancel(long id) {\n        Optional<Order> found = repository.findById(id);\n        if (found.isEmpty()) return \"NOT_FOUND\";\n        Order order = found.get();\n        if (order.status().equals(\"PAID\")) return \"CONFLICT\";\n        if (order.status().equals(\"CANCELLED\")) return \"NO_CHANGE\";\n        repository.save(new Order(id, \"CANCELLED\"));\n        return \"CANCELLED\";\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n        FakeOrderRepository repository = new FakeOrderRepository();\n        for (int i = 0; i < n; i++) repository.save(new Order(sc.nextLong(), sc.next()));\n        long targetId = sc.nextLong();\n        System.out.println(new OrderService(repository).cancel(targetId));\n        System.out.println(\"FINAL \" + repository.findById(targetId).map(Order::status).orElse(\"NONE\"));\n    }\n}\n",
+          "sourceChecks": [
+            {
+              "pattern": "class\\s+FakeOrderRepository\\s+implements\\s+OrderRepository",
+              "minimum": 1,
+              "message": "fakeは本物と同じOrderRepositoryインターフェースを実装してください。"
+            },
+            {
+              "pattern": "Map\\s*<\\s*Long\\s*,\\s*Order\\s*>",
+              "minimum": 1,
+              "message": "状態を持つfakeとして、IDから注文を引くMapを使ってください。"
+            },
+            {
+              "pattern": "\\.put\\s*\\(",
+              "minimum": 1,
+              "message": "saveではMapへ注文を保存してください。"
+            },
+            {
+              "pattern": "Optional\\s*\\.\\s*ofNullable",
+              "minimum": 1,
+              "message": "存在しない注文も表せるよう、findByIdはOptionalを返してください。"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "45-7",
+      "title": "章末演習：安定したテストスイートを設計する",
+      "intro": "データの隔離、時刻の固定、不安定要因の発見を3つの演習で確認します。",
+      "explanation": "テストコードも保守する製品コードです。成功時だけでなく、単独実行・一括実行・実行環境の違いでも同じ結果になるかを考えます。共有状態を毎回初期化し、現在時刻などの外部要因を注入し、曖昧な待ち方を残さないことが重要です。",
+      "points": [
+        "準備を@BeforeEachへ集め、各テストを単独で実行できるようにする",
+        "Clock.fixedで日時境界を待たずに再現する",
+        "不安定要因を見つけたら再実行で隠さず、制御できる依存へ変える"
+      ],
+      "samples": [],
+      "task": "staticなListにはmainから任意個のごみデータが入ります。`@BeforeEach setUp` でListをclearし、`\"base\"` を1件追加してください。`addingKeepsExpectedSize` は `\"extra\"` を追加して件数2、`freshFixtureStartsWithBase` は件数1かつ先頭が `\"base\"` であることを検証します。入力はごみデータ数とその文字列です。",
+      "starterCode": "import org.junit.jupiter.api.BeforeEach;\nimport org.junit.jupiter.api.Test;\n\nimport java.util.*;\n\nimport static org.junit.jupiter.api.Assertions.assertEquals;\n\nclass FixtureTest {\n    static final List<String> items = new ArrayList<>();\n\n    @BeforeEach\n    void setUp() {\n        // TODO 毎回既知の状態へ戻す\n    }\n\n    @Test\n    void addingKeepsExpectedSize() {\n        // TODO\n    }\n\n    @Test\n    void freshFixtureStartsWithBase() {\n        // TODO\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n        for (int i = 0; i < n; i++) FixtureTest.items.add(sc.next());\n        MiniJUnit.run(FixtureTest.class);\n    }\n}\n",
+      "visibleCases": [
+        {
+          "label": "ごみなし",
+          "stdin": "0",
+          "expected": "Running FixtureTest\n  PASS addingKeepsExpectedSize\n  PASS freshFixtureStartsWithBase\nTests run: 2, Failures: 0, Errors: 0"
+        },
+        {
+          "label": "前の状態がある",
+          "stdin": "3 old broken remain",
+          "expected": "Running FixtureTest\n  PASS addingKeepsExpectedSize\n  PASS freshFixtureStartsWithBase\nTests run: 2, Failures: 0, Errors: 0"
+        }
+      ],
+      "hiddenCases": [
+        {
+          "label": "1件だけ残っている",
+          "stdin": "1 previous",
+          "expected": "Running FixtureTest\n  PASS addingKeepsExpectedSize\n  PASS freshFixtureStartsWithBase\nTests run: 2, Failures: 0, Errors: 0"
+        },
+        {
+          "label": "baseというごみも消す",
+          "stdin": "2 base base",
+          "expected": "Running FixtureTest\n  PASS addingKeepsExpectedSize\n  PASS freshFixtureStartsWithBase\nTests run: 2, Failures: 0, Errors: 0"
+        }
+      ],
+      "hints": [
+        "setUpの順番は `items.clear(); items.add(\"base\");` です。",
+        "最初のテストは追加後に `assertEquals(2, items.size())` とします。",
+        "2つ目は件数と `items.get(0)` の両方を検証します。"
+      ],
+      "solution": "import org.junit.jupiter.api.BeforeEach;\nimport org.junit.jupiter.api.Test;\n\nimport java.util.*;\n\nimport static org.junit.jupiter.api.Assertions.assertEquals;\n\nclass FixtureTest {\n    static final List<String> items = new ArrayList<>();\n\n    @BeforeEach\n    void setUp() {\n        items.clear();\n        items.add(\"base\");\n    }\n\n    @Test\n    void addingKeepsExpectedSize() {\n        items.add(\"extra\");\n        assertEquals(2, items.size());\n    }\n\n    @Test\n    void freshFixtureStartsWithBase() {\n        assertEquals(1, items.size());\n        assertEquals(\"base\", items.get(0));\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n        for (int i = 0; i < n; i++) FixtureTest.items.add(sc.next());\n        MiniJUnit.run(FixtureTest.class);\n    }\n}\n",
+      "libs": [
+        "junit-jupiter"
+      ],
+      "sourceChecks": [
+        {
+          "pattern": "@BeforeEach",
+          "minimum": 1,
+          "message": "各テストの直前に準備を実行する@BeforeEachを使ってください。"
+        },
+        {
+          "pattern": "items\\s*\\.\\s*clear\\s*\\(",
+          "minimum": 1,
+          "message": "前のテストやmainが残した状態をclearしてください。"
+        },
+        {
+              "pattern": "items\\s*\\.\\s*add\\s*\\(",
+              "minimum": 2,
+              "message": "setUpの基準データとテスト内の追加データを、どちらもitemsへ入れてください。"
+        }
+      ],
+      "extraTasks": [
+        {
+          "kind": "drill",
+          "task": "現在時刻と期限をISO-8601形式で1つずつ読みます。`Clock.fixed(now, ZoneOffset.UTC)` を作り、`isExpired(Instant deadline, Clock clock)` へ渡してください。clockの現在時刻が期限と同じか後なら `EXPIRED`、前なら `ACTIVE` と出力します。メソッド内で `Instant.now()` を直接呼ばず、必ず渡されたClockを使います。",
+          "starterCode": "import java.time.Clock;\nimport java.time.Instant;\nimport java.time.ZoneOffset;\nimport java.util.Scanner;\n\npublic class Main {\n    static boolean isExpired(Instant deadline, Clock clock) {\n        return false;\n    }\n\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        Instant now = Instant.parse(sc.next());\n        Instant deadline = Instant.parse(sc.next());\n        // 固定Clockを作って判定しよう\n    }\n}\n",
+          "visibleCases": [
+            {
+              "label": "期限前",
+              "stdin": "2026-08-11T09:00:00Z 2026-08-11T09:00:01Z",
+              "expected": "ACTIVE"
+            },
+            {
+              "label": "期限ちょうど",
+              "stdin": "2026-08-11T09:00:00Z 2026-08-11T09:00:00Z",
+              "expected": "EXPIRED"
+            }
+          ],
+          "hiddenCases": [
+            {
+              "label": "期限後",
+              "stdin": "2026-08-12T00:00:00Z 2026-08-11T23:59:59Z",
+              "expected": "EXPIRED"
+            },
+            {
+              "label": "大きく前",
+              "stdin": "2020-01-01T00:00:00Z 2030-01-01T00:00:00Z",
+              "expected": "ACTIVE"
+            }
+          ],
+          "hints": [
+            "固定Clockは `Clock.fixed(now, ZoneOffset.UTC)` です。",
+            "現在時刻は `clock.instant()` で取得します。",
+            "「前ではない」は `!clock.instant().isBefore(deadline)` と表せます。"
+          ],
+          "solution": "import java.time.Clock;\nimport java.time.Instant;\nimport java.time.ZoneOffset;\nimport java.util.Scanner;\n\npublic class Main {\n    static boolean isExpired(Instant deadline, Clock clock) {\n        return !clock.instant().isBefore(deadline);\n    }\n\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        Instant now = Instant.parse(sc.next());\n        Instant deadline = Instant.parse(sc.next());\n        Clock clock = Clock.fixed(now, ZoneOffset.UTC);\n        System.out.println(isExpired(deadline, clock) ? \"EXPIRED\" : \"ACTIVE\");\n    }\n}\n",
+          "sourceChecks": [
+            {
+              "pattern": "Clock\\s*\\.\\s*fixed\\s*\\(",
+              "minimum": 1,
+              "message": "テストで再現できる固定Clockを作ってください。"
+            },
+            {
+              "pattern": "clock\\s*\\.\\s*instant\\s*\\(",
+              "minimum": 1,
+              "message": "判定メソッドは渡されたClockから現在時刻を取得してください。"
+            },
+            {
+              "pattern": "Instant\\s*\\.\\s*now\\s*\\(",
+              "minimum": 0,
+              "maximum": 0,
+              "message": "この問題では実行時刻に依存するInstant.now()を直接呼ばないでください。"
+            }
+          ]
+        },
+        {
+          "kind": "applied",
+          "task": "テスト設計をn件読み、不安定要因を監査します。各行は `name clock random state wait network` で、値は次の組み合わせです。\n\n- clock: `fixed` / `real`\n- random: `seeded` / `unseeded`\n- state: `isolated` / `shared`\n- wait: `condition` / `sleep`\n- network: `fake` / `live`\n\n各テストについて、問題がなければ `name STABLE`、問題があれば `name FLAKY 要因` と出力します。要因は `CLOCK,RANDOM,STATE,WAIT,NETWORK` の順にカンマでつなぎます。最後に `SUMMARY stable=件数 flaky=件数` を出力してください。",
+          "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n        int stable = 0, flaky = 0;\n        for (int i = 0; i < n; i++) {\n            String name = sc.next();\n            String clock = sc.next(), random = sc.next(), state = sc.next();\n            String wait = sc.next(), network = sc.next();\n            List<String> risks = new ArrayList<>();\n            // TODO 決められた順に要因を追加\n        }\n        // TODO 集計\n    }\n}\n",
+          "visibleCases": [
+            {
+              "label": "安定した設計",
+              "stdin": "1 price fixed seeded isolated condition fake",
+              "expected": "price STABLE\nSUMMARY stable=1 flaky=0"
+            },
+            {
+              "label": "複数の要因",
+              "stdin": "2 timeout real seeded isolated sleep fake lottery fixed unseeded shared condition live",
+              "expected": "timeout FLAKY CLOCK,WAIT\nlottery FLAKY RANDOM,STATE,NETWORK\nSUMMARY stable=0 flaky=2"
+            }
+          ],
+          "hiddenCases": [
+            {
+              "label": "0件",
+              "stdin": "0",
+              "expected": "SUMMARY stable=0 flaky=0"
+            },
+            {
+              "label": "1要因だけ",
+              "stdin": "1 repository fixed seeded shared condition fake",
+              "expected": "repository FLAKY STATE\nSUMMARY stable=0 flaky=1"
+            },
+            {
+              "label": "安定と不安定が混在",
+              "stdin": "3 a fixed seeded isolated condition fake b real seeded isolated condition fake c fixed seeded isolated condition fake",
+              "expected": "a STABLE\nb FLAKY CLOCK\nc STABLE\nSUMMARY stable=2 flaky=1"
+            }
+          ],
+          "hints": [
+            "入力を調べるifをCLOCK、RANDOM、STATE、WAIT、NETWORKの順に並べれば、出力順も決まります。",
+            "要因の連結は `String.join(\",\", risks)` を使えます。",
+            "risksが空ならstable、1件以上ならflakyを増やします。"
+          ],
+          "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n        int stable = 0, flaky = 0;\n        for (int i = 0; i < n; i++) {\n            String name = sc.next();\n            String clock = sc.next(), random = sc.next(), state = sc.next();\n            String wait = sc.next(), network = sc.next();\n            List<String> risks = new ArrayList<>();\n            if (clock.equals(\"real\")) risks.add(\"CLOCK\");\n            if (random.equals(\"unseeded\")) risks.add(\"RANDOM\");\n            if (state.equals(\"shared\")) risks.add(\"STATE\");\n            if (wait.equals(\"sleep\")) risks.add(\"WAIT\");\n            if (network.equals(\"live\")) risks.add(\"NETWORK\");\n            if (risks.isEmpty()) {\n                stable++;\n                System.out.println(name + \" STABLE\");\n            } else {\n                flaky++;\n                System.out.println(name + \" FLAKY \" + String.join(\",\", risks));\n            }\n        }\n        System.out.println(\"SUMMARY stable=\" + stable + \" flaky=\" + flaky);\n    }\n}\n",
+          "sourceChecks": [
+            {
+              "pattern": "String\\s*\\.\\s*join\\s*\\(",
+              "minimum": 1,
+              "message": "複数の不安定要因はString.joinでカンマ区切りにしてください。"
+            },
+            {
+              "pattern": "\\.isEmpty\\s*\\(",
+              "minimum": 1,
+              "message": "要因リストが空かどうかでSTABLEとFLAKYを分けてください。"
             }
           ]
         }

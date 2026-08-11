@@ -13,6 +13,7 @@ public record CurriculumPart(
         String id,
         String title,
         String subtitle,
+        String prerequisite,
         String emoji,
         List<Chapter> chapters) {
 
@@ -22,6 +23,7 @@ public record CurriculumPart(
         m.put("id", id);
         m.put("title", title);
         m.put("subtitle", subtitle);
+        m.put("prerequisite", prerequisite);
         m.put("emoji", emoji);
         List<String> chapterIds = new ArrayList<>();
         for (Chapter chapter : chapters) {
