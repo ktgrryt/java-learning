@@ -104,14 +104,31 @@
             "2行目は `twice(max2(max2(a, b), c))` です。長くなるなら `int m = max2(max2(a, b), c);` といったん変数に入れてもかまいません。",
             "3行目は `twice(a) + twice(b)` です。戻り値は式の中でそのまま足し算に使えます。"
           ],
-          "solution": "import java.util.Scanner;\n\npublic class Main {\n\n    static int twice(int n) {\n        return n * 2;\n    }\n\n    static int max2(int x, int y) {\n        if (x > y) {\n            return x;\n        }\n        return y;\n    }\n\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int a = sc.nextInt();\n        int b = sc.nextInt();\n        int c = sc.nextInt();\n\n        int m = max2(max2(a, b), c);\n\n        System.out.println(\"最大 \" + m);\n        System.out.println(\"最大の2倍 \" + twice(m));\n        System.out.println(\"2倍の和 \" + (twice(a) + twice(b)));\n    }\n}\n"
+          "solution": "import java.util.Scanner;\n\npublic class Main {\n\n    static int twice(int n) {\n        return n * 2;\n    }\n\n    static int max2(int x, int y) {\n        if (x > y) {\n            return x;\n        }\n        return y;\n    }\n\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int a = sc.nextInt();\n        int b = sc.nextInt();\n        int c = sc.nextInt();\n\n        int m = max2(max2(a, b), c);\n\n        System.out.println(\"最大 \" + m);\n        System.out.println(\"最大の2倍 \" + twice(m));\n        System.out.println(\"2倍の和 \" + (twice(a) + twice(b)));\n    }\n}\n",
+          "sourceChecks": [
+            {
+              "pattern": "static\\s+int\\s+twice\\s*\\(",
+              "minimum": 1,
+              "message": "`static int twice(int n)` を自分で作ってください。"
+            },
+            {
+              "pattern": "static\\s+int\\s+max2\\s*\\(",
+              "minimum": 1,
+              "message": "`static int max2(int x, int y)` を自分で作ってください。"
+            },
+            {
+              "pattern": "max2\\s*\\(\\s*max2\\s*\\(",
+              "minimum": 1,
+              "message": "`if` を書き足さず、`max2` の戻り値をそのまま `max2` の引数へ渡して3つの最大を求めてください。"
+            }
+          ]
         }
       ]
     },
     {
       "id": "7-2",
       "title": "void と、途中で抜ける return",
-      "explanation": "## 値を返さないメソッド — void\n\n「計算した値を返す」のではなく「画面に出力するだけ」のメソッドもあります。\nその場合、戻り値の型に **`void`（ボイド）** と書きます。「空っぽ」という意味です。\n\n```java\nstatic void hello(String name) {\n    System.out.println(\"こんにちは、\" + name + \"さん\");\n}\n\npublic static void main(String[] args) {\n    hello(\"田中\");        // 呼ぶだけ。戻り値はない\n}\n```\n\n`void` のメソッドは値を返さないので、**変数に代入できません**。\n\n```java\nint x = hello(\"田中\");   // ❌ コンパイルエラー：void を int に入れられない\n```\n\n## return; で途中から抜ける\n\n`void` のメソッドでも `return;` は書けます。値を書かずにセミコロンだけです。\n意味は「ここで終わり」。**入力が変だったらすぐ抜ける**という書き方によく使います。\n\n```java\nstatic void printGrade(int score) {\n    if (score < 0 || score > 100) {\n        System.out.println(\"範囲外\");\n        return;                       // ここで終わり。以下は実行されない\n    }\n    if (score >= 80) {\n        System.out.println(\"A\");\n        return;\n    }\n    System.out.println(\"B以下\");\n}\n```\n\nこのように「おかしい場合を先に片付けて、後は本筋だけを書く」やり方は、\n`else` の入れ子が深くならないので読みやすくなります。\n\n> 💡 `void` の中の `return;` は「早めに帰る」ためのもの。`return 値;` とは別物です。\n\n> ⚠️ 間違えやすい点 … `void` メソッドで `return 値;` と書くとコンパイルエラー、値を返すメソッドで `return;` と書いてもコンパイルエラーです。\n\n```java\nstatic void a() { return 1; }    // ❌ void なのに値を返している\nstatic int  b() { return; }      // ❌ int を返すのに値がない\nstatic void c() { return; }      // ✅ OK\nstatic void d() { }              // ✅ OK（return は省略できる）\n```",
+      "explanation": "## 値を返さないメソッド — void\n\n「計算した値を返す」のではなく「画面に出力するだけ」のメソッドもあります。\nその場合、戻り値の型に **`void`（ボイド）** と書きます。「空っぽ」という意味です。\n\n```java\nstatic void hello(String name) {\n    System.out.println(\"こんにちは、\" + name + \"さん\");\n}\n\npublic static void main(String[] args) {\n    hello(\"田中\");        // 呼ぶだけ。戻り値はない\n}\n```\n\n`void` のメソッドは値を返さないので、**変数に代入できません**。\n\n```java\nint x = hello(\"田中\");   // ❌ コンパイルエラー：void を int に入れられない\n```\n\n## return; で途中から抜ける\n\n`void` のメソッドでも `return;` は書けます。値を書かずにセミコロンだけです。\n意味は「ここで終わり」。**入力が変だったらすぐ抜ける**という書き方によく使います。\n\n```java\nstatic void printGrade(int score) {\n    if (score < 0 || score > 100) {\n        System.out.println(\"範囲外\");\n        return;                       // ここで終わり。以下は実行されない\n    }\n    if (score >= 80) {\n        System.out.println(\"A\");\n        return;\n    }\n    System.out.println(\"B以下\");\n}\n```\n\nこのように「おかしい場合を先に片付けて、後は本筋だけを書く」やり方は、\n`else` の入れ子が深くならないので読みやすくなります。\n\n> 💡 `void` の中の `return;` は「早めに帰る」ためのもの。`return 値;` とは別物です。\n\n> ⚠️ 間違えやすい点 … `void` メソッドで `return 値;` と書くとコンパイルエラー、値を返すメソッドで `return;` と書いてもコンパイルエラーです。\n\n```java\nstatic void a() { return 1; }    // ❌ void なのに値を返している\nstatic int  b() { return; }      // ❌ int を返すのに値がない\nstatic void c() { return; }      // ✅ OK\nstatic void d() { }              // ✅ OK（return は省略できる）\n```\n\n## 自分自身を呼ぶ — 再帰\n\nメソッドは **自分自身を呼べます**。これを **再帰** といいます。\n\n```java\nstatic int factorial(int n) {\n    if (n <= 1) {\n        return 1;                    // ここで止まる\n    }\n    return n * factorial(n - 1);     // 自分を呼ぶ\n}\n```\n\n`factorial(4)` は次のようにたどられます。\n\n```\nfactorial(4) = 4 * factorial(3)\n             = 4 * 3 * factorial(2)\n             = 4 * 3 * 2 * factorial(1)\n             = 4 * 3 * 2 * 1\n             = 24\n```\n\n再帰には必ず2つが要ります。\n\n1. **止まる条件** … 上の `n <= 1` です。これが無いと永久に呼び続けます\n2. **小さくして呼ぶ** … 上の `n - 1` です。呼ぶたびに止まる条件へ近づくこと\n\n`return` で値を返して抜ける形が、そのまま「1段ぶん戻る」ことになります。\n\n> ⚠️ 間違えやすい点 … 止まる条件を書き忘れる、または小さくならない引数で呼ぶと、\n> 呼び出しが積み上がって `StackOverflowError` になります。\n> 5-2 の階乗のように **ループで書ける処理は、たいていループのほうが速くて安全** です。\n> 再帰が向くのは、枝分かれする構造をたどるような、ループでは書きにくい形です。",
       "samples": [
         {
           "caption": "void と return; の組み合わせ",
@@ -233,7 +250,19 @@
             "文字数は `name.length()` です。「7文字以上」は `name.length() >= 7` です。",
             "`main` 側は `for (int i = 0; i < n; i++) { greet(sc.next()); }` のように、読んだ名前をそのまま渡せます。`greet` は `void` なので `int x = greet(...)` とは書けません。"
           ],
-          "solution": "import java.util.Scanner;\n\npublic class Main {\n\n    static void greet(String name) {\n        if (name.equals(\"-\")) {\n            System.out.println(\"スキップ\");\n            return;\n        }\n        if (name.length() >= 7) {\n            System.out.println(\"長い名前: \" + name);\n            return;\n        }\n        System.out.println(\"こんにちは、\" + name + \"さん\");\n    }\n\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n\n        for (int i = 0; i < n; i++) {\n            greet(sc.next());\n        }\n    }\n}\n"
+          "solution": "import java.util.Scanner;\n\npublic class Main {\n\n    static void greet(String name) {\n        if (name.equals(\"-\")) {\n            System.out.println(\"スキップ\");\n            return;\n        }\n        if (name.length() >= 7) {\n            System.out.println(\"長い名前: \" + name);\n            return;\n        }\n        System.out.println(\"こんにちは、\" + name + \"さん\");\n    }\n\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n\n        for (int i = 0; i < n; i++) {\n            greet(sc.next());\n        }\n    }\n}\n",
+          "sourceChecks": [
+            {
+              "pattern": "\\breturn\\s*;",
+              "minimum": 2,
+              "message": "`void` メソッドを途中で抜けるには `return;` を使います。`スキップ` と `長い名前` の2か所で必要です。"
+            },
+            {
+              "pattern": "greet\\s*\\(",
+              "minimum": 2,
+              "message": "`greet` は宣言するだけでなく、ループの中から `n` 回呼び出してください。"
+            }
+          ]
         }
       ]
     },
@@ -337,7 +366,19 @@
             "`tag` は `(String, int)` と `(int, String)` の2つです。並び順が違うので別のシグネチャとして区別されます。",
             "出力は `System.out.println(\"和2 \" + add(a, b));` のように、戻り値を文字列につなげます。`tag` は `void` なので呼ぶだけです。"
           ],
-          "solution": "import java.util.Scanner;\n\npublic class Main {\n\n    static int add(int x, int y) {\n        return x + y;\n    }\n\n    static int add(int x, int y, int z) {\n        return x + y + z;\n    }\n\n    static void tag(String s, int n) {\n        System.out.println(\"文字列先 \" + s + \":\" + n);\n    }\n\n    static void tag(int n, String s) {\n        System.out.println(\"整数先 \" + n + \":\" + s);\n    }\n\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int a = sc.nextInt();\n        int b = sc.nextInt();\n        int c = sc.nextInt();\n        String s = sc.next();\n\n        System.out.println(\"和2 \" + add(a, b));\n        System.out.println(\"和3 \" + add(a, b, c));\n        tag(s, a);\n        tag(a, s);\n    }\n}\n"
+          "solution": "import java.util.Scanner;\n\npublic class Main {\n\n    static int add(int x, int y) {\n        return x + y;\n    }\n\n    static int add(int x, int y, int z) {\n        return x + y + z;\n    }\n\n    static void tag(String s, int n) {\n        System.out.println(\"文字列先 \" + s + \":\" + n);\n    }\n\n    static void tag(int n, String s) {\n        System.out.println(\"整数先 \" + n + \":\" + s);\n    }\n\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int a = sc.nextInt();\n        int b = sc.nextInt();\n        int c = sc.nextInt();\n        String s = sc.next();\n\n        System.out.println(\"和2 \" + add(a, b));\n        System.out.println(\"和3 \" + add(a, b, c));\n        tag(s, a);\n        tag(a, s);\n    }\n}\n",
+          "sourceChecks": [
+            {
+              "pattern": "static\\s+int\\s+add\\s*\\(",
+              "minimum": 2,
+              "message": "`add` は **引数の数が違う** 2つを作ってください（2引数と3引数）。"
+            },
+            {
+              "pattern": "static\\s+void\\s+tag\\s*\\(",
+              "minimum": 2,
+              "message": "`tag` は **引数の並び順が違う** 2つを作ってください（`String, int` と `int, String`）。"
+            }
+          ]
         }
       ]
     },
@@ -441,7 +482,24 @@
             "`setAll` の中は `for (int i = 0; i < arr.length; i++) { arr[i] = value; }` です。中身の書き換えなので、呼び出し元の配列にも反映されます。",
             "3行目の `nums == same` は、**同じ本体を指しているか** の比較です。`int[] same = nums;` で作った参照なので `true` になります。`System.out.println(\"同じ本体 \" + (nums == same));` のように、かっこで囲むのを忘れないでください。"
           ],
-          "solution": "import java.util.Scanner;\n\npublic class Main {\n\n    static void swap(int x, int y) {\n        int tmp = x;\n        x = y;\n        y = tmp;\n    }\n\n    static void setAll(int[] arr, int value) {\n        for (int i = 0; i < arr.length; i++) {\n            arr[i] = value;\n        }\n    }\n\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int a = sc.nextInt();\n        int b = sc.nextInt();\n        int v = sc.nextInt();\n\n        int p = a;\n        int q = b;\n        swap(p, q);\n        System.out.println(\"swap後 \" + p + \" \" + q);\n\n        int[] nums = {a, b};\n        int[] same = nums;\n        setAll(same, v);\n        System.out.println(\"配列 \" + nums[0] + \" \" + nums[1]);\n        System.out.println(\"同じ本体 \" + (nums == same));\n    }\n}\n"
+          "solution": "import java.util.Scanner;\n\npublic class Main {\n\n    static void swap(int x, int y) {\n        int tmp = x;\n        x = y;\n        y = tmp;\n    }\n\n    static void setAll(int[] arr, int value) {\n        for (int i = 0; i < arr.length; i++) {\n            arr[i] = value;\n        }\n    }\n\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int a = sc.nextInt();\n        int b = sc.nextInt();\n        int v = sc.nextInt();\n\n        int p = a;\n        int q = b;\n        swap(p, q);\n        System.out.println(\"swap後 \" + p + \" \" + q);\n\n        int[] nums = {a, b};\n        int[] same = nums;\n        setAll(same, v);\n        System.out.println(\"配列 \" + nums[0] + \" \" + nums[1]);\n        System.out.println(\"同じ本体 \" + (nums == same));\n    }\n}\n",
+          "sourceChecks": [
+            {
+              "pattern": "static\\s+void\\s+swap\\s*\\(",
+              "minimum": 1,
+              "message": "`static void swap(int x, int y)` を作り、入れ替わらないことを確かめてください。"
+            },
+            {
+              "pattern": "static\\s+void\\s+setAll\\s*\\(",
+              "minimum": 1,
+              "message": "`static void setAll(int[] arr, int value)` を作ってください。"
+            },
+            {
+              "pattern": "nums\\s*==\\s*same|same\\s*==\\s*nums",
+              "minimum": 1,
+              "message": "`true` を直接書かず、`nums == same` の結果から同じ本体かどうかを出してください。"
+            }
+          ]
         }
       ]
     },
@@ -545,7 +603,19 @@
             "`report` の中で合計を出し、`System.out.println(label + \" 個数\" + nums.length + \" 合計\" + total);` と1行で出力します。個数と合計の前に半角スペース、数字との間にはスペースを入れません。",
             "`which(1, 2)` は引数2つの固定版がぴったり一致するので、そちらが選ばれます。可変長版が選ばれるのは「ほかに合うものがないとき」だけなので、`which(1, 2, 3)` のときだけ可変長になります。"
           ],
-          "solution": "import java.util.Scanner;\n\npublic class Main {\n\n    static void report(String label, int... nums) {\n        int total = 0;\n        for (int n : nums) {\n            total += n;\n        }\n        System.out.println(label + \" 個数\" + nums.length + \" 合計\" + total);\n    }\n\n    static void which(int a, int b) {\n        System.out.println(\"固定2つ\");\n    }\n\n    static void which(int... a) {\n        System.out.println(\"可変長\" + a.length + \"個\");\n    }\n\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        String label = sc.next();\n        int k = sc.nextInt();\n        int[] nums = new int[k];\n        for (int i = 0; i < k; i++) {\n            nums[i] = sc.nextInt();\n        }\n\n        report(label, nums);\n        report(label);\n        which(1, 2);\n        which(1, 2, 3);\n    }\n}\n"
+          "solution": "import java.util.Scanner;\n\npublic class Main {\n\n    static void report(String label, int... nums) {\n        int total = 0;\n        for (int n : nums) {\n            total += n;\n        }\n        System.out.println(label + \" 個数\" + nums.length + \" 合計\" + total);\n    }\n\n    static void which(int a, int b) {\n        System.out.println(\"固定2つ\");\n    }\n\n    static void which(int... a) {\n        System.out.println(\"可変長\" + a.length + \"個\");\n    }\n\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        String label = sc.next();\n        int k = sc.nextInt();\n        int[] nums = new int[k];\n        for (int i = 0; i < k; i++) {\n            nums[i] = sc.nextInt();\n        }\n\n        report(label, nums);\n        report(label);\n        which(1, 2);\n        which(1, 2, 3);\n    }\n}\n",
+          "sourceChecks": [
+            {
+              "pattern": "int\\s*\\.\\.\\.",
+              "minimum": 2,
+              "message": "`report(String label, int... nums)` と可変長の `which(int... a)` の2か所で `int...` を使います。"
+            },
+            {
+              "pattern": "static\\s+void\\s+which\\s*\\(",
+              "minimum": 2,
+              "message": "`which` は固定2引数のものと可変長のものを両方作り、どちらが選ばれるか確かめてください。"
+            }
+          ]
         }
       ],
       "quiz": [
@@ -553,33 +623,33 @@
           "question": "次のうち **オーバーロードとして成立しない** のはどれでしょう（`int f(int a)` がすでにあるとします）。",
           "choices": [
             "`int f(int a, int b)`",
+            "`int f(String a)`",
             "`int f(double a)`",
-            "`long f(int a)`",
-            "`int f(String a)`"
+            "`long f(int a)`"
           ],
-          "answer": 2,
+          "answer": 3,
           "explanation": "メソッドを見分ける手がかりは **名前と引数** だけです。戻り値の型が違うだけでは区別できず、コンパイルエラーになります。"
         },
         {
           "question": "`static void f(int n)` と `static void f(double d)` があるとき、`f('A')` はどちらが呼ばれるでしょう。",
           "choices": [
+            "どちらにも一致せずコンパイルエラーになる",
+            "`double` 版（`char` は `double` へ拡張される）",
             "`int` 版（`char` は `int` に拡張される）",
-            "`double` 版",
-            "どちらでもなくコンパイルエラー",
-            "実行時に決まる"
+            "実行時に引数の値を見て決まる"
           ],
-          "answer": 0,
+          "answer": 2,
           "explanation": "ぴったり一致がないときは **拡張変換で近い方** が選ばれます。`char` → `int` → `long` → `float` → `double` の順なので `int` 版です。`'A'` の文字コードが渡るので `65` が出力されます。"
         },
         {
           "question": "次のコードの出力はどれでしょう。\n\n```java\nstatic void addTen(int[] a) { a[0] += 10; }\n\npublic static void main(String[] args) {\n    int[] arr = {5};\n    addTen(arr);\n    System.out.println(arr[0]);\n}\n```",
           "choices": [
-            "`5`",
-            "`15`",
             "`10`",
-            "コンパイルエラー"
+            "`5`",
+            "コンパイルエラー",
+            "`15`"
           ],
-          "answer": 1,
+          "answer": 3,
           "explanation": "渡されるのは **参照のコピー** で、指している本体は同じです。だから中身の書き換えは呼び出し元にも見えて `15` になります。メソッドの中で `a = new int[]{999};` と別の配列を代入した場合は、呼び出し元は変わりません。"
         },
         {
@@ -606,7 +676,7 @@
         }
       ],
       "task": "【基本】値valueをmin以上max以下に収める `static int clamp(int value, int min, int max)` を作って呼び出してください。3整数を読み、結果だけを表示します。",
-      "starterCode": "import java.util.*;\npublic class Main {\n    static int clamp(int value, int min, int max) {\n        return 0; // TODO\n    }\n    public static void main(String[] args) { Scanner sc=new Scanner(System.in); System.out.println(clamp(sc.nextInt(),sc.nextInt(),sc.nextInt())); }\n}\n",
+      "starterCode": "import java.util.*;\n\npublic class Main {\n    static int clamp(int value, int min, int max) {\n        return 0;\n        // TODO\n    }\n\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        System.out.println(clamp(sc.nextInt(), sc.nextInt(), sc.nextInt()));\n    }\n}\n",
       "visibleCases": [
         {
           "label": "範囲内",
@@ -635,12 +705,12 @@
         "min未満ならmin、maxより大きければmaxを返します。",
         "`Math.max(min, Math.min(value, max))` とまとめられます。"
       ],
-      "solution": "import java.util.*;\npublic class Main {\n    static int clamp(int value, int min, int max) { return Math.max(min, Math.min(value, max)); }\n    public static void main(String[] args) { Scanner sc=new Scanner(System.in); System.out.println(clamp(sc.nextInt(),sc.nextInt(),sc.nextInt())); }\n}\n",
+      "solution": "import java.util.*;\n\npublic class Main {\n    static int clamp(int value, int min, int max) {\n        return Math.max(min, Math.min(value, max));\n    }\n\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        System.out.println(clamp(sc.nextInt(), sc.nextInt(), sc.nextInt()));\n    }\n}\n",
       "extraTasks": [
         {
           "kind": "drill",
           "task": "【組み合わせ】2以上の整数nが素数なら `prime`、そうでなければ `composite` を返す `static String classify(int n)` を作ってください。",
-          "starterCode": "import java.util.*;\npublic class Main { static String classify(int n){ /* TODO */ return \"\"; } public static void main(String[] args){System.out.println(classify(new Scanner(System.in).nextInt()));} }\n",
+          "starterCode": "import java.util.*;\n\npublic class Main {\n    static String classify(int n) {\n        /* TODO */ return \"\";\n    }\n\n    public static void main(String[] args) {\n        System.out.println(classify(new Scanner(System.in).nextInt()));\n    }\n}\n",
           "visibleCases": [
             {
               "label": "素数",
@@ -674,12 +744,19 @@
             "2から順に割り切れる数がないか調べます。",
             "`i * i <= n` まで調べれば十分です。"
           ],
-          "solution": "import java.util.*;\npublic class Main { static String classify(int n){for(int i=2;i*i<=n;i++)if(n%i==0)return \"composite\";return \"prime\";} public static void main(String[] args){System.out.println(classify(new Scanner(System.in).nextInt()));} }\n"
+          "solution": "import java.util.*;\n\npublic class Main {\n    static String classify(int n) {\n        for (int i = 2; i * i <= n; i++) if (n % i == 0) return \"composite\";\n        return \"prime\";\n    }\n\n    public static void main(String[] args) {\n        System.out.println(classify(new Scanner(System.in).nextInt()));\n    }\n}\n",
+          "sourceChecks": [
+            {
+              "pattern": "\\bstatic\\s+String\\s+classify\\s*\\(\\s*int\\b",
+              "minimum": 1,
+              "message": "`static String classify(int n)` という形で作ってください。"
+            }
+          ]
         },
         {
           "kind": "applied",
           "task": "【実践】可変長引数を受け取る `static int sum(int... values)` を作ります。個数nとn個の整数を読み、配列をそのままsumへ渡して合計を表示してください。",
-          "starterCode": "import java.util.*;\npublic class Main { static int sum(int... values){ /* TODO */ return 0; } public static void main(String[] args){Scanner sc=new Scanner(System.in);int n=sc.nextInt();int[] a=new int[n];for(int i=0;i<n;i++)a[i]=sc.nextInt();System.out.println(sum(a));} }\n",
+          "starterCode": "import java.util.*;\n\npublic class Main {\n    static int sum(int...values) {\n        /* TODO */ return 0;\n    }\n\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n        int[] a = new int[n];\n        for (int i = 0; i < n; i++) a[i] = sc.nextInt();\n        System.out.println(sum(a));\n    }\n}\n",
           "visibleCases": [
             {
               "label": "3個",
@@ -708,7 +785,14 @@
             "可変長引数はメソッド内では配列として扱えます。",
             "配列aは `sum(a)` のようにそのまま渡せます。"
           ],
-          "solution": "import java.util.*;\npublic class Main { static int sum(int... values){int total=0;for(int v:values)total+=v;return total;} public static void main(String[] args){Scanner sc=new Scanner(System.in);int n=sc.nextInt();int[] a=new int[n];for(int i=0;i<n;i++)a[i]=sc.nextInt();System.out.println(sum(a));} }\n"
+          "solution": "import java.util.*;\n\npublic class Main {\n    static int sum(int...values) {\n        int total = 0;\n        for (int v : values) total += v;\n        return total;\n    }\n\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n        int[] a = new int[n];\n        for (int i = 0; i < n; i++) a[i] = sc.nextInt();\n        System.out.println(sum(a));\n    }\n}\n",
+          "sourceChecks": [
+            {
+              "pattern": "\\bfor\\s*\\(",
+              "minimum": 2,
+              "message": "`sum` の中で `values` を回して合計してください（`values.length` で個数が取れます）。"
+            }
+          ]
         }
       ]
     }

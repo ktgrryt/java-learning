@@ -90,7 +90,19 @@
             "`check()` の判定順が大事です。**先に `count == 0` を調べて** `SOLD_OUT` を返してから、残りを `count <= 3` で分けます。順番を逆にすると0個が「残りわずか」になってしまいます。",
             "Controller には `case LOW_STOCK -> name + \": 残りわずか (\" + service.countOf(name) + \"個)\";` を足すだけです。3という数字は Service 側だけに置きます（`private static final int LOW_STOCK_THRESHOLD = 3;` のように名前を付けると意図が伝わります）。"
           ],
-          "solution": "import java.util.LinkedHashMap;\nimport java.util.Map;\nimport java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        String name = sc.nextLine().trim();\n\n        ItemRepository repository = new ItemRepository();\n        ItemService service = new ItemService(repository);\n        ItemController controller = new ItemController(service);\n        System.out.println(controller.show(name));\n    }\n}\n\nenum StockStatus { IN_STOCK, LOW_STOCK, SOLD_OUT, NOT_HANDLED }\n\nclass ItemRepository {\n    private final Map<String, Integer> stock = new LinkedHashMap<>();\n\n    ItemRepository() {\n        stock.put(\"apple\", 5);\n        stock.put(\"banana\", 0);\n        stock.put(\"melon\", 12);\n        stock.put(\"pear\", 2);\n        stock.put(\"kiwi\", 3);\n        stock.put(\"mango\", 4);\n    }\n\n    Integer findStock(String name) {\n        return stock.get(name);\n    }\n}\n\nclass ItemService {\n    /** 3個以下になったら「残りわずか」とする、という業務ルール。 */\n    private static final int LOW_STOCK_THRESHOLD = 3;\n\n    private final ItemRepository repository;\n\n    ItemService(ItemRepository repository) {\n        this.repository = repository;\n    }\n\n    StockStatus check(String name) {\n        Integer count = repository.findStock(name);\n        if (count == null) {\n            return StockStatus.NOT_HANDLED;\n        }\n        if (count == 0) {\n            return StockStatus.SOLD_OUT;\n        }\n        return count <= LOW_STOCK_THRESHOLD ? StockStatus.LOW_STOCK : StockStatus.IN_STOCK;\n    }\n\n    int countOf(String name) {\n        Integer count = repository.findStock(name);\n        return count == null ? 0 : count;\n    }\n}\n\nclass ItemController {\n    private final ItemService service;\n\n    ItemController(ItemService service) {\n        this.service = service;\n    }\n\n    String show(String name) {\n        return switch (service.check(name)) {\n            case IN_STOCK -> name + \": 在庫あり (\" + service.countOf(name) + \"個)\";\n            case LOW_STOCK -> name + \": 残りわずか (\" + service.countOf(name) + \"個)\";\n            case SOLD_OUT -> name + \": 在庫切れ\";\n            case NOT_HANDLED -> name + \": 取り扱いなし\";\n        };\n    }\n}\n"
+          "solution": "import java.util.LinkedHashMap;\nimport java.util.Map;\nimport java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        String name = sc.nextLine().trim();\n\n        ItemRepository repository = new ItemRepository();\n        ItemService service = new ItemService(repository);\n        ItemController controller = new ItemController(service);\n        System.out.println(controller.show(name));\n    }\n}\n\nenum StockStatus { IN_STOCK, LOW_STOCK, SOLD_OUT, NOT_HANDLED }\n\nclass ItemRepository {\n    private final Map<String, Integer> stock = new LinkedHashMap<>();\n\n    ItemRepository() {\n        stock.put(\"apple\", 5);\n        stock.put(\"banana\", 0);\n        stock.put(\"melon\", 12);\n        stock.put(\"pear\", 2);\n        stock.put(\"kiwi\", 3);\n        stock.put(\"mango\", 4);\n    }\n\n    Integer findStock(String name) {\n        return stock.get(name);\n    }\n}\n\nclass ItemService {\n    /** 3個以下になったら「残りわずか」とする、という業務ルール。 */\n    private static final int LOW_STOCK_THRESHOLD = 3;\n\n    private final ItemRepository repository;\n\n    ItemService(ItemRepository repository) {\n        this.repository = repository;\n    }\n\n    StockStatus check(String name) {\n        Integer count = repository.findStock(name);\n        if (count == null) {\n            return StockStatus.NOT_HANDLED;\n        }\n        if (count == 0) {\n            return StockStatus.SOLD_OUT;\n        }\n        return count <= LOW_STOCK_THRESHOLD ? StockStatus.LOW_STOCK : StockStatus.IN_STOCK;\n    }\n\n    int countOf(String name) {\n        Integer count = repository.findStock(name);\n        return count == null ? 0 : count;\n    }\n}\n\nclass ItemController {\n    private final ItemService service;\n\n    ItemController(ItemService service) {\n        this.service = service;\n    }\n\n    String show(String name) {\n        return switch (service.check(name)) {\n            case IN_STOCK -> name + \": 在庫あり (\" + service.countOf(name) + \"個)\";\n            case LOW_STOCK -> name + \": 残りわずか (\" + service.countOf(name) + \"個)\";\n            case SOLD_OUT -> name + \": 在庫切れ\";\n            case NOT_HANDLED -> name + \": 取り扱いなし\";\n        };\n    }\n}\n",
+          "sourceChecks": [
+            {
+              "pattern": "\\bLOW_STOCK\\b",
+              "minimum": 1,
+              "message": "「残りわずか」という状態を `StockStatus` に足してください。業務ルールの判定は Service の仕事です。"
+            },
+            {
+              "pattern": "\\bcase\\s+LOW_STOCK\\b",
+              "minimum": 1,
+              "message": "文言を決めるのは Controller です。Service が返した状態を `case LOW_STOCK` で受けて文言に変えてください。"
+            }
+          ]
         }
       ]
     },
@@ -180,7 +192,19 @@
             "3つに分けるなら `switch` 式が読みやすいです。`switch (mode) { case \"stub\" -> ...; case \"empty\" -> ...; default -> ...; }`",
             "`switch` 式の各分岐が返すのは全部 `ItemRepository` 型なので、そのまま変数に代入できます。Service には何も足しません。"
           ],
-          "solution": "import java.util.LinkedHashMap;\nimport java.util.Map;\nimport java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        String[] input = sc.nextLine().trim().split(\"\\\\s+\");\n        String mode = input[0];\n        String name = input[1];\n\n        ItemRepository repository = switch (mode) {\n            case \"stub\" -> new StubItemRepository();\n            case \"empty\" -> new EmptyItemRepository();\n            default -> new InMemoryItemRepository();\n        };\n\n        ItemService service = new ItemService(repository);\n        ItemController controller = new ItemController(service);\n        System.out.println(controller.show(name));\n    }\n}\n\nenum StockStatus { IN_STOCK, SOLD_OUT, NOT_HANDLED }\n\ninterface ItemRepository {\n    Integer findStock(String name);\n}\n\n/** 本番用。完成しています。 */\nclass InMemoryItemRepository implements ItemRepository {\n    private final Map<String, Integer> stock = new LinkedHashMap<>();\n\n    InMemoryItemRepository() {\n        stock.put(\"apple\", 5);\n        stock.put(\"banana\", 0);\n        stock.put(\"melon\", 12);\n    }\n\n    @Override\n    public Integer findStock(String name) {\n        return stock.get(name);\n    }\n}\n\n/** テスト用。何を聞かれても 99 を返すので、DBが要らない。 */\nclass StubItemRepository implements ItemRepository {\n    @Override\n    public Integer findStock(String name) {\n        return 99;\n    }\n}\n\n/** 3つめの実装。いつでも在庫0を返す（在庫切れの画面を確かめたいとき用）。 */\nclass EmptyItemRepository implements ItemRepository {\n    @Override\n    public Integer findStock(String name) {\n        return 0;\n    }\n}\n\n/** この層は完成しています。触らないでください。 */\nclass ItemService {\n    private final ItemRepository repository;\n\n    ItemService(ItemRepository repository) {\n        this.repository = repository;\n    }\n\n    StockStatus check(String name) {\n        Integer count = repository.findStock(name);\n        if (count == null) {\n            return StockStatus.NOT_HANDLED;\n        }\n        return count > 0 ? StockStatus.IN_STOCK : StockStatus.SOLD_OUT;\n    }\n\n    int countOf(String name) {\n        Integer count = repository.findStock(name);\n        return count == null ? 0 : count;\n    }\n}\n\n/** この層は完成しています。触らないでください。 */\nclass ItemController {\n    private final ItemService service;\n\n    ItemController(ItemService service) {\n        this.service = service;\n    }\n\n    String show(String name) {\n        return switch (service.check(name)) {\n            case IN_STOCK -> name + \": 在庫あり (\" + service.countOf(name) + \"個)\";\n            case SOLD_OUT -> name + \": 在庫切れ\";\n            case NOT_HANDLED -> name + \": 取り扱いなし\";\n        };\n    }\n}\n"
+          "solution": "import java.util.LinkedHashMap;\nimport java.util.Map;\nimport java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        String[] input = sc.nextLine().trim().split(\"\\\\s+\");\n        String mode = input[0];\n        String name = input[1];\n\n        ItemRepository repository = switch (mode) {\n            case \"stub\" -> new StubItemRepository();\n            case \"empty\" -> new EmptyItemRepository();\n            default -> new InMemoryItemRepository();\n        };\n\n        ItemService service = new ItemService(repository);\n        ItemController controller = new ItemController(service);\n        System.out.println(controller.show(name));\n    }\n}\n\nenum StockStatus { IN_STOCK, SOLD_OUT, NOT_HANDLED }\n\ninterface ItemRepository {\n    Integer findStock(String name);\n}\n\n/** 本番用。完成しています。 */\nclass InMemoryItemRepository implements ItemRepository {\n    private final Map<String, Integer> stock = new LinkedHashMap<>();\n\n    InMemoryItemRepository() {\n        stock.put(\"apple\", 5);\n        stock.put(\"banana\", 0);\n        stock.put(\"melon\", 12);\n    }\n\n    @Override\n    public Integer findStock(String name) {\n        return stock.get(name);\n    }\n}\n\n/** テスト用。何を聞かれても 99 を返すので、DBが要らない。 */\nclass StubItemRepository implements ItemRepository {\n    @Override\n    public Integer findStock(String name) {\n        return 99;\n    }\n}\n\n/** 3つめの実装。いつでも在庫0を返す（在庫切れの画面を確かめたいとき用）。 */\nclass EmptyItemRepository implements ItemRepository {\n    @Override\n    public Integer findStock(String name) {\n        return 0;\n    }\n}\n\n/** この層は完成しています。触らないでください。 */\nclass ItemService {\n    private final ItemRepository repository;\n\n    ItemService(ItemRepository repository) {\n        this.repository = repository;\n    }\n\n    StockStatus check(String name) {\n        Integer count = repository.findStock(name);\n        if (count == null) {\n            return StockStatus.NOT_HANDLED;\n        }\n        return count > 0 ? StockStatus.IN_STOCK : StockStatus.SOLD_OUT;\n    }\n\n    int countOf(String name) {\n        Integer count = repository.findStock(name);\n        return count == null ? 0 : count;\n    }\n}\n\n/** この層は完成しています。触らないでください。 */\nclass ItemController {\n    private final ItemService service;\n\n    ItemController(ItemService service) {\n        this.service = service;\n    }\n\n    String show(String name) {\n        return switch (service.check(name)) {\n            case IN_STOCK -> name + \": 在庫あり (\" + service.countOf(name) + \"個)\";\n            case SOLD_OUT -> name + \": 在庫切れ\";\n            case NOT_HANDLED -> name + \": 取り扱いなし\";\n        };\n    }\n}\n",
+          "sourceChecks": [
+            {
+              "pattern": "\\bclass\\s+EmptyItemRepository\\s+implements\\s+ItemRepository\\b",
+              "minimum": 1,
+              "message": "3つめの実装は `ItemRepository` を実装して作ってください（Service と Controller は触りません）。"
+            },
+            {
+              "pattern": "\\bnew\\s+EmptyItemRepository\\s*\\(",
+              "minimum": 1,
+              "message": "`main` で入力に応じて `EmptyItemRepository` を選んでください。"
+            }
+          ]
         }
       ]
     },
@@ -275,7 +299,19 @@
             "1件ずつ `findDto(id)` を呼び、`null` でなければ `dtos.add(dto)` します。`null` のときは何もしません。これが「含めない」の意味です。",
             "`showAll()` は `for (UserDto dto : service.findDtos(ids))` で回して、`lines.add(\"name=\" + dto.name() + \" email=\" + dto.maskedEmail())` します。1件も無ければ空のリストが返るので、`main` は何も出力しません。"
           ],
-          "solution": "import java.util.ArrayList;\nimport java.util.LinkedHashMap;\nimport java.util.List;\nimport java.util.Map;\nimport java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        String[] tokens = sc.nextLine().trim().split(\"\\\\s+\");\n        int[] ids = new int[tokens.length];\n        for (int i = 0; i < tokens.length; i++) {\n            ids[i] = Integer.parseInt(tokens[i]);\n        }\n\n        UserService service = new UserService(new UserRepository());\n        UserController controller = new UserController(service);\n        for (String line : controller.showAll(ids)) {\n            System.out.println(line);\n        }\n    }\n}\n\nrecord User(int id, String name, String email, String passwordHash) { }\n\nrecord UserDto(String name, String maskedEmail) { }\n\n/** この層は完成しています。触らなくてよいです。 */\nclass UserRepository {\n    private final Map<Integer, User> users = new LinkedHashMap<>();\n\n    UserRepository() {\n        users.put(1, new User(1, \"山田太郎\", \"yamada@example.com\", \"$2a$10$hash1\"));\n        users.put(2, new User(2, \"佐藤花子\", \"sato@test.jp\", \"$2a$10$hash2\"));\n        users.put(3, new User(3, \"鈴木一郎\", \"s@example.jp\", \"$2a$10$hash3\"));\n    }\n\n    User findById(int id) {\n        return users.get(id);\n    }\n}\n\nclass UserService {\n    private final UserRepository repository;\n\n    UserService(UserRepository repository) {\n        this.repository = repository;\n    }\n\n    UserDto findDto(int id) {\n        User user = repository.findById(id);\n        if (user == null) {\n            return null;\n        }\n        return new UserDto(user.name(), mask(user.email()));\n    }\n\n    private static String mask(String email) {\n        int at = email.indexOf('@');\n        return email.charAt(0) + \"***\" + email.substring(at);\n    }\n\n    /** 複数件をまとめて詰め替える。見つからなかったIDは含めない（null を混ぜない）。 */\n    List<UserDto> findDtos(int... ids) {\n        List<UserDto> dtos = new ArrayList<>();\n        for (int id : ids) {\n            UserDto dto = findDto(id);\n            if (dto != null) {\n                dtos.add(dto);\n            }\n        }\n        return dtos;\n    }\n}\n\nclass UserController {\n    private final UserService service;\n\n    UserController(UserService service) {\n        this.service = service;\n    }\n\n    /** 表示の形を決めるのは Controller の仕事。 */\n    List<String> showAll(int... ids) {\n        List<String> lines = new ArrayList<>();\n        for (UserDto dto : service.findDtos(ids)) {\n            lines.add(\"name=\" + dto.name() + \" email=\" + dto.maskedEmail());\n        }\n        return lines;\n    }\n}\n"
+          "solution": "import java.util.ArrayList;\nimport java.util.LinkedHashMap;\nimport java.util.List;\nimport java.util.Map;\nimport java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        String[] tokens = sc.nextLine().trim().split(\"\\\\s+\");\n        int[] ids = new int[tokens.length];\n        for (int i = 0; i < tokens.length; i++) {\n            ids[i] = Integer.parseInt(tokens[i]);\n        }\n\n        UserService service = new UserService(new UserRepository());\n        UserController controller = new UserController(service);\n        for (String line : controller.showAll(ids)) {\n            System.out.println(line);\n        }\n    }\n}\n\nrecord User(int id, String name, String email, String passwordHash) { }\n\nrecord UserDto(String name, String maskedEmail) { }\n\n/** この層は完成しています。触らなくてよいです。 */\nclass UserRepository {\n    private final Map<Integer, User> users = new LinkedHashMap<>();\n\n    UserRepository() {\n        users.put(1, new User(1, \"山田太郎\", \"yamada@example.com\", \"$2a$10$hash1\"));\n        users.put(2, new User(2, \"佐藤花子\", \"sato@test.jp\", \"$2a$10$hash2\"));\n        users.put(3, new User(3, \"鈴木一郎\", \"s@example.jp\", \"$2a$10$hash3\"));\n    }\n\n    User findById(int id) {\n        return users.get(id);\n    }\n}\n\nclass UserService {\n    private final UserRepository repository;\n\n    UserService(UserRepository repository) {\n        this.repository = repository;\n    }\n\n    UserDto findDto(int id) {\n        User user = repository.findById(id);\n        if (user == null) {\n            return null;\n        }\n        return new UserDto(user.name(), mask(user.email()));\n    }\n\n    private static String mask(String email) {\n        int at = email.indexOf('@');\n        return email.charAt(0) + \"***\" + email.substring(at);\n    }\n\n    /** 複数件をまとめて詰め替える。見つからなかったIDは含めない（null を混ぜない）。 */\n    List<UserDto> findDtos(int... ids) {\n        List<UserDto> dtos = new ArrayList<>();\n        for (int id : ids) {\n            UserDto dto = findDto(id);\n            if (dto != null) {\n                dtos.add(dto);\n            }\n        }\n        return dtos;\n    }\n}\n\nclass UserController {\n    private final UserService service;\n\n    UserController(UserService service) {\n        this.service = service;\n    }\n\n    /** 表示の形を決めるのは Controller の仕事。 */\n    List<String> showAll(int... ids) {\n        List<String> lines = new ArrayList<>();\n        for (UserDto dto : service.findDtos(ids)) {\n            lines.add(\"name=\" + dto.name() + \" email=\" + dto.maskedEmail());\n        }\n        return lines;\n    }\n}\n",
+          "sourceChecks": [
+            {
+              "pattern": "\\bfindDtos\\s*\\(",
+              "minimum": 1,
+              "message": "まとめて詰め替える `findDtos` を Service に作ってください（詰め替えは Service の仕事）。"
+            },
+            {
+              "pattern": "!=\\s*null",
+              "minimum": 1,
+              "message": "見つからなかったIDはリストに入れません。`null` を混ぜないよう弾いてください。"
+            }
+          ]
         }
       ]
     },
@@ -378,7 +414,11 @@
           ],
           "solution": "import java.util.LinkedHashMap;\nimport java.util.Map;\nimport java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        String[] input = sc.nextLine().trim().split(\"\\\\s+\");\n        String name = input[0];\n        int count = Integer.parseInt(input[1]);\n        ShipService service = new ShipService(new StockRepository());\n        System.out.println(new ShipController(service).ship(name, count));\n    }\n}\n\nclass BusinessException extends Exception {\n    BusinessException(String message) { super(message); }\n}\nclass OutOfStockException extends BusinessException {\n    OutOfStockException(String message) { super(message); }\n}\nclass ItemNotFoundException extends BusinessException {\n    ItemNotFoundException(String message) { super(message); }\n}\nclass InventoryUnavailableException extends RuntimeException {\n    InventoryUnavailableException(String message, Throwable cause) { super(message, cause); }\n}\nclass DataAccessException extends Exception {\n    DataAccessException(String message) { super(message); }\n}\n\nclass StockRepository {\n    private final Map<String, Integer> stock = new LinkedHashMap<>();\n    StockRepository() {\n        stock.put(\"apple\", 5);\n        stock.put(\"banana\", 0);\n        stock.put(\"melon\", 12);\n    }\n    Integer findStock(String name) throws DataAccessException {\n        if (name.equals(\"ERROR\")) throw new DataAccessException(\"connection refused\");\n        return stock.get(name);\n    }\n}\n\nclass ShipService {\n    private final StockRepository repository;\n    ShipService(StockRepository repository) { this.repository = repository; }\n    int ship(String name, int count) throws BusinessException {\n        Integer current;\n        try {\n            current = repository.findStock(name);\n        } catch (DataAccessException e) {\n            throw new InventoryUnavailableException(\"在庫を確認できませんでした\", e);\n        }\n        if (current == null) throw new ItemNotFoundException(name + \" は取り扱いがありません\");\n        if (current < count) throw new OutOfStockException(\n                name + \" の在庫が足りません (在庫\" + current + \"個, 要求\" + count + \"個)\");\n        return current - count;\n    }\n}\n\nclass ShipController {\n    private final ShipService service;\n    ShipController(ShipService service) { this.service = service; }\n    String ship(String name, int count) {\n        try {\n            int rest = service.ship(name, count);\n            return \"出荷しました: \" + name + \" x\" + count + \" (残り\" + rest + \"個)\";\n        } catch (InventoryUnavailableException e) {\n            return \"システムエラー: 処理を完了できませんでした\";\n        } catch (BusinessException e) {\n            return \"エラー: \" + e.getMessage();\n        }\n    }\n}\n",
           "sourceChecks": [
-            {"pattern": "new\\s+InventoryUnavailableException\\s*\\(\\s*[^,]+,\\s*e\\s*\\)", "minimum": 1, "message": "InventoryUnavailableExceptionの第2引数へ元のDataAccessException（e）を渡し、causeを保持してください。"}
+            {
+              "pattern": "new\\s+InventoryUnavailableException\\s*\\(\\s*[^,]+,\\s*e\\s*\\)",
+              "minimum": 1,
+              "message": "InventoryUnavailableExceptionの第2引数へ元のDataAccessException（e）を渡し、causeを保持してください。"
+            }
           ]
         }
       ]
@@ -489,52 +529,65 @@
             "`if (compare(version, newest) > 0) { newest = version; }` とします。`compare` が正なら `version` のほうが新しい、という意味です。",
             "`>` であることが大事です。`>=` にすると、同じ新しさのときにも入れ替わってしまい、`1.0 0.9 1.0.0` で `1.0.0` が残ってしまいます。"
           ],
-          "solution": "import java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        String[] versions = sc.nextLine().trim().split(\"\\\\s+\");\n\n        String newest = versions[0];\n        for (String version : versions) {\n            // 「より新しい」ときだけ入れ替える。同じときは入れ替えないので、\n            // 同じ新しさが並んだ場合は先に出てきた表記が残る\n            if (compare(version, newest) > 0) {\n                newest = version;\n            }\n        }\n        System.out.println(newest);\n    }\n\n    static int compare(String a, String b) {\n        String[] x = a.split(\"\\\\.\");\n        String[] y = b.split(\"\\\\.\");\n        int length = Math.max(x.length, y.length);\n        for (int i = 0; i < length; i++) {\n            int xi = i < x.length ? Integer.parseInt(x[i]) : 0;\n            int yi = i < y.length ? Integer.parseInt(y[i]) : 0;\n            if (xi != yi) {\n                return Integer.compare(xi, yi);\n            }\n        }\n        return 0;\n    }\n}\n"
+          "solution": "import java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        String[] versions = sc.nextLine().trim().split(\"\\\\s+\");\n\n        String newest = versions[0];\n        for (String version : versions) {\n            // 「より新しい」ときだけ入れ替える。同じときは入れ替えないので、\n            // 同じ新しさが並んだ場合は先に出てきた表記が残る\n            if (compare(version, newest) > 0) {\n                newest = version;\n            }\n        }\n        System.out.println(newest);\n    }\n\n    static int compare(String a, String b) {\n        String[] x = a.split(\"\\\\.\");\n        String[] y = b.split(\"\\\\.\");\n        int length = Math.max(x.length, y.length);\n        for (int i = 0; i < length; i++) {\n            int xi = i < x.length ? Integer.parseInt(x[i]) : 0;\n            int yi = i < y.length ? Integer.parseInt(y[i]) : 0;\n            if (xi != yi) {\n                return Integer.compare(xi, yi);\n            }\n        }\n        return 0;\n    }\n}\n",
+          "sourceChecks": [
+            {
+              "pattern": "Integer\\s*\\.\\s*parseInt|Integer\\s*\\.\\s*valueOf",
+              "minimum": 1,
+              "message": "`1.10.2` は `1.2.10` より新しいので、区切りごとに **数値へ直して** 比べてください。"
+            },
+            {
+              "pattern": "\\.compareTo\\s*\\(",
+              "minimum": 0,
+              "maximum": 0,
+              "message": "文字列の `compareTo` では `1.10` が `1.2` より小さいと判定されてしまいます。数値で比べてください。"
+            }
+          ]
         }
       ],
       "quiz": [
         {
           "question": "Jakarta EE のアプリをWARにして、対応するJakarta EEサーバーへ置くとき、`jakarta.jakartaee-api` を `provided` にする主な理由は何でしょう。",
           "choices": [
-            "コンパイルが速くなるから",
-            "アプリサーバが同じAPIを持っているので、WARに同梱すると同じクラスが2つになって事故になるから",
+            "アプリサーバが同じAPIを持つので、同梱すると重複して事故になるから",
+            "同梱しない分だけコンパイルが速くなるから",
             "`provided` にしないとコンパイルが通らないから",
-            "テストのときだけ必要なライブラリだから"
+            "テストのときだけ必要になるライブラリだから"
           ],
-          "answer": 1,
+          "answer": 0,
           "explanation": "`provided` は、コンパイルには必要でも配置先が提供するAPIを成果物へ通常同梱しない指定です。対象のJakarta EEサーバーが提供するAPIとの重複を避けます。TomcatはフルJakarta EEサーバーではないため、Servlet以外の仕様には別実装または対応サーバーが必要です。"
         },
         {
           "question": "`src/main/resources/application.properties` に置いたファイルは、ビルドしたあとどこから読めるでしょう。",
           "choices": [
+            "クラスパスの直下に置かれるので、クラスパス基準で読める",
             "`src/main/resources/` からの相対パスで、実行時もそのまま読める",
-            "クラスパスの直下に置かれるので、`getResourceAsStream(\"/application.properties\")` で読める",
             "`WEB-INF/resources/` に置かれるので、そのパスを指定して読む",
             "ビルド結果には含まれないので、実行時には読めない"
           ],
-          "answer": 1,
+          "answer": 0,
           "explanation": "`src/main/resources/` の中身は、ビルドすると **クラスパスの直下**（JARなら中身の直下、WARなら `WEB-INF/classes/` の直下）にコピーされます。だから `getClass().getResourceAsStream(\"/application.properties\")` のようにクラスパス基準で読みます。`src/main/resources` というパスはビルド前のソースの置き場所であって、実行時には存在しません。"
         },
         {
           "question": "JAR と WAR について、正しいのはどれでしょう。",
           "choices": [
-            "WAR は `WEB-INF/lib/` に依存ライブラリを、`WEB-INF/classes/` に自分のクラスを持つ",
-            "WAR は JAR と中身が同じで、拡張子だけが違う",
-            "JAR はアプリサーバに配置して動かすものである",
-            "WAR に入れたファイルは、すべてブラウザから直接アクセスできる"
+            "WAR は JAR と中身がまったく同じで、拡張子だけが違う",
+            "WAR に入れたファイルは、`WEB-INF` の中も含めてブラウザから直接アクセスできる",
+            "JAR はアプリサーバに配置して動かす形式で、単体では実行できない",
+            "依存ライブラリは `WEB-INF/lib/`、クラスは `WEB-INF/classes/` に入る"
           ],
-          "answer": 0,
+          "answer": 3,
           "explanation": "WARはWebアプリ用の形式で、`WEB-INF/classes/` にアプリのクラス、`WEB-INF/lib/` に同梱する依存JARが入ります。`WEB-INF` 内はブラウザから直接アクセスできません。JARはライブラリだけでなく、組み込みサーバーを含む実行可能Webアプリにも使えます。"
         },
         {
           "question": "推移的依存について、正しいのはどれでしょう。",
           "choices": [
-            "自分が使うライブラリが必要としているライブラリも自動で入るが、同じライブラリの違うバージョンが要求された場合は1つだけが選ばれる",
-            "推移的依存はすべてのバージョンが同時に入るので、バージョンの衝突は起きない",
             "`test` スコープのライブラリも、実行時のクラスパスに入る",
+            "推移的依存はすべてのバージョンが同時に入るので、バージョンの衝突は起きない",
+            "必要としているライブラリも自動で入るが、同じライブラリは1つだけが選ばれる",
             "推移的依存は `pom.xml` に書いたものだけなので、自分が書いていないライブラリが入ることはない"
           ],
-          "answer": 0,
+          "answer": 2,
           "explanation": "Maven は依存が必要とする依存も自動で取ってきます（推移的依存）。同じライブラリに複数のバージョンが要求されたときは **1つだけ** が選ばれるので、選ばれなかった側を前提にしたコードは実行時に `NoSuchMethodError` などで落ちます。コンパイルは通るのに実行時に落ちるのが厄介な点で、`mvn dependency:tree` で実際に入っているバージョンを確認します。`test` スコープは実行時のクラスパスには入りません。"
         }
       ]
@@ -550,7 +603,7 @@
         }
       ],
       "task": "【基本】UserRepositoryをインターフェースにし、Mapを使うMemoryUserRepositoryを実装します。UserServiceへコンストラクタで渡し、ID 1なら `user=山田`、2なら `user=佐藤`、それ以外は `not found` と表示してください。",
-      "starterCode": "import java.util.*;\ninterface UserRepository {String findName(int id);}\nclass MemoryUserRepository implements UserRepository {public String findName(int id){return null;}/* TODO: Mapから検索する */}\nclass UserService {private final UserRepository repository;UserService(UserRepository repository){this.repository=repository;}String show(int id){return \"\";}}\npublic class Main {public static void main(String[] args){int id=new Scanner(System.in).nextInt();System.out.println(new UserService(new MemoryUserRepository()).show(id));}}\n",
+      "starterCode": "import java.util.*;\n\ninterface UserRepository {\n    String findName(int id);\n}\n\nclass MemoryUserRepository implements UserRepository {\n    public String findName(int id) {\n        return null;\n    }\n\n    /* TODO: Mapから検索する */\n}\n\nclass UserService {\n    private final UserRepository repository;\n\n    UserService(UserRepository repository) {\n        this.repository = repository;\n    }\n\n    String show(int id) {\n        return \"\";\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        int id = new Scanner(System.in).nextInt();\n        System.out.println(new UserService(new MemoryUserRepository()).show(id));\n    }\n}\n",
       "visibleCases": [
         {
           "label": "ID 1",
@@ -579,12 +632,12 @@
         "Repositoryの実装だけがMapを持ちます。",
         "Serviceはnullならnot found、見つかれば表示用文字列へ変換します。"
       ],
-      "solution": "import java.util.*;\ninterface UserRepository {String findName(int id);}\nclass MemoryUserRepository implements UserRepository {private final Map<Integer,String> users=Map.of(1,\"山田\",2,\"佐藤\");public String findName(int id){return users.get(id);}}\nclass UserService {private final UserRepository repository;UserService(UserRepository repository){this.repository=repository;}String show(int id){String name=repository.findName(id);return name==null?\"not found\":\"user=\"+name;}}\npublic class Main {public static void main(String[] args){int id=new Scanner(System.in).nextInt();System.out.println(new UserService(new MemoryUserRepository()).show(id));}}\n",
+      "solution": "import java.util.*;\n\ninterface UserRepository {\n    String findName(int id);\n}\n\nclass MemoryUserRepository implements UserRepository {\n    private final Map<Integer, String> users = Map.of(1, \"山田\", 2, \"佐藤\");\n\n    public String findName(int id) {\n        return users.get(id);\n    }\n}\n\nclass UserService {\n    private final UserRepository repository;\n\n    UserService(UserRepository repository) {\n        this.repository = repository;\n    }\n\n    String show(int id) {\n        String name = repository.findName(id);\n        return name == null ? \"not found\" : \"user=\" + name;\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        int id = new Scanner(System.in).nextInt();\n        System.out.println(new UserService(new MemoryUserRepository()).show(id));\n    }\n}\n",
       "extraTasks": [
         {
           "kind": "drill",
           "task": "【組み合わせ】UserEntityはid・name・passwordHashを持ちます。画面へ返すUserDtoはid・nameだけにし、Serviceの `toDto` で変換してください。3値を読み、DTOだけを表示します。",
-          "starterCode": "import java.util.*;\nrecord UserEntity(int id,String name,String passwordHash){}\nrecord UserDto(int id,String name){}\nclass UserService {UserDto toDto(UserEntity entity){return null;}}\npublic class Main {public static void main(String[] args){Scanner s=new Scanner(System.in);UserEntity e=new UserEntity(s.nextInt(),s.next(),s.next());System.out.println(new UserService().toDto(e));}}\n",
+          "starterCode": "import java.util.*;\n\nrecord UserEntity(int id, String name, String passwordHash) { }\n\nrecord UserDto(int id, String name) { }\n\nclass UserService {\n    UserDto toDto(UserEntity entity) {\n        return null;\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        UserEntity e = new UserEntity(s.nextInt(), s.next(), s.next());\n        System.out.println(new UserService().toDto(e));\n    }\n}\n",
           "visibleCases": [
             {
               "label": "利用者",
@@ -608,12 +661,24 @@
             "DTOのコンストラクタへidとnameだけを渡します。",
             "passwordHashをDTOへ含めないことが目的です。"
           ],
-          "solution": "import java.util.*;\nrecord UserEntity(int id,String name,String passwordHash){}\nrecord UserDto(int id,String name){}\nclass UserService {UserDto toDto(UserEntity entity){return new UserDto(entity.id(),entity.name());}}\npublic class Main {public static void main(String[] args){Scanner s=new Scanner(System.in);UserEntity e=new UserEntity(s.nextInt(),s.next(),s.next());System.out.println(new UserService().toDto(e));}}\n"
+          "solution": "import java.util.*;\n\nrecord UserEntity(int id, String name, String passwordHash) { }\n\nrecord UserDto(int id, String name) { }\n\nclass UserService {\n    UserDto toDto(UserEntity entity) {\n        return new UserDto(entity.id(), entity.name());\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        UserEntity e = new UserEntity(s.nextInt(), s.next(), s.next());\n        System.out.println(new UserService().toDto(e));\n    }\n}\n",
+          "sourceChecks": [
+            {
+              "pattern": "\\brecord\\s+UserDto\\s*\\(\\s*int\\s+id\\s*,\\s*String\\s+name\\s*\\)",
+              "minimum": 1,
+              "message": "DTOは画面へ返す値だけにします。`passwordHash` を含めないでください。"
+            },
+            {
+              "pattern": "\\btoDto\\s*\\(",
+              "minimum": 1,
+              "message": "EntityからDTOへの詰め替えは Service の `toDto` でやってください。"
+            }
+          ]
         },
         {
           "kind": "applied",
           "task": "【実践】ServiceはIDが0以下ならIllegalArgumentException、登録がなければUserNotFoundExceptionを投げます。Controllerでそれぞれ `400 Bad Request`、`404 Not Found`、成功なら `200 名前` へ変換してください。登録は1=山田、2=佐藤です。",
-          "starterCode": "import java.util.*;\nclass UserNotFoundException extends RuntimeException {}\nclass UserService {private final Map<Integer,String> users=Map.of(1,\"山田\",2,\"佐藤\");String find(int id){/* TODO */return \"\";}}\nclass UserController {private final UserService service=new UserService();String get(int id){/* TODO */return \"\";}}\npublic class Main {public static void main(String[] args){System.out.println(new UserController().get(new Scanner(System.in).nextInt()));}}\n",
+          "starterCode": "import java.util.*;\n\nclass UserNotFoundException extends RuntimeException { }\n\nclass UserService {\n    private final Map<Integer, String> users = Map.of(1, \"山田\", 2, \"佐藤\");\n\n    String find(int id) {\n        /* TODO */ return \"\";\n    }\n}\n\nclass UserController {\n    private final UserService service = new UserService();\n\n    String get(int id) {\n        /* TODO */ return \"\";\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        System.out.println(new UserController().get(new Scanner(System.in).nextInt()));\n    }\n}\n",
           "visibleCases": [
             {
               "label": "成功",
@@ -647,7 +712,19 @@
             "Serviceは入力不正と未登録を別の例外で表します。",
             "Controllerでは具体的な例外から順にcatchし、外向け結果へ変換します。"
           ],
-          "solution": "import java.util.*;\nclass UserNotFoundException extends RuntimeException {}\nclass UserService {private final Map<Integer,String> users=Map.of(1,\"山田\",2,\"佐藤\");String find(int id){if(id<=0)throw new IllegalArgumentException();String name=users.get(id);if(name==null)throw new UserNotFoundException();return name;}}\nclass UserController {private final UserService service=new UserService();String get(int id){try{return \"200 \"+service.find(id);}catch(IllegalArgumentException e){return \"400 Bad Request\";}catch(UserNotFoundException e){return \"404 Not Found\";}}}\npublic class Main {public static void main(String[] args){System.out.println(new UserController().get(new Scanner(System.in).nextInt()));}}\n"
+          "solution": "import java.util.*;\n\nclass UserNotFoundException extends RuntimeException { }\n\nclass UserService {\n    private final Map<Integer, String> users = Map.of(1, \"山田\", 2, \"佐藤\");\n\n    String find(int id) {\n        if (id <= 0) throw new IllegalArgumentException();\n        String name = users.get(id);\n        if (name == null) throw new UserNotFoundException();\n        return name;\n    }\n}\n\nclass UserController {\n    private final UserService service = new UserService();\n\n    String get(int id) {\n        try {\n            return \"200 \" + service.find(id);\n        } catch (IllegalArgumentException e) {\n            return \"400 Bad Request\";\n        } catch (UserNotFoundException e) {\n            return \"404 Not Found\";\n        }\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        System.out.println(new UserController().get(new Scanner(System.in).nextInt()));\n    }\n}\n",
+          "sourceChecks": [
+            {
+              "pattern": "\\bcatch\\s*\\(",
+              "minimum": 2,
+              "message": "2種類の例外を別々のステータスに変えるので、`catch` を2つ書いてください。"
+            },
+            {
+              "pattern": "\\bthrow\\s+new\\b",
+              "minimum": 2,
+              "message": "不正なIDと未登録は、Service から別々の例外を投げてください。"
+            }
+          ]
         }
       ]
     }

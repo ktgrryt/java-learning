@@ -8,67 +8,495 @@
       "id": "37-1",
       "title": "計測結果から原因を絞る",
       "explanation": "## はじめて学ぶ人へ\n\n性能改善は、体調不良を診断するのと同じで、測らずに原因を決めつけないことが出発点です。CPU、メモリ、GC、ロック、DB、外部通信のどこで時間を使っているか、観測結果から絞ります。\n\n```text\n応答時間: 40, 45, 50, 55, 900 ms\n平均: 218 ms / 多くは約50 ms / 遅い1件は900 ms\n```\n\n平均だけでは一部の遅い利用者を隠すため、p95やp99も確認します。小さなコードの比較にはJMH、停止原因にはスレッドダンプ、メモリにはヒープダンプ、継続的な実行記録にはJFRを使います。まず再現条件と基準値を残し、変更後に同じ条件で比較します。\n\n## まず現象を分類する\n\n遅いときはCPU使用率、待ち時間、スループット、エラー率、キュー長、GC停止などを同じ時間軸で見ます。平均だけでは一部の遅い利用者が隠れるため、p95/p99などのパーセンタイルも使います。ウォームアップやJIT最適化があるため、`nanoTime`を一度測っただけのマイクロベンチマークは信用できません。厳密な比較にはJMHを使います。\n\nThread dumpはRUNNABLE、BLOCKED、WAITINGなどの状態とスタックを示します。同じロックで多数BLOCKEDなら競合、同じ外部I/Oで待つなら下流遅延を疑います。Heap dumpは大きなオブジェクトだけでなく、誰が参照を保持しているか（dominator/retained size）を追います。\n\nJDK Flight Recorder（JFR）はCPU、割当て、ロック、GC、I/Oなどを低い負荷で記録できます。`jcmd`、`jstack`、`jmap`、GCログも、事象に合わせて使います。",
-      "samples": [{"caption":"パーセンタイルを計算する","code":"import java.util.*;\npublic class Main { public static void main(String[] args){long[] ms={10,12,15,20,100};Arrays.sort(ms);int index=(int)Math.ceil(ms.length*.95)-1;System.out.println(ms[index]);} }\n"}],
+      "samples": [
+        {
+          "caption": "パーセンタイルを計算する",
+          "code": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        long[] ms = {10, 12, 15, 20, 100};\n        Arrays.sort(ms);\n        int index = (int) Math.ceil(ms.length * .95) - 1;\n        System.out.println(ms[index]);\n    }\n}\n"
+        }
+      ],
       "task": "Thread dumpを単純化した入力として件数n、続くn組の `スレッド名 状態` を読みます。状態はThread.Stateの名前です。状態ごとの件数をThread.Stateの宣言順に、0件を除いて `STATE=件数` と表示してください。",
-      "starterCode": "import java.util.*;\npublic class Main { public static void main(String[] args){ Scanner s=new Scanner(System.in);int n=s.nextInt();Map<Thread.State,Integer> counts=new EnumMap<>(Thread.State.class); // TODO\n} }\n",
-      "visibleCases": [{"label":"競合あり","stdin":"5 t1 RUNNABLE t2 BLOCKED t3 BLOCKED t4 WAITING t5 RUNNABLE","expected":"RUNNABLE=2\nBLOCKED=2\nWAITING=1"},{"label":"終了のみ","stdin":"1 t TERMINATED","expected":"TERMINATED=1"}],
-      "hiddenCases": [{"label":"0件","stdin":"0","expected":""},{"label":"全状態","stdin":"6 a NEW b RUNNABLE c BLOCKED d WAITING e TIMED_WAITING f TERMINATED","expected":"NEW=1\nRUNNABLE=1\nBLOCKED=1\nWAITING=1\nTIMED_WAITING=1\nTERMINATED=1"}],
-      "hints": ["名前は読み捨て、状態を `Thread.State.valueOf(s.next())` で変換します。","EnumMapへmergeし、最後に `Thread.State.values()` の順で表示します。"],
-      "solution": "import java.util.*;\npublic class Main { public static void main(String[] args){ Scanner s=new Scanner(System.in);int n=s.nextInt();Map<Thread.State,Integer> counts=new EnumMap<>(Thread.State.class);for(int i=0;i<n;i++){s.next();Thread.State state=Thread.State.valueOf(s.next());counts.merge(state,1,Integer::sum);}for(Thread.State state:Thread.State.values())if(counts.containsKey(state))System.out.println(state+\"=\"+counts.get(state));} }\n",
-      "extraTasks": [{"kind":"applied","task":"測定数n（1以上）とn個のレイテンシmsを読み、昇順にして `min=...`、`avg=...`（整数の切捨て）、nearest-rank方式の `p95=...`、`max=...` を表示してください。p95の添字は `ceil(n*0.95)-1` です。","starterCode":"import java.util.*;\npublic class Main { public static void main(String[] args){ Scanner s=new Scanner(System.in);int n=s.nextInt();long[] ms=new long[n];for(int i=0;i<n;i++)ms[i]=s.nextLong(); // TODO\n} }\n","visibleCases":[{"label":"外れ値あり","stdin":"5 10 12 15 20 100","expected":"min=10\navg=31\np95=100\nmax=100"},{"label":"1件","stdin":"1 42","expected":"min=42\navg=42\np95=42\nmax=42"}],"hiddenCases":[{"label":"20件","stdin":"20 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 100","expected":"min=1\navg=14\np95=19\nmax=100"},{"label":"同値","stdin":"4 7 7 7 7","expected":"min=7\navg=7\np95=7\nmax=7"}],"hints":["合計をlongで求めてから `Arrays.sort(ms)` します。","p95添字は `(int)Math.ceil(n * 0.95) - 1` です。"],"solution":"import java.util.*;\npublic class Main { public static void main(String[] args){ Scanner s=new Scanner(System.in);int n=s.nextInt();long[] ms=new long[n];long sum=0;for(int i=0;i<n;i++){ms[i]=s.nextLong();sum+=ms[i];}Arrays.sort(ms);int p95=(int)Math.ceil(n*.95)-1;System.out.println(\"min=\"+ms[0]);System.out.println(\"avg=\"+(sum/n));System.out.println(\"p95=\"+ms[p95]);System.out.println(\"max=\"+ms[n-1]);} }\n"}],
-      "quiz": [{"question":"平均値だけを見る危険は？","choices":["一部の非常に遅い要求が隠れる","必ず最大値になる","件数が分からないだけで十分","JITが無効になる"],"answer":0,"explanation":"分布とp95/p99も合わせて裾の遅延を観察します。"},{"question":"多数のThreadが同じロックでBLOCKEDなら疑うものは？","choices":["文字コード","ロック競合","classpathだけ","DNS成功"],"answer":1,"explanation":"スタックとロック所有者を追って臨界区間を調べます。"},{"question":"Heap dumpで重要な観点は？","choices":["最大オブジェクトだけ","参照を保持する経路とretained size","ファイル名だけ","CPUクロックだけ"],"answer":1,"explanation":"小さな要素でも巨大コレクションから保持されれば大きな原因になります。"},{"question":"Javaの厳密なマイクロベンチマークに適したものは？","choices":["一度のcurrentTimeMillis","JMH","println回数","勘"],"answer":1,"explanation":"JMHはウォームアップや最適化の罠を考慮した測定基盤です。"}]
+      "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        int n = s.nextInt();\n        Map<Thread.State, Integer> counts = new EnumMap<>(Thread.State.class);\n        // TODO\n    }\n}\n",
+      "visibleCases": [
+        {
+          "label": "競合あり",
+          "stdin": "5 t1 RUNNABLE t2 BLOCKED t3 BLOCKED t4 WAITING t5 RUNNABLE",
+          "expected": "RUNNABLE=2\nBLOCKED=2\nWAITING=1"
+        },
+        {
+          "label": "終了のみ",
+          "stdin": "1 t TERMINATED",
+          "expected": "TERMINATED=1"
+        }
+      ],
+      "hiddenCases": [
+        {
+          "label": "0件",
+          "stdin": "0",
+          "expected": ""
+        },
+        {
+          "label": "全状態",
+          "stdin": "6 a NEW b RUNNABLE c BLOCKED d WAITING e TIMED_WAITING f TERMINATED",
+          "expected": "NEW=1\nRUNNABLE=1\nBLOCKED=1\nWAITING=1\nTIMED_WAITING=1\nTERMINATED=1"
+        }
+      ],
+      "hints": [
+        "名前は読み捨て、状態を `Thread.State.valueOf(s.next())` で変換します。",
+        "EnumMapへmergeし、最後に `Thread.State.values()` の順で表示します。"
+      ],
+      "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        int n = s.nextInt();\n        Map<Thread.State, Integer> counts = new EnumMap<>(Thread.State.class);\n        for (int i = 0; i < n; i++) {\n            s.next();\n            Thread.State state = Thread.State.valueOf(s.next());\n            counts.merge(state, 1, Integer::sum);\n        }\n        for (Thread.State state : Thread.State.values()) if (counts.containsKey(state)) System.out.println(state + \"=\" + counts.get(state));\n    }\n}\n",
+      "extraTasks": [
+        {
+          "kind": "applied",
+          "task": "測定数n（1以上）とn個のレイテンシmsを読み、昇順にして `min=...`、`avg=...`（整数の切捨て）、nearest-rank方式の `p95=...`、`max=...` を表示してください。p95の添字は `ceil(n*0.95)-1` です。",
+          "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        int n = s.nextInt();\n        long[] ms = new long[n];\n        for (int i = 0; i < n; i++) ms[i] = s.nextLong();\n        // TODO\n    }\n}\n",
+          "visibleCases": [
+            {
+              "label": "外れ値あり",
+              "stdin": "5 10 12 15 20 100",
+              "expected": "min=10\navg=31\np95=100\nmax=100"
+            },
+            {
+              "label": "1件",
+              "stdin": "1 42",
+              "expected": "min=42\navg=42\np95=42\nmax=42"
+            }
+          ],
+          "hiddenCases": [
+            {
+              "label": "20件",
+              "stdin": "20 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 100",
+              "expected": "min=1\navg=14\np95=19\nmax=100"
+            },
+            {
+              "label": "同値",
+              "stdin": "4 7 7 7 7",
+              "expected": "min=7\navg=7\np95=7\nmax=7"
+            }
+          ],
+          "hints": [
+            "合計をlongで求めてから `Arrays.sort(ms)` します。",
+            "p95添字は `(int)Math.ceil(n * 0.95) - 1` です。"
+          ],
+          "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        int n = s.nextInt();\n        long[] ms = new long[n];\n        long sum = 0;\n        for (int i = 0; i < n; i++) {\n            ms[i] = s.nextLong();\n            sum += ms[i];\n        }\n        Arrays.sort(ms);\n        int p95 = (int) Math.ceil(n * .95) - 1;\n        System.out.println(\"min=\" + ms[0]);\n        System.out.println(\"avg=\" + (sum / n));\n        System.out.println(\"p95=\" + ms[p95]);\n        System.out.println(\"max=\" + ms[n - 1]);\n    }\n}\n",
+          "sourceChecks": [
+            {
+              "pattern": "Arrays\\s*\\.\\s*sort\\s*\\(|Collections\\s*\\.\\s*sort\\s*\\(|\\.sorted\\s*\\(",
+              "minimum": 1,
+              "message": "パーセンタイルは並べ替えてから位置で取ります。まず `Arrays.sort` してください。"
+            },
+            {
+              "pattern": "Math\\s*\\.\\s*ceil\\s*\\(",
+              "minimum": 1,
+              "message": "nearest-rank方式の添字は `ceil(n * 0.95) - 1` です。切り上げに `Math.ceil` を使ってください。"
+            }
+          ]
+        }
+      ],
+      "quiz": [
+        {
+          "question": "平均値だけを見る危険は？",
+          "choices": [
+            "件数が分からないだけで十分",
+            "JITが無効になる",
+            "一部の非常に遅い要求が隠れる",
+            "外れ値の影響で平均が下がる"
+          ],
+          "answer": 2,
+          "explanation": "件数が分かれば十分ということはなく、JITも無効になりません。外れ値は平均を**上げる**方向に働くので「下がる」は逆です。平均は、少数の非常に遅い要求をならして見えなくします。だから分布と p95 / p99 を合わせて、裾の遅さを観察します。"
+        },
+        {
+          "question": "多数のThreadが同じロックでBLOCKEDなら疑うものは？",
+          "choices": [
+            "ロック競合",
+            "DNS成功",
+            "classpathだけ",
+            "文字コード"
+          ],
+          "answer": 0,
+          "explanation": "DNSの成功・classpath・文字コードは、同じロックで待っていることの説明になりません。多数のスレッドが同一のロックで `BLOCKED` なら、まず競合を疑います。そのロックを持っているスレッドのスタックを辿り、臨界区間で何に時間を使っているかを調べます。"
+        },
+        {
+          "question": "Heap dumpで重要な観点は？",
+          "choices": [
+            "いちばん大きいオブジェクトだけ",
+            "ダンプのファイル名だけ",
+            "参照を保持する経路とretained size",
+            "CPUのクロック周波数だけ"
+          ],
+          "answer": 2,
+          "explanation": "いちばん大きいオブジェクトだけ見ると、小さな要素が巨大なコレクションから保持されている形を見逃します。ダンプのファイル名やCPUのクロック周波数は無関係です。見るべきは「誰が参照を握っているか（経路）」と「それを解放したらどれだけ空くか（retained size）」です。"
+        },
+        {
+          "question": "Javaの厳密なマイクロベンチマークに適したものは？",
+          "choices": [
+            "println回数",
+            "勘",
+            "一度のcurrentTimeMillis",
+            "JMH"
+          ],
+          "answer": 3,
+          "explanation": "`println` の回数は測定ではなく、勘は根拠になりません。`currentTimeMillis` を一度取るだけでは、ウォームアップ前のインタープリタ実行や、JITが計算そのものを消してしまう影響を分離できません。JMHはそうした罠を扱うための測定基盤です。"
+        }
+      ]
     },
     {
       "id": "37-2",
       "title": "スレッドダンプとデッドロック",
-      "explanation": "## 止まって見える理由を切り分ける\n\nスレッドダンプには各スレッドの状態とスタックが記録されます。RUNNABLEは必ずCPU実行中とは限らず、OS待ちを含むことがあります。BLOCKEDはモニター獲得待ち、WAITING/TIMED_WAITINGは条件や期限を待つ状態です。1枚だけでなく時間を空けて複数回取り、同じ場所に止まるかを見ます。\n\n`jcmd <pid> Thread.print` または `jstack <pid>` で取得できます。デッドロックでは、複数スレッドが互いの保持するロックを待ちます。ロック取得順を統一し、ロック中のI/Oを避けます。`labs/diagnostics/DeadlockDemo.java` で安全に再現して観察できます。\n\n```svg デッドロックは「互いが相手の持っているロックを待つ」状態。どちらも進めない\n<svg viewBox=\"0 0 720 236\">\n  <rect class=\"fig-box\" x=\"30\" y=\"90\" width=\"160\" height=\"50\" rx=\"6\"/>\n  <text class=\"fig-t fig-small\" x=\"110\" y=\"108\" text-anchor=\"middle\">スレッドA</text>\n  <text class=\"fig-t fig-mono fig-small fig-t-ng\" x=\"110\" y=\"128\" text-anchor=\"middle\">BLOCKED</text>\n  <rect class=\"fig-box\" x=\"530\" y=\"90\" width=\"160\" height=\"50\" rx=\"6\"/>\n  <text class=\"fig-t fig-small\" x=\"610\" y=\"108\" text-anchor=\"middle\">スレッドB</text>\n  <text class=\"fig-t fig-mono fig-small fig-t-ng\" x=\"610\" y=\"128\" text-anchor=\"middle\">BLOCKED</text>\n\n  <rect class=\"fig-box-accent\" x=\"290\" y=\"40\" width=\"140\" height=\"44\" rx=\"6\"/>\n  <text class=\"fig-t fig-mono fig-small fig-t-accent\" x=\"360\" y=\"62\" text-anchor=\"middle\">ロック1</text>\n  <rect class=\"fig-box-accent\" x=\"290\" y=\"150\" width=\"140\" height=\"44\" rx=\"6\"/>\n  <text class=\"fig-t fig-mono fig-small fig-t-accent\" x=\"360\" y=\"172\" text-anchor=\"middle\">ロック2</text>\n\n  <line class=\"fig-line-ok\" x1=\"194\" y1=\"102\" x2=\"286\" y2=\"70\" marker-end=\"arrow-ok\"/>\n  <text class=\"fig-t fig-t-ok fig-small\" x=\"204\" y=\"76\">保持</text>\n  <line class=\"fig-line-ng fig-dashed\" x1=\"194\" y1=\"130\" x2=\"286\" y2=\"164\" marker-end=\"arrow-ng\"/>\n  <text class=\"fig-t fig-t-ng fig-small\" x=\"204\" y=\"162\">待つ</text>\n  <line class=\"fig-line-ok\" x1=\"526\" y1=\"130\" x2=\"434\" y2=\"164\" marker-end=\"arrow-ok\"/>\n  <text class=\"fig-t fig-t-ok fig-small\" x=\"480\" y=\"162\">保持</text>\n  <line class=\"fig-line-ng fig-dashed\" x1=\"526\" y1=\"102\" x2=\"434\" y2=\"70\" marker-end=\"arrow-ng\"/>\n  <text class=\"fig-t fig-t-ng fig-small\" x=\"480\" y=\"76\">待つ</text>\n  <text class=\"fig-t fig-t-ng fig-small\" x=\"360\" y=\"117\" text-anchor=\"middle\">互いに待ち合う</text>\n\n  <text class=\"fig-t fig-t-dim fig-small\" x=\"14\" y=\"216\">直し方はロックの取得順を全員で統一すること。ロックを持ったまま I/O をしないのも効く</text>\n</svg>\n```",
-      "samples": [{"caption":"JVMからデッドロックを検出","code":"import java.lang.management.*;public class Main{public static void main(String[] a){long[] ids=ManagementFactory.getThreadMXBean().findDeadlockedThreads();System.out.println(ids==null?0:ids.length);}}\n"}],
+      "explanation": "## 止まって見える理由を切り分ける\n\nスレッドダンプには各スレッドの状態とスタックが記録されます。RUNNABLEは必ずCPU実行中とは限らず、OS待ちを含むことがあります。BLOCKEDはモニター獲得待ち、WAITING/TIMED_WAITINGは条件や期限を待つ状態です。1枚だけでなく時間を空けて複数回取り、同じ場所に止まるかを見ます。\n\n`jcmd <pid> Thread.print` または `jstack <pid>` で取得できます。デッドロックでは、複数スレッドが互いの保持するロックを待ちます。ロック取得順を統一し、ロック中のI/Oを避けます。`labs/diagnostics/DeadlockDemo.java` で安全に再現して観察できます。\n\n```svg デッドロックは「互いが相手の持っているロックを待つ」状態。どちらも進めない\n<svg viewBox=\"0 0 720 236\">\n  <rect class=\"fig-box\" x=\"30\" y=\"90\" width=\"160\" height=\"50\" rx=\"6\"/>\n  <text class=\"fig-t fig-small\" x=\"110\" y=\"108\" text-anchor=\"middle\">スレッドA</text>\n  <text class=\"fig-t fig-mono fig-small fig-t-ng\" x=\"110\" y=\"128\" text-anchor=\"middle\">BLOCKED</text>\n  <rect class=\"fig-box\" x=\"530\" y=\"90\" width=\"160\" height=\"50\" rx=\"6\"/>\n  <text class=\"fig-t fig-small\" x=\"610\" y=\"108\" text-anchor=\"middle\">スレッドB</text>\n  <text class=\"fig-t fig-mono fig-small fig-t-ng\" x=\"610\" y=\"128\" text-anchor=\"middle\">BLOCKED</text>\n\n  <rect class=\"fig-box-accent\" x=\"290\" y=\"40\" width=\"140\" height=\"44\" rx=\"6\"/>\n  <text class=\"fig-t fig-mono fig-small fig-t-accent\" x=\"360\" y=\"62\" text-anchor=\"middle\">ロック1</text>\n  <rect class=\"fig-box-accent\" x=\"290\" y=\"150\" width=\"140\" height=\"44\" rx=\"6\"/>\n  <text class=\"fig-t fig-mono fig-small fig-t-accent\" x=\"360\" y=\"172\" text-anchor=\"middle\">ロック2</text>\n\n  <line class=\"fig-line-ok\" x1=\"194\" y1=\"102\" x2=\"286\" y2=\"70\" marker-end=\"arrow-ok\"/>\n  <text class=\"fig-t fig-t-ok fig-small\" x=\"204\" y=\"76\">保持</text>\n  <line class=\"fig-line-ng fig-dashed\" x1=\"194\" y1=\"130\" x2=\"286\" y2=\"164\" marker-end=\"arrow-ng\"/>\n  <text class=\"fig-t fig-t-ng fig-small\" x=\"204\" y=\"162\">待つ</text>\n  <line class=\"fig-line-ok\" x1=\"526\" y1=\"130\" x2=\"434\" y2=\"164\" marker-end=\"arrow-ok\"/>\n  <text class=\"fig-t fig-t-ok fig-small\" x=\"480\" y=\"162\">保持</text>\n  <line class=\"fig-line-ng fig-dashed\" x1=\"526\" y1=\"102\" x2=\"434\" y2=\"70\" marker-end=\"arrow-ng\"/>\n  <text class=\"fig-t fig-t-ng fig-small\" x=\"480\" y=\"76\">待つ</text>\n  <text class=\"fig-t fig-t-ng fig-small\" x=\"360\" y=\"117\" text-anchor=\"middle\">互いに待ち合う</text>\n\n  <text class=\"fig-t fig-t-dim fig-small\" x=\"14\" y=\"216\">直し方はロックの取得順を全員で統一すること。ロックを持ったまま I/O をしないのも効く</text>\n</svg>\n```\n\n> 🧪 アプリで確かめること / labs で動かすこと … この問題で確かめるのはダンプに出た2つのスレッドを突き合わせ、どちらがどのロックを待っているか読むことです。\n> 実際にデッドロックを起こしてダンプを採る操作は、1ファイル・標準入力だけのこの画面では扱えません。`labs/diagnostics` に本物を置いてあります。",
+      "samples": [
+        {
+          "caption": "JVMからデッドロックを検出",
+          "code": "import java.lang.management.*;\n\npublic class Main {\n    public static void main(String[] a) {\n        long[] ids = ManagementFactory.getThreadMXBean().findDeadlockedThreads();\n        System.out.println(ids == null ? 0 : ids.length);\n    }\n}\n"
+        }
+      ],
       "task": "n行の `thread state resource` を読み、BLOCKEDのスレッドだけをthread名の辞書順で `thread waits resource` と表示してください。なければ `NONE`。",
-      "starterCode": "import java.util.*;record Entry(String thread,String state,String resource){}public class Main{public static void main(String[] a){Scanner s=new Scanner(System.in);int n=s.nextInt();List<Entry> entries=new ArrayList<>();for(int i=0;i<n;i++)entries.add(new Entry(s.next(),s.next(),s.next()));/* TODO */}}\n",
-      "visibleCases": [{"label":"待機あり","stdin":"3 workerB BLOCKED lockA workerA RUNNABLE cpu timer TIMED_WAITING clock","expected":"workerB waits lockA"}],
-      "hiddenCases": [{"label":"複数","stdin":"3 z BLOCKED L2 a BLOCKED L1 b WAITING Q","expected":"a waits L1\nz waits L2"},{"label":"無し","stdin":"1 main RUNNABLE cpu","expected":"NONE"}],
-      "hints": ["filterしてthread名でsortedします。","結果をListへ確定し、emptyを判定します。"],
-      "solution": "import java.util.*;record Entry(String thread,String state,String resource){}public class Main{public static void main(String[] a){Scanner s=new Scanner(System.in);int n=s.nextInt();List<Entry> entries=new ArrayList<>();for(int i=0;i<n;i++)entries.add(new Entry(s.next(),s.next(),s.next()));List<Entry> blocked=entries.stream().filter(e->e.state().equals(\"BLOCKED\")).sorted(Comparator.comparing(Entry::thread)).toList();if(blocked.isEmpty())System.out.println(\"NONE\");else blocked.forEach(e->System.out.println(e.thread()+\" waits \"+e.resource()));}}\n",
-      "quiz": [{"question":"ハング調査で時間を空けた複数のダンプを取る理由は？","choices":["ファイルを大きくするため","状態が継続している場所と一時的な待ちを区別するため","コンパイルするため","必ずGCを止めるため"],"answer":1,"explanation":"時系列で比べると、動き続けているか同じ箇所に滞留しているかが分かります。"},{"question":"ダンプ上でRUNNABLEのスレッドが多いのに、CPU使用率は低いままです。考えられる説明はどれでしょう。","choices":["ダンプの取得に失敗している","RUNNABLEにはsocket読み取りなどOS待ちが含まれることがあるため","RUNNABLEは必ずCPUを使うので測定が誤っている","BLOCKEDと表示されるべきでJVMの不具合"],"answer":1,"explanation":"RUNNABLEは必ずCPU実行中とは限りません。状態名だけで待ちの種類を決めつけないようにします。"}]
+      "starterCode": "import java.util.*;\n\nrecord Entry(String thread, String state, String resource) { }\n\npublic class Main {\n    public static void main(String[] a) {\n        Scanner s = new Scanner(System.in);\n        int n = s.nextInt();\n        List<Entry> entries = new ArrayList<>();\n        for (int i = 0; i < n; i++) entries.add(new Entry(s.next(), s.next(), s.next()));\n        /* TODO */\n    }\n}\n",
+      "visibleCases": [
+        {
+          "label": "待機あり",
+          "stdin": "3 workerB BLOCKED lockA workerA RUNNABLE cpu timer TIMED_WAITING clock",
+          "expected": "workerB waits lockA"
+        }
+      ],
+      "hiddenCases": [
+        {
+          "label": "複数",
+          "stdin": "3 z BLOCKED L2 a BLOCKED L1 b WAITING Q",
+          "expected": "a waits L1\nz waits L2"
+        },
+        {
+          "label": "無し",
+          "stdin": "1 main RUNNABLE cpu",
+          "expected": "NONE"
+        }
+      ],
+      "hints": [
+        "filterしてthread名でsortedします。",
+        "結果をListへ確定し、emptyを判定します。"
+      ],
+      "solution": "import java.util.*;\n\nrecord Entry(String thread, String state, String resource) { }\n\npublic class Main {\n    public static void main(String[] a) {\n        Scanner s = new Scanner(System.in);\n        int n = s.nextInt();\n        List<Entry> entries = new ArrayList<>();\n        for (int i = 0; i < n; i++) entries.add(new Entry(s.next(), s.next(), s.next()));\n        List<Entry> blocked = entries.stream().filter(e -> e.state().equals(\"BLOCKED\")).sorted(Comparator.comparing(Entry::thread)).toList();\n        if (blocked.isEmpty()) System.out.println(\"NONE\");\n        else blocked.forEach(e -> System.out.println(e.thread() + \" waits \" + e.resource()));\n    }\n}\n",
+      "quiz": [
+        {
+          "question": "ハング調査で時間を空けた複数のダンプを取る理由は？",
+          "choices": [
+            "状態が継続している場所と一時的な待ちを区別するため",
+            "GCの回数を数えるため",
+            "ダンプのファイルを大きくするため",
+            "その場でコンパイルするため"
+          ],
+          "answer": 0,
+          "explanation": "GCの回数はダンプではなくGCログで数えます。ファイルを大きくすることに意味はなく、ダンプを取ってもコンパイルは起きません。1枚では「たまたまその瞬間そこにいた」のか「ずっとそこで止まっている」のか区別できないので、時間を空けて複数取り、同じ場所に留まっているかを見ます。"
+        },
+        {
+          "question": "ダンプ上でRUNNABLEのスレッドが多いのに、CPU使用率は低いままです。考えられる説明はどれでしょう。",
+          "choices": [
+            "RUNNABLEは必ずCPUを使うので測定が誤っている",
+            "RUNNABLEにはOS待ちが含まれることがあるため",
+            "ダンプの取得に失敗している",
+            "BLOCKEDと表示されるべきでJVMの不具合"
+          ],
+          "answer": 1,
+          "explanation": "RUNNABLEは必ずCPU実行中とは限りません。状態名だけで待ちの種類を決めつけないようにします。socketの読み取り待ちなどが該当します。"
+        }
+      ]
     },
     {
       "id": "37-3",
       "title": "JFR・JMC・GCログ",
-      "explanation": "## 低負荷の記録から仮説を作る\n\nJava Flight Recorder（JFR）はCPUサンプル、割り当て、GC、ロック、I/Oなどのイベントを記録します。`jcmd <pid> JFR.start name=investigation duration=60s filename=app.jfr` のように取得し、JDK Mission Control（JMC）などで確認します。設定と保存先の容量を決め、機密データを含む独自イベントにも注意します。\n\nGCログではヒープ使用量、停止時間、頻度、原因を見ます。古い世代が回収後も増え続けるならリークを疑いますが、1回の高使用率だけでは断定できません。遅延の時刻とGC/JFR/アプリ指標を揃えて相関を見ます。`labs/diagnostics/AllocationDemo.java` で記録手順を試せます。",
-      "samples": [{"caption":"独自JFRイベント","code":"import jdk.jfr.*;class WorkEvent extends Event{int count;}public class Main{public static void main(String[] a){var e=new WorkEvent();e.count=3;e.commit();System.out.println(\"recorded\");}}\n"}],
+      "explanation": "## 低負荷の記録から仮説を作る\n\nJava Flight Recorder（JFR）はCPUサンプル、割り当て、GC、ロック、I/Oなどのイベントを記録します。`jcmd <pid> JFR.start name=investigation duration=60s filename=app.jfr` のように取得し、JDK Mission Control（JMC）などで確認します。設定と保存先の容量を決め、機密データを含む独自イベントにも注意します。\n\nGCログではヒープ使用量、停止時間、頻度、原因を見ます。古い世代が回収後も増え続けるならリークを疑いますが、1回の高使用率だけでは断定できません。遅延の時刻とGC/JFR/アプリ指標を揃えて相関を見ます。`labs/diagnostics/AllocationDemo.java` で記録手順を試せます。\n\n### 記録して、中身を確かめる\n\n```sh\njcmd <pid> JFR.start name=lab duration=20s filename=lab.jfr settings=profile\n```\n\n`settings=profile` は詳しく取る設定で、そのぶん負荷と容量が増えます。軽いほうは\n`settings=default` です。**どちらを使うかは、調べたいものと本番への影響で決めます。**\n\nできたファイルは、JDK同梱の `jfr` コマンドで中身を確かめられます。\n\n```sh\njfr summary lab.jfr\n```\n\n```\n Event Type                     Count  Size (bytes)\n===================================================\n jdk.ExecutionSample              479         10402\n jdk.ThreadSleep                  433         11170\n```\n\nどのイベントが何件取れたかが分かるので、**設定が意図どおりだったか** をここで確認します。\n`jdk.ExecutionSample` が少なすぎれば、記録時間が短すぎたか負荷が軽すぎたということです。\n詳しく見るときは JDK Mission Control で開き、Allocation・GC・Method Profiling を見ます。\n\n### GCログは「回収後」を見る\n\n```sh\njava -Xlog:gc*:file=gc.log:time,uptime,level,tags -Xms64m -Xmx64m App\n```\n\n見るのは瞬間の使用量ではなく、**回収したあとの使用量が増え続けているか** です。\n増え続けていればリーク、上下しているだけなら正常な変動です。\n\n> ⚠️ `JFR.check` は HotSpot のコマンドで、IBM Semeru (OpenJ9) では\n> `Command JFR.check not recognized` になります。状況を確かめるコマンド名は\n> JDKによって違うので、手順書には **使うJDKを明記** します。\n> 記録ファイルの中身を見る `jfr summary` はどのJDKでも使えます。\n\n> 💡 記録には環境変数やコマンドライン引数も入ります。共有する前に機密値がないか\n> 確かめてください。\n\n> 🧪 アプリで確かめること / labs で動かすこと … この問題で確かめるのは記録の設定の決め方と、出てきたイベントの読み方です。\n> JFRを実際に記録して開く操作は、1ファイル・標準入力だけのこの画面では扱えません。`labs/diagnostics` に本物を置いてあります。",
+      "samples": [
+        {
+          "caption": "独自JFRイベント",
+          "code": "import jdk.jfr.*;\n\nclass WorkEvent extends Event {\n    int count;\n}\n\npublic class Main {\n    public static void main(String[] a) {\n        var e = new WorkEvent();\n        e.count = 3;\n        e.commit();\n        System.out.println(\"recorded\");\n    }\n}\n"
+        }
+      ],
       "task": "n件の1秒ごとの `second pauseMillis` を読み、停止が50ms以上の秒を `SPIKE second pauseMillis` と表示してください。なければ `STABLE`。",
-      "starterCode": "import java.util.*;public class Main{public static void main(String[] a){Scanner s=new Scanner(System.in);int n=s.nextInt();boolean spike=false;for(int i=0;i<n;i++){int second=s.nextInt(),pause=s.nextInt();/* TODO */}if(!spike)System.out.println(\"STABLE\");}}\n",
-      "visibleCases": [{"label":"スパイク","stdin":"4 1 2 2 60 3 10 4 120","expected":"SPIKE 2 60\nSPIKE 4 120"}],
-      "hiddenCases": [{"label":"境界","stdin":"2 1 49 2 50","expected":"SPIKE 2 50"},{"label":"安定","stdin":"1 5 0","expected":"STABLE"}],
-      "hints": ["pause>=50なら表示しspike=trueにします。","入力順のまま表示します。"],
-      "solution": "import java.util.*;public class Main{public static void main(String[] a){Scanner s=new Scanner(System.in);int n=s.nextInt();boolean spike=false;for(int i=0;i<n;i++){int second=s.nextInt(),pause=s.nextInt();if(pause>=50){System.out.println(\"SPIKE \"+second+\" \"+pause);spike=true;}}if(!spike)System.out.println(\"STABLE\");}}\n",
-      "quiz": [{"question":"GCがメモリリークの原因だと断定する前に見るものは？","choices":["高使用率の瞬間だけ","回収後使用量の推移と割り当て元など複数の証拠","クラス名の長さ","READMEだけ"],"answer":1,"explanation":"時系列と割り当ての証拠を合わせ、仮説を検証します。"},{"question":"JFRで調べる前に、記録の設定と保存先の容量を決めておくのはなぜでしょう。","choices":["JFRは常に長い停止時間を発生させるため","JFRは本番では使えないため","GCログと同時に取得できないため","記録内容によって負荷と保存量が変わり、独自イベントに機密値が入ることもあるため"],"answer":3,"explanation":"低負荷とはいえ無条件ではありません。設定・容量・機密の扱いを先に決めます。"}]
+      "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] a) {\n        Scanner s = new Scanner(System.in);\n        int n = s.nextInt();\n        boolean spike = false;\n        for (int i = 0; i < n; i++) {\n            int second = s.nextInt(), pause = s.nextInt();\n            /* TODO */\n        }\n        if (!spike) System.out.println(\"STABLE\");\n    }\n}\n",
+      "visibleCases": [
+        {
+          "label": "スパイク",
+          "stdin": "4 1 2 2 60 3 10 4 120",
+          "expected": "SPIKE 2 60\nSPIKE 4 120"
+        }
+      ],
+      "hiddenCases": [
+        {
+          "label": "境界",
+          "stdin": "2 1 49 2 50",
+          "expected": "SPIKE 2 50"
+        },
+        {
+          "label": "安定",
+          "stdin": "1 5 0",
+          "expected": "STABLE"
+        }
+      ],
+      "hints": [
+        "pause>=50なら表示しspike=trueにします。",
+        "入力順のまま表示します。"
+      ],
+      "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] a) {\n        Scanner s = new Scanner(System.in);\n        int n = s.nextInt();\n        boolean spike = false;\n        for (int i = 0; i < n; i++) {\n            int second = s.nextInt(), pause = s.nextInt();\n            if (pause >= 50) {\n                System.out.println(\"SPIKE \" + second + \" \" + pause);\n                spike = true;\n            }\n        }\n        if (!spike) System.out.println(\"STABLE\");\n    }\n}\n",
+      "quiz": [
+        {
+          "question": "GCがメモリリークの原因だと断定する前に見るものは？",
+          "choices": [
+            "READMEの記述だけ",
+            "回収後使用量の推移と割り当て元など複数の証拠",
+            "使用率が高くなった瞬間の値だけを見る",
+            "クラス名の文字数だけ"
+          ],
+          "answer": 1,
+          "explanation": "READMEの記述やクラス名の文字数は証拠になりません。使用率が高くなった瞬間の値だけを見ると、一時的に増えただけの状態と区別できません。**回収後**の使用量が回を追って増えているか、どこが割り当てているか——といった複数の証拠を合わせて確かめます。"
+        },
+        {
+          "question": "JFRで調べる前に、記録の設定と保存先の容量を決めておくのはなぜでしょう。",
+          "choices": [
+            "JFRを有効にするとJITが無効になるため",
+            "記録内容によって負荷と保存量が変わるため",
+            "GCログと同時には取得できないため",
+            "JFRは本番環境では使えないため"
+          ],
+          "answer": 1,
+          "explanation": "低負荷とはいえ無条件ではありません。設定・容量・機密の扱いを先に決めます。独自イベントに機密値が入ることもあります。"
+        }
+      ]
     },
     {
       "id": "37-4",
       "title": "ベンチマークと改善サイクル",
-      "explanation": "## 先に基準と再現条件を固定する\n\n性能改善は、利用者に影響する指標（p50/p95/p99遅延、スループット、エラー率など）を選び、代表負荷で基準値を測るところから始めます。変更は一度に一つ、ウォームアップ後に複数回測り、平均だけでなく分布を見るようにします。マイクロベンチマークではJIT最適化やデッドコード除去があるため、JMHのような専用ハーネスを使います。\n\nプロファイルで支配的な箇所を見つけ、仮説→変更→同条件で再測定→回帰テストの順に進めます。高速化のために正しさ、可読性、運用性を失わないよう、目標と上限を先に決めます。",
-      "samples": [{"caption":"percentileの前に並べる","code":"import java.util.*;public class Main{public static void main(String[] a){long[] ms={20,5,8,100,7};Arrays.sort(ms);System.out.println(Arrays.toString(ms));}}\n"}],
+      "explanation": "## 先に基準と再現条件を固定する\n\n性能改善は、利用者に影響する指標（p50/p95/p99遅延、スループット、エラー率など）を選び、代表負荷で基準値を測るところから始めます。変更は一度に一つ、ウォームアップ後に複数回測り、平均だけでなく分布を見るようにします。マイクロベンチマークではJIT最適化やデッドコード除去があるため、JMHのような専用ハーネスを使います。\n\nプロファイルで支配的な箇所を見つけ、仮説→変更→同条件で再測定→回帰テストの順に進めます。高速化のために正しさ、可読性、運用性を失わないよう、目標と上限を先に決めます。\n\n### 1回測って比べてはいけない\n\n同じコードでも、測るたびに結果は動きます。JVMは実行しながら最適化するので、\n**最初の数回は遅い**のが普通です。\n\n```\n1回目   120 ms   ← インタプリタ実行、クラスロードも含む\n2回目    45 ms\n3回目    12 ms\n...\n20回目    3 ms   ← ここが定常状態\n```\n\nだから「変更前は120ms、変更後は3ms」のような比較は、変更の効果ではなく\n**ウォームアップの差**を測っているだけかもしれません。\n\n### JMHが面倒を見てくれること\n\n| 項目 | 内容 |\n|---|---|\n| ウォームアップ | 測定前に何度も回して定常状態にする |\n| fork | 別プロセスで測り、前の測定の影響を切る |\n| 最適化除去の防止 | 結果を使わないと処理ごと消されるのを防ぐ |\n| ばらつきの報告 | 平均だけでなく誤差を出す |\n\n### 改善のサイクル\n\n1. 代表的な入力と**目標**を決める（p95で何ミリ秒か）\n2. 測って、いちばん時間を使っているところを1つ特定する\n3. **一度に1か所**だけ変える\n4. 同じ条件で測り直す。変わらなければ元に戻す\n\n> ⚠️ 間違えやすい点 … 平均だけを見ないこと。平均が改善しても p95/p99 が悪化していれば、\n> 多くの利用者は遅くなったと感じます。\n> また、3か所を同時に変えて速くなっても、**どれが効いたか分かりません**。\n> 効かなかった変更を抱え続けることになるので、1つずつ測ります。",
+      "samples": [
+        {
+          "caption": "percentileの前に並べる",
+          "code": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] a) {\n        long[] ms = {20, 5, 8, 100, 7};\n        Arrays.sort(ms);\n        System.out.println(Arrays.toString(ms));\n    }\n}\n"
+        }
+      ],
       "task": "n個の遅延値を読み、昇順に並べたnearest-rank方式のp50とp95を `p50=x p95=y` と表示してください。順位は `ceil(p*n/100)` の1始まりです。nは1以上。",
-      "starterCode": "import java.util.*;public class Main{static long percentile(long[] sorted,int percent){return 0;}public static void main(String[] a){Scanner s=new Scanner(System.in);int n=s.nextInt();long[] xs=new long[n];for(int i=0;i<n;i++)xs[i]=s.nextLong();Arrays.sort(xs);System.out.println(\"p50=\"+percentile(xs,50)+\" p95=\"+percentile(xs,95));}}\n",
-      "visibleCases": [{"label":"5件","stdin":"5 20 5 8 100 7","expected":"p50=8 p95=100"}],
-      "hiddenCases": [{"label":"1件","stdin":"1 42","expected":"p50=42 p95=42"},{"label":"20件","stdin":"20 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20","expected":"p50=10 p95=19"}],
-      "hints": ["整数だけなら順位は `(percent * n + 99) / 100`。","配列添字は順位から1を引きます。"],
-      "solution": "import java.util.*;public class Main{static long percentile(long[] sorted,int percent){int rank=(percent*sorted.length+99)/100;return sorted[rank-1];}public static void main(String[] a){Scanner s=new Scanner(System.in);int n=s.nextInt();long[] xs=new long[n];for(int i=0;i<n;i++)xs[i]=s.nextLong();Arrays.sort(xs);System.out.println(\"p50=\"+percentile(xs,50)+\" p95=\"+percentile(xs,95));}}\n",
-      "quiz": [{"question":"マイクロベンチマークに専用ハーネスを使う理由は？","choices":["Javaコードを書かないため","ウォームアップやJIT最適化の影響を扱うため","ネットワークを必ず使うため","平均を禁止するため"],"answer":1,"explanation":"単純なnanoTimeの差だけではJITや除去最適化により誤解しやすいためです。"},{"question":"3か所を同時に変更して平均遅延が改善しました。この結果の扱いとして適切なものはどれでしょう。","choices":["3つすべてが有効だったと結論できる","平均が改善したので分布は見なくてよい","どの変更が効いたか分からず、p95/p99の悪化も平均では見えないため、一つずつ同条件で測り直す","以降はウォームアップが不要になる"],"answer":2,"explanation":"変更は一度に一つ、ウォームアップ後に複数回測り、平均だけでなく分布を見ます。"}]
+      "starterCode": "import java.util.*;\n\npublic class Main {\n    static long percentile(long[] sorted, int percent) {\n        return 0;\n    }\n\n    public static void main(String[] a) {\n        Scanner s = new Scanner(System.in);\n        int n = s.nextInt();\n        long[] xs = new long[n];\n        for (int i = 0; i < n; i++) xs[i] = s.nextLong();\n        Arrays.sort(xs);\n        System.out.println(\"p50=\" + percentile(xs, 50) + \" p95=\" + percentile(xs, 95));\n    }\n}\n",
+      "visibleCases": [
+        {
+          "label": "5件",
+          "stdin": "5 20 5 8 100 7",
+          "expected": "p50=8 p95=100"
+        }
+      ],
+      "hiddenCases": [
+        {
+          "label": "1件",
+          "stdin": "1 42",
+          "expected": "p50=42 p95=42"
+        },
+        {
+          "label": "20件",
+          "stdin": "20 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20",
+          "expected": "p50=10 p95=19"
+        }
+      ],
+      "hints": [
+        "整数だけなら順位は `(percent * n + 99) / 100`。",
+        "配列添字は順位から1を引きます。"
+      ],
+      "solution": "import java.util.*;\n\npublic class Main {\n    static long percentile(long[] sorted, int percent) {\n        int rank = (percent * sorted.length + 99) / 100;\n        return sorted[rank - 1];\n    }\n\n    public static void main(String[] a) {\n        Scanner s = new Scanner(System.in);\n        int n = s.nextInt();\n        long[] xs = new long[n];\n        for (int i = 0; i < n; i++) xs[i] = s.nextLong();\n        Arrays.sort(xs);\n        System.out.println(\"p50=\" + percentile(xs, 50) + \" p95=\" + percentile(xs, 95));\n    }\n}\n",
+      "quiz": [
+        {
+          "question": "マイクロベンチマークに専用ハーネスを使う理由は？",
+          "choices": [
+            "ウォームアップやJIT最適化の影響を扱うため",
+            "実行時間をナノ秒まで測れるようにするため",
+            "Javaコードを書かないため",
+            "平均を禁止するため"
+          ],
+          "answer": 0,
+          "explanation": "単純なnanoTimeの差だけではJITや除去最適化により誤解しやすいためです。"
+        },
+        {
+          "question": "3か所を同時に変更して平均遅延が改善しました。この結果の扱いとして適切なものはどれでしょう。",
+          "choices": [
+            "一度測ったので以降はウォームアップが不要になる",
+            "3か所すべてが有効だったと結論してよい",
+            "どの変更が効いたか分からないので、一つずつ同条件で測り直す",
+            "平均が改善したのだから分布まで確認する必要はない"
+          ],
+          "answer": 2,
+          "explanation": "変更は一度に一つ、ウォームアップ後に複数回測り、平均だけでなく分布を見ます。p95/p99の悪化は平均では見えません。"
+        }
+      ]
     },
     {
       "id": "37-5",
       "title": "章末演習：性能測定とJVM計測ラボ",
       "explanation": "## この章の知識を、自分の手で組み合わせよう\n\nここでは、**スレッド状態の読み分け・パーセンタイル・GC停止との相関・ウォームアップを捨てた比較**をまとめて使います。新しい文法は登場しません。分からなくなったら、直前までの解説やサンプルへ戻って確認して大丈夫です。\n\n### 3問の進め方\n\n1. **基本**で、中心となる書き方をもう一度使う\n2. **組み合わせ**で、章内の複数の知識を一緒に使う\n3. **実践**で、少し現実的な入力と条件を整理する\n\nこの章の要は、**1つの証拠だけで結論を出さない**ことです。3問はどれも、集計した数値から言えることと言えないことを分ける形にしてあります。",
-      "samples": [{"caption":"復習用サンプル：列挙の宣言順は values() の順で取り出せる","code":"public class Main{public static void main(String[] a){for(Thread.State st:Thread.State.values())System.out.print(st+\" \");System.out.println();}}\n","expected":"NEW RUNNABLE BLOCKED WAITING TIMED_WAITING TERMINATED"}],
+      "samples": [
+        {
+          "caption": "復習用サンプル：列挙の宣言順は values() の順で取り出せる",
+          "code": "public class Main {\n    public static void main(String[] a) {\n        for (Thread.State st : Thread.State.values()) System.out.print(st + \" \");\n        System.out.println();\n    }\n}\n",
+          "expected": "NEW RUNNABLE BLOCKED WAITING TIMED_WAITING TERMINATED"
+        }
+      ],
       "task": "【基本】スレッドダンプを単純化した入力として、件数nと続くn組の `スレッド名 状態` を読みます（状態は `Thread.State` の名前）。まず状態ごとの件数を `Thread.State` の宣言順に、**0件の状態は除いて** `STATE=件数` と表示してください。次に、`BLOCKED`・`WAITING`・`TIMED_WAITING` の合計と `RUNNABLE` の件数を `waiting=合計 runnable=件数` と表示します。最後に、待ちの合計が `RUNNABLE` より多ければ `SUSPECT_CONTENTION`、そうでなければ `CPU_BOUND` と表示してください。",
-      "starterCode": "import java.util.*;\npublic class Main {public static void main(String[] args){Scanner s=new Scanner(System.in);int n=s.nextInt();Map<Thread.State,Integer> counts=new EnumMap<>(Thread.State.class);for(int i=0;i<n;i++){String name=s.next();Thread.State state=Thread.State.valueOf(s.next());/* TODO 集計 */}/* TODO 宣言順に表示（0件は除く） */\n/* TODO waiting と runnable、最後の判定 */}}\n",
-      "visibleCases": [{"label":"詰まりを疑う","stdin":"5 a RUNNABLE b BLOCKED c BLOCKED d WAITING e RUNNABLE","expected":"RUNNABLE=2\nBLOCKED=2\nWAITING=1\nwaiting=3 runnable=2\nSUSPECT_CONTENTION"},{"label":"CPUを使っている","stdin":"3 a RUNNABLE b RUNNABLE c TIMED_WAITING","expected":"RUNNABLE=2\nTIMED_WAITING=1\nwaiting=1 runnable=2\nCPU_BOUND"}],
-      "hiddenCases": [{"label":"1件も無い","stdin":"0","expected":"waiting=0 runnable=0\nCPU_BOUND"},{"label":"NEWとTERMINATEDも宣言順に","stdin":"4 a TERMINATED b NEW c RUNNABLE d BLOCKED","expected":"NEW=1\nRUNNABLE=1\nBLOCKED=1\nTERMINATED=1\nwaiting=1 runnable=1\nCPU_BOUND"},{"label":"全部BLOCKED","stdin":"2 a BLOCKED b BLOCKED","expected":"BLOCKED=2\nwaiting=2 runnable=0\nSUSPECT_CONTENTION"},{"label":"全部RUNNABLE","stdin":"3 a RUNNABLE b RUNNABLE c RUNNABLE","expected":"RUNNABLE=3\nwaiting=0 runnable=3\nCPU_BOUND"}],
-      "hints": ["`Thread.State.valueOf(...)` で文字列から列挙値に変換できます。`EnumMap` に集計すると宣言順で扱えます。","表示は `Thread.State.values()` を回し、集計に入っている状態だけを出します。","`RUNNABLE` はCPUを使っているとは限らず、OS待ちも含みます。だからこの判定は `SUSPECT`（疑い）までで、断定はしません。"],
-      "solution": "import java.util.*;\npublic class Main {public static void main(String[] args){Scanner s=new Scanner(System.in);int n=s.nextInt();Map<Thread.State,Integer> counts=new EnumMap<>(Thread.State.class);for(int i=0;i<n;i++){String name=s.next();Thread.State state=Thread.State.valueOf(s.next());counts.merge(state,1,Integer::sum);}for(Thread.State st:Thread.State.values())if(counts.containsKey(st))System.out.println(st+\"=\"+counts.get(st));int waiting=counts.getOrDefault(Thread.State.BLOCKED,0)+counts.getOrDefault(Thread.State.WAITING,0)+counts.getOrDefault(Thread.State.TIMED_WAITING,0);int runnable=counts.getOrDefault(Thread.State.RUNNABLE,0);System.out.println(\"waiting=\"+waiting+\" runnable=\"+runnable);System.out.println(waiting>runnable?\"SUSPECT_CONTENTION\":\"CPU_BOUND\");}}\n",
-      "extraTasks": [{"kind":"drill","task":"【組み合わせ】GC停止のしきい値thresholdと件数n（1以上）を読み、続けて1秒ごとの記録をn件 `second latencyMs gcPauseMs` の形で読みます。\n\n1行目に、レイテンシのnearest-rank方式のp50・p95・p99を `p50=x p95=y p99=z` と表示してください（順位は `ceil(p*n/100)` の1始まり）。続けて、`gcPauseMs` が threshold 以上の秒を読んだ順に `GC second gcPauseMs` と表示します（1件も無ければ `NO_GC_SPIKE`）。次に、GC停止が起きた秒のレイテンシの最大値を `spikeMaxLatency=値`（起きていなければ0）、全体のレイテンシの最大値を `maxLatency=値` と表示します。最後に、GC停止が1件以上あり、かつ2つの最大値が一致していれば `GC_CORRELATED`、そうでなければ `NOT_CORRELATED` と表示してください。","starterCode":"import java.util.*;\npublic class Main {\n    static long percentile(long[] sorted,int percent){/* TODO nearest-rank */return 0;}\n    public static void main(String[] args){Scanner s=new Scanner(System.in);long threshold=s.nextLong();int n=s.nextInt();long[] latencies=new long[n];long maxLatency=0,spikeMax=0;List<String> gcLines=new ArrayList<>();for(int i=0;i<n;i++){int second=s.nextInt();long latency=s.nextLong(),gc=s.nextLong();/* TODO 記録・最大値・GC行 */}/* TODO パーセンタイルの表示 */\n/* TODO GC行か NO_GC_SPIKE、2つの最大値、最後の判定 */}\n}\n","visibleCases":[{"label":"GCと遅延が同じ秒","stdin":"50 4 1 10 2 2 300 120 3 20 5 4 15 3","expected":"p50=15 p95=300 p99=300\nGC 2 120\nspikeMaxLatency=300\nmaxLatency=300\nGC_CORRELATED"},{"label":"GCは静か","stdin":"50 3 1 10 2 2 500 3 3 20 4","expected":"p50=20 p95=500 p99=500\nNO_GC_SPIKE\nspikeMaxLatency=0\nmaxLatency=500\nNOT_CORRELATED"}],"hiddenCases":[{"label":"1件だけ","stdin":"50 1 1 100 60","expected":"p50=100 p95=100 p99=100\nGC 1 60\nspikeMaxLatency=100\nmaxLatency=100\nGC_CORRELATED"},{"label":"GCはあるが遅い秒は別","stdin":"50 3 1 10 100 2 900 2 3 20 3","expected":"p50=20 p95=900 p99=900\nGC 1 100\nspikeMaxLatency=10\nmaxLatency=900\nNOT_CORRELATED"},{"label":"しきい値ちょうどは含む","stdin":"50 2 1 5 50 2 7 1","expected":"p50=5 p95=7 p99=7\nGC 1 50\nspikeMaxLatency=5\nmaxLatency=7\nNOT_CORRELATED"},{"label":"GC停止が複数","stdin":"50 3 1 800 60 2 800 70 3 10 1","expected":"p50=800 p95=800 p99=800\nGC 1 60\nGC 2 70\nspikeMaxLatency=800\nmaxLatency=800\nGC_CORRELATED"}],"hints":["順位の切り上げは `(percent*n+99)/100` で整数のまま計算できます。取り出すのは `sorted[rank-1]` です。","GC停止の行はいったんリストへ貯めます。パーセンタイルより後に表示するので、集計と表示を分けます。","2つの最大値が一致しても、それは相関の候補が見つかっただけです。だから出力は `CORRELATED`（相関あり）で止め、原因だと言い切っていません。"],"solution":"import java.util.*;\npublic class Main {\n    static long percentile(long[] sorted,int percent){int rank=(percent*sorted.length+99)/100;return sorted[rank-1];}\n    public static void main(String[] args){Scanner s=new Scanner(System.in);long threshold=s.nextLong();int n=s.nextInt();long[] latencies=new long[n];long maxLatency=0,spikeMax=0;List<String> gcLines=new ArrayList<>();for(int i=0;i<n;i++){int second=s.nextInt();long latency=s.nextLong(),gc=s.nextLong();latencies[i]=latency;maxLatency=Math.max(maxLatency,latency);if(gc>=threshold){gcLines.add(\"GC \"+second+\" \"+gc);spikeMax=Math.max(spikeMax,latency);}}long[] sorted=Arrays.copyOf(latencies,n);Arrays.sort(sorted);System.out.println(\"p50=\"+percentile(sorted,50)+\" p95=\"+percentile(sorted,95)+\" p99=\"+percentile(sorted,99));if(gcLines.isEmpty())System.out.println(\"NO_GC_SPIKE\");else for(String line:gcLines)System.out.println(line);System.out.println(\"spikeMaxLatency=\"+spikeMax);System.out.println(\"maxLatency=\"+maxLatency);System.out.println(!gcLines.isEmpty()&&spikeMax==maxLatency?\"GC_CORRELATED\":\"NOT_CORRELATED\");}\n}\n"},{"kind":"applied","task":"【実践】改善前と改善後を同じ条件で比べます。ウォームアップ回数wと計測回数m（1以上）を読み、続けて改善前の `w+m` 件、改善後の `w+m` 件の測定値を読みます。\n\n各系列の先頭w件はウォームアップなので捨て、残りm件からnearest-rank方式のp50を求め、`before p50=x after p50=y` と表示してください。次に改善率を整数パーセントで `improvement=値%` と表示します（`(before-after)*100/before` の整数除算。before が0なら `improvement=NA`）。最後に、改善率が5以上なら `KEEP`、-5未満なら `REVERT`、それ以外（`NA` も含む）なら `NO_CHANGE` と表示します。","starterCode":"import java.util.*;\npublic class Main {\n    static long[] measured(Scanner s,int warmup,int m){/* TODO 先頭warmup件を捨てる */return new long[m];}\n    static long p50(long[] xs){/* TODO nearest-rank の p50 */return 0;}\n    public static void main(String[] args){Scanner s=new Scanner(System.in);int warmup=s.nextInt(),m=s.nextInt();long before=p50(measured(s,warmup,m)),after=p50(measured(s,warmup,m));System.out.println(\"before p50=\"+before+\" after p50=\"+after);/* TODO improvement と判定 */}\n}\n","visibleCases":[{"label":"速くなった","stdin":"2 3 100 90 50 40 30 100 90 20 20 20","expected":"before p50=40 after p50=20\nimprovement=50%\nKEEP"},{"label":"遅くなった","stdin":"1 2 100 10 10 100 30 30","expected":"before p50=10 after p50=30\nimprovement=-200%\nREVERT"}],"hiddenCases":[{"label":"変わらない","stdin":"0 3 10 10 10 10 10 10","expected":"before p50=10 after p50=10\nimprovement=0%\nNO_CHANGE"},{"label":"ウォームアップを捨てないと誤る","stdin":"3 1 999 999 999 10 999 999 999 5","expected":"before p50=10 after p50=5\nimprovement=50%\nKEEP"},{"label":"改善前が0","stdin":"0 1 0 0","expected":"before p50=0 after p50=0\nimprovement=NA\nNO_CHANGE"},{"label":"ちょうど5パーセント","stdin":"0 2 100 100 95 95","expected":"before p50=100 after p50=95\nimprovement=5%\nKEEP"},{"label":"ちょうどマイナス5パーセント","stdin":"0 2 100 100 105 105","expected":"before p50=100 after p50=105\nimprovement=-5%\nNO_CHANGE"}],"hints":["ウォームアップ分は読み捨てます。`for(int i=0;i<warmup;i++) s.nextLong();` のように、値を使わずに進めます。","0での割り算は落ちます。`before` が0のときは計算せず `NA` を出します。","JITは実行しながら最適化するので、最初の数回は遅く出ます。捨てる件数を変えるだけで結論が変わることを、隠しテストで確かめてみてください。"],"solution":"import java.util.*;\npublic class Main {\n    static long[] measured(Scanner s,int warmup,int m){for(int i=0;i<warmup;i++)s.nextLong();long[] xs=new long[m];for(int i=0;i<m;i++)xs[i]=s.nextLong();return xs;}\n    static long p50(long[] xs){long[] sorted=Arrays.copyOf(xs,xs.length);Arrays.sort(sorted);int rank=(50*sorted.length+99)/100;return sorted[rank-1];}\n    public static void main(String[] args){Scanner s=new Scanner(System.in);int warmup=s.nextInt(),m=s.nextInt();long before=p50(measured(s,warmup,m)),after=p50(measured(s,warmup,m));System.out.println(\"before p50=\"+before+\" after p50=\"+after);if(before==0){System.out.println(\"improvement=NA\");System.out.println(\"NO_CHANGE\");return;}long improvement=(before-after)*100/before;System.out.println(\"improvement=\"+improvement+\"%\");System.out.println(improvement>=5?\"KEEP\":improvement<-5?\"REVERT\":\"NO_CHANGE\");}\n}\n"}]
+      "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        int n = s.nextInt();\n        Map<Thread.State, Integer> counts = new EnumMap<>(Thread.State.class);\n        for (int i = 0; i < n; i++) {\n            String name = s.next();\n            Thread.State state = Thread.State.valueOf(s.next());\n            /* TODO 集計 */\n        }\n        /* TODO 宣言順に表示（0件は除く） */ /* TODO waiting と runnable、最後の判定 */\n    }\n}\n",
+      "visibleCases": [
+        {
+          "label": "詰まりを疑う",
+          "stdin": "5 a RUNNABLE b BLOCKED c BLOCKED d WAITING e RUNNABLE",
+          "expected": "RUNNABLE=2\nBLOCKED=2\nWAITING=1\nwaiting=3 runnable=2\nSUSPECT_CONTENTION"
+        },
+        {
+          "label": "CPUを使っている",
+          "stdin": "3 a RUNNABLE b RUNNABLE c TIMED_WAITING",
+          "expected": "RUNNABLE=2\nTIMED_WAITING=1\nwaiting=1 runnable=2\nCPU_BOUND"
+        }
+      ],
+      "hiddenCases": [
+        {
+          "label": "1件も無い",
+          "stdin": "0",
+          "expected": "waiting=0 runnable=0\nCPU_BOUND"
+        },
+        {
+          "label": "NEWとTERMINATEDも宣言順に",
+          "stdin": "4 a TERMINATED b NEW c RUNNABLE d BLOCKED",
+          "expected": "NEW=1\nRUNNABLE=1\nBLOCKED=1\nTERMINATED=1\nwaiting=1 runnable=1\nCPU_BOUND"
+        },
+        {
+          "label": "全部BLOCKED",
+          "stdin": "2 a BLOCKED b BLOCKED",
+          "expected": "BLOCKED=2\nwaiting=2 runnable=0\nSUSPECT_CONTENTION"
+        },
+        {
+          "label": "全部RUNNABLE",
+          "stdin": "3 a RUNNABLE b RUNNABLE c RUNNABLE",
+          "expected": "RUNNABLE=3\nwaiting=0 runnable=3\nCPU_BOUND"
+        }
+      ],
+      "hints": [
+        "`Thread.State.valueOf(...)` で文字列から列挙値に変換できます。`EnumMap` に集計すると宣言順で扱えます。",
+        "表示は `Thread.State.values()` を回し、集計に入っている状態だけを出します。",
+        "`RUNNABLE` はCPUを使っているとは限らず、OS待ちも含みます。だからこの判定は `SUSPECT`（疑い）までで、断定はしません。"
+      ],
+      "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        int n = s.nextInt();\n        Map<Thread.State, Integer> counts = new EnumMap<>(Thread.State.class);\n        for (int i = 0; i < n; i++) {\n            String name = s.next();\n            Thread.State state = Thread.State.valueOf(s.next());\n            counts.merge(state, 1, Integer::sum);\n        }\n        for (Thread.State st : Thread.State.values()) if (counts.containsKey(st)) System.out.println(st + \"=\" + counts.get(st));\n        int waiting = counts.getOrDefault(Thread.State.BLOCKED, 0) + counts.getOrDefault(Thread.State.WAITING, 0) + counts.getOrDefault(Thread.State.TIMED_WAITING, 0);\n        int runnable = counts.getOrDefault(Thread.State.RUNNABLE, 0);\n        System.out.println(\"waiting=\" + waiting + \" runnable=\" + runnable);\n        System.out.println(waiting > runnable ? \"SUSPECT_CONTENTION\" : \"CPU_BOUND\");\n    }\n}\n",
+      "extraTasks": [
+        {
+          "kind": "drill",
+          "task": "【組み合わせ】GC停止のしきい値thresholdと件数n（1以上）を読み、続けて1秒ごとの記録をn件 `second latencyMs gcPauseMs` の形で読みます。\n\n1行目に、レイテンシのnearest-rank方式のp50・p95・p99を `p50=x p95=y p99=z` と表示してください（順位は `ceil(p*n/100)` の1始まり）。続けて、`gcPauseMs` が threshold 以上の秒を読んだ順に `GC second gcPauseMs` と表示します（1件も無ければ `NO_GC_SPIKE`）。次に、GC停止が起きた秒のレイテンシの最大値を `spikeMaxLatency=値`（起きていなければ0）、全体のレイテンシの最大値を `maxLatency=値` と表示します。最後に、GC停止が1件以上あり、かつ2つの最大値が一致していれば `GC_CORRELATED`、そうでなければ `NOT_CORRELATED` と表示してください。",
+          "starterCode": "import java.util.*;\n\npublic class Main {\n    static long percentile(long[] sorted, int percent) {\n        /* TODO nearest-rank */ return 0;\n    }\n\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        long threshold = s.nextLong();\n        int n = s.nextInt();\n        long[] latencies = new long[n];\n        long maxLatency = 0, spikeMax = 0;\n        List<String> gcLines = new ArrayList<>();\n        for (int i = 0; i < n; i++) {\n            int second = s.nextInt();\n            long latency = s.nextLong(), gc = s.nextLong();\n            /* TODO 記録・最大値・GC行 */\n        }\n        /* TODO パーセンタイルの表示 */ /* TODO GC行か NO_GC_SPIKE、2つの最大値、最後の判定 */\n    }\n}\n",
+          "visibleCases": [
+            {
+              "label": "GCと遅延が同じ秒",
+              "stdin": "50 4 1 10 2 2 300 120 3 20 5 4 15 3",
+              "expected": "p50=15 p95=300 p99=300\nGC 2 120\nspikeMaxLatency=300\nmaxLatency=300\nGC_CORRELATED"
+            },
+            {
+              "label": "GCは静か",
+              "stdin": "50 3 1 10 2 2 500 3 3 20 4",
+              "expected": "p50=20 p95=500 p99=500\nNO_GC_SPIKE\nspikeMaxLatency=0\nmaxLatency=500\nNOT_CORRELATED"
+            }
+          ],
+          "hiddenCases": [
+            {
+              "label": "1件だけ",
+              "stdin": "50 1 1 100 60",
+              "expected": "p50=100 p95=100 p99=100\nGC 1 60\nspikeMaxLatency=100\nmaxLatency=100\nGC_CORRELATED"
+            },
+            {
+              "label": "GCはあるが遅い秒は別",
+              "stdin": "50 3 1 10 100 2 900 2 3 20 3",
+              "expected": "p50=20 p95=900 p99=900\nGC 1 100\nspikeMaxLatency=10\nmaxLatency=900\nNOT_CORRELATED"
+            },
+            {
+              "label": "しきい値ちょうどは含む",
+              "stdin": "50 2 1 5 50 2 7 1",
+              "expected": "p50=5 p95=7 p99=7\nGC 1 50\nspikeMaxLatency=5\nmaxLatency=7\nNOT_CORRELATED"
+            },
+            {
+              "label": "GC停止が複数",
+              "stdin": "50 3 1 800 60 2 800 70 3 10 1",
+              "expected": "p50=800 p95=800 p99=800\nGC 1 60\nGC 2 70\nspikeMaxLatency=800\nmaxLatency=800\nGC_CORRELATED"
+            }
+          ],
+          "hints": [
+            "順位の切り上げは `(percent*n+99)/100` で整数のまま計算できます。取り出すのは `sorted[rank-1]` です。",
+            "GC停止の行はいったんリストへ貯めます。パーセンタイルより後に表示するので、集計と表示を分けます。",
+            "2つの最大値が一致しても、それは相関の候補が見つかっただけです。だから出力は `CORRELATED`（相関あり）で止め、原因だと言い切っていません。"
+          ],
+          "solution": "import java.util.*;\n\npublic class Main {\n    static long percentile(long[] sorted, int percent) {\n        int rank = (percent * sorted.length + 99) / 100;\n        return sorted[rank - 1];\n    }\n\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        long threshold = s.nextLong();\n        int n = s.nextInt();\n        long[] latencies = new long[n];\n        long maxLatency = 0, spikeMax = 0;\n        List<String> gcLines = new ArrayList<>();\n        for (int i = 0; i < n; i++) {\n            int second = s.nextInt();\n            long latency = s.nextLong(), gc = s.nextLong();\n            latencies[i] = latency;\n            maxLatency = Math.max(maxLatency, latency);\n            if (gc >= threshold) {\n                gcLines.add(\"GC \" + second + \" \" + gc);\n                spikeMax = Math.max(spikeMax, latency);\n            }\n        }\n        long[] sorted = Arrays.copyOf(latencies, n);\n        Arrays.sort(sorted);\n        System.out.println(\"p50=\" + percentile(sorted, 50) + \" p95=\" + percentile(sorted, 95) + \" p99=\" + percentile(sorted, 99));\n        if (gcLines.isEmpty()) System.out.println(\"NO_GC_SPIKE\");\n        else for (String line : gcLines) System.out.println(line);\n        System.out.println(\"spikeMaxLatency=\" + spikeMax);\n        System.out.println(\"maxLatency=\" + maxLatency);\n        System.out.println(!gcLines.isEmpty() && spikeMax == maxLatency ? \"GC_CORRELATED\" : \"NOT_CORRELATED\");\n    }\n}\n",
+          "sourceChecks": [
+            {
+              "pattern": "Arrays\\s*\\.\\s*sort\\s*\\(|Collections\\s*\\.\\s*sort\\s*\\(|\\.sorted\\s*\\(",
+              "minimum": 1,
+              "message": "パーセンタイルを取る前に並べ替えてください。"
+            },
+            {
+              "pattern": "\\bstatic\\s+long\\s+percentile\\s*\\(",
+              "minimum": 1,
+              "message": "p50・p95・p99は同じ計算なので、`percentile` メソッドへ切り出して3回呼んでください。"
+            }
+          ]
+        },
+        {
+          "kind": "applied",
+          "task": "【実践】改善前と改善後を同じ条件で比べます。ウォームアップ回数wと計測回数m（1以上）を読み、続けて改善前の `w+m` 件、改善後の `w+m` 件の測定値を読みます。\n\n各系列の先頭w件はウォームアップなので捨て、残りm件からnearest-rank方式のp50を求め、`before p50=x after p50=y` と表示してください。次に改善率を整数パーセントで `improvement=値%` と表示します（`(before-after)*100/before` の整数除算。before が0なら `improvement=NA`）。最後に、改善率が5以上なら `KEEP`、-5未満なら `REVERT`、それ以外（`NA` も含む）なら `NO_CHANGE` と表示します。",
+          "starterCode": "import java.util.*;\n\npublic class Main {\n    static long[] measured(Scanner s, int warmup, int m) {\n        /* TODO 先頭warmup件を捨てる */ return new long[m];\n    }\n\n    static long p50(long[] xs) {\n        /* TODO nearest-rank の p50 */ return 0;\n    }\n\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        int warmup = s.nextInt(), m = s.nextInt();\n        long before = p50(measured(s, warmup, m)), after = p50(measured(s, warmup, m));\n        System.out.println(\"before p50=\" + before + \" after p50=\" + after);\n        /* TODO improvement と判定 */\n    }\n}\n",
+          "visibleCases": [
+            {
+              "label": "速くなった",
+              "stdin": "2 3 100 90 50 40 30 100 90 20 20 20",
+              "expected": "before p50=40 after p50=20\nimprovement=50%\nKEEP"
+            },
+            {
+              "label": "遅くなった",
+              "stdin": "1 2 100 10 10 100 30 30",
+              "expected": "before p50=10 after p50=30\nimprovement=-200%\nREVERT"
+            }
+          ],
+          "hiddenCases": [
+            {
+              "label": "変わらない",
+              "stdin": "0 3 10 10 10 10 10 10",
+              "expected": "before p50=10 after p50=10\nimprovement=0%\nNO_CHANGE"
+            },
+            {
+              "label": "ウォームアップを捨てないと誤る",
+              "stdin": "3 1 999 999 999 10 999 999 999 5",
+              "expected": "before p50=10 after p50=5\nimprovement=50%\nKEEP"
+            },
+            {
+              "label": "改善前が0",
+              "stdin": "0 1 0 0",
+              "expected": "before p50=0 after p50=0\nimprovement=NA\nNO_CHANGE"
+            },
+            {
+              "label": "ちょうど5パーセント",
+              "stdin": "0 2 100 100 95 95",
+              "expected": "before p50=100 after p50=95\nimprovement=5%\nKEEP"
+            },
+            {
+              "label": "ちょうどマイナス5パーセント",
+              "stdin": "0 2 100 100 105 105",
+              "expected": "before p50=100 after p50=105\nimprovement=-5%\nNO_CHANGE"
+            }
+          ],
+          "hints": [
+            "ウォームアップ分は読み捨てます。`for(int i=0;i<warmup;i++) s.nextLong();` のように、値を使わずに進めます。",
+            "0での割り算は落ちます。`before` が0のときは計算せず `NA` を出します。",
+            "JITは実行しながら最適化するので、最初の数回は遅く出ます。捨てる件数を変えるだけで結論が変わることを、隠しテストで確かめてみてください。"
+          ],
+          "solution": "import java.util.*;\n\npublic class Main {\n    static long[] measured(Scanner s, int warmup, int m) {\n        for (int i = 0; i < warmup; i++) s.nextLong();\n        long[] xs = new long[m];\n        for (int i = 0; i < m; i++) xs[i] = s.nextLong();\n        return xs;\n    }\n\n    static long p50(long[] xs) {\n        long[] sorted = Arrays.copyOf(xs, xs.length);\n        Arrays.sort(sorted);\n        int rank = (50 * sorted.length + 99) / 100;\n        return sorted[rank - 1];\n    }\n\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        int warmup = s.nextInt(), m = s.nextInt();\n        long before = p50(measured(s, warmup, m)), after = p50(measured(s, warmup, m));\n        System.out.println(\"before p50=\" + before + \" after p50=\" + after);\n        if (before == 0) {\n            System.out.println(\"improvement=NA\");\n            System.out.println(\"NO_CHANGE\");\n            return;\n        }\n        long improvement = (before - after) * 100 / before;\n        System.out.println(\"improvement=\" + improvement + \"%\");\n        System.out.println(improvement >= 5 ? \"KEEP\" : improvement < - 5 ? \"REVERT\" : \"NO_CHANGE\");\n    }\n}\n",
+          "sourceChecks": [
+            {
+              "pattern": "Arrays\\s*\\.\\s*copyOf\\s*\\(",
+              "minimum": 1,
+              "message": "並べ替えると元の順序が壊れます。`Arrays.copyOf` でコピーしてから並べてください。"
+            },
+            {
+              "pattern": "Arrays\\s*\\.\\s*sort\\s*\\(|Collections\\s*\\.\\s*sort\\s*\\(|\\.sorted\\s*\\(",
+              "minimum": 1,
+              "message": "p50を取る前に並べ替えてください。"
+            }
+          ]
+        }
+      ]
     }
   ]
 }

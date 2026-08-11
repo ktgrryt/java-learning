@@ -213,6 +213,12 @@ public final class JavaRunner {
                 "-Dfile.encoding=UTF-8",
                 "-Dsun.stdout.encoding=UTF-8",
                 "-Dsun.stderr.encoding=UTF-8",
+                // 既定ロケールを固定する。文字コードと同じ理由で、採点を環境に依存させないため。
+                // printf の `%.1f` や `%,d`、Scanner の nextDouble、引数なしの toUpperCase は
+                // 既定ロケールで結果が変わる（例: de_DE では `20.0` が `20,0` になる）。
+                // OSの地域設定やLANGでロケールが決まるので、固定しないと同じ解答が環境によって落ちる。
+                "-Duser.language=ja",
+                "-Duser.country=JP",
                 "-cp", compiled.workDir.toString(),
                 compiled.mainClass());
         pb.directory(compiled.workDir.toFile());

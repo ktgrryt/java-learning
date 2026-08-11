@@ -47,7 +47,24 @@
             "2行目は `(a + b)` を先に計算させます。`\"かっこあり: \" + ((a + b) * c)` と、かっこが二重になります。",
             "平均は `(a + b + c) / 3` です。かっこを外して `a + b + c / 3` と書くと `c / 3` が先に計算され、`2 + 3 + 1` で `6` になってしまいます。"
           ],
-          "solution": "public class Main {\n    public static void main(String[] args) {\n        int a = 2;\n        int b = 3;\n        int c = 4;\n\n        System.out.println(\"かっこなし: \" + (a + b * c));\n        System.out.println(\"かっこあり: \" + ((a + b) * c));\n        System.out.println(\"平均: \" + ((a + b + c) / 3));\n    }\n}\n"
+          "solution": "public class Main {\n    public static void main(String[] args) {\n        int a = 2;\n        int b = 3;\n        int c = 4;\n\n        System.out.println(\"かっこなし: \" + (a + b * c));\n        System.out.println(\"かっこあり: \" + ((a + b) * c));\n        System.out.println(\"平均: \" + ((a + b + c) / 3));\n    }\n}\n",
+          "sourceChecks": [
+            {
+              "pattern": "a\\s*\\+\\s*b\\s*\\*\\s*c",
+              "minimum": 1,
+              "message": "1行目は `a + b * c` と書いて、`*` が先に計算されることを確かめてください。"
+            },
+            {
+              "pattern": "\\(\\s*a\\s*\\+\\s*b\\s*\\)\\s*\\*\\s*c",
+              "minimum": 1,
+              "message": "2行目は `(a + b) * c` と、かっこで順番を変えて書いてください。"
+            },
+            {
+              "pattern": "\\(\\s*a\\s*\\+\\s*b\\s*\\+\\s*c\\s*\\)\\s*/",
+              "minimum": 1,
+              "message": "3行目の平均は「足してから割る」ので `(a + b + c) / 3` とかっこが必要です。"
+            }
+          ]
         }
       ]
     },
@@ -138,19 +155,35 @@
             "1行目は `System.out.println(name + \" x \" + count);` です。`\" x \"` の前後の半角スペースを忘れずに。",
             "2行目は `System.out.println(\"合計 \" + count * 100 + \" 円\");` です。`*` は `+` より先に計算されるので、かっこは無くても大丈夫です。"
           ],
-          "solution": "import java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n\n        String name = sc.next();\n        int count = sc.nextInt();\n\n        System.out.println(name + \" x \" + count);\n        System.out.println(\"合計 \" + count * 100 + \" 円\");\n    }\n}\n"
+          "solution": "import java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n\n        String name = sc.next();\n        int count = sc.nextInt();\n\n        System.out.println(name + \" x \" + count);\n        System.out.println(\"合計 \" + count * 100 + \" 円\");\n    }\n}\n",
+          "sourceChecks": [
+            {
+              "pattern": "\\.nextInt\\s*\\(\\s*\\)",
+              "minimum": 1,
+              "message": "個数は `sc.nextInt()` で整数として読んでください。"
+            },
+            {
+              "pattern": "\\*\\s*100|100\\s*\\*",
+              "minimum": 1,
+              "message": "合計金額を直接書かず、`個数 * 100` で計算してください。"
+            }
+          ]
         }
       ]
     },
     {
       "id": "3-3",
       "title": "小数と型変換（キャスト）",
-      "explanation": "## int と double を行き来する\n\n`3-1` で見たように、整数どうしの割り算では小数部分が切り捨てられます。\n\n```java\nint n = 7;\nSystem.out.println(n / 2);      // 3\n```\n\n答えを小数にするには、**割る前にどちらかを `double` にします**。\n\n```java\nSystem.out.println((double) n / 2);    // 3.5\n```\n\n`(double) n` はその式の中で `n` を `double` に変換します。`n` 自体の型は変わりません。\n\n```svg 広い型へは自動で変換され、狭い型へはキャストが必要（はみ出す情報は失われる）\n<svg viewBox=\"0 0 720 232\">\n  <text class=\"fig-t fig-t-ok fig-small\" x=\"357\" y=\"20\" text-anchor=\"middle\">広い型へ … 自動で変換される（何も書かなくてよい）</text>\n  <line class=\"fig-line-ok\" x1=\"34\" y1=\"36\" x2=\"680\" y2=\"36\" marker-end=\"arrow-ok\"/>\n\n  <rect class=\"fig-box\" x=\"30\" y=\"54\" width=\"94\" height=\"42\" rx=\"6\"/>\n  <text class=\"fig-t fig-mono fig-small\" x=\"77\" y=\"75\" text-anchor=\"middle\">byte</text>\n  <rect class=\"fig-box\" x=\"142\" y=\"54\" width=\"94\" height=\"42\" rx=\"6\"/>\n  <text class=\"fig-t fig-mono fig-small\" x=\"189\" y=\"75\" text-anchor=\"middle\">short</text>\n  <rect class=\"fig-box-accent\" x=\"254\" y=\"54\" width=\"94\" height=\"42\" rx=\"6\"/>\n  <text class=\"fig-t fig-mono fig-small fig-t-accent\" x=\"301\" y=\"75\" text-anchor=\"middle\">int</text>\n  <rect class=\"fig-box\" x=\"366\" y=\"54\" width=\"94\" height=\"42\" rx=\"6\"/>\n  <text class=\"fig-t fig-mono fig-small\" x=\"413\" y=\"75\" text-anchor=\"middle\">long</text>\n  <rect class=\"fig-box\" x=\"478\" y=\"54\" width=\"94\" height=\"42\" rx=\"6\"/>\n  <text class=\"fig-t fig-mono fig-small\" x=\"525\" y=\"75\" text-anchor=\"middle\">float</text>\n  <rect class=\"fig-box-accent\" x=\"590\" y=\"54\" width=\"94\" height=\"42\" rx=\"6\"/>\n  <text class=\"fig-t fig-mono fig-small fig-t-accent\" x=\"637\" y=\"75\" text-anchor=\"middle\">double</text>\n\n  <line class=\"fig-line-ng\" x1=\"680\" y1=\"114\" x2=\"34\" y2=\"114\" marker-end=\"arrow-ng\"/>\n  <text class=\"fig-t fig-t-ng fig-small\" x=\"357\" y=\"132\" text-anchor=\"middle\">狭い型へ … キャストが必要。はみ出す情報は失われる（(int) 3.9 は 3）</text>\n\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"14\" y=\"168\">かっこの位置で結果が変わる</text>\n  <rect class=\"fig-box-ok\" x=\"30\" y=\"182\" width=\"230\" height=\"32\" rx=\"6\"/>\n  <text class=\"fig-t fig-mono fig-small fig-t-ok\" x=\"145\" y=\"198\" text-anchor=\"middle\">(double) n / 2</text>\n  <line class=\"fig-line-ok\" x1=\"264\" y1=\"198\" x2=\"296\" y2=\"198\" marker-end=\"arrow-ok\"/>\n  <text class=\"fig-t fig-mono fig-t-ok\" x=\"304\" y=\"198\">3.5</text>\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"352\" y=\"198\">割る前に変換</text>\n\n  <rect class=\"fig-box-ng\" x=\"440\" y=\"182\" width=\"180\" height=\"32\" rx=\"6\"/>\n  <text class=\"fig-t fig-mono fig-small fig-t-ng\" x=\"530\" y=\"198\" text-anchor=\"middle\">(double) (n / 2)</text>\n  <line class=\"fig-line-ng\" x1=\"624\" y1=\"198\" x2=\"650\" y2=\"198\" marker-end=\"arrow-ng\"/>\n  <text class=\"fig-t fig-mono fig-t-ng\" x=\"658\" y=\"198\">3.0</text>\n</svg>\n```\n\n### かっこの位置が重要\n\n```java\nSystem.out.println((double) n / 2);      // 3.5（変換してから割る）\nSystem.out.println((double) (n / 2));    // 3.0（整数で割ってから変換）\n```\n\n**割る前に変換する** のが要点です。\n\n### 逆向き: double → int\n\n有限の `double` を `int` へキャストすると、小数部分はゼロ方向へ切り捨てられます。\n\n```java\ndouble d = 3.9;\nSystem.out.println((int) d);     // 3（丸めではない）\n```\n\n最も近い整数値へ丸めたいときは `Math.round` を使います。ちょうど中間の値は**正の無限大方向**へ丸められるため、\n`Math.round(2.5)` は `3`、`Math.round(-2.5)` は `-2` です。\n\n```java\nSystem.out.println(Math.round(3.9));    // 4\nSystem.out.println(Math.round(-2.5));   // -2\n```\n\n### double の基本的な表示\n\n有限で整数相当の通常の値を `println` すると、`2.0` のように `.0` が付きます。\n\n```java\nSystem.out.println(4.0 / 2);   // 2.0\n```\n\nただし、非常に大きい・小さい値では指数表記になり、`NaN` や `Infinity` には小数点が付きません。",
+      "explanation": "## int と double を行き来する\n\n`3-1` で見たように、整数どうしの割り算では小数部分が切り捨てられます。\n\n```java\nint n = 7;\nSystem.out.println(n / 2);      // 3\n```\n\n答えを小数にするには、**割る前にどちらかを `double` にします**。\n\n```java\nSystem.out.println((double) n / 2);    // 3.5\n```\n\n`(double) n` はその式の中で `n` を `double` に変換します。`n` 自体の型は変わりません。\n\n```svg 広い型へは自動で変換され、狭い型へはキャストが必要（はみ出す情報は失われる）\n<svg viewBox=\"0 0 720 232\">\n  <text class=\"fig-t fig-t-ok fig-small\" x=\"357\" y=\"20\" text-anchor=\"middle\">広い型へ … 自動で変換される（何も書かなくてよい）</text>\n  <line class=\"fig-line-ok\" x1=\"34\" y1=\"36\" x2=\"680\" y2=\"36\" marker-end=\"arrow-ok\"/>\n\n  <rect class=\"fig-box\" x=\"30\" y=\"54\" width=\"94\" height=\"42\" rx=\"6\"/>\n  <text class=\"fig-t fig-mono fig-small\" x=\"77\" y=\"75\" text-anchor=\"middle\">byte</text>\n  <rect class=\"fig-box\" x=\"142\" y=\"54\" width=\"94\" height=\"42\" rx=\"6\"/>\n  <text class=\"fig-t fig-mono fig-small\" x=\"189\" y=\"75\" text-anchor=\"middle\">short</text>\n  <rect class=\"fig-box-accent\" x=\"254\" y=\"54\" width=\"94\" height=\"42\" rx=\"6\"/>\n  <text class=\"fig-t fig-mono fig-small fig-t-accent\" x=\"301\" y=\"75\" text-anchor=\"middle\">int</text>\n  <rect class=\"fig-box\" x=\"366\" y=\"54\" width=\"94\" height=\"42\" rx=\"6\"/>\n  <text class=\"fig-t fig-mono fig-small\" x=\"413\" y=\"75\" text-anchor=\"middle\">long</text>\n  <rect class=\"fig-box\" x=\"478\" y=\"54\" width=\"94\" height=\"42\" rx=\"6\"/>\n  <text class=\"fig-t fig-mono fig-small\" x=\"525\" y=\"75\" text-anchor=\"middle\">float</text>\n  <rect class=\"fig-box-accent\" x=\"590\" y=\"54\" width=\"94\" height=\"42\" rx=\"6\"/>\n  <text class=\"fig-t fig-mono fig-small fig-t-accent\" x=\"637\" y=\"75\" text-anchor=\"middle\">double</text>\n\n  <line class=\"fig-line-ng\" x1=\"680\" y1=\"114\" x2=\"34\" y2=\"114\" marker-end=\"arrow-ng\"/>\n  <text class=\"fig-t fig-t-ng fig-small\" x=\"357\" y=\"132\" text-anchor=\"middle\">狭い型へ … キャストが必要。はみ出す情報は失われる（(int) 3.9 は 3）</text>\n\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"14\" y=\"168\">かっこの位置で結果が変わる</text>\n  <rect class=\"fig-box-ok\" x=\"30\" y=\"182\" width=\"230\" height=\"32\" rx=\"6\"/>\n  <text class=\"fig-t fig-mono fig-small fig-t-ok\" x=\"145\" y=\"198\" text-anchor=\"middle\">(double) n / 2</text>\n  <line class=\"fig-line-ok\" x1=\"264\" y1=\"198\" x2=\"296\" y2=\"198\" marker-end=\"arrow-ok\"/>\n  <text class=\"fig-t fig-mono fig-t-ok\" x=\"304\" y=\"198\">3.5</text>\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"352\" y=\"198\">割る前に変換</text>\n\n  <rect class=\"fig-box-ng\" x=\"440\" y=\"182\" width=\"180\" height=\"32\" rx=\"6\"/>\n  <text class=\"fig-t fig-mono fig-small fig-t-ng\" x=\"530\" y=\"198\" text-anchor=\"middle\">(double) (n / 2)</text>\n  <line class=\"fig-line-ng\" x1=\"624\" y1=\"198\" x2=\"650\" y2=\"198\" marker-end=\"arrow-ng\"/>\n  <text class=\"fig-t fig-mono fig-t-ng\" x=\"658\" y=\"198\">3.0</text>\n</svg>\n```\n\n### かっこの位置が重要\n\n```java\nSystem.out.println((double) n / 2);      // 3.5（変換してから割る）\nSystem.out.println((double) (n / 2));    // 3.0（整数で割ってから変換）\n```\n\n**割る前に変換する** のが要点です。\n\n### 逆向き: double → int\n\n有限の `double` を `int` へキャストすると、小数部分はゼロ方向へ切り捨てられます。\n\n```java\ndouble d = 3.9;\nSystem.out.println((int) d);     // 3（丸めではない）\n```\n\n最も近い整数値へ丸めたいときは `Math.round` を使います。ちょうど中間の値は**正の無限大方向**へ丸められるため、\n`Math.round(2.5)` は `3`、`Math.round(-2.5)` は `-2` です。\n\n```java\nSystem.out.println(Math.round(3.9));    // 4\nSystem.out.println(Math.round(-2.5));   // -2\n```\n\n### double の基本的な表示\n\n有限で整数相当の通常の値を `println` すると、`2.0` のように `.0` が付きます。\n\n```java\nSystem.out.println(4.0 / 2);   // 2.0\n```\n\nただし、非常に大きい・小さい値では指数表記になり、`NaN` や `Infinity` には小数点が付きません。\n\n## 小数を「見せる形」で出す — printf\n\n`println` は値をそのままの形で出します。計算結果を確かめるだけならそれでよいのですが、\n小数は桁がそろいません。\n\n```java\nSystem.out.println(1.0 / 3);      // 0.3333333333333333\nSystem.out.println(2.0 / 4);      // 0.5\n```\n\n「小数第1位まで」のように **形を指定して出す** ときは `printf` を使います。\n\n```java\nSystem.out.printf(\"平均 %.1f%n\", 3.456);   // 平均 3.5\n```\n\n第1引数が **書式** です。`%` から始まるところが **値を差し込む場所** で、\nそこへ第2引数以降の値が順番に入ります。\n\n- `%.1f` … 小数第1位まで（四捨五入されます）\n- `%n` … 改行\n\n### printf は自分では改行しない\n\nここが最初につまずくところです。`System.out.printf(\"A\");` を2回続けても `AB` と並ぶだけで、\n改行は入りません。だからふつうは書式の最後に `%n` を付けます。\n\n### よく使う書式\n\n| 書き方 | 意味 | 値 → 出力 |\n|---|---|---|\n| `%d` | 整数 | `42` → `42` |\n| `%s` | 文字列 | `\"apple\"` → `apple` |\n| `%f` | 小数（既定で6桁） | `3.5` → `3.500000` |\n| `%.2f` | 小数第2位まで | `3.456` → `3.46` |\n| `%,d` | 3桁ごとに区切る | `1234567` → `1,234,567` |\n| `%%` | `%` そのもの | → `%` |\n\n値が2つ以上あるときは、書式に書いた順に並べます。\n\n```java\nSystem.out.printf(\"%s は %,d 円%n\", \"本\", 1500);   // 本 は 1,500 円\n```\n\n画面に出さず **文字列として受け取りたい** ときは `String.format` です。書き方は同じです。\n\n```java\nString s = String.format(\"%.1f\", 3.456);   // s は \"3.5\"\n```\n\n> ⚠️ 間違えやすい点 … 書式と値の型がずれると、**コンパイルは通るのに実行時に落ちます**。\n> `%d` に小数を渡すと `IllegalFormatConversionException`、`%f` に整数を渡しても同じです。\n> 整数は `%d`、小数は `%f` と覚えてください。\n\n> 💡 `%.1f` は表示を丸めるだけで、元の値は変わりません。`double` は2進数なので `0.1` を\n> 正確には持てず、1円の狂いも許されない金額の計算には向きません。そういう場面では\n> `BigDecimal` という専用の型を使います。",
       "samples": [
         {
           "caption": "キャストの位置で結果が変わる（入力は 7）",
           "code": "import java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n\n        System.out.println(\"そのまま:     \" + n / 2);\n        System.out.println(\"割る前に変換: \" + (double) n / 2);\n        System.out.println(\"割った後に変換: \" + (double) (n / 2));\n    }\n}\n",
           "stdin": "7"
+        },
+        {
+          "caption": "printf で形を指定する（改行は %n）",
+          "code": "public class Main {\n    public static void main(String[] args) {\n        System.out.println(1.0 / 3);\n\n        System.out.printf(\"%.1f%n\", 1.0 / 3);\n        System.out.printf(\"%.3f%n\", 1.0 / 3);\n\n        System.out.printf(\"%s は %,d 円%n\", \"本\", 1500);\n\n        System.out.printf(\"A\");\n        System.out.printf(\"B\");\n        System.out.println();\n\n        String s = String.format(\"%.2f\", 2.0 / 3);\n        System.out.println(s);\n    }\n}\n"
         }
       ],
       "task": "整数が1つ入力されます。それを2で割った結果を **2行** 出力してください。\n\n- 1行目: 整数として割った答え（切り捨て）\n- 2行目: 小数として割った答え\n\n例えば `7` が入力されたら:\n\n```\n3\n3.5\n```\n\n`8` が入力されたら:\n\n```\n4\n4.0\n```\n\n2行目に `.0` が付くのは正しい動作です。",
@@ -229,7 +262,19 @@
             "2行目は `System.out.println((int) d);` です。四捨五入ではなく、小数点以下をただ捨てます。",
             "3行目は `System.out.println(Math.round(d));` です。`2.5` は `3`、`-2.5` は `-2` になります。"
           ],
-          "solution": "import java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n\n        double d = sc.nextDouble();\n        System.out.println(d);\n        System.out.println((int) d);\n        System.out.println(Math.round(d));\n    }\n}\n"
+          "solution": "import java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n\n        double d = sc.nextDouble();\n        System.out.println(d);\n        System.out.println((int) d);\n        System.out.println(Math.round(d));\n    }\n}\n",
+          "sourceChecks": [
+            {
+              "pattern": "\\(\\s*int\\s*\\)",
+              "minimum": 1,
+              "message": "2行目は `(int)` のキャストで、ゼロ方向へ切り捨ててください。"
+            },
+            {
+              "pattern": "Math\\.round\\s*\\(",
+              "minimum": 1,
+              "message": "3行目は `Math.round` で最も近い整数へ丸めてください。"
+            }
+          ]
         }
       ]
     },
@@ -320,7 +365,24 @@
             "差は `a - b` だと `b` のほうが大きいときマイナスになります。`Math.abs(a - b)` で絶対値にします。",
             "べき乗は `Math.pow(a, b)` です。「`a` を `b` 回かける」という順番で、引数を逆にすると別の答えになります。"
           ],
-          "solution": "import java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n\n        int a = sc.nextInt();\n        int b = sc.nextInt();\n\n        System.out.println(\"小さい方 \" + Math.min(a, b));\n        System.out.println(\"差 \" + Math.abs(a - b));\n        System.out.println(\"べき乗 \" + Math.pow(a, b));\n    }\n}\n"
+          "solution": "import java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n\n        int a = sc.nextInt();\n        int b = sc.nextInt();\n\n        System.out.println(\"小さい方 \" + Math.min(a, b));\n        System.out.println(\"差 \" + Math.abs(a - b));\n        System.out.println(\"べき乗 \" + Math.pow(a, b));\n    }\n}\n",
+          "sourceChecks": [
+            {
+              "pattern": "Math\\.min\\s*\\(",
+              "minimum": 1,
+              "message": "1行目は `Math.min` で小さいほうを求めてください。"
+            },
+            {
+              "pattern": "Math\\.abs\\s*\\(",
+              "minimum": 1,
+              "message": "2行目は `Math.abs` で絶対値にしてください（どちらが大きくてもプラスになります）。"
+            },
+            {
+              "pattern": "Math\\.pow\\s*\\(",
+              "minimum": 1,
+              "message": "3行目は `Math.pow` でべき乗を求めてください。"
+            }
+          ]
         }
       ]
     },
@@ -414,52 +476,74 @@
             "3つ目は `x %= 7;`（7で割った余りにする）です。上から順に効いていくので、2つ目の結果に対して余りを取ることになります。",
             "文字列も `s += \"!\";` で後ろにつなげられます。2回書けば `Java!!` になります。"
           ],
-          "solution": "import java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n\n        int x = n;\n        x *= 3;\n        System.out.println(x);\n\n        x -= 4;\n        System.out.println(x);\n\n        x %= 7;\n        System.out.println(x);\n\n        String s = \"Java\";\n        s += \"!\";\n        s += \"!\";\n        System.out.println(s);\n    }\n}\n"
+          "solution": "import java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n\n        int x = n;\n        x *= 3;\n        System.out.println(x);\n\n        x -= 4;\n        System.out.println(x);\n\n        x %= 7;\n        System.out.println(x);\n\n        String s = \"Java\";\n        s += \"!\";\n        s += \"!\";\n        System.out.println(s);\n    }\n}\n",
+          "sourceChecks": [
+            {
+              "pattern": "\\*=",
+              "minimum": 1,
+              "message": "`x = x * 3;` ではなく、複合代入の `x *= 3;` の形で書いてください。"
+            },
+            {
+              "pattern": "-=",
+              "minimum": 1,
+              "message": "引き算も複合代入の `x -= 4;` の形で書いてください。"
+            },
+            {
+              "pattern": "%=",
+              "minimum": 1,
+              "message": "余りも複合代入の `x %= 7;` の形で書いてください。"
+            },
+            {
+              "pattern": "\\+=",
+              "minimum": 2,
+              "message": "`Java!!` は `s += \"!\";` を2回使って作ってください（文字列にも `+=` が使えます）。"
+            }
+          ]
         }
       ],
       "quiz": [
         {
           "question": "`System.out.println(7 / 2);` の出力はどれでしょう。",
           "choices": [
-            "`3.5`",
             "`3`",
             "`4`",
+            "`3.5`",
             "コンパイルエラー"
           ],
-          "answer": 1,
+          "answer": 0,
           "explanation": "整数どうしの `/` は **整数の割り算** になり、小数は切り捨てられます。`3.5` が欲しいなら `7 / 2.0` のように片方を小数にします。"
         },
         {
           "question": "次のうち **コンパイルエラーになる** のはどれでしょう。",
           "choices": [
-            "`byte b = 10; b += 5;`",
             "`byte b = 10; b = b + 5;`",
+            "`byte b = 10; b += 5;`",
             "`int i = 10; i += 5;`",
             "`double d = 10; d = d + 5;`"
           ],
-          "answer": 1,
+          "answer": 0,
           "explanation": "`b + 5` は `int` になるので `byte` には戻せず、コンパイルエラーです。一方 `b += 5` には **暗黙のキャストが隠れている** ので通ります。`+=` のような複合代入だけに、この暗黙の型変換が入ります。"
         },
         {
           "question": "次のコードの出力はどれでしょう。\n\n```java\nint i = 1;\nSystem.out.println(i++ + i);\n```",
           "choices": [
-            "`2`",
             "`3`",
+            "`2`",
             "`4`",
             "コンパイルエラー"
           ],
-          "answer": 1,
+          "answer": 0,
           "explanation": "左から順に読みます。`i++` は **増える前の `1`** を返し、その時点で `i` は `2` になります。続く `i` は `2` なので `1 + 2` で `3` です。"
         },
         {
           "question": "`System.out.println(-7 % 2);` の出力はどれでしょう。",
           "choices": [
+            "`-3`",
             "`1`",
-            "`-1`",
             "`0`",
-            "`-3`"
+            "`-1`"
           ],
-          "answer": 1,
+          "answer": 3,
           "explanation": "`%` の結果は **左側の符号** を引き継ぎます。だから `-1` です。「奇数かどうか」を `n % 2 == 1` で判定すると、負の奇数を取りこぼします。`n % 2 != 0` と書きましょう。"
         }
       ]
@@ -509,7 +593,7 @@
         {
           "kind": "drill",
           "task": "【組み合わせ】税抜価格priceと税率percentを整数で読み、税込価格を `total=...` と表示してください。小数点以下は切り捨て、`price + price * percent / 100` で計算します。",
-          "starterCode": "import java.util.*;\npublic class Main { public static void main(String[] args) { Scanner sc=new Scanner(System.in); int price=sc.nextInt(); int percent=sc.nextInt(); /* TODO */ } }\n",
+          "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int price = sc.nextInt();\n        int percent = sc.nextInt();\n        /* TODO */\n    }\n}\n",
           "visibleCases": [
             {
               "label": "10パーセント",
@@ -538,12 +622,25 @@
             "乗除算は加算より先に計算されます。",
             "結果をint変数totalへ保存してから表示します。"
           ],
-          "solution": "import java.util.*;\npublic class Main { public static void main(String[] args) { Scanner sc=new Scanner(System.in); int price=sc.nextInt(); int percent=sc.nextInt(); int total=price + price * percent / 100; System.out.println(\"total=\" + total); } }\n"
+          "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int price = sc.nextInt();\n        int percent = sc.nextInt();\n        int total = price + price * percent / 100;\n        System.out.println(\"total=\" + total);\n    }\n}\n",
+          "sourceChecks": [
+            {
+              "pattern": "\\bint\\s+total\\b",
+              "minimum": 1,
+              "message": "小数点以下は切り捨てるので、`int` で受けてください。"
+            },
+            {
+              "pattern": "\\bdouble\\b",
+              "minimum": 0,
+              "maximum": 0,
+              "message": "`double` は使いません。整数のまま割ると、あまりが捨てられて切り捨てになります。"
+            }
+          ]
         },
         {
           "kind": "applied",
           "task": "【実践】3つの整数を読み、平均を小数第1位まで `average=...` と表示してください。整数同士の割り算にならないよう型変換します。",
-          "starterCode": "import java.util.*;\npublic class Main { public static void main(String[] args) { Scanner sc=new Scanner(System.in); int a=sc.nextInt(), b=sc.nextInt(), c=sc.nextInt(); /* TODO */ } }\n",
+          "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int a = sc.nextInt(), b = sc.nextInt(), c = sc.nextInt();\n        /* TODO */\n    }\n}\n",
           "visibleCases": [
             {
               "label": "整数になる平均",
@@ -572,7 +669,14 @@
             "`3.0` で割るとdoubleの計算になります。",
             "`printf` の `%.1f` は小数第1位まで表示します。"
           ],
-          "solution": "import java.util.*;\npublic class Main { public static void main(String[] args) { Scanner sc=new Scanner(System.in); int a=sc.nextInt(), b=sc.nextInt(), c=sc.nextInt(); double average=(a+b+c)/3.0; System.out.printf(\"average=%.1f%n\", average); } }\n"
+          "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int a = sc.nextInt(), b = sc.nextInt(), c = sc.nextInt();\n        double average = (a + b + c) / 3.0;\n        System.out.printf(\"average=%.1f%n\", average);\n    }\n}\n",
+          "sourceChecks": [
+            {
+              "pattern": "/\\s*3\\.0|\\(\\s*double\\s*\\)",
+              "minimum": 1,
+              "message": "整数どうしの割り算にならないよう、`3.0` で割るか `(double)` でキャストしてください。"
+            }
+          ]
         }
       ]
     }

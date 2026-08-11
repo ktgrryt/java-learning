@@ -92,7 +92,14 @@
             "`print` は改行しないので、1行目を終わらせるために `System.out.println();` が必要です。",
             "空行を出すにも `System.out.println();` を使います。「1行目を終わらせる分」と「空行の分」で、合計2回呼ぶことになります。"
           ],
-          "solution": "public class Main {\n    public static void main(String[] args) {\n        System.out.print(\"松\");\n        System.out.print(\"竹\");\n        System.out.print(\"梅\");\n        System.out.println();\n        System.out.println();\n        System.out.println(\"おわり\");\n    }\n}\n"
+          "solution": "public class Main {\n    public static void main(String[] args) {\n        System.out.print(\"松\");\n        System.out.print(\"竹\");\n        System.out.print(\"梅\");\n        System.out.println();\n        System.out.println();\n        System.out.println(\"おわり\");\n    }\n}\n",
+          "sourceChecks": [
+            {
+              "pattern": "System\\.out\\.print\\s*\\(",
+              "minimum": 3,
+              "message": "`松竹梅` を1回の `println` で出さず、問題文のとおり `print` を3回使ってください。"
+            }
+          ]
         }
       ]
     },
@@ -138,20 +145,33 @@
             "2行目は両方をクォートで囲みます。`System.out.println(\"10\" + \"5\");` です。",
             "3行目は `System.out.println(\"10\" + 5);` です。`+` の片方が文字列だと、もう片方も文字として扱われて連結になります。だから2行目と同じ `105` になります。"
           ],
-          "solution": "public class Main {\n    public static void main(String[] args) {\n        System.out.println(10 + 5);\n        System.out.println(\"10\" + \"5\");\n        System.out.println(\"10\" + 5);\n    }\n}\n"
+          "solution": "public class Main {\n    public static void main(String[] args) {\n        System.out.println(10 + 5);\n        System.out.println(\"10\" + \"5\");\n        System.out.println(\"10\" + 5);\n    }\n}\n",
+          "sourceChecks": [
+            {
+              "pattern": "10\\s*\\+\\s*5",
+              "minimum": 1,
+              "message": "1行目の `15` を直接書かず、`10 + 5` の足し算の結果として出してください。"
+            },
+            {
+              "pattern": "\\b(15|105)\\b",
+              "minimum": 0,
+              "maximum": 0,
+              "message": "`15` や `105` を直接書かず、必ず `+` の結果として出してください。"
+            }
+          ]
         }
       ],
       "quiz": [
         {
           "question": "次のうち、画面に `Hello` と出力できるのはどれでしょう。",
           "choices": [
-            "`System.out.println(Hello);`",
             "`System.out.println(\"Hello\")`",
-            "`System.out.println(\"Hello\");`",
-            "`system.out.println(\"Hello\");`"
+            "`system.out.println(\"Hello\");`",
+            "`System.out.println(Hello);`",
+            "`System.out.println(\"Hello\");`"
           ],
-          "answer": 2,
-          "explanation": "文字はダブルクォートで囲み、文の最後にセミコロンを付けます。1つ目はクォートがないので `Hello` という変数を探してエラー、2つ目はセミコロンがなくエラー、4つ目は `System` の `S` が小文字です。Javaは大文字と小文字を区別します。"
+          "answer": 3,
+          "explanation": "クォートで囲まずに `println(Hello);` と書くと `Hello` という名前の変数を探してエラー、`println(\"Hello\")` はセミコロンがなくエラー、`system.out.println(\"Hello\");` は `System` の `S` が小文字なのでエラーです。Javaは大文字と小文字を区別します。文字はダブルクォートで囲み、文の最後にセミコロンを付けます。"
         },
         {
           "question": "次のコードの出力はどれでしょう。\n\n```java\nSystem.out.print(\"A\");\nSystem.out.println(\"B\");\nSystem.out.println(\"C\");\n```",
@@ -168,22 +188,22 @@
           "question": "`System.out.println(\"3\" + 4);` の出力はどれでしょう。",
           "choices": [
             "`7`",
+            "`3 4`",
             "`34`",
-            "コンパイルエラー",
-            "`3 4`"
+            "コンパイルエラー"
           ],
-          "answer": 1,
+          "answer": 2,
           "explanation": "`+` の片方が文字列だと **連結** になります。`4` が `\"4\"` として扱われ、`\"3\" + \"4\"` で `34` です。数として足したいなら両方をクォートで囲まずに書きます。"
         },
         {
           "question": "コメントについて正しいのはどれでしょう。",
           "choices": [
             "`//` は複数行をまとめてコメントにできる",
-            "`/* */` で囲んだ範囲はコメントになる",
+            "コメントは行の先頭にしか書けない",
             "コメントの中身も実行される",
-            "コメントは行の先頭にしか書けない"
+            "`/* */` で囲んだ範囲はコメントになる"
           ],
-          "answer": 1,
+          "answer": 3,
           "explanation": "`//` は **その行の終わりまで**、`/* */` は **囲んだ範囲** がコメントです。どちらも実行されません。`//` は行の途中（コードの後ろ）にも書けます。"
         }
       ]
@@ -230,7 +250,19 @@
             "`print` は改行せず、`println` は最後に改行します。",
             "21は数なのでダブルクォートなしでも出力できます。"
           ],
-          "solution": "public class Main {\n    public static void main(String[] args) {\n        System.out.print(\"Java\");\n        System.out.print(\" \");\n        System.out.println(21);\n        System.out.println(\"START!\");\n    }\n}\n"
+          "solution": "public class Main {\n    public static void main(String[] args) {\n        System.out.print(\"Java\");\n        System.out.print(\" \");\n        System.out.println(21);\n        System.out.println(\"START!\");\n    }\n}\n",
+          "sourceChecks": [
+            {
+              "pattern": "\\bprint\\s*\\(",
+              "minimum": 2,
+              "message": "`Java` と空白は改行せずに出すので、`print` を使ってください（`println` とは別のメソッドです）。"
+            },
+            {
+              "pattern": "\\bprintln\\s*\\(",
+              "minimum": 2,
+              "message": "行の終わりでは `println` を使って改行してください。"
+            }
+          ]
         },
         {
           "kind": "applied",
@@ -248,7 +280,20 @@
             "文字列と数は `+` でつなげられます。",
             "計算部分をかっこで囲むと意図が分かりやすくなります。"
           ],
-          "solution": "public class Main {\n    public static void main(String[] args) {\n        System.out.println(\"商品: \" + 3 + \"個\");\n        System.out.println(\"合計: \" + (150 * 3) + \"円\");\n    }\n}\n"
+          "solution": "public class Main {\n    public static void main(String[] args) {\n        System.out.println(\"商品: \" + 3 + \"個\");\n        System.out.println(\"合計: \" + (150 * 3) + \"円\");\n    }\n}\n",
+          "sourceChecks": [
+            {
+              "pattern": "150\\s*\\*\\s*3",
+              "minimum": 1,
+              "message": "`450` を直接書かず、`150 * 3` の計算式を `println` へ渡してください。"
+            },
+            {
+              "pattern": "\\b450\\b",
+              "minimum": 0,
+              "maximum": 0,
+              "message": "`450` を直接書かず、`150 * 3` の結果として出してください。"
+            }
+          ]
         }
       ]
     }

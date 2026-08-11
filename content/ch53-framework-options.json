@@ -1,87 +1,462 @@
 {
-  "id":"ch53","title":"業務フレームワークの選択肢","subtitle":"Spring Boot・Open Liberty・Quarkusを同じ要件で比較する","emoji":"🧩",
-  "lessons":[
+  "id": "ch53",
+  "title": "業務フレームワークの選択肢",
+  "subtitle": "Spring Boot・Open Liberty・Quarkusを同じ要件で比較する",
+  "emoji": "🧩",
+  "lessons": [
     {
-      "id":"53-1","title":"フレームワークを選ぶ軸",
-      "explanation":"## 製品名より制約から選ぶ\n\nSpring Boot、Open Liberty、Quarkusはいずれも業務Javaの有力な選択肢です。Spring BootはSpringのエコシステムと自動構成（auto-configuration）、Open LibertyはJakarta EE / MicroProfile準拠と構成できるランタイム、Quarkusはビルド時の最適化とコンテナ・ネイティブ用途を特徴とします。ただし起動時間やメモリ使用量は、依存ライブラリ・設定・JVM・負荷で変わります。カタログの数字ではなく、自分のアプリで測ってください。\n\n比較表には、必要な仕様、既存ライブラリ、組織の運用・サポート体制、JDKの対応状況、開発のしやすさ、起動時間、定常状態のメモリ使用量、スループット、監視とセキュリティ、移行のしやすさを並べます。小さくても同じAPIを各候補で作り、本番に近い条件で測って、選んだ理由を設計判断の記録（ADR）に残します。\n\n> 🧪 この章の画面内問題は、選定条件や設定の**小さなモデル**です。フレームワークを実際に使う実習は`labs/frameworks`で行い、3つの実アプリを起動してHTTP応答・ヘルスチェック・テスト・成果物を比較してください。",
-      "samples":[{"caption":"重み付き評価の考え方","code":"import java.util.*;public class Main{public static void main(String[] a){Map<String,Integer> score=Map.of(\"standards\",5,\"operations\",5,\"startup\",3);System.out.println(score.values().stream().mapToInt(Integer::intValue).sum());}}\n"}],
-      "task":"候補n件を `name standards operations performance` の点数で読み、合計が最大のnameを表示してください。同点は先に入力された候補です。",
-      "starterCode":"import java.util.*;public class Main{public static void main(String[] a){Scanner s=new Scanner(System.in);int n=s.nextInt(),best=-1;String selected=\"\";for(int i=0;i<n;i++){String name=s.next();int total=s.nextInt()+s.nextInt()+s.nextInt();/* TODO */}System.out.println(selected);}}\n",
-      "visibleCases":[{"label":"要件で比較","stdin":"3 SpringBoot 3 5 4 OpenLiberty 5 4 3 Quarkus 4 3 5","expected":"SpringBoot"}],
-      "hiddenCases":[{"label":"最大値","stdin":"2 A 1 1 1 B 5 5 5","expected":"B"}],
-      "hints":["`total>best` のときだけ更新すると同点は先着です。"],
-      "solution":"import java.util.*;public class Main{public static void main(String[] a){Scanner s=new Scanner(System.in);int n=s.nextInt(),best=-1;String selected=\"\";for(int i=0;i<n;i++){String name=s.next();int total=s.nextInt()+s.nextInt()+s.nextInt();if(total>best){best=total;selected=name;}}System.out.println(selected);}}\n",
-      "quiz":[{"question":"フレームワーク選定で最も再現性のある方法は？","choices":["知名度だけで決める","同じ要件のプロトタイプを本番相当の条件で測り、設計判断の記録（ADR）を残す","短いhello worldの起動時間だけで決める","将来のバージョンアップを考えずに決める"],"answer":1,"explanation":"機能・非機能・運用・組織の制約を、同じ条件で比較します。"}]
-    },
-    {
-      "id":"53-2","title":"共通のWebアプリ設計",
-      "explanation":"## HTTPの外側と業務ロジックを分ける\n\nどのフレームワークでも、HTTPアダプターが入力を構文解析・検証し、アプリケーションサービスがユースケースを調整し、ドメインが業務規則を持ち、リポジトリやクライアントが外部I/Oを隠す、という構造は共通です。HTTPステータス、JSONの形、トランザクション境界、タイムアウト、認証・認可、エラー応答は、**契約**としてテストします。\n\n```svg フレームワークが出てくるのは外側だけ。ドメインをフレームワークに依存させない\n<svg viewBox=\"0 0 720 258\">\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"370\" y=\"26\" text-anchor=\"middle\">どのフレームワークでも構造は同じ</text>\n\n  <rect class=\"fig-box\" x=\"180\" y=\"40\" width=\"380\" height=\"40\" rx=\"6\"/>\n  <text class=\"fig-t fig-mono fig-small\" x=\"196\" y=\"56\">HTTP adapter</text>\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"196\" y=\"72\">入力の構文解析と検証・ステータスやJSONの契約</text>\n  <rect class=\"fig-box\" x=\"180\" y=\"88\" width=\"380\" height=\"40\" rx=\"6\"/>\n  <text class=\"fig-t fig-mono fig-small\" x=\"196\" y=\"104\">application service</text>\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"196\" y=\"120\">ユースケースを調整する・トランザクション境界</text>\n  <rect class=\"fig-box-accent\" x=\"180\" y=\"136\" width=\"380\" height=\"40\" rx=\"6\"/>\n  <text class=\"fig-t fig-mono fig-small fig-t-accent\" x=\"196\" y=\"152\">domain</text>\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"196\" y=\"168\">業務規則。フレームワークに依存させない</text>\n  <rect class=\"fig-box\" x=\"180\" y=\"184\" width=\"380\" height=\"40\" rx=\"6\"/>\n  <text class=\"fig-t fig-mono fig-small\" x=\"196\" y=\"200\">repository / client</text>\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"196\" y=\"216\">外部I/Oを隠す</text>\n\n  <line class=\"fig-line\" x1=\"370\" y1=\"80\" x2=\"370\" y2=\"86\" marker-end=\"arrow\"/>\n  <line class=\"fig-line\" x1=\"370\" y1=\"128\" x2=\"370\" y2=\"134\" marker-end=\"arrow\"/>\n  <line class=\"fig-line\" x1=\"370\" y1=\"176\" x2=\"370\" y2=\"182\" marker-end=\"arrow\"/>\n\n  <path class=\"fig-line-ng\" d=\"M 172 40 L 158 40 L 158 128 L 172 128\"/>\n  <text class=\"fig-t fig-t-ng fig-small\" x=\"146\" y=\"84\" text-anchor=\"middle\" transform=\"rotate(-90 146 84)\">フレームワークが出る範囲</text>\n\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"576\" y=\"56\">契約としてテストする</text>\n  <text class=\"fig-t fig-t-dim fig-small\" x=\"576\" y=\"80\">ステータス / JSON</text>\n  <text class=\"fig-t fig-t-dim fig-small\" x=\"576\" y=\"104\">トランザクション境界</text>\n  <text class=\"fig-t fig-t-dim fig-small\" x=\"576\" y=\"128\">タイムアウト</text>\n  <text class=\"fig-t fig-t-dim fig-small\" x=\"576\" y=\"152\">認証・認可</text>\n  <text class=\"fig-t fig-t-dim fig-small\" x=\"576\" y=\"176\">エラー応答</text>\n\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"14\" y=\"248\">抽象化のためだけのインターフェースは量産せず、実際に変化・試験したい境界へ置く。シングルトン相当にリクエストごとの状態を持たせない</text>\n</svg>\n```\n\nフレームワークのアノテーションをドメインへ広げすぎなければ、単体テストが速く、バージョン更新やフレームワーク変更の影響範囲も小さくなります。一方で、抽象化のためだけのインターフェースを量産せず、実際に変化させたい・試験したい境界へ置きます。DIコンテナのスコープとライフサイクルを理解し、シングルトン相当のコンポーネントにリクエストごとの可変状態を持たせないようにします。",
-      "samples":[{"caption":"フレームワークに依存しないユースケース","code":"record Greeting(String message){}final class Greet{Greeting execute(String name){if(name==null||name.isBlank())throw new IllegalArgumentException();return new Greeting(\"Hello, \"+name);}}public class Main{public static void main(String[] a){System.out.println(new Greet().execute(\"Java\").message());}}\n"}],
-      "task":"名前を1語読み、長さが1〜20なら `200 Hello, name`、それ以外なら `400 INVALID_NAME` と表示してください。`-` は空文字扱いです。",
-      "starterCode":"import java.util.*;public class Main{public static void main(String[] a){String name=new Scanner(System.in).next();if(name.equals(\"-\"))name=\"\";/* TODO */}}\n",
-      "visibleCases":[{"label":"正常","stdin":"Java","expected":"200 Hello, Java"},{"label":"空","stdin":"-","expected":"400 INVALID_NAME"}],
-      "hiddenCases":[{"label":"長すぎる","stdin":"abcdefghijklmnopqrstu","expected":"400 INVALID_NAME"}],
-      "hints":["`!name.isEmpty() && name.length()<=20`。"],
-      "solution":"import java.util.*;public class Main{public static void main(String[] a){String name=new Scanner(System.in).next();if(name.equals(\"-\"))name=\"\";System.out.println(!name.isEmpty()&&name.length()<=20?\"200 Hello, \"+name:\"400 INVALID_NAME\");}}\n",
-      "quiz":[
-        {"question":"フレームワークからドメインを分離する効果は？","choices":["HTTPステータスが不要になる","業務ロジックを高速に単体テストでき、変更の影響範囲を限定しやすい","DIが必ず不要になる","DBのトランザクションが自動で完全になる"],"answer":1,"explanation":"純粋な業務規則と、入出力アダプターの責務を分けられます。"},
-        {"question":"シングルトン相当のコンポーネントへリクエストごとの可変状態を持たせると、何が起きやすいでしょう。","choices":["起動が遅くなるだけ","複数のリクエストが同じインスタンスを共有し、値の混在や競合が起きる","DIが失敗して起動しない","トランザクションが必ずロールバックする"],"answer":1,"explanation":"DIコンテナのスコープとライフサイクルを理解し、リクエストごとの状態はリクエストスコープか引数で持ちます。"}
+      "id": "53-1",
+      "title": "フレームワークを選ぶ軸",
+      "explanation": "## 製品名より制約から選ぶ\n\nSpring Boot、Open Liberty、Quarkusはいずれも業務Javaの有力な選択肢です。Spring BootはSpringのエコシステムと自動構成（auto-configuration）、Open LibertyはJakarta EE / MicroProfile準拠と構成できるランタイム、Quarkusはビルド時の最適化とコンテナ・ネイティブ用途を特徴とします。ただし起動時間やメモリ使用量は、依存ライブラリ・設定・JVM・負荷で変わります。カタログの数字ではなく、自分のアプリで測ってください。\n\n比較表には、必要な仕様、既存ライブラリ、組織の運用・サポート体制、JDKの対応状況、開発のしやすさ、起動時間、定常状態のメモリ使用量、スループット、監視とセキュリティ、移行のしやすさを並べます。小さくても同じAPIを各候補で作り、本番に近い条件で測って、選んだ理由を設計判断の記録（ADR）に残します。\n\n> 🧪 この章の画面内問題は、選定条件や設定の**小さなモデル**です。フレームワークを実際に使う実習は`labs/frameworks`で行い、3つの実アプリを起動してHTTP応答・ヘルスチェック・テスト・成果物を比較してください。\n\n### 何で比べるかを先に決める\n\n製品名や流行ではなく、こちらの制約から見ます。\n\n| 軸 | 具体的に確かめること |\n|---|---|\n| 対応JDK | いま使うJDKと、次のLTSに対応する見込み |\n| 標準への準拠 | Jakarta EE / MicroProfile に沿うか、独自か |\n| 既存資産 | いまのライブラリ・社内基盤がそのまま使えるか |\n| 運用 | health・メトリクス・設定の外部化がどう用意されているか |\n| 起動と常駐 | 起動時間、定常RSS（スケールの仕方で重みが変わる） |\n| 組織のサポート | 有償サポート、社内の経験者、採用のしやすさ |\n| 移行コスト | 後で乗り換えるときに何が残るか |\n\n### 測るなら、同じ条件で\n\n比べるときは同じJDK、同じCPU/メモリ上限、同じウォームアップ、同じ入力、同じ計測時間に\nそろえます。そろえずに測った起動時間やスループットは、フレームワークの差ではなく\n**測り方の差** を見ていることがよくあります。\n\nそして起動時間だけを見ないこと。定常RSS、p95/p99、ビルド時間、障害時の調べやすさも\n記録します。\n\n### 決めた理由を残す\n\n選定は後から「なぜこれにしたのか」が必ず問われます。比較した候補、測った条件と数値、\n却下した理由をADR（設計判断の記録）として残しておくと、次の判断のときに使えます。\n\n> ⚠️ 間違えやすい点 … 短い hello world の起動時間だけで決めると、実際のアプリ\n> （DB接続、DI、シリアライズを含む）では順位が変わることがあります。\n> **同じ要件のプロトタイプ** を本番相当の条件で測るのが、いちばん再現性のある方法です。\n\n> 🧪 アプリで確かめること / labs で動かすこと … この問題で確かめるのはフレームワークを選ぶときの軸です。\n> 3つのフレームワークを実際に起動して比べることは、1ファイル・標準入力だけのこの画面では扱えません。`labs/frameworks` に本物を置いてあります。",
+      "samples": [
+        {
+          "caption": "重み付き評価の考え方",
+          "code": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] a) {\n        Map<String, Integer> score = Map.of(\"standards\", 5, \"operations\", 5, \"startup\", 3);\n        System.out.println(score.values().stream().mapToInt(Integer::intValue).sum());\n    }\n}\n"
+        }
+      ],
+      "task": "候補n件を `name standards operations performance` の点数で読み、合計が最大のnameを表示してください。同点は先に入力された候補です。",
+      "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] a) {\n        Scanner s = new Scanner(System.in);\n        int n = s.nextInt(), best = - 1;\n        String selected = \"\";\n        for (int i = 0; i < n; i++) {\n            String name = s.next();\n            int total = s.nextInt() + s.nextInt() + s.nextInt();\n            /* TODO */\n        }\n        System.out.println(selected);\n    }\n}\n",
+      "visibleCases": [
+        {
+          "label": "要件で比較",
+          "stdin": "3 SpringBoot 3 5 4 OpenLiberty 5 4 3 Quarkus 4 3 5",
+          "expected": "SpringBoot"
+        }
+      ],
+      "hiddenCases": [
+        {
+          "label": "最大値",
+          "stdin": "2 A 1 1 1 B 5 5 5",
+          "expected": "B"
+        }
+      ],
+      "hints": [
+        "`total>best` のときだけ更新すると同点は先着です。"
+      ],
+      "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] a) {\n        Scanner s = new Scanner(System.in);\n        int n = s.nextInt(), best = - 1;\n        String selected = \"\";\n        for (int i = 0; i < n; i++) {\n            String name = s.next();\n            int total = s.nextInt() + s.nextInt() + s.nextInt();\n            if (total > best) {\n                best = total;\n                selected = name;\n            }\n        }\n        System.out.println(selected);\n    }\n}\n",
+      "quiz": [
+        {
+          "question": "フレームワーク選定で最も再現性のある方法は？",
+          "choices": [
+            "世の中の知名度だけを見て決める",
+            "将来のバージョンアップを考えずに決める",
+            "短いhello worldの起動時間だけで決める",
+            "本番相当の条件でプロトタイプを測り、判断の記録を残す"
+          ],
+          "answer": 3,
+          "explanation": "機能・非機能・運用・組織の制約を、同じ条件で比較します。設計判断の記録（ADR）として残します。"
+        }
       ]
     },
     {
-      "id":"53-3","title":"Spring Bootで構成する",
-      "explanation":"## Springのエコシステムを規約で組み立てる\n\nSpring Bootは、依存ライブラリのバージョン整合、自動構成（auto-configuration）、組み込みサーバー、外部設定、本番運用向けの機能をひとまとめにし、そこへSpring MVC / WebFlux、Data、Securityなどを組み合わせます。`@SpringBootApplication` が起点になり、コンストラクタ注入で依存を明示します。Actuatorはヘルスチェックやメトリクスなどの運用エンドポイントを提供しますが、どこまで公開してどこまで詳細を見せるかは、セキュリティ方針に合わせて決めます。\n\n自動構成は魔法ではなく、クラスパス・プロパティ・すでに定義されたBeanといった**条件**で動きます。条件レポートと起動ログを読めば、意図しないBeanや依存が入っていないか確認できます。`@SpringBootTest` を全テストに付けるのではなく、純粋な単体テスト、一部の層だけを起動するテスト（slice test）、全体を起動するテストを使い分けます。実装例は `labs/frameworks/spring-boot` にあります。",
-      "samples":[{"caption":"コンストラクタ注入の形（標準Javaで模型化）","code":"interface ClockPort{long millis();}final class Service{private final ClockPort clock;Service(ClockPort clock){this.clock=clock;}long now(){return clock.millis();}}public class Main{public static void main(String[] a){System.out.println(new Service(()->42L).now());}}\n"}],
-      "task":"クラスパス上の条件を3つ `web json userBean` の0/1で読みます。webとjsonが1でuserBeanが0なら `AUTO_CONFIGURE`、userBeanが1なら `BACK_OFF`、それ以外は `NO_MATCH` と表示してください。",
-      "starterCode":"import java.util.*;public class Main{public static void main(String[] a){Scanner s=new Scanner(System.in);boolean web=s.nextInt()==1,json=s.nextInt()==1,user=s.nextInt()==1;/* TODO */}}\n",
-      "visibleCases":[{"label":"条件一致","stdin":"1 1 0","expected":"AUTO_CONFIGURE"},{"label":"利用者定義を優先","stdin":"1 1 1","expected":"BACK_OFF"}],
-      "hiddenCases":[{"label":"依存不足","stdin":"1 0 0","expected":"NO_MATCH"}],
-      "hints":["userを最初に判定し、次にwebとjsonを判定します。"],
-      "solution":"import java.util.*;public class Main{public static void main(String[] a){Scanner s=new Scanner(System.in);boolean web=s.nextInt()==1,json=s.nextInt()==1,user=s.nextInt()==1;System.out.println(user?\"BACK_OFF\":web&&json?\"AUTO_CONFIGURE\":\"NO_MATCH\");}}\n",
-      "quiz":[
-        {"question":"Spring Bootの自動構成（auto-configuration）を調べる観点は？","choices":["常に無条件で有効と考える","クラスパス・プロパティ・Beanなどの条件を見る","アノテーション名だけ暗記する","本番では起動ログを消す"],"answer":1,"explanation":"条件に基づく構成なので、何が一致し何が一致していないかを観測します。"},
-        {"question":"意図しないBeanが有効になっている原因を調べる手がかりとして適切なものはどれでしょう。","choices":["フレームワーク名を変えてみる","`@SpringBootTest` を全テストへ付ける","Actuatorのエンドポイントをすべて公開する","クラスパス・プロパティ・既存Beanという条件と、条件レポートや起動ログを読む"],"answer":3,"explanation":"自動構成は魔法ではなく条件で動きます。条件を読めば理由が分かります。"}
+      "id": "53-2",
+      "title": "共通のWebアプリ設計",
+      "explanation": "## HTTPの外側と業務ロジックを分ける\n\nどのフレームワークでも、HTTPアダプターが入力を構文解析・検証し、アプリケーションサービスがユースケースを調整し、ドメインが業務規則を持ち、リポジトリやクライアントが外部I/Oを隠す、という構造は共通です。HTTPステータス、JSONの形、トランザクション境界、タイムアウト、認証・認可、エラー応答は、**契約**としてテストします。\n\n```svg フレームワークが出てくるのは外側だけ。ドメインをフレームワークに依存させない\n<svg viewBox=\"0 0 720 258\">\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"370\" y=\"26\" text-anchor=\"middle\">どのフレームワークでも構造は同じ</text>\n\n  <rect class=\"fig-box\" x=\"180\" y=\"40\" width=\"380\" height=\"40\" rx=\"6\"/>\n  <text class=\"fig-t fig-mono fig-small\" x=\"196\" y=\"56\">HTTP adapter</text>\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"196\" y=\"72\">入力の構文解析と検証・ステータスやJSONの契約</text>\n  <rect class=\"fig-box\" x=\"180\" y=\"88\" width=\"380\" height=\"40\" rx=\"6\"/>\n  <text class=\"fig-t fig-mono fig-small\" x=\"196\" y=\"104\">application service</text>\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"196\" y=\"120\">ユースケースを調整する・トランザクション境界</text>\n  <rect class=\"fig-box-accent\" x=\"180\" y=\"136\" width=\"380\" height=\"40\" rx=\"6\"/>\n  <text class=\"fig-t fig-mono fig-small fig-t-accent\" x=\"196\" y=\"152\">domain</text>\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"196\" y=\"168\">業務規則。フレームワークに依存させない</text>\n  <rect class=\"fig-box\" x=\"180\" y=\"184\" width=\"380\" height=\"40\" rx=\"6\"/>\n  <text class=\"fig-t fig-mono fig-small\" x=\"196\" y=\"200\">repository / client</text>\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"196\" y=\"216\">外部I/Oを隠す</text>\n\n  <line class=\"fig-line\" x1=\"370\" y1=\"80\" x2=\"370\" y2=\"86\" marker-end=\"arrow\"/>\n  <line class=\"fig-line\" x1=\"370\" y1=\"128\" x2=\"370\" y2=\"134\" marker-end=\"arrow\"/>\n  <line class=\"fig-line\" x1=\"370\" y1=\"176\" x2=\"370\" y2=\"182\" marker-end=\"arrow\"/>\n\n  <path class=\"fig-line-ng\" d=\"M 172 40 L 158 40 L 158 128 L 172 128\"/>\n  <text class=\"fig-t fig-t-ng fig-small\" x=\"146\" y=\"84\" text-anchor=\"middle\" transform=\"rotate(-90 146 84)\">フレームワークが出る範囲</text>\n\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"576\" y=\"56\">契約としてテストする</text>\n  <text class=\"fig-t fig-t-dim fig-small\" x=\"576\" y=\"80\">ステータス / JSON</text>\n  <text class=\"fig-t fig-t-dim fig-small\" x=\"576\" y=\"104\">トランザクション境界</text>\n  <text class=\"fig-t fig-t-dim fig-small\" x=\"576\" y=\"128\">タイムアウト</text>\n  <text class=\"fig-t fig-t-dim fig-small\" x=\"576\" y=\"152\">認証・認可</text>\n  <text class=\"fig-t fig-t-dim fig-small\" x=\"576\" y=\"176\">エラー応答</text>\n\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"14\" y=\"248\">抽象化のためだけのインターフェースは量産せず、実際に変化・試験したい境界へ置く。シングルトン相当にリクエストごとの状態を持たせない</text>\n</svg>\n```\n\nフレームワークのアノテーションをドメインへ広げすぎなければ、単体テストが速く、バージョン更新やフレームワーク変更の影響範囲も小さくなります。一方で、抽象化のためだけのインターフェースを量産せず、実際に変化させたい・試験したい境界へ置きます。DIコンテナのスコープとライフサイクルを理解し、シングルトン相当のコンポーネントにリクエストごとの可変状態を持たせないようにします。",
+      "samples": [
+        {
+          "caption": "フレームワークに依存しないユースケース",
+          "code": "record Greeting(String message) { }\n\nfinal class Greet {\n    Greeting execute(String name) {\n        if (name == null || name.isBlank()) throw new IllegalArgumentException();\n        return new Greeting(\"Hello, \" + name);\n    }\n}\n\npublic class Main {\n    public static void main(String[] a) {\n        System.out.println(new Greet().execute(\"Java\").message());\n    }\n}\n"
+        }
+      ],
+      "task": "名前を1語読み、長さが1〜20なら `200 Hello, name`、それ以外なら `400 INVALID_NAME` と表示してください。`-` は空文字扱いです。",
+      "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] a) {\n        String name = new Scanner(System.in).next();\n        if (name.equals(\"-\")) name = \"\";\n        /* TODO */\n    }\n}\n",
+      "visibleCases": [
+        {
+          "label": "正常",
+          "stdin": "Java",
+          "expected": "200 Hello, Java"
+        },
+        {
+          "label": "空",
+          "stdin": "-",
+          "expected": "400 INVALID_NAME"
+        }
+      ],
+      "hiddenCases": [
+        {
+          "label": "長すぎる",
+          "stdin": "abcdefghijklmnopqrstu",
+          "expected": "400 INVALID_NAME"
+        }
+      ],
+      "hints": [
+        "`!name.isEmpty() && name.length()<=20`。"
+      ],
+      "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] a) {\n        String name = new Scanner(System.in).next();\n        if (name.equals(\"-\")) name = \"\";\n        System.out.println(!name.isEmpty() && name.length() <= 20 ? \"200 Hello, \" + name : \"400 INVALID_NAME\");\n    }\n}\n",
+      "quiz": [
+        {
+          "question": "フレームワークからドメインを分離する効果は？",
+          "choices": [
+            "業務ロジックを単体テストしやすく、影響範囲を限定できる",
+            "DIコンテナを使わずに済むようになる",
+            "HTTPのステータス設計が不要になる",
+            "DBのトランザクションが自動で完全になる"
+          ],
+          "answer": 0,
+          "explanation": "DIコンテナが不要になるわけではなく、HTTPのステータス設計も必要です。トランザクションが自動で完全になることもありません。業務ロジックがフレームワークの型に依存しなくなるので、普通に `new` してテストでき、フレームワークの版を上げたときの影響も入出力の層に限定できます。"
+        },
+        {
+          "question": "シングルトン相当のコンポーネントへリクエストごとの可変状態を持たせると、何が起きやすいでしょう。",
+          "choices": [
+            "起動時に追加のインスタンスが作られる",
+            "複数のリクエストがインスタンスを共有し、値が混在する",
+            "起動が少し遅くなるだけで害はない",
+            "DIの解決に失敗して起動しない"
+          ],
+          "answer": 1,
+          "explanation": "DIコンテナのスコープとライフサイクルを理解し、リクエストごとの状態はリクエストスコープか引数で持ちます。競合も起きます。"
+        }
       ]
     },
     {
-      "id":"53-4","title":"Open Libertyで構成する",
-      "explanation":"## Jakarta EEとMicroProfileを必要な分だけ有効化する\n\nOpen LibertyはJakarta EEとMicroProfileの仕様を実装するアプリケーションサーバーです。`server.xml` のfeature managerで、`jakartaee-11.0` のようにまとめて有効化するplatform featureか、REST・CDI・Persistenceなど必要な機能だけを個別に選びます。標準API中心で作ったアプリケーションは実装をまたいだ移植性を保ちやすく、既存のJakarta EE資産や、組織で慣れたサーバー運用にもなじみます。\n\nLibertyのMaven / Gradleプラグインは、dev mode・テスト・パッケージングを支援します。設定・アプリケーション・サーバーランタイムを分けて考え、コンテナイメージでは「kernel imageへ機能を入れる」「アプリケーションを追加する」「`configure.sh` を走らせる」という層を意識します。ヘルスチェック、メトリクス、OpenAPI、JWTなどはMicroProfileの機能として組み合わせられます。実装例は `labs/frameworks/open-liberty` にあります。",
-      "samples":[{"caption":"server.xmlでJakarta EE機能を有効化する形","code":"public class Main {\n    public static void main(String[] args) {\n        String serverXml = \"\"\"\n                <featureManager>\n                    <feature>jakartaee-11.0</feature>\n                </featureManager>\n                \"\"\";\n        System.out.print(serverXml);\n    }\n}\n","expected":"<featureManager>\n    <feature>jakartaee-11.0</feature>\n</featureManager>"}],
-      "task":"Open Libertyの`server.xml`に入れる、簡略化したfeature断片を作ります。必要な機能をn件読み、重複を除いて名前順に`  <feature>名前</feature>`と1行ずつ表示してください。画面ではXMLを組み立てる形だけを確認し、実際のfeature IDと全体の設定は`labs/frameworks/open-liberty`で試します。",
-      "starterCode":"import java.util.*;\npublic class Main {\n    public static void main(String[] args) {\n        Scanner scanner = new Scanner(System.in);\n        int count = scanner.nextInt();\n        Set<String> features = new TreeSet<>();\n        for (int i = 0; i < count; i++) {\n            // TODO: featureを追加する\n        }\n        for (String feature : features) {\n            // TODO: <feature>...</feature>を表示する\n        }\n    }\n}\n",
-      "visibleCases":[{"label":"feature構成","stdin":"5 rest cdi health rest persistence","expected":"  <feature>cdi</feature>\n  <feature>health</feature>\n  <feature>persistence</feature>\n  <feature>rest</feature>"}],
-      "hiddenCases":[{"label":"一機能","stdin":"1 rest","expected":"  <feature>rest</feature>"}],
-      "hints":["入力をTreeSetへ追加し、拡張forで`\"  <feature>\" + feature + \"</feature>\"`を表示します。"],
-      "solution":"import java.util.*;\npublic class Main {\n    public static void main(String[] args) {\n        Scanner scanner = new Scanner(System.in);\n        int count = scanner.nextInt();\n        Set<String> features = new TreeSet<>();\n        for (int i = 0; i < count; i++) {\n            features.add(scanner.next());\n        }\n        for (String feature : features) {\n            System.out.println(\"  <feature>\" + feature + \"</feature>\");\n        }\n    }\n}\n",
-      "quiz":[
-        {"question":"Open Libertyで利用する機能を宣言する主な場所は？","choices":["`server.xml` のfeature manager","Javaのmodule-infoだけ","ブラウザのCookie","Gitのコミットメッセージ"],"answer":0,"explanation":"platform featureか個別の機能を、サーバー構成で有効化します。"},
-        {"question":"Open Libertyで、platform featureをまとめて入れる代わりにREST・CDIなど必要な機能だけを宣言する狙いはどれでしょう。","choices":["使う機能の範囲を明示し、起動するランタイムを必要な分に絞れる","Jakarta EE仕様に準拠しなくて済む","`server.xml` が不要になる","MicroProfileの機能が自動で全部入る"],"answer":0,"explanation":"機能は `server.xml` のfeature managerで選びます。設定・アプリケーション・ランタイムを分けて考えます。"}
+      "id": "53-3",
+      "title": "Spring Bootで構成する",
+      "explanation": "## Springのエコシステムを規約で組み立てる\n\nSpring Bootは、依存ライブラリのバージョン整合、自動構成（auto-configuration）、組み込みサーバー、外部設定、本番運用向けの機能をひとまとめにし、そこへSpring MVC / WebFlux、Data、Securityなどを組み合わせます。`@SpringBootApplication` が起点になり、コンストラクタ注入で依存を明示します。Actuatorはヘルスチェックやメトリクスなどの運用エンドポイントを提供しますが、どこまで公開してどこまで詳細を見せるかは、セキュリティ方針に合わせて決めます。\n\n自動構成は魔法ではなく、クラスパス・プロパティ・すでに定義されたBeanといった**条件**で動きます。条件レポートと起動ログを読めば、意図しないBeanや依存が入っていないか確認できます。`@SpringBootTest` を全テストに付けるのではなく、純粋な単体テスト、一部の層だけを起動するテスト（slice test）、全体を起動するテストを使い分けます。実装例は `labs/frameworks/spring-boot` にあります。\n\n### 規約で組み立て、条件で有効になる\n\nSpring Bootの自動構成は「クラスパスに何があるか」「プロパティがどうなっているか」\n「そのBeanがすでに定義されているか」を条件に、設定を **自動で足します**。\n\nだから調べ方も、その3つを見ることになります。\n\n```\n--debug を付けて起動すると条件レポートが出る\n  Positive matches:  なぜ有効になったか\n  Negative matches:  なぜ有効にならなかったか\n```\n\n「動くはずの設定が効かない」ときは、たいてい Negative matches に理由が書いてあります。\n\n### 実測（このラボの例）\n\n```sh\n$ curl \"http://localhost:8080/api/greeting?name=Aki\"\n{\"message\":\"Hello, Aki\"}\n\n$ curl -o /dev/null -w '%{http_code}' \"http://localhost:8080/api/greeting\"\n400\n\n$ curl http://localhost:8080/actuator/health\n{\"groups\":[\"liveness\",\"readiness\"],\"status\":\"UP\"}\n```\n\n`name` が無い・空・長すぎるときは、コードに `if` を書かずとも\n`@NotBlank @Size(max = 20)` で400になります。health は `/actuator/health` で、\n`liveness` と `readiness` のグループを持っています（第35章の使い分け）。\n\n> ⚠️ 間違えやすい点 … 自動構成は便利ですが、**暗黙に有効になったものは暗黙に壊れます**。\n> 「なんとなく動いている」状態を避けるため、依存を足したときは条件レポートと起動ログで\n> 何が有効になったかを確かめる習慣にします。\n> Actuator のエンドポイントは情報量が多いので、本番では公開範囲を絞ります。\n\n> 🧪 アプリで確かめること / labs で動かすこと … この問題で確かめるのは自動構成が何を有効にするのかの読み方です。\n> Spring Boot を実際に起動することは、1ファイル・標準入力だけのこの画面では扱えません。`labs/frameworks` に本物を置いてあります。",
+      "samples": [
+        {
+          "caption": "コンストラクタ注入の形（標準Javaで模型化）",
+          "code": "interface ClockPort {\n    long millis();\n}\n\nfinal class Service {\n    private final ClockPort clock;\n\n    Service(ClockPort clock) {\n        this.clock = clock;\n    }\n\n    long now() {\n        return clock.millis();\n    }\n}\n\npublic class Main {\n    public static void main(String[] a) {\n        System.out.println(new Service(() -> 42L).now());\n    }\n}\n"
+        }
+      ],
+      "task": "クラスパス上の条件を3つ `web json userBean` の0/1で読みます。webとjsonが1でuserBeanが0なら `AUTO_CONFIGURE`、userBeanが1なら `BACK_OFF`、それ以外は `NO_MATCH` と表示してください。",
+      "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] a) {\n        Scanner s = new Scanner(System.in);\n        boolean web = s.nextInt() == 1, json = s.nextInt() == 1, user = s.nextInt() == 1;\n        /* TODO */\n    }\n}\n",
+      "visibleCases": [
+        {
+          "label": "条件一致",
+          "stdin": "1 1 0",
+          "expected": "AUTO_CONFIGURE"
+        },
+        {
+          "label": "利用者定義を優先",
+          "stdin": "1 1 1",
+          "expected": "BACK_OFF"
+        }
+      ],
+      "hiddenCases": [
+        {
+          "label": "依存不足",
+          "stdin": "1 0 0",
+          "expected": "NO_MATCH"
+        }
+      ],
+      "hints": [
+        "userを最初に判定し、次にwebとjsonを判定します。"
+      ],
+      "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] a) {\n        Scanner s = new Scanner(System.in);\n        boolean web = s.nextInt() == 1, json = s.nextInt() == 1, user = s.nextInt() == 1;\n        System.out.println(user ? \"BACK_OFF\" : web && json ? \"AUTO_CONFIGURE\" : \"NO_MATCH\");\n    }\n}\n",
+      "quiz": [
+        {
+          "question": "Spring Bootの自動構成（auto-configuration）を調べる観点は？",
+          "choices": [
+            "クラスパス・プロパティ・Beanなどの条件を見る",
+            "常に無条件で有効になると考える",
+            "本番環境では起動ログを消す",
+            "アノテーションの名前だけを暗記する"
+          ],
+          "answer": 0,
+          "explanation": "無条件で有効になると考えるのは、自動構成でいちばん多い誤解です。起動ログを消すと調べる手がかりを失います。名前の暗記では、なぜ有効になったのか分かりません。自動構成は「クラスパスに何があるか」「どのプロパティが設定されているか」「その型のBeanが既にあるか」で決まるので、その一致と不一致を見ます。"
+        },
+        {
+          "question": "意図しないBeanが有効になっている原因を調べる手がかりとして適切なものはどれでしょう。",
+          "choices": [
+            "クラスパス・プロパティ・既存Beanの条件と起動ログを読む",
+            "`@SpringBootTest` を全テストへ付ける",
+            "フレームワーク名を変えてみる",
+            "Actuatorのエンドポイントを外部へ公開する"
+          ],
+          "answer": 0,
+          "explanation": "自動構成は魔法ではなく条件で動きます。条件を読めば理由が分かります。条件レポートも使えます。"
+        }
       ]
     },
     {
-      "id":"53-5","title":"Quarkusで構成する",
-      "explanation":"## ビルド時の最適化を活かす\n\nQuarkusはJakarta REST、CDI、Hibernate ORMなどをextension（拡張）として組み込み、多くの処理をビルド時へ移すことで、高速な起動と小さいメモリ使用量を狙うフレームワークです。dev modeのライブリロードとDev Servicesは開発を速めます。JVMモードに加えてネイティブ実行ファイルも選べますが、ビルド時間、プラットフォームの差、リフレクションやリソースの登録、デバッグのしやすさ、ピーク時のスループットを実測してから選びます。\n\nextensionは単なるライブラリ追加ではなく、Quarkusとの統合単位です。BOMでバージョンをそろえ、対応表にあるJDKとextensionを使います。SmallRye Health、OpenAPI、JWT、Fault ToleranceなどMicroProfile系の機能も利用できます。実装例は `labs/frameworks/quarkus` にあります。",
-      "samples":[{"caption":"ビルド時に決まる情報を固定しておく模型","code":"import java.util.*;public class Main{static final Set<String> ROUTES=Set.of(\"/api/greeting\",\"/q/health\");public static void main(String[] a){System.out.println(ROUTES.contains(a.length==0?\"/q/health\":a[0]));}}\n"}],
-      "task":"ビルド方式 `jvm` / `native` と、優先したい要件 `fast-build` / `fast-start` を読みます。fast-buildなら `jvm`、fast-startかつnativeなら `native-candidate`、それ以外は `measure` と表示してください。",
-      "starterCode":"import java.util.*;public class Main{public static void main(String[] a){Scanner s=new Scanner(System.in);String mode=s.next(),goal=s.next();/* TODO */}}\n",
-      "visibleCases":[{"label":"build速度優先","stdin":"native fast-build","expected":"jvm"},{"label":"起動速度候補","stdin":"native fast-start","expected":"native-candidate"}],
-      "hiddenCases":[{"label":"JVMも測定","stdin":"jvm fast-start","expected":"measure"}],
-      "hints":["goalがfast-buildかを先に判定します。"],
-      "solution":"import java.util.*;public class Main{public static void main(String[] a){Scanner s=new Scanner(System.in);String mode=s.next(),goal=s.next();System.out.println(goal.equals(\"fast-build\")?\"jvm\":goal.equals(\"fast-start\")&&mode.equals(\"native\")?\"native-candidate\":\"measure\");}}\n",
-      "quiz":[{"question":"ネイティブ実行ファイルを採用する前に確認することは？","choices":["常にJVMモードより全指標で速いと仮定する","ビルド時間・互換性・デバッグ・メモリ・実負荷での性能を測る","extensionをBOMから外す","リフレクションを無制限に使えると仮定する"],"answer":1,"explanation":"利点と制約が用途で変わるため、JVMモードと同じ条件で比較します。"}]
+      "id": "53-4",
+      "title": "Open Libertyで構成する",
+      "explanation": "## Jakarta EEとMicroProfileを必要な分だけ有効化する\n\nOpen LibertyはJakarta EEとMicroProfileの仕様を実装するアプリケーションサーバーです。`server.xml` のfeature managerで、`jakartaee-11.0` のようにまとめて有効化するplatform featureか、REST・CDI・Persistenceなど必要な機能だけを個別に選びます。標準API中心で作ったアプリケーションは実装をまたいだ移植性を保ちやすく、既存のJakarta EE資産や、組織で慣れたサーバー運用にもなじみます。\n\nLibertyのMaven / Gradleプラグインは、dev mode・テスト・パッケージングを支援します。設定・アプリケーション・サーバーランタイムを分けて考え、コンテナイメージでは「kernel imageへ機能を入れる」「アプリケーションを追加する」「`configure.sh` を走らせる」という層を意識します。ヘルスチェック、メトリクス、OpenAPI、JWTなどはMicroProfileの機能として組み合わせられます。実装例は `labs/frameworks/open-liberty` にあります。\n\n### 使う機能を server.xml で宣言する\n\nOpen Liberty は、有効にする機能を **設定ファイルに並べる** 形をとります。\n\n```xml\n<server description=\"greeting\">\n  <featureManager>\n    <feature>restfulWS-3.1</feature>\n    <feature>jsonb-3.0</feature>\n    <feature>cdi-4.0</feature>\n    <feature>mpHealth-4.0</feature>\n  </featureManager>\n  <httpEndpoint id=\"defaultHttpEndpoint\" host=\"*\" httpPort=\"9080\"/>\n</server>\n```\n\n書いた機能だけが読み込まれるので、**使っていない仕様の分は起動しません**。\nバージョン番号が機能名に入っている（`restfulWS-3.1`）のが特徴で、\nどの仕様のどの版で動いているかが設定を見れば分かります。\n\n開発中は `mvn liberty:dev` で、ソースを保存すると反映される開発モードになります。\nhealth は MicroProfile Health の `/health/ready`（と `/health/live`）です。\n\n| 見るところ | Open Liberty |\n|---|---|\n| 何が有効か | `server.xml` の `featureManager` |\n| health | `/health/ready` `/health/live` |\n| 開発起動 | `mvn liberty:dev` |\n\n> ⚠️ 間違えやすい点 … 機能を書き忘れると、アノテーションを正しく書いていても\n> **その仕様が動きません**（404になる、CDIのBeanが注入されない、など）。\n> コードを疑う前に `featureManager` を確認します。\n> 逆に「とりあえず全部入れる」と起動が重くなるので、使う分だけ宣言します。\n\n> 🧪 アプリで確かめること / labs で動かすこと … この問題で確かめるのは構成の組み立て方です。\n> Open Liberty を実際に起動することは、1ファイル・標準入力だけのこの画面では扱えません。`labs/frameworks` に本物を置いてあります。",
+      "samples": [
+        {
+          "caption": "server.xmlでJakarta EE機能を有効化する形",
+          "code": "public class Main {\n    public static void main(String[] args) {\n        String serverXml = \"\"\"\n                <featureManager>\n                    <feature>jakartaee-11.0</feature>\n                </featureManager>\n                \"\"\";\n        System.out.print(serverXml);\n    }\n}\n",
+          "expected": "<featureManager>\n    <feature>jakartaee-11.0</feature>\n</featureManager>"
+        }
+      ],
+      "task": "Open Libertyの`server.xml`に入れる、簡略化したfeature断片を作ります。必要な機能をn件読み、重複を除いて名前順に`  <feature>名前</feature>`と1行ずつ表示してください。画面ではXMLを組み立てる形だけを確認し、実際のfeature IDと全体の設定は`labs/frameworks/open-liberty`で試します。",
+      "starterCode": "import java.util.*;\npublic class Main {\n    public static void main(String[] args) {\n        Scanner scanner = new Scanner(System.in);\n        int count = scanner.nextInt();\n        Set<String> features = new TreeSet<>();\n        for (int i = 0; i < count; i++) {\n            // TODO: featureを追加する\n        }\n        for (String feature : features) {\n            // TODO: <feature>...</feature>を表示する\n        }\n    }\n}\n",
+      "visibleCases": [
+        {
+          "label": "feature構成",
+          "stdin": "5 rest cdi health rest persistence",
+          "expected": "  <feature>cdi</feature>\n  <feature>health</feature>\n  <feature>persistence</feature>\n  <feature>rest</feature>"
+        }
+      ],
+      "hiddenCases": [
+        {
+          "label": "一機能",
+          "stdin": "1 rest",
+          "expected": "  <feature>rest</feature>"
+        }
+      ],
+      "hints": [
+        "入力をTreeSetへ追加し、拡張forで`\"  <feature>\" + feature + \"</feature>\"`を表示します。"
+      ],
+      "solution": "import java.util.*;\npublic class Main {\n    public static void main(String[] args) {\n        Scanner scanner = new Scanner(System.in);\n        int count = scanner.nextInt();\n        Set<String> features = new TreeSet<>();\n        for (int i = 0; i < count; i++) {\n            features.add(scanner.next());\n        }\n        for (String feature : features) {\n            System.out.println(\"  <feature>\" + feature + \"</feature>\");\n        }\n    }\n}\n",
+      "quiz": [
+        {
+          "question": "Open Libertyで利用する機能を宣言する主な場所は？",
+          "choices": [
+            "Gitのコミットメッセージの書式",
+            "ブラウザが持つCookie",
+            "Javaの module-info の記述だけ",
+            "`server.xml` のfeature manager"
+          ],
+          "answer": 3,
+          "explanation": "Gitのコミットメッセージやブラウザの Cookie は、サーバー構成とは無関係です。`module-info` はJavaのモジュールの宣言で、サーバーの機能とは別のものです。Open Liberty では `server.xml` の feature manager に、platform feature か個別の機能を並べて有効化します。"
+        },
+        {
+          "question": "Open Libertyで、platform featureをまとめて入れる代わりにREST・CDIなど必要な機能だけを宣言する狙いはどれでしょう。",
+          "choices": [
+            "Jakarta EE仕様に準拠しなくて済む",
+            "MicroProfileの機能が自動で全部入る",
+            "使う機能の範囲を明示し、起動するランタイムを必要な分に絞れる",
+            "`server.xml` が不要になる"
+          ],
+          "answer": 2,
+          "explanation": "機能は `server.xml` のfeature managerで選びます。設定・アプリケーション・ランタイムを分けて考えます。"
+        }
+      ]
+    },
+    {
+      "id": "53-5",
+      "title": "Quarkusで構成する",
+      "explanation": "## ビルド時の最適化を活かす\n\nQuarkusはJakarta REST、CDI、Hibernate ORMなどをextension（拡張）として組み込み、多くの処理をビルド時へ移すことで、高速な起動と小さいメモリ使用量を狙うフレームワークです。dev modeのライブリロードとDev Servicesは開発を速めます。JVMモードに加えてネイティブ実行ファイルも選べますが、ビルド時間、プラットフォームの差、リフレクションやリソースの登録、デバッグのしやすさ、ピーク時のスループットを実測してから選びます。\n\nextensionは単なるライブラリ追加ではなく、Quarkusとの統合単位です。BOMでバージョンをそろえ、対応表にあるJDKとextensionを使います。SmallRye Health、OpenAPI、JWT、Fault ToleranceなどMicroProfile系の機能も利用できます。実装例は `labs/frameworks/quarkus` にあります。\n\n### ビルド時に済ませる、という考え方\n\nQuarkusの特徴は、他のフレームワークが**起動時**にやることを**ビルド時**へ寄せる点です。\n\n| 処理 | 一般的な流れ | Quarkusの流れ |\n|---|---|---|\n| クラスパスの走査 | 起動時 | ビルド時 |\n| DIの解決 | 起動時 | ビルド時（生成コードに焼く） |\n| 設定の読み込み | 起動時 | 一部をビルド時に確定 |\n\n起動時にやることが減るので、起動が速くメモリも小さくなります。スケールアウトや\n関数実行のように **起動回数が多い** 使い方で効きます。\n\n`mvn quarkus:dev` は、ソースを保存すると差分だけ入れ替わる開発モードです。\nhealth は `/q/health/ready`、設定は `application.properties` に集まります。\n\n> ⚠️ 間違えやすい点 … ビルド時に決めるということは、**実行時にクラスパスを覗いて\n> 動きを変えるやり方と相性が悪い** ということです。リフレクションやプロキシに強く\n> 依存したライブラリは、そのままではネイティブビルドで動かず、設定で明示的に\n> 登録する必要があります。選定時は「使いたいライブラリが対応しているか」を\n> 起動時間より先に確かめます。\n\n> 🧪 アプリで確かめること / labs で動かすこと … この問題で確かめるのは構成の組み立て方と起動の速さの考え方です。\n> Quarkus を実際に起動して測ることは、1ファイル・標準入力だけのこの画面では扱えません。`labs/frameworks` に本物を置いてあります。",
+      "samples": [
+        {
+          "caption": "ビルド時に決まる情報を固定しておく模型",
+          "code": "import java.util.*;\n\npublic class Main {\n    static final Set<String> ROUTES = Set.of(\"/api/greeting\", \"/q/health\");\n\n    public static void main(String[] a) {\n        System.out.println(ROUTES.contains(a.length == 0 ? \"/q/health\" : a[0]));\n    }\n}\n"
+        }
+      ],
+      "task": "ビルド方式 `jvm` / `native` と、優先したい要件 `fast-build` / `fast-start` を読みます。fast-buildなら `jvm`、fast-startかつnativeなら `native-candidate`、それ以外は `measure` と表示してください。",
+      "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] a) {\n        Scanner s = new Scanner(System.in);\n        String mode = s.next(), goal = s.next();\n        /* TODO */\n    }\n}\n",
+      "visibleCases": [
+        {
+          "label": "build速度優先",
+          "stdin": "native fast-build",
+          "expected": "jvm"
+        },
+        {
+          "label": "起動速度候補",
+          "stdin": "native fast-start",
+          "expected": "native-candidate"
+        }
+      ],
+      "hiddenCases": [
+        {
+          "label": "JVMも測定",
+          "stdin": "jvm fast-start",
+          "expected": "measure"
+        }
+      ],
+      "hints": [
+        "goalがfast-buildかを先に判定します。"
+      ],
+      "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] a) {\n        Scanner s = new Scanner(System.in);\n        String mode = s.next(), goal = s.next();\n        System.out.println(goal.equals(\"fast-build\") ? \"jvm\" : goal.equals(\"fast-start\") && mode.equals(\"native\") ? \"native-candidate\" : \"measure\");\n    }\n}\n",
+      "quiz": [
+        {
+          "question": "ネイティブ実行ファイルを採用する前に確認することは？",
+          "choices": [
+            "JVMモードより速いものとして見積もる",
+            "extensionをBOMから外す",
+            "リフレクションを無制限に使えると仮定する",
+            "ビルド時間・互換性・デバッグ・メモリ・実負荷での性能を測る"
+          ],
+          "answer": 3,
+          "explanation": "JVMモードより速いものとして見積もるのは、確かめずに決める行為そのものです。BOMから extension を外すのは関係ありません。ネイティブではリフレクションに設定が必要なので、無制限に使える前提は危険です。ビルド時間・互換性・デバッグ・メモリ・実負荷の性能を、同じ条件で測って比べます。"
+        }
+      ]
     },
     {
       "id": "53-6",
       "title": "章末演習：業務フレームワークの選択肢",
-      "explanation": "## この章の知識を、自分の手で組み合わせよう\n\nここでは、**重み付きの選定・境界の契約テスト・auto-configurationの条件・featureとビルド方式の選択**をまとめて使います。新しい文法は登場しません。分からなくなったら、直前までの解説やサンプルへ戻って確認して大丈夫です。\n\n### 3問の進め方\n\n1. **基本**で、中心となる書き方をもう一度使う\n2. **組み合わせ**で、章内の複数の知識を一緒に使う\n3. **実践**で、少し現実的な入力と条件を整理する\n\n3つのフレームワークを動かすのは `labs/frameworks` です。ここで書くのは、**どれを選ぶかを決めるための小さなモデル**のほうです。",
-      "samples": [{"caption":"復習用サンプル：同点のときは先に見たほうを残す","code":"public class Main{public static void main(String[] a){String[] names={\"alpha\",\"beta\"};int[] scores={3,3};String best=\"\";int top=-1;for(int i=0;i<2;i++)if(scores[i]>top){top=scores[i];best=names[i];}System.out.println(best+\" \"+top);}}\n","expected":"alpha 3"}],
+      "explanation": "## この章の知識を、自分の手で組み合わせよう\n\nここでは、**重み付きの選定・境界の契約テスト・auto-configurationの条件・featureとビルド方式の選択**をまとめて使います。新しい文法は登場しません。分からなくなったら、直前までの解説やサンプルへ戻って確認して大丈夫です。\n\n### 3問の進め方\n\n1. **基本**で、中心となる書き方をもう一度使う\n2. **組み合わせ**で、章内の複数の知識を一緒に使う\n3. **実践**で、少し現実的な入力と条件を整理する\n\n3つのフレームワークを動かすのは `labs/frameworks` です。ここで書くのは、**どれを選ぶかを決めるための小さなモデル**のほうです。\n\n> 🧪 アプリで確かめること / labs で動かすこと … この問題で確かめるのは選択肢の比べ方です。\n> 3つのフレームワークを実際に起動して比べることは、1ファイル・標準入力だけのこの画面では扱えません。`labs/frameworks` に本物を置いてあります。\n> ★はアプリの問題に対して付きます。labs をやったかどうかは★には出ないので、\n> 手を動かした記録は labs 側のREADMEの手順で残してください。",
+      "samples": [
+        {
+          "caption": "復習用サンプル：同点のときは先に見たほうを残す",
+          "code": "public class Main {\n    public static void main(String[] a) {\n        String[] names = {\"alpha\", \"beta\"};\n        int[] scores = {3, 3};\n        String best = \"\";\n        int top = - 1;\n        for (int i = 0; i < 2; i++) if (scores[i] > top) {\n            top = scores[i];\n            best = names[i];\n        }\n        System.out.println(best + \" \" + top);\n    }\n}\n",
+          "expected": "alpha 3"
+        }
+      ],
       "task": "【基本】評価軸の重みを `wStandards wOperations wPerformance` の形で読み、続けてどの軸にも必要な最低点 minEach と候補数nを読みます。さらにn件を `name standards operations performance` の形で読みます。\n\nどれか1つの軸でも minEach 未満の候補は失格です。読んだ順に、失格なら `name DISQUALIFIED`、そうでなければ `name 合計点` と表示してください。合計点は各軸の点数に重みを掛けて足した値です。\n\n最後に、失格でない候補のうち合計点が最大のものを `PICK name 合計点` と表示します。同点のときは先に入力された候補にします。失格でない候補が無ければ `PICK NONE` と表示します。",
-      "starterCode": "import java.util.*;\npublic class Main {public static void main(String[] args){Scanner s=new Scanner(System.in);int ws=s.nextInt(),wo=s.nextInt(),wp=s.nextInt(),minEach=s.nextInt(),n=s.nextInt();String best=\"NONE\";int top=-1;for(int i=0;i<n;i++){String name=s.next();int standards=s.nextInt(),operations=s.nextInt(),performance=s.nextInt();/* TODO 失格の判定と合計点 */}/* TODO PICK の表示 */}}\n",
-      "visibleCases": [{"label":"重みで順位が変わる","stdin":"3 2 1 3 3 SpringBoot 3 5 4 OpenLiberty 5 4 3 Quarkus 4 3 5","expected":"SpringBoot 23\nOpenLiberty 26\nQuarkus 23\nPICK OpenLiberty 26"},{"label":"必要な最低点に届かない","stdin":"1 1 1 4 2 a 5 5 3 b 4 4 4","expected":"a DISQUALIFIED\nb 12\nPICK b 12"}],
-      "hiddenCases": [{"label":"全部失格","stdin":"1 1 1 5 2 a 1 1 1 b 4 4 4","expected":"a DISQUALIFIED\nb DISQUALIFIED\nPICK NONE"},{"label":"同点は先に入力されたもの","stdin":"1 1 1 0 2 alpha 1 1 1 beta 1 1 1","expected":"alpha 3\nbeta 3\nPICK alpha 3"},{"label":"候補0件","stdin":"1 1 1 0 0","expected":"PICK NONE"},{"label":"重みが0の軸は効かない","stdin":"0 0 1 1 2 a 5 5 1 b 1 1 5","expected":"a 1\nb 5\nPICK b 5"},{"label":"候補1件","stdin":"2 2 2 3 1 only 3 3 3","expected":"only 18\nPICK only 18"}],
-      "hints": ["失格の判定は3つの比較を `||` でつなぎます。失格の候補は合計点を出さず、`PICK` の対象にもしません。","最大の更新は `>` で行います。`>=` にすると同点のときに後から来た候補へ入れ替わってしまいます。","重みを外から受け取る形にしておくと、「起動時間を重く見る」「標準準拠を重く見る」といった方針の違いを、同じコードで比べられます。"],
-      "solution": "import java.util.*;\npublic class Main {public static void main(String[] args){Scanner s=new Scanner(System.in);int ws=s.nextInt(),wo=s.nextInt(),wp=s.nextInt(),minEach=s.nextInt(),n=s.nextInt();String best=\"NONE\";int top=-1;for(int i=0;i<n;i++){String name=s.next();int standards=s.nextInt(),operations=s.nextInt(),performance=s.nextInt();if(standards<minEach||operations<minEach||performance<minEach){System.out.println(name+\" DISQUALIFIED\");continue;}int total=standards*ws+operations*wo+performance*wp;System.out.println(name+\" \"+total);if(total>top){top=total;best=name;}}System.out.println(top<0?\"PICK NONE\":\"PICK \"+best+\" \"+top);}}\n",
-      "extraTasks": [{"kind":"drill","task":"【組み合わせ】同じAPIを3つのフレームワークで作り、境界の契約が一致しているかを確かめます。観測結果をn件 `name framework status` の形で読みます（`framework` は `spring` / `liberty` / `quarkus`）。\n\n期待するstatusは `name` から決まります。`-` は空文字を表し、長さが1〜20文字なら `200`、それ以外は `400` です。読んだ順に `行番号 framework expected=期待 actual=実測 PASS` または `... FAIL` と表示してください（行番号は1から）。\n\n続けて、フレームワークごとの失敗件数を `spring` → `liberty` → `quarkus` の固定順で `framework 件数` と表示します。最後に、失敗が1件でもあれば `CONTRACT_BROKEN`、無ければ `CONTRACT_OK` と表示します。","starterCode":"import java.util.*;\npublic class Main {\n    static int expected(String name){/* TODO -は空文字。1〜20文字なら200 */return 200;}\n    public static void main(String[] args){Scanner s=new Scanner(System.in);int n=s.nextInt();List<String> frameworks=List.of(\"spring\",\"liberty\",\"quarkus\");Map<String,Integer> fails=new LinkedHashMap<>();for(String f:frameworks)fails.put(f,0);for(int k=1;k<=n;k++){String name=s.next(),framework=s.next();int actual=s.nextInt();/* TODO 比較と表示 */}/* TODO 件数とまとめ */}\n}\n","visibleCases":[{"label":"1つだけ食い違う","stdin":"3 Java spring 200 - liberty 400 Java quarkus 400","expected":"1 spring expected=200 actual=200 PASS\n2 liberty expected=400 actual=400 PASS\n3 quarkus expected=200 actual=400 FAIL\nspring 0\nliberty 0\nquarkus 1\nCONTRACT_BROKEN"},{"label":"そろっている","stdin":"2 Cafe spring 200 Cafe liberty 200","expected":"1 spring expected=200 actual=200 PASS\n2 liberty expected=200 actual=200 PASS\nspring 0\nliberty 0\nquarkus 0\nCONTRACT_OK"}],"hiddenCases":[{"label":"観測0件","stdin":"0","expected":"spring 0\nliberty 0\nquarkus 0\nCONTRACT_OK"},{"label":"21文字は400","stdin":"1 abcdefghijklmnopqrstu spring 400","expected":"1 spring expected=400 actual=400 PASS\nspring 0\nliberty 0\nquarkus 0\nCONTRACT_OK"},{"label":"ちょうど20文字は200","stdin":"1 abcdefghijklmnopqrst liberty 200","expected":"1 liberty expected=200 actual=200 PASS\nspring 0\nliberty 0\nquarkus 0\nCONTRACT_OK"},{"label":"3つとも空文字を通してしまう","stdin":"3 - spring 200 - liberty 200 - quarkus 200","expected":"1 spring expected=400 actual=200 FAIL\n2 liberty expected=400 actual=200 FAIL\n3 quarkus expected=400 actual=200 FAIL\nspring 1\nliberty 1\nquarkus 1\nCONTRACT_BROKEN"},{"label":"同じフレームワークで2件","stdin":"2 ok spring 200 - spring 200","expected":"1 spring expected=200 actual=200 PASS\n2 spring expected=400 actual=200 FAIL\nspring 1\nliberty 0\nquarkus 0\nCONTRACT_BROKEN"}],"hints":["`-` を先に空文字へ置き換えてから長さを見ると、判定が1か所で済みます。","件数は `fails.merge(framework,1,Integer::sum)` で足せます。表示は `frameworks` の順に回します。","契約テストは、フレームワークが違っても同じ入力へ同じ答えを返すことを確かめるものです。だからフレームワークごとに期待値を変えません。"],"solution":"import java.util.*;\npublic class Main {\n    static int expected(String name){String v=name.equals(\"-\")?\"\":name;return !v.isEmpty()&&v.length()<=20?200:400;}\n    public static void main(String[] args){Scanner s=new Scanner(System.in);int n=s.nextInt();List<String> frameworks=List.of(\"spring\",\"liberty\",\"quarkus\");Map<String,Integer> fails=new LinkedHashMap<>();for(String f:frameworks)fails.put(f,0);boolean broken=false;for(int k=1;k<=n;k++){String name=s.next(),framework=s.next();int actual=s.nextInt(),want=expected(name);boolean pass=want==actual;if(!pass){fails.merge(framework,1,Integer::sum);broken=true;}System.out.println(k+\" \"+framework+\" expected=\"+want+\" actual=\"+actual+\" \"+(pass?\"PASS\":\"FAIL\"));}for(String f:frameworks)System.out.println(f+\" \"+fails.get(f));System.out.println(broken?\"CONTRACT_BROKEN\":\"CONTRACT_OK\");}\n}\n"},{"kind":"applied","task":"【実践】同じ要件から3つの構成を組み立てます。まず必要な機能の数nを読み、続けてn個の機能名を読みます。次にclasspathの条件を `web json userBean` の順に `0` / `1` で読み、最後にQuarkusの `mode goal` を読みます（`mode` は `jvm` / `native`、`goal` は `fast-build` / `fast-start`）。\n\n1. Open Libertyの `server.xml` 断片として、機能名の重複を除いて名前順に `  <feature>名前</feature>` と1行ずつ表示してください（先頭は半角空白2つです）。機能が0件なら何も表示しません。\n2. Spring Bootのauto-configurationの判定を1行で表示します。`userBean` が1なら `BACK_OFF`、そうでなく `web` と `json` がどちらも1なら `AUTO_CONFIGURE`、それ以外は `NO_MATCH` です。\n3. Quarkusのビルド方式を1行で表示します。`goal` が `fast-build` なら `jvm`、`goal` が `fast-start` で `mode` が `native` なら `native-candidate`、それ以外は `measure` です。","starterCode":"import java.util.*;\npublic class Main {public static void main(String[] args){Scanner s=new Scanner(System.in);int n=s.nextInt();Set<String> features=new TreeSet<>();for(int i=0;i<n;i++)features.add(s.next());boolean web=s.nextInt()==1,json=s.nextInt()==1,userBean=s.nextInt()==1;String mode=s.next(),goal=s.next();/* TODO featureの表示 */\n/* TODO auto-configurationの判定 */\n/* TODO ビルド方式の判定 */}}\n","visibleCases":[{"label":"標準準拠と起動速度","stdin":"5 rest cdi health rest persistence 1 1 0 native fast-start","expected":"  <feature>cdi</feature>\n  <feature>health</feature>\n  <feature>persistence</feature>\n  <feature>rest</feature>\nAUTO_CONFIGURE\nnative-candidate"},{"label":"利用者定義beanとビルド速度","stdin":"2 rest rest 1 1 1 native fast-build","expected":"  <feature>rest</feature>\nBACK_OFF\njvm"}],"hiddenCases":[{"label":"機能0件で条件も合わない","stdin":"0 0 1 0 jvm fast-start","expected":"NO_MATCH\nmeasure"},{"label":"JVMモードでは候補にしない","stdin":"1 cdi 1 1 0 jvm fast-start","expected":"  <feature>cdi</feature>\nAUTO_CONFIGURE\nmeasure"},{"label":"利用者定義beanが常に勝つ","stdin":"1 rest 0 0 1 native fast-start","expected":"  <feature>rest</feature>\nBACK_OFF\nnative-candidate"},{"label":"ビルド速度優先はJVM","stdin":"1 rest 1 1 0 jvm fast-build","expected":"  <feature>rest</feature>\nAUTO_CONFIGURE\njvm"},{"label":"機能名を名前順に並べる","stdin":"3 zeta alpha mid 1 1 0 native fast-start","expected":"  <feature>alpha</feature>\n  <feature>mid</feature>\n  <feature>zeta</feature>\nAUTO_CONFIGURE\nnative-candidate"}],"hints":["`TreeSet` へ入れるだけで、重複が消えて名前順になります。","auto-configurationは「利用者が自分でbeanを定義していたら手を引く」条件が最優先です。判定の順番をそのまま書きます。","3つの出力はどれも同じ要件から導いています。同じ要件を3つの形へ写せるかが、フレームワークを比較できる状態です。"],"solution":"import java.util.*;\npublic class Main {public static void main(String[] args){Scanner s=new Scanner(System.in);int n=s.nextInt();Set<String> features=new TreeSet<>();for(int i=0;i<n;i++)features.add(s.next());boolean web=s.nextInt()==1,json=s.nextInt()==1,userBean=s.nextInt()==1;String mode=s.next(),goal=s.next();for(String f:features)System.out.println(\"  <feature>\"+f+\"</feature>\");System.out.println(userBean?\"BACK_OFF\":web&&json?\"AUTO_CONFIGURE\":\"NO_MATCH\");System.out.println(goal.equals(\"fast-build\")?\"jvm\":goal.equals(\"fast-start\")&&mode.equals(\"native\")?\"native-candidate\":\"measure\");}}\n"}]
+      "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        int ws = s.nextInt(), wo = s.nextInt(), wp = s.nextInt(), minEach = s.nextInt(), n = s.nextInt();\n        String best = \"NONE\";\n        int top = - 1;\n        for (int i = 0; i < n; i++) {\n            String name = s.next();\n            int standards = s.nextInt(), operations = s.nextInt(), performance = s.nextInt();\n            /* TODO 失格の判定と合計点 */\n        }\n        /* TODO PICK の表示 */\n    }\n}\n",
+      "visibleCases": [
+        {
+          "label": "重みで順位が変わる",
+          "stdin": "3 2 1 3 3 SpringBoot 3 5 4 OpenLiberty 5 4 3 Quarkus 4 3 5",
+          "expected": "SpringBoot 23\nOpenLiberty 26\nQuarkus 23\nPICK OpenLiberty 26"
+        },
+        {
+          "label": "必要な最低点に届かない",
+          "stdin": "1 1 1 4 2 a 5 5 3 b 4 4 4",
+          "expected": "a DISQUALIFIED\nb 12\nPICK b 12"
+        }
+      ],
+      "hiddenCases": [
+        {
+          "label": "全部失格",
+          "stdin": "1 1 1 5 2 a 1 1 1 b 4 4 4",
+          "expected": "a DISQUALIFIED\nb DISQUALIFIED\nPICK NONE"
+        },
+        {
+          "label": "同点は先に入力されたもの",
+          "stdin": "1 1 1 0 2 alpha 1 1 1 beta 1 1 1",
+          "expected": "alpha 3\nbeta 3\nPICK alpha 3"
+        },
+        {
+          "label": "候補0件",
+          "stdin": "1 1 1 0 0",
+          "expected": "PICK NONE"
+        },
+        {
+          "label": "重みが0の軸は効かない",
+          "stdin": "0 0 1 1 2 a 5 5 1 b 1 1 5",
+          "expected": "a 1\nb 5\nPICK b 5"
+        },
+        {
+          "label": "候補1件",
+          "stdin": "2 2 2 3 1 only 3 3 3",
+          "expected": "only 18\nPICK only 18"
+        }
+      ],
+      "hints": [
+        "失格の判定は3つの比較を `||` でつなぎます。失格の候補は合計点を出さず、`PICK` の対象にもしません。",
+        "最大の更新は `>` で行います。`>=` にすると同点のときに後から来た候補へ入れ替わってしまいます。",
+        "重みを外から受け取る形にしておくと、「起動時間を重く見る」「標準準拠を重く見る」といった方針の違いを、同じコードで比べられます。"
+      ],
+      "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        int ws = s.nextInt(), wo = s.nextInt(), wp = s.nextInt(), minEach = s.nextInt(), n = s.nextInt();\n        String best = \"NONE\";\n        int top = - 1;\n        for (int i = 0; i < n; i++) {\n            String name = s.next();\n            int standards = s.nextInt(), operations = s.nextInt(), performance = s.nextInt();\n            if (standards < minEach || operations < minEach || performance < minEach) {\n                System.out.println(name + \" DISQUALIFIED\");\n                continue;\n            }\n            int total = standards * ws + operations * wo + performance * wp;\n            System.out.println(name + \" \" + total);\n            if (total > top) {\n                top = total;\n                best = name;\n            }\n        }\n        System.out.println(top < 0 ? \"PICK NONE\" : \"PICK \" + best + \" \" + top);\n    }\n}\n",
+      "extraTasks": [
+        {
+          "kind": "drill",
+          "task": "【組み合わせ】同じAPIを3つのフレームワークで作り、境界の契約が一致しているかを確かめます。観測結果をn件 `name framework status` の形で読みます（`framework` は `spring` / `liberty` / `quarkus`）。\n\n期待するstatusは `name` から決まります。`-` は空文字を表し、長さが1〜20文字なら `200`、それ以外は `400` です。読んだ順に `行番号 framework expected=期待 actual=実測 PASS` または `... FAIL` と表示してください（行番号は1から）。\n\n続けて、フレームワークごとの失敗件数を `spring` → `liberty` → `quarkus` の固定順で `framework 件数` と表示します。最後に、失敗が1件でもあれば `CONTRACT_BROKEN`、無ければ `CONTRACT_OK` と表示します。",
+          "starterCode": "import java.util.*;\n\npublic class Main {\n    static int expected(String name) {\n        /* TODO -は空文字。1〜20文字なら200 */ return 200;\n    }\n\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        int n = s.nextInt();\n        List<String> frameworks = List.of(\"spring\", \"liberty\", \"quarkus\");\n        Map<String, Integer> fails = new LinkedHashMap<>();\n        for (String f : frameworks) fails.put(f, 0);\n        for (int k = 1; k <= n; k++) {\n            String name = s.next(), framework = s.next();\n            int actual = s.nextInt();\n            /* TODO 比較と表示 */\n        }\n        /* TODO 件数とまとめ */\n    }\n}\n",
+          "visibleCases": [
+            {
+              "label": "1つだけ食い違う",
+              "stdin": "3 Java spring 200 - liberty 400 Java quarkus 400",
+              "expected": "1 spring expected=200 actual=200 PASS\n2 liberty expected=400 actual=400 PASS\n3 quarkus expected=200 actual=400 FAIL\nspring 0\nliberty 0\nquarkus 1\nCONTRACT_BROKEN"
+            },
+            {
+              "label": "そろっている",
+              "stdin": "2 Cafe spring 200 Cafe liberty 200",
+              "expected": "1 spring expected=200 actual=200 PASS\n2 liberty expected=200 actual=200 PASS\nspring 0\nliberty 0\nquarkus 0\nCONTRACT_OK"
+            }
+          ],
+          "hiddenCases": [
+            {
+              "label": "観測0件",
+              "stdin": "0",
+              "expected": "spring 0\nliberty 0\nquarkus 0\nCONTRACT_OK"
+            },
+            {
+              "label": "21文字は400",
+              "stdin": "1 abcdefghijklmnopqrstu spring 400",
+              "expected": "1 spring expected=400 actual=400 PASS\nspring 0\nliberty 0\nquarkus 0\nCONTRACT_OK"
+            },
+            {
+              "label": "ちょうど20文字は200",
+              "stdin": "1 abcdefghijklmnopqrst liberty 200",
+              "expected": "1 liberty expected=200 actual=200 PASS\nspring 0\nliberty 0\nquarkus 0\nCONTRACT_OK"
+            },
+            {
+              "label": "3つとも空文字を通してしまう",
+              "stdin": "3 - spring 200 - liberty 200 - quarkus 200",
+              "expected": "1 spring expected=400 actual=200 FAIL\n2 liberty expected=400 actual=200 FAIL\n3 quarkus expected=400 actual=200 FAIL\nspring 1\nliberty 1\nquarkus 1\nCONTRACT_BROKEN"
+            },
+            {
+              "label": "同じフレームワークで2件",
+              "stdin": "2 ok spring 200 - spring 200",
+              "expected": "1 spring expected=200 actual=200 PASS\n2 spring expected=400 actual=200 FAIL\nspring 1\nliberty 0\nquarkus 0\nCONTRACT_BROKEN"
+            }
+          ],
+          "hints": [
+            "`-` を先に空文字へ置き換えてから長さを見ると、判定が1か所で済みます。",
+            "件数は `fails.merge(framework,1,Integer::sum)` で足せます。表示は `frameworks` の順に回します。",
+            "契約テストは、フレームワークが違っても同じ入力へ同じ答えを返すことを確かめるものです。だからフレームワークごとに期待値を変えません。"
+          ],
+          "solution": "import java.util.*;\n\npublic class Main {\n    static int expected(String name) {\n        String v = name.equals(\"-\") ? \"\" : name;\n        return !v.isEmpty() && v.length() <= 20 ? 200 : 400;\n    }\n\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        int n = s.nextInt();\n        List<String> frameworks = List.of(\"spring\", \"liberty\", \"quarkus\");\n        Map<String, Integer> fails = new LinkedHashMap<>();\n        for (String f : frameworks) fails.put(f, 0);\n        boolean broken = false;\n        for (int k = 1; k <= n; k++) {\n            String name = s.next(), framework = s.next();\n            int actual = s.nextInt(), want = expected(name);\n            boolean pass = want == actual;\n            if (!pass) {\n                fails.merge(framework, 1, Integer::sum);\n                broken = true;\n            }\n            System.out.println(k + \" \" + framework + \" expected=\" + want + \" actual=\" + actual + \" \" + (pass ? \"PASS\" : \"FAIL\"));\n        }\n        for (String f : frameworks) System.out.println(f + \" \" + fails.get(f));\n        System.out.println(broken ? \"CONTRACT_BROKEN\" : \"CONTRACT_OK\");\n    }\n}\n",
+          "sourceChecks": [
+            {
+              "pattern": "List\\s*\\.\\s*of\\s*\\(|String\\s*\\[\\s*\\]",
+              "minimum": 1,
+              "message": "3つのフレームワークは決まった順で出すので、リストで順序を持ってください。"
+            },
+            {
+              "pattern": "\\bnew\\s+LinkedHashMap\\b|\\bnew\\s+TreeMap\\b|int\\s*\\[\\s*\\]",
+              "minimum": 1,
+              "message": "集計の並び順を保つので `LinkedHashMap` を使ってください。"
+            }
+          ]
+        },
+        {
+          "kind": "applied",
+          "task": "【実践】同じ要件から3つの構成を組み立てます。まず必要な機能の数nを読み、続けてn個の機能名を読みます。次にclasspathの条件を `web json userBean` の順に `0` / `1` で読み、最後にQuarkusの `mode goal` を読みます（`mode` は `jvm` / `native`、`goal` は `fast-build` / `fast-start`）。\n\n1. Open Libertyの `server.xml` 断片として、機能名の重複を除いて名前順に `  <feature>名前</feature>` と1行ずつ表示してください（先頭は半角空白2つです）。機能が0件なら何も表示しません。\n2. Spring Bootのauto-configurationの判定を1行で表示します。`userBean` が1なら `BACK_OFF`、そうでなく `web` と `json` がどちらも1なら `AUTO_CONFIGURE`、それ以外は `NO_MATCH` です。\n3. Quarkusのビルド方式を1行で表示します。`goal` が `fast-build` なら `jvm`、`goal` が `fast-start` で `mode` が `native` なら `native-candidate`、それ以外は `measure` です。",
+          "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        int n = s.nextInt();\n        Set<String> features = new TreeSet<>();\n        for (int i = 0; i < n; i++) features.add(s.next());\n        boolean web = s.nextInt() == 1, json = s.nextInt() == 1, userBean = s.nextInt() == 1;\n        String mode = s.next(), goal = s.next();\n        /* TODO featureの表示 */ /* TODO auto-configurationの判定 */ /* TODO ビルド方式の判定 */\n    }\n}\n",
+          "visibleCases": [
+            {
+              "label": "標準準拠と起動速度",
+              "stdin": "5 rest cdi health rest persistence 1 1 0 native fast-start",
+              "expected": "  <feature>cdi</feature>\n  <feature>health</feature>\n  <feature>persistence</feature>\n  <feature>rest</feature>\nAUTO_CONFIGURE\nnative-candidate"
+            },
+            {
+              "label": "利用者定義beanとビルド速度",
+              "stdin": "2 rest rest 1 1 1 native fast-build",
+              "expected": "  <feature>rest</feature>\nBACK_OFF\njvm"
+            }
+          ],
+          "hiddenCases": [
+            {
+              "label": "機能0件で条件も合わない",
+              "stdin": "0 0 1 0 jvm fast-start",
+              "expected": "NO_MATCH\nmeasure"
+            },
+            {
+              "label": "JVMモードでは候補にしない",
+              "stdin": "1 cdi 1 1 0 jvm fast-start",
+              "expected": "  <feature>cdi</feature>\nAUTO_CONFIGURE\nmeasure"
+            },
+            {
+              "label": "利用者定義beanが常に勝つ",
+              "stdin": "1 rest 0 0 1 native fast-start",
+              "expected": "  <feature>rest</feature>\nBACK_OFF\nnative-candidate"
+            },
+            {
+              "label": "ビルド速度優先はJVM",
+              "stdin": "1 rest 1 1 0 jvm fast-build",
+              "expected": "  <feature>rest</feature>\nAUTO_CONFIGURE\njvm"
+            },
+            {
+              "label": "機能名を名前順に並べる",
+              "stdin": "3 zeta alpha mid 1 1 0 native fast-start",
+              "expected": "  <feature>alpha</feature>\n  <feature>mid</feature>\n  <feature>zeta</feature>\nAUTO_CONFIGURE\nnative-candidate"
+            }
+          ],
+          "hints": [
+            "`TreeSet` へ入れるだけで、重複が消えて名前順になります。",
+            "auto-configurationは「利用者が自分でbeanを定義していたら手を引く」条件が最優先です。判定の順番をそのまま書きます。",
+            "3つの出力はどれも同じ要件から導いています。同じ要件を3つの形へ写せるかが、フレームワークを比較できる状態です。"
+          ],
+          "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        int n = s.nextInt();\n        Set<String> features = new TreeSet<>();\n        for (int i = 0; i < n; i++) features.add(s.next());\n        boolean web = s.nextInt() == 1, json = s.nextInt() == 1, userBean = s.nextInt() == 1;\n        String mode = s.next(), goal = s.next();\n        for (String f : features) System.out.println(\"  <feature>\" + f + \"</feature>\");\n        System.out.println(userBean ? \"BACK_OFF\" : web && json ? \"AUTO_CONFIGURE\" : \"NO_MATCH\");\n        System.out.println(goal.equals(\"fast-build\") ? \"jvm\" : goal.equals(\"fast-start\") && mode.equals(\"native\") ? \"native-candidate\" : \"measure\");\n    }\n}\n",
+          "sourceChecks": [
+            {
+              "pattern": "\\bnew\\s+TreeSet\\b|\\.sorted\\s*\\(|Collections\\s*\\.\\s*sort",
+              "minimum": 1,
+              "message": "機能名は辞書順に出すので `TreeSet` に入れてください。"
+            },
+            {
+              "pattern": "==\\s*1",
+              "minimum": 1,
+              "message": "classpathの条件は `0` / `1` で来るので、`1` かどうかで真偽に直してください。"
+            }
+          ]
+        }
+      ]
     }
   ]
 }

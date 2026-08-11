@@ -1,77 +1,638 @@
 {
-  "id":"ch43","title":"Java 21の型パターンとメタデータ","subtitle":"sealed・pattern matching・record・annotationを組み合わせる","emoji":"🧬",
-  "lessons":[
+  "id": "ch43",
+  "title": "Java 21の型パターンとメタデータ",
+  "subtitle": "sealed・pattern matching・record・annotationを組み合わせる",
+  "emoji": "🧬",
+  "lessons": [
     {
-      "id":"43-1","title":"sealed classで継承先を閉じる",
-      "explanation":"## 許可した型だけに限定する\n\n`sealed` なクラス/インターフェースは、直接のサブタイプを `permits` で限定します。許可された側は `final`、`sealed`、`non-sealed` のいずれかを宣言します。\n\n```java\nsealed interface Payment permits Cash, Card {}\nrecord Cash(int amount) implements Payment {}\nrecord Card(int amount,String brand) implements Payment {}\n```\n\n```svg `permits` に挙げた型だけがサブタイプになれる。候補が閉じるので網羅性を検査できる\n<svg viewBox=\"0 0 720 246\">\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"360\" y=\"24\" text-anchor=\"middle\">許可した型だけがサブタイプになれる</text>\n  <rect class=\"fig-box-accent\" x=\"280\" y=\"40\" width=\"160\" height=\"44\" rx=\"6\"/>\n  <text class=\"fig-t fig-mono fig-small fig-t-accent\" x=\"360\" y=\"62\" text-anchor=\"middle\">sealed Payment</text>\n\n  <rect class=\"fig-box\" x=\"120\" y=\"120\" width=\"150\" height=\"44\" rx=\"6\"/>\n  <text class=\"fig-t fig-mono fig-small\" x=\"195\" y=\"142\" text-anchor=\"middle\">Cash</text>\n  <rect class=\"fig-box\" x=\"300\" y=\"120\" width=\"150\" height=\"44\" rx=\"6\"/>\n  <text class=\"fig-t fig-mono fig-small\" x=\"375\" y=\"142\" text-anchor=\"middle\">Card</text>\n  <rect class=\"fig-box-dim\" x=\"500\" y=\"120\" width=\"170\" height=\"44\" rx=\"6\"/>\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"585\" y=\"142\" text-anchor=\"middle\">ほかのクラス</text>\n\n  <line class=\"fig-line-ok\" x1=\"195\" y1=\"118\" x2=\"300\" y2=\"86\" marker-end=\"arrow-ok\"/>\n  <line class=\"fig-line-ok\" x1=\"375\" y1=\"118\" x2=\"365\" y2=\"88\" marker-end=\"arrow-ok\"/>\n  <line class=\"fig-line-ng fig-dashed\" x1=\"560\" y1=\"118\" x2=\"444\" y2=\"86\"/>\n  <line class=\"fig-line-ng\" x1=\"494\" y1=\"94\" x2=\"506\" y2=\"106\"/>\n  <line class=\"fig-line-ng\" x1=\"506\" y1=\"94\" x2=\"494\" y2=\"106\"/>\n  <text class=\"fig-t fig-mono fig-small fig-t-accent\" x=\"222\" y=\"88\">permits</text>\n  <text class=\"fig-t fig-t-ng fig-small\" x=\"700\" y=\"182\" text-anchor=\"end\">permits に無い型は実装できない</text>\n\n  <text class=\"fig-t fig-t-ok fig-small\" x=\"14\" y=\"208\">候補が閉じているので、switch が全部の型を扱っているかコンパイラが検査できる（default を書かなくてよい）</text>\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"14\" y=\"232\">外部から自由に実装してほしい拡張APIには向かない。業務の状態や構文木のように候補を管理したいモデルに向く</text>\n</svg>\n```\n\n型の候補が閉じていると、コンパイラが分岐の網羅性を検査できます。外部から自由に実装してほしい拡張APIには向きませんが、業務状態や構文木のように候補を管理したいモデルに有効です。",
-      "samples":[{"caption":"閉じた支払型","code":"sealed interface Payment permits Cash,Card{} record Cash(int amount)implements Payment{} record Card(int amount)implements Payment{} public class Main{public static void main(String[]a){Payment p=new Cash(100);System.out.println(p);}}\n"}],
-      "task":"sealed interface `Result` と、`Ok(String value)`、`Error(String message)` の2つのrecordを作り、入力 `ok/error text` に応じて作った値を表示してください。",
-      "starterCode":"import java.util.*;\n/* TODO types */ public class Main {public static void main(String[] args){Scanner s=new Scanner(System.in);String kind=s.next(),text=s.next();Object r=null;/* TODO */System.out.println(r);}}\n",
-      "visibleCases":[{"label":"成功","stdin":"ok saved","expected":"Ok[value=saved]"},{"label":"失敗","stdin":"error denied","expected":"Error[message=denied]"}],"hiddenCases":[{"label":"数字を含む値","stdin":"ok 12345","expected":"Ok[value=12345]"},{"label":"ok以外はErrorになる","stdin":"ng failed","expected":"Error[message=failed]"}],
-      "hints":["`sealed interface Result permits Ok, Error {}`。","recordは暗黙にfinalです。"],
-      "solution":"import java.util.*;\nsealed interface Result permits Ok,Error{} record Ok(String value)implements Result{} record Error(String message)implements Result{} public class Main {public static void main(String[] args){Scanner s=new Scanner(System.in);String kind=s.next(),text=s.next();Result r=kind.equals(\"ok\")?new Ok(text):new Error(text);System.out.println(r);}}\n",
-      "extraTasks":[{"kind":"applied","task":"sealed class `Shape` とfinal class `Circle`、non-sealed class `Rectangle` を宣言し、入力に応じてクラスの単純名を表示してください。","starterCode":"import java.util.*;\n/* TODO hierarchy */ public class Main {public static void main(String[] args){String kind=new Scanner(System.in).next();Object s=null;/* TODO */System.out.println(s.getClass().getSimpleName());}}\n","visibleCases":[{"label":"円","stdin":"circle","expected":"Circle"}],"hiddenCases":[{"label":"長方形","stdin":"rectangle","expected":"Rectangle"},{"label":"circle以外はRectangle","stdin":"square","expected":"Rectangle"}],"hints":["`sealed abstract class Shape permits Circle, Rectangle {}`。","Circleはfinal、Rectangleはnon-sealed。"],"solution":"import java.util.*;\nsealed abstract class Shape permits Circle,Rectangle{} final class Circle extends Shape{} non-sealed class Rectangle extends Shape{} public class Main {public static void main(String[] args){String kind=new Scanner(System.in).next();Shape s=kind.equals(\"circle\")?new Circle():new Rectangle();System.out.println(s.getClass().getSimpleName());}}\n"}],
-      "quiz":[{"question":"sealed型の直接サブタイプが宣言するものは？","choices":["final/sealed/non-sealedのいずれか","必ずabstractだけ","必ずpublic static","何も宣言できない"],"answer":0,"explanation":"継承をそこで止めるか、さらに制限するか、開放するかを明示します。"}]
-    },
-    {
-      "id":"43-2","title":"pattern matching for switch",
-      "explanation":"## 型の確認と取り出しを1つのcaseで行う\n\nJava 21ではswitchのcaseに型パターンを書けます。sealed階層なら全サブタイプを列挙することでdefaultなしでも網羅的にできます。`case null` も明示でき、広い型を先に置いて狭い型を到達不能にするとコンパイルエラーです。\n\n```java\nreturn switch (result) {\n    case Ok(String value) -> value;\n    case Error(String message) -> \"error: \" + message;\n};\n```\n\n`when` guardを使うと、型に加えて値の条件もcaseへ書けます。分岐順と網羅性をコンパイラに検査してもらえるのが利点です。",
-      "samples":[{"caption":"型switch","code":"public class Main{static String describe(Object x){return switch(x){case null->\"null\";case Integer n when n>0->\"positive\";case Integer n->\"integer\";case String s->\"text\";default->\"other\";};}public static void main(String[]a){System.out.println(describe(3));}}\n"}],
-      "task":"sealedな `Command`（`Add(int value)` / `Reset()`）をswitchで処理し、初期値startに対して `add n` は加算、`reset` は0を表示してください。defaultは使いません。",
-      "starterCode":"import java.util.*;\nsealed interface Command permits Add,Reset{} record Add(int value)implements Command{} record Reset()implements Command{}\npublic class Main {static int apply(int start,Command c){return 0;}public static void main(String[] args){Scanner s=new Scanner(System.in);int start=s.nextInt();String op=s.next();Command c=op.equals(\"add\")?new Add(s.nextInt()):new Reset();System.out.println(apply(start,c));}}\n",
-      "visibleCases":[{"label":"加算","stdin":"10 add -3","expected":"7"},{"label":"リセット","stdin":"10 reset","expected":"0"}],"hiddenCases":[{"label":"0を加算","stdin":"10 add 0","expected":"10"},{"label":"初期値が負","stdin":"-5 add 3","expected":"-2"},{"label":"初期値が負でreset","stdin":"-5 reset","expected":"0"}],
-      "hints":["`return switch(c)`。","`case Add(int value) -> start + value; case Reset() -> 0;`。"],
-      "solution":"import java.util.*;\nsealed interface Command permits Add,Reset{} record Add(int value)implements Command{} record Reset()implements Command{}\npublic class Main {static int apply(int start,Command c){return switch(c){case Add(int value)->start+value;case Reset()->0;};}public static void main(String[] args){Scanner s=new Scanner(System.in);int start=s.nextInt();String op=s.next();Command c=op.equals(\"add\")?new Add(s.nextInt()):new Reset();System.out.println(apply(start,c));}}\n",
-      "sourceChecks":[
-        {"pattern":"\\bswitch\\s*\\(","minimum":1,"message":"Commandをswitchパターンで処理してください。"},
-        {"pattern":"\\bdefault\\b","minimum":0,"maximum":0,"message":"sealed型を網羅し、defaultを使わずに実装してください。"}
+      "id": "43-1",
+      "title": "sealed classで継承先を閉じる",
+      "explanation": "## 許可した型だけに限定する\n\n`sealed` なクラス/インターフェースは、直接のサブタイプを `permits` で限定します。許可された側は `final`、`sealed`、`non-sealed` のいずれかを宣言します。\n\n```java\nsealed interface Payment permits Cash, Card {}\nrecord Cash(int amount) implements Payment {}\nrecord Card(int amount,String brand) implements Payment {}\n```\n\n```svg `permits` に挙げた型だけがサブタイプになれる。候補が閉じるので網羅性を検査できる\n<svg viewBox=\"0 0 720 246\">\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"360\" y=\"24\" text-anchor=\"middle\">許可した型だけがサブタイプになれる</text>\n  <rect class=\"fig-box-accent\" x=\"280\" y=\"40\" width=\"160\" height=\"44\" rx=\"6\"/>\n  <text class=\"fig-t fig-mono fig-small fig-t-accent\" x=\"360\" y=\"62\" text-anchor=\"middle\">sealed Payment</text>\n\n  <rect class=\"fig-box\" x=\"120\" y=\"120\" width=\"150\" height=\"44\" rx=\"6\"/>\n  <text class=\"fig-t fig-mono fig-small\" x=\"195\" y=\"142\" text-anchor=\"middle\">Cash</text>\n  <rect class=\"fig-box\" x=\"300\" y=\"120\" width=\"150\" height=\"44\" rx=\"6\"/>\n  <text class=\"fig-t fig-mono fig-small\" x=\"375\" y=\"142\" text-anchor=\"middle\">Card</text>\n  <rect class=\"fig-box-dim\" x=\"500\" y=\"120\" width=\"170\" height=\"44\" rx=\"6\"/>\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"585\" y=\"142\" text-anchor=\"middle\">ほかのクラス</text>\n\n  <line class=\"fig-line-ok\" x1=\"195\" y1=\"118\" x2=\"300\" y2=\"86\" marker-end=\"arrow-ok\"/>\n  <line class=\"fig-line-ok\" x1=\"375\" y1=\"118\" x2=\"365\" y2=\"88\" marker-end=\"arrow-ok\"/>\n  <line class=\"fig-line-ng fig-dashed\" x1=\"560\" y1=\"118\" x2=\"444\" y2=\"86\"/>\n  <line class=\"fig-line-ng\" x1=\"494\" y1=\"94\" x2=\"506\" y2=\"106\"/>\n  <line class=\"fig-line-ng\" x1=\"506\" y1=\"94\" x2=\"494\" y2=\"106\"/>\n  <text class=\"fig-t fig-mono fig-small fig-t-accent\" x=\"222\" y=\"88\">permits</text>\n  <text class=\"fig-t fig-t-ng fig-small\" x=\"700\" y=\"182\" text-anchor=\"end\">permits に無い型は実装できない</text>\n\n  <text class=\"fig-t fig-t-ok fig-small\" x=\"14\" y=\"208\">候補が閉じているので、switch が全部の型を扱っているかコンパイラが検査できる（default を書かなくてよい）</text>\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"14\" y=\"232\">外部から自由に実装してほしい拡張APIには向かない。業務の状態や構文木のように候補を管理したいモデルに向く</text>\n</svg>\n```\n\n型の候補が閉じていると、コンパイラが分岐の網羅性を検査できます。外部から自由に実装してほしい拡張APIには向きませんが、業務状態や構文木のように候補を管理したいモデルに有効です。",
+      "samples": [
+        {
+          "caption": "閉じた支払型",
+          "code": "sealed interface Payment permits Cash, Card { }\n\nrecord Cash(int amount) implements Payment { }\n\nrecord Card(int amount) implements Payment { }\n\npublic class Main {\n    public static void main(String[] a) {\n        Payment p = new Cash(100);\n        System.out.println(p);\n    }\n}\n"
+        }
       ],
-      "extraTasks":[{"kind":"applied","task":"Objectを `null` / `int 値` / `text 値` として読み、switchパターンで `null`、`positive:n`、`integer:n`、`text:s` のいずれかを表示してください。","starterCode":"import java.util.*;\npublic class Main {static String describe(Object x){return \"\";}public static void main(String[] args){Scanner s=new Scanner(System.in);String kind=s.next();Object x=switch(kind){case \"null\"->null;case \"int\"->s.nextInt();default->s.next();};System.out.println(describe(x));}}\n","visibleCases":[{"label":"正数","stdin":"int 3","expected":"positive:3"},{"label":"null","stdin":"null","expected":"null"}],"hiddenCases":[{"label":"負数","stdin":"int -2","expected":"integer:-2"},{"label":"文字","stdin":"text java","expected":"text:java"}],"hints":["`case Integer n when n > 0` を通常のInteger caseより前に置きます。","case nullも書きます。"],"solution":"import java.util.*;\npublic class Main {static String describe(Object x){return switch(x){case null->\"null\";case Integer n when n>0->\"positive:\"+n;case Integer n->\"integer:\"+n;case String text->\"text:\"+text;default->\"other\";};}public static void main(String[] args){Scanner s=new Scanner(System.in);String kind=s.next();Object x=switch(kind){case \"null\"->null;case \"int\"->s.nextInt();default->s.next();};System.out.println(describe(x));}}\n"}],
-      "quiz":[{"question":"型パターンのcase順でコンパイルエラーになり得るものは？","choices":["StringをCharSequenceより前","CharSequenceをStringより前","case nullを追加","sealed型を網羅"],"answer":1,"explanation":"広いCharSequenceが先にあるとString caseは到達不能です。"}]
-    },
-    {
-      "id":"43-3","title":"record patternsで分解する",
-      "explanation":"## recordの部品をパターンで取り出す\n\nrecord patternは型の確認とコンポーネントの取り出しを同時に行います。パターンは入れ子にでき、`Order(Customer(String name), int amount)` のような構造をそのままcaseへ書けます。\n\nデータ構造が変わるとコンパイルエラーで利用箇所を発見できる一方、深すぎる分解は読みにくくなります。値の意味が複雑ならメソッドへ切り出します。",
-      "samples":[{"caption":"入れ子recordを分解","code":"record Point(int x,int y){} record Line(Point from,Point to){} public class Main{public static void main(String[]a){Object x=new Line(new Point(1,2),new Point(3,4));if(x instanceof Line(Point(int x1,int y1),Point(int x2,int y2)))System.out.println(x1+y1+x2+y2);}}\n"}],
-      "task":"record `Customer(String name)` と `Order(Customer customer,int amount)` を作り、record patternで分解して `name:amount` と表示してください。",
-      "starterCode":"import java.util.*;\nrecord Customer(String name){} record Order(Customer customer,int amount){}\npublic class Main {static String label(Object value){return \"\";}public static void main(String[] args){Scanner s=new Scanner(System.in);System.out.println(label(new Order(new Customer(s.next()),s.nextInt())));}}\n",
-      "visibleCases":[{"label":"注文","stdin":"alice 1200","expected":"alice:1200"}],"hiddenCases":[{"label":"0","stdin":"bob 0","expected":"bob:0"},{"label":"負の金額","stdin":"carol -100","expected":"carol:-100"},{"label":"1文字の名前","stdin":"x 1","expected":"x:1"}],
-      "hints":["`if (value instanceof Order(Customer(String name), int amount))`。"],
-      "solution":"import java.util.*;\nrecord Customer(String name){} record Order(Customer customer,int amount){}\npublic class Main {static String label(Object value){if(value instanceof Order(Customer(String name),int amount))return name+\":\"+amount;return \"unknown\";}public static void main(String[] args){Scanner s=new Scanner(System.in);System.out.println(label(new Order(new Customer(s.next()),s.nextInt())));}}\n",
-      "extraTasks":[{"kind":"applied","task":"sealedな式 `Num(int value)` / `Add(Expr left,Expr right)` をrecord patternとswitchで再帰評価してください。入力3整数a,b,cから `(a+b)+c` を作ります。","starterCode":"import java.util.*;\nsealed interface Expr permits Num,Add{} record Num(int value)implements Expr{} record Add(Expr left,Expr right)implements Expr{}\npublic class Main {static int eval(Expr e){return 0;}public static void main(String[] args){Scanner s=new Scanner(System.in);Expr e=new Add(new Add(new Num(s.nextInt()),new Num(s.nextInt())),new Num(s.nextInt()));System.out.println(eval(e));}}\n","visibleCases":[{"label":"加算","stdin":"1 2 3","expected":"6"}],"hiddenCases":[{"label":"負数","stdin":"-1 5 -9","expected":"-5"},{"label":"すべて0","stdin":"0 0 0","expected":"0"},{"label":"大きい値","stdin":"1000000 2000000 3000000","expected":"6000000"}],"hints":["`case Num(int value) -> value`。","`case Add(Expr left, Expr right) -> eval(left)+eval(right)`。"],"solution":"import java.util.*;\nsealed interface Expr permits Num,Add{} record Num(int value)implements Expr{} record Add(Expr left,Expr right)implements Expr{}\npublic class Main {static int eval(Expr e){return switch(e){case Num(int value)->value;case Add(Expr left,Expr right)->eval(left)+eval(right);};}public static void main(String[] args){Scanner s=new Scanner(System.in);Expr e=new Add(new Add(new Num(s.nextInt()),new Num(s.nextInt())),new Num(s.nextInt()));System.out.println(eval(e));}}\n"}],
-      "quiz":[{"question":"record patternの主な役割は？","choices":["recordを可変にする","型確認とコンポーネント取り出しを同時に行う","GCを停止する","privateフィールドを書き換える"],"answer":1,"explanation":"recordの構造に沿って値を分解できます。"}]
-    },
-    {
-      "id":"43-4","title":"独自アノテーションとリフレクション",
-      "explanation":"## コードへ機械が読むメタデータを付ける\n\nアノテーションは処理そのものではなくメタデータです。`@Retention(RUNTIME)` なら実行時にリフレクションで読め、`@Target(METHOD)` ならメソッドだけへ付けられます。ServletやCDIも、コンテナがアノテーションを見つけて処理することで動きます。\n\n```java\n@Retention(RetentionPolicy.RUNTIME)\n@Target(ElementType.METHOD)\n@interface Action { String value(); }\n```\n\nリフレクションは型安全性を弱め、名前変更の影響が実行時まで見えにくくなるため、通常のメソッド呼び出しで書けるところへ濫用しません。フレームワーク境界など、動的な発見が必要な場所で使います。",
-      "samples":[{"caption":"注釈を読み取る","code":"import java.lang.annotation.*;import java.lang.reflect.*;\n@Retention(RetentionPolicy.RUNTIME)@Target(ElementType.METHOD)@interface Label{String value();}class Job{@Label(\"daily\")void run(){}}public class Main{public static void main(String[]a)throws Exception{Method m=Job.class.getDeclaredMethod(\"run\");System.out.println(m.getAnnotation(Label.class).value());}}\n"}],
-      "task":"RUNTIME/METHODの `@Command(String value)` を作り、Handlerの2メソッドに付けます。リフレクションで注釈付きメソッドを名前順に `value->methodName` と表示してください。",
-      "starterCode":"import java.lang.annotation.*;import java.lang.reflect.*;import java.util.*;\n/* TODO annotation */ class Handler{/* TODO methods */}\npublic class Main {public static void main(String[] args){/* TODO */}}\n",
-      "visibleCases":[{"label":"メタデータ","stdin":"","expected":"create->add\nlist->show"}],"hiddenCases":[],
-      "hints":["`@Retention(RetentionPolicy.RUNTIME) @Target(ElementType.METHOD)`。","Handlerに `@Command(\"create\") void add(){}` と `@Command(\"list\") void show(){}`。","getDeclaredMethodsをmethod名でsortし、注釈があれば表示します。"],
-      "sourceChecks":[{"pattern":"@interface\\s+Command","minimum":1,"message":"2行を直接書かず、`@interface Command` を自分で宣言してください。"},{"pattern":"getDeclaredMethods\\s*\\(","minimum":1,"message":"メソッドの一覧は `getDeclaredMethods()` から取ってください。"},{"pattern":"getAnnotation\\s*\\(","minimum":1,"message":"`value` はリフレクションで `getAnnotation(Command.class)` から読み取ってください。"}],
-      "solution":"import java.lang.annotation.*;import java.lang.reflect.*;import java.util.*;\n@Retention(RetentionPolicy.RUNTIME)@Target(ElementType.METHOD)@interface Command{String value();} class Handler{@Command(\"create\")void add(){}@Command(\"list\")void show(){}void helper(){}}\npublic class Main {public static void main(String[] args){Arrays.stream(Handler.class.getDeclaredMethods()).sorted(Comparator.comparing(Method::getName)).filter(m->m.isAnnotationPresent(Command.class)).forEach(m->System.out.println(m.getAnnotation(Command.class).value()+\"->\"+m.getName()));}}\n",
-      "extraTasks":[{"kind":"applied","task":"`@Range(min,max)` をrecord componentへ付け、入力ageが範囲内かをリフレクションで検証して `valid/invalid` を表示してください。","starterCode":"import java.lang.annotation.*;import java.lang.reflect.*;import java.util.*;\n@Retention(RetentionPolicy.RUNTIME)@Target(ElementType.RECORD_COMPONENT)@interface Range{int min();int max();}record User(@Range(min=0,max=150) int age){}\npublic class Main {public static void main(String[] args)throws Exception{User u=new User(new Scanner(System.in).nextInt());/* TODO */}}\n","visibleCases":[{"label":"境界内","stdin":"150","expected":"valid"}],"hiddenCases":[{"label":"負数","stdin":"-1","expected":"invalid"},{"label":"超過","stdin":"151","expected":"invalid"},{"label":"下限0はvalid","stdin":"0","expected":"valid"}],"hints":["`User.class.getRecordComponents()[0].getAnnotation(Range.class)`。","u.age()をmin/maxと比較します。"],"solution":"import java.lang.annotation.*;import java.lang.reflect.*;import java.util.*;\n@Retention(RetentionPolicy.RUNTIME)@Target(ElementType.RECORD_COMPONENT)@interface Range{int min();int max();}record User(@Range(min=0,max=150) int age){}\npublic class Main {public static void main(String[] args)throws Exception{User u=new User(new Scanner(System.in).nextInt());Range r=User.class.getRecordComponents()[0].getAnnotation(Range.class);System.out.println(u.age()>=r.min()&&u.age()<=r.max()?\"valid\":\"invalid\");}}\n"}],
-      "quiz":[{"question":"実行時にアノテーションを読みたいときのRetentionは？","choices":["SOURCE","CLASSだけ","RUNTIME","NONE"],"answer":2,"explanation":"RUNTIMEなら実行時リフレクションで取得できます。"}]
-    },
-    {
-      "id":"43-5","title":"章末演習：閉じた型モデル",
-      "explanation":"## 型で状態と分岐を表す\n\nsealed階層、record、switch patternを組み合わせると、候補の追加時に処理漏れをコンパイラが知らせます。アノテーションは型そのものでは表せない付加情報に限定します。",
-      "samples":[{"caption":"状態を網羅する","code":"sealed interface State permits Ready,Failed{} record Ready(int count)implements State{} record Failed(String reason)implements State{} public class Main{static String show(State s){return switch(s){case Ready(int n)->\"ready:\"+n;case Failed(String r)->\"failed:\"+r;};}public static void main(String[]a){System.out.println(show(new Ready(2)));}}\n"}],
-      "task":"【基本】sealedな温度単位 `Celsius(double)` / `Fahrenheit(double)` をswitchで摂氏へ変換し、小数1桁で表示してください。",
-      "starterCode":"import java.util.*;\nsealed interface Temperature permits Celsius,Fahrenheit{} record Celsius(double value)implements Temperature{} record Fahrenheit(double value)implements Temperature{} public class Main {static double celsius(Temperature t){return 0;}public static void main(String[] args){Scanner s=new Scanner(System.in);String unit=s.next();double v=s.nextDouble();Temperature t=unit.equals(\"C\")?new Celsius(v):new Fahrenheit(v);System.out.printf(Locale.ROOT,\"%.1f%n\",celsius(t));}}\n",
-      "visibleCases":[{"label":"摂氏","stdin":"C 20","expected":"20.0"},{"label":"華氏","stdin":"F 32","expected":"0.0"}],"hiddenCases":[{"label":"華氏212","stdin":"F 212","expected":"100.0"},{"label":"華氏マイナス40は摂氏も同じ","stdin":"F -40","expected":"-40.0"},{"label":"摂氏0","stdin":"C 0","expected":"0.0"}],
-      "hints":["Celsiusはそのまま、Fahrenheitは `(value-32)*5/9`。"],
-      "solution":"import java.util.*;\nsealed interface Temperature permits Celsius,Fahrenheit{} record Celsius(double value)implements Temperature{} record Fahrenheit(double value)implements Temperature{} public class Main {static double celsius(Temperature t){return switch(t){case Celsius(double v)->v;case Fahrenheit(double v)->(v-32)*5/9;};}public static void main(String[] args){Scanner s=new Scanner(System.in);String unit=s.next();double v=s.nextDouble();Temperature t=unit.equals(\"C\")?new Celsius(v):new Fahrenheit(v);System.out.printf(Locale.ROOT,\"%.1f%n\",celsius(t));}}\n",
-      "extraTasks":[
-        {"kind":"drill","task":"【組み合わせ】sealedな通知 `Email(address)` / `Sms(number)` をrecord patternで分解し、それぞれ `email:...` / `sms:...` と表示してください。","starterCode":"import java.util.*;\nsealed interface Notice permits Email,Sms{} record Email(String address)implements Notice{} record Sms(String number)implements Notice{} public class Main {static String route(Notice n){return \"\";}public static void main(String[] args){Scanner s=new Scanner(System.in);Notice n=s.next().equals(\"email\")?new Email(s.next()):new Sms(s.next());System.out.println(route(n));}}\n","visibleCases":[{"label":"email","stdin":"email a@example.com","expected":"email:a@example.com"}],"hiddenCases":[{"label":"sms","stdin":"sms 0901234","expected":"sms:0901234"},{"label":"長いアドレス","stdin":"email very.long.name+tag@example.co.jp","expected":"email:very.long.name+tag@example.co.jp"},{"label":"email以外はSmsになる","stdin":"other 12345","expected":"sms:12345"}],"hints":["switchで2つのrecord patternを網羅します。"],"solution":"import java.util.*;\nsealed interface Notice permits Email,Sms{} record Email(String address)implements Notice{} record Sms(String number)implements Notice{} public class Main {static String route(Notice n){return switch(n){case Email(String a)->\"email:\"+a;case Sms(String p)->\"sms:\"+p;};}public static void main(String[] args){Scanner s=new Scanner(System.in);Notice n=s.next().equals(\"email\")?new Email(s.next()):new Sms(s.next());System.out.println(route(n));}}\n"},
-        {"kind":"applied","task":"【実践】`@Code` を付けたenum定数のコードをリフレクションで読み、入力名に対して `名前=code` と表示してください。","starterCode":"import java.lang.annotation.*;import java.lang.reflect.*;import java.util.*;\n@Retention(RetentionPolicy.RUNTIME)@Target(ElementType.FIELD)@interface Code{int value();}enum Status{@Code(200) OK,@Code(404) NOT_FOUND,@Code(500) ERROR}\npublic class Main {public static void main(String[] args)throws Exception{Status status=Status.valueOf(new Scanner(System.in).next());/* TODO */}}\n","visibleCases":[{"label":"OK","stdin":"OK","expected":"OK=200"}],"hiddenCases":[{"label":"404","stdin":"NOT_FOUND","expected":"NOT_FOUND=404"},{"label":"ERROR","stdin":"ERROR","expected":"ERROR=500"}],"hints":["`Status.class.getField(status.name())` でenum定数のField。","getAnnotation(Code.class).value()。"],"solution":"import java.lang.annotation.*;import java.lang.reflect.*;import java.util.*;\n@Retention(RetentionPolicy.RUNTIME)@Target(ElementType.FIELD)@interface Code{int value();}enum Status{@Code(200) OK,@Code(404) NOT_FOUND,@Code(500) ERROR}\npublic class Main {public static void main(String[] args)throws Exception{Status status=Status.valueOf(new Scanner(System.in).next());Code code=Status.class.getField(status.name()).getAnnotation(Code.class);System.out.println(status+\"=\"+code.value());}}\n"}
+      "task": "sealed interface `Result` と、`Ok(String value)`、`Error(String message)` の2つのrecordを作り、入力 `ok/error text` に応じて作った値を表示してください。",
+      "starterCode": "import java.util.*;\n/* TODO types */ public class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        String kind = s.next(), text = s.next();\n        Object r = null;\n        /* TODO */ System.out.println(r);\n    }\n}\n",
+      "visibleCases": [
+        {
+          "label": "成功",
+          "stdin": "ok saved",
+          "expected": "Ok[value=saved]"
+        },
+        {
+          "label": "失敗",
+          "stdin": "error denied",
+          "expected": "Error[message=denied]"
+        }
       ],
-      "quiz":[
-        {"question":"sealed階層をswitchで網羅する利点は？","choices":["サブタイプ追加時に処理漏れをコンパイラが検出できる","実行時の型が消える","常にdefaultが必要","継承が無制限になる"],"answer":0,"explanation":"閉じた候補集合をコンパイラが把握できます。"},
-        {"question":"recordは暗黙に何として扱われる？","choices":["abstract","final","non-sealed","interface"],"answer":1,"explanation":"record classは暗黙にfinalです。"},
-        {"question":"when guardの役割は？","choices":["型パターンへ追加条件を付ける","GCを実行する","アノテーションを削除する","recordを可変にする"],"answer":0,"explanation":"パターン一致後の値条件をcaseへ追加します。"},
-        {"question":"リフレクションを濫用しない理由は？","choices":["Javaでは使えないから","型安全性やリファクタリング検出が弱くなりやすいから","必ずコンパイルエラーだから","recordだけに限定されるから"],"answer":1,"explanation":"動的アクセスは問題の発見が実行時へ遅れやすくなります。"}
+      "hiddenCases": [
+        {
+          "label": "数字を含む値",
+          "stdin": "ok 12345",
+          "expected": "Ok[value=12345]"
+        },
+        {
+          "label": "ok以外はErrorになる",
+          "stdin": "ng failed",
+          "expected": "Error[message=failed]"
+        }
+      ],
+      "hints": [
+        "`sealed interface Result permits Ok, Error {}`。",
+        "recordは暗黙にfinalです。"
+      ],
+      "solution": "import java.util.*;\n\nsealed interface Result permits Ok, Error { }\n\nrecord Ok(String value) implements Result { }\n\nrecord Error(String message) implements Result { }\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        String kind = s.next(), text = s.next();\n        Result r = kind.equals(\"ok\") ? new Ok(text) : new Error(text);\n        System.out.println(r);\n    }\n}\n",
+      "extraTasks": [
+        {
+          "kind": "applied",
+          "task": "sealed class `Shape` とfinal class `Circle`、non-sealed class `Rectangle` を宣言し、入力に応じてクラスの単純名を表示してください。",
+          "starterCode": "import java.util.*;\n/* TODO hierarchy */ public class Main {\n    public static void main(String[] args) {\n        String kind = new Scanner(System.in).next();\n        Object s = null;\n        /* TODO */ System.out.println(s.getClass().getSimpleName());\n    }\n}\n",
+          "visibleCases": [
+            {
+              "label": "円",
+              "stdin": "circle",
+              "expected": "Circle"
+            }
+          ],
+          "hiddenCases": [
+            {
+              "label": "長方形",
+              "stdin": "rectangle",
+              "expected": "Rectangle"
+            },
+            {
+              "label": "circle以外はRectangle",
+              "stdin": "square",
+              "expected": "Rectangle"
+            }
+          ],
+          "hints": [
+            "`sealed abstract class Shape permits Circle, Rectangle {}`。",
+            "Circleはfinal、Rectangleはnon-sealed。"
+          ],
+          "solution": "import java.util.*;\n\nsealed abstract class Shape permits Circle, Rectangle { }\n\nfinal class Circle extends Shape { }\n\nnon-sealed class Rectangle extends Shape { }\n\npublic class Main {\n    public static void main(String[] args) {\n        String kind = new Scanner(System.in).next();\n        Shape s = kind.equals(\"circle\") ? new Circle() : new Rectangle();\n        System.out.println(s.getClass().getSimpleName());\n    }\n}\n",
+          "sourceChecks": [
+            {
+              "pattern": "\\bsealed\\b",
+              "minimum": 1,
+              "message": "継承先を限定するので `sealed` を付けてください。"
+            },
+            {
+              "pattern": "\\bpermits\\b",
+              "minimum": 1,
+              "message": "許可する継承先を `permits Circle, Rectangle` と明示してください。"
+            },
+            {
+              "pattern": "\\bfinal\\s+class\\s+Circle\\b",
+              "minimum": 1,
+              "message": "`Circle` はこれ以上継承させないので `final` にします。"
+            },
+            {
+              "pattern": "\\bnon-sealed\\s+class\\s+Rectangle\\b",
+              "minimum": 1,
+              "message": "`Rectangle` は継承を開くので `non-sealed` にします。sealedの直接の子は `final` / `sealed` / `non-sealed` のいずれかが必要です。"
+            }
+          ]
+        }
+      ],
+      "quiz": [
+        {
+          "question": "sealed型の直接サブタイプが宣言するものは？",
+          "choices": [
+            "必ず public static である",
+            "final/sealed/non-sealedのいずれか",
+            "abstract を付けることが求められる",
+            "追加の修飾子は宣言できない"
+          ],
+          "answer": 1,
+          "explanation": "`public static` はクラスの公開範囲と入れ子の話で、継承の制限とは別です。`abstract` を求められることはなく、修飾子を書けないわけでもありません。sealedの直接の子は、継承をそこで止める（`final`）か、さらに絞る（`sealed`）か、開放する（`non-sealed`）かを必ず明示します。"
+        }
+      ]
+    },
+    {
+      "id": "43-2",
+      "title": "pattern matching for switch",
+      "explanation": "## 型の確認と取り出しを1つのcaseで行う\n\nJava 21ではswitchのcaseに型パターンを書けます。sealed階層なら全サブタイプを列挙することでdefaultなしでも網羅的にできます。`case null` も明示でき、広い型を先に置いて狭い型を到達不能にするとコンパイルエラーです。\n\n```java\nreturn switch (result) {\n    case Ok(String value) -> value;\n    case Error(String message) -> \"error: \" + message;\n};\n```\n\n`when` guardを使うと、型に加えて値の条件もcaseへ書けます。分岐順と網羅性をコンパイラに検査してもらえるのが利点です。\n\n### 動かして確かめる\n\n```java\nsealed interface Result permits Ok, Err {}\nrecord Ok(String value) implements Result {}\nrecord Err(String message) implements Result {}\n\nstatic String describe(Result r) {\n    return switch (r) {\n        case Ok(String v) when v.isEmpty() -> \"空の成功\";\n        case Ok(String v)                  -> \"成功: \" + v;\n        case Err(String m)                 -> \"失敗: \" + m;\n    };\n}\n```\n\n`describe(new Ok(\"done\"))` `describe(new Ok(\"\"))` `describe(new Err(\"timeout\"))` の順に\n呼ぶと、こうなります。\n\n```\n成功: done\n空の成功\n失敗: timeout\n```\n\n`Result` は `sealed` で `Ok` と `Err` しかないので、**`default` を書かなくても\n網羅していると認めてもらえます**。あとで `Timeout` を追加すると、この `switch` が\nコンパイルエラーになって「ここも直して」と教えてくれます。\n\n> ⚠️ 間違えやすい点 … `when` を付けた狭いcaseは、**付けていない広いcaseより先** に\n> 書かなければなりません。上の例で順番を逆にすると、`case Ok(String v)` が先にすべての\n> `Ok` を受け取ってしまい、`when` のほうへは到達できないのでコンパイルエラーになります。\n> 第13章の「狭い例外を先に書く」と同じ考え方です。",
+      "samples": [
+        {
+          "caption": "型switch",
+          "code": "public class Main {\n    static String describe(Object x) {\n        return switch (x) {\n            case null -> \"null\";\n            case Integer n when n > 0 -> \"positive\";\n            case Integer n -> \"integer\";\n            case String s -> \"text\";\n            default -> \"other\";\n        };\n    }\n\n    public static void main(String[] a) {\n        System.out.println(describe(3));\n    }\n}\n"
+        }
+      ],
+      "task": "sealedな `Command`（`Add(int value)` / `Reset()`）をswitchで処理し、初期値startに対して `add n` は加算、`reset` は0を表示してください。defaultは使いません。",
+      "starterCode": "import java.util.*;\n\nsealed interface Command permits Add, Reset { }\n\nrecord Add(int value) implements Command { }\n\nrecord Reset() implements Command { }\n\npublic class Main {\n    static int apply(int start, Command c) {\n        return 0;\n    }\n\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        int start = s.nextInt();\n        String op = s.next();\n        Command c = op.equals(\"add\") ? new Add(s.nextInt()) : new Reset();\n        System.out.println(apply(start, c));\n    }\n}\n",
+      "visibleCases": [
+        {
+          "label": "加算",
+          "stdin": "10 add -3",
+          "expected": "7"
+        },
+        {
+          "label": "リセット",
+          "stdin": "10 reset",
+          "expected": "0"
+        }
+      ],
+      "hiddenCases": [
+        {
+          "label": "0を加算",
+          "stdin": "10 add 0",
+          "expected": "10"
+        },
+        {
+          "label": "初期値が負",
+          "stdin": "-5 add 3",
+          "expected": "-2"
+        },
+        {
+          "label": "初期値が負でreset",
+          "stdin": "-5 reset",
+          "expected": "0"
+        }
+      ],
+      "hints": [
+        "`return switch(c)`。",
+        "`case Add(int value) -> start + value; case Reset() -> 0;`。"
+      ],
+      "solution": "import java.util.*;\n\nsealed interface Command permits Add, Reset { }\n\nrecord Add(int value) implements Command { }\n\nrecord Reset() implements Command { }\n\npublic class Main {\n    static int apply(int start, Command c) {\n        return switch (c) {\n            case Add(int value) -> start + value;\n            case Reset() -> 0;\n        };\n    }\n\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        int start = s.nextInt();\n        String op = s.next();\n        Command c = op.equals(\"add\") ? new Add(s.nextInt()) : new Reset();\n        System.out.println(apply(start, c));\n    }\n}\n",
+      "sourceChecks": [
+        {
+          "pattern": "\\bswitch\\s*\\(",
+          "minimum": 1,
+          "message": "Commandをswitchパターンで処理してください。"
+        },
+        {
+          "pattern": "\\bdefault\\b",
+          "minimum": 0,
+          "maximum": 0,
+          "message": "sealed型を網羅し、defaultを使わずに実装してください。"
+        }
+      ],
+      "extraTasks": [
+        {
+          "kind": "applied",
+          "task": "Objectを `null` / `int 値` / `text 値` として読み、switchパターンで `null`、`positive:n`、`integer:n`、`text:s` のいずれかを表示してください。",
+          "starterCode": "import java.util.*;\n\npublic class Main {\n    static String describe(Object x) {\n        return \"\";\n    }\n\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        String kind = s.next();\n        Object x = switch (kind) {\n            case \"null\" -> null;\n            case \"int\" -> s.nextInt();\n            default -> s.next();\n        };\n        System.out.println(describe(x));\n    }\n}\n",
+          "visibleCases": [
+            {
+              "label": "正数",
+              "stdin": "int 3",
+              "expected": "positive:3"
+            },
+            {
+              "label": "null",
+              "stdin": "null",
+              "expected": "null"
+            }
+          ],
+          "hiddenCases": [
+            {
+              "label": "負数",
+              "stdin": "int -2",
+              "expected": "integer:-2"
+            },
+            {
+              "label": "文字",
+              "stdin": "text java",
+              "expected": "text:java"
+            }
+          ],
+          "hints": [
+            "`case Integer n when n > 0` を通常のInteger caseより前に置きます。",
+            "case nullも書きます。"
+          ],
+          "solution": "import java.util.*;\n\npublic class Main {\n    static String describe(Object x) {\n        return switch (x) {\n            case null -> \"null\";\n            case Integer n when n > 0 -> \"positive:\" + n;\n            case Integer n -> \"integer:\" + n;\n            case String text -> \"text:\" + text;\n            default -> \"other\";\n        };\n    }\n\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        String kind = s.next();\n        Object x = switch (kind) {\n            case \"null\" -> null;\n            case \"int\" -> s.nextInt();\n            default -> s.next();\n        };\n        System.out.println(describe(x));\n    }\n}\n",
+          "sourceChecks": [
+            {
+              "pattern": "\\bcase\\s+null\\b",
+              "minimum": 1,
+              "message": "`switch` の中で `null` も扱えます。`case null` を書かないと `NullPointerException` になります。"
+            },
+            {
+              "pattern": "\\bwhen\\b",
+              "minimum": 1,
+              "message": "同じ型で条件だけ違う分岐は `when` で書いてください。"
+            },
+            {
+              "pattern": "\\bcase\\s+Integer\\s+\\w+",
+              "minimum": 1,
+              "message": "型で分けるので `case Integer n` の形（型パターン）で書いてください。キャストは要りません。"
+            }
+          ]
+        }
+      ],
+      "quiz": [
+        {
+          "question": "型パターンのcase順でコンパイルエラーになり得るものは？",
+          "choices": [
+            "case nullを追加",
+            "CharSequenceをStringより前",
+            "sealed型を網羅",
+            "StringをCharSequenceより前"
+          ],
+          "answer": 1,
+          "explanation": "`case null` の追加は認められています。sealed型の網羅はむしろ推奨される書き方です。`String` を `CharSequence` より前に置くのは、狭いほうが先なので問題ありません。逆に広い `CharSequence` を先に置くと `String` は必ずそこで捕まるので、後ろの `case String` へ到達できずコンパイルエラーになります。"
+        }
+      ]
+    },
+    {
+      "id": "43-3",
+      "title": "record patternsで分解する",
+      "explanation": "## recordの部品をパターンで取り出す\n\nrecord patternは型の確認とコンポーネントの取り出しを同時に行います。パターンは入れ子にでき、`Order(Customer(String name), int amount)` のような構造をそのままcaseへ書けます。\n\nデータ構造が変わるとコンパイルエラーで利用箇所を発見できる一方、深すぎる分解は読みにくくなります。値の意味が複雑ならメソッドへ切り出します。\n\n### 入れ子のまま取り出す\n\n```java\nrecord Customer(String name) {}\nrecord Order(Customer customer, int amount) {}\n\nObject o = new Order(new Customer(\"Aki\"), 1200);\n\nif (o instanceof Order(Customer(String name), int amount)) {\n    System.out.println(name + \" / \" + amount);\n}\n```\n\n出力はこうなります。\n\n```\nAki / 1200\n```\n\n`Order` の中の `Customer` の中の `name` まで、**一気に変数へ取り出せている** のが要点です。\n`order.customer().name()` と書かずに済み、同時に型の確認も済んでいます。\n\n深く分解する必要がなければ、途中で止めても構いません。\n\n```java\nif (o instanceof Order(Customer c, int amount)) {   // c は Customer のまま\n    System.out.println(c.name() + \" / \" + amount);\n}\n```\n\n> ⚠️ 間違えやすい点 … パターンの形は **recordの宣言と一致していなければなりません**。\n> コンポーネントを増やしたり順番を変えたりすると、パターンを書いたところが\n> すべてコンパイルエラーになります。これは事故ではなく、直すべき場所を教えてくれる\n> 仕組みです。逆に言えば、深く分解するほど変更に弱くなるので、意味のある単位で止めます。",
+      "samples": [
+        {
+          "caption": "入れ子recordを分解",
+          "code": "record Point(int x, int y) { }\n\nrecord Line(Point from, Point to) { }\n\npublic class Main {\n    public static void main(String[] a) {\n        Object x = new Line(new Point(1, 2), new Point(3, 4));\n        if (x instanceof Line(Point(int x1, int y1), Point(int x2, int y2))) System.out.println(x1 + y1 + x2 + y2);\n    }\n}\n"
+        }
+      ],
+      "task": "record `Customer(String name)` と `Order(Customer customer,int amount)` を作り、record patternで分解して `name:amount` と表示してください。",
+      "starterCode": "import java.util.*;\n\nrecord Customer(String name) { }\n\nrecord Order(Customer customer, int amount) { }\n\npublic class Main {\n    static String label(Object value) {\n        return \"\";\n    }\n\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        System.out.println(label(new Order(new Customer(s.next()), s.nextInt())));\n    }\n}\n",
+      "visibleCases": [
+        {
+          "label": "注文",
+          "stdin": "alice 1200",
+          "expected": "alice:1200"
+        }
+      ],
+      "hiddenCases": [
+        {
+          "label": "0",
+          "stdin": "bob 0",
+          "expected": "bob:0"
+        },
+        {
+          "label": "負の金額",
+          "stdin": "carol -100",
+          "expected": "carol:-100"
+        },
+        {
+          "label": "1文字の名前",
+          "stdin": "x 1",
+          "expected": "x:1"
+        }
+      ],
+      "hints": [
+        "`if (value instanceof Order(Customer(String name), int amount))`。"
+      ],
+      "solution": "import java.util.*;\n\nrecord Customer(String name) { }\n\nrecord Order(Customer customer, int amount) { }\n\npublic class Main {\n    static String label(Object value) {\n        if (value instanceof Order(Customer(String name), int amount)) return name + \":\" + amount;\n        return \"unknown\";\n    }\n\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        System.out.println(label(new Order(new Customer(s.next()), s.nextInt())));\n    }\n}\n",
+      "extraTasks": [
+        {
+          "kind": "applied",
+          "task": "sealedな式 `Num(int value)` / `Add(Expr left,Expr right)` をrecord patternとswitchで再帰評価してください。入力3整数a,b,cから `(a+b)+c` を作ります。",
+          "starterCode": "import java.util.*;\n\nsealed interface Expr permits Num, Add { }\n\nrecord Num(int value) implements Expr { }\n\nrecord Add(Expr left, Expr right) implements Expr { }\n\npublic class Main {\n    static int eval(Expr e) {\n        return 0;\n    }\n\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        Expr e = new Add(new Add(new Num(s.nextInt()), new Num(s.nextInt())), new Num(s.nextInt()));\n        System.out.println(eval(e));\n    }\n}\n",
+          "visibleCases": [
+            {
+              "label": "加算",
+              "stdin": "1 2 3",
+              "expected": "6"
+            }
+          ],
+          "hiddenCases": [
+            {
+              "label": "負数",
+              "stdin": "-1 5 -9",
+              "expected": "-5"
+            },
+            {
+              "label": "すべて0",
+              "stdin": "0 0 0",
+              "expected": "0"
+            },
+            {
+              "label": "大きい値",
+              "stdin": "1000000 2000000 3000000",
+              "expected": "6000000"
+            }
+          ],
+          "hints": [
+            "`case Num(int value) -> value`。",
+            "`case Add(Expr left, Expr right) -> eval(left)+eval(right)`。"
+          ],
+          "solution": "import java.util.*;\n\nsealed interface Expr permits Num, Add { }\n\nrecord Num(int value) implements Expr { }\n\nrecord Add(Expr left, Expr right) implements Expr { }\n\npublic class Main {\n    static int eval(Expr e) {\n        return switch (e) {\n            case Num(int value) -> value;\n            case Add(Expr left, Expr right) -> eval(left) + eval(right);\n        };\n    }\n\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        Expr e = new Add(new Add(new Num(s.nextInt()), new Num(s.nextInt())), new Num(s.nextInt()));\n        System.out.println(eval(e));\n    }\n}\n",
+          "sourceChecks": [
+            {
+              "pattern": "\\bcase\\s+Num\\s*\\(",
+              "minimum": 1,
+              "message": "record patternで `case Num(int value)` と書けば、中身を直接取り出せます。"
+            },
+            {
+              "pattern": "\\bcase\\s+Add\\s*\\(",
+              "minimum": 1,
+              "message": "`case Add(Expr left, Expr right)` と書いて、左右をそのまま受け取ってください。"
+            },
+            {
+              "pattern": "\\beval\\s*\\(",
+              "minimum": 2,
+              "message": "入れ子の式は再帰で評価してください（`eval(left) + eval(right)`）。"
+            }
+          ]
+        }
+      ],
+      "quiz": [
+        {
+          "question": "record patternの主な役割は？",
+          "choices": [
+            "recordを可変にする",
+            "GCを停止する",
+            "型確認とコンポーネント取り出しを同時に行う",
+            "privateフィールドを書き換える"
+          ],
+          "answer": 2,
+          "explanation": "record patternは可変にする仕組みではなく、GCとも無関係で、privateフィールドを書き換えるものでもありません。`case Point(int x, int y)` と書くと、「Pointか」の判定と「中身をxとyへ取り出す」を一度に行えます。判定・キャスト・呼び出しを別々に書く必要がなくなります。"
+        }
+      ]
+    },
+    {
+      "id": "43-4",
+      "title": "独自アノテーションとリフレクション",
+      "explanation": "## コードへ機械が読むメタデータを付ける\n\nアノテーションは処理そのものではなくメタデータです。`@Retention(RUNTIME)` なら実行時にリフレクションで読め、`@Target(METHOD)` ならメソッドだけへ付けられます。ServletやCDIも、コンテナがアノテーションを見つけて処理することで動きます。\n\n```java\n@Retention(RetentionPolicy.RUNTIME)\n@Target(ElementType.METHOD)\n@interface Action { String value(); }\n```\n\nリフレクションは型安全性を弱め、名前変更の影響が実行時まで見えにくくなるため、通常のメソッド呼び出しで書けるところへ濫用しません。フレームワーク境界など、動的な発見が必要な場所で使います。\n\n### 動かして確かめる\n\n自分でアノテーションを宣言し、実行時に読み取ります。\n\n```java\n@Retention(RetentionPolicy.RUNTIME)      // 実行時まで残す\n@Target(ElementType.METHOD)              // メソッドにだけ付けられる\n@interface Command {\n    String value();\n    boolean admin() default false;       // 既定値つき\n}\n\nclass Handlers {\n    @Command(\"greet\") void greet() {}\n    @Command(value = \"shutdown\", admin = true) void shutdown() {}\n    void notACommand() {}\n}\n```\n\n読み取り側はリフレクションです。\n\n```java\nfor (Method m : Handlers.class.getDeclaredMethods()) {\n    Command c = m.getAnnotation(Command.class);\n    if (c != null) {\n        System.out.println(m.getName() + \" -> value=\" + c.value() + \" admin=\" + c.admin());\n    }\n}\n```\n\n```\ngreet -> value=greet admin=false\nshutdown -> value=shutdown admin=true\n```\n\n`notACommand` は `getAnnotation` が `null` を返すので飛ばされます。\n`admin` は書かなかったので既定値の `false` です。\n\n> ⚠️ 間違えやすい点 … `@Retention` を書かないと既定は `CLASS` で、\n> **クラスファイルには入るが実行時には読めません**。`getAnnotation` が黙って `null` を\n> 返すので、原因が分かりにくい形で動きません。実行時に読むなら `RUNTIME` が必須です。\n> また、リフレクションはコンパイラの検査を通らないので、名前の打ち間違いが実行時まで\n> 分かりません。フレームワークの内側のような、限られた場所で使う道具です。",
+      "samples": [
+        {
+          "caption": "注釈を読み取る",
+          "code": "import java.lang.annotation.*;\nimport java.lang.reflect.*;\n\n@Retention(RetentionPolicy.RUNTIME)\n@Target(ElementType.METHOD)\n@interface\nLabel {\n    String value();\n}\n\nclass Job {\n    @Label(\"daily\")\n    void run() { }\n}\n\npublic class Main {\n    public static void main(String[] a) throws Exception {\n        Method m = Job.class.getDeclaredMethod(\"run\");\n        System.out.println(m.getAnnotation(Label.class).value());\n    }\n}\n"
+        }
+      ],
+      "task": "RUNTIME/METHODの `@Command(String value)` を作り、Handlerの2メソッドに付けます。リフレクションで注釈付きメソッドを名前順に `value->methodName` と表示してください。",
+      "starterCode": "import java.lang.annotation.*;import java.lang.reflect.*;import java.util.*;\n/* TODO annotation */ class Handler{/* TODO methods */}\npublic class Main {public static void main(String[] args){/* TODO */}}\n",
+      "visibleCases": [
+        {
+          "label": "メタデータ",
+          "stdin": "",
+          "expected": "create->add\nlist->show"
+        }
+      ],
+      "hiddenCases": [],
+      "hints": [
+        "`@Retention(RetentionPolicy.RUNTIME) @Target(ElementType.METHOD)`。",
+        "Handlerに `@Command(\"create\") void add(){}` と `@Command(\"list\") void show(){}`。",
+        "getDeclaredMethodsをmethod名でsortし、注釈があれば表示します。"
+      ],
+      "sourceChecks": [
+        {
+          "pattern": "@interface\\s+Command",
+          "minimum": 1,
+          "message": "2行を直接書かず、`@interface Command` を自分で宣言してください。"
+        },
+        {
+          "pattern": "getDeclaredMethods\\s*\\(",
+          "minimum": 1,
+          "message": "メソッドの一覧は `getDeclaredMethods()` から取ってください。"
+        },
+        {
+          "pattern": "getAnnotation\\s*\\(",
+          "minimum": 1,
+          "message": "`value` はリフレクションで `getAnnotation(Command.class)` から読み取ってください。"
+        }
+      ],
+      "solution": "import java.lang.annotation.*;\nimport java.lang.reflect.*;\nimport java.util.*;\n\n@Retention(RetentionPolicy.RUNTIME)\n@Target(ElementType.METHOD)\n@interface\nCommand {\n    String value();\n}\n\nclass Handler {\n    @Command(\"create\")\n    void add() { }\n\n    @Command(\"list\")\n    void show() { }\n\n    void helper() { }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Arrays.stream(Handler.class.getDeclaredMethods()).sorted(Comparator.comparing(Method::getName)).filter(m -> m.isAnnotationPresent(Command.class)).forEach(m -> System.out.println(m.getAnnotation(Command.class).value() + \"->\" + m.getName()));\n    }\n}\n",
+      "extraTasks": [
+        {
+          "kind": "applied",
+          "task": "`@Range(min,max)` をrecord componentへ付け、入力ageが範囲内かをリフレクションで検証して `valid/invalid` を表示してください。",
+          "starterCode": "import java.lang.annotation.*;\nimport java.lang.reflect.*;\nimport java.util.*;\n\n@Retention(RetentionPolicy.RUNTIME)\n@Target(ElementType.RECORD_COMPONENT)\n@interface\nRange {\n    int min();\n    int max();\n}\n\nrecord User(@Range(min = 0, max = 150) int age) { }\n\npublic class Main {\n    public static void main(String[] args) throws Exception {\n        User u = new User(new Scanner(System.in).nextInt());\n        /* TODO */\n    }\n}\n",
+          "visibleCases": [
+            {
+              "label": "境界内",
+              "stdin": "150",
+              "expected": "valid"
+            }
+          ],
+          "hiddenCases": [
+            {
+              "label": "負数",
+              "stdin": "-1",
+              "expected": "invalid"
+            },
+            {
+              "label": "超過",
+              "stdin": "151",
+              "expected": "invalid"
+            },
+            {
+              "label": "下限0はvalid",
+              "stdin": "0",
+              "expected": "valid"
+            }
+          ],
+          "hints": [
+            "`User.class.getRecordComponents()[0].getAnnotation(Range.class)`。",
+            "u.age()をmin/maxと比較します。"
+          ],
+          "solution": "import java.lang.annotation.*;\nimport java.lang.reflect.*;\nimport java.util.*;\n\n@Retention(RetentionPolicy.RUNTIME)\n@Target(ElementType.RECORD_COMPONENT)\n@interface\nRange {\n    int min();\n    int max();\n}\n\nrecord User(@Range(min = 0, max = 150) int age) { }\n\npublic class Main {\n    public static void main(String[] args) throws Exception {\n        User u = new User(new Scanner(System.in).nextInt());\n        Range r = User.class.getRecordComponents()[0].getAnnotation(Range.class);\n        System.out.println(u.age() >= r.min() && u.age() <= r.max() ? \"valid\" : \"invalid\");\n    }\n}\n",
+          "sourceChecks": [
+            {
+              "pattern": "RetentionPolicy\\s*\\.\\s*RUNTIME",
+              "minimum": 1,
+              "message": "実行時にリフレクションで読むので `RetentionPolicy.RUNTIME` が必要です。既定の `CLASS` では1つも取れません。"
+            },
+            {
+              "pattern": "RECORD_COMPONENT",
+              "minimum": 1,
+              "message": "recordの構成要素へ付けるので `@Target(ElementType.RECORD_COMPONENT)` を指定してください。"
+            },
+            {
+              "pattern": "getAnnotation\\s*\\(",
+              "minimum": 1,
+              "message": "付けた注釈は `getAnnotation` で読み出してください。"
+            }
+          ]
+        }
+      ],
+      "quiz": [
+        {
+          "question": "実行時にアノテーションを読みたいときのRetentionは？",
+          "choices": [
+            "SOURCE",
+            "RUNTIME",
+            "NONE",
+            "CLASSだけ"
+          ],
+          "answer": 1,
+          "explanation": "`SOURCE` はコンパイル時に捨てられるので `.class` にも残りません。`NONE` という値はありません。`CLASS` は `.class` には残りますが実行時のリフレクションからは読めず、しかも**これが既定値**なので、指定を忘れると1つも取れません。実行時に読むなら `RUNTIME` を明示します。"
+        }
+      ]
+    },
+    {
+      "id": "43-5",
+      "title": "章末演習：閉じた型モデル",
+      "explanation": "## 型で状態と分岐を表す\n\nsealed階層、record、switch patternを組み合わせると、候補の追加時に処理漏れをコンパイラが知らせます。アノテーションは型そのものでは表せない付加情報に限定します。",
+      "samples": [
+        {
+          "caption": "状態を網羅する",
+          "code": "sealed interface State permits Ready, Failed { }\n\nrecord Ready(int count) implements State { }\n\nrecord Failed(String reason) implements State { }\n\npublic class Main {\n    static String show(State s) {\n        return switch (s) {\n            case Ready(int n) -> \"ready:\" + n;\n            case Failed(String r) -> \"failed:\" + r;\n        };\n    }\n\n    public static void main(String[] a) {\n        System.out.println(show(new Ready(2)));\n    }\n}\n"
+        }
+      ],
+      "task": "【基本】sealedな温度単位 `Celsius(double)` / `Fahrenheit(double)` をswitchで摂氏へ変換し、小数1桁で表示してください。",
+      "starterCode": "import java.util.*;\n\nsealed interface Temperature permits Celsius, Fahrenheit { }\n\nrecord Celsius(double value) implements Temperature { }\n\nrecord Fahrenheit(double value) implements Temperature { }\n\npublic class Main {\n    static double celsius(Temperature t) {\n        return 0;\n    }\n\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        String unit = s.next();\n        double v = s.nextDouble();\n        Temperature t = unit.equals(\"C\") ? new Celsius(v) : new Fahrenheit(v);\n        System.out.printf(Locale.ROOT, \"%.1f%n\", celsius(t));\n    }\n}\n",
+      "visibleCases": [
+        {
+          "label": "摂氏",
+          "stdin": "C 20",
+          "expected": "20.0"
+        },
+        {
+          "label": "華氏",
+          "stdin": "F 32",
+          "expected": "0.0"
+        }
+      ],
+      "hiddenCases": [
+        {
+          "label": "華氏212",
+          "stdin": "F 212",
+          "expected": "100.0"
+        },
+        {
+          "label": "華氏マイナス40は摂氏も同じ",
+          "stdin": "F -40",
+          "expected": "-40.0"
+        },
+        {
+          "label": "摂氏0",
+          "stdin": "C 0",
+          "expected": "0.0"
+        }
+      ],
+      "hints": [
+        "Celsiusはそのまま、Fahrenheitは `(value-32)*5/9`。"
+      ],
+      "solution": "import java.util.*;\n\nsealed interface Temperature permits Celsius, Fahrenheit { }\n\nrecord Celsius(double value) implements Temperature { }\n\nrecord Fahrenheit(double value) implements Temperature { }\n\npublic class Main {\n    static double celsius(Temperature t) {\n        return switch (t) {\n            case Celsius(double v) -> v;\n            case Fahrenheit(double v) -> (v - 32) * 5 / 9;\n        };\n    }\n\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        String unit = s.next();\n        double v = s.nextDouble();\n        Temperature t = unit.equals(\"C\") ? new Celsius(v) : new Fahrenheit(v);\n        System.out.printf(Locale.ROOT, \"%.1f%n\", celsius(t));\n    }\n}\n",
+      "extraTasks": [
+        {
+          "kind": "drill",
+          "task": "【組み合わせ】sealedな通知 `Email(address)` / `Sms(number)` をrecord patternで分解し、それぞれ `email:...` / `sms:...` と表示してください。",
+          "starterCode": "import java.util.*;\n\nsealed interface Notice permits Email, Sms { }\n\nrecord Email(String address) implements Notice { }\n\nrecord Sms(String number) implements Notice { }\n\npublic class Main {\n    static String route(Notice n) {\n        return \"\";\n    }\n\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        Notice n = s.next().equals(\"email\") ? new Email(s.next()) : new Sms(s.next());\n        System.out.println(route(n));\n    }\n}\n",
+          "visibleCases": [
+            {
+              "label": "email",
+              "stdin": "email a@example.com",
+              "expected": "email:a@example.com"
+            }
+          ],
+          "hiddenCases": [
+            {
+              "label": "sms",
+              "stdin": "sms 0901234",
+              "expected": "sms:0901234"
+            },
+            {
+              "label": "長いアドレス",
+              "stdin": "email very.long.name+tag@example.co.jp",
+              "expected": "email:very.long.name+tag@example.co.jp"
+            },
+            {
+              "label": "email以外はSmsになる",
+              "stdin": "other 12345",
+              "expected": "sms:12345"
+            }
+          ],
+          "hints": [
+            "switchで2つのrecord patternを網羅します。"
+          ],
+          "solution": "import java.util.*;\n\nsealed interface Notice permits Email, Sms { }\n\nrecord Email(String address) implements Notice { }\n\nrecord Sms(String number) implements Notice { }\n\npublic class Main {\n    static String route(Notice n) {\n        return switch (n) {\n            case Email(String a) -> \"email:\" + a;\n            case Sms(String p) -> \"sms:\" + p;\n        };\n    }\n\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        Notice n = s.next().equals(\"email\") ? new Email(s.next()) : new Sms(s.next());\n        System.out.println(route(n));\n    }\n}\n",
+          "sourceChecks": [
+            {
+              "pattern": "\\bsealed\\b",
+              "minimum": 1,
+              "message": "通知の種類を閉じるので `sealed` にしてください。`switch` の網羅をコンパイラが確かめられます。"
+            },
+            {
+              "pattern": "\\bcase\\s+Email\\s*\\(",
+              "minimum": 1,
+              "message": "record patternで `case Email(String a)` と分解してください。"
+            }
+          ]
+        },
+        {
+          "kind": "applied",
+          "task": "【実践】`@Code` を付けたenum定数のコードをリフレクションで読み、入力名に対して `名前=code` と表示してください。",
+          "starterCode": "import java.lang.annotation.*;\nimport java.lang.reflect.*;\nimport java.util.*;\n\n@Retention(RetentionPolicy.RUNTIME)\n@Target(ElementType.FIELD)\n@interface\nCode {\n    int value();\n}\n\nenum Status {\n    @Code(200)\n    OK, @Code(404)\n    NOT_FOUND, @Code(500)\n    ERROR\n}\n\npublic class Main {\n    public static void main(String[] args) throws Exception {\n        Status status = Status.valueOf(new Scanner(System.in).next());\n        /* TODO */\n    }\n}\n",
+          "visibleCases": [
+            {
+              "label": "OK",
+              "stdin": "OK",
+              "expected": "OK=200"
+            }
+          ],
+          "hiddenCases": [
+            {
+              "label": "404",
+              "stdin": "NOT_FOUND",
+              "expected": "NOT_FOUND=404"
+            },
+            {
+              "label": "ERROR",
+              "stdin": "ERROR",
+              "expected": "ERROR=500"
+            }
+          ],
+          "hints": [
+            "`Status.class.getField(status.name())` でenum定数のField。",
+            "getAnnotation(Code.class).value()。"
+          ],
+          "solution": "import java.lang.annotation.*;\nimport java.lang.reflect.*;\nimport java.util.*;\n\n@Retention(RetentionPolicy.RUNTIME)\n@Target(ElementType.FIELD)\n@interface\nCode {\n    int value();\n}\n\nenum Status {\n    @Code(200)\n    OK, @Code(404)\n    NOT_FOUND, @Code(500)\n    ERROR\n}\n\npublic class Main {\n    public static void main(String[] args) throws Exception {\n        Status status = Status.valueOf(new Scanner(System.in).next());\n        Code code = Status.class.getField(status.name()).getAnnotation(Code.class);\n        System.out.println(status + \"=\" + code.value());\n    }\n}\n",
+          "sourceChecks": [
+            {
+              "pattern": "RetentionPolicy\\s*\\.\\s*RUNTIME",
+              "minimum": 1,
+              "message": "実行時に読むので `RetentionPolicy.RUNTIME` が必要です。"
+            },
+            {
+              "pattern": "getAnnotation\\s*\\(",
+              "minimum": 1,
+              "message": "enum定数に付けた注釈は、その定数のフィールドから `getAnnotation` で読みます。"
+            }
+          ]
+        }
+      ],
+      "quiz": [
+        {
+          "question": "sealed階層をswitchで網羅する利点は？",
+          "choices": [
+            "実行時に型の情報が消える",
+            "サブタイプ追加時に処理漏れをコンパイラが検出できる",
+            "継承できる範囲が無制限になる",
+            "switchに default を書くとコンパイルエラーになる"
+          ],
+          "answer": 1,
+          "explanation": "実行時に型情報が消えるのは型消去の話で、利点ではありません。sealedは継承範囲をむしろ狭めます。`default` を書いてもコンパイルエラーにはなりません。利点は、候補が閉じているためコンパイラが網羅を確認でき、サブタイプを追加したときに**直すべき `switch` を教えてくれる**ことです。"
+        },
+        {
+          "question": "recordは暗黙に何として扱われる？",
+          "choices": [
+            "non-sealed",
+            "abstract",
+            "interface",
+            "final"
+          ],
+          "answer": 3,
+          "explanation": "`non-sealed` はsealed階層の子に付ける修飾子で、recordの既定ではありません。`abstract` にはできず（必ず実体を持つため）、`interface` でもありません。recordは暗黙に `final` なので継承できません。値をそのまま表す型なので、振る舞いを差し替える余地を作らない設計です。"
+        },
+        {
+          "question": "when guardの役割は？",
+          "choices": [
+            "型パターンへ追加条件を付ける",
+            "アノテーションを削除する",
+            "recordを可変にする",
+            "GCを実行する"
+          ],
+          "answer": 0,
+          "explanation": "アノテーションの削除やrecordの可変化、GCの実行とは関係ありません。`when` は型パターンが一致した**あと**に、値そのものの条件を足すものです。`case Integer n when n > 0` と書けば、型と値の条件を1つのcaseにまとめられます。"
+        },
+        {
+          "question": "リフレクションを濫用しない理由は？",
+          "choices": [
+            "Javaでは使えないから",
+            "private メンバーへは触れないから",
+            "型安全性やリファクタリング検出が弱くなりやすいから",
+            "recordだけに限定されるから"
+          ],
+          "answer": 2,
+          "explanation": "Javaでリフレクションは使えますし、`setAccessible` を使えば private にも触れます。recordに限定されるものでもありません。問題は、名前を文字列で指定するためコンパイラの型検査もIDEの名前変更も効かず、間違いが**実行時まで**見つからないことです。"
+        }
       ]
     }
   ]

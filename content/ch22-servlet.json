@@ -90,7 +90,24 @@
             "`ByeServlet` の中に `doGet` を書きます。中身は `res.getWriter().println(\"Goodbye!\");` です。`HelloServlet` の `doGet` をそのまま真似できます。",
             "`main` の `MiniWeb.app()` の連なりに `.register(ByeServlet.class)` を足します。`.serve()` は最後に来るようにしてください。"
           ],
-          "solution": "import jakarta.servlet.ServletException;\nimport jakarta.servlet.annotation.WebServlet;\nimport jakarta.servlet.http.HttpServlet;\nimport jakarta.servlet.http.HttpServletRequest;\nimport jakarta.servlet.http.HttpServletResponse;\n\nimport java.io.IOException;\n\n@WebServlet(\"/hello\")\npublic class HelloServlet extends HttpServlet {\n\n    @Override\n    protected void doGet(HttpServletRequest req, HttpServletResponse res)\n            throws ServletException, IOException {\n        res.getWriter().println(\"Hello!\");\n    }\n\n    public static void main(String[] args) {\n        MiniWeb.app()\n               .register(HelloServlet.class)\n               .register(ByeServlet.class)\n               .serve();\n    }\n}\n\n@WebServlet(\"/bye\")\nclass ByeServlet extends HttpServlet {\n\n    @Override\n    protected void doGet(HttpServletRequest req, HttpServletResponse res)\n            throws ServletException, IOException {\n        res.getWriter().println(\"Goodbye!\");\n    }\n}\n"
+          "solution": "import jakarta.servlet.ServletException;\nimport jakarta.servlet.annotation.WebServlet;\nimport jakarta.servlet.http.HttpServlet;\nimport jakarta.servlet.http.HttpServletRequest;\nimport jakarta.servlet.http.HttpServletResponse;\n\nimport java.io.IOException;\n\n@WebServlet(\"/hello\")\npublic class HelloServlet extends HttpServlet {\n\n    @Override\n    protected void doGet(HttpServletRequest req, HttpServletResponse res)\n            throws ServletException, IOException {\n        res.getWriter().println(\"Hello!\");\n    }\n\n    public static void main(String[] args) {\n        MiniWeb.app()\n               .register(HelloServlet.class)\n               .register(ByeServlet.class)\n               .serve();\n    }\n}\n\n@WebServlet(\"/bye\")\nclass ByeServlet extends HttpServlet {\n\n    @Override\n    protected void doGet(HttpServletRequest req, HttpServletResponse res)\n            throws ServletException, IOException {\n        res.getWriter().println(\"Goodbye!\");\n    }\n}\n",
+          "sourceChecks": [
+            {
+              "pattern": "@WebServlet",
+              "minimum": 2,
+              "message": "サーブレットは1つのURLに対する処理です。URLが2つなので `@WebServlet` も2つ書いてください。"
+            },
+            {
+              "pattern": "\\bextends\\s+HttpServlet\\b",
+              "minimum": 2,
+              "message": "2つ目のサーブレットも `HttpServlet` を継承してください。"
+            },
+            {
+              "pattern": "\\.register\\s*\\(",
+              "minimum": 2,
+              "message": "作ったサーブレットは両方 `register` しないと呼ばれません。"
+            }
+          ]
         }
       ]
     },
@@ -196,7 +213,19 @@
             "`if (colors == null) { colors = new String[0]; }` としておくと、以降 `colors.length` を安心して見られます。",
             "`String.join(\", \", colors)` で `red, blue` の形になります。件数は `colors.length` です。0件のときだけ `選択なし` を出します。"
           ],
-          "solution": "import jakarta.servlet.ServletException;\nimport jakarta.servlet.annotation.WebServlet;\nimport jakarta.servlet.http.HttpServlet;\nimport jakarta.servlet.http.HttpServletRequest;\nimport jakarta.servlet.http.HttpServletResponse;\n\nimport java.io.IOException;\n\n@WebServlet(\"/pick\")\npublic class PickServlet extends HttpServlet {\n\n    @Override\n    protected void doGet(HttpServletRequest req, HttpServletResponse res)\n            throws ServletException, IOException {\n        String[] colors = req.getParameterValues(\"color\");\n        if (colors == null) {\n            // 無いときは null。空配列にしておくと、この後の処理を分けなくて済む\n            colors = new String[0];\n        }\n\n        if (colors.length == 0) {\n            res.getWriter().println(\"選択なし\");\n        } else {\n            res.getWriter().println(\"選んだ色: \" + String.join(\", \", colors)\n                    + \" (\" + colors.length + \"件)\");\n        }\n    }\n\n    public static void main(String[] args) {\n        MiniWeb.app().register(PickServlet.class).serve();\n    }\n}\n"
+          "solution": "import jakarta.servlet.ServletException;\nimport jakarta.servlet.annotation.WebServlet;\nimport jakarta.servlet.http.HttpServlet;\nimport jakarta.servlet.http.HttpServletRequest;\nimport jakarta.servlet.http.HttpServletResponse;\n\nimport java.io.IOException;\n\n@WebServlet(\"/pick\")\npublic class PickServlet extends HttpServlet {\n\n    @Override\n    protected void doGet(HttpServletRequest req, HttpServletResponse res)\n            throws ServletException, IOException {\n        String[] colors = req.getParameterValues(\"color\");\n        if (colors == null) {\n            // 無いときは null。空配列にしておくと、この後の処理を分けなくて済む\n            colors = new String[0];\n        }\n\n        if (colors.length == 0) {\n            res.getWriter().println(\"選択なし\");\n        } else {\n            res.getWriter().println(\"選んだ色: \" + String.join(\", \", colors)\n                    + \" (\" + colors.length + \"件)\");\n        }\n    }\n\n    public static void main(String[] args) {\n        MiniWeb.app().register(PickServlet.class).serve();\n    }\n}\n",
+          "sourceChecks": [
+            {
+              "pattern": "\\bgetParameterValues\\s*\\(",
+              "minimum": 1,
+              "message": "同じ名前のパラメータを全部取るのは `getParameterValues` です（`getParameter` では最初の1つしか取れません）。"
+            },
+            {
+              "pattern": "==\\s*null",
+              "minimum": 1,
+              "message": "1つも送られてこないと `null` が返ります。長さを見る前に確かめてください。"
+            }
+          ]
         }
       ]
     },
@@ -204,41 +233,325 @@
       "id": "22-3",
       "title": "HTTPメソッドとステータスコード",
       "explanation": "## はじめて学ぶ人へ\n\nHTTPメソッドとステータスコードは、Web上でやり取りするための**動作名**と**結果の合図**です。カフェで「メニューを見せて」「注文を追加して」と頼み、店員が「承りました」「その商品はありません」と返す場面を想像すると理解しやすくなります。\n\n### 具体例で見る流れ\n\n```text\nGET  /books/1     → 本を読むだけ     → 200 OK\nGET  /books/99    → 本が見つからない → 404 Not Found\nPOST /books       → 新しい本を登録   → 201 Created\n```\n\n同じURLでも、`GET` は取得、`POST` は新規作成というように目的が変わります。3桁のステータスコードは、本文を読む前に結果の種類を知らせる短い標識です。まずは「何をしたいかに合うメソッド」「実際の結果に合うステータス」を組み合わせられれば十分です。\n\n## 動詞で目的を表す\n\n同じURLでもHTTPメソッドで処理を分けます。`HttpServlet.service` がGETを `doGet`、POSTを `doPost`、PUTを `doPut`、DELETEを `doDelete` へ振り分けます。上書きしていないメソッドは405です。\n\n|目的|メソッド|代表的な成功|\n|---|---|---|\n|取得|GET|200|\n|新規作成|POST|201|\n|置換・更新|PUT|200 / 204|\n|削除|DELETE|204|\n\n```svg 同じURLでも、メソッドで目的が変わり、結果はステータスコードで伝える\n<svg viewBox=\"0 0 720 250\">\n  <rect class=\"fig-box\" x=\"14\" y=\"40\" width=\"150\" height=\"150\" rx=\"6\"/>\n  <text class=\"fig-t fig-small\" x=\"89\" y=\"62\" text-anchor=\"middle\">ブラウザ / API利用者</text>\n  <text class=\"fig-t fig-mono fig-small\" x=\"30\" y=\"96\">GET /books/1</text>\n  <text class=\"fig-t fig-mono fig-small\" x=\"30\" y=\"128\">GET /books/99</text>\n  <text class=\"fig-t fig-mono fig-small\" x=\"30\" y=\"160\">POST /books</text>\n\n  <rect class=\"fig-box\" x=\"300\" y=\"40\" width=\"150\" height=\"150\" rx=\"6\"/>\n  <text class=\"fig-t fig-small\" x=\"375\" y=\"62\" text-anchor=\"middle\">サーブレット</text>\n  <text class=\"fig-t fig-mono fig-small\" x=\"316\" y=\"96\">doGet</text>\n  <text class=\"fig-t fig-mono fig-small\" x=\"316\" y=\"128\">doGet</text>\n  <text class=\"fig-t fig-mono fig-small\" x=\"316\" y=\"160\">doPost</text>\n\n  <line class=\"fig-line\" x1=\"168\" y1=\"96\" x2=\"296\" y2=\"96\" marker-end=\"arrow\"/>\n  <line class=\"fig-line\" x1=\"168\" y1=\"128\" x2=\"296\" y2=\"128\" marker-end=\"arrow\"/>\n  <line class=\"fig-line\" x1=\"168\" y1=\"160\" x2=\"296\" y2=\"160\" marker-end=\"arrow\"/>\n\n  <rect class=\"fig-box-ok\" x=\"500\" y=\"80\" width=\"206\" height=\"32\" rx=\"6\"/>\n  <text class=\"fig-t fig-mono fig-small fig-t-ok\" x=\"603\" y=\"96\" text-anchor=\"middle\">200 OK</text>\n  <rect class=\"fig-box-ng\" x=\"500\" y=\"112\" width=\"206\" height=\"32\" rx=\"6\"/>\n  <text class=\"fig-t fig-mono fig-small fig-t-ng\" x=\"603\" y=\"128\" text-anchor=\"middle\">404 Not Found</text>\n  <rect class=\"fig-box-ok\" x=\"500\" y=\"144\" width=\"206\" height=\"32\" rx=\"6\"/>\n  <text class=\"fig-t fig-mono fig-small fig-t-ok\" x=\"603\" y=\"160\" text-anchor=\"middle\">201 Created</text>\n  <line class=\"fig-line\" x1=\"454\" y1=\"96\" x2=\"496\" y2=\"96\" marker-end=\"arrow\"/>\n  <line class=\"fig-line-ng\" x1=\"454\" y1=\"128\" x2=\"496\" y2=\"128\" marker-end=\"arrow-ng\"/>\n  <line class=\"fig-line\" x1=\"454\" y1=\"160\" x2=\"496\" y2=\"160\" marker-end=\"arrow\"/>\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"603\" y=\"60\" text-anchor=\"middle\">実際の結果に合わせて返す</text>\n\n  <text class=\"fig-t fig-t-dim fig-small\" x=\"14\" y=\"216\">上書きしていないメソッドで来ると 405。何でも 200 で返すと、監視もクライアントもキャッシュも判断できない</text>\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"14\" y=\"238\">入力不正 400 / 未認証 401 / 権限なし 403 / 見つからない 404 / 競合 409 / 想定外 500</text>\n</svg>\n```\n\n失敗も意味を選びます。入力不正400、未認証401、権限なし403、見つからない404、競合409、想定外500です。何でも200で返すと監視・クライアント・キャッシュが正しく判断できません。`sendError` 後は処理を続けずreturnします。",
-      "samples": [{"caption":"メソッドごとに応答を変える","code":"import jakarta.servlet.annotation.WebServlet;\nimport jakarta.servlet.http.*;\nimport java.io.*;\n@WebServlet(\"/items\") public class MethodSample extends HttpServlet {\n protected void doGet(HttpServletRequest q,HttpServletResponse s)throws IOException{s.getWriter().println(\"一覧\");}\n protected void doPost(HttpServletRequest q,HttpServletResponse s)throws IOException{s.setStatus(201);s.getWriter().println(\"作成\");}\n protected void doDelete(HttpServletRequest q,HttpServletResponse s){s.setStatus(204);}\n public static void main(String[]a){MiniWeb.app().register(MethodSample.class).serve();}\n}\n","stdin":"GET /items\nPOST /items\nDELETE /items\nPUT /items"}],
+      "samples": [
+        {
+          "caption": "メソッドごとに応答を変える",
+          "code": "import jakarta.servlet.annotation.WebServlet;\nimport jakarta.servlet.http.*;\nimport java.io.*;\n\n@WebServlet(\"/items\")\npublic class MethodSample extends HttpServlet {\n    protected void doGet(HttpServletRequest q, HttpServletResponse s) throws IOException {\n        s.getWriter().println(\"一覧\");\n    }\n\n    protected void doPost(HttpServletRequest q, HttpServletResponse s) throws IOException {\n        s.setStatus(201);\n        s.getWriter().println(\"作成\");\n    }\n\n    protected void doDelete(HttpServletRequest q, HttpServletResponse s) {\n        s.setStatus(204);\n    }\n\n    public static void main(String[] a) {\n        MiniWeb.app().register(MethodSample.class).serve();\n    }\n}\n",
+          "stdin": "GET /items\nPOST /items\nDELETE /items\nPUT /items"
+        }
+      ],
       "task": "`/items?id=...` をGETとDELETEに対応させてください。ID 1,2は存在します。GETは200と `item-<id>`、DELETEは204、存在しなければ404、不正なIDは400です。",
       "starterCode": "import jakarta.servlet.annotation.WebServlet;\nimport jakarta.servlet.http.*;\nimport java.io.*;\nimport java.util.*;\n@WebServlet(\"/items\") public class ItemServlet extends HttpServlet {\n private final Set<Integer> ids=new HashSet<>(Set.of(1,2));\n private Integer id(HttpServletRequest req,HttpServletResponse res)throws IOException{return null;}\n protected void doGet(HttpServletRequest req,HttpServletResponse res)throws IOException{// TODO\n }\n protected void doDelete(HttpServletRequest req,HttpServletResponse res)throws IOException{// TODO\n }\n public static void main(String[]a){MiniWeb.app().register(ItemServlet.class).serve();}\n}\n",
-      "visibleCases": [{"label":"取得","stdin":"GET /items?id=1","expected":"200 OK\nitem-1"},{"label":"削除","stdin":"DELETE /items?id=2","expected":"204 No Content"}],
-      "hiddenCases": [{"label":"存在しない","stdin":"GET /items?id=9","expected":"404 Not Found\n! itemが見つかりません"},{"label":"不正なID","stdin":"GET /items?id=x","expected":"400 Bad Request\n! idは整数です"},{"label":"削除後は404","stdin":"DELETE /items?id=1\nGET /items?id=1","expected":"204 No Content\n404 Not Found\n! itemが見つかりません"},{"label":"POSTは未対応","stdin":"POST /items?id=1","expected":"405 Method Not Allowed"}],
-      "hints": ["idメソッドで `Integer.parseInt` をtry-catchし、不正なら400を送ってnull。呼び側はnullならreturn。","GETは `ids.contains(id)` を確認し、無ければ404。あれば本文へitem-id。","DELETEは `ids.remove(id)` の戻り値を確認し、成功なら `setStatus(SC_NO_CONTENT)`。"],
-      "solution": "import jakarta.servlet.annotation.WebServlet;\nimport jakarta.servlet.http.*;\nimport java.io.*;\nimport java.util.*;\n@WebServlet(\"/items\") public class ItemServlet extends HttpServlet {\n private final Set<Integer> ids=new HashSet<>(Set.of(1,2));\n private Integer id(HttpServletRequest req,HttpServletResponse res)throws IOException{try{return Integer.parseInt(req.getParameter(\"id\"));}catch(RuntimeException e){res.sendError(400,\"idは整数です\");return null;}}\n protected void doGet(HttpServletRequest req,HttpServletResponse res)throws IOException{Integer id=id(req,res);if(id==null)return;if(!ids.contains(id)){res.sendError(404,\"itemが見つかりません\");return;}res.getWriter().println(\"item-\"+id);}\n protected void doDelete(HttpServletRequest req,HttpServletResponse res)throws IOException{Integer id=id(req,res);if(id==null)return;if(!ids.remove(id)){res.sendError(404,\"itemが見つかりません\");return;}res.setStatus(204);}\n public static void main(String[]a){MiniWeb.app().register(ItemServlet.class).serve();}\n}\n",
-      "extraTasks": [{"kind":"applied","task":"POST `/users?name=...` で利用者を作成します。name必須、既存名は409、成功は201と `作成: name`。","starterCode":"import jakarta.servlet.annotation.WebServlet;\nimport jakarta.servlet.http.*;\nimport java.io.*;\nimport java.util.*;\n@WebServlet(\"/users\") public class UserCreateServlet extends HttpServlet{private final Set<String> names=new HashSet<>(Set.of(\"admin\"));protected void doPost(HttpServletRequest q,HttpServletResponse s)throws IOException{// TODO\n}public static void main(String[]a){MiniWeb.app().register(UserCreateServlet.class).serve();}}\n","visibleCases":[{"label":"作成","stdin":"POST /users?name=yamada","expected":"201 Created\n作成: yamada"},{"label":"必須","stdin":"POST /users","expected":"400 Bad Request\n! nameは必須です"}],"hiddenCases":[{"label":"重複","stdin":"POST /users?name=admin","expected":"409 Conflict\n! nameは使用済みです"},{"label":"同じ実行内で重複","stdin":"POST /users?name=sato\nPOST /users?name=sato","expected":"201 Created\n作成: sato\n409 Conflict\n! nameは使用済みです"},{"label":"空白","stdin":"POST /users?name=","expected":"400 Bad Request\n! nameは必須です"}],"hints":["nameをnull/isBlankで検証し400。","`names.add(name)` は既にあればfalseなので409。","成功時は `setStatus(SC_CREATED)` のあと本文。"],"solution":"import jakarta.servlet.annotation.WebServlet;\nimport jakarta.servlet.http.*;\nimport java.io.*;\nimport java.util.*;\n@WebServlet(\"/users\") public class UserCreateServlet extends HttpServlet{private final Set<String> names=new HashSet<>(Set.of(\"admin\"));protected void doPost(HttpServletRequest q,HttpServletResponse s)throws IOException{String n=q.getParameter(\"name\");if(n==null||n.isBlank()){s.sendError(400,\"nameは必須です\");return;}if(!names.add(n)){s.sendError(409,\"nameは使用済みです\");return;}s.setStatus(201);s.getWriter().println(\"作成: \"+n);}public static void main(String[]a){MiniWeb.app().register(UserCreateServlet.class).serve();}}\n"}]
+      "visibleCases": [
+        {
+          "label": "取得",
+          "stdin": "GET /items?id=1",
+          "expected": "200 OK\nitem-1"
+        },
+        {
+          "label": "削除",
+          "stdin": "DELETE /items?id=2",
+          "expected": "204 No Content"
+        }
+      ],
+      "hiddenCases": [
+        {
+          "label": "存在しない",
+          "stdin": "GET /items?id=9",
+          "expected": "404 Not Found\n! itemが見つかりません"
+        },
+        {
+          "label": "不正なID",
+          "stdin": "GET /items?id=x",
+          "expected": "400 Bad Request\n! idは整数です"
+        },
+        {
+          "label": "削除後は404",
+          "stdin": "DELETE /items?id=1\nGET /items?id=1",
+          "expected": "204 No Content\n404 Not Found\n! itemが見つかりません"
+        },
+        {
+          "label": "POSTは未対応",
+          "stdin": "POST /items?id=1",
+          "expected": "405 Method Not Allowed"
+        }
+      ],
+      "hints": [
+        "idメソッドで `Integer.parseInt` をtry-catchし、不正なら400を送ってnull。呼び側はnullならreturn。",
+        "GETは `ids.contains(id)` を確認し、無ければ404。あれば本文へitem-id。",
+        "DELETEは `ids.remove(id)` の戻り値を確認し、成功なら `setStatus(SC_NO_CONTENT)`。"
+      ],
+      "solution": "import jakarta.servlet.annotation.WebServlet;\nimport jakarta.servlet.http.*;\nimport java.io.*;\nimport java.util.*;\n\n@WebServlet(\"/items\")\npublic class ItemServlet extends HttpServlet {\n    private final Set<Integer> ids = new HashSet<>(Set.of(1, 2));\n\n    private Integer id(HttpServletRequest req, HttpServletResponse res) throws IOException {\n        try {\n            return Integer.parseInt(req.getParameter(\"id\"));\n        } catch (RuntimeException e) {\n            res.sendError(400, \"idは整数です\");\n            return null;\n        }\n    }\n\n    protected void doGet(HttpServletRequest req, HttpServletResponse res) throws IOException {\n        Integer id = id(req, res);\n        if (id == null) return;\n        if (!ids.contains(id)) {\n            res.sendError(404, \"itemが見つかりません\");\n            return;\n        }\n        res.getWriter().println(\"item-\" + id);\n    }\n\n    protected void doDelete(HttpServletRequest req, HttpServletResponse res) throws IOException {\n        Integer id = id(req, res);\n        if (id == null) return;\n        if (!ids.remove(id)) {\n            res.sendError(404, \"itemが見つかりません\");\n            return;\n        }\n        res.setStatus(204);\n    }\n\n    public static void main(String[] a) {\n        MiniWeb.app().register(ItemServlet.class).serve();\n    }\n}\n",
+      "extraTasks": [
+        {
+          "kind": "applied",
+          "task": "POST `/users?name=...` で利用者を作成します。name必須、既存名は409、成功は201と `作成: name`。",
+          "starterCode": "import jakarta.servlet.annotation.WebServlet;\nimport jakarta.servlet.http.*;\nimport java.io.*;\nimport java.util.*;\n\n@WebServlet(\"/users\")\npublic class UserCreateServlet extends HttpServlet {\n    private final Set<String> names = new HashSet<>(Set.of(\"admin\"));\n\n    protected void doPost(HttpServletRequest q, HttpServletResponse s) throws IOException {\n        // TODO\n    }\n\n    public static void main(String[] a) {\n        MiniWeb.app().register(UserCreateServlet.class).serve();\n    }\n}\n",
+          "visibleCases": [
+            {
+              "label": "作成",
+              "stdin": "POST /users?name=yamada",
+              "expected": "201 Created\n作成: yamada"
+            },
+            {
+              "label": "必須",
+              "stdin": "POST /users",
+              "expected": "400 Bad Request\n! nameは必須です"
+            }
+          ],
+          "hiddenCases": [
+            {
+              "label": "重複",
+              "stdin": "POST /users?name=admin",
+              "expected": "409 Conflict\n! nameは使用済みです"
+            },
+            {
+              "label": "同じ実行内で重複",
+              "stdin": "POST /users?name=sato\nPOST /users?name=sato",
+              "expected": "201 Created\n作成: sato\n409 Conflict\n! nameは使用済みです"
+            },
+            {
+              "label": "空白",
+              "stdin": "POST /users?name=",
+              "expected": "400 Bad Request\n! nameは必須です"
+            }
+          ],
+          "hints": [
+            "nameをnull/isBlankで検証し400。",
+            "`names.add(name)` は既にあればfalseなので409。",
+            "成功時は `setStatus(SC_CREATED)` のあと本文。"
+          ],
+          "solution": "import jakarta.servlet.annotation.WebServlet;\nimport jakarta.servlet.http.*;\nimport java.io.*;\nimport java.util.*;\n\n@WebServlet(\"/users\")\npublic class UserCreateServlet extends HttpServlet {\n    private final Set<String> names = new HashSet<>(Set.of(\"admin\"));\n\n    protected void doPost(HttpServletRequest q, HttpServletResponse s) throws IOException {\n        String n = q.getParameter(\"name\");\n        if (n == null || n.isBlank()) {\n            s.sendError(400, \"nameは必須です\");\n            return;\n        }\n        if (!names.add(n)) {\n            s.sendError(409, \"nameは使用済みです\");\n            return;\n        }\n        s.setStatus(201);\n        s.getWriter().println(\"作成: \" + n);\n    }\n\n    public static void main(String[] a) {\n        MiniWeb.app().register(UserCreateServlet.class).serve();\n    }\n}\n",
+          "sourceChecks": [
+            {
+              "pattern": "\\bdoPost\\s*\\(",
+              "minimum": 1,
+              "message": "作成は POST なので `doPost` に書いてください。"
+            },
+            {
+              "pattern": "\\bsendError\\s*\\(",
+              "minimum": 2,
+              "message": "「name必須」と「既存名」の2つの失敗があるので、`sendError` を2回使ってください。"
+            },
+            {
+              "pattern": "\\bsetStatus\\s*\\(\\s*201|SC_CREATED",
+              "minimum": 1,
+              "message": "作成の成功は 200 ではなく 201 です。`setStatus(201)` を指定してください。"
+            }
+          ]
+        }
+      ]
     },
     {
-      "id":"22-4",
-      "title":"ライフサイクルとスレッドセーフ",
-      "explanation":"## はじめて学ぶ人へ\n\nサーブレットは、リクエストごとに新品が作られるとは限りません。多くの場合、**1つのサーブレットを複数の利用者が同時に使います**。これは、複数の店員が同じホワイトボードを共有して接客するようなものです。\n\n### 何が危険なのか\n\n```text\n利用者A: フィールド currentName に「田中」を書く\n利用者B: すぐに currentName を「佐藤」で上書きする\n利用者A: currentName を読む → 「佐藤」が返ってしまう\n```\n\nメソッド内のローカル変数は各リクエスト専用のメモなので混ざりません。一方、インスタンスフィールドは全員が触れる共有メモです。最初は「リクエストから受け取った値をフィールドへ保存しない」と覚え、共有が必要な場合だけスレッドセーフな設計を検討しましょう。\n\n## Servletインスタンスは使い回される\n\nコンテナは通常、Servletを1つだけ生成し、`init()` を1回、各リクエストで `service()`、停止時に `destroy()` を呼びます。本物は同じインスタンスへ複数スレッドが同時に入ります。\n\n```java\nclass UnsafeServlet extends HttpServlet {\n private String currentUser; // ❌ 全利用者で共有\n protected void doGet(...) {\n   currentUser = req.getParameter(\"user\");\n }\n}\n```\n\n```svg Servletは1つだけ作られ、同じインスタンスに複数のリクエストスレッドが同時に入る\n<svg viewBox=\"0 0 720 262\">\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"89\" y=\"26\" text-anchor=\"middle\">リクエストごとのスレッド</text>\n  <rect class=\"fig-box\" x=\"14\" y=\"44\" width=\"150\" height=\"42\" rx=\"6\"/>\n  <text class=\"fig-t fig-small\" x=\"89\" y=\"65\" text-anchor=\"middle\">スレッド1（利用者A）</text>\n  <rect class=\"fig-box\" x=\"14\" y=\"100\" width=\"150\" height=\"42\" rx=\"6\"/>\n  <text class=\"fig-t fig-small\" x=\"89\" y=\"121\" text-anchor=\"middle\">スレッド2（利用者B）</text>\n  <rect class=\"fig-box\" x=\"14\" y=\"156\" width=\"150\" height=\"42\" rx=\"6\"/>\n  <text class=\"fig-t fig-small\" x=\"89\" y=\"177\" text-anchor=\"middle\">スレッド3（利用者C）</text>\n\n  <line class=\"fig-line\" x1=\"168\" y1=\"65\" x2=\"276\" y2=\"96\" marker-end=\"arrow\"/>\n  <line class=\"fig-line\" x1=\"168\" y1=\"121\" x2=\"276\" y2=\"110\" marker-end=\"arrow\"/>\n  <line class=\"fig-line\" x1=\"168\" y1=\"177\" x2=\"276\" y2=\"124\" marker-end=\"arrow\"/>\n\n  <rect class=\"fig-box\" x=\"280\" y=\"34\" width=\"420\" height=\"190\" rx=\"8\"/>\n  <text class=\"fig-t fig-title\" x=\"300\" y=\"56\">Servlet のインスタンス（ふつう1つだけ）</text>\n\n  <rect class=\"fig-box-ng\" x=\"300\" y=\"72\" width=\"380\" height=\"52\" rx=\"6\"/>\n  <text class=\"fig-t fig-mono fig-small\" x=\"490\" y=\"92\" text-anchor=\"middle\">private String currentUser;</text>\n  <text class=\"fig-t fig-t-ng fig-small\" x=\"490\" y=\"112\" text-anchor=\"middle\">全スレッドが同じ1つを触る → 上書きされる</text>\n\n  <rect class=\"fig-box-dim\" x=\"300\" y=\"140\" width=\"120\" height=\"40\" rx=\"6\"/>\n  <text class=\"fig-t fig-t-dim fig-small\" x=\"360\" y=\"160\" text-anchor=\"middle\">ローカル変数</text>\n  <rect class=\"fig-box-dim\" x=\"430\" y=\"140\" width=\"120\" height=\"40\" rx=\"6\"/>\n  <text class=\"fig-t fig-t-dim fig-small\" x=\"490\" y=\"160\" text-anchor=\"middle\">ローカル変数</text>\n  <rect class=\"fig-box-dim\" x=\"560\" y=\"140\" width=\"120\" height=\"40\" rx=\"6\"/>\n  <text class=\"fig-t fig-t-dim fig-small\" x=\"620\" y=\"160\" text-anchor=\"middle\">ローカル変数</text>\n  <text class=\"fig-t fig-t-ok fig-small\" x=\"490\" y=\"204\" text-anchor=\"middle\">doGet のローカル変数はスレッドごとに別 → 混ざらない</text>\n\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"360\" y=\"248\" text-anchor=\"middle\">init() は1回、service() / doGet() は毎リクエスト、destroy() は停止時に1回</text>\n</svg>\n```\n\nリクエスト固有値はローカル変数かrequest属性へ置きます。Servletのフィールドに置けるのは、初期化後に変化しない依存先などです。共有する可変データにはDB・セッション・スレッドセーフな構造を使い、`synchronized` だけで無理に解決しません。\n\n`init` で重い準備、`destroy` で解放をします。ただしJDBC Connectionを1本だけフィールド共有するのは危険で、実務ではDataSourceの接続プールから処理ごとに借ります。",
-      "samples":[{"caption":"initとdestroyは1回","code":"import jakarta.servlet.*;\nimport jakarta.servlet.annotation.WebServlet;\nimport jakarta.servlet.http.*;\nimport java.io.*;\n@WebServlet(\"/life\") public class LifeSample extends HttpServlet{public void init(){System.out.println(\"init\");}protected void doGet(HttpServletRequest q,HttpServletResponse s)throws IOException{s.getWriter().println(\"request\");}public void destroy(){System.out.println(\"destroy\");}public static void main(String[]a){MiniWeb.app().register(LifeSample.class).serve();}}\n","stdin":"GET /life\nGET /life"}],
-      "task":"共有フィールド `lastName` を使っているServletを直し、リクエストごとのローカル変数だけで `こんにちは、nameさん` と返してください。名前なしはゲストです。",
-      "starterCode":"import jakarta.servlet.annotation.WebServlet;\nimport jakarta.servlet.http.*;\nimport java.io.*;\n@WebServlet(\"/hello\") public class SafeServlet extends HttpServlet{private String lastName=\"ゲスト\";protected void doGet(HttpServletRequest q,HttpServletResponse s)throws IOException{// TODO: フィールドを使わずローカル変数にする\ns.getWriter().println(\"こんにちは、\"+lastName+\"さん\");}public static void main(String[]a){MiniWeb.app().register(SafeServlet.class).serve();}}\n",
-      "visibleCases":[{"label":"連続した別利用者","stdin":"GET /hello?name=山田 alice\nGET /hello?name=佐藤 bob","expected":"200 OK\nこんにちは、山田さん\n200 OK\nこんにちは、佐藤さん"}],
-      "hiddenCases":[{"label":"前の値が漏れない","stdin":"GET /hello?name=山田 alice\nGET /hello bob","expected":"200 OK\nこんにちは、山田さん\n200 OK\nこんにちは、ゲストさん"}],
-      "hints":["`lastName` フィールドを削除します。","doGet内で `String name = q.getParameter(\"name\")`。","nullまたは空ならゲストへ変えて、そのローカル変数を出力。"],
-      "solution":"import jakarta.servlet.annotation.WebServlet;\nimport jakarta.servlet.http.*;\nimport java.io.*;\n@WebServlet(\"/hello\") public class SafeServlet extends HttpServlet{protected void doGet(HttpServletRequest q,HttpServletResponse s)throws IOException{String name=q.getParameter(\"name\");if(name==null||name.isBlank())name=\"ゲスト\";s.getWriter().println(\"こんにちは、\"+name+\"さん\");}public static void main(String[]a){MiniWeb.app().register(SafeServlet.class).serve();}}\n",
-      "extraTasks":[{"kind":"applied","task":"init parameter `appName` を `init()` で1回読み、フィールドへ保存して各リクエストで表示してください。これは初期化後に変えない安全なフィールドです。","starterCode":"import jakarta.servlet.*;\nimport jakarta.servlet.annotation.WebServlet;\nimport jakarta.servlet.http.*;\nimport java.io.*;\n@WebServlet(\"/info\") public class InfoServlet extends HttpServlet{private String appName;public void init()throws ServletException{// TODO\n}protected void doGet(HttpServletRequest q,HttpServletResponse s)throws IOException{s.getWriter().println(\"app=\"+appName);}public static void main(String[]a){MiniWeb.app().initParameter(\"appName\",\"Shop\").register(InfoServlet.class).serve();}}\n","visibleCases":[{"label":"設定を表示","stdin":"GET /info\nGET /info","expected":"200 OK\napp=Shop\n200 OK\napp=Shop"}],"hiddenCases":[{"label":"リクエスト値には影響されない","stdin":"GET /info?appName=Hack","expected":"200 OK\napp=Shop"}],"hints":["`getServletContext()` はHttpServletのメソッド。","`appName = getServletContext().getInitParameter(\"appName\");` をinitに書きます。"],"solution":"import jakarta.servlet.*;\nimport jakarta.servlet.annotation.WebServlet;\nimport jakarta.servlet.http.*;\nimport java.io.*;\n@WebServlet(\"/info\") public class InfoServlet extends HttpServlet{private String appName;public void init()throws ServletException{appName=getServletContext().getInitParameter(\"appName\");}protected void doGet(HttpServletRequest q,HttpServletResponse s)throws IOException{s.getWriter().println(\"app=\"+appName);}public static void main(String[]a){MiniWeb.app().initParameter(\"appName\",\"Shop\").register(InfoServlet.class).serve();}}\n"}]
+      "id": "22-4",
+      "title": "ライフサイクルとスレッドセーフ",
+      "explanation": "## はじめて学ぶ人へ\n\nサーブレットは、リクエストごとに新品が作られるとは限りません。多くの場合、**1つのサーブレットを複数の利用者が同時に使います**。これは、複数の店員が同じホワイトボードを共有して接客するようなものです。\n\n### 何が危険なのか\n\n```text\n利用者A: フィールド currentName に「田中」を書く\n利用者B: すぐに currentName を「佐藤」で上書きする\n利用者A: currentName を読む → 「佐藤」が返ってしまう\n```\n\nメソッド内のローカル変数は各リクエスト専用のメモなので混ざりません。一方、インスタンスフィールドは全員が触れる共有メモです。最初は「リクエストから受け取った値をフィールドへ保存しない」と覚え、共有が必要な場合だけスレッドセーフな設計を検討しましょう。\n\n## Servletインスタンスは使い回される\n\nコンテナは通常、Servletを1つだけ生成し、`init()` を1回、各リクエストで `service()`、停止時に `destroy()` を呼びます。本物は同じインスタンスへ複数スレッドが同時に入ります。\n\n```java\nclass UnsafeServlet extends HttpServlet {\n private String currentUser; // ❌ 全利用者で共有\n protected void doGet(...) {\n   currentUser = req.getParameter(\"user\");\n }\n}\n```\n\n```svg Servletは1つだけ作られ、同じインスタンスに複数のリクエストスレッドが同時に入る\n<svg viewBox=\"0 0 720 262\">\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"89\" y=\"26\" text-anchor=\"middle\">リクエストごとのスレッド</text>\n  <rect class=\"fig-box\" x=\"14\" y=\"44\" width=\"150\" height=\"42\" rx=\"6\"/>\n  <text class=\"fig-t fig-small\" x=\"89\" y=\"65\" text-anchor=\"middle\">スレッド1（利用者A）</text>\n  <rect class=\"fig-box\" x=\"14\" y=\"100\" width=\"150\" height=\"42\" rx=\"6\"/>\n  <text class=\"fig-t fig-small\" x=\"89\" y=\"121\" text-anchor=\"middle\">スレッド2（利用者B）</text>\n  <rect class=\"fig-box\" x=\"14\" y=\"156\" width=\"150\" height=\"42\" rx=\"6\"/>\n  <text class=\"fig-t fig-small\" x=\"89\" y=\"177\" text-anchor=\"middle\">スレッド3（利用者C）</text>\n\n  <line class=\"fig-line\" x1=\"168\" y1=\"65\" x2=\"276\" y2=\"96\" marker-end=\"arrow\"/>\n  <line class=\"fig-line\" x1=\"168\" y1=\"121\" x2=\"276\" y2=\"110\" marker-end=\"arrow\"/>\n  <line class=\"fig-line\" x1=\"168\" y1=\"177\" x2=\"276\" y2=\"124\" marker-end=\"arrow\"/>\n\n  <rect class=\"fig-box\" x=\"280\" y=\"34\" width=\"420\" height=\"190\" rx=\"8\"/>\n  <text class=\"fig-t fig-title\" x=\"300\" y=\"56\">Servlet のインスタンス（ふつう1つだけ）</text>\n\n  <rect class=\"fig-box-ng\" x=\"300\" y=\"72\" width=\"380\" height=\"52\" rx=\"6\"/>\n  <text class=\"fig-t fig-mono fig-small\" x=\"490\" y=\"92\" text-anchor=\"middle\">private String currentUser;</text>\n  <text class=\"fig-t fig-t-ng fig-small\" x=\"490\" y=\"112\" text-anchor=\"middle\">全スレッドが同じ1つを触る → 上書きされる</text>\n\n  <rect class=\"fig-box-dim\" x=\"300\" y=\"140\" width=\"120\" height=\"40\" rx=\"6\"/>\n  <text class=\"fig-t fig-t-dim fig-small\" x=\"360\" y=\"160\" text-anchor=\"middle\">ローカル変数</text>\n  <rect class=\"fig-box-dim\" x=\"430\" y=\"140\" width=\"120\" height=\"40\" rx=\"6\"/>\n  <text class=\"fig-t fig-t-dim fig-small\" x=\"490\" y=\"160\" text-anchor=\"middle\">ローカル変数</text>\n  <rect class=\"fig-box-dim\" x=\"560\" y=\"140\" width=\"120\" height=\"40\" rx=\"6\"/>\n  <text class=\"fig-t fig-t-dim fig-small\" x=\"620\" y=\"160\" text-anchor=\"middle\">ローカル変数</text>\n  <text class=\"fig-t fig-t-ok fig-small\" x=\"490\" y=\"204\" text-anchor=\"middle\">doGet のローカル変数はスレッドごとに別 → 混ざらない</text>\n\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"360\" y=\"248\" text-anchor=\"middle\">init() は1回、service() / doGet() は毎リクエスト、destroy() は停止時に1回</text>\n</svg>\n```\n\nリクエスト固有値はローカル変数かrequest属性へ置きます。Servletのフィールドに置けるのは、初期化後に変化しない依存先などです。共有する可変データにはDB・セッション・スレッドセーフな構造を使い、`synchronized` だけで無理に解決しません。\n\n`init` で重い準備、`destroy` で解放をします。ただしJDBC Connectionを1本だけフィールド共有するのは危険で、実務ではDataSourceの接続プールから処理ごとに借ります。",
+      "samples": [
+        {
+          "caption": "initとdestroyは1回",
+          "code": "import jakarta.servlet.*;\nimport jakarta.servlet.annotation.WebServlet;\nimport jakarta.servlet.http.*;\nimport java.io.*;\n\n@WebServlet(\"/life\")\npublic class LifeSample extends HttpServlet {\n    public void init() {\n        System.out.println(\"init\");\n    }\n\n    protected void doGet(HttpServletRequest q, HttpServletResponse s) throws IOException {\n        s.getWriter().println(\"request\");\n    }\n\n    public void destroy() {\n        System.out.println(\"destroy\");\n    }\n\n    public static void main(String[] a) {\n        MiniWeb.app().register(LifeSample.class).serve();\n    }\n}\n",
+          "stdin": "GET /life\nGET /life"
+        }
+      ],
+      "task": "共有フィールド `lastName` を使っているServletを直し、リクエストごとのローカル変数だけで `こんにちは、nameさん` と返してください。名前なしはゲストです。",
+      "starterCode": "import jakarta.servlet.annotation.WebServlet;\nimport jakarta.servlet.http.*;\nimport java.io.*;\n\n@WebServlet(\"/hello\")\npublic class SafeServlet extends HttpServlet {\n    private String lastName = \"ゲスト\";\n\n    protected void doGet(HttpServletRequest q, HttpServletResponse s) throws IOException {\n        // TODO: フィールドを使わずローカル変数にする\n        s.getWriter().println(\"こんにちは、\" + lastName + \"さん\");\n    }\n\n    public static void main(String[] a) {\n        MiniWeb.app().register(SafeServlet.class).serve();\n    }\n}\n",
+      "visibleCases": [
+        {
+          "label": "連続した別利用者",
+          "stdin": "GET /hello?name=山田 alice\nGET /hello?name=佐藤 bob",
+          "expected": "200 OK\nこんにちは、山田さん\n200 OK\nこんにちは、佐藤さん"
+        }
+      ],
+      "hiddenCases": [
+        {
+          "label": "前の値が漏れない",
+          "stdin": "GET /hello?name=山田 alice\nGET /hello bob",
+          "expected": "200 OK\nこんにちは、山田さん\n200 OK\nこんにちは、ゲストさん"
+        }
+      ],
+      "hints": [
+        "`lastName` フィールドを削除します。",
+        "doGet内で `String name = q.getParameter(\"name\")`。",
+        "nullまたは空ならゲストへ変えて、そのローカル変数を出力。"
+      ],
+      "solution": "import jakarta.servlet.annotation.WebServlet;\nimport jakarta.servlet.http.*;\nimport java.io.*;\n\n@WebServlet(\"/hello\")\npublic class SafeServlet extends HttpServlet {\n    protected void doGet(HttpServletRequest q, HttpServletResponse s) throws IOException {\n        String name = q.getParameter(\"name\");\n        if (name == null || name.isBlank()) name = \"ゲスト\";\n        s.getWriter().println(\"こんにちは、\" + name + \"さん\");\n    }\n\n    public static void main(String[] a) {\n        MiniWeb.app().register(SafeServlet.class).serve();\n    }\n}\n",
+      "extraTasks": [
+        {
+          "kind": "applied",
+          "task": "init parameter `appName` を `init()` で1回読み、フィールドへ保存して各リクエストで表示してください。これは初期化後に変えない安全なフィールドです。",
+          "starterCode": "import jakarta.servlet.*;\nimport jakarta.servlet.annotation.WebServlet;\nimport jakarta.servlet.http.*;\nimport java.io.*;\n\n@WebServlet(\"/info\")\npublic class InfoServlet extends HttpServlet {\n    private String appName;\n\n    public void init() throws ServletException {\n        // TODO\n    }\n\n    protected void doGet(HttpServletRequest q, HttpServletResponse s) throws IOException {\n        s.getWriter().println(\"app=\" + appName);\n    }\n\n    public static void main(String[] a) {\n        MiniWeb.app().initParameter(\"appName\", \"Shop\").register(InfoServlet.class).serve();\n    }\n}\n",
+          "visibleCases": [
+            {
+              "label": "設定を表示",
+              "stdin": "GET /info\nGET /info",
+              "expected": "200 OK\napp=Shop\n200 OK\napp=Shop"
+            }
+          ],
+          "hiddenCases": [
+            {
+              "label": "リクエスト値には影響されない",
+              "stdin": "GET /info?appName=Hack",
+              "expected": "200 OK\napp=Shop"
+            }
+          ],
+          "hints": [
+            "`getServletContext()` はHttpServletのメソッド。",
+            "`appName = getServletContext().getInitParameter(\"appName\");` をinitに書きます。"
+          ],
+          "solution": "import jakarta.servlet.*;\nimport jakarta.servlet.annotation.WebServlet;\nimport jakarta.servlet.http.*;\nimport java.io.*;\n\n@WebServlet(\"/info\")\npublic class InfoServlet extends HttpServlet {\n    private String appName;\n\n    public void init() throws ServletException {\n        appName = getServletContext().getInitParameter(\"appName\");\n    }\n\n    protected void doGet(HttpServletRequest q, HttpServletResponse s) throws IOException {\n        s.getWriter().println(\"app=\" + appName);\n    }\n\n    public static void main(String[] a) {\n        MiniWeb.app().initParameter(\"appName\", \"Shop\").register(InfoServlet.class).serve();\n    }\n}\n",
+          "sourceChecks": [
+            {
+              "pattern": "\\bvoid\\s+init\\s*\\(",
+              "minimum": 1,
+              "message": "リクエストごとに読み直さないよう、`init()` で1回だけ受け取ってください。"
+            },
+            {
+              "pattern": "\\bgetInitParameter\\s*\\(",
+              "minimum": 1,
+              "message": "初期化パラメータは `getInitParameter` で読みます。"
+            },
+            {
+              "pattern": "\\bprivate\\s+String\\s+appName\\b",
+              "minimum": 1,
+              "message": "読んだ値はフィールドへ保存してください（初期化後に変えないので、共有しても安全です）。"
+            }
+          ]
+        }
+      ]
     },
     {
-      "id":"22-5",
-      "title":"レスポンス設計と安全な出力",
-      "explanation":"## はじめて学ぶ人へ\n\nHTTPレスポンスは荷物に似ています。`status` は配送結果、`Content-Type` は中身の種類を書いたラベル、本文は実際の荷物です。受け取る側が迷わないよう、この3つを実際の内容と一致させます。\n\n```text\nstatus: 400 Bad Request\nContent-Type: application/json; charset=UTF-8\nbody: {\"error\":\"nameは必須です\"}\n```\n\n利用者が入力した文字列をHTMLに埋め込むときは特に注意します。たとえば `<script>` をそのまま返すとタグとして解釈されますが、`&lt;script&gt;` のようにエスケープすれば文字として表示できます。エラー本文には、スタックトレースやDB情報など内部事情を載せず、利用者が直せる内容だけを返します。\n\n## 本文だけでなくメタデータも返す\n\nHTMLなら `text/html; charset=UTF-8`、JSONなら `application/json` のようにContent-Typeを明示します。APIでは適切なステータスと一貫したエラー形式が重要です。内部例外のメッセージやスタックトレースを利用者へ返すと、SQLやパスなどを漏らす危険があります。詳細はサーバログへ、利用者には一般化した文言を返します。\n\nHTMLへ利用者入力を埋め込むときはアンパサンド・山括弧・引用符をエスケープします。Servlet/JSPが自動で安全にするとは限りません。SQLには文字列連結ではなくPreparedStatement、状態変更にはCSRF対策、Cookieには適切な属性が必要です。Webの入力は常に信用しない、が原則です。",
-      "samples":[{"caption":"Content-Typeと独自ヘッダ","code":"import jakarta.servlet.annotation.WebServlet;\nimport jakarta.servlet.http.*;\nimport java.io.*;\n@WebServlet(\"/api\") public class ResponseSample extends HttpServlet{protected void doGet(HttpServletRequest q,HttpServletResponse s)throws IOException{s.setContentType(\"application/json\");s.setHeader(\"X-Request-Id\",\"req-1\");s.getWriter().println(\"{\\\"status\\\":\\\"ok\\\"}\");}public static void main(String[]a){MiniWeb.app().register(ResponseSample.class).showHeaders().serve();}}\n","stdin":"GET /api"}],
-      "task":"`/search?q=...` でHTMLを返します。qのアンパサンド・山括弧・二重引用符・単一引用符をHTMLエスケープし、`検索: <安全な文字列>` と表示してください。Content-Typeも設定します。",
-      "starterCode":"import jakarta.servlet.annotation.WebServlet;\nimport jakarta.servlet.http.*;\nimport java.io.*;\n@WebServlet(\"/search\") public class SearchServlet extends HttpServlet{static String escapeHtml(String s){return s;}protected void doGet(HttpServletRequest q,HttpServletResponse s)throws IOException{// TODO\n}public static void main(String[]a){MiniWeb.app().register(SearchServlet.class).showHeaders().serve();}}\n",
-      "visibleCases":[{"label":"通常","stdin":"GET /search?q=java","expected":"200 OK\n+ Content-Type: text/html; charset=UTF-8\n検索: java"},{"label":"タグ","stdin":"GET /search?q=%3Cscript%3E","expected":"200 OK\n+ Content-Type: text/html; charset=UTF-8\n検索: &lt;script&gt;"}],
-      "hiddenCases":[{"label":"特殊文字全部","stdin":"GET /search?q=%26%3C%3E%22%27","expected":"200 OK\n+ Content-Type: text/html; charset=UTF-8\n検索: &amp;&lt;&gt;&quot;&#39;"},{"label":"未指定","stdin":"GET /search","expected":"200 OK\n+ Content-Type: text/html; charset=UTF-8\n検索: "}],
-      "hints":["nullは空文字へ。","置換順は `&` が最初です。後から&を置換すると `&lt;` 自体を壊します。","`setContentType(\"text/html; charset=UTF-8\")` のあと本文。"],
-      "solution":"import jakarta.servlet.annotation.WebServlet;\nimport jakarta.servlet.http.*;\nimport java.io.*;\n@WebServlet(\"/search\") public class SearchServlet extends HttpServlet{static String escapeHtml(String s){if(s==null)return \"\";return s.replace(\"&\",\"&amp;\").replace(\"<\",\"&lt;\").replace(\">\",\"&gt;\").replace(\"\\\"\",\"&quot;\").replace(\"'\",\"&#39;\");}protected void doGet(HttpServletRequest q,HttpServletResponse s)throws IOException{s.setContentType(\"text/html; charset=UTF-8\");s.getWriter().println(\"検索: \"+escapeHtml(q.getParameter(\"q\")));}public static void main(String[]a){MiniWeb.app().register(SearchServlet.class).showHeaders().serve();}}\n",
-      "extraTasks":[{"kind":"applied","task":"例外の詳細を漏らさないAPI境界を書きます。`mode=missing` は404、`mode=fail` はログにだけ原因を出して500 `処理に失敗しました`、通常は200 `ok`。","starterCode":"import jakarta.servlet.annotation.WebServlet;\nimport jakarta.servlet.http.*;\nimport java.io.*;\n@WebServlet(\"/work\") public class WorkServlet extends HttpServlet{protected void doGet(HttpServletRequest q,HttpServletResponse s)throws IOException{// TODO\n}public static void main(String[]a){MiniWeb.app().register(WorkServlet.class).serve();}}\n","visibleCases":[{"label":"成功","stdin":"GET /work","expected":"200 OK\nok"},{"label":"見つからない","stdin":"GET /work?mode=missing","expected":"404 Not Found\n! データが見つかりません"}],"hiddenCases":[{"label":"内部障害","stdin":"GET /work?mode=fail","expected":"[LOG] internal: database password=secret\n500 Internal Server Error\n! 処理に失敗しました"}],"hints":["modeを取得し、missingなら404でreturn。","failなら `q.getServletContext().log(...)` で詳細を記録。","利用者へは `sendError(500, \"処理に失敗しました\")` だけ返します。"],"solution":"import jakarta.servlet.annotation.WebServlet;\nimport jakarta.servlet.http.*;\nimport java.io.*;\n@WebServlet(\"/work\") public class WorkServlet extends HttpServlet{protected void doGet(HttpServletRequest q,HttpServletResponse s)throws IOException{String mode=q.getParameter(\"mode\");if(\"missing\".equals(mode)){s.sendError(404,\"データが見つかりません\");return;}if(\"fail\".equals(mode)){q.getServletContext().log(\"internal: database password=secret\");s.sendError(500,\"処理に失敗しました\");return;}s.getWriter().println(\"ok\");}public static void main(String[]a){MiniWeb.app().register(WorkServlet.class).serve();}}\n"}],
-      "quiz":[{"question":"POSTだけを実装したServletへGETすると通常どうなる？","choices":["200","201","404","405"],"answer":3,"explanation":"doGetを上書きしていないためMethod Not Allowedの405です。"},{"question":"利用者入力をHTML本文へ入れるとき必要な対策は？","choices":["HTMLエスケープ","URLを必ずGETにする","フィールドへ保存する","例外を握りつぶす"],"answer":0,"explanation":"文脈に合った出力エンコードでタグや属性として解釈されないようにします。"},{"question":"Servletのフィールドに置くのが危険なものは？","choices":["初期化後に変わらないService参照","利用者ごとの現在の名前","不変な設定値","スレッドセーフな共有キャッシュ"],"answer":1,"explanation":"1インスタンスを複数利用者・複数スレッドで共有するため、リクエスト固有値はローカル変数へ置きます。"},{"question":"想定外例外の扱いとして適切なのは？","choices":["スタックトレースをHTMLへ出す","DB接続文字列を返す","詳細はログ、利用者には一般化したエラー","常に200で返す"],"answer":2,"explanation":"調査情報はログへ残し、内部情報を外へ漏らさず適切な5xxを返します。"}]
+      "id": "22-5",
+      "title": "レスポンス設計と安全な出力",
+      "explanation": "## はじめて学ぶ人へ\n\nHTTPレスポンスは荷物に似ています。`status` は配送結果、`Content-Type` は中身の種類を書いたラベル、本文は実際の荷物です。受け取る側が迷わないよう、この3つを実際の内容と一致させます。\n\n```text\nstatus: 400 Bad Request\nContent-Type: application/json; charset=UTF-8\nbody: {\"error\":\"nameは必須です\"}\n```\n\n利用者が入力した文字列をHTMLに埋め込むときは特に注意します。たとえば `<script>` をそのまま返すとタグとして解釈されますが、`&lt;script&gt;` のようにエスケープすれば文字として表示できます。エラー本文には、スタックトレースやDB情報など内部事情を載せず、利用者が直せる内容だけを返します。\n\n## 本文だけでなくメタデータも返す\n\nHTMLなら `text/html; charset=UTF-8`、JSONなら `application/json` のようにContent-Typeを明示します。APIでは適切なステータスと一貫したエラー形式が重要です。内部例外のメッセージやスタックトレースを利用者へ返すと、SQLやパスなどを漏らす危険があります。詳細はサーバログへ、利用者には一般化した文言を返します。\n\nHTMLへ利用者入力を埋め込むときはアンパサンド・山括弧・引用符をエスケープします。Servlet/JSPが自動で安全にするとは限りません。SQLには文字列連結ではなくPreparedStatement、状態変更にはCSRF対策、Cookieには適切な属性が必要です。Webの入力は常に信用しない、が原則です。",
+      "samples": [
+        {
+          "caption": "Content-Typeと独自ヘッダ",
+          "code": "import jakarta.servlet.annotation.WebServlet;\nimport jakarta.servlet.http.*;\nimport java.io.*;\n\n@WebServlet(\"/api\")\npublic class ResponseSample extends HttpServlet {\n    protected void doGet(HttpServletRequest q, HttpServletResponse s) throws IOException {\n        s.setContentType(\"application/json\");\n        s.setHeader(\"X-Request-Id\", \"req-1\");\n        s.getWriter().println(\"{\\\"status\\\":\\\"ok\\\"}\");\n    }\n\n    public static void main(String[] a) {\n        MiniWeb.app().register(ResponseSample.class).showHeaders().serve();\n    }\n}\n",
+          "stdin": "GET /api"
+        }
+      ],
+      "task": "`/search?q=...` でHTMLを返します。qのアンパサンド・山括弧・二重引用符・単一引用符をHTMLエスケープし、`検索: <安全な文字列>` と表示してください。Content-Typeも設定します。",
+      "starterCode": "import jakarta.servlet.annotation.WebServlet;\nimport jakarta.servlet.http.*;\nimport java.io.*;\n\n@WebServlet(\"/search\")\npublic class SearchServlet extends HttpServlet {\n    static String escapeHtml(String s) {\n        return s;\n    }\n\n    protected void doGet(HttpServletRequest q, HttpServletResponse s) throws IOException {\n        // TODO\n    }\n\n    public static void main(String[] a) {\n        MiniWeb.app().register(SearchServlet.class).showHeaders().serve();\n    }\n}\n",
+      "visibleCases": [
+        {
+          "label": "通常",
+          "stdin": "GET /search?q=java",
+          "expected": "200 OK\n+ Content-Type: text/html; charset=UTF-8\n検索: java"
+        },
+        {
+          "label": "タグ",
+          "stdin": "GET /search?q=%3Cscript%3E",
+          "expected": "200 OK\n+ Content-Type: text/html; charset=UTF-8\n検索: &lt;script&gt;"
+        }
+      ],
+      "hiddenCases": [
+        {
+          "label": "特殊文字全部",
+          "stdin": "GET /search?q=%26%3C%3E%22%27",
+          "expected": "200 OK\n+ Content-Type: text/html; charset=UTF-8\n検索: &amp;&lt;&gt;&quot;&#39;"
+        },
+        {
+          "label": "未指定",
+          "stdin": "GET /search",
+          "expected": "200 OK\n+ Content-Type: text/html; charset=UTF-8\n検索: "
+        }
+      ],
+      "hints": [
+        "nullは空文字へ。",
+        "置換順は `&` が最初です。後から&を置換すると `&lt;` 自体を壊します。",
+        "`setContentType(\"text/html; charset=UTF-8\")` のあと本文。"
+      ],
+      "solution": "import jakarta.servlet.annotation.WebServlet;\nimport jakarta.servlet.http.*;\nimport java.io.*;\n\n@WebServlet(\"/search\")\npublic class SearchServlet extends HttpServlet {\n    static String escapeHtml(String s) {\n        if (s == null) return \"\";\n        return s.replace(\"&\", \"&amp;\").replace(\"<\", \"&lt;\").replace(\">\", \"&gt;\").replace(\"\\\"\", \"&quot;\").replace(\"'\", \"&#39;\");\n    }\n\n    protected void doGet(HttpServletRequest q, HttpServletResponse s) throws IOException {\n        s.setContentType(\"text/html; charset=UTF-8\");\n        s.getWriter().println(\"検索: \" + escapeHtml(q.getParameter(\"q\")));\n    }\n\n    public static void main(String[] a) {\n        MiniWeb.app().register(SearchServlet.class).showHeaders().serve();\n    }\n}\n",
+      "extraTasks": [
+        {
+          "kind": "applied",
+          "task": "例外の詳細を漏らさないAPI境界を書きます。`mode=missing` は404、`mode=fail` はログにだけ原因を出して500 `処理に失敗しました`、通常は200 `ok`。",
+          "starterCode": "import jakarta.servlet.annotation.WebServlet;\nimport jakarta.servlet.http.*;\nimport java.io.*;\n\n@WebServlet(\"/work\")\npublic class WorkServlet extends HttpServlet {\n    protected void doGet(HttpServletRequest q, HttpServletResponse s) throws IOException {\n        // TODO\n    }\n\n    public static void main(String[] a) {\n        MiniWeb.app().register(WorkServlet.class).serve();\n    }\n}\n",
+          "visibleCases": [
+            {
+              "label": "成功",
+              "stdin": "GET /work",
+              "expected": "200 OK\nok"
+            },
+            {
+              "label": "見つからない",
+              "stdin": "GET /work?mode=missing",
+              "expected": "404 Not Found\n! データが見つかりません"
+            }
+          ],
+          "hiddenCases": [
+            {
+              "label": "内部障害",
+              "stdin": "GET /work?mode=fail",
+              "expected": "[LOG] internal: database password=secret\n500 Internal Server Error\n! 処理に失敗しました"
+            }
+          ],
+          "hints": [
+            "modeを取得し、missingなら404でreturn。",
+            "failなら `q.getServletContext().log(...)` で詳細を記録。",
+            "利用者へは `sendError(500, \"処理に失敗しました\")` だけ返します。"
+          ],
+          "solution": "import jakarta.servlet.annotation.WebServlet;\nimport jakarta.servlet.http.*;\nimport java.io.*;\n\n@WebServlet(\"/work\")\npublic class WorkServlet extends HttpServlet {\n    protected void doGet(HttpServletRequest q, HttpServletResponse s) throws IOException {\n        String mode = q.getParameter(\"mode\");\n        if (\"missing\".equals(mode)) {\n            s.sendError(404, \"データが見つかりません\");\n            return;\n        }\n        if (\"fail\".equals(mode)) {\n            q.getServletContext().log(\"internal: database password=secret\");\n            s.sendError(500, \"処理に失敗しました\");\n            return;\n        }\n        s.getWriter().println(\"ok\");\n    }\n\n    public static void main(String[] a) {\n        MiniWeb.app().register(WorkServlet.class).serve();\n    }\n}\n",
+          "sourceChecks": [
+            {
+              "pattern": "\\bsendError\\s*\\(",
+              "minimum": 2,
+              "message": "404 と 500 の2つを返すので、`sendError` を2回使ってください。"
+            },
+            {
+              "pattern": "\\.log\\s*\\(",
+              "minimum": 1,
+              "message": "原因は**ログにだけ**出します。応答本文へ出すと、DBのパスワードなどが利用者に見えてしまいます。"
+            }
+          ]
+        }
+      ],
+      "quiz": [
+        {
+          "question": "POSTだけを実装したServletへGETすると通常どうなる？",
+          "choices": [
+            "200",
+            "404",
+            "201",
+            "405"
+          ],
+          "answer": 3,
+          "explanation": "doGetを上書きしていないためMethod Not Allowedの405です。"
+        },
+        {
+          "question": "利用者入力をHTML本文へ入れるとき必要な対策は？",
+          "choices": [
+            "フィールドへ保存する",
+            "例外を握りつぶす",
+            "HTMLエスケープ",
+            "入力の長さを32文字までに制限する"
+          ],
+          "answer": 2,
+          "explanation": "フィールドへ保存しても、表示する時点でタグとして解釈されるので防げません。例外を握りつぶすのは原因を隠すだけで出力とは無関係です。長さを32文字に制限しても、短い攻撃文字列は通ります。防ぐのは出力する場所に合わせたエスケープで、HTML本文・属性・JavaScript内では必要な変換が違います。"
+        },
+        {
+          "question": "Servletのフィールドに置くのが危険なものは？",
+          "choices": [
+            "不変な設定値",
+            "初期化後に変わらないService参照",
+            "利用者ごとの現在の名前",
+            "スレッドセーフな共有キャッシュ"
+          ],
+          "answer": 2,
+          "explanation": "1インスタンスを複数利用者・複数スレッドで共有するため、リクエスト固有値はローカル変数へ置きます。"
+        },
+        {
+          "question": "想定外例外の扱いとして適切なのは？",
+          "choices": [
+            "スタックトレースをHTMLへ出す",
+            "詳細はログ、利用者には一般化したエラー",
+            "利用者には500だけを返し、ログには残さない",
+            "DB接続文字列を返す"
+          ],
+          "answer": 1,
+          "explanation": "スタックトレースやDB接続文字列を返すと、クラス名・ファイルの位置・接続先が攻撃の手がかりになります。逆に500だけ返してログにも残さないと、こちらが原因を調べられません。詳細はログへ、利用者へは一般化したメッセージと適切な5xx、という分け方にします。"
+        }
+      ]
     },
     {
       "id": "22-6",
@@ -247,12 +560,12 @@
       "samples": [
         {
           "caption": "復習用サンプル：Content-Typeと独自ヘッダ",
-          "code": "import jakarta.servlet.annotation.WebServlet;\nimport jakarta.servlet.http.*;\nimport java.io.*;\n@WebServlet(\"/api\") public class ResponseSample extends HttpServlet{protected void doGet(HttpServletRequest q,HttpServletResponse s)throws IOException{s.setContentType(\"application/json\");s.setHeader(\"X-Request-Id\",\"req-1\");s.getWriter().println(\"{\\\"status\\\":\\\"ok\\\"}\");}public static void main(String[]a){MiniWeb.app().register(ResponseSample.class).showHeaders().serve();}}\n",
+          "code": "import jakarta.servlet.annotation.WebServlet;\nimport jakarta.servlet.http.*;\nimport java.io.*;\n\n@WebServlet(\"/api\")\npublic class ResponseSample extends HttpServlet {\n    protected void doGet(HttpServletRequest q, HttpServletResponse s) throws IOException {\n        s.setContentType(\"application/json\");\n        s.setHeader(\"X-Request-Id\", \"req-1\");\n        s.getWriter().println(\"{\\\"status\\\":\\\"ok\\\"}\");\n    }\n\n    public static void main(String[] a) {\n        MiniWeb.app().register(ResponseSample.class).showHeaders().serve();\n    }\n}\n",
           "stdin": "GET /api"
         }
       ],
       "task": "【基本】GET `/greet?name=...` を処理するサーブレットを作ります。nameが無いか空なら400、あれば `Hello, name!` と表示してください。",
-      "starterCode": "import jakarta.servlet.annotation.WebServlet;\nimport jakarta.servlet.http.*;\nimport java.io.*;\n@WebServlet(\"/greet\") public class Main extends HttpServlet {protected void doGet(HttpServletRequest req,HttpServletResponse res)throws IOException{/* TODO */}public static void main(String[] args){MiniWeb.app().register(Main.class).serve();}}\n",
+      "starterCode": "import jakarta.servlet.annotation.WebServlet;\nimport jakarta.servlet.http.*;\nimport java.io.*;\n\n@WebServlet(\"/greet\")\npublic class Main extends HttpServlet {\n    protected void doGet(HttpServletRequest req, HttpServletResponse res) throws IOException {\n        /* TODO */\n    }\n\n    public static void main(String[] args) {\n        MiniWeb.app().register(Main.class).serve();\n    }\n}\n",
       "visibleCases": [
         {
           "label": "名前あり",
@@ -281,12 +594,12 @@
         "`req.getParameter(\"name\")` で取得します。",
         "エラー送信後はreturnし、本文を書かないようにします。"
       ],
-      "solution": "import jakarta.servlet.annotation.WebServlet;\nimport jakarta.servlet.http.*;\nimport java.io.*;\n@WebServlet(\"/greet\") public class Main extends HttpServlet {protected void doGet(HttpServletRequest req,HttpServletResponse res)throws IOException{String name=req.getParameter(\"name\");if(name==null||name.isBlank()){res.sendError(400,\"nameは必須です\");return;}res.getWriter().println(\"Hello, \"+name+\"!\");}public static void main(String[] args){MiniWeb.app().register(Main.class).serve();}}\n",
+      "solution": "import jakarta.servlet.annotation.WebServlet;\nimport jakarta.servlet.http.*;\nimport java.io.*;\n\n@WebServlet(\"/greet\")\npublic class Main extends HttpServlet {\n    protected void doGet(HttpServletRequest req, HttpServletResponse res) throws IOException {\n        String name = req.getParameter(\"name\");\n        if (name == null || name.isBlank()) {\n            res.sendError(400, \"nameは必須です\");\n            return;\n        }\n        res.getWriter().println(\"Hello, \" + name + \"!\");\n    }\n\n    public static void main(String[] args) {\n        MiniWeb.app().register(Main.class).serve();\n    }\n}\n",
       "extraTasks": [
         {
           "kind": "drill",
           "task": "【組み合わせ】POST `/notes?text=...` なら201と `created: text` を返します。textが空なら400です。GETなどPOST以外はMiniWebの既定動作で405になるよう、`doPost` だけを実装してください。",
-          "starterCode": "import jakarta.servlet.annotation.WebServlet;\nimport jakarta.servlet.http.*;\nimport java.io.*;\n@WebServlet(\"/notes\") public class Main extends HttpServlet {protected void doPost(HttpServletRequest req,HttpServletResponse res)throws IOException{/* TODO */}public static void main(String[] args){MiniWeb.app().register(Main.class).serve();}}\n",
+          "starterCode": "import jakarta.servlet.annotation.WebServlet;\nimport jakarta.servlet.http.*;\nimport java.io.*;\n\n@WebServlet(\"/notes\")\npublic class Main extends HttpServlet {\n    protected void doPost(HttpServletRequest req, HttpServletResponse res) throws IOException {\n        /* TODO */\n    }\n\n    public static void main(String[] args) {\n        MiniWeb.app().register(Main.class).serve();\n    }\n}\n",
           "visibleCases": [
             {
               "label": "作成",
@@ -315,12 +628,25 @@
             "処理はdoPostへ書きます。",
             "正常時は `res.setStatus(HttpServletResponse.SC_CREATED)` を設定します。"
           ],
-          "solution": "import jakarta.servlet.annotation.WebServlet;\nimport jakarta.servlet.http.*;\nimport java.io.*;\n@WebServlet(\"/notes\") public class Main extends HttpServlet {protected void doPost(HttpServletRequest req,HttpServletResponse res)throws IOException{String text=req.getParameter(\"text\");if(text==null||text.isBlank()){res.sendError(400,\"textは必須です\");return;}res.setStatus(201);res.getWriter().println(\"created: \"+text);}public static void main(String[] args){MiniWeb.app().register(Main.class).serve();}}\n"
+          "solution": "import jakarta.servlet.annotation.WebServlet;\nimport jakarta.servlet.http.*;\nimport java.io.*;\n\n@WebServlet(\"/notes\")\npublic class Main extends HttpServlet {\n    protected void doPost(HttpServletRequest req, HttpServletResponse res) throws IOException {\n        String text = req.getParameter(\"text\");\n        if (text == null || text.isBlank()) {\n            res.sendError(400, \"textは必須です\");\n            return;\n        }\n        res.setStatus(201);\n        res.getWriter().println(\"created: \" + text);\n    }\n\n    public static void main(String[] args) {\n        MiniWeb.app().register(Main.class).serve();\n    }\n}\n",
+          "sourceChecks": [
+            {
+              "pattern": "\\bdoPost\\s*\\(",
+              "minimum": 1,
+              "message": "`doPost` を実装してください。"
+            },
+            {
+              "pattern": "\\bdoGet\\s*\\(",
+              "minimum": 0,
+              "maximum": 0,
+              "message": "`doGet` は実装しません。実装しないメソッドは `HttpServlet` の既定動作で 405 になります。"
+            }
+          ]
         },
         {
           "kind": "applied",
           "task": "【実践】GET `/search?q=...` で、qをHTMLエスケープして `検索: q` と返してください。Content-Typeは `text/html; charset=UTF-8` にします。最低限 `&`、`<`、`>` をこの順で変換します。",
-          "starterCode": "import jakarta.servlet.annotation.WebServlet;\nimport jakarta.servlet.http.*;\nimport java.io.*;\n@WebServlet(\"/search\") public class Main extends HttpServlet {static String escape(String s){/* TODO */return \"\";}protected void doGet(HttpServletRequest req,HttpServletResponse res)throws IOException{/* TODO */}public static void main(String[] args){MiniWeb.app().register(Main.class).showHeaders().serve();}}\n",
+          "starterCode": "import jakarta.servlet.annotation.WebServlet;\nimport jakarta.servlet.http.*;\nimport java.io.*;\n\n@WebServlet(\"/search\")\npublic class Main extends HttpServlet {\n    static String escape(String s) {\n        /* TODO */ return \"\";\n    }\n\n    protected void doGet(HttpServletRequest req, HttpServletResponse res) throws IOException {\n        /* TODO */\n    }\n\n    public static void main(String[] args) {\n        MiniWeb.app().register(Main.class).showHeaders().serve();\n    }\n}\n",
           "visibleCases": [
             {
               "label": "通常文字",
@@ -349,7 +675,19 @@
             "`&` を最初に変換しないと、後から作った `&lt;` まで変換してしまいます。",
             "Content-Typeを設定してからWriterへ本文を書きます。"
           ],
-          "solution": "import jakarta.servlet.annotation.WebServlet;\nimport jakarta.servlet.http.*;\nimport java.io.*;\n@WebServlet(\"/search\") public class Main extends HttpServlet {static String escape(String s){if(s==null)return \"\";return s.replace(\"&\",\"&amp;\").replace(\"<\",\"&lt;\").replace(\">\",\"&gt;\");}protected void doGet(HttpServletRequest req,HttpServletResponse res)throws IOException{res.setContentType(\"text/html; charset=UTF-8\");res.getWriter().println(\"検索: \"+escape(req.getParameter(\"q\")));}public static void main(String[] args){MiniWeb.app().register(Main.class).showHeaders().serve();}}\n"
+          "solution": "import jakarta.servlet.annotation.WebServlet;\nimport jakarta.servlet.http.*;\nimport java.io.*;\n\n@WebServlet(\"/search\")\npublic class Main extends HttpServlet {\n    static String escape(String s) {\n        if (s == null) return \"\";\n        return s.replace(\"&\", \"&amp;\").replace(\"<\", \"&lt;\").replace(\">\", \"&gt;\");\n    }\n\n    protected void doGet(HttpServletRequest req, HttpServletResponse res) throws IOException {\n        res.setContentType(\"text/html; charset=UTF-8\");\n        res.getWriter().println(\"検索: \" + escape(req.getParameter(\"q\")));\n    }\n\n    public static void main(String[] args) {\n        MiniWeb.app().register(Main.class).showHeaders().serve();\n    }\n}\n",
+          "sourceChecks": [
+            {
+              "pattern": "\\.replace\\s*\\(",
+              "minimum": 3,
+              "message": "`&`、`<`、`>` の3つを変換します。`&` を先に変換しないと、あとで足した `&amp;` が二重に変換されます。"
+            },
+            {
+              "pattern": "\\bsetContentType\\s*\\(",
+              "minimum": 1,
+              "message": "文字化けを防ぐため `setContentType` で charset まで指定してください。"
+            }
+          ]
         }
       ]
     }

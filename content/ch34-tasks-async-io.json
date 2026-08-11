@@ -8,56 +8,617 @@
       "id": "34-1",
       "title": "Threadではなくタスクを投入する",
       "explanation": "## はじめて学ぶ人へ\n\nExecutorは「やる仕事」と「働くスレッド」を分ける仕組みです。レストランで注文票を受付へ置き、空いた料理人が順に調理する形に似ています。注文ごとに料理人を新しく雇う必要はありません。\n\n```text\nTaskをsubmit → キューで待つ → ワーカースレッドが実行 → Futureで結果を受け取る\n```\n\nCPU計算中心ならスレッドを増やしすぎても速くなりにくく、待ち時間の多い処理なら別の設計が合います。キューにも上限を設けないと、仕事が増えたときメモリを圧迫します。終了時は新規受付を止め、実行中の仕事を待つ `shutdown` の手順まで含めて管理します。\n\n## Executorが実行方法を分離する\n\n`ExecutorService`へRunnableやCallableをsubmitすると、業務タスクとスレッド管理を分離できます。固定プールは同時実行数を制限しますが、待ち行列が無制限なら過負荷を先送りするだけです。CPU中心ならコア数を基準に、待ち時間の多いI/O中心なら接続先の許容量も含めて決め、測定します。\n\n```svg 「やる仕事」と「働くスレッド」を分ける。タスクはキューに並び、空いたワーカーが実行する\n<svg viewBox=\"0 0 720 234\">\n  <text class=\"fig-t fig-mono fig-small fig-t-accent\" x=\"270\" y=\"32\" text-anchor=\"middle\">submit</text>\n  <text class=\"fig-t fig-t-accent fig-small\" x=\"495\" y=\"32\" text-anchor=\"middle\">空いたワーカーが実行</text>\n\n  <rect class=\"fig-box\" x=\"14\" y=\"52\" width=\"120\" height=\"28\" rx=\"6\"/>\n  <text class=\"fig-t fig-mono fig-small\" x=\"74\" y=\"66\" text-anchor=\"middle\">task</text>\n  <rect class=\"fig-box\" x=\"14\" y=\"88\" width=\"120\" height=\"28\" rx=\"6\"/>\n  <text class=\"fig-t fig-mono fig-small\" x=\"74\" y=\"102\" text-anchor=\"middle\">task</text>\n  <rect class=\"fig-box\" x=\"14\" y=\"124\" width=\"120\" height=\"28\" rx=\"6\"/>\n  <text class=\"fig-t fig-mono fig-small\" x=\"74\" y=\"138\" text-anchor=\"middle\">task</text>\n  <line class=\"fig-line\" x1=\"138\" y1=\"66\" x2=\"166\" y2=\"78\" marker-end=\"arrow\"/>\n  <line class=\"fig-line\" x1=\"138\" y1=\"102\" x2=\"166\" y2=\"100\" marker-end=\"arrow\"/>\n  <line class=\"fig-line\" x1=\"138\" y1=\"138\" x2=\"166\" y2=\"124\" marker-end=\"arrow\"/>\n\n  <rect class=\"fig-region\" x=\"170\" y=\"44\" width=\"200\" height=\"114\" rx=\"8\"/>\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"270\" y=\"60\" text-anchor=\"middle\">キュー（待ち行列）</text>\n  <rect class=\"fig-box\" x=\"186\" y=\"70\" width=\"168\" height=\"24\" rx=\"6\"/>\n  <text class=\"fig-t fig-mono fig-small\" x=\"270\" y=\"82\" text-anchor=\"middle\">task</text>\n  <rect class=\"fig-box\" x=\"186\" y=\"100\" width=\"168\" height=\"24\" rx=\"6\"/>\n  <text class=\"fig-t fig-mono fig-small\" x=\"270\" y=\"112\" text-anchor=\"middle\">task</text>\n  <rect class=\"fig-box\" x=\"186\" y=\"130\" width=\"168\" height=\"24\" rx=\"6\"/>\n  <text class=\"fig-t fig-mono fig-small\" x=\"270\" y=\"142\" text-anchor=\"middle\">task</text>\n\n  <line class=\"fig-line-accent\" x1=\"374\" y1=\"100\" x2=\"404\" y2=\"100\" marker-end=\"arrow-accent\"/>\n  <rect class=\"fig-region\" x=\"410\" y=\"44\" width=\"170\" height=\"114\" rx=\"8\"/>\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"495\" y=\"60\" text-anchor=\"middle\">ワーカースレッド</text>\n  <rect class=\"fig-box\" x=\"426\" y=\"74\" width=\"138\" height=\"32\" rx=\"6\"/>\n  <text class=\"fig-t fig-mono fig-small\" x=\"495\" y=\"90\" text-anchor=\"middle\">thread</text>\n  <rect class=\"fig-box\" x=\"426\" y=\"114\" width=\"138\" height=\"32\" rx=\"6\"/>\n  <text class=\"fig-t fig-mono fig-small\" x=\"495\" y=\"130\" text-anchor=\"middle\">thread</text>\n\n  <line class=\"fig-line\" x1=\"584\" y1=\"100\" x2=\"612\" y2=\"100\" marker-end=\"arrow\"/>\n  <rect class=\"fig-box\" x=\"616\" y=\"82\" width=\"90\" height=\"36\" rx=\"6\"/>\n  <text class=\"fig-t fig-mono fig-small\" x=\"661\" y=\"100\" text-anchor=\"middle\">Future</text>\n\n  <text class=\"fig-t fig-t-ng fig-small\" x=\"14\" y=\"192\">キューに上限が無いと、混んだときメモリを圧迫するだけ（過負荷の先送りになる）</text>\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"14\" y=\"214\">受付終了は shutdown、それでも残るなら shutdownNow の段階的終了。Future.get() は完了待ちと結果取得を兼ねる</text>\n</svg>\n```\n\n`Future.get()` は結果取得と完了待ちを行い、タスク例外を `ExecutionException` で伝えます。タイムアウトとキャンセル時の割込み対応も設計します。受付終了はshutdown、一定時間後も残るならshutdownNowという段階的終了が基本です。JDK 21ではExecutorServiceをtry-with-resourcesでも閉じられます。",
-      "samples": [{"caption":"固定プールでCallableを実行","code":"import java.util.*;\nimport java.util.concurrent.*;\npublic class Main { public static void main(String[] args) throws Exception { try(ExecutorService pool=Executors.newFixedThreadPool(2)){List<Future<Integer>> fs=new ArrayList<>();for(int n:List.of(3,4,5))fs.add(pool.submit(()->n*n));for(Future<Integer> f:fs)System.out.println(f.get());} } }\n"}],
+      "samples": [
+        {
+          "caption": "固定プールでCallableを実行",
+          "code": "import java.util.*;\nimport java.util.concurrent.*;\n\npublic class Main {\n    public static void main(String[] args) throws Exception {\n        try (ExecutorService pool = Executors.newFixedThreadPool(2)) {\n            List<Future<Integer>> fs = new ArrayList<>();\n            for (int n : List.of(3, 4, 5)) fs.add(pool.submit(() -> n * n));\n            for (Future<Integer> f : fs) System.out.println(f.get());\n        }\n    }\n}\n"
+        }
+      ],
       "task": "poolSize、個数n、n個の整数を読み、固定スレッドプールへ各値の平方を返すCallableをsubmitしてください。Futureを投入順にgetして平方を1行ずつ表示し、try-with-resourcesでExecutorServiceを閉じます。",
-      "starterCode": "import java.util.*;\nimport java.util.concurrent.*;\npublic class Main { public static void main(String[] args) throws Exception { Scanner s=new Scanner(System.in);int size=s.nextInt(),n=s.nextInt();long[] values=new long[n];for(int i=0;i<n;i++)values[i]=s.nextLong(); // TODO\n} }\n",
-      "visibleCases": [{"label":"2スレッド","stdin":"2 3 3 4 5","expected":"9\n16\n25"},{"label":"負数","stdin":"1 2 -2 -10","expected":"4\n100"}],
-      "hiddenCases": [{"label":"0件","stdin":"3 0","expected":""},{"label":"ゼロ","stdin":"2 3 0 1 -1","expected":"0\n1\n1"}],
-      "hints": ["`try (ExecutorService pool = Executors.newFixedThreadPool(size))` と書けます。","`List<Future<Long>>` へ `pool.submit(() -> value * value)` を追加します。","Futureリストを同じ順で回してgetすると出力順が固定されます。"],
-      "solution": "import java.util.*;\nimport java.util.concurrent.*;\npublic class Main { public static void main(String[] args) throws Exception { Scanner s=new Scanner(System.in);int size=s.nextInt(),n=s.nextInt();long[] values=new long[n];for(int i=0;i<n;i++)values[i]=s.nextLong();try(ExecutorService pool=Executors.newFixedThreadPool(size)){List<Future<Long>> fs=new ArrayList<>();for(long v:values)fs.add(pool.submit(()->v*v));for(Future<Long> f:fs)System.out.println(f.get());} } }\n",
-      "extraTasks": [{"kind":"applied","task":"poolSize、単語数n、n個の単語を読み、各単語の長さを返すCallable一覧を作って `invokeAll` してください。返されたFutureを順にgetし、長さの合計を表示します。","starterCode":"import java.util.*;\nimport java.util.concurrent.*;\npublic class Main { public static void main(String[] args) throws Exception { Scanner s=new Scanner(System.in);int size=s.nextInt(),n=s.nextInt();List<String> words=new ArrayList<>();for(int i=0;i<n;i++)words.add(s.next()); // TODO\n} }\n","visibleCases":[{"label":"3語","stdin":"2 3 java jvm api","expected":"10"},{"label":"1語","stdin":"1 1 hello","expected":"5"}],"hiddenCases":[{"label":"0語","stdin":"4 0","expected":"0"},{"label":"日本語","stdin":"2 2 猫 Java","expected":"5"}],"hints":["`List<Callable<Integer>> tasks` を作り、各wordについて `() -> word.length()` を追加します。","`pool.invokeAll(tasks)` はFutureのリストを入力と同じ順で返します。"],"solution":"import java.util.*;\nimport java.util.concurrent.*;\npublic class Main { public static void main(String[] args) throws Exception { Scanner s=new Scanner(System.in);int size=s.nextInt(),n=s.nextInt();List<String> words=new ArrayList<>();for(int i=0;i<n;i++)words.add(s.next());try(ExecutorService pool=Executors.newFixedThreadPool(size)){List<Callable<Integer>> tasks=new ArrayList<>();for(String w:words)tasks.add(w::length);int total=0;for(Future<Integer> f:pool.invokeAll(tasks))total+=f.get();System.out.println(total);} } }\n"}],
-      "quiz": [{"question":"ExecutorServiceを使う主な利点は？","choices":["業務タスクと実行スレッド管理を分離","例外が消える","共有状態が自動で安全","必ず高速"],"answer":0,"explanation":"投入側はタスクを表し、Executorが実行方法と資源を管理します。"},{"question":"無制限キューを持つ固定プールが過負荷になると？","choices":["常に拒否","待ちタスクと遅延が増え続けうる","自動で無限にスレッド増加","JVMが必ず再起動"],"answer":1,"explanation":"同時実行数を抑えても流入超過をキューへ蓄積します。"},{"question":"Future.getが伝えるタスク内例外は通常何で包まれる？","choices":["IOException","ExecutionException","ClassNotFoundException","Errorだけ"],"answer":1,"explanation":"get時にExecutionExceptionとして原因を取得します。"},{"question":"安全な終了の最初の操作は？","choices":["System.exit","shutdownで新規受付を止める","全Threadをstop","キューを無視"],"answer":1,"explanation":"まず受付を止め、既存タスクの完了を待つ段階的終了にします。"}]
+      "starterCode": "import java.util.*;\nimport java.util.concurrent.*;\n\npublic class Main {\n    public static void main(String[] args) throws Exception {\n        Scanner s = new Scanner(System.in);\n        int size = s.nextInt(), n = s.nextInt();\n        long[] values = new long[n];\n        for (int i = 0; i < n; i++) values[i] = s.nextLong();\n        // TODO\n    }\n}\n",
+      "visibleCases": [
+        {
+          "label": "2スレッド",
+          "stdin": "2 3 3 4 5",
+          "expected": "9\n16\n25"
+        },
+        {
+          "label": "負数",
+          "stdin": "1 2 -2 -10",
+          "expected": "4\n100"
+        }
+      ],
+      "hiddenCases": [
+        {
+          "label": "0件",
+          "stdin": "3 0",
+          "expected": ""
+        },
+        {
+          "label": "ゼロ",
+          "stdin": "2 3 0 1 -1",
+          "expected": "0\n1\n1"
+        }
+      ],
+      "hints": [
+        "`try (ExecutorService pool = Executors.newFixedThreadPool(size))` と書けます。",
+        "`List<Future<Long>>` へ `pool.submit(() -> value * value)` を追加します。",
+        "Futureリストを同じ順で回してgetすると出力順が固定されます。"
+      ],
+      "solution": "import java.util.*;\nimport java.util.concurrent.*;\n\npublic class Main {\n    public static void main(String[] args) throws Exception {\n        Scanner s = new Scanner(System.in);\n        int size = s.nextInt(), n = s.nextInt();\n        long[] values = new long[n];\n        for (int i = 0; i < n; i++) values[i] = s.nextLong();\n        try (ExecutorService pool = Executors.newFixedThreadPool(size)) {\n            List<Future<Long>> fs = new ArrayList<>();\n            for (long v : values) fs.add(pool.submit(() -> v * v));\n            for (Future<Long> f : fs) System.out.println(f.get());\n        }\n    }\n}\n",
+      "extraTasks": [
+        {
+          "kind": "applied",
+          "task": "poolSize、単語数n、n個の単語を読み、各単語の長さを返すCallable一覧を作って `invokeAll` してください。返されたFutureを順にgetし、長さの合計を表示します。",
+          "starterCode": "import java.util.*;\nimport java.util.concurrent.*;\n\npublic class Main {\n    public static void main(String[] args) throws Exception {\n        Scanner s = new Scanner(System.in);\n        int size = s.nextInt(), n = s.nextInt();\n        List<String> words = new ArrayList<>();\n        for (int i = 0; i < n; i++) words.add(s.next());\n        // TODO\n    }\n}\n",
+          "visibleCases": [
+            {
+              "label": "3語",
+              "stdin": "2 3 java jvm api",
+              "expected": "10"
+            },
+            {
+              "label": "1語",
+              "stdin": "1 1 hello",
+              "expected": "5"
+            }
+          ],
+          "hiddenCases": [
+            {
+              "label": "0語",
+              "stdin": "4 0",
+              "expected": "0"
+            },
+            {
+              "label": "日本語",
+              "stdin": "2 2 猫 Java",
+              "expected": "5"
+            }
+          ],
+          "hints": [
+            "`List<Callable<Integer>> tasks` を作り、各wordについて `() -> word.length()` を追加します。",
+            "`pool.invokeAll(tasks)` はFutureのリストを入力と同じ順で返します。"
+          ],
+          "solution": "import java.util.*;\nimport java.util.concurrent.*;\n\npublic class Main {\n    public static void main(String[] args) throws Exception {\n        Scanner s = new Scanner(System.in);\n        int size = s.nextInt(), n = s.nextInt();\n        List<String> words = new ArrayList<>();\n        for (int i = 0; i < n; i++) words.add(s.next());\n        try (ExecutorService pool = Executors.newFixedThreadPool(size)) {\n            List<Callable<Integer>> tasks = new ArrayList<>();\n            for (String w : words) tasks.add(w::length);\n            int total = 0;\n            for (Future<Integer> f : pool.invokeAll(tasks)) total += f.get();\n            System.out.println(total);\n        }\n    }\n}\n",
+          "sourceChecks": [
+            {
+              "pattern": "\\bCallable\\s*<",
+              "minimum": 1,
+              "message": "戻り値のあるタスクは `Callable` です（`Runnable` は値を返せません）。"
+            },
+            {
+              "pattern": "\\.invokeAll\\s*\\(",
+              "minimum": 1,
+              "message": "まとめて投入して全部の完了を待つのは `invokeAll` です。"
+            },
+            {
+              "pattern": "Executors\\s*\\.\\s*newFixedThreadPool\\s*\\(",
+              "minimum": 1,
+              "message": "スレッド数を決めたプールは `Executors.newFixedThreadPool` で作ってください。"
+            },
+            {
+              "pattern": "\\btry\\s*\\(",
+              "minimum": 1,
+              "message": "プールは閉じないとプログラムが終わりません。try-with-resources で受けてください。"
+            }
+          ]
+        }
+      ],
+      "quiz": [
+        {
+          "question": "ExecutorServiceを使う主な利点は？",
+          "choices": [
+            "業務タスクと実行スレッド管理を分離",
+            "共有状態が自動で安全",
+            "例外が消える",
+            "タスクの実行順序が投入順にそろう"
+          ],
+          "answer": 0,
+          "explanation": "共有状態が自動で安全になることはなく、そこは自分で守る必要があります。例外は消えず `Future` に包まれて残ります。実行順序が投入順にそろう保証もありません。利点は「何をするか」（タスク）と「どう動かすか」（スレッド数や使い回し）を分けられることです。"
+        },
+        {
+          "question": "無制限キューを持つ固定プールが過負荷になると？",
+          "choices": [
+            "キューがあふれて古いタスクが捨てられる",
+            "投入したタスクが例外で拒否される",
+            "待ちタスクと遅延が増え続けうる",
+            "自動で無限にスレッド増加"
+          ],
+          "answer": 2,
+          "explanation": "キューが無制限なのであふれませんし、古いものが捨てられることも、例外で拒否されることもありません。スレッドが無限に増えるのは別の種類のプールです。同時実行数は抑えられている一方で、入りきらないぶんがキューへ溜まり続けるので、待ち時間だけが伸びていきます。"
+        },
+        {
+          "question": "Future.getが伝えるタスク内例外は通常何で包まれる？",
+          "choices": [
+            "IOException",
+            "ClassNotFoundException",
+            "ExecutionException",
+            "Errorだけ"
+          ],
+          "answer": 2,
+          "explanation": "`IOException` や `ClassNotFoundException` は、たまたまタスクが投げた例外の一例にすぎません。`Error` だけが伝わるのでもありません。`Future.get()` はタスクの中で起きた例外を `ExecutionException` に包んで投げるので、`getCause()` で本当の原因を取り出します。"
+        },
+        {
+          "question": "安全な終了の最初の操作は？",
+          "choices": [
+            "キューを無視",
+            "shutdownで新規受付を止める",
+            "全Threadをstop",
+            "System.exit"
+          ],
+          "answer": 1,
+          "explanation": "キューを無視すると、投入済みのタスクが実行されないまま消えます。`Thread.stop` は危険なため廃止されています。`System.exit` は実行中の処理を待ちません。まず `shutdown()` で新規受付を止め、`awaitTermination` で完了を待ち、必要なら `shutdownNow` へ進む——という段階を踏みます。"
+        }
+      ]
     },
     {
       "id": "34-2",
       "title": "非同期パイプラインとVirtual Threads",
       "explanation": "## はじめて学ぶ人へ\n\n非同期処理は、待ち時間のある仕事をつなぎ、完了した結果から次へ進める考え方です。注文確認→在庫照会→配送手配という流れなら、`CompletableFuture` の各処理が工程になります。\n\n- `thenApply`: 結果を別の値へ変換\n- `thenCompose`: 結果を使う次の非同期処理へつなぐ\n- `exceptionally`: 失敗時の代替処理\n\nVirtual Threadは、通信待ちの多い仕事を大量に扱いやすい軽量スレッドです。窓口係が待っている客ごとに高価な専任席を占有しないイメージです。ただしCPU自体が増えるわけではなく、接続プールや外部APIの上限も消えません。待ち時間・失敗・キャンセルまで含めてパイプラインを設計します。\n\n## 非同期の依存関係を表す\n\n`CompletableFuture` は「値が後で得られる」ことと後続処理を表します。`thenApply` は値の変換、`thenCompose` はFutureを返す処理の直列化、`thenCombine` は独立処理の合流です。`join` は待機し、失敗を未検査例外で伝えます。どのExecutorで動くかを決めずにcommon poolへ重いブロッキングI/Oを大量投入しないようにします。\n\n## JDK 21のVirtual Threads\n\nVirtual ThreadはJVMが大量に扱える軽量スレッドです。同期的で読みやすいコードのまま、多数の待ち時間の長いI/Oタスクを扱えます。`Executors.newVirtualThreadPerTaskExecutor()` はタスクごとにVirtual Threadを作るため、従来のように少数スレッドを使い回すためのプールサイズ調整はしません。\n\n```svg 待ちに入った Virtual Thread はキャリアから外れるので、待っている間はスレッドを占有しない\n<svg viewBox=\"0 0 720 248\">\n  <text class=\"fig-t fig-title\" x=\"182\" y=\"22\" text-anchor=\"middle\">プラットフォームスレッド</text>\n  <text class=\"fig-t fig-title\" x=\"543\" y=\"22\" text-anchor=\"middle\">Virtual Threads</text>\n\n  <rect class=\"fig-box\" x=\"30\" y=\"40\" width=\"290\" height=\"34\" rx=\"6\"/>\n  <text class=\"fig-t fig-small\" x=\"175\" y=\"57\" text-anchor=\"middle\">task ↔ OSスレッド（通信を待つ間も占有）</text>\n  <rect class=\"fig-box\" x=\"30\" y=\"82\" width=\"290\" height=\"34\" rx=\"6\"/>\n  <text class=\"fig-t fig-small\" x=\"175\" y=\"99\" text-anchor=\"middle\">task ↔ OSスレッド（待ち）</text>\n  <rect class=\"fig-box\" x=\"30\" y=\"124\" width=\"290\" height=\"34\" rx=\"6\"/>\n  <text class=\"fig-t fig-small\" x=\"175\" y=\"141\" text-anchor=\"middle\">task ↔ OSスレッド（待ち）</text>\n  <text class=\"fig-t fig-t-ng fig-small\" x=\"14\" y=\"184\">OSスレッドは高価なので、待ちが多い処理では数を増やせない</text>\n\n  <rect class=\"fig-box-accent\" x=\"386\" y=\"40\" width=\"96\" height=\"26\" rx=\"13\"/>\n  <text class=\"fig-t fig-mono fig-small fig-t-accent\" x=\"434\" y=\"53\" text-anchor=\"middle\">vthread</text>\n  <rect class=\"fig-box-accent\" x=\"492\" y=\"40\" width=\"96\" height=\"26\" rx=\"13\"/>\n  <text class=\"fig-t fig-mono fig-small fig-t-accent\" x=\"540\" y=\"53\" text-anchor=\"middle\">vthread</text>\n  <rect class=\"fig-box-accent\" x=\"598\" y=\"40\" width=\"96\" height=\"26\" rx=\"13\"/>\n  <text class=\"fig-t fig-mono fig-small fig-t-accent\" x=\"646\" y=\"53\" text-anchor=\"middle\">vthread</text>\n  <rect class=\"fig-box-accent\" x=\"386\" y=\"74\" width=\"96\" height=\"26\" rx=\"13\"/>\n  <text class=\"fig-t fig-mono fig-small fig-t-accent\" x=\"434\" y=\"87\" text-anchor=\"middle\">vthread</text>\n  <rect class=\"fig-box-accent\" x=\"492\" y=\"74\" width=\"96\" height=\"26\" rx=\"13\"/>\n  <text class=\"fig-t fig-mono fig-small fig-t-accent\" x=\"540\" y=\"87\" text-anchor=\"middle\">vthread</text>\n  <rect class=\"fig-box-accent\" x=\"598\" y=\"74\" width=\"96\" height=\"26\" rx=\"13\"/>\n  <text class=\"fig-t fig-mono fig-small fig-t-accent\" x=\"646\" y=\"87\" text-anchor=\"middle\">vthread</text>\n\n  <line class=\"fig-line-accent\" x1=\"434\" y1=\"100\" x2=\"490\" y2=\"122\" marker-end=\"arrow-accent\"/>\n  <line class=\"fig-line-accent\" x1=\"540\" y1=\"100\" x2=\"540\" y2=\"122\" marker-end=\"arrow-accent\"/>\n  <line class=\"fig-line-accent\" x1=\"646\" y1=\"100\" x2=\"600\" y2=\"122\" marker-end=\"arrow-accent\"/>\n  <rect class=\"fig-box\" x=\"430\" y=\"126\" width=\"240\" height=\"42\" rx=\"6\"/>\n  <text class=\"fig-t fig-small\" x=\"550\" y=\"147\" text-anchor=\"middle\">キャリアスレッド（少数のOSスレッド）</text>\n  <text class=\"fig-t fig-t-ok fig-small\" x=\"380\" y=\"192\">待ちに入ると外れる（unmount）ので、キャリアを空けられる</text>\n\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"14\" y=\"234\">CPU 負荷はコア数が上限のまま。DB接続数や外部APIの同時実行数は Semaphore などで別に絞る</text>\n</svg>\n```\n\nVirtual Threadは処理自体を高速化する魔法ではありません。CPU負荷はコア数が上限で、DB接続数や外部APIの同時実行数はSemaphore等で別に制限します。ThreadLocalへ大きな値を置く設計にも注意します。",
-      "samples": [{"caption":"Virtual Threadでタスクを実行","code":"import java.util.concurrent.*;\npublic class Main { public static void main(String[] args) throws Exception { try(ExecutorService executor=Executors.newVirtualThreadPerTaskExecutor()){Future<String> f=executor.submit(()->Thread.currentThread().isVirtual()+\":java\");System.out.println(f.get());} } }\n"}],
+      "samples": [
+        {
+          "caption": "Virtual Threadでタスクを実行",
+          "code": "import java.util.concurrent.*;\n\npublic class Main {\n    public static void main(String[] args) throws Exception {\n        try (ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor()) {\n            Future<String> f = executor.submit(() -> Thread.currentThread().isVirtual() + \":java\");\n            System.out.println(f.get());\n        }\n    }\n}\n"
+        }
+      ],
       "task": "個数nとn個の整数を読みます。各値について `supplyAsync(() -> value * 2)`、続けて `thenApply(x -> x + 1)` のCompletableFutureを作り、投入順にjoinして結果を1行ずつ表示してください。",
-      "starterCode": "import java.util.*;\nimport java.util.concurrent.*;\npublic class Main { public static void main(String[] args) { Scanner s=new Scanner(System.in);int n=s.nextInt();int[] values=new int[n];for(int i=0;i<n;i++)values[i]=s.nextInt(); // TODO\n} }\n",
-      "visibleCases": [{"label":"3件","stdin":"3 1 2 3","expected":"3\n5\n7"},{"label":"負数","stdin":"2 -2 0","expected":"-3\n1"}],
-      "hiddenCases": [{"label":"0件","stdin":"0","expected":""},{"label":"大きい値","stdin":"2 100 500","expected":"201\n1001"}],
-      "hints": ["`List<CompletableFuture<Integer>>` を用意します。","`CompletableFuture.supplyAsync(() -> value * 2).thenApply(x -> x + 1)` を追加します。","リストを投入順に回し、joinした値を表示します。"],
-      "solution": "import java.util.*;\nimport java.util.concurrent.*;\npublic class Main { public static void main(String[] args) { Scanner s=new Scanner(System.in);int n=s.nextInt();int[] values=new int[n];for(int i=0;i<n;i++)values[i]=s.nextInt();List<CompletableFuture<Integer>> fs=new ArrayList<>();for(int value:values)fs.add(CompletableFuture.supplyAsync(()->value*2).thenApply(x->x+1));for(var f:fs)System.out.println(f.join());} }\n",
-      "extraTasks": [{"kind":"applied","task":"単語数nとn個の単語を読み、`Executors.newVirtualThreadPerTaskExecutor()` へ各単語を大文字化するCallableをsubmitします。各Futureから投入順に結果を取り、`大文字:true`（現在のThreadがVirtual Threadか）を表示してください。","starterCode":"import java.util.*;\nimport java.util.concurrent.*;\npublic class Main { public static void main(String[] args) throws Exception { Scanner s=new Scanner(System.in);int n=s.nextInt();List<String> words=new ArrayList<>();for(int i=0;i<n;i++)words.add(s.next()); // TODO\n} }\n","visibleCases":[{"label":"2語","stdin":"2 java jvm","expected":"JAVA:true\nJVM:true"},{"label":"1語","stdin":"1 virtual","expected":"VIRTUAL:true"}],"hiddenCases":[{"label":"0語","stdin":"0","expected":""},{"label":"数字入り","stdin":"2 jdk21 api2","expected":"JDK21:true\nAPI2:true"}],"hints":["ExecutorServiceをtry-with-resourcesで開きます。","Callable内で `word.toUpperCase(Locale.ROOT) + \":\" + Thread.currentThread().isVirtual()` を返します。"],"solution":"import java.util.*;\nimport java.util.concurrent.*;\npublic class Main { public static void main(String[] args) throws Exception { Scanner s=new Scanner(System.in);int n=s.nextInt();List<String> words=new ArrayList<>();for(int i=0;i<n;i++)words.add(s.next());try(ExecutorService executor=Executors.newVirtualThreadPerTaskExecutor()){List<Future<String>> fs=new ArrayList<>();for(String word:words)fs.add(executor.submit(()->word.toUpperCase(Locale.ROOT)+\":\"+Thread.currentThread().isVirtual()));for(Future<String> f:fs)System.out.println(f.get());}} }\n"}],
-      "quiz": [{"question":"thenApplyの主な用途は？","choices":["完了値を別の値へ変換","JVMを終了","ロックを強制解除","ファイルを削除"],"answer":0,"explanation":"前段の結果を受けて同期的な変換関数を適用します。"},{"question":"thenComposeが適する場面は？","choices":["Futureを返す処理を直列につなぐ","二つの独立結果を足すだけ","Thread名の変更","GC要求"],"answer":0,"explanation":"Futureの入れ子を平坦化して依存する非同期処理をつなぎます。"},{"question":"Virtual Threadsが特に向く処理は？","choices":["大量の待ち時間を含むI/Oタスク","単一の巨大CPU計算を無限高速化","GPU描画だけ","ロック不要化"],"answer":0,"explanation":"待機中にcarrier threadを占有しにくく、多数の同期I/O処理を表現できます。"},{"question":"Virtual Thread利用時も必要なものは？","choices":["DB接続など下流資源の同時実行制限","固定プールサイズを必ず1","Future禁止","例外の無視"],"answer":0,"explanation":"軽量スレッド数と下流システムの容量は別問題です。"}]
+      "starterCode": "import java.util.*;\nimport java.util.concurrent.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        int n = s.nextInt();\n        int[] values = new int[n];\n        for (int i = 0; i < n; i++) values[i] = s.nextInt();\n        // TODO\n    }\n}\n",
+      "visibleCases": [
+        {
+          "label": "3件",
+          "stdin": "3 1 2 3",
+          "expected": "3\n5\n7"
+        },
+        {
+          "label": "負数",
+          "stdin": "2 -2 0",
+          "expected": "-3\n1"
+        }
+      ],
+      "hiddenCases": [
+        {
+          "label": "0件",
+          "stdin": "0",
+          "expected": ""
+        },
+        {
+          "label": "大きい値",
+          "stdin": "2 100 500",
+          "expected": "201\n1001"
+        }
+      ],
+      "hints": [
+        "`List<CompletableFuture<Integer>>` を用意します。",
+        "`CompletableFuture.supplyAsync(() -> value * 2).thenApply(x -> x + 1)` を追加します。",
+        "リストを投入順に回し、joinした値を表示します。"
+      ],
+      "solution": "import java.util.*;\nimport java.util.concurrent.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        int n = s.nextInt();\n        int[] values = new int[n];\n        for (int i = 0; i < n; i++) values[i] = s.nextInt();\n        List<CompletableFuture<Integer>> fs = new ArrayList<>();\n        for (int value : values) fs.add(CompletableFuture.supplyAsync(() -> value * 2).thenApply(x -> x + 1));\n        for (var f : fs) System.out.println(f.join());\n    }\n}\n",
+      "extraTasks": [
+        {
+          "kind": "applied",
+          "task": "単語数nとn個の単語を読み、`Executors.newVirtualThreadPerTaskExecutor()` へ各単語を大文字化するCallableをsubmitします。各Futureから投入順に結果を取り、`大文字:true`（現在のThreadがVirtual Threadか）を表示してください。",
+          "starterCode": "import java.util.*;\nimport java.util.concurrent.*;\n\npublic class Main {\n    public static void main(String[] args) throws Exception {\n        Scanner s = new Scanner(System.in);\n        int n = s.nextInt();\n        List<String> words = new ArrayList<>();\n        for (int i = 0; i < n; i++) words.add(s.next());\n        // TODO\n    }\n}\n",
+          "visibleCases": [
+            {
+              "label": "2語",
+              "stdin": "2 java jvm",
+              "expected": "JAVA:true\nJVM:true"
+            },
+            {
+              "label": "1語",
+              "stdin": "1 virtual",
+              "expected": "VIRTUAL:true"
+            }
+          ],
+          "hiddenCases": [
+            {
+              "label": "0語",
+              "stdin": "0",
+              "expected": ""
+            },
+            {
+              "label": "数字入り",
+              "stdin": "2 jdk21 api2",
+              "expected": "JDK21:true\nAPI2:true"
+            }
+          ],
+          "hints": [
+            "ExecutorServiceをtry-with-resourcesで開きます。",
+            "Callable内で `word.toUpperCase(Locale.ROOT) + \":\" + Thread.currentThread().isVirtual()` を返します。"
+          ],
+          "solution": "import java.util.*;\nimport java.util.concurrent.*;\n\npublic class Main {\n    public static void main(String[] args) throws Exception {\n        Scanner s = new Scanner(System.in);\n        int n = s.nextInt();\n        List<String> words = new ArrayList<>();\n        for (int i = 0; i < n; i++) words.add(s.next());\n        try (ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor()) {\n            List<Future<String>> fs = new ArrayList<>();\n            for (String word : words) fs.add(executor.submit(() -> word.toUpperCase(Locale.ROOT) + \":\" + Thread.currentThread().isVirtual()));\n            for (Future<String> f : fs) System.out.println(f.get());\n        }\n    }\n}\n",
+          "sourceChecks": [
+            {
+              "pattern": "newVirtualThreadPerTaskExecutor\\s*\\(",
+              "minimum": 1,
+              "message": "Virtual Threadを1タスク1本で使うので `Executors.newVirtualThreadPerTaskExecutor()` です。"
+            },
+            {
+              "pattern": "\\.submit\\s*\\(",
+              "minimum": 1,
+              "message": "タスクは `submit` で投入し、返ってきた `Future` を投入順に保持してください。"
+            },
+            {
+              "pattern": "isVirtual\\s*\\(",
+              "minimum": 1,
+              "message": "Virtual Threadで動いているかは `Thread.currentThread().isVirtual()` で確かめます。"
+            }
+          ]
+        }
+      ],
+      "quiz": [
+        {
+          "question": "thenApplyの主な用途は？",
+          "choices": [
+            "ロックを強制解除",
+            "JVMを終了",
+            "完了値を別の値へ変換",
+            "ファイルを削除"
+          ],
+          "answer": 2,
+          "explanation": "ロックの解除やJVMの終了、ファイルの削除は、非同期処理の連結とは関係ありません。`thenApply` は前段の完了値を受け取って**同期的な変換**を当て、次の値にします。中でさらに非同期処理を始めたいときは `thenCompose` を使います。"
+        },
+        {
+          "question": "thenComposeが適する場面は？",
+          "choices": [
+            "GC要求",
+            "Thread名の変更",
+            "二つの独立結果を足すだけ",
+            "Futureを返す処理を直列につなぐ"
+          ],
+          "answer": 3,
+          "explanation": "GCの要求やThread名の変更は関係ありません。独立した2つの結果を足すだけなら `thenCombine` です。`thenCompose` は「次の処理自体が `Future` を返す」場合に使い、`Future<Future<T>>` という入れ子を平らにして直列につなぎます。"
+        },
+        {
+          "question": "Virtual Threadsが特に向く処理は？",
+          "choices": [
+            "GPU描画だけ",
+            "単一の巨大CPU計算を無限高速化",
+            "大量の待ち時間を含むI/Oタスク",
+            "ロック不要化"
+          ],
+          "answer": 2,
+          "explanation": "待機中にcarrier threadを占有しにくく、多数の同期I/O処理を表現できます。"
+        },
+        {
+          "question": "Virtual Thread利用時も必要なものは？",
+          "choices": [
+            "Future禁止",
+            "例外の無視",
+            "DB接続など下流資源の同時実行制限",
+            "同期処理を `synchronized` へ置き換えること"
+          ],
+          "answer": 2,
+          "explanation": "`Future` を禁じる必要はなく、例外を無視してはいけません。`synchronized` へ置き換える話でもありません（Virtual Threadではむしろ固定を避けたい）。スレッドが安く作れても、DBの接続数や外部APIの制限は変わらないので、下流に合わせた同時実行の上限は別に設けます。"
+        }
+      ]
     },
     {
       "id": "34-3",
       "title": "リソース境界とブロッキングを理解する",
       "explanation": "## はじめて学ぶ人へ\n\nI/Oは、プログラムの外とデータを出し入れする境界です。byteは荷物の小箱、charは人が読む文字と考えると区別しやすくなります。同じ「こんにちは」でも、UTF-8などの文字コードによって小箱への詰め方が決まります。\n\n```text\n文字列 ──UTF-8でencode──> byte列 ──decode──> 文字列\n```\n\nNIOのBufferは、書き込み位置と読み取り位置を持つ作業台です。書いたあと `flip()` で読み取りモードへ切り替えます。ファイル、ソケット、HTTP通信はいずれも相手を待って止まる可能性があるため、タイムアウト、部分的な読み書き、切断、そしてcloseを通常のケースとして扱います。\n\n## バイトと文字を区別する\n\nInputStream/OutputStreamはバイト、Reader/Writerは文字を扱います。文字とバイトを変換するときはUTF-8などのcharsetを明示します。`Files` と `Path` はファイル操作の中心APIで、小さなファイルはreadString/readAllLines、大きなファイルはストリームで逐次処理します。入力サイズを信用して全件をメモリへ載せないことも実務設計です。\n\nNIOのBufferはposition・limit・capacityを持ちます。書込み後の `flip()` はlimitを現在位置へ、positionを0へ変え、読取りモードにします。\n\nソケット通信では接続、読取、書込の各タイムアウト、部分読書き、切断、プロトコル境界を扱います。ブロッキングI/Oは待ちますが、Virtual Threadと組み合わせれば読みやすい同期コードで多数接続を扱えます。Closeableな資源はtry-with-resourcesで必ず閉じます。",
-      "samples": [{"caption":"UTF-8でファイルを往復する","code":"import java.nio.charset.StandardCharsets;\nimport java.nio.file.*;\npublic class Main { public static void main(String[] args) throws Exception { Path p=Path.of(\"sample.txt\");Files.writeString(p,\"Java\\nJVM\",StandardCharsets.UTF_8);System.out.println(Files.readString(p,StandardCharsets.UTF_8)); } }\n"}],
+      "samples": [
+        {
+          "caption": "UTF-8でファイルを往復する",
+          "code": "import java.nio.charset.StandardCharsets;\nimport java.nio.file.*;\n\npublic class Main {\n    public static void main(String[] args) throws Exception {\n        Path p = Path.of(\"sample.txt\");\n        Files.writeString(p, \"Java\\nJVM\", StandardCharsets.UTF_8);\n        System.out.println(Files.readString(p, StandardCharsets.UTF_8));\n    }\n}\n"
+        }
+      ],
       "task": "行数nとn個の文字列を読み、`data.txt`へUTF-8で1行ずつ書いてください。その後 `Files.readAllLines` で読み、1始まりの `番号:内容` を表示します。",
-      "starterCode": "import java.util.*;\nimport java.nio.charset.*;\nimport java.nio.file.*;\npublic class Main { public static void main(String[] args) throws Exception { Scanner s=new Scanner(System.in);int n=s.nextInt();List<String> lines=new ArrayList<>();for(int i=0;i<n;i++)lines.add(s.next()); // TODO\n} }\n",
-      "visibleCases": [{"label":"3行","stdin":"3 java jvm nio","expected":"1:java\n2:jvm\n3:nio"},{"label":"日本語","stdin":"2 猫 Java","expected":"1:猫\n2:Java"}],
-      "hiddenCases": [{"label":"0行","stdin":"0","expected":""},{"label":"1行","stdin":"1 hello","expected":"1:hello"}],
-      "hints": ["`Path path = Path.of(\"data.txt\")` を作ります。","`Files.write(path, lines, StandardCharsets.UTF_8)` で書けます。","readAllLinesの結果を添字で回し、`i + 1` を表示します。"],
-      "solution": "import java.util.*;\nimport java.nio.charset.*;\nimport java.nio.file.*;\npublic class Main { public static void main(String[] args) throws Exception { Scanner s=new Scanner(System.in);int n=s.nextInt();List<String> lines=new ArrayList<>();for(int i=0;i<n;i++)lines.add(s.next());Path path=Path.of(\"data.txt\");Files.write(path,lines,StandardCharsets.UTF_8);List<String> read=Files.readAllLines(path,StandardCharsets.UTF_8);for(int i=0;i<read.size();i++)System.out.println((i+1)+\":\"+read.get(i));} }\n",
-      "extraTasks": [{"kind":"applied","task":"整数数nとn個のintを読み、`ByteBuffer.allocate(n * Integer.BYTES)` へputIntしてください。flip後、hasRemainingの間getIntして合計を表示します。","starterCode":"import java.util.*;\nimport java.nio.*;\npublic class Main { public static void main(String[] args){ Scanner s=new Scanner(System.in);int n=s.nextInt();ByteBuffer buffer=ByteBuffer.allocate(n*Integer.BYTES); // TODO\n} }\n","visibleCases":[{"label":"3整数","stdin":"3 10 20 -5","expected":"25"},{"label":"0件","stdin":"0","expected":"0"}],"hiddenCases":[{"label":"負数","stdin":"2 -7 -8","expected":"-15"},{"label":"1件","stdin":"1 42","expected":"42"}],"hints":["入力ごとに `buffer.putInt(s.nextInt())` します。","書込み完了後に `buffer.flip()` してから読みます。"],"solution":"import java.util.*;\nimport java.nio.*;\npublic class Main { public static void main(String[] args){ Scanner s=new Scanner(System.in);int n=s.nextInt();ByteBuffer buffer=ByteBuffer.allocate(n*Integer.BYTES);for(int i=0;i<n;i++)buffer.putInt(s.nextInt());buffer.flip();long sum=0;while(buffer.hasRemaining())sum+=buffer.getInt();System.out.println(sum);} }\n"}],
-      "quiz": [{"question":"Reader/Writerが主に扱うものは？","choices":["文字","生のCPU命令","DBトランザクション","スレッド状態"],"answer":0,"explanation":"文字を扱い、バイトとの境界ではcharset変換が入ります。"},{"question":"ByteBuffer.flipの役割は？","choices":["書込み状態から読取り状態へ切り替える","バイト順を必ず逆転","容量を2倍","ファイルを閉じる"],"answer":0,"explanation":"limitを現在positionへ設定し、positionを0へ戻します。"},{"question":"大きなファイルの安全な扱いは？","choices":["必ず全バイトを一括読込","上限を考え逐次処理","charsetを無視","closeしない"],"answer":1,"explanation":"全件読込は入力サイズに比例してヒープを消費します。"},{"question":"ネットワークI/Oで必要な設計は？","choices":["無限待ちだけ","接続・読書きのタイムアウトと切断処理","例外を空catch","常に1バイトのみ"],"answer":1,"explanation":"外部通信は遅延・部分失敗・切断を通常ケースとして扱います。"}]
+      "starterCode": "import java.util.*;\nimport java.nio.charset.*;\nimport java.nio.file.*;\n\npublic class Main {\n    public static void main(String[] args) throws Exception {\n        Scanner s = new Scanner(System.in);\n        int n = s.nextInt();\n        List<String> lines = new ArrayList<>();\n        for (int i = 0; i < n; i++) lines.add(s.next());\n        // TODO\n    }\n}\n",
+      "visibleCases": [
+        {
+          "label": "3行",
+          "stdin": "3 java jvm nio",
+          "expected": "1:java\n2:jvm\n3:nio"
+        },
+        {
+          "label": "日本語",
+          "stdin": "2 猫 Java",
+          "expected": "1:猫\n2:Java"
+        }
+      ],
+      "hiddenCases": [
+        {
+          "label": "0行",
+          "stdin": "0",
+          "expected": ""
+        },
+        {
+          "label": "1行",
+          "stdin": "1 hello",
+          "expected": "1:hello"
+        }
+      ],
+      "hints": [
+        "`Path path = Path.of(\"data.txt\")` を作ります。",
+        "`Files.write(path, lines, StandardCharsets.UTF_8)` で書けます。",
+        "readAllLinesの結果を添字で回し、`i + 1` を表示します。"
+      ],
+      "solution": "import java.util.*;\nimport java.nio.charset.*;\nimport java.nio.file.*;\n\npublic class Main {\n    public static void main(String[] args) throws Exception {\n        Scanner s = new Scanner(System.in);\n        int n = s.nextInt();\n        List<String> lines = new ArrayList<>();\n        for (int i = 0; i < n; i++) lines.add(s.next());\n        Path path = Path.of(\"data.txt\");\n        Files.write(path, lines, StandardCharsets.UTF_8);\n        List<String> read = Files.readAllLines(path, StandardCharsets.UTF_8);\n        for (int i = 0; i < read.size(); i++) System.out.println((i + 1) + \":\" + read.get(i));\n    }\n}\n",
+      "extraTasks": [
+        {
+          "kind": "applied",
+          "task": "整数数nとn個のintを読み、`ByteBuffer.allocate(n * Integer.BYTES)` へputIntしてください。flip後、hasRemainingの間getIntして合計を表示します。",
+          "starterCode": "import java.util.*;\nimport java.nio.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        int n = s.nextInt();\n        ByteBuffer buffer = ByteBuffer.allocate(n * Integer.BYTES);\n        // TODO\n    }\n}\n",
+          "visibleCases": [
+            {
+              "label": "3整数",
+              "stdin": "3 10 20 -5",
+              "expected": "25"
+            },
+            {
+              "label": "0件",
+              "stdin": "0",
+              "expected": "0"
+            }
+          ],
+          "hiddenCases": [
+            {
+              "label": "負数",
+              "stdin": "2 -7 -8",
+              "expected": "-15"
+            },
+            {
+              "label": "1件",
+              "stdin": "1 42",
+              "expected": "42"
+            }
+          ],
+          "hints": [
+            "入力ごとに `buffer.putInt(s.nextInt())` します。",
+            "書込み完了後に `buffer.flip()` してから読みます。"
+          ],
+          "solution": "import java.util.*;\nimport java.nio.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        int n = s.nextInt();\n        ByteBuffer buffer = ByteBuffer.allocate(n * Integer.BYTES);\n        for (int i = 0; i < n; i++) buffer.putInt(s.nextInt());\n        buffer.flip();\n        long sum = 0;\n        while (buffer.hasRemaining()) sum += buffer.getInt();\n        System.out.println(sum);\n    }\n}\n",
+          "sourceChecks": [
+            {
+              "pattern": "ByteBuffer\\s*\\.\\s*allocate\\s*\\(",
+              "minimum": 1,
+              "message": "`ByteBuffer.allocate(n * Integer.BYTES)` で確保してください。"
+            },
+            {
+              "pattern": "\\.flip\\s*\\(",
+              "minimum": 1,
+              "message": "書き込みから読み取りへ切り替えるので `flip()` を呼んでください。忘れると1件も読めません。"
+            },
+            {
+              "pattern": "\\.hasRemaining\\s*\\(",
+              "minimum": 1,
+              "message": "残りがあるかは `hasRemaining()` で確かめてください。"
+            }
+          ]
+        }
+      ],
+      "quiz": [
+        {
+          "question": "Reader/Writerが主に扱うものは？",
+          "choices": [
+            "文字",
+            "生のCPU命令",
+            "DBトランザクション",
+            "スレッド状態"
+          ],
+          "answer": 0,
+          "explanation": "CPU命令・DBトランザクション・スレッド状態は、どれも入出力の対象ではありません。`Reader` / `Writer` は**文字**を扱い、`InputStream` / `OutputStream` はバイトを扱います。両者の境界で文字コードの変換が起きるので、そこで charset を明示します。"
+        },
+        {
+          "question": "ByteBuffer.flipの役割は？",
+          "choices": [
+            "容量を2倍",
+            "書込み状態から読取り状態へ切り替える",
+            "バイト順をビッグエンディアンへ変える",
+            "ファイルを閉じる"
+          ],
+          "answer": 1,
+          "explanation": "容量は変わらず、バイト順を変えるのは `order`、閉じる操作は別にあります。`flip()` は `limit` を現在の `position` へ置き、`position` を0へ戻します。つまり「ここまで書いた」を「ここまで読める」に読み替える操作で、呼び忘れると1件も読めません。"
+        },
+        {
+          "question": "大きなファイルの安全な扱いは？",
+          "choices": [
+            "closeしない",
+            "charsetを無視",
+            "`readAllBytes` で一度に読み込む",
+            "上限を考え逐次処理"
+          ],
+          "answer": 3,
+          "explanation": "`close` しないのは資源を漏らす行為で、charsetを無視すると環境によって結果が変わります。`readAllBytes` で一度に読むと、ファイルの大きさぶんのヒープが必要になり、大きな入力で `OutOfMemoryError` になります。入力の大きさに関係なく一定のメモリで動くよう、少しずつ読んで処理します。"
+        },
+        {
+          "question": "ネットワークI/Oで必要な設計は？",
+          "choices": [
+            "例外を空catch",
+            "接続・読書きのタイムアウトと切断処理",
+            "無限待ちだけ",
+            "1バイトずつ読んで境界を判定する"
+          ],
+          "answer": 1,
+          "explanation": "例外を空の `catch` で捨てると失敗に気づけません。無限待ちは、相手が黙ったまま応答しないと永久に止まります。1バイトずつ読む必要はありません。外部通信では遅延・部分的な失敗・切断が**普通に起きること**として、接続と読み書きの両方にタイムアウトを設け、切断時の処理を用意します。"
+        }
+      ]
     },
     {
       "id": "34-4",
       "title": "章末演習：タスク実行・非同期処理・I/O",
       "explanation": "## この章の知識を、自分の手で組み合わせよう\n\nここでは、**スレッドプールへのタスク投入・`Future` の取り出し順・`thenCombine` での合流と `exceptionally`・Virtual Threads・文字とバイトの境界**をまとめて使います。新しい文法は登場しません。分からなくなったら、直前までの解説やサンプルへ戻って確認して大丈夫です。\n\n### 3問の進め方\n\n1. **基本**で、中心となる書き方をもう一度使う\n2. **組み合わせ**で、章内の複数の知識を一緒に使う\n3. **実践**で、少し現実的な入力と条件を整理する\n\nこの章が並行処理とI/Oを一緒に扱うのは、**待たされる相手がほとんどI/Oだから**です。3問はどれも「投入した順に結果を並べ直す」形にしてあり、実行のたびに答えが変わりません。",
-      "samples": [{"caption":"復習用サンプル：投入順に get すれば、終わった順に関係なく並びは保てる","code":"import java.util.*;import java.util.concurrent.*;\npublic class Main{public static void main(String[] a)throws Exception{try(ExecutorService pool=Executors.newFixedThreadPool(2)){List<Future<Integer>> fs=new ArrayList<>();for(int v:new int[]{3,1,2})fs.add(pool.submit(()->v*10));for(Future<Integer> f:fs)System.out.println(f.get());}}}\n","expected":"30\n10\n20"}],
+      "samples": [
+        {
+          "caption": "復習用サンプル：投入順に get すれば、終わった順に関係なく並びは保てる",
+          "code": "import java.util.*;\nimport java.util.concurrent.*;\n\npublic class Main {\n    public static void main(String[] a) throws Exception {\n        try (ExecutorService pool = Executors.newFixedThreadPool(2)) {\n            List<Future<Integer>> fs = new ArrayList<>();\n            for (int v : new int[] {3, 1, 2}) fs.add(pool.submit(() -> v * 10));\n            for (Future<Integer> f : fs) System.out.println(f.get());\n        }\n    }\n}\n",
+          "expected": "30\n10\n20"
+        }
+      ],
       "task": "【基本】プールの本数poolSize（1以上）と個数nを読み、続けてn個の整数を読みます。固定スレッドプールへ「値が正ならその2倍、そうでなければ0を返す」`Callable` を1件ずつ投入し、`Future` を**投入した順に** `get` して結果を1行ずつ表示してください。`ExecutorService` は try-with-resources で閉じます。最後に結果の合計を `total=合計` の形で表示します。",
-      "starterCode": "import java.util.*;import java.util.concurrent.*;\npublic class Main {public static void main(String[] args) throws Exception {Scanner s=new Scanner(System.in);int poolSize=s.nextInt(),n=s.nextInt();long total=0;try(ExecutorService pool=Executors.newFixedThreadPool(poolSize)){List<Future<Integer>> futures=new ArrayList<>();for(int i=0;i<n;i++){int value=s.nextInt();/* TODO submit */}/* TODO 投入順に get して表示・合計 */}System.out.println(\"total=\"+total);}}\n",
-      "visibleCases": [{"label":"正の値だけ2倍","stdin":"2 4 3 -1 5 0","expected":"6\n0\n10\n0\ntotal=16"},{"label":"1件","stdin":"1 1 7","expected":"14\ntotal=14"}],
-      "hiddenCases": [{"label":"タスク0件","stdin":"2 0","expected":"total=0"},{"label":"すべて0になる","stdin":"2 3 -1 -2 -3","expected":"0\n0\n0\ntotal=0"},{"label":"プールが1本でも順序は保つ","stdin":"1 3 1 2 3","expected":"2\n4\n6\ntotal=12"},{"label":"大きい値","stdin":"2 2 1000000 1000000","expected":"2000000\n2000000\ntotal=4000000"}],
-      "hints": ["`pool.submit(() -> value>0?value*2:0)` の戻り値 `Future<Integer>` をリストへ貯めます。","終わる順番はプールの都合で変わります。リストへ入れた順に `get` すれば、表示は投入順になります。","try-with-resources で閉じた `ExecutorService` は、全タスクの終了を待ってから抜けます。`shutdown` を書き忘れて止まらないことを防げます。"],
-      "solution": "import java.util.*;import java.util.concurrent.*;\npublic class Main {public static void main(String[] args) throws Exception {Scanner s=new Scanner(System.in);int poolSize=s.nextInt(),n=s.nextInt();long total=0;try(ExecutorService pool=Executors.newFixedThreadPool(poolSize)){List<Future<Integer>> futures=new ArrayList<>();for(int i=0;i<n;i++){int value=s.nextInt();futures.add(pool.submit(()->value>0?value*2:0));}for(Future<Integer> f:futures){int result=f.get();total+=result;System.out.println(result);}}System.out.println(\"total=\"+total);}}\n",
-      "extraTasks": [{"kind":"drill","task":"【組み合わせ】n組の整数を読み、組ごとに**独立した2つの非同期処理を合流**させます。各組 `a b` について次の2つを `supplyAsync` で作ってください。\n\n- `a*2` を返すもの\n- `b` が0なら例外を投げ、そうでなければ `100/b` を返すもの\n\nこの2つを `thenCombine` で足し合わせ、さらに `exceptionally` で「失敗したら `-1` にする」代替値をつなぎます。投入した順に `join` して `value=結果` と1行ずつ表示し、最後に結果の合計を `sum=合計` の形で表示してください。","starterCode":"import java.util.*;import java.util.concurrent.*;\npublic class Main {public static void main(String[] args){Scanner s=new Scanner(System.in);int n=s.nextInt();List<CompletableFuture<Integer>> futures=new ArrayList<>();for(int i=0;i<n;i++){int a=s.nextInt(),b=s.nextInt();/* TODO 2つのsupplyAsyncを thenCombine で合流し、exceptionally で代替値 */}long sum=0;/* TODO 投入順に join して表示・合計 */\nSystem.out.println(\"sum=\"+sum);}}\n","visibleCases":[{"label":"2組を合流","stdin":"2 1 2 3 4","expected":"value=52\nvalue=31\nsum=83"},{"label":"失敗は代替値になる","stdin":"2 5 0 1 1","expected":"value=-1\nvalue=102\nsum=101"}],"hiddenCases":[{"label":"0組","stdin":"0","expected":"sum=0"},{"label":"1組","stdin":"1 10 5","expected":"value=40\nsum=40"},{"label":"すべて失敗","stdin":"2 1 0 2 0","expected":"value=-1\nvalue=-1\nsum=-2"},{"label":"負の値","stdin":"1 -3 10","expected":"value=4\nsum=4"},{"label":"割り算は切り捨て","stdin":"1 0 3","expected":"value=33\nsum=33"}],"hints":["`thenCombine` は独立した2つのFutureが**どちらも**終わってから合流します。前の結果を次へ渡す `thenApply` とは役割が違います。","`exceptionally` は前段のどこかで例外が出たときだけ呼ばれ、代わりの値を返します。これを付けずに `join` すると、失敗が未検査例外で飛んできて止まります。","0除算は `supplyAsync` の中で起きます。非同期処理の中の例外はその場では飛ばず、`join` か `exceptionally` まで運ばれます。"],"solution":"import java.util.*;import java.util.concurrent.*;\npublic class Main {public static void main(String[] args){Scanner s=new Scanner(System.in);int n=s.nextInt();List<CompletableFuture<Integer>> futures=new ArrayList<>();for(int i=0;i<n;i++){int a=s.nextInt(),b=s.nextInt();CompletableFuture<Integer> left=CompletableFuture.supplyAsync(()->a*2),right=CompletableFuture.supplyAsync(()->{if(b==0)throw new IllegalArgumentException();return 100/b;});futures.add(left.thenCombine(right,Integer::sum).exceptionally(e->-1));}long sum=0;for(CompletableFuture<Integer> f:futures){int result=f.join();sum+=result;System.out.println(\"value=\"+result);}System.out.println(\"sum=\"+sum);}}\n"},{"kind":"applied","task":"【実践】単語をn件読みます。`Executors.newVirtualThreadPerTaskExecutor()` へ、単語ごとに `単語:文字数:UTF-8のバイト数` という文字列を作るタスクを投入し、投入順に結果を集めてください。\n\n集めた行を `words.txt` へUTF-8で書き出し、`Files.readAllLines` で読み直して、1始まりの番号を付けて `番号:内容` と表示します。最後に `chars=文字数の合計 bytes=バイト数の合計` と表示してください。","starterCode":"import java.nio.charset.*;import java.nio.file.*;import java.util.*;import java.util.concurrent.*;\npublic class Main {public static void main(String[] args) throws Exception {Scanner s=new Scanner(System.in);int n=s.nextInt();List<String> words=new ArrayList<>();for(int i=0;i<n;i++)words.add(s.next());List<String> lines=new ArrayList<>();try(ExecutorService pool=Executors.newVirtualThreadPerTaskExecutor()){/* TODO 投入して投入順に集める */}Path path=Path.of(\"words.txt\");/* TODO 書き出して読み直す */\n/* TODO 番号付きの表示と合計 */}}\n","visibleCases":[{"label":"ASCIIと多バイト","stdin":"2 java 猫","expected":"1:java:4:4\n2:猫:1:3\nchars=5 bytes=7"},{"label":"1件","stdin":"1 ab","expected":"1:ab:2:2\nchars=2 bytes=2"}],"hiddenCases":[{"label":"単語0件","stdin":"0","expected":"chars=0 bytes=0"},{"label":"ASCIIは文字数とバイト数が同じ","stdin":"3 a bb ccc","expected":"1:a:1:1\n2:bb:2:2\n3:ccc:3:3\nchars=6 bytes=6"},{"label":"多バイトだけ","stdin":"2 猫 犬","expected":"1:猫:1:3\n2:犬:1:3\nchars=2 bytes=6"},{"label":"1語の中で混ざる","stdin":"1 a猫","expected":"1:a猫:2:4\nchars=2 bytes=4"}],"hints":["バイト数は `word.getBytes(StandardCharsets.UTF_8).length` です。`word.length()` は文字数（UTF-16の単位数）で、同じとは限りません。","書き出しは `Files.write(path, lines, StandardCharsets.UTF_8)`、読み直しは `Files.readAllLines(path, StandardCharsets.UTF_8)` です。文字コードは必ず明示します。","Virtual Threadは1タスクに1本作って構いません。それでも `Future` を投入順に `get` すれば、結果の並びは入力順のままです。"],"solution":"import java.nio.charset.*;import java.nio.file.*;import java.util.*;import java.util.concurrent.*;\npublic class Main {public static void main(String[] args) throws Exception {Scanner s=new Scanner(System.in);int n=s.nextInt();List<String> words=new ArrayList<>();for(int i=0;i<n;i++)words.add(s.next());List<String> lines=new ArrayList<>();try(ExecutorService pool=Executors.newVirtualThreadPerTaskExecutor()){List<Future<String>> futures=new ArrayList<>();for(String word:words)futures.add(pool.submit(()->word+\":\"+word.length()+\":\"+word.getBytes(StandardCharsets.UTF_8).length));for(Future<String> f:futures)lines.add(f.get());}Path path=Path.of(\"words.txt\");Files.write(path,lines,StandardCharsets.UTF_8);List<String> read=Files.readAllLines(path,StandardCharsets.UTF_8);for(int i=0;i<read.size();i++)System.out.println((i+1)+\":\"+read.get(i));int chars=0,bytes=0;for(String word:words){chars+=word.length();bytes+=word.getBytes(StandardCharsets.UTF_8).length;}System.out.println(\"chars=\"+chars+\" bytes=\"+bytes);}}\n"}]
+      "starterCode": "import java.util.*;\nimport java.util.concurrent.*;\n\npublic class Main {\n    public static void main(String[] args) throws Exception {\n        Scanner s = new Scanner(System.in);\n        int poolSize = s.nextInt(), n = s.nextInt();\n        long total = 0;\n        try (ExecutorService pool = Executors.newFixedThreadPool(poolSize)) {\n            List<Future<Integer>> futures = new ArrayList<>();\n            for (int i = 0; i < n; i++) {\n                int value = s.nextInt();\n                /* TODO submit */\n            }\n            /* TODO 投入順に get して表示・合計 */\n        }\n        System.out.println(\"total=\" + total);\n    }\n}\n",
+      "visibleCases": [
+        {
+          "label": "正の値だけ2倍",
+          "stdin": "2 4 3 -1 5 0",
+          "expected": "6\n0\n10\n0\ntotal=16"
+        },
+        {
+          "label": "1件",
+          "stdin": "1 1 7",
+          "expected": "14\ntotal=14"
+        }
+      ],
+      "hiddenCases": [
+        {
+          "label": "タスク0件",
+          "stdin": "2 0",
+          "expected": "total=0"
+        },
+        {
+          "label": "すべて0になる",
+          "stdin": "2 3 -1 -2 -3",
+          "expected": "0\n0\n0\ntotal=0"
+        },
+        {
+          "label": "プールが1本でも順序は保つ",
+          "stdin": "1 3 1 2 3",
+          "expected": "2\n4\n6\ntotal=12"
+        },
+        {
+          "label": "大きい値",
+          "stdin": "2 2 1000000 1000000",
+          "expected": "2000000\n2000000\ntotal=4000000"
+        }
+      ],
+      "hints": [
+        "`pool.submit(() -> value>0?value*2:0)` の戻り値 `Future<Integer>` をリストへ貯めます。",
+        "終わる順番はプールの都合で変わります。リストへ入れた順に `get` すれば、表示は投入順になります。",
+        "try-with-resources で閉じた `ExecutorService` は、全タスクの終了を待ってから抜けます。`shutdown` を書き忘れて止まらないことを防げます。"
+      ],
+      "solution": "import java.util.*;\nimport java.util.concurrent.*;\n\npublic class Main {\n    public static void main(String[] args) throws Exception {\n        Scanner s = new Scanner(System.in);\n        int poolSize = s.nextInt(), n = s.nextInt();\n        long total = 0;\n        try (ExecutorService pool = Executors.newFixedThreadPool(poolSize)) {\n            List<Future<Integer>> futures = new ArrayList<>();\n            for (int i = 0; i < n; i++) {\n                int value = s.nextInt();\n                futures.add(pool.submit(() -> value > 0 ? value * 2 : 0));\n            }\n            for (Future<Integer> f : futures) {\n                int result = f.get();\n                total += result;\n                System.out.println(result);\n            }\n        }\n        System.out.println(\"total=\" + total);\n    }\n}\n",
+      "extraTasks": [
+        {
+          "kind": "drill",
+          "task": "【組み合わせ】n組の整数を読み、組ごとに**独立した2つの非同期処理を合流**させます。各組 `a b` について次の2つを `supplyAsync` で作ってください。\n\n- `a*2` を返すもの\n- `b` が0なら例外を投げ、そうでなければ `100/b` を返すもの\n\nこの2つを `thenCombine` で足し合わせ、さらに `exceptionally` で「失敗したら `-1` にする」代替値をつなぎます。投入した順に `join` して `value=結果` と1行ずつ表示し、最後に結果の合計を `sum=合計` の形で表示してください。",
+          "starterCode": "import java.util.*;\nimport java.util.concurrent.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        int n = s.nextInt();\n        List<CompletableFuture<Integer>> futures = new ArrayList<>();\n        for (int i = 0; i < n; i++) {\n            int a = s.nextInt(), b = s.nextInt();\n            /* TODO 2つのsupplyAsyncを thenCombine で合流し、exceptionally で代替値 */\n        }\n        long sum = 0;\n        /* TODO 投入順に join して表示・合計 */ System.out.println(\"sum=\" + sum);\n    }\n}\n",
+          "visibleCases": [
+            {
+              "label": "2組を合流",
+              "stdin": "2 1 2 3 4",
+              "expected": "value=52\nvalue=31\nsum=83"
+            },
+            {
+              "label": "失敗は代替値になる",
+              "stdin": "2 5 0 1 1",
+              "expected": "value=-1\nvalue=102\nsum=101"
+            }
+          ],
+          "hiddenCases": [
+            {
+              "label": "0組",
+              "stdin": "0",
+              "expected": "sum=0"
+            },
+            {
+              "label": "1組",
+              "stdin": "1 10 5",
+              "expected": "value=40\nsum=40"
+            },
+            {
+              "label": "すべて失敗",
+              "stdin": "2 1 0 2 0",
+              "expected": "value=-1\nvalue=-1\nsum=-2"
+            },
+            {
+              "label": "負の値",
+              "stdin": "1 -3 10",
+              "expected": "value=4\nsum=4"
+            },
+            {
+              "label": "割り算は切り捨て",
+              "stdin": "1 0 3",
+              "expected": "value=33\nsum=33"
+            }
+          ],
+          "hints": [
+            "`thenCombine` は独立した2つのFutureが**どちらも**終わってから合流します。前の結果を次へ渡す `thenApply` とは役割が違います。",
+            "`exceptionally` は前段のどこかで例外が出たときだけ呼ばれ、代わりの値を返します。これを付けずに `join` すると、失敗が未検査例外で飛んできて止まります。",
+            "0除算は `supplyAsync` の中で起きます。非同期処理の中の例外はその場では飛ばず、`join` か `exceptionally` まで運ばれます。"
+          ],
+          "solution": "import java.util.*;\nimport java.util.concurrent.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        int n = s.nextInt();\n        List<CompletableFuture<Integer>> futures = new ArrayList<>();\n        for (int i = 0; i < n; i++) {\n            int a = s.nextInt(), b = s.nextInt();\n            CompletableFuture<Integer> left = CompletableFuture.supplyAsync(() -> a * 2), right = CompletableFuture.supplyAsync(() -> {\n                if (b == 0) throw new IllegalArgumentException();\n                return 100 / b;\n            });\n            futures.add(left.thenCombine(right, Integer::sum).exceptionally(e -> - 1));\n        }\n        long sum = 0;\n        for (CompletableFuture<Integer> f : futures) {\n            int result = f.join();\n            sum += result;\n            System.out.println(\"value=\" + result);\n        }\n        System.out.println(\"sum=\" + sum);\n    }\n}\n",
+          "sourceChecks": [
+            {
+              "pattern": "supplyAsync\\s*\\(",
+              "minimum": 2,
+              "message": "2つは独立しているので、それぞれ `supplyAsync` で作ってください。"
+            },
+            {
+              "pattern": "thenCombine\\s*\\(",
+              "minimum": 1,
+              "message": "独立した2つの結果を合流させるのは `thenCombine` です。"
+            },
+            {
+              "pattern": "exceptionally\\s*\\(",
+              "minimum": 1,
+              "message": "途中の例外は `exceptionally` で受けて既定値へ落としてください。"
+            }
+          ]
+        },
+        {
+          "kind": "applied",
+          "task": "【実践】単語をn件読みます。`Executors.newVirtualThreadPerTaskExecutor()` へ、単語ごとに `単語:文字数:UTF-8のバイト数` という文字列を作るタスクを投入し、投入順に結果を集めてください。\n\n集めた行を `words.txt` へUTF-8で書き出し、`Files.readAllLines` で読み直して、1始まりの番号を付けて `番号:内容` と表示します。最後に `chars=文字数の合計 bytes=バイト数の合計` と表示してください。",
+          "starterCode": "import java.nio.charset.*;\nimport java.nio.file.*;\nimport java.util.*;\nimport java.util.concurrent.*;\n\npublic class Main {\n    public static void main(String[] args) throws Exception {\n        Scanner s = new Scanner(System.in);\n        int n = s.nextInt();\n        List<String> words = new ArrayList<>();\n        for (int i = 0; i < n; i++) words.add(s.next());\n        List<String> lines = new ArrayList<>();\n        try (ExecutorService pool = Executors.newVirtualThreadPerTaskExecutor()) {\n            /* TODO 投入して投入順に集める */\n        }\n        Path path = Path.of(\"words.txt\");\n        /* TODO 書き出して読み直す */ /* TODO 番号付きの表示と合計 */\n    }\n}\n",
+          "visibleCases": [
+            {
+              "label": "ASCIIと多バイト",
+              "stdin": "2 java 猫",
+              "expected": "1:java:4:4\n2:猫:1:3\nchars=5 bytes=7"
+            },
+            {
+              "label": "1件",
+              "stdin": "1 ab",
+              "expected": "1:ab:2:2\nchars=2 bytes=2"
+            }
+          ],
+          "hiddenCases": [
+            {
+              "label": "単語0件",
+              "stdin": "0",
+              "expected": "chars=0 bytes=0"
+            },
+            {
+              "label": "ASCIIは文字数とバイト数が同じ",
+              "stdin": "3 a bb ccc",
+              "expected": "1:a:1:1\n2:bb:2:2\n3:ccc:3:3\nchars=6 bytes=6"
+            },
+            {
+              "label": "多バイトだけ",
+              "stdin": "2 猫 犬",
+              "expected": "1:猫:1:3\n2:犬:1:3\nchars=2 bytes=6"
+            },
+            {
+              "label": "1語の中で混ざる",
+              "stdin": "1 a猫",
+              "expected": "1:a猫:2:4\nchars=2 bytes=4"
+            }
+          ],
+          "hints": [
+            "バイト数は `word.getBytes(StandardCharsets.UTF_8).length` です。`word.length()` は文字数（UTF-16の単位数）で、同じとは限りません。",
+            "書き出しは `Files.write(path, lines, StandardCharsets.UTF_8)`、読み直しは `Files.readAllLines(path, StandardCharsets.UTF_8)` です。文字コードは必ず明示します。",
+            "Virtual Threadは1タスクに1本作って構いません。それでも `Future` を投入順に `get` すれば、結果の並びは入力順のままです。"
+          ],
+          "solution": "import java.nio.charset.*;\nimport java.nio.file.*;\nimport java.util.*;\nimport java.util.concurrent.*;\n\npublic class Main {\n    public static void main(String[] args) throws Exception {\n        Scanner s = new Scanner(System.in);\n        int n = s.nextInt();\n        List<String> words = new ArrayList<>();\n        for (int i = 0; i < n; i++) words.add(s.next());\n        List<String> lines = new ArrayList<>();\n        try (ExecutorService pool = Executors.newVirtualThreadPerTaskExecutor()) {\n            List<Future<String>> futures = new ArrayList<>();\n            for (String word : words) futures.add(pool.submit(() -> word + \":\" + word.length() + \":\" + word.getBytes(StandardCharsets.UTF_8).length));\n            for (Future<String> f : futures) lines.add(f.get());\n        }\n        Path path = Path.of(\"words.txt\");\n        Files.write(path, lines, StandardCharsets.UTF_8);\n        List<String> read = Files.readAllLines(path, StandardCharsets.UTF_8);\n        for (int i = 0; i < read.size(); i++) System.out.println((i + 1) + \":\" + read.get(i));\n        int chars = 0, bytes = 0;\n        for (String word : words) {\n            chars += word.length();\n            bytes += word.getBytes(StandardCharsets.UTF_8).length;\n        }\n        System.out.println(\"chars=\" + chars + \" bytes=\" + bytes);\n    }\n}\n",
+          "sourceChecks": [
+            {
+              "pattern": "newVirtualThreadPerTaskExecutor\\s*\\(",
+              "minimum": 1,
+              "message": "Virtual Threadを1タスク1本で使ってください。"
+            },
+            {
+              "pattern": "StandardCharsets\\s*\\.\\s*UTF_8",
+              "minimum": 1,
+              "message": "文字コードは `StandardCharsets.UTF_8` と明示してください。既定に任せると環境によって変わります。"
+            },
+            {
+              "pattern": "Files\\s*\\.\\s*write",
+              "minimum": 1,
+              "message": "ファイルへの書き出しは `Files.write` / `Files.writeString` を使ってください。"
+            }
+          ]
+        }
+      ]
     }
   ]
 }

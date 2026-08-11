@@ -114,7 +114,29 @@
             "4行目は `System.out.println(Integer.MAX_VALUE + n);` です。カッコで囲まないと文字列の連結になってしまうので、単独で出力するのが安全です。",
             "5行目は `Number num = Integer.valueOf(n);` としてから `System.out.println(num.doubleValue());` です。`doubleValue()` は `Number` が持っているメソッドです。"
           ],
-          "solution": "import java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n        char c = sc.next().charAt(0);\n        String flag = sc.next();\n\n        System.out.println(Integer.toBinaryString(n));\n        System.out.println(Character.isDigit(c));\n        System.out.println(Boolean.parseBoolean(flag));\n        System.out.println(Integer.MAX_VALUE + n);\n\n        Number num = Integer.valueOf(n);\n        System.out.println(num.doubleValue());\n    }\n}\n"
+          "solution": "import java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n        char c = sc.next().charAt(0);\n        String flag = sc.next();\n\n        System.out.println(Integer.toBinaryString(n));\n        System.out.println(Character.isDigit(c));\n        System.out.println(Boolean.parseBoolean(flag));\n        System.out.println(Integer.MAX_VALUE + n);\n\n        Number num = Integer.valueOf(n);\n        System.out.println(num.doubleValue());\n    }\n}\n",
+          "sourceChecks": [
+            {
+              "pattern": "Integer\\.toBinaryString\\s*\\(",
+              "minimum": 1,
+              "message": "2進数は自分で計算せず `Integer.toBinaryString(n)` を使ってください。"
+            },
+            {
+              "pattern": "Character\\.isDigit\\s*\\(",
+              "minimum": 1,
+              "message": "数字かどうかは `Character.isDigit(c)` で調べてください。"
+            },
+            {
+              "pattern": "Boolean\\.parseBoolean\\s*\\(",
+              "minimum": 1,
+              "message": "文字列から `boolean` への変換は `Boolean.parseBoolean(flag)` を使ってください。"
+            },
+            {
+              "pattern": "Integer\\.MAX_VALUE",
+              "minimum": 1,
+              "message": "桁あふれを見るので、数を直接書かず `Integer.MAX_VALUE` を使ってください。"
+            }
+          ]
         }
       ]
     },
@@ -238,7 +260,24 @@
             "内側の `catch (NumberFormatException e)` に来たら `不明` です。どちらの `catch` も同じ例外クラスを受け止めます。",
             "`整数の合計` に足すのは整数として読めたときだけです。`小数` や `不明` のときは足しません。最後の行は `String.valueOf(sum).length()` です。"
           ],
-          "solution": "import java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int k = sc.nextInt();\n\n        int sum = 0;\n        for (int i = 0; i < k; i++) {\n            String text = sc.next();\n            try {\n                int n = Integer.parseInt(text);\n                System.out.println(\"整数 \" + n * 2);\n                sum += n;\n            } catch (NumberFormatException e) {\n                try {\n                    double d = Double.parseDouble(text);\n                    System.out.println(\"小数 \" + d * 2);\n                } catch (NumberFormatException e2) {\n                    System.out.println(\"不明\");\n                }\n            }\n        }\n\n        System.out.println(\"整数の合計 \" + sum);\n        System.out.println(\"文字数 \" + String.valueOf(sum).length());\n    }\n}\n"
+          "solution": "import java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int k = sc.nextInt();\n\n        int sum = 0;\n        for (int i = 0; i < k; i++) {\n            String text = sc.next();\n            try {\n                int n = Integer.parseInt(text);\n                System.out.println(\"整数 \" + n * 2);\n                sum += n;\n            } catch (NumberFormatException e) {\n                try {\n                    double d = Double.parseDouble(text);\n                    System.out.println(\"小数 \" + d * 2);\n                } catch (NumberFormatException e2) {\n                    System.out.println(\"不明\");\n                }\n            }\n        }\n\n        System.out.println(\"整数の合計 \" + sum);\n        System.out.println(\"文字数 \" + String.valueOf(sum).length());\n    }\n}\n",
+          "sourceChecks": [
+            {
+              "pattern": "Integer\\.parseInt\\s*\\(",
+              "minimum": 1,
+              "message": "まず `Integer.parseInt` で整数として読んでみてください。"
+            },
+            {
+              "pattern": "Double\\.parseDouble\\s*\\(",
+              "minimum": 1,
+              "message": "整数として失敗したら `Double.parseDouble` で小数として読んでください。"
+            },
+            {
+              "pattern": "catch\\s*\\(\\s*NumberFormatException",
+              "minimum": 2,
+              "message": "「整数として失敗」「小数としても失敗」の2段で `NumberFormatException` を受け止めてください。"
+            }
+          ]
         }
       ]
     },
@@ -362,30 +401,42 @@
             "4行目は `try { int x = nul; } catch (NullPointerException e) { System.out.println(\"代入でNPE\"); }` の形です。`try` の中では `x` を使わなくてかまいません。",
             "5行目も同じ形で、中身を `int y = nul + 1;` にします。計算式の中でもアンボクシングは起きるので、やはり例外になります。"
           ],
-          "solution": "import java.util.Scanner;\n\npublic class Main {\n    static int twice(int x) {\n        return x * 2;\n    }\n\n    static Integer boxed(int x) {\n        return x * 3;\n    }\n\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n\n        Integer a = n;\n        Integer b = n;\n        Integer nul = null;\n\n        System.out.println(a == b);\n        System.out.println(a.intValue() == b.intValue());\n        System.out.println(a == n);\n\n        try {\n            int x = nul;\n            System.out.println(x);\n        } catch (NullPointerException e) {\n            System.out.println(\"代入でNPE\");\n        }\n\n        try {\n            int y = nul + 1;\n            System.out.println(y);\n        } catch (NullPointerException e) {\n            System.out.println(\"計算でNPE\");\n        }\n\n        System.out.println(twice(a));\n        System.out.println(boxed(n));\n    }\n}\n"
+          "solution": "import java.util.Scanner;\n\npublic class Main {\n    static int twice(int x) {\n        return x * 2;\n    }\n\n    static Integer boxed(int x) {\n        return x * 3;\n    }\n\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n\n        Integer a = n;\n        Integer b = n;\n        Integer nul = null;\n\n        System.out.println(a == b);\n        System.out.println(a.intValue() == b.intValue());\n        System.out.println(a == n);\n\n        try {\n            int x = nul;\n            System.out.println(x);\n        } catch (NullPointerException e) {\n            System.out.println(\"代入でNPE\");\n        }\n\n        try {\n            int y = nul + 1;\n            System.out.println(y);\n        } catch (NullPointerException e) {\n            System.out.println(\"計算でNPE\");\n        }\n\n        System.out.println(twice(a));\n        System.out.println(boxed(n));\n    }\n}\n",
+          "sourceChecks": [
+            {
+              "pattern": "catch\\s*\\(\\s*NullPointerException",
+              "minimum": 1,
+              "message": "`int x = nul;` で起きる `NullPointerException` を受け止めてください。"
+            },
+            {
+              "pattern": "intValue\\s*\\(",
+              "minimum": 2,
+              "message": "値として比べるところは `a.intValue() == b.intValue()` のように基本型へ取り出してください。"
+            }
+          ]
         }
       ],
       "quiz": [
         {
           "question": "`Integer.valueOf(int)` のAPI仕様として正しいのはどれでしょう。",
           "choices": [
-            "`-128`〜`127` は常にキャッシュし、範囲外もキャッシュする場合がある",
-            "`128` 以上の同じ値は必ず別インスタンスになる",
             "すべての `int` 値で同じインスタンスが使われる",
+            "`128` 以上の同じ値は必ず別インスタンスになる",
+            "`-128`〜`127` は常にキャッシュされる",
             "`Integer` どうしの `==` は数値を比較する"
           ],
-          "answer": 0,
-          "explanation": "`Integer.valueOf` は `-128`〜`127` を常にキャッシュし、範囲外もキャッシュする場合があります。なお、Java言語仕様がボクシング結果の同一性を保証するのは所定範囲の定数式です。どちらにしても値の比較には `equals` を使います。"
+          "answer": 2,
+          "explanation": "`Integer.valueOf` は `-128`〜`127` を常にキャッシュし、範囲外もキャッシュする場合があります。なお、Java言語仕様がボクシング結果の同一性を保証するのは所定範囲の定数式です。どちらにしても値の比較には `equals` を使います。範囲外の値もキャッシュする場合があります。"
         },
         {
           "question": "次のコードはどうなるでしょう。\n\n```java\nInteger n = null;\nint x = n;\n```",
           "choices": [
-            "`x` が `0` になる",
-            "コンパイルエラーになる",
             "実行時に `NullPointerException` になる",
-            "`x` が `null` になる"
+            "アンボクシングできないのでコンパイルエラーになる",
+            "`x` に `null` がそのまま入る",
+            "`x` に既定値の `0` が入る"
           ],
-          "answer": 2,
+          "answer": 0,
           "explanation": "`int x = n;` は裏で `n.intValue()` を呼びます。`n` が `null` なのでアンボクシングで `NullPointerException` です。コンパイルは通るので実行するまで気づけません。"
         },
         {
@@ -402,12 +453,12 @@
         {
           "question": "基本型とラッパークラスの対応で **正しい** のはどれでしょう。",
           "choices": [
-            "`int` → `Int`、`char` → `Char`",
             "`int` → `Integer`、`char` → `Character`",
-            "`int` → `Integer`、`char` → `Char`",
-            "`int` → `Int`、`char` → `Character`"
+            "`int` → `Int`、`char` → `Character`",
+            "`int` → `Int`、`char` → `Char`",
+            "`int` → `Integer`、`char` → `Char`"
           ],
-          "answer": 1,
+          "answer": 0,
           "explanation": "ほとんどは先頭を大文字にするだけですが、`int` → `Integer` と `char` → `Character` の2つだけ名前が違います。ここが狙われます。"
         }
       ]
@@ -423,7 +474,7 @@
         }
       ],
       "task": "【基本】個数nとn個の文字列を読みます。整数へ変換できるものだけ合計し、`sum=... invalid=...` と表示してください。",
-      "starterCode": "import java.util.*;\npublic class Main {public static void main(String[] args){Scanner s=new Scanner(System.in);int n=s.nextInt(),sum=0,invalid=0;for(int i=0;i<n;i++){String text=s.next();/* TODO */}System.out.println(\"sum=\"+sum+\" invalid=\"+invalid);}}\n",
+      "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        int n = s.nextInt(), sum = 0, invalid = 0;\n        for (int i = 0; i < n; i++) {\n            String text = s.next();\n            /* TODO */\n        }\n        System.out.println(\"sum=\" + sum + \" invalid=\" + invalid);\n    }\n}\n",
       "visibleCases": [
         {
           "label": "混在",
@@ -452,12 +503,12 @@
         "各文字列を `Integer.parseInt` します。",
         "NumberFormatExceptionならinvalidを増やします。"
       ],
-      "solution": "import java.util.*;\npublic class Main {public static void main(String[] args){Scanner s=new Scanner(System.in);int n=s.nextInt(),sum=0,invalid=0;for(int i=0;i<n;i++){String text=s.next();try{sum+=Integer.parseInt(text);}catch(NumberFormatException e){invalid++;}}System.out.println(\"sum=\"+sum+\" invalid=\"+invalid);}}\n",
+      "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        int n = s.nextInt(), sum = 0, invalid = 0;\n        for (int i = 0; i < n; i++) {\n            String text = s.next();\n            try {\n                sum += Integer.parseInt(text);\n            } catch (NumberFormatException e) {\n                invalid++;\n            }\n        }\n        System.out.println(\"sum=\" + sum + \" invalid=\" + invalid);\n    }\n}\n",
       "extraTasks": [
         {
           "kind": "drill",
           "task": "【組み合わせ】n個のトークンを読み、`_` はnull、それ以外はIntegerへ変換して配列へ入れます。nullでない値の個数と合計を `count=... sum=...` と表示してください。",
-          "starterCode": "import java.util.*;\npublic class Main {public static void main(String[] args){Scanner s=new Scanner(System.in);int n=s.nextInt();Integer[] values=new Integer[n];for(int i=0;i<n;i++){String t=s.next();values[i]=null;/* TODO: _ と数を分ける */}/* TODO: 集計 */}}\n",
+          "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        int n = s.nextInt();\n        Integer[] values = new Integer[n];\n        for (int i = 0; i < n; i++) {\n            String t = s.next();\n            values[i] = null;\n            /* TODO: _ と数を分ける */\n        }\n        /* TODO: 集計 */\n    }\n}\n",
           "visibleCases": [
             {
               "label": "null混在",
@@ -486,12 +537,24 @@
             "`_` ならnull、そうでなければ `Integer.valueOf(t)` です。",
             "アンボクシング前に `v != null` を確認します。"
           ],
-          "solution": "import java.util.*;\npublic class Main {public static void main(String[] args){Scanner s=new Scanner(System.in);int n=s.nextInt();Integer[] values=new Integer[n];for(int i=0;i<n;i++){String t=s.next();values[i]=t.equals(\"_\")?null:Integer.valueOf(t);}int count=0,sum=0;for(Integer v:values)if(v!=null){count++;sum+=v;}System.out.println(\"count=\"+count+\" sum=\"+sum);}}\n"
+          "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        int n = s.nextInt();\n        Integer[] values = new Integer[n];\n        for (int i = 0; i < n; i++) {\n            String t = s.next();\n            values[i] = t.equals(\"_\") ? null : Integer.valueOf(t);\n        }\n        int count = 0, sum = 0;\n        for (Integer v : values) if (v != null) {\n            count++;\n            sum += v;\n        }\n        System.out.println(\"count=\" + count + \" sum=\" + sum);\n    }\n}\n",
+          "sourceChecks": [
+            {
+              "pattern": "\\bInteger\\s*\\[\\s*\\]",
+              "minimum": 1,
+              "message": "`int` には `null` を入れられません。`Integer` の配列にしてください。"
+            },
+            {
+              "pattern": "!=\\s*null",
+              "minimum": 1,
+              "message": "`null` の要素は数えないので、`!= null` で確かめてください。"
+            }
+          ]
         },
         {
           "kind": "applied",
           "task": "【実践】2整数を読み、それぞれ `Integer.valueOf` でIntegerにします。値が同じなら `same`、違えば `different` と表示してください。参照ではなく値を比較します。",
-          "starterCode": "import java.util.*;\npublic class Main {public static void main(String[] args){Scanner s=new Scanner(System.in);Integer a=Integer.valueOf(s.nextInt());Integer b=Integer.valueOf(s.nextInt());/* TODO */}}\n",
+          "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        Integer a = Integer.valueOf(s.nextInt());\n        Integer b = Integer.valueOf(s.nextInt());\n        /* TODO */\n    }\n}\n",
           "visibleCases": [
             {
               "label": "小さい同値",
@@ -520,7 +583,14 @@
             "Integer同士の値比較はequalsを使います。",
             "`==` はキャッシュ範囲によって偶然結果が変わるため使いません。"
           ],
-          "solution": "import java.util.*;\npublic class Main {public static void main(String[] args){Scanner s=new Scanner(System.in);Integer a=Integer.valueOf(s.nextInt());Integer b=Integer.valueOf(s.nextInt());System.out.println(a.equals(b)?\"same\":\"different\");}}\n"
+          "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        Integer a = Integer.valueOf(s.nextInt());\n        Integer b = Integer.valueOf(s.nextInt());\n        System.out.println(a.equals(b) ? \"same\" : \"different\");\n    }\n}\n",
+          "sourceChecks": [
+            {
+              "pattern": "\\.equals\\s*\\(",
+              "minimum": 1,
+              "message": "`Integer` どうしの `==` は参照の比較になります。値を比べるので `a.equals(b)` を使ってください。"
+            }
+          ]
         }
       ]
     }

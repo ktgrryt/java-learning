@@ -1,85 +1,429 @@
 {
-  "id":"ch56","title":"本番セキュリティとAPI契約","subtitle":"通信・身元・認可・供給網を境界で守る","emoji":"🛡️",
-  "lessons":[
+  "id": "ch56",
+  "title": "本番セキュリティとAPI契約",
+  "subtitle": "通信・身元・認可・供給網を境界で守る",
+  "emoji": "🛡️",
+  "lessons": [
     {
-      "id":"56-1","title":"TLS・証明書・鍵を扱う",
-      "explanation":"## 暗号化だけでなく相手を検証する\n\nTLSのクライアントは、サーバー証明書の署名の連なり（証明書チェーン）・有効期限・ホスト名を、信頼の起点（trust anchor）に照らして検証します。truststoreは信頼するCAなどを、keystoreは自分の秘密鍵と証明書を主に保持します。検証を無効化する「すべて信頼する」設定やホスト名検証の無効化は、開発用に書いたものが残ってしまいやすく危険です。`keytool`、`openssl s_client`、JDKのTLSデバッグ出力は、チェーンとハンドシェイクの調査に使えます。\n\n秘密鍵は最小権限で保管し、証明書の更新を自動化して、期限前に通知が出るようにします。サービス間のmTLSでは、クライアント側の身元も検証します。TLSを終端する地点からアプリケーションまでの経路、転送元情報のヘッダーを信頼してよいプロキシの範囲、HTTPからHTTPSへのリダイレクトとHSTSも設計の対象です。\n\n> 🧪 画面内問題は更新判定の小さな運用ルールです。実際の証明書、SAN、チェーン、keystore / truststoreは`labs/security-platform`の`keytool`実習で観察してください。",
-      "samples":[{"caption":"既定のHTTPS検証を使う","code":"import java.net.*;import java.net.http.*;public class Main{public static void main(String[] a){HttpClient c=HttpClient.newHttpClient();System.out.println(c.sslContext().getProtocol());}}\n"}],
-      "task":"証明書の残り日数daysと更新閾値thresholdを読み、daysが負なら `EXPIRED`、threshold以下なら `ROTATE`、それ以外は `OK` と表示してください。",
-      "starterCode":"import java.util.*;public class Main{public static void main(String[] a){Scanner s=new Scanner(System.in);int days=s.nextInt(),threshold=s.nextInt();/* TODO */}}\n",
-      "visibleCases":[{"label":"更新時期","stdin":"20 30","expected":"ROTATE"},{"label":"余裕あり","stdin":"90 30","expected":"OK"}],
-      "hiddenCases":[{"label":"期限切れ","stdin":"-1 30","expected":"EXPIRED"}],
-      "hints":["負数、閾値以下の順で判定します。"],
-      "solution":"import java.util.*;public class Main{public static void main(String[] a){Scanner s=new Scanner(System.in);int days=s.nextInt(),threshold=s.nextInt();System.out.println(days<0?\"EXPIRED\":days<=threshold?\"ROTATE\":\"OK\");}}\n",
-      "quiz":[
-        {"question":"「すべての証明書を信頼する」設定が危険な理由は？","choices":["通信が必ず遅くなる","接続相手が本物かを検証しないため、中間者攻撃を許してしまう","証明書が自動更新される","HTTPのステータスが変わる"],"answer":1,"explanation":"暗号化されていても、偽のサーバーと通信してしまえば機密性は守れません。"},
-        {"question":"リバースプロキシの背後にあるアプリケーションが `X-Forwarded-For` などのヘッダーを無条件に信用すると、何が問題でしょう。","choices":["TLSが無効になる","証明書チェーンの検証が壊れる","外部から任意の値を送れるため、送信元IPや経路の情報を偽装できる","HSTSが効かなくなる"],"answer":2,"explanation":"転送元情報のヘッダーを信頼してよいプロキシの範囲を決め、その外から来た値は捨てます。"}
-      ]
-    },
-    {
-      "id":"56-2","title":"OAuth 2.0・OIDC・JWTを検証する",
-      "explanation":"## 「権限の委譲」「ログイン」「トークンの形式」を分ける\n\nOAuth 2.0はAPIへの認可を委譲するための枠組み、OpenID Connectはその上に身元確認とログインを加える仕様です。JWTはトークンの表現形式の一つで、OAuthのトークンが必ずJWTとは限りません。ブラウザやモバイルアプリの認可コードフローではPKCEと `state` / `nonce` を使い、クライアント資格情報による認可はサーバー間の通信に限定します。パスワードを直接渡す方式や独自のトークン発行は、安易に選ばないようにします。\n\n```svg 認可コードフロー … コードを受け取ってからトークンに交換する。検証はリソースサーバーの仕事\n<svg viewBox=\"0 0 720 298\">\n  <rect class=\"fig-box\" x=\"30\" y=\"18\" width=\"150\" height=\"32\" rx=\"6\"/>\n  <text class=\"fig-t fig-small\" x=\"105\" y=\"34\" text-anchor=\"middle\">ブラウザ</text>\n  <rect class=\"fig-box\" x=\"280\" y=\"18\" width=\"150\" height=\"32\" rx=\"6\"/>\n  <text class=\"fig-t fig-small\" x=\"355\" y=\"34\" text-anchor=\"middle\">アプリ（client）</text>\n  <rect class=\"fig-box\" x=\"530\" y=\"18\" width=\"160\" height=\"32\" rx=\"6\"/>\n  <text class=\"fig-t fig-small\" x=\"610\" y=\"34\" text-anchor=\"middle\">認可サーバ</text>\n  <line class=\"fig-line-soft fig-dashed\" x1=\"105\" y1=\"50\" x2=\"105\" y2=\"222\"/>\n  <line class=\"fig-line-soft fig-dashed\" x1=\"355\" y1=\"50\" x2=\"355\" y2=\"222\"/>\n  <line class=\"fig-line-soft fig-dashed\" x1=\"610\" y1=\"50\" x2=\"610\" y2=\"222\"/>\n\n  <text class=\"fig-t fig-mono fig-small\" x=\"356\" y=\"70\" text-anchor=\"middle\">認可リクエスト（PKCE + state）</text>\n  <line class=\"fig-line\" x1=\"107\" y1=\"82\" x2=\"606\" y2=\"82\" marker-end=\"arrow\"/>\n  <text class=\"fig-t fig-small\" x=\"356\" y=\"102\" text-anchor=\"middle\">ログイン・同意 → 認可コードを返す</text>\n  <line class=\"fig-line\" x1=\"608\" y1=\"114\" x2=\"109\" y2=\"114\" marker-end=\"arrow\"/>\n  <text class=\"fig-t fig-small\" x=\"230\" y=\"134\" text-anchor=\"middle\">認可コードを渡す</text>\n  <line class=\"fig-line\" x1=\"107\" y1=\"146\" x2=\"351\" y2=\"146\" marker-end=\"arrow\"/>\n  <text class=\"fig-t fig-mono fig-small\" x=\"482\" y=\"166\" text-anchor=\"middle\">code + code_verifier</text>\n  <line class=\"fig-line-accent\" x1=\"357\" y1=\"178\" x2=\"606\" y2=\"178\" marker-end=\"arrow-accent\"/>\n  <text class=\"fig-t fig-mono fig-small fig-t-accent\" x=\"482\" y=\"198\" text-anchor=\"middle\">アクセストークン</text>\n  <line class=\"fig-line-accent\" x1=\"608\" y1=\"210\" x2=\"359\" y2=\"210\" marker-end=\"arrow-accent\"/>\n\n  <rect class=\"fig-box-accent\" x=\"180\" y=\"236\" width=\"526\" height=\"52\" rx=\"6\"/>\n  <text class=\"fig-t fig-t-accent fig-small\" x=\"196\" y=\"256\">リソースサーバー側でやること</text>\n  <text class=\"fig-t fig-mono fig-small\" x=\"196\" y=\"276\">署名を検証 → iss / aud / exp / nbf / 必要な scope を確認</text>\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"14\" y=\"262\">トークンを付けて</text>\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"14\" y=\"282\">API を呼ぶ</text>\n  <line class=\"fig-line-accent\" x1=\"130\" y1=\"272\" x2=\"176\" y2=\"262\" marker-end=\"arrow-accent\"/>\n</svg>\n```\n\nリソースサーバーは、信頼できるライブラリで署名と許可するアルゴリズムを検証したうえで、発行者（issuer）・想定利用先（audience）・有効期限・有効開始時刻・必要なスコープを、用途に照らして確認します。`kid` に応じたJWKSの更新では、キャッシュと鍵の入れ替えを考慮します。トークンはログやURLへ出さず、JWTのペイロードは暗号化されているとは限らないと考えてください。\n\n> 🧪 次の問題は**署名検証を終えたあとのクレームに対する認可方針**を実装します。JWTのパーサーや署名検証を自作することはしません。実際のリソースサーバーでは採用したフレームワークの検証機能を使い、`labs/security-platform`の拒否テスト一覧を実行してください。",
-      "samples":[{"caption":"発行者・想定利用先・時刻・スコープを用途に照らす","code":"import java.util.Set;\n\nrecord Claims(\n        String issuer,\n        String audience,\n        long expiresAt,\n        long notBefore,\n        Set<String> scopes) {\n}\n\npublic class Main {\n    static boolean allowed(Claims claims, long now) {\n        return claims.issuer().equals(\"https://id.example\")\n                && claims.audience().equals(\"orders\")\n                && now < claims.expiresAt()\n                && now >= claims.notBefore()\n                && claims.scopes().contains(\"orders:read\");\n    }\n\n    public static void main(String[] args) {\n        Claims claims = new Claims(\n                \"https://id.example\", \"orders\", 1100, 900,\n                Set.of(\"profile\", \"orders:read\"));\n        System.out.println(allowed(claims, 1000));\n    }\n}\n","expected":"true"}],
-      "task":"署名とアルゴリズムは、信頼できるライブラリですでに検証済みとします。`issuer audience now expiresAt notBefore scopes`を読み、次をすべて満たせば`ALLOW`、1つでも外れれば`DENY`と表示してください。\n\n- 発行者が`https://id.example`\n- 想定利用先が`orders`\n- `now < expiresAt`（期限と同時刻は期限切れ）\n- `now >= notBefore`\n- カンマ区切りのスコープに`orders:read`が含まれる\n\n例: `https://id.example orders 1000 1100 900 profile,orders:read`は`ALLOW`です。",
-      "starterCode":"import java.util.*;\n\nrecord Claims(String issuer, String audience, long expiresAt,\n              long notBefore, Set<String> scopes) {\n}\n\npublic class Main {\n    static boolean allowed(Claims claims, long now) {\n        // TODO: 5条件をclaimsの値から検証する\n        return false;\n    }\n\n    public static void main(String[] args) {\n        Scanner scanner = new Scanner(System.in);\n        String issuer = scanner.next();\n        String audience = scanner.next();\n        long now = scanner.nextLong();\n        long expiresAt = scanner.nextLong();\n        long notBefore = scanner.nextLong();\n        Set<String> scopes = new HashSet<>(\n                Arrays.asList(scanner.next().split(\",\")));\n        Claims claims = new Claims(issuer, audience, expiresAt, notBefore, scopes);\n        System.out.println(allowed(claims, now) ? \"ALLOW\" : \"DENY\");\n    }\n}\n",
-      "visibleCases":[
-        {"label":"用途と時刻が有効","stdin":"https://id.example orders 1000 1100 900 profile,orders:read","expected":"ALLOW"},
-        {"label":"期限の境界","stdin":"https://id.example orders 1000 1000 900 orders:read","expected":"DENY"}
+      "id": "56-1",
+      "title": "TLS・証明書・鍵を扱う",
+      "explanation": "## 暗号化だけでなく相手を検証する\n\nTLSのクライアントは、サーバー証明書の署名の連なり（証明書チェーン）・有効期限・ホスト名を、信頼の起点（trust anchor）に照らして検証します。truststoreは信頼するCAなどを、keystoreは自分の秘密鍵と証明書を主に保持します。検証を無効化する「すべて信頼する」設定やホスト名検証の無効化は、開発用に書いたものが残ってしまいやすく危険です。`keytool`、`openssl s_client`、JDKのTLSデバッグ出力は、チェーンとハンドシェイクの調査に使えます。\n\n秘密鍵は最小権限で保管し、証明書の更新を自動化して、期限前に通知が出るようにします。サービス間のmTLSでは、クライアント側の身元も検証します。TLSを終端する地点からアプリケーションまでの経路、転送元情報のヘッダーを信頼してよいプロキシの範囲、HTTPからHTTPSへのリダイレクトとHSTSも設計の対象です。\n\n> 🧪 画面内問題は更新判定の小さな運用ルールです。実際の証明書、SAN、チェーン、keystore / truststoreは`labs/security-platform`の`keytool`実習で観察してください。\n\n### 証明書の中身を実際に見る\n\n```sh\nkeytool -genkeypair -alias local-server -keyalg EC -groupname secp256r1 \\\n  -dname \"CN=localhost\" -ext SAN=dns:localhost,ip:127.0.0.1 \\\n  -validity 30 -keystore local-server.p12 -storetype PKCS12\nkeytool -list -v -keystore local-server.p12\n```\n\n```\n別名: local-server\nエントリ・タイプ: PrivateKeyEntry\n所有者: CN=localhost\n署名アルゴリズム名: SHA384withECDSA\nSubjectAlternativeName [\n  DNSName: localhost\n```\n\n見るところは4つです。\n\n| 項目 | 意味 |\n|---|---|\n| `PrivateKeyEntry` | 秘密鍵を持っている＝サーバー側のkeystore |\n| 所有者（CN） | 誰の証明書か |\n| SAN | **接続先のホスト名の検証に使われる**。最近のクライアントはCNを見ない |\n| 有効期限 | 切れると接続できない。入れ替えの手順が要る |\n\nkeystore（自分の秘密鍵と証明書）と truststore（相手を検証するための信頼した証明書）は\n役割が別です。混ぜると、何を信頼しているのか分からなくなります。\n\n> ⚠️ 間違えやすい点 … 開発で困ったときに「すべての証明書を信頼する」設定を入れると、\n> **相手が本物かを一切検証しなくなります**。通信は暗号化されていても、\n> 中間者に差し替えられたことに気づけません。開発用の証明書を truststore へ\n> 明示的に足すのが正しい対処です。そしてその設定を本番へ持ち込まないこと。\n\n> 🧪 アプリで確かめること / labs で動かすこと … この問題で確かめるのは証明書と鍵の検証で何を確かめるべきかです。\n> `keytool` で鍵を作って TLS を張ることは、1ファイル・標準入力だけのこの画面では扱えません。`labs/security-platform` に本物を置いてあります。",
+      "samples": [
+        {
+          "caption": "既定のHTTPS検証を使う",
+          "code": "import java.net.*;\nimport java.net.http.*;\n\npublic class Main {\n    public static void main(String[] a) {\n        HttpClient c = HttpClient.newHttpClient();\n        System.out.println(c.sslContext().getProtocol());\n    }\n}\n"
+        }
       ],
-      "hiddenCases":[
-        {"label":"発行者が不一致","stdin":"https://evil.example orders 1000 1100 900 orders:read","expected":"DENY"},
-        {"label":"想定利用先が不一致","stdin":"https://id.example payments 1000 1100 900 orders:read","expected":"DENY"},
-        {"label":"まだ有効でない","stdin":"https://id.example orders 1000 1100 1001 orders:read","expected":"DENY"},
-        {"label":"スコープ不足","stdin":"https://id.example orders 1000 1100 900 profile,orders:write","expected":"DENY"}
+      "task": "証明書の残り日数daysと更新閾値thresholdを読み、daysが負なら `EXPIRED`、threshold以下なら `ROTATE`、それ以外は `OK` と表示してください。",
+      "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] a) {\n        Scanner s = new Scanner(System.in);\n        int days = s.nextInt(), threshold = s.nextInt();\n        /* TODO */\n    }\n}\n",
+      "visibleCases": [
+        {
+          "label": "更新時期",
+          "stdin": "20 30",
+          "expected": "ROTATE"
+        },
+        {
+          "label": "余裕あり",
+          "stdin": "90 30",
+          "expected": "OK"
+        }
       ],
-      "hints":["文字列は`equals`、時刻は`now < claims.expiresAt()`と`now >= claims.notBefore()`、スコープは`contains`で確認します。"],
-      "solution":"import java.util.*;\n\nrecord Claims(String issuer, String audience, long expiresAt,\n              long notBefore, Set<String> scopes) {\n}\n\npublic class Main {\n    static boolean allowed(Claims claims, long now) {\n        return claims.issuer().equals(\"https://id.example\")\n                && claims.audience().equals(\"orders\")\n                && now < claims.expiresAt()\n                && now >= claims.notBefore()\n                && claims.scopes().contains(\"orders:read\");\n    }\n\n    public static void main(String[] args) {\n        Scanner scanner = new Scanner(System.in);\n        String issuer = scanner.next();\n        String audience = scanner.next();\n        long now = scanner.nextLong();\n        long expiresAt = scanner.nextLong();\n        long notBefore = scanner.nextLong();\n        Set<String> scopes = new HashSet<>(\n                Arrays.asList(scanner.next().split(\",\")));\n        Claims claims = new Claims(issuer, audience, expiresAt, notBefore, scopes);\n        System.out.println(allowed(claims, now) ? \"ALLOW\" : \"DENY\");\n    }\n}\n",
-      "quiz":[
-        {"question":"JWTの検証で、署名以外に必要なのは？","choices":["ペイロードを信用してすぐ使う","発行者・想定利用先・時刻・スコープなど、用途に合っているかの検証","Base64のデコードだけ","トークンをURLのクエリへ記録する"],"answer":1,"explanation":"正しく署名されていても、用途が違うトークンは拒否する必要があります。"},
-        {"question":"JWTのペイロードへ利用者のメールアドレスを入れて、ブラウザへ渡しました。この扱いの問題点はどれでしょう。","choices":["ペイロードは署名されるので改ざんできず、問題はない","署名は改ざんを検出するだけで、ペイロードは復号なしに読めるため内容が露出する","JWTにはメールアドレスを入れられない","想定利用先の検証が不要になる"],"answer":1,"explanation":"JWTのペイロードは暗号化されているとは限りません。トークンをログやURLへ出さないのも同じ理由です。"}
+      "hiddenCases": [
+        {
+          "label": "期限切れ",
+          "stdin": "-1 30",
+          "expected": "EXPIRED"
+        }
+      ],
+      "hints": [
+        "負数、閾値以下の順で判定します。"
+      ],
+      "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] a) {\n        Scanner s = new Scanner(System.in);\n        int days = s.nextInt(), threshold = s.nextInt();\n        System.out.println(days < 0 ? \"EXPIRED\" : days <= threshold ? \"ROTATE\" : \"OK\");\n    }\n}\n",
+      "quiz": [
+        {
+          "question": "「すべての証明書を信頼する」設定が危険な理由は？",
+          "choices": [
+            "HTTPのステータスコードが変わってしまう",
+            "接続相手が本物かを検証しないため、中間者攻撃を許してしまう",
+            "証明書の検証にかかる時間が増えてしまう",
+            "証明書が勝手に自動更新される"
+          ],
+          "answer": 1,
+          "explanation": "HTTPのステータスコードは変わりませんし、検証を省くのだから時間は増えません。自動更新もされません。TLSは「盗み見られない」だけでなく「相手が本物か」も担保する仕組みなので、すべてを信頼すると、偽のサーバーと暗号化された通信を安心して行ってしまいます。"
+        },
+        {
+          "question": "リバースプロキシの背後にあるアプリケーションが `X-Forwarded-For` などのヘッダーを無条件に信用すると、何が問題でしょう。",
+          "choices": [
+            "証明書チェーンの検証が壊れて接続できない",
+            "HSTSの指定が効かなくなる",
+            "外部から任意の値を送れるため、送信元IPを偽装できる",
+            "プロキシとのTLSが無効になる"
+          ],
+          "answer": 2,
+          "explanation": "転送元情報のヘッダーを信頼してよいプロキシの範囲を決め、その外から来た値は捨てます。経路の情報も偽装できます。"
+        }
       ]
     },
     {
-      "id":"56-3","title":"認可と入力・出力を境界で守る",
-      "explanation":"## 認証済みでも、何でもできるわけではない\n\n認証は「誰か」を確かめ、認可は「その主体が対象へその操作をしてよいか」を決めます。エンドポイントでロールを確認するだけでなく、`order.ownerId` のような**対象ごとの認可**をサービス層で行います。既定は拒否（deny by default）、権限は最小限（least privilege）、管理操作には再認証と監査を、という組み方を基本にします。テナントIDはリクエストの本文だけから信用せず、検証済みの身元情報と照合します。\n\n入力は型・長さ・範囲・形式を許可リストで検証します。SQLはプレースホルダに値を渡し、HTMLは出力する文脈に応じてエスケープし、外部URLはSSRF対策を行い、ファイルパスは基準ディレクトリの外へ出ないようにします。エラー応答とログには、パスワード・トークン・個人情報・内部のスタックトレースを出しません。",
-      "samples":[{"caption":"所有者を照合する","code":"record Order(long id,String owner){}public class Main{public static void main(String[] a){String subject=\"u1\";Order o=new Order(1,\"u1\");System.out.println(subject.equals(o.owner())?\"ALLOW\":\"DENY\");}}\n"}],
-      "task":"操作する主体、対象の所有者、ロールを読みます。ロールが`admin`か、主体と所有者が一致すれば `ALLOW`、それ以外は `DENY` と表示してください。",
-      "starterCode":"import java.util.*;public class Main{public static void main(String[] a){Scanner s=new Scanner(System.in);String subject=s.next(),owner=s.next(),role=s.next();/* TODO */}}\n",
-      "visibleCases":[{"label":"所有者","stdin":"u1 u1 user","expected":"ALLOW"},{"label":"他人","stdin":"u1 u2 user","expected":"DENY"}],
-      "hiddenCases":[{"label":"管理者","stdin":"u1 u2 admin","expected":"ALLOW"}],
-      "hints":["`admin` かどうかと `subject.equals(owner)` を `||` で結びます。"],
-      "solution":"import java.util.*;public class Main{public static void main(String[] a){Scanner s=new Scanner(System.in);String subject=s.next(),owner=s.next(),role=s.next();System.out.println(role.equals(\"admin\")||subject.equals(owner)?\"ALLOW\":\"DENY\");}}\n",
-      "quiz":[
-        {"question":"「対象ごとの認可」の例はどれでしょう。","choices":["ログイン済みかどうかだけを見る","利用者がその注文の所有者かどうかをサービス層で照合する","JSONを整形する","JDKのバージョンを表示する"],"answer":1,"explanation":"同じロールでも、アクセスできる対象を主体ごとに制限します。"},
-        {"question":"リクエストの本文に含まれる `tenantId` をそのまま使ってデータを取得する実装の問題点はどれでしょう。","choices":["本文のサイズが増える","JSONの解析に失敗する","SQLのプレースホルダが使えない","検証済みの身元情報と照合していないため、他テナントのデータを要求できてしまう"],"answer":3,"explanation":"テナントIDはリクエストの本文だけから信用せず、検証済みの身元情報と照合します。"}
+      "id": "56-2",
+      "title": "OAuth 2.0・OIDC・JWTを検証する",
+      "explanation": "## 「権限の委譲」「ログイン」「トークンの形式」を分ける\n\nOAuth 2.0はAPIへの認可を委譲するための枠組み、OpenID Connectはその上に身元確認とログインを加える仕様です。JWTはトークンの表現形式の一つで、OAuthのトークンが必ずJWTとは限りません。ブラウザやモバイルアプリの認可コードフローではPKCEと `state` / `nonce` を使い、クライアント資格情報による認可はサーバー間の通信に限定します。パスワードを直接渡す方式や独自のトークン発行は、安易に選ばないようにします。\n\n```svg 認可コードフロー … コードを受け取ってからトークンに交換する。検証はリソースサーバーの仕事\n<svg viewBox=\"0 0 720 298\">\n  <rect class=\"fig-box\" x=\"30\" y=\"18\" width=\"150\" height=\"32\" rx=\"6\"/>\n  <text class=\"fig-t fig-small\" x=\"105\" y=\"34\" text-anchor=\"middle\">ブラウザ</text>\n  <rect class=\"fig-box\" x=\"280\" y=\"18\" width=\"150\" height=\"32\" rx=\"6\"/>\n  <text class=\"fig-t fig-small\" x=\"355\" y=\"34\" text-anchor=\"middle\">アプリ（client）</text>\n  <rect class=\"fig-box\" x=\"530\" y=\"18\" width=\"160\" height=\"32\" rx=\"6\"/>\n  <text class=\"fig-t fig-small\" x=\"610\" y=\"34\" text-anchor=\"middle\">認可サーバ</text>\n  <line class=\"fig-line-soft fig-dashed\" x1=\"105\" y1=\"50\" x2=\"105\" y2=\"222\"/>\n  <line class=\"fig-line-soft fig-dashed\" x1=\"355\" y1=\"50\" x2=\"355\" y2=\"222\"/>\n  <line class=\"fig-line-soft fig-dashed\" x1=\"610\" y1=\"50\" x2=\"610\" y2=\"222\"/>\n\n  <text class=\"fig-t fig-mono fig-small\" x=\"356\" y=\"70\" text-anchor=\"middle\">認可リクエスト（PKCE + state）</text>\n  <line class=\"fig-line\" x1=\"107\" y1=\"82\" x2=\"606\" y2=\"82\" marker-end=\"arrow\"/>\n  <text class=\"fig-t fig-small\" x=\"356\" y=\"102\" text-anchor=\"middle\">ログイン・同意 → 認可コードを返す</text>\n  <line class=\"fig-line\" x1=\"608\" y1=\"114\" x2=\"109\" y2=\"114\" marker-end=\"arrow\"/>\n  <text class=\"fig-t fig-small\" x=\"230\" y=\"134\" text-anchor=\"middle\">認可コードを渡す</text>\n  <line class=\"fig-line\" x1=\"107\" y1=\"146\" x2=\"351\" y2=\"146\" marker-end=\"arrow\"/>\n  <text class=\"fig-t fig-mono fig-small\" x=\"482\" y=\"166\" text-anchor=\"middle\">code + code_verifier</text>\n  <line class=\"fig-line-accent\" x1=\"357\" y1=\"178\" x2=\"606\" y2=\"178\" marker-end=\"arrow-accent\"/>\n  <text class=\"fig-t fig-mono fig-small fig-t-accent\" x=\"482\" y=\"198\" text-anchor=\"middle\">アクセストークン</text>\n  <line class=\"fig-line-accent\" x1=\"608\" y1=\"210\" x2=\"359\" y2=\"210\" marker-end=\"arrow-accent\"/>\n\n  <rect class=\"fig-box-accent\" x=\"180\" y=\"236\" width=\"526\" height=\"52\" rx=\"6\"/>\n  <text class=\"fig-t fig-t-accent fig-small\" x=\"196\" y=\"256\">リソースサーバー側でやること</text>\n  <text class=\"fig-t fig-mono fig-small\" x=\"196\" y=\"276\">署名を検証 → iss / aud / exp / nbf / 必要な scope を確認</text>\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"14\" y=\"262\">トークンを付けて</text>\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"14\" y=\"282\">API を呼ぶ</text>\n  <line class=\"fig-line-accent\" x1=\"130\" y1=\"272\" x2=\"176\" y2=\"262\" marker-end=\"arrow-accent\"/>\n</svg>\n```\n\nリソースサーバーは、信頼できるライブラリで署名と許可するアルゴリズムを検証したうえで、発行者（issuer）・想定利用先（audience）・有効期限・有効開始時刻・必要なスコープを、用途に照らして確認します。`kid` に応じたJWKSの更新では、キャッシュと鍵の入れ替えを考慮します。トークンはログやURLへ出さず、JWTのペイロードは暗号化されているとは限らないと考えてください。\n\n> 🧪 次の問題は**署名検証を終えたあとのクレームに対する認可方針**を実装します。JWTのパーサーや署名検証を自作することはしません。実際のリソースサーバーでは採用したフレームワークの検証機能を使い、`labs/security-platform`の拒否テスト一覧を実行してください。\n\n> 🧪 アプリで確かめること / labs で動かすこと … この問題で確かめるのはクレーム検証の規則（署名は検証済みとして扱います）です。\n> 署名そのものを検証することは、1ファイル・標準入力だけのこの画面では扱えません。`labs/security-platform` に本物を置いてあります。",
+      "samples": [
+        {
+          "caption": "発行者・想定利用先・時刻・スコープを用途に照らす",
+          "code": "import java.util.Set;\n\nrecord Claims(\n        String issuer,\n        String audience,\n        long expiresAt,\n        long notBefore,\n        Set<String> scopes) {\n}\n\npublic class Main {\n    static boolean allowed(Claims claims, long now) {\n        return claims.issuer().equals(\"https://id.example\")\n                && claims.audience().equals(\"orders\")\n                && now < claims.expiresAt()\n                && now >= claims.notBefore()\n                && claims.scopes().contains(\"orders:read\");\n    }\n\n    public static void main(String[] args) {\n        Claims claims = new Claims(\n                \"https://id.example\", \"orders\", 1100, 900,\n                Set.of(\"profile\", \"orders:read\"));\n        System.out.println(allowed(claims, 1000));\n    }\n}\n",
+          "expected": "true"
+        }
+      ],
+      "task": "署名とアルゴリズムは、信頼できるライブラリですでに検証済みとします。`issuer audience now expiresAt notBefore scopes`を読み、次をすべて満たせば`ALLOW`、1つでも外れれば`DENY`と表示してください。\n\n- 発行者が`https://id.example`\n- 想定利用先が`orders`\n- `now < expiresAt`（期限と同時刻は期限切れ）\n- `now >= notBefore`\n- カンマ区切りのスコープに`orders:read`が含まれる\n\n例: `https://id.example orders 1000 1100 900 profile,orders:read`は`ALLOW`です。",
+      "starterCode": "import java.util.*;\n\nrecord Claims(String issuer, String audience, long expiresAt,\n              long notBefore, Set<String> scopes) {\n}\n\npublic class Main {\n    static boolean allowed(Claims claims, long now) {\n        // TODO: 5条件をclaimsの値から検証する\n        return false;\n    }\n\n    public static void main(String[] args) {\n        Scanner scanner = new Scanner(System.in);\n        String issuer = scanner.next();\n        String audience = scanner.next();\n        long now = scanner.nextLong();\n        long expiresAt = scanner.nextLong();\n        long notBefore = scanner.nextLong();\n        Set<String> scopes = new HashSet<>(\n                Arrays.asList(scanner.next().split(\",\")));\n        Claims claims = new Claims(issuer, audience, expiresAt, notBefore, scopes);\n        System.out.println(allowed(claims, now) ? \"ALLOW\" : \"DENY\");\n    }\n}\n",
+      "visibleCases": [
+        {
+          "label": "用途と時刻が有効",
+          "stdin": "https://id.example orders 1000 1100 900 profile,orders:read",
+          "expected": "ALLOW"
+        },
+        {
+          "label": "期限の境界",
+          "stdin": "https://id.example orders 1000 1000 900 orders:read",
+          "expected": "DENY"
+        }
+      ],
+      "hiddenCases": [
+        {
+          "label": "発行者が不一致",
+          "stdin": "https://evil.example orders 1000 1100 900 orders:read",
+          "expected": "DENY"
+        },
+        {
+          "label": "想定利用先が不一致",
+          "stdin": "https://id.example payments 1000 1100 900 orders:read",
+          "expected": "DENY"
+        },
+        {
+          "label": "まだ有効でない",
+          "stdin": "https://id.example orders 1000 1100 1001 orders:read",
+          "expected": "DENY"
+        },
+        {
+          "label": "スコープ不足",
+          "stdin": "https://id.example orders 1000 1100 900 profile,orders:write",
+          "expected": "DENY"
+        }
+      ],
+      "hints": [
+        "文字列は`equals`、時刻は`now < claims.expiresAt()`と`now >= claims.notBefore()`、スコープは`contains`で確認します。"
+      ],
+      "solution": "import java.util.*;\n\nrecord Claims(String issuer, String audience, long expiresAt,\n              long notBefore, Set<String> scopes) {\n}\n\npublic class Main {\n    static boolean allowed(Claims claims, long now) {\n        return claims.issuer().equals(\"https://id.example\")\n                && claims.audience().equals(\"orders\")\n                && now < claims.expiresAt()\n                && now >= claims.notBefore()\n                && claims.scopes().contains(\"orders:read\");\n    }\n\n    public static void main(String[] args) {\n        Scanner scanner = new Scanner(System.in);\n        String issuer = scanner.next();\n        String audience = scanner.next();\n        long now = scanner.nextLong();\n        long expiresAt = scanner.nextLong();\n        long notBefore = scanner.nextLong();\n        Set<String> scopes = new HashSet<>(\n                Arrays.asList(scanner.next().split(\",\")));\n        Claims claims = new Claims(issuer, audience, expiresAt, notBefore, scopes);\n        System.out.println(allowed(claims, now) ? \"ALLOW\" : \"DENY\");\n    }\n}\n",
+      "quiz": [
+        {
+          "question": "JWTの検証で、署名以外に必要なのは？",
+          "choices": [
+            "トークンをURLのクエリへ記録しておくこと",
+            "発行者・想定利用先・時刻・スコープの検証",
+            "Base64をデコードして中身を読むだけ",
+            "ペイロードの内容を信用してすぐ使うこと"
+          ],
+          "answer": 1,
+          "explanation": "クエリへ記録するのは、ログやRefererに残るので避けるべきことです。Base64のデコードは誰でもできるので、それ自体は検証になりません。ペイロードをそのまま信用するのは論外です。署名が正しくても、別のシステム向けのトークンや期限切れのものは拒否する必要があります。"
+        },
+        {
+          "question": "JWTのペイロードへ利用者のメールアドレスを入れて、ブラウザへ渡しました。この扱いの問題点はどれでしょう。",
+          "choices": [
+            "JWTにメールアドレスは入れられないため",
+            "署名は改ざん検出だけで、ペイロードは復号なしに読めるため",
+            "想定利用先の検証が不要になるため",
+            "ペイロードは署名されるので改ざんできず、問題はない"
+          ],
+          "answer": 1,
+          "explanation": "JWTのペイロードは暗号化されているとは限りません。トークンをログやURLへ出さないのも同じ理由です。内容が露出します。"
+        }
       ]
     },
     {
-      "id":"56-4","title":"OpenAPI・バージョニング・供給網のセキュリティ",
-      "explanation":"## APIと成果物を契約として管理する\n\nOpenAPIにはパス、スキーマ、ステータス、エラー、認証方式を記述し、利用側との契約テストやクライアント生成に使います。互換性を保つ変更は、任意項目の追加や新しいエンドポイントの追加を基本にし、意味の変更・必須化・削除にはバージョニングと廃止までの猶予期間を設けます。`application/problem+json` のような一貫したエラー形式、冪等性キー、ページング、レート制限も契約に含めます。\n\n依存ライブラリはBOMやロックファイルで固定し、不要な依存を減らし、脆弱性だけでなくライセンス・保守者・公開元も確認します。CIでは機密情報の混入検査、静的解析、依存とコンテナイメージの脆弱性検査、SBOMの生成、署名と出自（provenance）の記録を行い、緊急のパッチ適用手順を演習しておきます。検査ツールの指摘は、到達可能性と実際の環境を踏まえて優先順位を付けますが、根拠なく無期限に抑制しないようにします。",
-      "samples":[{"caption":"互換性の分類","code":"import java.util.*;public class Main{public static void main(String[] a){Map<String,String> m=Map.of(\"optional-field\",\"compatible\",\"remove-field\",\"breaking\");System.out.println(m.get(\"optional-field\"));}}\n"}],
-      "task":"APIの変更をn件読み、`add-optional` / `add-endpoint` は `COMPATIBLE`、`remove` / `make-required` は `BREAKING` と表示してください。",
-      "starterCode":"import java.util.*;public class Main{public static void main(String[] a){Scanner s=new Scanner(System.in);int n=s.nextInt();for(int i=0;i<n;i++){String change=s.next();/* TODO */}}}\n",
-      "visibleCases":[{"label":"契約変更","stdin":"4 add-optional remove add-endpoint make-required","expected":"COMPATIBLE\nBREAKING\nCOMPATIBLE\nBREAKING"}],
-      "hiddenCases":[{"label":"削除","stdin":"1 remove","expected":"BREAKING"}],
-      "hints":["`change.startsWith(\"add-\")` なら互換性のある変更です。"],
-      "solution":"import java.util.*;public class Main{public static void main(String[] a){Scanner s=new Scanner(System.in);int n=s.nextInt();for(int i=0;i<n;i++){String change=s.next();System.out.println(change.startsWith(\"add-\")?\"COMPATIBLE\":\"BREAKING\");}}}\n",
-      "quiz":[
-        {"question":"SBOMの役割は？","choices":["実行時のヒープを増やす","成果物に含まれる構成要素を追跡できるようにする","認証を省略する","APIの互換性を自動的に保証する"],"answer":1,"explanation":"脆弱性が公表されたとき、影響する成果物を素早く特定する材料になります。"},
-        {"question":"既存の任意項目を必須へ変更する修正は、APIの契約としてどう扱うべきでしょう。","choices":["既存の利用側が送っていない可能性があるため破壊的変更として扱い、バージョニングと廃止までの猶予期間を設ける","互換性のある変更なのでそのまま公開してよい","OpenAPIに書かなければ影響しない","ステータスコードを変えれば互換になる"],"answer":0,"explanation":"互換性のある変更は任意項目や新しいエンドポイントの追加が基本で、必須化・意味の変更・削除は破壊的変更です。"}
+      "id": "56-3",
+      "title": "認可と入力・出力を境界で守る",
+      "explanation": "## 認証済みでも、何でもできるわけではない\n\n認証は「誰か」を確かめ、認可は「その主体が対象へその操作をしてよいか」を決めます。エンドポイントでロールを確認するだけでなく、`order.ownerId` のような**対象ごとの認可**をサービス層で行います。既定は拒否（deny by default）、権限は最小限（least privilege）、管理操作には再認証と監査を、という組み方を基本にします。テナントIDはリクエストの本文だけから信用せず、検証済みの身元情報と照合します。\n\n入力は型・長さ・範囲・形式を許可リストで検証します。SQLはプレースホルダに値を渡し、HTMLは出力する文脈に応じてエスケープし、外部URLはSSRF対策を行い、ファイルパスは基準ディレクトリの外へ出ないようにします。エラー応答とログには、パスワード・トークン・個人情報・内部のスタックトレースを出しません。\n\n### 「誰か」ではなく「この対象に対して」を確かめる\n\nログインできている（認証）ことと、この注文を見てよい（認可）ことは別です。\n対象ごとの認可は、サービス層で所有者を照合します。\n\n```java\nOrder order = repository.find(orderId);          // まず対象を取る\nif (!order.ownerId().equals(current.id()) && !current.isAdmin()) {\n    throw new ForbiddenException();              // 所有者でも管理者でもない\n}\nreturn toDto(order);\n```\n\n`orderId` は利用者が自由に変えられます。照合を入れないと、他人のIDを入れるだけで\n他人のデータが読めてしまいます（IDOR）。\n\n### 認可にならないもの\n\n| やっていること | なぜ足りないか |\n|---|---|\n| 画面のボタンを隠す | APIを直接呼べば通る |\n| IDを推測しにくい値にする | 漏れた・共有された時点で終わり |\n| リクエスト本文の `tenantId` を信じる | 送る側が自由に書き換えられる |\n\nテナントや所有者は、**検証済みの身元情報**（トークンから取り出したもの）と\n照合します。本文やクエリの値は入力であって、身元の証明ではありません。\n\n> ⚠️ 間違えやすい点 … 出力側も境界です。認可を通ったあとでも、DTOへ詰めるときに\n> 他人の情報や内部項目（内部ID、原価、監査メモ）を含めないこと。\n> エンティティをそのまま返すと、増えた項目が黙って外へ出ます。",
+      "samples": [
+        {
+          "caption": "所有者を照合する",
+          "code": "record Order(long id, String owner) { }\n\npublic class Main {\n    public static void main(String[] a) {\n        String subject = \"u1\";\n        Order o = new Order(1, \"u1\");\n        System.out.println(subject.equals(o.owner()) ? \"ALLOW\" : \"DENY\");\n    }\n}\n"
+        }
+      ],
+      "task": "操作する主体、対象の所有者、ロールを読みます。ロールが`admin`か、主体と所有者が一致すれば `ALLOW`、それ以外は `DENY` と表示してください。",
+      "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] a) {\n        Scanner s = new Scanner(System.in);\n        String subject = s.next(), owner = s.next(), role = s.next();\n        /* TODO */\n    }\n}\n",
+      "visibleCases": [
+        {
+          "label": "所有者",
+          "stdin": "u1 u1 user",
+          "expected": "ALLOW"
+        },
+        {
+          "label": "他人",
+          "stdin": "u1 u2 user",
+          "expected": "DENY"
+        }
+      ],
+      "hiddenCases": [
+        {
+          "label": "管理者",
+          "stdin": "u1 u2 admin",
+          "expected": "ALLOW"
+        }
+      ],
+      "hints": [
+        "`admin` かどうかと `subject.equals(owner)` を `||` で結びます。"
+      ],
+      "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] a) {\n        Scanner s = new Scanner(System.in);\n        String subject = s.next(), owner = s.next(), role = s.next();\n        System.out.println(role.equals(\"admin\") || subject.equals(owner) ? \"ALLOW\" : \"DENY\");\n    }\n}\n",
+      "quiz": [
+        {
+          "question": "「対象ごとの認可」の例はどれでしょう。",
+          "choices": [
+            "その注文の所有者かどうかをサービス層で照合する",
+            "JDKのバージョンを画面に表示する",
+            "ログイン済みかどうかだけを確認する",
+            "応答のJSONを整形する"
+          ],
+          "answer": 0,
+          "explanation": "JDKのバージョン表示は情報の露出でしかありません。ログイン済みかどうかの確認は**認証**で、その先の話が認可です。JSONの整形は表示の話です。同じロールを持っていても触れる対象は主体ごとに違うので、「この注文はこの人のものか」をサーバー側で照合します。"
+        },
+        {
+          "question": "リクエストの本文に含まれる `tenantId` をそのまま使ってデータを取得する実装の問題点はどれでしょう。",
+          "choices": [
+            "身元情報と照合していないので、他テナントのデータを要求できる",
+            "`tenantId` の型が合わずJSONの解析に失敗する",
+            "`tenantId` を渡すとSQLのプレースホルダが使えない",
+            "リクエスト本文のサイズが増えて遅くなる"
+          ],
+          "answer": 0,
+          "explanation": "テナントIDはリクエストの本文だけから信用せず、検証済みの身元情報と照合します。"
+        }
       ]
     },
     {
-      "id":"56-5","title":"章末演習：本番セキュリティとAPI契約",
-      "explanation":"## この章の知識を、自分の手で組み合わせよう\n\nここでは、**証明書の期限・JWTのクレーム検証・対象ごとの認可・API契約の互換性**をまとめて使います。新しい文法は登場しません。分からなくなったら、直前までの解説やサンプルへ戻って確認して大丈夫です。\n\n### 3問の進め方\n\n1. **基本**で、中心となる書き方をもう一度使う\n2. **組み合わせ**で、章内の複数の知識を一緒に使う\n3. **実践**で、少し現実的な入力と条件を整理する\n\n署名検証や暗号処理は自作しません。ここで書くのは、**検証済みの値に対してどう判断するか**という方針の部分です。",
-      "samples":[{"caption":"復習用サンプル：拒否理由は最初の1つだけ返す","code":"import java.util.*;\npublic class Main{public static void main(String[] a){List<String> checks=List.of(\"issuer\",\"audience\",\"expiry\");String bad=\"audience\";for(String c:checks)if(c.equals(bad)){System.out.println(\"DENY \"+c.toUpperCase(Locale.ROOT));break;}}}\n","expected":"DENY AUDIENCE"}],
-      "task":"【基本】更新閾値thresholdと証明書n件 `name days` を読みます（`days` は残り日数で、負なら期限切れ）。`days` が負なら `EXPIRED`、負でなく `threshold` 以下なら `ROTATE` と判定し、該当する証明書だけを名前の辞書順に `name STATUS` と表示してください。どれも該当しなければ `ALL_OK` と表示します。",
-      "starterCode":"import java.util.*;\npublic class Main {public static void main(String[] args){Scanner s=new Scanner(System.in);int threshold=s.nextInt(),n=s.nextInt();TreeMap<String,String> hits=new TreeMap<>();for(int i=0;i<n;i++){String name=s.next();int days=s.nextInt();/* TODO */}/* TODO 出力 */}}\n",
-      "visibleCases":[{"label":"期限切れと更新間近","stdin":"30 3 api -1 web 10 batch 90","expected":"api EXPIRED\nweb ROTATE"},{"label":"すべて余裕","stdin":"30 2 api 60 web 45","expected":"ALL_OK"}],
-      "hiddenCases":[{"label":"ちょうど閾値","stdin":"30 1 api 30","expected":"api ROTATE"},{"label":"残り0日","stdin":"0 1 api 0","expected":"api ROTATE"},{"label":"辞書順に並べる","stdin":"10 3 zeta -1 alpha 5 mid -2","expected":"alpha ROTATE\nmid EXPIRED\nzeta EXPIRED"}],
-      "hints":["`TreeMap` に入れると、取り出すときに名前の辞書順になります。","先に `days < 0` を判定してから `days <= threshold` を見ます。","1件も該当しなかったときだけ `ALL_OK` を表示します。"],
-      "solution":"import java.util.*;\npublic class Main {public static void main(String[] args){Scanner s=new Scanner(System.in);int threshold=s.nextInt(),n=s.nextInt();TreeMap<String,String> hits=new TreeMap<>();for(int i=0;i<n;i++){String name=s.next();int days=s.nextInt();if(days<0)hits.put(name,\"EXPIRED\");else if(days<=threshold)hits.put(name,\"ROTATE\");}if(hits.isEmpty())System.out.println(\"ALL_OK\");else hits.forEach((k,v)->System.out.println(k+\" \"+v));}}\n",
-      "extraTasks":[{"kind":"drill","task":"【組み合わせ】署名とアルゴリズムは、信頼できるライブラリで検証済みとします。`issuer audience now expiresAt notBefore` を読み、続けてスコープの数kとk個のスコープ、さらに `subject resourceOwner role` を読みます。次を上から順に確かめ、最初に外れた理由を `DENY 理由` と表示してください。すべて満たせば `ALLOW` です。\n\n1. 発行者が `https://issuer.example` でなければ `BAD_ISSUER`\n2. 想定利用先が `orders-api` でなければ `BAD_AUDIENCE`\n3. `now` が `expiresAt` 以上なら `EXPIRED`\n4. `now` が `notBefore` 未満なら `NOT_YET`\n5. スコープに `orders:read` が無ければ `MISSING_SCOPE`\n6. ロールが `admin` ではなく、`subject` と `resourceOwner` も異なれば `FORBIDDEN`","starterCode":"import java.util.*;\npublic class Main {public static void main(String[] args){Scanner s=new Scanner(System.in);String issuer=s.next(),audience=s.next();long now=s.nextLong(),expiresAt=s.nextLong(),notBefore=s.nextLong();int k=s.nextInt();Set<String> scopes=new HashSet<>();for(int i=0;i<k;i++)scopes.add(s.next());String subject=s.next(),owner=s.next(),role=s.next();/* TODO */}}\n","visibleCases":[{"label":"所有者本人","stdin":"https://issuer.example orders-api 1000 2000 500 1 orders:read u1 u1 user","expected":"ALLOW"},{"label":"他人の注文","stdin":"https://issuer.example orders-api 1000 2000 500 1 orders:read u1 u2 user","expected":"DENY FORBIDDEN"}],"hiddenCases":[{"label":"期限切れが認可より先","stdin":"https://issuer.example orders-api 3000 2000 500 0 u1 u2 user","expected":"DENY EXPIRED"},{"label":"issuerが最優先","stdin":"https://evil.example orders-api 3000 2000 500 0 u1 u2 user","expected":"DENY BAD_ISSUER"},{"label":"audience違い","stdin":"https://issuer.example other-api 1000 2000 500 1 orders:read u1 u1 user","expected":"DENY BAD_AUDIENCE"},{"label":"notBefore前","stdin":"https://issuer.example orders-api 400 2000 500 1 orders:read u1 u1 user","expected":"DENY NOT_YET"},{"label":"scope不足","stdin":"https://issuer.example orders-api 1000 2000 500 1 orders:write u1 u1 user","expected":"DENY MISSING_SCOPE"},{"label":"adminは他人でも許可","stdin":"https://issuer.example orders-api 1000 2000 500 2 orders:read orders:write u1 u2 admin","expected":"ALLOW"}],"hints":["判定は順番が大事です。上の条件から順に `else if` でつなぎます。","`now >= expiresAt` と `now < notBefore` の境界に注意します。","最後の1つだけが、トークンではなく対象データとの関係を見ている認可です。"],"solution":"import java.util.*;\npublic class Main {public static void main(String[] args){Scanner s=new Scanner(System.in);String issuer=s.next(),audience=s.next();long now=s.nextLong(),expiresAt=s.nextLong(),notBefore=s.nextLong();int k=s.nextInt();Set<String> scopes=new HashSet<>();for(int i=0;i<k;i++)scopes.add(s.next());String subject=s.next(),owner=s.next(),role=s.next();String deny=!issuer.equals(\"https://issuer.example\")?\"BAD_ISSUER\":!audience.equals(\"orders-api\")?\"BAD_AUDIENCE\":now>=expiresAt?\"EXPIRED\":now<notBefore?\"NOT_YET\":!scopes.contains(\"orders:read\")?\"MISSING_SCOPE\":(!role.equals(\"admin\")&&!subject.equals(owner))?\"FORBIDDEN\":null;System.out.println(deny==null?\"ALLOW\":\"DENY \"+deny);}}\n"},{"kind":"applied","task":"【実践】現在のバージョンを `major minor` で読み、続けて変更をn件読みます。各変更は種別1語で、`add-optional` と `add-endpoint` は互換性のある変更、`remove`・`make-required`・`change-meaning` は破壊的変更です。読んだ順に `種別 COMPATIBLE` または `種別 BREAKING` と表示し、最後に次のバージョンを `NEXT major.minor` の形で表示してください。破壊的変更が1件以上あれば majorを1つ上げて minorを0にし、無ければ互換性のある変更が1件以上なら minorを1つ上げ、変更が1件も無ければ現在のバージョンのままにします。","starterCode":"import java.util.*;\npublic class Main {public static void main(String[] args){Scanner s=new Scanner(System.in);int major=s.nextInt(),minor=s.nextInt(),n=s.nextInt();Set<String> breaking=Set.of(\"remove\",\"make-required\",\"change-meaning\");boolean hasBreaking=false,hasCompatible=false;for(int i=0;i<n;i++){String kind=s.next();/* TODO */}/* TODO 次のversion */}}\n","visibleCases":[{"label":"互換だけ","stdin":"1 4 2 add-optional add-endpoint","expected":"add-optional COMPATIBLE\nadd-endpoint COMPATIBLE\nNEXT 1.5"},{"label":"必須化を含む","stdin":"1 4 2 add-optional make-required","expected":"add-optional COMPATIBLE\nmake-required BREAKING\nNEXT 2.0"}],"hiddenCases":[{"label":"変更なし","stdin":"3 7 0","expected":"NEXT 3.7"},{"label":"削除と意味変更","stdin":"2 0 2 remove change-meaning","expected":"remove BREAKING\nchange-meaning BREAKING\nNEXT 3.0"},{"label":"破壊的が最後でもmajor","stdin":"0 9 3 add-endpoint add-optional remove","expected":"add-endpoint COMPATIBLE\nadd-optional COMPATIBLE\nremove BREAKING\nNEXT 1.0"}],"hints":["破壊的な種別を `Set` にまとめると分岐が短くなります。","破壊的変更が1件でもあれば minor は0へ戻します。","変更が0件のときは、現在のバージョンをそのまま表示します。"],"solution":"import java.util.*;\npublic class Main {public static void main(String[] args){Scanner s=new Scanner(System.in);int major=s.nextInt(),minor=s.nextInt(),n=s.nextInt();Set<String> breaking=Set.of(\"remove\",\"make-required\",\"change-meaning\");boolean hasBreaking=false,hasCompatible=false;for(int i=0;i<n;i++){String kind=s.next();if(breaking.contains(kind)){hasBreaking=true;System.out.println(kind+\" BREAKING\");}else{hasCompatible=true;System.out.println(kind+\" COMPATIBLE\");}}if(hasBreaking){major++;minor=0;}else if(hasCompatible)minor++;System.out.println(\"NEXT \"+major+\".\"+minor);}}\n"}]
+      "id": "56-4",
+      "title": "OpenAPI・バージョニング・供給網のセキュリティ",
+      "explanation": "## APIと成果物を契約として管理する\n\nOpenAPIにはパス、スキーマ、ステータス、エラー、認証方式を記述し、利用側との契約テストやクライアント生成に使います。互換性を保つ変更は、任意項目の追加や新しいエンドポイントの追加を基本にし、意味の変更・必須化・削除にはバージョニングと廃止までの猶予期間を設けます。`application/problem+json` のような一貫したエラー形式、冪等性キー、ページング、レート制限も契約に含めます。\n\n依存ライブラリはBOMやロックファイルで固定し、不要な依存を減らし、脆弱性だけでなくライセンス・保守者・公開元も確認します。CIでは機密情報の混入検査、静的解析、依存とコンテナイメージの脆弱性検査、SBOMの生成、署名と出自（provenance）の記録を行い、緊急のパッチ適用手順を演習しておきます。検査ツールの指摘は、到達可能性と実際の環境を踏まえて優先順位を付けますが、根拠なく無期限に抑制しないようにします。\n\n### 互換か破壊的かを、変更の形で判断する\n\n| 変更 | 扱い | 理由 |\n|---|---|---|\n| 任意項目を追加 | 互換 | 古い利用側は無視できる |\n| エンドポイントを追加 | 互換 | 既存の呼び出しに影響しない |\n| 任意項目を **必須** にする | **破壊的** | 送っていない利用側が落ちる |\n| 項目を削除・改名 | **破壊的** | 読んでいる利用側が落ちる |\n| 値の **意味** を変える | **破壊的** | 型は同じなので気づかれずに壊れる |\n\nいちばん危ないのは最後の「意味の変更」です。`amount` を税抜から税込に変えても、\n型は `int` のままなのでコンパイルもテストも通り、**金額だけが静かにずれます**。\n\n破壊的変更は、新しいバージョンを並走させ、廃止までの猶予期間と移行手順を\n先に決めてから出します。\n\n### 供給網\n\nCIでは依存ツリーとSBOMを保存します。脆弱性が公表されたときに知りたいのは\n「うちのどの成果物にそれが入っているか」で、これは後から遡れません。\nスキャンの抑制には担当者・根拠・期限を付けます。\n\n> ⚠️ 間違えやすい点 … OpenAPIの記述を変えないことは、互換性の担保になりません。\n> 契約は **実際の振る舞い** であって文書ではないので、provider/consumer の\n> contract test で確かめます。文書だけ直すと、文書のほうが嘘になります。",
+      "samples": [
+        {
+          "caption": "互換性の分類",
+          "code": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] a) {\n        Map<String, String> m = Map.of(\"optional-field\", \"compatible\", \"remove-field\", \"breaking\");\n        System.out.println(m.get(\"optional-field\"));\n    }\n}\n"
+        }
+      ],
+      "task": "APIの変更をn件読み、`add-optional` / `add-endpoint` は `COMPATIBLE`、`remove` / `make-required` は `BREAKING` と表示してください。",
+      "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] a) {\n        Scanner s = new Scanner(System.in);\n        int n = s.nextInt();\n        for (int i = 0; i < n; i++) {\n            String change = s.next();\n            /* TODO */\n        }\n    }\n}\n",
+      "visibleCases": [
+        {
+          "label": "契約変更",
+          "stdin": "4 add-optional remove add-endpoint make-required",
+          "expected": "COMPATIBLE\nBREAKING\nCOMPATIBLE\nBREAKING"
+        }
+      ],
+      "hiddenCases": [
+        {
+          "label": "削除",
+          "stdin": "1 remove",
+          "expected": "BREAKING"
+        }
+      ],
+      "hints": [
+        "`change.startsWith(\"add-\")` なら互換性のある変更です。"
+      ],
+      "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] a) {\n        Scanner s = new Scanner(System.in);\n        int n = s.nextInt();\n        for (int i = 0; i < n; i++) {\n            String change = s.next();\n            System.out.println(change.startsWith(\"add-\") ? \"COMPATIBLE\" : \"BREAKING\");\n        }\n    }\n}\n",
+      "quiz": [
+        {
+          "question": "SBOMの役割は？",
+          "choices": [
+            "APIの互換性を自動的に保証する",
+            "成果物に含まれる構成要素を追跡できるようにする",
+            "認証を省略する",
+            "実行時のヒープを増やす"
+          ],
+          "answer": 1,
+          "explanation": "APIの互換性を保証する仕組みではなく、認証を省くものでもなく、ヒープとも無関係です。SBOMは成果物に何が入っているかの一覧なので、ある部品に脆弱性が公表されたとき、影響を受ける成果物と版をすぐ特定できます。無ければ、全部を手で調べることになります。"
+        },
+        {
+          "question": "既存の任意項目を必須へ変更する修正は、APIの契約としてどう扱うべきでしょう。",
+          "choices": [
+            "OpenAPIの記述を変えなければ利用側には影響しない",
+            "項目を増やすわけではないので互換な変更として公開してよい",
+            "破壊的変更として扱い、バージョニングと猶予期間を設ける",
+            "エラー時のステータスコードを変えれば互換性を保てる"
+          ],
+          "answer": 2,
+          "explanation": "互換性のある変更は任意項目や新しいエンドポイントの追加が基本で、必須化・意味の変更・削除は破壊的変更です。既存の利用側がその項目を送っていない可能性があるため、いきなり必須にはできません。"
+        }
+      ]
+    },
+    {
+      "id": "56-5",
+      "title": "章末演習：本番セキュリティとAPI契約",
+      "explanation": "## この章の知識を、自分の手で組み合わせよう\n\nここでは、**証明書の期限・JWTのクレーム検証・対象ごとの認可・API契約の互換性**をまとめて使います。新しい文法は登場しません。分からなくなったら、直前までの解説やサンプルへ戻って確認して大丈夫です。\n\n### 3問の進め方\n\n1. **基本**で、中心となる書き方をもう一度使う\n2. **組み合わせ**で、章内の複数の知識を一緒に使う\n3. **実践**で、少し現実的な入力と条件を整理する\n\n署名検証や暗号処理は自作しません。ここで書くのは、**検証済みの値に対してどう判断するか**という方針の部分です。",
+      "samples": [
+        {
+          "caption": "復習用サンプル：拒否理由は最初の1つだけ返す",
+          "code": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] a) {\n        List<String> checks = List.of(\"issuer\", \"audience\", \"expiry\");\n        String bad = \"audience\";\n        for (String c : checks) if (c.equals(bad)) {\n            System.out.println(\"DENY \" + c.toUpperCase(Locale.ROOT));\n            break;\n        }\n    }\n}\n",
+          "expected": "DENY AUDIENCE"
+        }
+      ],
+      "task": "【基本】更新閾値thresholdと証明書n件 `name days` を読みます（`days` は残り日数で、負なら期限切れ）。`days` が負なら `EXPIRED`、負でなく `threshold` 以下なら `ROTATE` と判定し、該当する証明書だけを名前の辞書順に `name STATUS` と表示してください。どれも該当しなければ `ALL_OK` と表示します。",
+      "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        int threshold = s.nextInt(), n = s.nextInt();\n        TreeMap<String, String> hits = new TreeMap<>();\n        for (int i = 0; i < n; i++) {\n            String name = s.next();\n            int days = s.nextInt();\n            /* TODO */\n        }\n        /* TODO 出力 */\n    }\n}\n",
+      "visibleCases": [
+        {
+          "label": "期限切れと更新間近",
+          "stdin": "30 3 api -1 web 10 batch 90",
+          "expected": "api EXPIRED\nweb ROTATE"
+        },
+        {
+          "label": "すべて余裕",
+          "stdin": "30 2 api 60 web 45",
+          "expected": "ALL_OK"
+        }
+      ],
+      "hiddenCases": [
+        {
+          "label": "ちょうど閾値",
+          "stdin": "30 1 api 30",
+          "expected": "api ROTATE"
+        },
+        {
+          "label": "残り0日",
+          "stdin": "0 1 api 0",
+          "expected": "api ROTATE"
+        },
+        {
+          "label": "辞書順に並べる",
+          "stdin": "10 3 zeta -1 alpha 5 mid -2",
+          "expected": "alpha ROTATE\nmid EXPIRED\nzeta EXPIRED"
+        }
+      ],
+      "hints": [
+        "`TreeMap` に入れると、取り出すときに名前の辞書順になります。",
+        "先に `days < 0` を判定してから `days <= threshold` を見ます。",
+        "1件も該当しなかったときだけ `ALL_OK` を表示します。"
+      ],
+      "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        int threshold = s.nextInt(), n = s.nextInt();\n        TreeMap<String, String> hits = new TreeMap<>();\n        for (int i = 0; i < n; i++) {\n            String name = s.next();\n            int days = s.nextInt();\n            if (days < 0) hits.put(name, \"EXPIRED\");\n            else if (days <= threshold) hits.put(name, \"ROTATE\");\n        }\n        if (hits.isEmpty()) System.out.println(\"ALL_OK\");\n        else hits.forEach((k, v) -> System.out.println(k + \" \" + v));\n    }\n}\n",
+      "extraTasks": [
+        {
+          "kind": "drill",
+          "task": "【組み合わせ】署名とアルゴリズムは、信頼できるライブラリで検証済みとします。`issuer audience now expiresAt notBefore` を読み、続けてスコープの数kとk個のスコープ、さらに `subject resourceOwner role` を読みます。次を上から順に確かめ、最初に外れた理由を `DENY 理由` と表示してください。すべて満たせば `ALLOW` です。\n\n1. 発行者が `https://issuer.example` でなければ `BAD_ISSUER`\n2. 想定利用先が `orders-api` でなければ `BAD_AUDIENCE`\n3. `now` が `expiresAt` 以上なら `EXPIRED`\n4. `now` が `notBefore` 未満なら `NOT_YET`\n5. スコープに `orders:read` が無ければ `MISSING_SCOPE`\n6. ロールが `admin` ではなく、`subject` と `resourceOwner` も異なれば `FORBIDDEN`",
+          "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        String issuer = s.next(), audience = s.next();\n        long now = s.nextLong(), expiresAt = s.nextLong(), notBefore = s.nextLong();\n        int k = s.nextInt();\n        Set<String> scopes = new HashSet<>();\n        for (int i = 0; i < k; i++) scopes.add(s.next());\n        String subject = s.next(), owner = s.next(), role = s.next();\n        /* TODO */\n    }\n}\n",
+          "visibleCases": [
+            {
+              "label": "所有者本人",
+              "stdin": "https://issuer.example orders-api 1000 2000 500 1 orders:read u1 u1 user",
+              "expected": "ALLOW"
+            },
+            {
+              "label": "他人の注文",
+              "stdin": "https://issuer.example orders-api 1000 2000 500 1 orders:read u1 u2 user",
+              "expected": "DENY FORBIDDEN"
+            }
+          ],
+          "hiddenCases": [
+            {
+              "label": "期限切れが認可より先",
+              "stdin": "https://issuer.example orders-api 3000 2000 500 0 u1 u2 user",
+              "expected": "DENY EXPIRED"
+            },
+            {
+              "label": "issuerが最優先",
+              "stdin": "https://evil.example orders-api 3000 2000 500 0 u1 u2 user",
+              "expected": "DENY BAD_ISSUER"
+            },
+            {
+              "label": "audience違い",
+              "stdin": "https://issuer.example other-api 1000 2000 500 1 orders:read u1 u1 user",
+              "expected": "DENY BAD_AUDIENCE"
+            },
+            {
+              "label": "notBefore前",
+              "stdin": "https://issuer.example orders-api 400 2000 500 1 orders:read u1 u1 user",
+              "expected": "DENY NOT_YET"
+            },
+            {
+              "label": "scope不足",
+              "stdin": "https://issuer.example orders-api 1000 2000 500 1 orders:write u1 u1 user",
+              "expected": "DENY MISSING_SCOPE"
+            },
+            {
+              "label": "adminは他人でも許可",
+              "stdin": "https://issuer.example orders-api 1000 2000 500 2 orders:read orders:write u1 u2 admin",
+              "expected": "ALLOW"
+            }
+          ],
+          "hints": [
+            "判定は順番が大事です。上の条件から順に `else if` でつなぎます。",
+            "`now >= expiresAt` と `now < notBefore` の境界に注意します。",
+            "最後の1つだけが、トークンではなく対象データとの関係を見ている認可です。"
+          ],
+          "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        String issuer = s.next(), audience = s.next();\n        long now = s.nextLong(), expiresAt = s.nextLong(), notBefore = s.nextLong();\n        int k = s.nextInt();\n        Set<String> scopes = new HashSet<>();\n        for (int i = 0; i < k; i++) scopes.add(s.next());\n        String subject = s.next(), owner = s.next(), role = s.next();\n        String deny = !issuer.equals(\"https://issuer.example\") ? \"BAD_ISSUER\" : !audience.equals(\"orders-api\") ? \"BAD_AUDIENCE\" : now >= expiresAt ? \"EXPIRED\" : now < notBefore ? \"NOT_YET\" : !scopes.contains(\"orders:read\") ? \"MISSING_SCOPE\" : (!role.equals(\"admin\") && !subject.equals(owner)) ? \"FORBIDDEN\" : null;\n        System.out.println(deny == null ? \"ALLOW\" : \"DENY \" + deny);\n    }\n}\n",
+          "sourceChecks": [
+            {
+              "pattern": "\\bSet\\s*<",
+              "minimum": 1,
+              "message": "スコープを持っているかを調べるので、集合として持ってください。"
+            },
+            {
+              "pattern": "\\.equals\\s*\\(",
+              "minimum": 1,
+              "message": "issuer と audience は文字列として突き合わせるので `equals` を使ってください。"
+            }
+          ]
+        },
+        {
+          "kind": "applied",
+          "task": "【実践】現在のバージョンを `major minor` で読み、続けて変更をn件読みます。各変更は種別1語で、`add-optional` と `add-endpoint` は互換性のある変更、`remove`・`make-required`・`change-meaning` は破壊的変更です。読んだ順に `種別 COMPATIBLE` または `種別 BREAKING` と表示し、最後に次のバージョンを `NEXT major.minor` の形で表示してください。破壊的変更が1件以上あれば majorを1つ上げて minorを0にし、無ければ互換性のある変更が1件以上なら minorを1つ上げ、変更が1件も無ければ現在のバージョンのままにします。",
+          "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        int major = s.nextInt(), minor = s.nextInt(), n = s.nextInt();\n        Set<String> breaking = Set.of(\"remove\", \"make-required\", \"change-meaning\");\n        boolean hasBreaking = false, hasCompatible = false;\n        for (int i = 0; i < n; i++) {\n            String kind = s.next();\n            /* TODO */\n        }\n        /* TODO 次のversion */\n    }\n}\n",
+          "visibleCases": [
+            {
+              "label": "互換だけ",
+              "stdin": "1 4 2 add-optional add-endpoint",
+              "expected": "add-optional COMPATIBLE\nadd-endpoint COMPATIBLE\nNEXT 1.5"
+            },
+            {
+              "label": "必須化を含む",
+              "stdin": "1 4 2 add-optional make-required",
+              "expected": "add-optional COMPATIBLE\nmake-required BREAKING\nNEXT 2.0"
+            }
+          ],
+          "hiddenCases": [
+            {
+              "label": "変更なし",
+              "stdin": "3 7 0",
+              "expected": "NEXT 3.7"
+            },
+            {
+              "label": "削除と意味変更",
+              "stdin": "2 0 2 remove change-meaning",
+              "expected": "remove BREAKING\nchange-meaning BREAKING\nNEXT 3.0"
+            },
+            {
+              "label": "破壊的が最後でもmajor",
+              "stdin": "0 9 3 add-endpoint add-optional remove",
+              "expected": "add-endpoint COMPATIBLE\nadd-optional COMPATIBLE\nremove BREAKING\nNEXT 1.0"
+            }
+          ],
+          "hints": [
+            "破壊的な種別を `Set` にまとめると分岐が短くなります。",
+            "破壊的変更が1件でもあれば minor は0へ戻します。",
+            "変更が0件のときは、現在のバージョンをそのまま表示します。"
+          ],
+          "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        int major = s.nextInt(), minor = s.nextInt(), n = s.nextInt();\n        Set<String> breaking = Set.of(\"remove\", \"make-required\", \"change-meaning\");\n        boolean hasBreaking = false, hasCompatible = false;\n        for (int i = 0; i < n; i++) {\n            String kind = s.next();\n            if (breaking.contains(kind)) {\n                hasBreaking = true;\n                System.out.println(kind + \" BREAKING\");\n            } else {\n                hasCompatible = true;\n                System.out.println(kind + \" COMPATIBLE\");\n            }\n        }\n        if (hasBreaking) {\n            major++;\n            minor = 0;\n        } else if (hasCompatible) minor++;\n        System.out.println(\"NEXT \" + major + \".\" + minor);\n    }\n}\n",
+          "sourceChecks": [
+            {
+              "pattern": "Set\\s*\\.\\s*of\\s*\\(|List\\s*\\.\\s*of\\s*\\(",
+              "minimum": 1,
+              "message": "破壊的変更の種別は集合として持ってください。"
+            },
+            {
+              "pattern": "\\.contains\\s*\\(",
+              "minimum": 1,
+              "message": "破壊的かどうかは `contains` で判定してください。"
+            }
+          ]
+        }
+      ]
     }
   ]
 }

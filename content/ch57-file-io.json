@@ -1,0 +1,536 @@
+{
+  "id": "ch57",
+  "title": "ファイル入出力",
+  "subtitle": "残るデータを読み書きする",
+  "emoji": "📄",
+  "lessons": [
+    {
+      "id": "57-1",
+      "title": "ファイルに書く・読む",
+      "explanation": "## ファイルの場所は Path で表す\n\nここまで入力は `Scanner`（キーボード）から、出力は `System.out`（画面）へでした。\nファイルを使うと、**プログラムが終わっても残るデータ** を扱えます。\n\nファイルの場所は **`Path`** で表します。\n\n```java\nimport java.nio.file.Path;\n\nPath memo = Path.of(\"memo.txt\");\n```\n\n`Path.of(\"memo.txt\")` のように `/` を含まない書き方は **相対パス** で、\n「プログラムを動かした場所」からの位置を指します。この教材では実行のたびに\n使い捨ての作業フォルダが用意されるので、そこにファイルができます。\n\n## 書く — Files.writeString\n\n```java\nimport java.nio.file.Files;\n\nFiles.writeString(memo, \"こんにちは\\n\");\n```\n\n- ファイルが **無ければ作る**\n- ファイルが **あれば中身を捨てて書き直す**（足すのではありません）\n\n## 読む — Files.readString\n\n```java\nString text = Files.readString(memo);\n```\n\nファイル全体を1つの `String` として返します。**改行も文字として入っています**。\n`\"あ\\nい\\n\"` を書いたなら、読み返した文字数は4ではなく **4文字**（`あ` `\\n` `い` `\\n`）です。\n\n## IOException は検査例外\n\nファイルの操作は失敗しえます（権限がない、ディスクがいっぱい、など）。\nだから `Files` のメソッドは **`IOException`** を投げます。これは第13章でやった\n**検査例外** なので、`try-catch` で受け止めるか、`throws` を書いて呼び出し元へ\n渡すかのどちらかが必要です。書かないとコンパイルできません。\n\nいまは `main` に `throws IOException` を付けるのがいちばん簡単です。\n\n```java\npublic static void main(String[] args) throws IOException {\n    Files.writeString(Path.of(\"memo.txt\"), \"ok\\n\");\n}\n```\n\n> ⚠️ 間違えやすい点 … `writeString` は **上書き** です。2回呼べば1回目の中身は残りません。\n> 足していく書き方は次のレッスンで扱います。\n\n> 💡 あるかどうかは `Files.exists(path)`、消すのは `Files.deleteIfExists(path)` です。\n> `deleteIfExists` は消したら `true`、無くて何もしなければ `false` を返します。",
+      "samples": [
+        {
+          "caption": "書いて、読み返す",
+          "code": "import java.io.IOException;\nimport java.nio.file.Files;\nimport java.nio.file.Path;\n\npublic class Main {\n    public static void main(String[] args) throws IOException {\n        Path memo = Path.of(\"memo.txt\");\n\n        Files.writeString(memo, \"1行目\\n2行目\\n\");\n\n        String text = Files.readString(memo);\n        System.out.print(text);\n        System.out.println(\"文字数 \" + text.length());\n    }\n}\n"
+        },
+        {
+          "caption": "writeString は上書き。exists と deleteIfExists",
+          "code": "import java.io.IOException;\nimport java.nio.file.Files;\nimport java.nio.file.Path;\n\npublic class Main {\n    public static void main(String[] args) throws IOException {\n        Path p = Path.of(\"tmp.txt\");\n\n        Files.writeString(p, \"さいしょ\\n\");\n        Files.writeString(p, \"あとから\\n\");\n        System.out.print(Files.readString(p));\n\n        System.out.println(\"ある \" + Files.exists(p));\n        System.out.println(\"消した \" + Files.deleteIfExists(p));\n        System.out.println(\"ある \" + Files.exists(p));\n    }\n}\n"
+        }
+      ],
+      "task": "空白を含まない単語が2つ、`a` `b` の順で入力されます。\n\n`memo.txt` へ、`a` と `b` を **1行ずつ** 書いてください。つまり書き込む文字列は\n`a` + 改行 + `b` + 改行 です（`\"\\n\"` が改行を表します）。\n\nそのあと `Files.readString` で **読み返して**、次のように出力してください。\n\n```\n文字数 12\nhello\nworld\n```\n\n（`hello world` が入力された場合）\n\n- 1行目 … 読み返した文字列の `length()`。**改行も1文字として数えられます**\n- 2行目以降 … 読み返した文字列をそのまま出力（末尾に改行が入っているので `print` で足ります）\n- `main` には `throws IOException` を付けてください",
+      "starterCode": "import java.io.IOException;\nimport java.nio.file.Files;\nimport java.nio.file.Path;\nimport java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) throws IOException {\n        Scanner sc = new Scanner(System.in);\n        String a = sc.next();\n        String b = sc.next();\n\n        Path memo = Path.of(\"memo.txt\");\n\n        // memo.txt へ a と b を1行ずつ書こう\n\n        // 読み返して、文字数と中身を出力しよう\n    }\n}\n",
+      "visibleCases": [
+        {
+          "label": "2語",
+          "stdin": "hello world",
+          "expected": "文字数 12\nhello\nworld"
+        },
+        {
+          "label": "1文字ずつ",
+          "stdin": "a b",
+          "expected": "文字数 4\na\nb"
+        }
+      ],
+      "hiddenCases": [
+        {
+          "label": "同じ語",
+          "stdin": "same same",
+          "expected": "文字数 10\nsame\nsame"
+        },
+        {
+          "label": "長い語",
+          "stdin": "abcdefghij klmnopqrst",
+          "expected": "文字数 22\nabcdefghij\nklmnopqrst"
+        },
+        {
+          "label": "日本語",
+          "stdin": "こんにちは 世界",
+          "expected": "文字数 9\nこんにちは\n世界"
+        },
+        {
+          "label": "1文字と長い語",
+          "stdin": "x abcdefgh",
+          "expected": "文字数 11\nx\nabcdefgh"
+        }
+      ],
+      "hints": [
+        "書き込む文字列は `a + \"\\n\" + b + \"\\n\"` です。`\"\\n\"` が改行1文字を表します。",
+        "書くのは `Files.writeString(memo, text)`、読むのは `Files.readString(memo)` です。",
+        "`length()` は改行も1文字として数えます。`hello` と `world` なら 5 + 1 + 5 + 1 で 12 です。"
+      ],
+      "solution": "import java.io.IOException;\nimport java.nio.file.Files;\nimport java.nio.file.Path;\nimport java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) throws IOException {\n        Scanner sc = new Scanner(System.in);\n        String a = sc.next();\n        String b = sc.next();\n\n        Path memo = Path.of(\"memo.txt\");\n        Files.writeString(memo, a + \"\\n\" + b + \"\\n\");\n\n        String text = Files.readString(memo);\n        System.out.println(\"文字数 \" + text.length());\n        System.out.print(text);\n    }\n}\n",
+      "extraTasks": [
+        {
+          "kind": "applied",
+          "task": "解説の最後に出てきた **`Files.exists`** と **`Files.deleteIfExists`** を使い、\n書く → ある → 消す → 無い という流れを確かめます。\n\n空白を含まない単語が1つ入力されます。`data.txt` を使って、次の **5行** を出力してください。\n\n| 行 | 内容 |\n|---|---|\n| 1行目 | `書いた ` + 書き込んだ文字数 |\n| 2行目 | `ある ` + `Files.exists` の結果 |\n| 3行目 | `読んだ ` + 読み返した中身（改行なしの1語） |\n| 4行目 | `消した ` + `Files.deleteIfExists` の結果 |\n| 5行目 | `ある ` + `Files.exists` の結果 |\n\n`java` が入力されたときの出力はこうです。\n\n```\n書いた 4\nある true\n読んだ java\n消した true\nある false\n```\n\n- 書き込むのは単語そのものだけです（改行は付けません）。だから文字数は単語の長さと同じです\n- `deleteIfExists` は「消したかどうか」を `boolean` で返します\n- 最後の `exists` が `false` になることを必ず確かめてください",
+          "starterCode": "import java.io.IOException;\nimport java.nio.file.Files;\nimport java.nio.file.Path;\nimport java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) throws IOException {\n        Scanner sc = new Scanner(System.in);\n        String word = sc.next();\n\n        Path p = Path.of(\"data.txt\");\n\n        // 書く → ある → 読む → 消す → 無い の5行を出力しよう\n    }\n}\n",
+          "visibleCases": [
+            {
+              "label": "4文字",
+              "stdin": "java",
+              "expected": "書いた 4\nある true\n読んだ java\n消した true\nある false"
+            },
+            {
+              "label": "1文字",
+              "stdin": "x",
+              "expected": "書いた 1\nある true\n読んだ x\n消した true\nある false"
+            }
+          ],
+          "hiddenCases": [
+            {
+              "label": "長い語",
+              "stdin": "abcdefghijkl",
+              "expected": "書いた 12\nある true\n読んだ abcdefghijkl\n消した true\nある false"
+            },
+            {
+              "label": "日本語",
+              "stdin": "ファイル",
+              "expected": "書いた 4\nある true\n読んだ ファイル\n消した true\nある false"
+            },
+            {
+              "label": "2文字",
+              "stdin": "ab",
+              "expected": "書いた 2\nある true\n読んだ ab\n消した true\nある false"
+            }
+          ],
+          "hints": [
+            "`Files.writeString(p, word)` と改行を付けずに書けば、文字数は `word.length()` と同じになります。",
+            "`Files.exists(p)` は `boolean` を返すので、`println` にそのまま渡せば `true` / `false` と出ます。",
+            "`Files.deleteIfExists(p)` の戻り値をそのまま出力してください。消せたので `true` です。"
+          ],
+          "solution": "import java.io.IOException;\nimport java.nio.file.Files;\nimport java.nio.file.Path;\nimport java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) throws IOException {\n        Scanner sc = new Scanner(System.in);\n        String word = sc.next();\n\n        Path p = Path.of(\"data.txt\");\n\n        Files.writeString(p, word);\n        System.out.println(\"書いた \" + word.length());\n        System.out.println(\"ある \" + Files.exists(p));\n        System.out.println(\"読んだ \" + Files.readString(p));\n        System.out.println(\"消した \" + Files.deleteIfExists(p));\n        System.out.println(\"ある \" + Files.exists(p));\n    }\n}\n",
+          "sourceChecks": [
+            {
+              "pattern": "Files\\.exists\\s*\\(",
+              "minimum": 2,
+              "message": "`true` や `false` を直接書かず、消す前と消したあとの2回 `Files.exists` を呼んで確かめてください。"
+            },
+            {
+              "pattern": "Files\\.deleteIfExists\\s*\\(",
+              "minimum": 1,
+              "message": "削除は `Files.deleteIfExists(p)` を使い、その戻り値を出力してください。"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "57-2",
+      "title": "1行ずつ扱う",
+      "explanation": "## 行のリストとして読む — readAllLines\n\nファイルは「行の集まり」として扱うことが多いので、1行ずつの `List<String>` で\n受け取れると便利です。\n\n```java\nList<String> lines = Files.readAllLines(Path.of(\"words.txt\"));\nfor (String line : lines) {\n    System.out.println(\"> \" + line);\n}\n```\n\n各要素に **改行は含まれません**。`readString` が改行込みの1つの文字列を返すのに対し、\n`readAllLines` は改行で切った `List<String>` を返します。\n\n## 行のリストを書く — Files.write\n\n```java\nList<String> lines = List.of(\"apple\", \"banana\");\nFiles.write(Path.of(\"words.txt\"), lines);\n```\n\n各要素が1行として書かれ、**行の終わりに改行が付きます**。`writeString` と同じく\n**上書き** です。\n\n## 足していく — APPEND\n\n上書きではなく **末尾に足したい** ときは、書き方のオプションを渡します。\n\n```java\nimport java.nio.file.StandardOpenOption;\n\nFiles.writeString(p, \"追加\\n\",\n        StandardOpenOption.CREATE, StandardOpenOption.APPEND);\n```\n\n- `CREATE` … 無ければ作る\n- `APPEND` … あれば末尾に足す\n\n`APPEND` を付けないと、`writeString` は前の中身を捨ててしまいます。\n\n> ⚠️ 間違えやすい点 … 追記は「前の状態」に結果が左右されます。同じプログラムを2回動かすと\n> 行が2倍になります。**まず消してから足す** と、何回動かしても同じ結果になります。\n> `Files.deleteIfExists(p)` を先に呼ぶのが手軽な方法です。\n\n> 💡 `readAllLines` はファイル全体をいちどメモリへ読み込みます。この教材で扱う小さな\n> ファイルなら問題ありませんが、巨大なファイルには向きません。",
+      "samples": [
+        {
+          "caption": "行のリストで書いて、行のリストで読む",
+          "code": "import java.io.IOException;\nimport java.nio.file.Files;\nimport java.nio.file.Path;\nimport java.util.List;\n\npublic class Main {\n    public static void main(String[] args) throws IOException {\n        Path p = Path.of(\"words.txt\");\n\n        Files.write(p, List.of(\"apple\", \"banana\", \"c\"));\n\n        List<String> lines = Files.readAllLines(p);\n        System.out.println(\"行数 \" + lines.size());\n        for (String line : lines) {\n            System.out.println(line.length() + \":\" + line);\n        }\n    }\n}\n"
+        },
+        {
+          "caption": "APPEND で足す（先に消せば毎回同じ結果になる）",
+          "code": "import java.io.IOException;\nimport java.nio.file.Files;\nimport java.nio.file.Path;\nimport java.nio.file.StandardOpenOption;\n\npublic class Main {\n    public static void main(String[] args) throws IOException {\n        Path p = Path.of(\"log.txt\");\n        Files.deleteIfExists(p);\n\n        for (int i = 1; i <= 3; i++) {\n            Files.writeString(p, \"行\" + i + \"\\n\",\n                    StandardOpenOption.CREATE, StandardOpenOption.APPEND);\n        }\n\n        System.out.print(Files.readString(p));\n    }\n}\n"
+        }
+      ],
+      "task": "入力は「1行目に個数 `n`、2行目に `n` 個の単語」です（`n` は `0` もありえます）。\n\n読んだ単語を `words.txt` へ **1行ずつ** 書き、そのあと `Files.readAllLines` で\n読み返して、次のように出力してください。\n\n```\n行数 3\n1:apple\n2:big\n3:c\n合計 9\n```\n\n（`3` と `apple big c` が入力された場合）\n\n- 1行目 … 読み返した行数\n- 続く行 … `行番号` + `:` + 単語（行番号は **1から**、区切りは半角コロン1つ）\n- 最後の行 … すべての単語の **文字数の合計**（`5 + 3 + 1` で `9`）\n- `n` が `0` のときは `行数 0` と `合計 0` の2行だけになります",
+      "starterCode": "import java.io.IOException;\nimport java.nio.file.Files;\nimport java.nio.file.Path;\nimport java.util.ArrayList;\nimport java.util.List;\nimport java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) throws IOException {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n\n        List<String> words = new ArrayList<>();\n        for (int i = 0; i < n; i++) {\n            words.add(sc.next());\n        }\n\n        Path p = Path.of(\"words.txt\");\n\n        // words を1行ずつ書いて、読み返して出力しよう\n    }\n}\n",
+      "visibleCases": [
+        {
+          "label": "3語",
+          "stdin": "3 apple big c",
+          "expected": "行数 3\n1:apple\n2:big\n3:c\n合計 9"
+        },
+        {
+          "label": "空",
+          "stdin": "0",
+          "expected": "行数 0\n合計 0"
+        }
+      ],
+      "hiddenCases": [
+        {
+          "label": "1語",
+          "stdin": "1 hello",
+          "expected": "行数 1\n1:hello\n合計 5"
+        },
+        {
+          "label": "同じ語",
+          "stdin": "2 aa aa",
+          "expected": "行数 2\n1:aa\n2:aa\n合計 4"
+        },
+        {
+          "label": "日本語混在",
+          "stdin": "3 あい b うえお",
+          "expected": "行数 3\n1:あい\n2:b\n3:うえお\n合計 6"
+        },
+        {
+          "label": "5語",
+          "stdin": "5 a bb ccc dddd eeeee",
+          "expected": "行数 5\n1:a\n2:bb\n3:ccc\n4:dddd\n5:eeeee\n合計 15"
+        }
+      ],
+      "hints": [
+        "`Files.write(p, words)` に `List<String>` を渡すと、各要素が1行として書かれます。",
+        "読み返しは `Files.readAllLines(p)` です。返ってくる行に改行は含まれません。",
+        "行番号を付けたいので、拡張forではなく添字の `for` で回して `(i + 1)` を出します。"
+      ],
+      "solution": "import java.io.IOException;\nimport java.nio.file.Files;\nimport java.nio.file.Path;\nimport java.util.ArrayList;\nimport java.util.List;\nimport java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) throws IOException {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n\n        List<String> words = new ArrayList<>();\n        for (int i = 0; i < n; i++) {\n            words.add(sc.next());\n        }\n\n        Path p = Path.of(\"words.txt\");\n        Files.write(p, words);\n\n        List<String> lines = Files.readAllLines(p);\n        System.out.println(\"行数 \" + lines.size());\n\n        int total = 0;\n        for (int i = 0; i < lines.size(); i++) {\n            System.out.println((i + 1) + \":\" + lines.get(i));\n            total += lines.get(i).length();\n        }\n        System.out.println(\"合計 \" + total);\n    }\n}\n",
+      "extraTasks": [
+        {
+          "kind": "applied",
+          "task": "解説の後半にあった **`APPEND`** を使います。あわせて「追記の前に消しておけば、\n何回動かしても同じ結果になる」ことを確かめます。\n\n入力は「1行目に個数 `n`、2行目に `n` 個の単語」です（`n` は必ず **1以上**）。\n\n`log.txt` に対して、次の順で処理してください。\n\n1. まず `Files.deleteIfExists` で消す\n2. 単語を **1つずつ**、`StandardOpenOption.CREATE` と `StandardOpenOption.APPEND` を\n   付けた `Files.writeString` で **追記** する（単語のうしろに改行を付けます）\n3. `Files.readAllLines` で読み返す\n\nそのうえで次のように出力します。\n\n```\n行数 3\napple\nbig\nc\n```\n\n（`3` と `apple big c` が入力された場合）\n\n- 1行目 … 読み返した行数\n- 続く行 … 読み返した行をそのまま順に出力\n- `APPEND` を付け忘れると最後の単語だけになります。`deleteIfExists` を忘れると、\n  同じ入力でも動かすたびに行が増えていきます",
+          "starterCode": "import java.io.IOException;\nimport java.nio.file.Files;\nimport java.nio.file.Path;\nimport java.nio.file.StandardOpenOption;\nimport java.util.List;\nimport java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) throws IOException {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n\n        Path p = Path.of(\"log.txt\");\n\n        // 先に消してから、1語ずつ APPEND で追記しよう\n\n        // 読み返して行数と中身を出力しよう\n    }\n}\n",
+          "visibleCases": [
+            {
+              "label": "3語",
+              "stdin": "3 apple big c",
+              "expected": "行数 3\napple\nbig\nc"
+            },
+            {
+              "label": "1語",
+              "stdin": "1 only",
+              "expected": "行数 1\nonly"
+            }
+          ],
+          "hiddenCases": [
+            {
+              "label": "2語",
+              "stdin": "2 aa bb",
+              "expected": "行数 2\naa\nbb"
+            },
+            {
+              "label": "同じ語",
+              "stdin": "3 x x x",
+              "expected": "行数 3\nx\nx\nx"
+            },
+            {
+              "label": "日本語",
+              "stdin": "2 あい うえ",
+              "expected": "行数 2\nあい\nうえ"
+            }
+          ],
+          "hints": [
+            "最初に `Files.deleteIfExists(p)` を呼びます。これが無いと、前の実行で書いた行が残ります。",
+            "追記は `Files.writeString(p, word + \"\\n\", StandardOpenOption.CREATE, StandardOpenOption.APPEND)` です。",
+            "`CREATE` が無いと、まだファイルが無いときに失敗します。`APPEND` が無いと毎回上書きされます。"
+          ],
+          "solution": "import java.io.IOException;\nimport java.nio.file.Files;\nimport java.nio.file.Path;\nimport java.nio.file.StandardOpenOption;\nimport java.util.List;\nimport java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) throws IOException {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n\n        Path p = Path.of(\"log.txt\");\n        Files.deleteIfExists(p);\n\n        for (int i = 0; i < n; i++) {\n            Files.writeString(p, sc.next() + \"\\n\",\n                    StandardOpenOption.CREATE, StandardOpenOption.APPEND);\n        }\n\n        List<String> lines = Files.readAllLines(p);\n        System.out.println(\"行数 \" + lines.size());\n        for (String line : lines) {\n            System.out.println(line);\n        }\n    }\n}\n",
+          "sourceChecks": [
+            {
+              "pattern": "APPEND",
+              "minimum": 1,
+              "message": "`StandardOpenOption.APPEND` を付けて追記してください（付けないと上書きになります）。"
+            },
+            {
+              "pattern": "Files\\.deleteIfExists\\s*\\(",
+              "minimum": 1,
+              "message": "追記の前に `Files.deleteIfExists(p)` で消してください。これが無いと動かすたびに行が増えます。"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "57-3",
+      "title": "ファイルが無いとき",
+      "explanation": "## 無いファイルを読むとどうなるか\n\n`Files.readString` に存在しないファイルを渡すと、例外が飛びます。\n\n```\njava.nio.file.NoSuchFileException: nothing.txt\n```\n\n`NoSuchFileException` は **`IOException` のサブクラス** です。だから\n`catch (IOException e)` でも受け止められますし、`catch (NoSuchFileException e)` と\n**狭いほうを先に** 書けば区別もできます（第13章の「狭い例外を先に」です）。\n\n## 受け止める — try-catch\n\n```java\ntry {\n    String text = Files.readString(p);\n    System.out.println(\"読めた \" + text);\n} catch (NoSuchFileException e) {\n    System.out.println(\"ファイルがありません\");\n}\n```\n\n## 先に確かめる — Files.exists\n\n例外を使わず、読む前に確かめる書き方もあります。\n\n```java\nif (Files.exists(p)) {\n    System.out.println(Files.readString(p));\n} else {\n    System.out.println(\"ファイルがありません\");\n}\n```\n\n### どちらを使うか\n\n| 場面 | 向いている書き方 |\n|---|---|\n| 無いのが **想定内**（あれば読む、無ければ既定値） | `Files.exists` で分ける |\n| 無いのが **異常**（設定ファイルが消えている） | `try-catch` で受けて理由を出す |\n\n> ⚠️ 間違えやすい点 … `exists` が `true` でも、読む瞬間に消されていれば失敗します。\n> `exists` で確かめても `IOException` の対処（`throws` か `try-catch`）は必要です。\n> **確認は例外処理の代わりにはなりません。**\n\n> 💡 例外の種類の名前は `e.getClass().getSimpleName()` で取れます（13-1）。\n> `getMessage()` の文面はJVMによって変わるので、判定には使いません。",
+      "samples": [
+        {
+          "caption": "無いファイルを読む / 受け止める",
+          "code": "import java.io.IOException;\nimport java.nio.file.Files;\nimport java.nio.file.NoSuchFileException;\nimport java.nio.file.Path;\n\npublic class Main {\n    public static void main(String[] args) throws IOException {\n        Path there = Path.of(\"there.txt\");\n        Files.writeString(there, \"ある\\n\");\n\n        for (String name : new String[] {\"there.txt\", \"nothing.txt\"}) {\n            Path p = Path.of(name);\n            try {\n                System.out.print(name + \" -> \" + Files.readString(p));\n            } catch (NoSuchFileException e) {\n                System.out.println(name + \" -> \" + e.getClass().getSimpleName());\n            }\n        }\n    }\n}\n"
+        }
+      ],
+      "task": "`there.txt` を用意したうえで、**入力で指定されたファイル**を読もうとします。\n読めたかどうかで出力を変えてください。\n\n### 入力\n\n1行目に、読むファイルの名前が1つ（空白を含みません）。\n\n### 処理\n\n1. まず `there.txt` へ `ある` と書く（改行は付けません）\n2. 入力された名前のファイルを `Files.readString` で読む。ここを **`try-catch`** で囲む\n\n### 出力\n\n1行だけです。\n\n| 結果 | 出力 |\n|---|---|\n| 読めた | `読めた ` + 中身 |\n| 読めなかった | `読めない ` + 例外の種類の名前 |\n\n`there.txt` が入力されたら `読めた ある`、`nothing.txt` が入力されたら\n`読めない NoSuchFileException` です。\n\n- 例外の種類の名前は `e.getClass().getSimpleName()` で取ります（`getMessage()` は\n  JVMによって文面が変わるので使いません）\n- `catch` する型は `NoSuchFileException` でも `IOException` でも構いません",
+      "starterCode": "import java.io.IOException;\nimport java.nio.file.Files;\nimport java.nio.file.Path;\nimport java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) throws IOException {\n        Scanner sc = new Scanner(System.in);\n        String name = sc.next();\n\n        Files.writeString(Path.of(\"there.txt\"), \"ある\");\n\n        // name のファイルを読んで、読めたかどうかで出力を変えよう\n    }\n}\n",
+      "visibleCases": [
+        {
+          "label": "ある",
+          "stdin": "there.txt",
+          "expected": "読めた ある"
+        },
+        {
+          "label": "ない",
+          "stdin": "nothing.txt",
+          "expected": "読めない NoSuchFileException"
+        }
+      ],
+      "hiddenCases": [
+        {
+          "label": "別の無い名前",
+          "stdin": "missing.txt",
+          "expected": "読めない NoSuchFileException"
+        },
+        {
+          "label": "拡張子なし",
+          "stdin": "there",
+          "expected": "読めない NoSuchFileException"
+        },
+        {
+          "label": "紛らわしい名前",
+          "stdin": "there.txt.bak",
+          "expected": "読めない NoSuchFileException"
+        }
+      ],
+      "hints": [
+        "`try { ... } catch (IOException e) { ... }` の形で、読む処理を囲みます。",
+        "読めたときは `\"読めた \" + Files.readString(Path.of(name))` を出します。",
+        "読めなかったときは `e.getClass().getSimpleName()` で例外の種類の名前を出します。`getMessage()` は使いません。"
+      ],
+      "solution": "import java.io.IOException;\nimport java.nio.file.Files;\nimport java.nio.file.Path;\nimport java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) throws IOException {\n        Scanner sc = new Scanner(System.in);\n        String name = sc.next();\n\n        Files.writeString(Path.of(\"there.txt\"), \"ある\");\n\n        try {\n            System.out.println(\"読めた \" + Files.readString(Path.of(name)));\n        } catch (IOException e) {\n            System.out.println(\"読めない \" + e.getClass().getSimpleName());\n        }\n    }\n}\n",
+      "quiz": [
+        {
+          "question": "存在しないファイルを `Files.readString` で読むと、何が起きるでしょう。",
+          "choices": [
+            "`null` が返るので、使う前に `null` を確かめる",
+            "空文字列 `\"\"` が返り、例外は起きない",
+            "`NoSuchFileException` が投げられる",
+            "コンパイルの時点でエラーになり、実行できない"
+          ],
+          "answer": 2,
+          "explanation": "`NoSuchFileException` が投げられます。`IOException` のサブクラスなので `catch (IOException e)` でも受け止められます。`null` や空文字列が返ることはありません。ファイルの有無は実行時に決まるので、コンパイルでは分かりません。"
+        },
+        {
+          "question": "`Files.writeString(p, \"B\")` を、すでに `A` が入っているファイルに対して呼ぶとどうなるでしょう。",
+          "choices": [
+            "中身が `B` だけになる（前の `A` は消える）",
+            "中身が `AB` になる（末尾に足される）",
+            "すでにファイルがあるので例外になる",
+            "中身が `BA` になる（先頭に足される）"
+          ],
+          "answer": 0,
+          "explanation": "`writeString` は既定で **上書き** です。前の中身は残りません。末尾に足したいときは `StandardOpenOption.APPEND` を渡します。ファイルがあっても例外にはなりません。"
+        },
+        {
+          "question": "`Files.readString` と `Files.readAllLines` のちがいとして正しいのはどれでしょう。",
+          "choices": [
+            "`readAllLines` は改行を含む1つの文字列を返す",
+            "`readString` は各行の末尾の改行を残した `List<String>` を返す",
+            "`readString` は改行込みの1つの文字列、`readAllLines` は改行を除いた行のリスト",
+            "どちらも同じで、戻り値の型だけが違う"
+          ],
+          "answer": 2,
+          "explanation": "`readString` はファイル全体を1つの `String` として返し、改行も文字として含みます。`readAllLines` は改行で切った `List<String>` を返し、各要素に改行は含まれません。"
+        },
+        {
+          "question": "`Files.exists(p)` で確かめてから読めば、`IOException` の対処は書かなくてよいでしょうか。",
+          "choices": [
+            "確かめた時点で存在は保証されるので、対処は不要になる",
+            "`exists` が `true` を返した場合にかぎり、対処は不要になる",
+            "`exists` を使うと戻り値が `boolean` になるので、対処は不要になる",
+            "必要。検査例外なので、確認しても `throws` か `try-catch` が必ず要る"
+          ],
+          "answer": 3,
+          "explanation": "`IOException` は検査例外なので、`throws` を書くか `try-catch` で受けないとコンパイルできません。さらに、確かめた直後にファイルが消されることもあるため、確認は例外処理の代わりになりません。"
+        }
+      ],
+      "extraTasks": [
+        {
+          "kind": "applied",
+          "task": "こんどは **例外を使わず**、`Files.exists` で先に確かめる形で書きます。\n「無いのが想定内」の場面はこちらのほうが素直です。\n\n### 入力\n\n- 1行目 … 個数 `n`（必ず **1以上**）\n- 2行目 … `n` 個のファイル名（空白を含みません）\n\n### 処理\n\n1. まず `there.txt` へ `data` と書く（改行は付けません）\n2. 与えられた名前を順に見て、`Files.exists` で **あるかどうか** を確かめる\n\n### 出力\n\n名前1つにつき1行、最後に1行です。\n\n| 場合 | 出力 |\n|---|---|\n| ある | 名前 + ` ある ` + 中身の文字数 |\n| ない | 名前 + ` ない` |\n\n最後の行は `読めた ` + 読めた個数 です。\n\n`2` と `there.txt nothing.txt` が入力されたときの出力はこうです。\n\n```\nthere.txt ある 4\nnothing.txt ない\n読めた 1\n```\n\n- 文字数は `Files.readString(p).length()` で求めます\n- `Files.exists` を使っても `IOException` の対処（`throws` か `try-catch`）は必要です。\n  確認は例外処理の代わりにはなりません",
+          "starterCode": "import java.io.IOException;\nimport java.nio.file.Files;\nimport java.nio.file.Path;\nimport java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) throws IOException {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n\n        Files.writeString(Path.of(\"there.txt\"), \"data\");\n\n        // 名前を順に見て、exists で分けて出力しよう\n\n        // 最後に読めた個数を出力しよう\n    }\n}\n",
+          "visibleCases": [
+            {
+              "label": "あるとない",
+              "stdin": "2 there.txt nothing.txt",
+              "expected": "there.txt ある 4\nnothing.txt ない\n読めた 1"
+            },
+            {
+              "label": "1つだけ",
+              "stdin": "1 there.txt",
+              "expected": "there.txt ある 4\n読めた 1"
+            }
+          ],
+          "hiddenCases": [
+            {
+              "label": "すべて無い",
+              "stdin": "2 a.txt b.txt",
+              "expected": "a.txt ない\nb.txt ない\n読めた 0"
+            },
+            {
+              "label": "同じ名前を2回",
+              "stdin": "2 there.txt there.txt",
+              "expected": "there.txt ある 4\nthere.txt ある 4\n読めた 2"
+            },
+            {
+              "label": "3つ",
+              "stdin": "3 nothing.txt there.txt other.txt",
+              "expected": "nothing.txt ない\nthere.txt ある 4\nother.txt ない\n読めた 1"
+            }
+          ],
+          "hints": [
+            "`if (Files.exists(p)) { ... } else { ... }` で分けます。`try-catch` は使いません。",
+            "中身の文字数は `Files.readString(p).length()` です。`there.txt` は `data` なので 4 です。",
+            "読めた個数を数える変数をループの外に用意して、`exists` が `true` のときだけ増やします。"
+          ],
+          "solution": "import java.io.IOException;\nimport java.nio.file.Files;\nimport java.nio.file.Path;\nimport java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) throws IOException {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n\n        Files.writeString(Path.of(\"there.txt\"), \"data\");\n\n        int found = 0;\n        for (int i = 0; i < n; i++) {\n            String name = sc.next();\n            Path p = Path.of(name);\n            if (Files.exists(p)) {\n                System.out.println(name + \" ある \" + Files.readString(p).length());\n                found++;\n            } else {\n                System.out.println(name + \" ない\");\n            }\n        }\n\n        System.out.println(\"読めた \" + found);\n    }\n}\n",
+          "sourceChecks": [
+            {
+              "pattern": "Files\\.exists\\s*\\(",
+              "minimum": 1,
+              "message": "この問題は例外ではなく `Files.exists` で分ける形で書いてください。"
+            },
+            {
+              "pattern": "\\bcatch\\s*\\(",
+              "minimum": 0,
+              "maximum": 0,
+              "message": "ここでは `try-catch` を使わず、`Files.exists` で先に確かめる形にしてください（`main` の `throws IOException` はそのままで構いません）。"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "57-4",
+      "title": "章末演習：ファイル入出力",
+      "explanation": "## この章の知識を、自分の手で組み合わせよう\n\nここでは、**Path・writeString / readString・readAllLines / Files.write・exists・\nIOException** をまとめて使います。新しい文法は登場しません。\n分からなくなったら、直前までの解説やサンプルへ戻って確認して大丈夫です。\n\n### 3問の進め方\n\n1. **基本**で、中心となる書き方をもう一度使う\n2. **組み合わせ**で、章内の複数の知識を一緒に使う\n3. **実践**で、少し現実的な入力と条件を整理する\n\nファイルを作る問題では、**まず書く（上書き）か、まず消す** から始めると、\n何回動かしても同じ結果になります。",
+      "samples": [
+        {
+          "caption": "書いて、読み返す",
+          "code": "import java.io.IOException;\nimport java.nio.file.Files;\nimport java.nio.file.Path;\n\npublic class Main {\n    public static void main(String[] args) throws IOException {\n        Path memo = Path.of(\"memo.txt\");\n\n        Files.writeString(memo, \"1行目\\n2行目\\n\");\n\n        String text = Files.readString(memo);\n        System.out.print(text);\n        System.out.println(\"文字数 \" + text.length());\n    }\n}\n"
+        }
+      ],
+      "task": "【基本】個数 `n` と `n` 個の単語を読み、`out.txt` へ1行ずつ書いてください。\nそのあと読み返して、`行数 ` + 行数 の1行だけを出力します。\n\n`3` と `a b c` が入力されたら `行数 3` です。`n` が `0` のときは `行数 0` です。",
+      "starterCode": "import java.io.IOException;\nimport java.nio.file.Files;\nimport java.nio.file.Path;\nimport java.util.ArrayList;\nimport java.util.List;\nimport java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) throws IOException {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n        List<String> words = new ArrayList<>();\n        for (int i = 0; i < n; i++) words.add(sc.next());\n\n        // out.txt へ書いて、読み返して行数を出力しよう\n    }\n}\n",
+      "visibleCases": [
+        {
+          "label": "3語",
+          "stdin": "3 a b c",
+          "expected": "行数 3"
+        },
+        {
+          "label": "空",
+          "stdin": "0",
+          "expected": "行数 0"
+        }
+      ],
+      "hiddenCases": [
+        {
+          "label": "1語",
+          "stdin": "1 x",
+          "expected": "行数 1"
+        },
+        {
+          "label": "5語",
+          "stdin": "5 a b c d e",
+          "expected": "行数 5"
+        }
+      ],
+      "hints": [
+        "`Files.write(p, words)` で `List<String>` をそのまま1行ずつ書けます。",
+        "行数は `Files.readAllLines(p).size()` で求めます。"
+      ],
+      "solution": "import java.io.IOException;\nimport java.nio.file.Files;\nimport java.nio.file.Path;\nimport java.util.ArrayList;\nimport java.util.List;\nimport java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) throws IOException {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n        List<String> words = new ArrayList<>();\n        for (int i = 0; i < n; i++) words.add(sc.next());\n\n        Path p = Path.of(\"out.txt\");\n        Files.write(p, words);\n        System.out.println(\"行数 \" + Files.readAllLines(p).size());\n    }\n}\n",
+      "extraTasks": [
+        {
+          "kind": "drill",
+          "task": "【組み合わせ】個数 `n` と `n` 個の整数を読み、`nums.txt` へ1行ずつ書いてください。\nそのあと読み返し、**文字列から整数へ戻して** 合計を求め、`合計 ` + 合計 を出力します。\n\n`3` と `10 20 30` が入力されたら `合計 60` です。`n` が `0` のときは `合計 0` です。\nマイナスの数も入力されます。",
+          "starterCode": "import java.io.IOException;\nimport java.nio.file.Files;\nimport java.nio.file.Path;\nimport java.util.ArrayList;\nimport java.util.List;\nimport java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) throws IOException {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n\n        // 整数を文字列にして書き、読み返して合計しよう\n    }\n}\n",
+          "visibleCases": [
+            {
+              "label": "3つ",
+              "stdin": "3 10 20 30",
+              "expected": "合計 60"
+            },
+            {
+              "label": "空",
+              "stdin": "0",
+              "expected": "合計 0"
+            }
+          ],
+          "hiddenCases": [
+            {
+              "label": "マイナス混在",
+              "stdin": "4 -5 10 -20 5",
+              "expected": "合計 -10"
+            },
+            {
+              "label": "1つ",
+              "stdin": "1 7",
+              "expected": "合計 7"
+            },
+            {
+              "label": "すべてマイナス",
+              "stdin": "2 -1 -2",
+              "expected": "合計 -3"
+            }
+          ],
+          "hints": [
+            "整数を1行として書くには、`String.valueOf(n)` で文字列にしてから `List` へ入れます。",
+            "読み返した行は文字列なので、`Integer.parseInt(line)` で整数へ戻して足します。"
+          ],
+          "solution": "import java.io.IOException;\nimport java.nio.file.Files;\nimport java.nio.file.Path;\nimport java.util.ArrayList;\nimport java.util.List;\nimport java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) throws IOException {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n\n        List<String> lines = new ArrayList<>();\n        for (int i = 0; i < n; i++) lines.add(String.valueOf(sc.nextInt()));\n\n        Path p = Path.of(\"nums.txt\");\n        Files.write(p, lines);\n\n        int total = 0;\n        for (String line : Files.readAllLines(p)) {\n            total += Integer.parseInt(line);\n        }\n        System.out.println(\"合計 \" + total);\n    }\n}\n",
+          "sourceChecks": [
+            {
+              "pattern": "Files\\s*\\.\\s*write",
+              "minimum": 1,
+              "message": "ファイルへの書き出しは `Files.write` を使ってください。"
+            },
+            {
+              "pattern": "Files\\s*\\.\\s*readAllLines|Files\\s*\\.\\s*lines",
+              "minimum": 1,
+              "message": "書いたあと読み返してください。書いたリストをそのまま使うと、ファイルを経由したことになりません。"
+            },
+            {
+              "pattern": "Integer\\s*\\.\\s*parseInt",
+              "minimum": 1,
+              "message": "読み返した行は文字列です。`Integer.parseInt` で数値へ戻してから足してください。"
+            }
+          ]
+        },
+        {
+          "kind": "applied",
+          "task": "【実践】ファイルを2つ使い、条件で絞り込んで書き分けます。\n\n### 入力\n\n- 1行目 … 個数 `n`（`0` もありえます）\n- 2行目 … `n` 個の単語\n- 3行目 … しきい値 `k`（整数）\n\n### 処理\n\n1. 単語を `all.txt` へ1行ずつ書く\n2. `all.txt` を読み返し、**長さが `k` 以上** の単語だけを `long.txt` へ1行ずつ書く\n3. どちらも読み返して行数を数える\n\n### 出力\n\n次の **3行** です。\n\n```\n全体 4\n長い 2\napple/banana\n```\n\n（`4` / `apple big banana c` / `5` が入力された場合）\n\n- 1行目 … `all.txt` の行数\n- 2行目 … `long.txt` の行数\n- 3行目 … `long.txt` の中身を `/` でつないだもの（**先頭と末尾に `/` は付けません**）\n- 該当する単語が1つも無いときは、3行目は **空行** になります",
+          "starterCode": "import java.io.IOException;\nimport java.nio.file.Files;\nimport java.nio.file.Path;\nimport java.util.ArrayList;\nimport java.util.List;\nimport java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) throws IOException {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n        List<String> words = new ArrayList<>();\n        for (int i = 0; i < n; i++) words.add(sc.next());\n        int k = sc.nextInt();\n\n        // all.txt へ書く → 読み返して k 以上を long.txt へ → 3行出力\n    }\n}\n",
+          "visibleCases": [
+            {
+              "label": "しきい値5",
+              "stdin": "4 apple big banana c 5",
+              "expected": "全体 4\n長い 2\napple/banana"
+            },
+            {
+              "label": "該当なし",
+              "stdin": "2 a b 5",
+              "expected": "全体 2\n長い 0"
+            }
+          ],
+          "hiddenCases": [
+            {
+              "label": "空",
+              "stdin": "0 3",
+              "expected": "全体 0\n長い 0"
+            },
+            {
+              "label": "全部該当",
+              "stdin": "3 apple banana cherry 3",
+              "expected": "全体 3\n長い 3\napple/banana/cherry"
+            },
+            {
+              "label": "しきい値1",
+              "stdin": "2 a bb 1",
+              "expected": "全体 2\n長い 2\na/bb"
+            },
+            {
+              "label": "1語だけ該当",
+              "stdin": "3 xx yyyy zz 4",
+              "expected": "全体 3\n長い 1\nyyyy"
+            }
+          ],
+          "hints": [
+            "`all.txt` へ書いてから読み返し、`line.length() >= k` の行だけ別のリストへ集めます。",
+            "集めたリストを `Files.write(longFile, kept)` で書けば、行数は `readAllLines(...).size()` で取れます。",
+            "`/` でつなぐところは、`StringBuilder` に足す前に「すでに何か入っているか」を見て区切りを入れます（14-4と同じやり方）。"
+          ],
+          "solution": "import java.io.IOException;\nimport java.nio.file.Files;\nimport java.nio.file.Path;\nimport java.util.ArrayList;\nimport java.util.List;\nimport java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) throws IOException {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n        List<String> words = new ArrayList<>();\n        for (int i = 0; i < n; i++) words.add(sc.next());\n        int k = sc.nextInt();\n\n        Path all = Path.of(\"all.txt\");\n        Path longFile = Path.of(\"long.txt\");\n\n        Files.write(all, words);\n\n        List<String> kept = new ArrayList<>();\n        for (String line : Files.readAllLines(all)) {\n            if (line.length() >= k) kept.add(line);\n        }\n        Files.write(longFile, kept);\n\n        List<String> allLines = Files.readAllLines(all);\n        List<String> longLines = Files.readAllLines(longFile);\n\n        System.out.println(\"全体 \" + allLines.size());\n        System.out.println(\"長い \" + longLines.size());\n\n        StringBuilder sb = new StringBuilder();\n        for (String line : longLines) {\n            if (sb.length() > 0) sb.append(\"/\");\n            sb.append(line);\n        }\n        System.out.println(sb);\n    }\n}\n",
+          "sourceChecks": [
+            {
+              "pattern": "Files\\.readAllLines\\s*\\(",
+              "minimum": 2,
+              "message": "単語のリストを使い回さず、`all.txt` と `long.txt` の両方を `Files.readAllLines` で読み返して数えてください。"
+            },
+            {
+              "pattern": "Files\\.write\\s*\\(|Files\\.writeString\\s*\\(",
+              "minimum": 2,
+              "message": "`all.txt` と `long.txt` の2つのファイルへ書いてください。"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

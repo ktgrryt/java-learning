@@ -114,7 +114,19 @@
             "`getMonth()` は `Month` の enum、`getDayOfWeek()` は `DayOfWeek` の enum を返すので、`MAY` `FRIDAY` のように出力されます。数字が欲しいときが `getMonthValue()` です。",
             "6行目は `try { System.out.println(\"別の日 \" + LocalDate.of(y, m, d)); } catch (Exception e) { System.out.println(\"別の日 \" + e.getClass().getSimpleName()); }` です。"
           ],
-          "solution": "import java.time.LocalDate;\nimport java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        String s = sc.next();\n        int y = sc.nextInt();\n        int m = sc.nextInt();\n        int d = sc.nextInt();\n\n        LocalDate date = LocalDate.parse(s);\n\n        System.out.println(\"parse \" + date);\n        System.out.println(\"月 \" + date.getMonth());\n        System.out.println(\"曜日 \" + date.getDayOfWeek());\n        System.out.println(\"何日目 \" + date.getDayOfYear());\n        System.out.println(\"日数 \" + date.lengthOfMonth());\n\n        try {\n            System.out.println(\"別の日 \" + LocalDate.of(y, m, d));\n        } catch (Exception e) {\n            System.out.println(\"別の日 \" + e.getClass().getSimpleName());\n        }\n    }\n}\n"
+          "solution": "import java.time.LocalDate;\nimport java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        String s = sc.next();\n        int y = sc.nextInt();\n        int m = sc.nextInt();\n        int d = sc.nextInt();\n\n        LocalDate date = LocalDate.parse(s);\n\n        System.out.println(\"parse \" + date);\n        System.out.println(\"月 \" + date.getMonth());\n        System.out.println(\"曜日 \" + date.getDayOfWeek());\n        System.out.println(\"何日目 \" + date.getDayOfYear());\n        System.out.println(\"日数 \" + date.lengthOfMonth());\n\n        try {\n            System.out.println(\"別の日 \" + LocalDate.of(y, m, d));\n        } catch (Exception e) {\n            System.out.println(\"別の日 \" + e.getClass().getSimpleName());\n        }\n    }\n}\n",
+          "sourceChecks": [
+            {
+              "pattern": "LocalDate\\.parse\\s*\\(",
+              "minimum": 1,
+              "message": "1行目の日付は `LocalDate.parse` で読み込んでください。"
+            },
+            {
+              "pattern": "getDayOfWeek\\s*\\(",
+              "minimum": 1,
+              "message": "曜日は `getDayOfWeek()` で取ってください。"
+            }
+          ]
         }
       ]
     },
@@ -233,7 +245,24 @@
             "2行目は `date.withDayOfMonth(1)`、3行目は `date.withYear(2000)` です。`withXxx` は「一部だけ差し替えた新しい日付」を返します。",
             "5行目は `date.minusDays(n).isBefore(date)` と `date.plusDays(-n).isEqual(date.minusDays(n))` を `+ \" \" +` でつなげて1行にします。"
           ],
-          "solution": "import java.time.LocalDate;\nimport java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int y = sc.nextInt();\n        int m = sc.nextInt();\n        int d = sc.nextInt();\n        int n = sc.nextInt();\n\n        LocalDate date = LocalDate.of(y, m, d);\n\n        System.out.println(\"往復 \" + date.plusMonths(1).minusMonths(1));\n        System.out.println(\"月初 \" + date.withDayOfMonth(1));\n        System.out.println(\"年 \" + date.withYear(2000));\n        System.out.println(\"2週後 \" + date.plusWeeks(2));\n        System.out.println(\"前 \" + date.minusDays(n).isBefore(date)\n                + \" \" + date.plusDays(-n).isEqual(date.minusDays(n)));\n    }\n}\n"
+          "solution": "import java.time.LocalDate;\nimport java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int y = sc.nextInt();\n        int m = sc.nextInt();\n        int d = sc.nextInt();\n        int n = sc.nextInt();\n\n        LocalDate date = LocalDate.of(y, m, d);\n\n        System.out.println(\"往復 \" + date.plusMonths(1).minusMonths(1));\n        System.out.println(\"月初 \" + date.withDayOfMonth(1));\n        System.out.println(\"年 \" + date.withYear(2000));\n        System.out.println(\"2週後 \" + date.plusWeeks(2));\n        System.out.println(\"前 \" + date.minusDays(n).isBefore(date)\n                + \" \" + date.plusDays(-n).isEqual(date.minusDays(n)));\n    }\n}\n",
+          "sourceChecks": [
+            {
+              "pattern": "plusMonths\\s*\\(",
+              "minimum": 1,
+              "message": "`plusMonths(1)` してから `minusMonths(1)` して、元に戻るかを確かめてください。"
+            },
+            {
+              "pattern": "withDayOfMonth\\s*\\(",
+              "minimum": 1,
+              "message": "月初は日付を作り直さず `withDayOfMonth(1)` で求めてください。"
+            },
+            {
+              "pattern": "withYear\\s*\\(",
+              "minimum": 1,
+              "message": "年の差し替えは `withYear(2000)` で行ってください。"
+            }
+          ]
         }
       ]
     },
@@ -347,7 +376,19 @@
             "3行目は `ChronoUnit.DAYS.between(to, from)` と **引数の順番を入れ替える** だけです。前後が逆なのでマイナスになります。",
             "6行目は `try { Duration.between(from, to); System.out.println(\"だめ 例外なし\"); } catch (Exception e) { System.out.println(\"だめ 例外\"); }` です。`Duration` は時・分・秒の差なので、日付だけの `LocalDate` には使えません。"
           ],
-          "solution": "import java.time.Duration;\nimport java.time.LocalDate;\nimport java.time.LocalDateTime;\nimport java.time.temporal.ChronoUnit;\nimport java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int y1 = sc.nextInt();\n        int m1 = sc.nextInt();\n        int d1 = sc.nextInt();\n        int y2 = sc.nextInt();\n        int m2 = sc.nextInt();\n        int d2 = sc.nextInt();\n        int h1 = sc.nextInt();\n        int mi1 = sc.nextInt();\n        int h2 = sc.nextInt();\n        int mi2 = sc.nextInt();\n\n        LocalDate from = LocalDate.of(y1, m1, d1);\n        LocalDate to = LocalDate.of(y2, m2, d2);\n\n        System.out.println(\"月数 \" + ChronoUnit.MONTHS.between(from, to));\n        System.out.println(\"年数 \" + ChronoUnit.YEARS.between(from, to));\n        System.out.println(\"逆 \" + ChronoUnit.DAYS.between(to, from));\n\n        LocalDateTime start = LocalDateTime.of(y1, m1, d1, h1, mi1);\n        LocalDateTime end = LocalDateTime.of(y1, m1, d1, h2, mi2);\n        Duration duration = Duration.between(start, end);\n        System.out.println(\"時間 \" + duration.toHours());\n        System.out.println(\"分 \" + duration.toMinutes());\n\n        try {\n            Duration.between(from, to);\n            System.out.println(\"だめ 例外なし\");\n        } catch (Exception e) {\n            System.out.println(\"だめ 例外\");\n        }\n    }\n}\n"
+          "solution": "import java.time.Duration;\nimport java.time.LocalDate;\nimport java.time.LocalDateTime;\nimport java.time.temporal.ChronoUnit;\nimport java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int y1 = sc.nextInt();\n        int m1 = sc.nextInt();\n        int d1 = sc.nextInt();\n        int y2 = sc.nextInt();\n        int m2 = sc.nextInt();\n        int d2 = sc.nextInt();\n        int h1 = sc.nextInt();\n        int mi1 = sc.nextInt();\n        int h2 = sc.nextInt();\n        int mi2 = sc.nextInt();\n\n        LocalDate from = LocalDate.of(y1, m1, d1);\n        LocalDate to = LocalDate.of(y2, m2, d2);\n\n        System.out.println(\"月数 \" + ChronoUnit.MONTHS.between(from, to));\n        System.out.println(\"年数 \" + ChronoUnit.YEARS.between(from, to));\n        System.out.println(\"逆 \" + ChronoUnit.DAYS.between(to, from));\n\n        LocalDateTime start = LocalDateTime.of(y1, m1, d1, h1, mi1);\n        LocalDateTime end = LocalDateTime.of(y1, m1, d1, h2, mi2);\n        Duration duration = Duration.between(start, end);\n        System.out.println(\"時間 \" + duration.toHours());\n        System.out.println(\"分 \" + duration.toMinutes());\n\n        try {\n            Duration.between(from, to);\n            System.out.println(\"だめ 例外なし\");\n        } catch (Exception e) {\n            System.out.println(\"だめ 例外\");\n        }\n    }\n}\n",
+          "sourceChecks": [
+            {
+              "pattern": "ChronoUnit\\.",
+              "minimum": 1,
+              "message": "月数は `ChronoUnit.MONTHS.between(...)` で求めてください。"
+            },
+            {
+              "pattern": "Duration\\.between\\s*\\(",
+              "minimum": 1,
+              "message": "時刻の差は `Duration.between(...)` で求めてください。"
+            }
+          ]
         }
       ]
     },
@@ -461,28 +502,40 @@
             "`hh` は12時間制なので、`13` 時は `01`、`0` 時は `12` になります。`HH` は24時間制でそのままの値です。",
             "5行目のパターンは `\"yyyy'y'M'm'd'd'\"` です。クォートで囲まないと `y` は年、`m` は分、`d` は日として解釈されてしまいます。"
           ],
-          "solution": "import java.time.LocalDateTime;\nimport java.time.format.DateTimeFormatter;\nimport java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        String ds = sc.next();\n        String ts = sc.next();\n\n        DateTimeFormatter reader = DateTimeFormatter.ofPattern(\"yyyy/MM/dd HH:mm\");\n        LocalDateTime dt = LocalDateTime.parse(ds + \" \" + ts, reader);\n\n        System.out.println(\"読んだ \" + dt);\n        System.out.println(\"24時間 \" + dt.format(DateTimeFormatter.ofPattern(\"HH\")));\n        System.out.println(\"12時間 \" + dt.format(DateTimeFormatter.ofPattern(\"hh\")));\n        System.out.println(\"秒まで \" + dt.format(DateTimeFormatter.ofPattern(\"HH:mm:ss\")));\n        System.out.println(\"文字 \" + dt.format(DateTimeFormatter.ofPattern(\"yyyy'y'M'm'd'd'\")));\n    }\n}\n"
+          "solution": "import java.time.LocalDateTime;\nimport java.time.format.DateTimeFormatter;\nimport java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        String ds = sc.next();\n        String ts = sc.next();\n\n        DateTimeFormatter reader = DateTimeFormatter.ofPattern(\"yyyy/MM/dd HH:mm\");\n        LocalDateTime dt = LocalDateTime.parse(ds + \" \" + ts, reader);\n\n        System.out.println(\"読んだ \" + dt);\n        System.out.println(\"24時間 \" + dt.format(DateTimeFormatter.ofPattern(\"HH\")));\n        System.out.println(\"12時間 \" + dt.format(DateTimeFormatter.ofPattern(\"hh\")));\n        System.out.println(\"秒まで \" + dt.format(DateTimeFormatter.ofPattern(\"HH:mm:ss\")));\n        System.out.println(\"文字 \" + dt.format(DateTimeFormatter.ofPattern(\"yyyy'y'M'm'd'd'\")));\n    }\n}\n",
+          "sourceChecks": [
+            {
+              "pattern": "ofPattern\\s*\\(",
+              "minimum": 2,
+              "message": "`DateTimeFormatter.ofPattern` を **読み込みにも** 使ってください。"
+            },
+            {
+              "pattern": "LocalDateTime\\.parse\\s*\\(",
+              "minimum": 1,
+              "message": "文字列から `LocalDateTime.parse(文字列, formatter)` で読み込んでください。"
+            }
+          ]
         }
       ],
       "quiz": [
         {
           "question": "`LocalDate.of(2024, 5, 3)` の `5` は何を表すでしょう。",
           "choices": [
-            "6月（0から数えるため）",
             "5月（1から数えるため）",
-            "その年の5週目",
-            "指定できないのでエラー"
+            "6月（0から数えるため）",
+            "指定できないのでエラー",
+            "その年の5週目"
           ],
-          "answer": 1,
+          "answer": 0,
           "explanation": "`java.time` では月は **`1`〜`12`** です。古い `Calendar` は `0`〜`11` だったので、そこを混同させる問題が出ます。ありえない値（`13` など）は例外になります。"
         },
         {
           "question": "次のコードの出力はどれでしょう。\n\n```java\nLocalDate d = LocalDate.of(2024, 1, 31);\nSystem.out.println(d.plusMonths(1));\n```",
           "choices": [
-            "`2024-02-31`",
             "`2024-03-02`",
+            "実行時に例外",
             "`2024-02-29`",
-            "実行時に例外"
+            "`2024-02-31`"
           ],
           "answer": 2,
           "explanation": "「2月31日」は存在しないので、その月の **最後の日** に丸められます。2024年はうるう年なので `29` 日です（2023年なら `28` 日）。足して引いても元の日には戻りません。"
@@ -490,12 +543,12 @@
         {
           "question": "`Period.between(from, to)` の `getDays()` が返すのは何でしょう。",
           "choices": [
-            "2つの日付の総日数",
             "「何年何か月」を引いた **余りの日数**",
-            "月をまたいだ回数",
-            "曜日の番号"
+            "2つの日付のあいだの総日数",
+            "月をまたいだ回数の合計",
+            "曜日をあらわす番号"
           ],
-          "answer": 1,
+          "answer": 0,
           "explanation": "`Period` は「4年2か月14日」のように分解した値を返すので、`getDays()` は余りの `14` です。総日数が欲しいときは `ChronoUnit.DAYS.between(from, to)` を使います（戻り値は `long`）。"
         },
         {
@@ -522,7 +575,7 @@
         }
       ],
       "task": "【基本】`yyyy-MM-dd` の日付と加算日数を読み、加算後の日付を同じ形式で表示してください。",
-      "starterCode": "import java.time.*;\nimport java.util.*;\npublic class Main {public static void main(String[] args){Scanner s=new Scanner(System.in);LocalDate date=LocalDate.parse(s.next());long days=s.nextLong();/* TODO */}}\n",
+      "starterCode": "import java.time.*;\nimport java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        LocalDate date = LocalDate.parse(s.next());\n        long days = s.nextLong();\n        /* TODO */\n    }\n}\n",
       "visibleCases": [
         {
           "label": "翌日",
@@ -551,12 +604,12 @@
         "LocalDateは変わらないため、`plusDays` の戻り値を使います。",
         "表示はLocalDateのtoStringでISO形式になります。"
       ],
-      "solution": "import java.time.*;\nimport java.util.*;\npublic class Main {public static void main(String[] args){Scanner s=new Scanner(System.in);LocalDate date=LocalDate.parse(s.next());long days=s.nextLong();System.out.println(date.plusDays(days));}}\n",
+      "solution": "import java.time.*;\nimport java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        LocalDate date = LocalDate.parse(s.next());\n        long days = s.nextLong();\n        System.out.println(date.plusDays(days));\n    }\n}\n",
       "extraTasks": [
         {
           "kind": "drill",
           "task": "【組み合わせ】開始日と終了日を読み、開始日を含まず終了日までの日数を `days=...` と表示してください。",
-          "starterCode": "import java.time.*;\nimport java.time.temporal.*;\nimport java.util.*;\npublic class Main {public static void main(String[] args){Scanner s=new Scanner(System.in);LocalDate start=LocalDate.parse(s.next());LocalDate end=LocalDate.parse(s.next());/* TODO */}}\n",
+          "starterCode": "import java.time.*;\nimport java.time.temporal.*;\nimport java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        LocalDate start = LocalDate.parse(s.next());\n        LocalDate end = LocalDate.parse(s.next());\n        /* TODO */\n    }\n}\n",
           "visibleCases": [
             {
               "label": "10日",
@@ -585,12 +638,24 @@
             "`ChronoUnit.DAYS.between(start, end)` を使います。",
             "引数の順序を逆にしないようにします。"
           ],
-          "solution": "import java.time.*;\nimport java.time.temporal.*;\nimport java.util.*;\npublic class Main {public static void main(String[] args){Scanner s=new Scanner(System.in);LocalDate start=LocalDate.parse(s.next());LocalDate end=LocalDate.parse(s.next());System.out.println(\"days=\"+ChronoUnit.DAYS.between(start,end));}}\n"
+          "solution": "import java.time.*;\nimport java.time.temporal.*;\nimport java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        LocalDate start = LocalDate.parse(s.next());\n        LocalDate end = LocalDate.parse(s.next());\n        System.out.println(\"days=\" + ChronoUnit.DAYS.between(start, end));\n    }\n}\n",
+          "sourceChecks": [
+            {
+              "pattern": "LocalDate\\s*\\.\\s*parse",
+              "minimum": 1,
+              "message": "`2025-06-01` のような文字列は `LocalDate.parse` で日付にしてください。"
+            },
+            {
+              "pattern": "ChronoUnit\\s*\\.\\s*DAYS\\s*\\.\\s*between|\\.until\\s*\\(",
+              "minimum": 1,
+              "message": "日数の差は `ChronoUnit.DAYS.between(start, end)` で求めてください（月末や閏年を自分で計算しないため）。"
+            }
+          ]
         },
         {
           "kind": "applied",
           "task": "【実践】`yyyy-MM-dd` の日付を読み、日本語の `yyyy年M月d日(E)` 形式で表示してください。曜日は日本語ロケールを使います。",
-          "starterCode": "import java.time.*;\nimport java.time.format.*;\nimport java.util.*;\npublic class Main {public static void main(String[] args){LocalDate date=LocalDate.parse(new Scanner(System.in).next());DateTimeFormatter f=DateTimeFormatter.ISO_LOCAL_DATE;/* TODO */System.out.println(date.format(f));}}\n",
+          "starterCode": "import java.time.*;\nimport java.time.format.*;\nimport java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        LocalDate date = LocalDate.parse(new Scanner(System.in).next());\n        DateTimeFormatter f = DateTimeFormatter.ISO_LOCAL_DATE;\n        /* TODO */ System.out.println(date.format(f));\n    }\n}\n",
           "visibleCases": [
             {
               "label": "日曜",
@@ -614,7 +679,14 @@
             "`DateTimeFormatter.ofPattern` の第2引数にLocale.JAPANESEを渡します。",
             "Mとdを1文字にすると先頭の0を付けません。"
           ],
-          "solution": "import java.time.*;\nimport java.time.format.*;\nimport java.util.*;\npublic class Main {public static void main(String[] args){LocalDate date=LocalDate.parse(new Scanner(System.in).next());DateTimeFormatter f=DateTimeFormatter.ofPattern(\"yyyy年M月d日(E)\",Locale.JAPANESE);System.out.println(date.format(f));}}\n"
+          "solution": "import java.time.*;\nimport java.time.format.*;\nimport java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        LocalDate date = LocalDate.parse(new Scanner(System.in).next());\n        DateTimeFormatter f = DateTimeFormatter.ofPattern(\"yyyy年M月d日(E)\", Locale.JAPANESE);\n        System.out.println(date.format(f));\n    }\n}\n",
+          "sourceChecks": [
+            {
+              "pattern": "Locale\\.",
+              "minimum": 1,
+              "message": "曜日を日本語で出すには `Locale.JAPANESE` を `ofPattern` へ渡してください。"
+            }
+          ]
         }
       ]
     }

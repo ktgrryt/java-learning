@@ -1,40 +1,282 @@
 {
-  "id":"ch25","title":"CDIと依存性注入","subtitle":"newを手放し、ライフサイクルをコンテナへ任せる","emoji":"🧩","libs":["jakarta-cdi"],
-  "lessons":[
+  "id": "ch25",
+  "title": "CDIと依存性注入",
+  "subtitle": "newを手放し、ライフサイクルをコンテナへ任せる",
+  "emoji": "🧩",
+  "libs": [
+    "jakarta-cdi"
+  ],
+  "lessons": [
     {
-      "id":"25-1","title":"@Injectとコンストラクタ注入",
-      "explanation":"## はじめて学ぶ人へ\n\nDIは、クラスが必要な部品を自分で作らず、外側から渡してもらう考え方です。料理人が冷蔵庫を製造せず、設備担当が用意した冷蔵庫を使うのと同じです。\n\n```java\n// 自分で固定する: 交換しにくい\nservice = new OrderService(new RealPaymentClient());\n\n// CDIに渡してもらう: テスト用部品にも交換しやすい\n@Inject\nOrderResource(OrderService service) { this.service = service; }\n```\n\nコンストラクタ注入なら、生成時に必要な部品がそろい、依存関係も引数から読み取れます。まずは「このクラスが仕事をするために必要な相手」をコンストラクタへ並べ、組み立てをCDIコンテナへ任せる、と捉えましょう。\n\n## 組み立てをコンテナへ任せる\n\n第21章では依存を外から渡しました。CDIはその組み立てを自動化します。\n\n```java\n@RequestScoped\nclass OrderService {\n private final OrderRepository repository;\n\n @Inject\n OrderService(OrderRepository repository) {\n   this.repository = repository;\n }\n}\n```\n\nServiceは実装をnewせず、必要な契約だけ宣言します。コンストラクタ注入は依存が必須だと分かり、フィールドをfinalにでき、単体テストでも直接newできます。フィールド注入は短いものの未初期化状態を作れ、コンテナなしのテストが面倒なので、基本はコンストラクタ注入です。\n\n```svg 必要な相手を自分で作ると固定される。コンストラクタで受け取れば差し替えられる\n<svg viewBox=\"0 0 720 252\">\n  <text class=\"fig-t fig-title\" x=\"180\" y=\"22\" text-anchor=\"middle\">自分で new する</text>\n  <text class=\"fig-t fig-title\" x=\"543\" y=\"22\" text-anchor=\"middle\">コンストラクタで受け取る</text>\n\n  <rect class=\"fig-box\" x=\"40\" y=\"44\" width=\"280\" height=\"60\" rx=\"6\"/>\n  <text class=\"fig-t fig-small\" x=\"180\" y=\"64\" text-anchor=\"middle\">OrderService</text>\n  <text class=\"fig-t fig-mono fig-small fig-t-ng\" x=\"180\" y=\"86\" text-anchor=\"middle\">new RealPaymentClient()</text>\n  <line class=\"fig-line\" x1=\"180\" y1=\"104\" x2=\"180\" y2=\"126\" marker-end=\"arrow\"/>\n  <rect class=\"fig-box\" x=\"80\" y=\"130\" width=\"200\" height=\"40\" rx=\"6\"/>\n  <text class=\"fig-t fig-mono fig-small\" x=\"180\" y=\"150\" text-anchor=\"middle\">RealPaymentClient</text>\n  <line class=\"fig-line-ng fig-dashed\" x1=\"180\" y1=\"170\" x2=\"180\" y2=\"188\"/>\n  <line class=\"fig-line-ng\" x1=\"174\" y1=\"176\" x2=\"186\" y2=\"188\"/>\n  <line class=\"fig-line-ng\" x1=\"186\" y1=\"176\" x2=\"174\" y2=\"188\"/>\n  <rect class=\"fig-box-dim\" x=\"80\" y=\"192\" width=\"200\" height=\"34\" rx=\"6\"/>\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"180\" y=\"209\" text-anchor=\"middle\">テスト用の部品に替えられない</text>\n\n  <rect class=\"fig-box-accent\" x=\"406\" y=\"44\" width=\"280\" height=\"60\" rx=\"6\"/>\n  <text class=\"fig-t fig-small\" x=\"546\" y=\"64\" text-anchor=\"middle\">OrderService</text>\n  <text class=\"fig-t fig-mono fig-small fig-t-accent\" x=\"546\" y=\"86\" text-anchor=\"middle\">@Inject OrderService(client)</text>\n  <line class=\"fig-line-ok\" x1=\"460\" y1=\"130\" x2=\"490\" y2=\"108\" marker-end=\"arrow-ok\"/>\n  <line class=\"fig-line-ok\" x1=\"626\" y1=\"130\" x2=\"600\" y2=\"108\" marker-end=\"arrow-ok\"/>\n  <text class=\"fig-t fig-t-ok fig-small\" x=\"546\" y=\"124\" text-anchor=\"middle\">コンテナが渡す</text>\n  <rect class=\"fig-box-ok\" x=\"390\" y=\"134\" width=\"140\" height=\"40\" rx=\"6\"/>\n  <text class=\"fig-t fig-mono fig-small fig-t-ok\" x=\"460\" y=\"154\" text-anchor=\"middle\">本番の実装</text>\n  <rect class=\"fig-box-ok\" x=\"556\" y=\"134\" width=\"140\" height=\"40\" rx=\"6\"/>\n  <text class=\"fig-t fig-mono fig-small fig-t-ok\" x=\"626\" y=\"154\" text-anchor=\"middle\">テスト用の実装</text>\n  <text class=\"fig-t fig-t-ok fig-small\" x=\"380\" y=\"204\">依存が必須だと分かり、フィールドを final にでき、</text>\n  <text class=\"fig-t fig-t-ok fig-small\" x=\"380\" y=\"224\">コンテナ無しでも直接 new してテストできる</text>\n\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"14\" y=\"246\">フィールド注入は短いが、未初期化の状態を作れてしまう。基本はコンストラクタ注入</text>\n</svg>\n```\n\nCDIが管理するオブジェクトをBeanと呼びます。循環依存A→B→Aは設計責務が絡んだ兆候です。この教材のMiniDiは@InjectとApplicationScopedだけを再現し、実務ではJakarta EEコンテナが解決します。",
-      "samples":[{"caption":"実装を外から選んで注入","code":"import jakarta.inject.Inject;\ninterface Greeting{String text();}\nclass Japanese implements Greeting{public String text(){return \"こんにちは\";}}\nclass Greeter{private final Greeting greeting;@Inject Greeter(Greeting greeting){this.greeting=greeting;}String run(){return greeting.text();}}\npublic class DiSample{public static void main(String[]a){MiniDi di=MiniDi.container().bind(Greeting.class,Japanese.class);System.out.println(di.get(Greeter.class).run());}}\n"}],
-      "task":"`PriceService` に `PriceRepository` をコンストラクタ注入し、MiniDiで `InMemoryPriceRepository` を束縛してください。入力商品があれば `price=値`、無ければ `not found`。Service内で実装をnewしてはいけません。",
-      "starterCode":"import jakarta.inject.Inject;\nimport java.util.*;\ninterface PriceRepository{Integer find(String name);}\nclass InMemoryPriceRepository implements PriceRepository{private final Map<String,Integer> data=Map.of(\"book\",1200,\"pen\",150);public Integer find(String n){return data.get(n);}}\nclass PriceService{private final PriceRepository repository;// TODO: このコンストラクタに@Inject\n PriceService(PriceRepository repository){this.repository=repository;}String show(String name){Integer p=repository.find(name);return p==null?\"not found\":\"price=\"+p;}}\npublic class DiPrice{public static void main(String[]a){String name=new Scanner(System.in).nextLine();MiniDi di=MiniDi.container();// TODO bind\nSystem.out.println(di.get(PriceService.class).show(name));}}\n",
-      "visibleCases":[{"label":"商品あり","stdin":"book","expected":"price=1200"},{"label":"なし","stdin":"eraser","expected":"not found"}],"hiddenCases":[{"label":"別商品","stdin":"pen","expected":"price=150"}],
-      "hints":["`@Inject PriceService(PriceRepository repository){this.repository=repository;}`。","`MiniDi.container().bind(PriceRepository.class, InMemoryPriceRepository.class)`。"],
-      "solution":"import jakarta.inject.Inject;\nimport java.util.*;\ninterface PriceRepository{Integer find(String name);}\nclass InMemoryPriceRepository implements PriceRepository{private final Map<String,Integer> data=Map.of(\"book\",1200,\"pen\",150);public Integer find(String n){return data.get(n);}}\nclass PriceService{private final PriceRepository repository;@Inject PriceService(PriceRepository repository){this.repository=repository;}String show(String name){Integer p=repository.find(name);return p==null?\"not found\":\"price=\"+p;}}\npublic class DiPrice{public static void main(String[]a){String name=new Scanner(System.in).nextLine();MiniDi di=MiniDi.container().bind(PriceRepository.class,InMemoryPriceRepository.class);System.out.println(di.get(PriceService.class).show(name));}}\n",
-      "extraTasks":[{"kind":"applied","task":"本番実装を変えずにテスト用 `StubPriceRepository` を注入し、どの入力にも999を返してください。MiniDiのbind先だけを変えます。","starterCode":"import jakarta.inject.Inject;\nimport java.util.*;\ninterface PriceRepository{Integer find(String n);}\nclass RealPriceRepository implements PriceRepository{public Integer find(String n){throw new IllegalStateException(\"DBへ接続してはいけません\");}}\nclass StubPriceRepository implements PriceRepository{public Integer find(String n){// TODO: 999を返す\n return 0;}}\nclass PriceService{private final PriceRepository r;@Inject PriceService(PriceRepository r){this.r=r;}int price(String n){return r.find(n);}}\npublic class DiTest{public static void main(String[]a){String n=new Scanner(System.in).nextLine();// TODO: Stubをbindして結果を表示\n}}\n","visibleCases":[{"label":"差し替え","stdin":"anything","expected":"999"}],"hiddenCases":[{"label":"別入力","stdin":"book","expected":"999"}],"hints":["Stubで `public Integer find(String n){return 999;}`。","bind先はStub。Serviceを取得しpriceを表示。"],"solution":"import jakarta.inject.Inject;\nimport java.util.*;\ninterface PriceRepository{Integer find(String n);}\nclass RealPriceRepository implements PriceRepository{public Integer find(String n){throw new IllegalStateException(\"DBへ接続してはいけません\");}}\nclass StubPriceRepository implements PriceRepository{public Integer find(String n){return 999;}}\nclass PriceService{private final PriceRepository r;@Inject PriceService(PriceRepository r){this.r=r;}int price(String n){return r.find(n);}}\npublic class DiTest{public static void main(String[]a){String n=new Scanner(System.in).nextLine();MiniDi di=MiniDi.container().bind(PriceRepository.class,StubPriceRepository.class);System.out.println(di.get(PriceService.class).price(n));}}\n"}]
+      "id": "25-1",
+      "title": "@Injectとコンストラクタ注入",
+      "explanation": "## はじめて学ぶ人へ\n\nDIは、クラスが必要な部品を自分で作らず、外側から渡してもらう考え方です。料理人が冷蔵庫を製造せず、設備担当が用意した冷蔵庫を使うのと同じです。\n\n```java\n// 自分で固定する: 交換しにくい\nservice = new OrderService(new RealPaymentClient());\n\n// CDIに渡してもらう: テスト用部品にも交換しやすい\n@Inject\nOrderResource(OrderService service) { this.service = service; }\n```\n\nコンストラクタ注入なら、生成時に必要な部品がそろい、依存関係も引数から読み取れます。まずは「このクラスが仕事をするために必要な相手」をコンストラクタへ並べ、組み立てをCDIコンテナへ任せる、と捉えましょう。\n\n## 組み立てをコンテナへ任せる\n\n第21章では依存を外から渡しました。CDIはその組み立てを自動化します。\n\n```java\n@RequestScoped\nclass OrderService {\n private final OrderRepository repository;\n\n @Inject\n OrderService(OrderRepository repository) {\n   this.repository = repository;\n }\n}\n```\n\nServiceは実装をnewせず、必要な契約だけ宣言します。コンストラクタ注入は依存が必須だと分かり、フィールドをfinalにでき、単体テストでも直接newできます。フィールド注入は短いものの未初期化状態を作れ、コンテナなしのテストが面倒なので、基本はコンストラクタ注入です。\n\n```svg 必要な相手を自分で作ると固定される。コンストラクタで受け取れば差し替えられる\n<svg viewBox=\"0 0 720 252\">\n  <text class=\"fig-t fig-title\" x=\"180\" y=\"22\" text-anchor=\"middle\">自分で new する</text>\n  <text class=\"fig-t fig-title\" x=\"543\" y=\"22\" text-anchor=\"middle\">コンストラクタで受け取る</text>\n\n  <rect class=\"fig-box\" x=\"40\" y=\"44\" width=\"280\" height=\"60\" rx=\"6\"/>\n  <text class=\"fig-t fig-small\" x=\"180\" y=\"64\" text-anchor=\"middle\">OrderService</text>\n  <text class=\"fig-t fig-mono fig-small fig-t-ng\" x=\"180\" y=\"86\" text-anchor=\"middle\">new RealPaymentClient()</text>\n  <line class=\"fig-line\" x1=\"180\" y1=\"104\" x2=\"180\" y2=\"126\" marker-end=\"arrow\"/>\n  <rect class=\"fig-box\" x=\"80\" y=\"130\" width=\"200\" height=\"40\" rx=\"6\"/>\n  <text class=\"fig-t fig-mono fig-small\" x=\"180\" y=\"150\" text-anchor=\"middle\">RealPaymentClient</text>\n  <line class=\"fig-line-ng fig-dashed\" x1=\"180\" y1=\"170\" x2=\"180\" y2=\"188\"/>\n  <line class=\"fig-line-ng\" x1=\"174\" y1=\"176\" x2=\"186\" y2=\"188\"/>\n  <line class=\"fig-line-ng\" x1=\"186\" y1=\"176\" x2=\"174\" y2=\"188\"/>\n  <rect class=\"fig-box-dim\" x=\"80\" y=\"192\" width=\"200\" height=\"34\" rx=\"6\"/>\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"180\" y=\"209\" text-anchor=\"middle\">テスト用の部品に替えられない</text>\n\n  <rect class=\"fig-box-accent\" x=\"406\" y=\"44\" width=\"280\" height=\"60\" rx=\"6\"/>\n  <text class=\"fig-t fig-small\" x=\"546\" y=\"64\" text-anchor=\"middle\">OrderService</text>\n  <text class=\"fig-t fig-mono fig-small fig-t-accent\" x=\"546\" y=\"86\" text-anchor=\"middle\">@Inject OrderService(client)</text>\n  <line class=\"fig-line-ok\" x1=\"460\" y1=\"130\" x2=\"490\" y2=\"108\" marker-end=\"arrow-ok\"/>\n  <line class=\"fig-line-ok\" x1=\"626\" y1=\"130\" x2=\"600\" y2=\"108\" marker-end=\"arrow-ok\"/>\n  <text class=\"fig-t fig-t-ok fig-small\" x=\"546\" y=\"124\" text-anchor=\"middle\">コンテナが渡す</text>\n  <rect class=\"fig-box-ok\" x=\"390\" y=\"134\" width=\"140\" height=\"40\" rx=\"6\"/>\n  <text class=\"fig-t fig-mono fig-small fig-t-ok\" x=\"460\" y=\"154\" text-anchor=\"middle\">本番の実装</text>\n  <rect class=\"fig-box-ok\" x=\"556\" y=\"134\" width=\"140\" height=\"40\" rx=\"6\"/>\n  <text class=\"fig-t fig-mono fig-small fig-t-ok\" x=\"626\" y=\"154\" text-anchor=\"middle\">テスト用の実装</text>\n  <text class=\"fig-t fig-t-ok fig-small\" x=\"380\" y=\"204\">依存が必須だと分かり、フィールドを final にでき、</text>\n  <text class=\"fig-t fig-t-ok fig-small\" x=\"380\" y=\"224\">コンテナ無しでも直接 new してテストできる</text>\n\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"14\" y=\"246\">フィールド注入は短いが、未初期化の状態を作れてしまう。基本はコンストラクタ注入</text>\n</svg>\n```\n\nCDIが管理するオブジェクトをBeanと呼びます。循環依存A→B→Aは設計責務が絡んだ兆候です。この教材のMiniDiは@InjectとApplicationScopedだけを再現し、実務ではJakarta EEコンテナが解決します。",
+      "samples": [
+        {
+          "caption": "実装を外から選んで注入",
+          "code": "import jakarta.inject.Inject;\n\ninterface Greeting {\n    String text();\n}\n\nclass Japanese implements Greeting {\n    public String text() {\n        return \"こんにちは\";\n    }\n}\n\nclass Greeter {\n    private final Greeting greeting;\n\n    @Inject\n    Greeter(Greeting greeting) {\n        this.greeting = greeting;\n    }\n\n    String run() {\n        return greeting.text();\n    }\n}\n\npublic class DiSample {\n    public static void main(String[] a) {\n        MiniDi di = MiniDi.container().bind(Greeting.class, Japanese.class);\n        System.out.println(di.get(Greeter.class).run());\n    }\n}\n"
+        }
+      ],
+      "task": "`PriceService` に `PriceRepository` をコンストラクタ注入し、MiniDiで `InMemoryPriceRepository` を束縛してください。入力商品があれば `price=値`、無ければ `not found`。Service内で実装をnewしてはいけません。",
+      "starterCode": "import jakarta.inject.Inject;\nimport java.util.*;\n\ninterface PriceRepository {\n    Integer find(String name);\n}\n\nclass InMemoryPriceRepository implements PriceRepository {\n    private final Map<String, Integer> data = Map.of(\"book\", 1200, \"pen\", 150);\n\n    public Integer find(String n) {\n        return data.get(n);\n    }\n}\n\nclass PriceService {\n    private final PriceRepository repository;\n\n    // TODO: このコンストラクタに@Inject\n    PriceService(PriceRepository repository) {\n        this.repository = repository;\n    }\n\n    String show(String name) {\n        Integer p = repository.find(name);\n        return p == null ? \"not found\" : \"price=\" + p;\n    }\n}\n\npublic class DiPrice {\n    public static void main(String[] a) {\n        String name = new Scanner(System.in).nextLine();\n        MiniDi di = MiniDi.container();\n        // TODO bind\n        System.out.println(di.get(PriceService.class).show(name));\n    }\n}\n",
+      "visibleCases": [
+        {
+          "label": "商品あり",
+          "stdin": "book",
+          "expected": "price=1200"
+        },
+        {
+          "label": "なし",
+          "stdin": "eraser",
+          "expected": "not found"
+        }
+      ],
+      "hiddenCases": [
+        {
+          "label": "別商品",
+          "stdin": "pen",
+          "expected": "price=150"
+        }
+      ],
+      "hints": [
+        "`@Inject PriceService(PriceRepository repository){this.repository=repository;}`。",
+        "`MiniDi.container().bind(PriceRepository.class, InMemoryPriceRepository.class)`。"
+      ],
+      "solution": "import jakarta.inject.Inject;\nimport java.util.*;\n\ninterface PriceRepository {\n    Integer find(String name);\n}\n\nclass InMemoryPriceRepository implements PriceRepository {\n    private final Map<String, Integer> data = Map.of(\"book\", 1200, \"pen\", 150);\n\n    public Integer find(String n) {\n        return data.get(n);\n    }\n}\n\nclass PriceService {\n    private final PriceRepository repository;\n\n    @Inject\n    PriceService(PriceRepository repository) {\n        this.repository = repository;\n    }\n\n    String show(String name) {\n        Integer p = repository.find(name);\n        return p == null ? \"not found\" : \"price=\" + p;\n    }\n}\n\npublic class DiPrice {\n    public static void main(String[] a) {\n        String name = new Scanner(System.in).nextLine();\n        MiniDi di = MiniDi.container().bind(PriceRepository.class, InMemoryPriceRepository.class);\n        System.out.println(di.get(PriceService.class).show(name));\n    }\n}\n",
+      "extraTasks": [
+        {
+          "kind": "applied",
+          "task": "本番実装を変えずにテスト用 `StubPriceRepository` を注入し、どの入力にも999を返してください。MiniDiのbind先だけを変えます。",
+          "starterCode": "import jakarta.inject.Inject;\nimport java.util.*;\n\ninterface PriceRepository {\n    Integer find(String n);\n}\n\nclass RealPriceRepository implements PriceRepository {\n    public Integer find(String n) {\n        throw new IllegalStateException(\"DBへ接続してはいけません\");\n    }\n}\n\nclass StubPriceRepository implements PriceRepository {\n    public Integer find(String n) {\n        // TODO: 999を返す\n        return 0;\n    }\n}\n\nclass PriceService {\n    private final PriceRepository r;\n\n    @Inject\n    PriceService(PriceRepository r) {\n        this.r = r;\n    }\n\n    int price(String n) {\n        return r.find(n);\n    }\n}\n\npublic class DiTest {\n    public static void main(String[] a) {\n        String n = new Scanner(System.in).nextLine();\n        // TODO: Stubをbindして結果を表示\n    }\n}\n",
+          "visibleCases": [
+            {
+              "label": "差し替え",
+              "stdin": "anything",
+              "expected": "999"
+            }
+          ],
+          "hiddenCases": [
+            {
+              "label": "別入力",
+              "stdin": "book",
+              "expected": "999"
+            }
+          ],
+          "hints": [
+            "Stubで `public Integer find(String n){return 999;}`。",
+            "bind先はStub。Serviceを取得しpriceを表示。"
+          ],
+          "solution": "import jakarta.inject.Inject;\nimport java.util.*;\n\ninterface PriceRepository {\n    Integer find(String n);\n}\n\nclass RealPriceRepository implements PriceRepository {\n    public Integer find(String n) {\n        throw new IllegalStateException(\"DBへ接続してはいけません\");\n    }\n}\n\nclass StubPriceRepository implements PriceRepository {\n    public Integer find(String n) {\n        return 999;\n    }\n}\n\nclass PriceService {\n    private final PriceRepository r;\n\n    @Inject\n    PriceService(PriceRepository r) {\n        this.r = r;\n    }\n\n    int price(String n) {\n        return r.find(n);\n    }\n}\n\npublic class DiTest {\n    public static void main(String[] a) {\n        String n = new Scanner(System.in).nextLine();\n        MiniDi di = MiniDi.container().bind(PriceRepository.class, StubPriceRepository.class);\n        System.out.println(di.get(PriceService.class).price(n));\n    }\n}\n",
+          "sourceChecks": [
+            {
+              "pattern": "\\bclass\\s+StubPriceRepository\\s+implements\\s+PriceRepository\\b",
+              "minimum": 1,
+              "message": "テスト用の実装も `PriceRepository` を実装してください。同じ型なので、使う側は書き換えずに済みます。"
+            },
+            {
+              "pattern": "\\bbind\\s*\\(\\s*PriceRepository\\s*\\.\\s*class",
+              "minimum": 1,
+              "message": "本番実装は触らず、MiniDiの `bind` 先だけをテスト用へ差し替えてください。"
+            },
+            {
+              "pattern": "@Inject",
+              "minimum": 1,
+              "message": "依存は `@Inject` で受け取ってください（自分で `new` すると差し替えられません）。"
+            }
+          ]
+        }
+      ]
     },
     {
-      "id":"25-2","title":"スコープと状態の置き場所",
-      "explanation":"## はじめて学ぶ人へ\n\nスコープは、CDIが作ったオブジェクトを**いつまで、誰と共有するか**という寿命のルールです。ホテルにたとえると、1回の依頼だけ使うメモ、宿泊客ごとの部屋、建物全体で共有する案内板では、置いてよい情報が違います。\n\n- `@RequestScoped`: 1回のHTTPリクエストだけ\n- `@SessionScoped`: 1人の利用者の複数リクエスト\n- `@ApplicationScoped`: アプリ全体で1つを共有\n- `@Dependent`: 注入先に従う\n\n利用者名や編集中データをApplicationScopedのフィールドへ置くと、別の人に見える危険があります。共有範囲が広いほど状態を持たない設計を優先し、必要最小限の寿命を選びます。\n\n## いつ作り、いつ捨てるか\n\nCDIのscopeはBeanの寿命と共有範囲を決めます。\n\n|scope|寿命|主な用途|\n|---|---|---|\n|`@RequestScoped`|1リクエスト|入力・レスポンス組立|\n|`@SessionScoped`|1利用者のセッション|ログイン中の操作状態（Serializableが必要）|\n|`@ApplicationScoped`|アプリ全体|不変設定、スレッドセーフなキャッシュ|\n|`@Dependent`|注入先に従う|軽い部品|\n\nApplicationScopedはSingleton風ですが同時アクセスされます。利用者固有の値を置いてはいけません。RequestScopedをApplicationScopedへ注入しても、CDIはproxyを介し「現在のリクエストの実体」を渡します。scopeを広げるのは性能対策ではなく、共有意味の設計です。",
-      "samples":[{"caption":"ApplicationScopedは同じ実体","code":"import jakarta.enterprise.context.ApplicationScoped;\n@ApplicationScoped class AppCounter{int n;int next(){return ++n;}}\npublic class ScopeSample{public static void main(String[]a){MiniDi d=MiniDi.container();System.out.println(d.get(AppCounter.class)==d.get(AppCounter.class));}}\n"}],
-      "task":"`Sequence` をApplicationScopedにし、異なる2つの `OrderService` に同じSequenceを注入してください。注文番号が `ORD-1`, `ORD-2` と連続するようにします。",
-      "starterCode":"import jakarta.inject.Inject;\nimport jakarta.enterprise.context.ApplicationScoped;\n// TODO scope\nclass Sequence{private int value;int next(){return ++value;}}\nclass OrderService{private final Sequence sequence;@Inject OrderService(Sequence s){this.sequence=s;}String create(){return \"ORD-\"+sequence.next();}}\npublic class DiScope{public static void main(String[]a){MiniDi d=MiniDi.container();OrderService x=d.get(OrderService.class),y=d.get(OrderService.class);System.out.println(x.create());System.out.println(y.create());}}\n",
-      "visibleCases":[{"label":"共有される採番","stdin":"","expected":"ORD-1\nORD-2"}],"hiddenCases":[],
-      "hints":["Sequenceクラスの直前に `@ApplicationScoped`。","OrderService自体には付けないので取得ごとに別ですが、依存先Sequenceは同じです。"],
-      "sourceChecks":[{"pattern":"@ApplicationScoped","minimum":1,"message":"`ORD-1`, `ORD-2` を直接書かず、Sequenceに `@ApplicationScoped` を付けて共有させてください。"},{"pattern":"\\.next\\s*\\(","minimum":1,"message":"番号は `sequence.next()` から取ってください。"}],
-      "solution":"import jakarta.inject.Inject;\nimport jakarta.enterprise.context.ApplicationScoped;\n@ApplicationScoped class Sequence{private int value;int next(){return ++value;}}\nclass OrderService{private final Sequence sequence;@Inject OrderService(Sequence s){this.sequence=s;}String create(){return \"ORD-\"+sequence.next();}}\npublic class DiScope{public static void main(String[]a){MiniDi d=MiniDi.container();OrderService x=d.get(OrderService.class),y=d.get(OrderService.class);System.out.println(x.create());System.out.println(y.create());}}\n",
-      "extraTasks":[{"kind":"applied","task":"逆に、利用者名を持つ `CurrentRequest` は共有してはいけません。ApplicationScopedを付けず、2回getした実体が別であることを `separate` と表示してください。","starterCode":"import jakarta.enterprise.context.ApplicationScoped;\nclass CurrentRequest{String user;}\npublic class DiRequestScope{public static void main(String[]a){MiniDi d=MiniDi.container();CurrentRequest x=d.get(CurrentRequest.class),y=d.get(CurrentRequest.class);x.user=\"alice\";// TODO: same または separate\n}}\n","visibleCases":[{"label":"別実体","stdin":"","expected":"separate"}],"hiddenCases":[],"hints":["`x == y` を三項演算子で判定。","CurrentRequestへApplicationScopedを付けないままにします。"],"sourceChecks":[{"pattern":"x\\s*==\\s*y","minimum":1,"message":"`separate` を直接書かず、`x == y` の結果から判定してください。"},{"pattern":"@ApplicationScoped","minimum":0,"maximum":0,"message":"この問題では `CurrentRequest` に `@ApplicationScoped` を付けません（共有されないことを確かめる問題です）。"}],"solution":"import jakarta.enterprise.context.ApplicationScoped;\nclass CurrentRequest{String user;}\npublic class DiRequestScope{public static void main(String[]a){MiniDi d=MiniDi.container();CurrentRequest x=d.get(CurrentRequest.class),y=d.get(CurrentRequest.class);x.user=\"alice\";System.out.println(x==y?\"same\":\"separate\");}}\n"}]
+      "id": "25-2",
+      "title": "スコープと状態の置き場所",
+      "explanation": "## はじめて学ぶ人へ\n\nスコープは、CDIが作ったオブジェクトを**いつまで、誰と共有するか**という寿命のルールです。ホテルにたとえると、1回の依頼だけ使うメモ、宿泊客ごとの部屋、建物全体で共有する案内板では、置いてよい情報が違います。\n\n- `@RequestScoped`: 1回のHTTPリクエストだけ\n- `@SessionScoped`: 1人の利用者の複数リクエスト\n- `@ApplicationScoped`: アプリ全体で1つを共有\n- `@Dependent`: 注入先に従う\n\n利用者名や編集中データをApplicationScopedのフィールドへ置くと、別の人に見える危険があります。共有範囲が広いほど状態を持たない設計を優先し、必要最小限の寿命を選びます。\n\n## いつ作り、いつ捨てるか\n\nCDIのscopeはBeanの寿命と共有範囲を決めます。\n\n|scope|寿命|主な用途|\n|---|---|---|\n|`@RequestScoped`|1リクエスト|入力・レスポンス組立|\n|`@SessionScoped`|1利用者のセッション|ログイン中の操作状態（Serializableが必要）|\n|`@ApplicationScoped`|アプリ全体|不変設定、スレッドセーフなキャッシュ|\n|`@Dependent`|注入先に従う|軽い部品|\n\nApplicationScopedはSingleton風ですが同時アクセスされます。利用者固有の値を置いてはいけません。RequestScopedをApplicationScopedへ注入しても、CDIはproxyを介し「現在のリクエストの実体」を渡します。scopeを広げるのは性能対策ではなく、共有意味の設計です。",
+      "samples": [
+        {
+          "caption": "ApplicationScopedは同じ実体",
+          "code": "import jakarta.enterprise.context.ApplicationScoped;\n\n@ApplicationScoped\nclass AppCounter {\n    int n;\n\n    int next() {\n        return++ n;\n    }\n}\n\npublic class ScopeSample {\n    public static void main(String[] a) {\n        MiniDi d = MiniDi.container();\n        System.out.println(d.get(AppCounter.class) == d.get(AppCounter.class));\n    }\n}\n"
+        }
+      ],
+      "task": "`Sequence` をApplicationScopedにし、異なる2つの `OrderService` に同じSequenceを注入してください。注文番号が `ORD-1`, `ORD-2` と連続するようにします。",
+      "starterCode": "import jakarta.inject.Inject;\nimport jakarta.enterprise.context.ApplicationScoped;\n// TODO scope\nclass Sequence {\n    private int value;\n\n    int next() {\n        return++ value;\n    }\n}\n\nclass OrderService {\n    private final Sequence sequence;\n\n    @Inject\n    OrderService(Sequence s) {\n        this.sequence = s;\n    }\n\n    String create() {\n        return \"ORD-\" + sequence.next();\n    }\n}\n\npublic class DiScope {\n    public static void main(String[] a) {\n        MiniDi d = MiniDi.container();\n        OrderService x = d.get(OrderService.class), y = d.get(OrderService.class);\n        System.out.println(x.create());\n        System.out.println(y.create());\n    }\n}\n",
+      "visibleCases": [
+        {
+          "label": "共有される採番",
+          "stdin": "",
+          "expected": "ORD-1\nORD-2"
+        }
+      ],
+      "hiddenCases": [],
+      "hints": [
+        "Sequenceクラスの直前に `@ApplicationScoped`。",
+        "OrderService自体には付けないので取得ごとに別ですが、依存先Sequenceは同じです。"
+      ],
+      "sourceChecks": [
+        {
+          "pattern": "@ApplicationScoped",
+          "minimum": 1,
+          "message": "`ORD-1`, `ORD-2` を直接書かず、Sequenceに `@ApplicationScoped` を付けて共有させてください。"
+        },
+        {
+          "pattern": "\\.next\\s*\\(",
+          "minimum": 1,
+          "message": "番号は `sequence.next()` から取ってください。"
+        }
+      ],
+      "solution": "import jakarta.inject.Inject;\nimport jakarta.enterprise.context.ApplicationScoped;\n\n@ApplicationScoped\nclass Sequence {\n    private int value;\n\n    int next() {\n        return++ value;\n    }\n}\n\nclass OrderService {\n    private final Sequence sequence;\n\n    @Inject\n    OrderService(Sequence s) {\n        this.sequence = s;\n    }\n\n    String create() {\n        return \"ORD-\" + sequence.next();\n    }\n}\n\npublic class DiScope {\n    public static void main(String[] a) {\n        MiniDi d = MiniDi.container();\n        OrderService x = d.get(OrderService.class), y = d.get(OrderService.class);\n        System.out.println(x.create());\n        System.out.println(y.create());\n    }\n}\n",
+      "extraTasks": [
+        {
+          "kind": "applied",
+          "task": "逆に、利用者名を持つ `CurrentRequest` は共有してはいけません。ApplicationScopedを付けず、2回getした実体が別であることを `separate` と表示してください。",
+          "starterCode": "import jakarta.enterprise.context.ApplicationScoped;\n\nclass CurrentRequest {\n    String user;\n}\n\npublic class DiRequestScope {\n    public static void main(String[] a) {\n        MiniDi d = MiniDi.container();\n        CurrentRequest x = d.get(CurrentRequest.class), y = d.get(CurrentRequest.class);\n        x.user = \"alice\";\n        // TODO: same または separate\n    }\n}\n",
+          "visibleCases": [
+            {
+              "label": "別実体",
+              "stdin": "",
+              "expected": "separate"
+            }
+          ],
+          "hiddenCases": [],
+          "hints": [
+            "`x == y` を三項演算子で判定。",
+            "CurrentRequestへApplicationScopedを付けないままにします。"
+          ],
+          "sourceChecks": [
+            {
+              "pattern": "x\\s*==\\s*y",
+              "minimum": 1,
+              "message": "`separate` を直接書かず、`x == y` の結果から判定してください。"
+            },
+            {
+              "pattern": "@ApplicationScoped",
+              "minimum": 0,
+              "maximum": 0,
+              "message": "この問題では `CurrentRequest` に `@ApplicationScoped` を付けません（共有されないことを確かめる問題です）。"
+            }
+          ],
+          "solution": "import jakarta.enterprise.context.ApplicationScoped;\n\nclass CurrentRequest {\n    String user;\n}\n\npublic class DiRequestScope {\n    public static void main(String[] a) {\n        MiniDi d = MiniDi.container();\n        CurrentRequest x = d.get(CurrentRequest.class), y = d.get(CurrentRequest.class);\n        x.user = \"alice\";\n        System.out.println(x == y ? \"same\" : \"separate\");\n    }\n}\n"
+        }
+      ]
     },
     {
-      "id":"25-3","title":"Qualifier・Producer・イベント",
-      "explanation":"## はじめて学ぶ人へ\n\n同じ役割の実装が複数あるとき、CDIには選び方と作り方を伝えます。たとえばカード決済とテスト決済がどちらも `PaymentService` を実装しているなら、Qualifierは**名札**として使う実装を区別します。\n\n- Qualifier: 同じ型の候補から用途に合う1つを選ぶ\n- Producer: 設定値などを使い、生成手順が特殊な部品を作る\n- Event: 発生した出来事を、送り手と受け手を直接結ばず通知する\n\n注文完了イベントを「領収書メール」「分析記録」がそれぞれ受け取る形なら、注文処理は通知先を知る必要がありません。ただし、決済のように成功確認が必須な中心処理までイベントへ隠さず、戻り値が必要な処理は通常のメソッド呼び出しにします。\n\n## 同じ型の候補を区別する\n\n`PaymentGateway` の実装が複数あると型だけでは選べません。`@Qualifier` を付けた独自注釈で意味を指定します。\n\n```java\n@Qualifier @Retention(RUNTIME) @Target({TYPE, FIELD, PARAMETER})\n@interface TestMode {}\n\n@TestMode class FakeGateway implements PaymentGateway { ... }\n@Inject Service(@TestMode PaymentGateway gateway) { ... }\n```\n\n外部ライブラリの型や設定値は `@Produces` メソッドでBean化します。イベントは `event.fire(new OrderCreated(...))` と `void on(@Observes OrderCreated e)` で発行元と通知処理を疎結合にします。ただし処理順序や失敗を厳密に制御する主処理をイベントへ隠すと追いにくくなります。\n\nこの教材のMiniDiはQualifier自動解決を省略しているため、実行問題ではbindで同じ差し替えを体験します。注釈の形は本物と同じです。",
-      "samples":[{"caption":"Qualifier注釈を定義する","code":"import jakarta.inject.Qualifier;\nimport java.lang.annotation.*;\n@Qualifier @Retention(RetentionPolicy.RUNTIME) @Target({ElementType.TYPE,ElementType.PARAMETER,ElementType.FIELD}) @interface Fast{}\ninterface Sender{String send();}\n@Fast class FastSender implements Sender{public String send(){return \"fast\";}}\npublic class QualifierSample{public static void main(String[]a){System.out.println(FastSender.class.isAnnotationPresent(Fast.class));}}\n"}],
-      "task":"入力 `mail` / `sms` に応じて `MessageSender` のbind先だけを変え、`送信: mail:hello` または `送信: sms:hello` を出してください。NotificationServiceは実装クラスを知りません。",
-      "starterCode":"import jakarta.inject.Inject;\nimport java.util.*;\ninterface MessageSender{String send(String body);}\nclass MailSender implements MessageSender{public String send(String b){return \"mail:\"+b;}}\nclass SmsSender implements MessageSender{public String send(String b){return \"sms:\"+b;}}\nclass NotificationService{private final MessageSender sender;@Inject NotificationService(MessageSender s){sender=s;}String notify(String b){return \"送信: \"+sender.send(b);}}\npublic class DiQualifier{public static void main(String[]a){String mode=new Scanner(System.in).nextLine();// TODO choose binding\n}}\n",
-      "visibleCases":[{"label":"mail","stdin":"mail","expected":"送信: mail:hello"},{"label":"sms","stdin":"sms","expected":"送信: sms:hello"}],"hiddenCases":[{"label":"不正値はmail","stdin":"other","expected":"送信: mail:hello"}],
-      "hints":["`Class<? extends MessageSender> type = mode.equals(\"sms\") ? SmsSender.class : MailSender.class;`。","bindしてNotificationServiceをget。"],
-      "solution":"import jakarta.inject.Inject;\nimport java.util.*;\ninterface MessageSender{String send(String body);}\nclass MailSender implements MessageSender{public String send(String b){return \"mail:\"+b;}}\nclass SmsSender implements MessageSender{public String send(String b){return \"sms:\"+b;}}\nclass NotificationService{private final MessageSender sender;@Inject NotificationService(MessageSender s){sender=s;}String notify(String b){return \"送信: \"+sender.send(b);}}\npublic class DiQualifier{public static void main(String[]a){String mode=new Scanner(System.in).nextLine();Class<? extends MessageSender> type=mode.equals(\"sms\")?SmsSender.class:MailSender.class;MiniDi d=MiniDi.container().bind(MessageSender.class,type);System.out.println(d.get(NotificationService.class).notify(\"hello\"));}}\n",
-      "extraTasks":[{"kind":"applied","task":"注文作成後に2つのObserver（メールと監査ログ）へイベントを通知する簡易EventBusを完成させてください。主処理の戻り値は変えず副作用を分離します。","starterCode":"import java.util.*;\nrecord OrderCreated(int id){}\ninterface Observer{void on(OrderCreated e);}\nclass MailObserver implements Observer{public void on(OrderCreated e){System.out.println(\"mail order=\"+e.id());}}\nclass AuditObserver implements Observer{public void on(OrderCreated e){System.out.println(\"audit order=\"+e.id());}}\nclass EventBus{private final List<Observer> observers;EventBus(List<Observer> o){observers=o;}void fire(OrderCreated e){// TODO\n}}\npublic class DiEvent{public static void main(String[]a){int id=new Scanner(System.in).nextInt();EventBus bus=new EventBus(List.of(new MailObserver(),new AuditObserver()));System.out.println(\"created=\"+id);bus.fire(new OrderCreated(id));}}\n","visibleCases":[{"label":"通知","stdin":"7","expected":"created=7\nmail order=7\naudit order=7"}],"hiddenCases":[{"label":"別ID","stdin":"1","expected":"created=1\nmail order=1\naudit order=1"}],"hints":["`for (Observer observer : observers) observer.on(e);`。"],"solution":"import java.util.*;\nrecord OrderCreated(int id){}\ninterface Observer{void on(OrderCreated e);}\nclass MailObserver implements Observer{public void on(OrderCreated e){System.out.println(\"mail order=\"+e.id());}}\nclass AuditObserver implements Observer{public void on(OrderCreated e){System.out.println(\"audit order=\"+e.id());}}\nclass EventBus{private final List<Observer> observers;EventBus(List<Observer> o){observers=o;}void fire(OrderCreated e){for(Observer o:observers)o.on(e);}}\npublic class DiEvent{public static void main(String[]a){int id=new Scanner(System.in).nextInt();EventBus bus=new EventBus(List.of(new MailObserver(),new AuditObserver()));System.out.println(\"created=\"+id);bus.fire(new OrderCreated(id));}}\n"}],
-      "quiz":[{"question":"コンストラクタ注入の利点は？","choices":["依存なしでも必ず動く","必須依存が明確で単体テストでも直接渡せる","循環依存を推奨する","すべてstaticになる"],"answer":1,"explanation":"生成時に依存が揃い、final化と明示的なテスト差し替えができます。"},{"question":"利用者ごとの現在の入力を置くscopeは？","choices":["ApplicationScoped","RequestScoped","全てstatic","クラスローダscope"],"answer":1,"explanation":"1リクエストだけ生存するscopeが適切です。"},{"question":"同じinterfaceの実装候補を意味で区別する仕組みは？","choices":["Qualifier","ResultSet","Cookie","rollback"],"answer":0,"explanation":"独自Qualifierを注入点と実装へ付けて候補を限定します。"},{"question":"CDIイベントに向くものは？","choices":["必ず順番通り成功すべき送金の主更新","注文作成後の監査通知など付随処理","SQLのWHERE句","パスワード保存"],"answer":1,"explanation":"発行元と疎結合にできる付随処理に向きます。中核整合性を隠す用途には注意します。"}]
+      "id": "25-3",
+      "title": "Qualifier・Producer・イベント",
+      "explanation": "## はじめて学ぶ人へ\n\n同じ役割の実装が複数あるとき、CDIには選び方と作り方を伝えます。たとえばカード決済とテスト決済がどちらも `PaymentService` を実装しているなら、Qualifierは**名札**として使う実装を区別します。\n\n- Qualifier: 同じ型の候補から用途に合う1つを選ぶ\n- Producer: 設定値などを使い、生成手順が特殊な部品を作る\n- Event: 発生した出来事を、送り手と受け手を直接結ばず通知する\n\n注文完了イベントを「領収書メール」「分析記録」がそれぞれ受け取る形なら、注文処理は通知先を知る必要がありません。ただし、決済のように成功確認が必須な中心処理までイベントへ隠さず、戻り値が必要な処理は通常のメソッド呼び出しにします。\n\n## 同じ型の候補を区別する\n\n`PaymentGateway` の実装が複数あると型だけでは選べません。`@Qualifier` を付けた独自注釈で意味を指定します。\n\n```java\n@Qualifier @Retention(RUNTIME) @Target({TYPE, FIELD, PARAMETER})\n@interface TestMode {}\n\n@TestMode class FakeGateway implements PaymentGateway { ... }\n@Inject Service(@TestMode PaymentGateway gateway) { ... }\n```\n\n外部ライブラリの型や設定値は `@Produces` メソッドでBean化します。イベントは `event.fire(new OrderCreated(...))` と `void on(@Observes OrderCreated e)` で発行元と通知処理を疎結合にします。ただし処理順序や失敗を厳密に制御する主処理をイベントへ隠すと追いにくくなります。\n\nこの教材のMiniDiはQualifier自動解決を省略しているため、実行問題ではbindで同じ差し替えを体験します。注釈の形は本物と同じです。",
+      "samples": [
+        {
+          "caption": "Qualifier注釈を定義する",
+          "code": "import jakarta.inject.Qualifier;\nimport java.lang.annotation.*;\n\n@Qualifier\n@Retention(RetentionPolicy.RUNTIME)\n@Target({ElementType.TYPE, ElementType.PARAMETER, ElementType.FIELD})\n@interface\nFast { }\n\ninterface Sender {\n    String send();\n}\n\n@Fast\nclass FastSender implements Sender {\n    public String send() {\n        return \"fast\";\n    }\n}\n\npublic class QualifierSample {\n    public static void main(String[] a) {\n        System.out.println(FastSender.class.isAnnotationPresent(Fast.class));\n    }\n}\n"
+        }
+      ],
+      "task": "入力 `mail` / `sms` に応じて `MessageSender` のbind先だけを変え、`送信: mail:hello` または `送信: sms:hello` を出してください。NotificationServiceは実装クラスを知りません。",
+      "starterCode": "import jakarta.inject.Inject;\nimport java.util.*;\n\ninterface MessageSender {\n    String send(String body);\n}\n\nclass MailSender implements MessageSender {\n    public String send(String b) {\n        return \"mail:\" + b;\n    }\n}\n\nclass SmsSender implements MessageSender {\n    public String send(String b) {\n        return \"sms:\" + b;\n    }\n}\n\nclass NotificationService {\n    private final MessageSender sender;\n\n    @Inject\n    NotificationService(MessageSender s) {\n        sender = s;\n    }\n\n    String notify(String b) {\n        return \"送信: \" + sender.send(b);\n    }\n}\n\npublic class DiQualifier {\n    public static void main(String[] a) {\n        String mode = new Scanner(System.in).nextLine();\n        // TODO choose binding\n    }\n}\n",
+      "visibleCases": [
+        {
+          "label": "mail",
+          "stdin": "mail",
+          "expected": "送信: mail:hello"
+        },
+        {
+          "label": "sms",
+          "stdin": "sms",
+          "expected": "送信: sms:hello"
+        }
+      ],
+      "hiddenCases": [
+        {
+          "label": "不正値はmail",
+          "stdin": "other",
+          "expected": "送信: mail:hello"
+        }
+      ],
+      "hints": [
+        "`Class<? extends MessageSender> type = mode.equals(\"sms\") ? SmsSender.class : MailSender.class;`。",
+        "bindしてNotificationServiceをget。"
+      ],
+      "solution": "import jakarta.inject.Inject;\nimport java.util.*;\n\ninterface MessageSender {\n    String send(String body);\n}\n\nclass MailSender implements MessageSender {\n    public String send(String b) {\n        return \"mail:\" + b;\n    }\n}\n\nclass SmsSender implements MessageSender {\n    public String send(String b) {\n        return \"sms:\" + b;\n    }\n}\n\nclass NotificationService {\n    private final MessageSender sender;\n\n    @Inject\n    NotificationService(MessageSender s) {\n        sender = s;\n    }\n\n    String notify(String b) {\n        return \"送信: \" + sender.send(b);\n    }\n}\n\npublic class DiQualifier {\n    public static void main(String[] a) {\n        String mode = new Scanner(System.in).nextLine();\n        Class<? extends MessageSender> type = mode.equals(\"sms\") ? SmsSender.class : MailSender.class;\n        MiniDi d = MiniDi.container().bind(MessageSender.class, type);\n        System.out.println(d.get(NotificationService.class).notify(\"hello\"));\n    }\n}\n",
+      "extraTasks": [
+        {
+          "kind": "applied",
+          "task": "注文作成後に2つのObserver（メールと監査ログ）へイベントを通知する簡易EventBusを完成させてください。主処理の戻り値は変えず副作用を分離します。",
+          "starterCode": "import java.util.*;\n\nrecord OrderCreated(int id) { }\n\ninterface Observer {\n    void on(OrderCreated e);\n}\n\nclass MailObserver implements Observer {\n    public void on(OrderCreated e) {\n        System.out.println(\"mail order=\" + e.id());\n    }\n}\n\nclass AuditObserver implements Observer {\n    public void on(OrderCreated e) {\n        System.out.println(\"audit order=\" + e.id());\n    }\n}\n\nclass EventBus {\n    private final List<Observer> observers;\n\n    EventBus(List<Observer> o) {\n        observers = o;\n    }\n\n    void fire(OrderCreated e) {\n        // TODO\n    }\n}\n\npublic class DiEvent {\n    public static void main(String[] a) {\n        int id = new Scanner(System.in).nextInt();\n        EventBus bus = new EventBus(List.of(new MailObserver(), new AuditObserver()));\n        System.out.println(\"created=\" + id);\n        bus.fire(new OrderCreated(id));\n    }\n}\n",
+          "visibleCases": [
+            {
+              "label": "通知",
+              "stdin": "7",
+              "expected": "created=7\nmail order=7\naudit order=7"
+            }
+          ],
+          "hiddenCases": [
+            {
+              "label": "別ID",
+              "stdin": "1",
+              "expected": "created=1\nmail order=1\naudit order=1"
+            }
+          ],
+          "hints": [
+            "`for (Observer observer : observers) observer.on(e);`。"
+          ],
+          "solution": "import java.util.*;\n\nrecord OrderCreated(int id) { }\n\ninterface Observer {\n    void on(OrderCreated e);\n}\n\nclass MailObserver implements Observer {\n    public void on(OrderCreated e) {\n        System.out.println(\"mail order=\" + e.id());\n    }\n}\n\nclass AuditObserver implements Observer {\n    public void on(OrderCreated e) {\n        System.out.println(\"audit order=\" + e.id());\n    }\n}\n\nclass EventBus {\n    private final List<Observer> observers;\n\n    EventBus(List<Observer> o) {\n        observers = o;\n    }\n\n    void fire(OrderCreated e) {\n        for (Observer o : observers) o.on(e);\n    }\n}\n\npublic class DiEvent {\n    public static void main(String[] a) {\n        int id = new Scanner(System.in).nextInt();\n        EventBus bus = new EventBus(List.of(new MailObserver(), new AuditObserver()));\n        System.out.println(\"created=\" + id);\n        bus.fire(new OrderCreated(id));\n    }\n}\n",
+          "sourceChecks": [
+            {
+              "pattern": "\\bimplements\\s+Observer\\b",
+              "minimum": 2,
+              "message": "メールと監査ログの2つを、同じ `Observer` として作ってください。"
+            },
+            {
+              "pattern": "\\bvoid\\s+fire\\s*\\(",
+              "minimum": 1,
+              "message": "通知は `fire` にまとめてください。主処理は「起きたことを知らせる」だけで、誰が受け取るかを知りません。"
+            }
+          ]
+        }
+      ],
+      "quiz": [
+        {
+          "question": "コンストラクタ注入の利点は？",
+          "choices": [
+            "依存を後から `set` で差し替えられる",
+            "実装クラスを直接 `new` するので依存が減る",
+            "必須依存が明確で単体テストでも直接渡せる",
+            "循環依存を推奨する"
+          ],
+          "answer": 2,
+          "explanation": "後から `set` で差し替えられるのはセッター注入の性質で、コンストラクタ注入ならフィールドを `final` にできます。実装を直接 `new` すると、その実装に縛られて差し替えられません。循環依存は避けるべきものです。コンストラクタ注入では必須の依存が引数として現れ、テストでは普通に `new` して渡せます。"
+        },
+        {
+          "question": "利用者ごとの現在の入力を置くscopeは？",
+          "choices": [
+            "RequestScoped",
+            "クラスローダscope",
+            "SessionScoped",
+            "ApplicationScoped"
+          ],
+          "answer": 0,
+          "explanation": "クラスローダscopeというものはありません。`SessionScoped` は利用者のセッション全体、`ApplicationScoped` はアプリ全体で共有されるので、いま入力中の値を置くと前回の値が残ったり、他の利用者と混ざったりします。1リクエストのあいだだけ生きる `RequestScoped` が適切です。"
+        },
+        {
+          "question": "同じinterfaceの実装候補を意味で区別する仕組みは？",
+          "choices": [
+            "Qualifier",
+            "ResultSet",
+            "Cookie",
+            "rollback"
+          ],
+          "answer": 0,
+          "explanation": "`ResultSet` はJDBCの検索結果、`Cookie` はHTTPの仕組み、`rollback` はトランザクションの操作で、どれも注入先の選択とは関係ありません。同じ型の実装が複数あるときは、独自の `Qualifier` を注入点と実装の両方へ付けて候補を絞ります。"
+        },
+        {
+          "question": "CDIイベントに向くものは？",
+          "choices": [
+            "SQLのWHERE句",
+            "失敗したら全体を取り消したい送金の主更新",
+            "パスワード保存",
+            "注文作成後の監査通知など付随処理"
+          ],
+          "answer": 3,
+          "explanation": "SQLのWHERE句やパスワード保存は、そもそもイベントの話ではありません。送金の主更新のように「失敗したら全体を取り消したい処理」をイベントへ載せると、どこで失敗したのか追いにくく、整合性の要が見えなくなります。イベントは監査通知のような**付随処理**を切り離すのに向きます。"
+        }
+      ]
     },
     {
       "id": "25-4",
@@ -43,11 +285,11 @@
       "samples": [
         {
           "caption": "復習用サンプル：Qualifier注釈を定義する",
-          "code": "import jakarta.inject.Qualifier;\nimport java.lang.annotation.*;\n@Qualifier @Retention(RetentionPolicy.RUNTIME) @Target({ElementType.TYPE,ElementType.PARAMETER,ElementType.FIELD}) @interface Fast{}\ninterface Sender{String send();}\n@Fast class FastSender implements Sender{public String send(){return \"fast\";}}\npublic class QualifierSample{public static void main(String[]a){System.out.println(FastSender.class.isAnnotationPresent(Fast.class));}}\n"
+          "code": "import jakarta.inject.Qualifier;\nimport java.lang.annotation.*;\n\n@Qualifier\n@Retention(RetentionPolicy.RUNTIME)\n@Target({ElementType.TYPE, ElementType.PARAMETER, ElementType.FIELD})\n@interface\nFast { }\n\ninterface Sender {\n    String send();\n}\n\n@Fast\nclass FastSender implements Sender {\n    public String send() {\n        return \"fast\";\n    }\n}\n\npublic class QualifierSample {\n    public static void main(String[] a) {\n        System.out.println(FastSender.class.isAnnotationPresent(Fast.class));\n    }\n}\n"
         }
       ],
       "task": "【基本】GreetingRepositoryとその実装を作り、GreetingServiceへ `@Inject` でコンストラクタ注入します。MiniDiで結び、nameを読み `Hello, name` と表示してください。",
-      "starterCode": "import jakarta.inject.Inject;\nimport java.util.*;\ninterface GreetingRepository {String prefix();}\nclass JapaneseGreetingRepository implements GreetingRepository {public String prefix(){return \"こんにちは\";}}\nclass GreetingService {private final GreetingRepository repository;@Inject GreetingService(GreetingRepository repository){this.repository=repository;}String greet(String name){return \"\";/* TODO */}}\npublic class Main {public static void main(String[] args){String name=new Scanner(System.in).next();MiniDi di=MiniDi.container().bind(GreetingRepository.class,JapaneseGreetingRepository.class);System.out.println(di.get(GreetingService.class).greet(name));}}\n",
+      "starterCode": "import jakarta.inject.Inject;\nimport java.util.*;\n\ninterface GreetingRepository {\n    String prefix();\n}\n\nclass JapaneseGreetingRepository implements GreetingRepository {\n    public String prefix() {\n        return \"こんにちは\";\n    }\n}\n\nclass GreetingService {\n    private final GreetingRepository repository;\n\n    @Inject\n    GreetingService(GreetingRepository repository) {\n        this.repository = repository;\n    }\n\n    String greet(String name) {\n        return \"\";\n        /* TODO */\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        String name = new Scanner(System.in).next();\n        MiniDi di = MiniDi.container().bind(GreetingRepository.class, JapaneseGreetingRepository.class);\n        System.out.println(di.get(GreetingService.class).greet(name));\n    }\n}\n",
       "visibleCases": [
         {
           "label": "挨拶",
@@ -65,12 +307,12 @@
         "コンストラクタで受け取ったrepositoryをフィールドへ保存します。",
         "greetではrepository.prefix()とnameを連結します。"
       ],
-      "solution": "import jakarta.inject.Inject;\nimport java.util.*;\ninterface GreetingRepository {String prefix();}\nclass JapaneseGreetingRepository implements GreetingRepository {public String prefix(){return \"こんにちは\";}}\nclass GreetingService {private final GreetingRepository repository;@Inject GreetingService(GreetingRepository repository){this.repository=repository;}String greet(String name){return repository.prefix()+\", \"+name;}}\npublic class Main {public static void main(String[] args){String name=new Scanner(System.in).next();MiniDi di=MiniDi.container().bind(GreetingRepository.class,JapaneseGreetingRepository.class);System.out.println(di.get(GreetingService.class).greet(name));}}\n",
+      "solution": "import jakarta.inject.Inject;\nimport java.util.*;\n\ninterface GreetingRepository {\n    String prefix();\n}\n\nclass JapaneseGreetingRepository implements GreetingRepository {\n    public String prefix() {\n        return \"こんにちは\";\n    }\n}\n\nclass GreetingService {\n    private final GreetingRepository repository;\n\n    @Inject\n    GreetingService(GreetingRepository repository) {\n        this.repository = repository;\n    }\n\n    String greet(String name) {\n        return repository.prefix() + \", \" + name;\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        String name = new Scanner(System.in).next();\n        MiniDi di = MiniDi.container().bind(GreetingRepository.class, JapaneseGreetingRepository.class);\n        System.out.println(di.get(GreetingService.class).greet(name));\n    }\n}\n",
       "extraTasks": [
         {
           "kind": "drill",
           "task": "【組み合わせ】`@ApplicationScoped` なSequenceを作り、`next()` で1から増える番号を返します。MiniDiからSequenceを2回取得し、同じインスタンスであることと2つの番号を `same=true values=1,2` と表示してください。",
-          "starterCode": "import jakarta.enterprise.context.ApplicationScoped;\n@ApplicationScoped class Sequence {private int value;int next(){return 0;}}\npublic class Main {public static void main(String[] args){MiniDi di=MiniDi.container();Sequence a=di.get(Sequence.class),b=di.get(Sequence.class);System.out.println(\"same=\"+(a==b)+\" values=\"+a.next()+\",\"+b.next());}}\n",
+          "starterCode": "import jakarta.enterprise.context.ApplicationScoped;\n\n@ApplicationScoped\nclass Sequence {\n    private int value;\n\n    int next() {\n        return 0;\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        MiniDi di = MiniDi.container();\n        Sequence a = di.get(Sequence.class), b = di.get(Sequence.class);\n        System.out.println(\"same=\" + (a == b) + \" values=\" + a.next() + \",\" + b.next());\n    }\n}\n",
           "visibleCases": [
             {
               "label": "共有",
@@ -100,12 +342,12 @@
               "message": "2つの番号は `a.next()` と `b.next()` から取ってください。"
             }
           ],
-          "solution": "import jakarta.enterprise.context.ApplicationScoped;\n@ApplicationScoped class Sequence {private int value;int next(){return ++value;}}\npublic class Main {public static void main(String[] args){MiniDi di=MiniDi.container();Sequence a=di.get(Sequence.class),b=di.get(Sequence.class);System.out.println(\"same=\"+(a==b)+\" values=\"+a.next()+\",\"+b.next());}}\n"
+          "solution": "import jakarta.enterprise.context.ApplicationScoped;\n\n@ApplicationScoped\nclass Sequence {\n    private int value;\n\n    int next() {\n        return++ value;\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        MiniDi di = MiniDi.container();\n        Sequence a = di.get(Sequence.class), b = di.get(Sequence.class);\n        System.out.println(\"same=\" + (a == b) + \" values=\" + a.next() + \",\" + b.next());\n    }\n}\n"
         },
         {
           "kind": "applied",
           "task": "【実践】PaymentインターフェースにCardPaymentとTestPaymentを用意します。modeが `test` ならTestPayment、それ以外はCardPaymentをMiniDiへbindし、PaymentServiceから `card:金額` または `test:金額` と表示してください。",
-          "starterCode": "import jakarta.inject.Inject;\nimport java.util.*;\ninterface Payment {String pay(int amount);}\nclass CardPayment implements Payment {public String pay(int amount){return \"card:\"+amount;}}\nclass TestPayment implements Payment {public String pay(int amount){return \"test:\"+amount;}}\nclass PaymentService {private final Payment payment;@Inject PaymentService(Payment payment){this.payment=payment;}String execute(int amount){/* TODO */return \"\";}}\npublic class Main {public static void main(String[] args){Scanner s=new Scanner(System.in);String mode=s.next();int amount=s.nextInt();Class<? extends Payment> type=mode.equals(\"test\")?TestPayment.class:CardPayment.class;MiniDi di=MiniDi.container().bind(Payment.class,type);System.out.println(di.get(PaymentService.class).execute(amount));}}\n",
+          "starterCode": "import jakarta.inject.Inject;\nimport java.util.*;\n\ninterface Payment {\n    String pay(int amount);\n}\n\nclass CardPayment implements Payment {\n    public String pay(int amount) {\n        return \"card:\" + amount;\n    }\n}\n\nclass TestPayment implements Payment {\n    public String pay(int amount) {\n        return \"test:\" + amount;\n    }\n}\n\nclass PaymentService {\n    private final Payment payment;\n\n    @Inject\n    PaymentService(Payment payment) {\n        this.payment = payment;\n    }\n\n    String execute(int amount) {\n        /* TODO */ return \"\";\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        String mode = s.next();\n        int amount = s.nextInt();\n        Class<? extends Payment> type = mode.equals(\"test\") ? TestPayment.class : CardPayment.class;\n        MiniDi di = MiniDi.container().bind(Payment.class, type);\n        System.out.println(di.get(PaymentService.class).execute(amount));\n    }\n}\n",
           "visibleCases": [
             {
               "label": "テスト決済",
@@ -129,7 +371,24 @@
             "Serviceは具体的な実装を知らずPaymentだけを呼びます。",
             "modeに応じた実装Classをbindします。"
           ],
-          "solution": "import jakarta.inject.Inject;\nimport java.util.*;\ninterface Payment {String pay(int amount);}\nclass CardPayment implements Payment {public String pay(int amount){return \"card:\"+amount;}}\nclass TestPayment implements Payment {public String pay(int amount){return \"test:\"+amount;}}\nclass PaymentService {private final Payment payment;@Inject PaymentService(Payment payment){this.payment=payment;}String execute(int amount){return payment.pay(amount);}}\npublic class Main {public static void main(String[] args){Scanner s=new Scanner(System.in);String mode=s.next();int amount=s.nextInt();Class<? extends Payment> type=mode.equals(\"test\")?TestPayment.class:CardPayment.class;MiniDi di=MiniDi.container().bind(Payment.class,type);System.out.println(di.get(PaymentService.class).execute(amount));}}\n"
+          "solution": "import jakarta.inject.Inject;\nimport java.util.*;\n\ninterface Payment {\n    String pay(int amount);\n}\n\nclass CardPayment implements Payment {\n    public String pay(int amount) {\n        return \"card:\" + amount;\n    }\n}\n\nclass TestPayment implements Payment {\n    public String pay(int amount) {\n        return \"test:\" + amount;\n    }\n}\n\nclass PaymentService {\n    private final Payment payment;\n\n    @Inject\n    PaymentService(Payment payment) {\n        this.payment = payment;\n    }\n\n    String execute(int amount) {\n        return payment.pay(amount);\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        String mode = s.next();\n        int amount = s.nextInt();\n        Class<? extends Payment> type = mode.equals(\"test\") ? TestPayment.class : CardPayment.class;\n        MiniDi di = MiniDi.container().bind(Payment.class, type);\n        System.out.println(di.get(PaymentService.class).execute(amount));\n    }\n}\n",
+          "sourceChecks": [
+            {
+              "pattern": "\\bimplements\\s+Payment\\b",
+              "minimum": 2,
+              "message": "本番用とテスト用の2つを、同じ `Payment` として作ってください。"
+            },
+            {
+              "pattern": "\\bbind\\s*\\(",
+              "minimum": 1,
+              "message": "どちらを使うかは `bind` で決めます。`PaymentService` の中では分岐しません。"
+            },
+            {
+              "pattern": "@Inject",
+              "minimum": 1,
+              "message": "`PaymentService` は `@Inject` で受け取ってください。"
+            }
+          ]
         }
       ]
     }

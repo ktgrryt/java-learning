@@ -7,79 +7,509 @@
     {
       "id": "45-1",
       "title": "テストしやすいコード",
-      "explanation": "## 入力と出力を小さくする\n\n自動テストでは、同じ入力なら同じ結果を返す小さなメソッドが扱いやすくなります。時刻、乱数、ファイル、通信を処理の内部で直接取得すると結果が環境に依存します。値や役割を引数で受け取り、計算と入出力を分けます。\n\n```java\nstatic int fee(int price, int rate) {\n    if (price < 0 || rate < 0) throw new IllegalArgumentException();\n    return Math.multiplyExact(price, rate) / 100;\n}\n```\n\nテストケースは正常値だけでなく、境界値（0、上限の前後）、同値分割、例外も選びます。実装の行をなぞるのではなく、利用者から見える振る舞いを検証します。",
-      "samples": [{"caption":"手作業の最小テスト","code":"public class Main {\n  static int discount(int price, int rate){if(price<0||rate<0||rate>100)throw new IllegalArgumentException();return price-price*rate/100;}\n  public static void main(String[] args){if(discount(1000,20)!=800)throw new AssertionError();System.out.println(\"OK\");}\n}\n"}],
+      "explanation": "## 入力と出力を小さくする\n\n自動テストでは、同じ入力なら同じ結果を返す小さなメソッドが扱いやすくなります。時刻、乱数、ファイル、通信を処理の内部で直接取得すると結果が環境に依存します。値や役割を引数で受け取り、計算と入出力を分けます。\n\n```java\nstatic int fee(int price, int rate) {\n    if (price < 0 || rate < 0) throw new IllegalArgumentException();\n    return Math.multiplyExact(price, rate) / 100;\n}\n```\n\nテストケースは正常値だけでなく、境界値（0、上限の前後）、同値分割、例外も選びます。実装の行をなぞるのではなく、利用者から見える振る舞いを検証します。\n\n### 「いま」と「外の世界」を引数にする\n\nテストしにくいコードは、たいてい **自分で外の世界を取りに行っています**。\n\n```java\n// テストしにくい\nstatic int fee(int price) {\n    int rate = LocalDate.now().getDayOfWeek() == DayOfWeek.SUNDAY ? 20 : 10;\n    return price * (100 - rate) / 100;\n}\n```\n\n`now()` を中で呼んでいるので、**実行した日によって結果が変わります**。日曜の挙動を\n確かめるには日曜まで待つしかありません。\n\n外から渡す形にすると、いつでも試せます。\n\n```java\nstatic int fee(int price, DayOfWeek day) {      // 判断の材料を引数にする\n    int rate = day == DayOfWeek.SUNDAY ? 20 : 10;\n    return price * (100 - rate) / 100;\n}\n```\n\n同じことが、乱数（`Math.random()`）、環境変数、ファイル、HTTP呼び出しにも当てはまります。\n\n| 中で取りに行くもの | 外から渡す形 |\n|---|---|\n| `LocalDate.now()` | `Clock` か、日付そのものを引数に |\n| `Math.random()` | `Random` を受け取る（種を固定できる） |\n| `System.getenv` | 設定オブジェクトを引数に |\n| DB・HTTP | インターフェースにして差し替える（第21章） |\n\n> ⚠️ 間違えやすい点 … `static` な可変フィールドに状態を持つと、テストの実行順で\n> 結果が変わります（前のテストが残した値を次が見る）。順番に依存するテストは、\n> 単体では通るのに全部走らせると落ちる、という最も追いにくい形になります。",
+      "samples": [
+        {
+          "caption": "手作業の最小テスト",
+          "code": "public class Main {\n    static int discount(int price, int rate) {\n        if (price < 0 || rate < 0 || rate > 100) throw new IllegalArgumentException();\n        return price - price * rate / 100;\n    }\n\n    public static void main(String[] args) {\n        if (discount(1000, 20) != 800) throw new AssertionError();\n        System.out.println(\"OK\");\n    }\n}\n"
+        }
+      ],
       "task": "価格priceと割引率rateを読み、割引後価格を表示してください。負の価格、または0〜100外の率は `INVALID`。整数の切り捨てで構いません。計算はstaticメソッドへ分離します。",
-      "starterCode": "import java.util.*;\npublic class Main {static int discounted(int price,int rate){return 0;}public static void main(String[] args){Scanner s=new Scanner(System.in);int price=s.nextInt(),rate=s.nextInt();/* TODO */}}\n",
-      "visibleCases": [{"label":"通常","stdin":"1000 20","expected":"800"},{"label":"境界","stdin":"500 100","expected":"0"}],
-      "hiddenCases": [{"label":"不正","stdin":"100 -1","expected":"INVALID"},{"label":"率0なら変わらない","stdin":"1200 0","expected":"1200"},{"label":"率が上限を超える","stdin":"100 101","expected":"INVALID"},{"label":"価格0","stdin":"0 50","expected":"0"},{"label":"切り捨て","stdin":"999 10","expected":"900"}],
-      "hints": ["不正値では `IllegalArgumentException` を投げます。","mainでは例外をcatchしてINVALIDを表示します。"],
-      "solution": "import java.util.*;\npublic class Main {static int discounted(int price,int rate){if(price<0||rate<0||rate>100)throw new IllegalArgumentException();return price-price*rate/100;}public static void main(String[] args){Scanner s=new Scanner(System.in);int price=s.nextInt(),rate=s.nextInt();try{System.out.println(discounted(price,rate));}catch(IllegalArgumentException e){System.out.println(\"INVALID\");}}}\n",
+      "starterCode": "import java.util.*;\n\npublic class Main {\n    static int discounted(int price, int rate) {\n        return 0;\n    }\n\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        int price = s.nextInt(), rate = s.nextInt();\n        /* TODO */\n    }\n}\n",
+      "visibleCases": [
+        {
+          "label": "通常",
+          "stdin": "1000 20",
+          "expected": "800"
+        },
+        {
+          "label": "境界",
+          "stdin": "500 100",
+          "expected": "0"
+        }
+      ],
+      "hiddenCases": [
+        {
+          "label": "不正",
+          "stdin": "100 -1",
+          "expected": "INVALID"
+        },
+        {
+          "label": "率0なら変わらない",
+          "stdin": "1200 0",
+          "expected": "1200"
+        },
+        {
+          "label": "率が上限を超える",
+          "stdin": "100 101",
+          "expected": "INVALID"
+        },
+        {
+          "label": "価格0",
+          "stdin": "0 50",
+          "expected": "0"
+        },
+        {
+          "label": "切り捨て",
+          "stdin": "999 10",
+          "expected": "900"
+        }
+      ],
+      "hints": [
+        "不正値では `IllegalArgumentException` を投げます。",
+        "mainでは例外をcatchしてINVALIDを表示します。"
+      ],
+      "solution": "import java.util.*;\n\npublic class Main {\n    static int discounted(int price, int rate) {\n        if (price < 0 || rate < 0 || rate > 100) throw new IllegalArgumentException();\n        return price - price * rate / 100;\n    }\n\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        int price = s.nextInt(), rate = s.nextInt();\n        try {\n            System.out.println(discounted(price, rate));\n        } catch (IllegalArgumentException e) {\n            System.out.println(\"INVALID\");\n        }\n    }\n}\n",
       "quiz": [
-        {"question":"単体テストを安定させやすい設計は？","choices":["現在時刻をメソッド内で必ず取得する","計算と入出力を分け、依存値を引数で受け取る","全処理をmainへ書く","テストごとに期待値を変える"],"answer":1,"explanation":"外部要因を境界の外へ出すと、入力と期待結果を固定できます。"},
-        {"question":"次のメソッドを単体テストしにくくしている点はどれでしょう。\n\n```java\nstatic int fee(int price) {\n    int rate = LocalDate.now().getDayOfWeek() == DayOfWeek.SUNDAY ? 20 : 10;\n    return price * rate / 100;\n}\n```","choices":["曜日をメソッド内部で取得しているため、実行した日によって結果が変わる","`price` を引数で受け取っている","戻り値が `int` である","`static` メソッドである"],"answer":0,"explanation":"時刻や曜日は内部で取得せず引数などで外から渡すと、入力と期待結果を固定できます。"}
+        {
+          "question": "単体テストを安定させやすい設計は？",
+          "choices": [
+            "全処理をmainへ書く",
+            "現在時刻をメソッドの中で `LocalDate.now()` から取る",
+            "計算と入出力を分け、依存値を引数で受け取る",
+            "テストごとに期待値を変える"
+          ],
+          "answer": 2,
+          "explanation": "すべて `main` へ書くと、切り出して呼ぶ単位がありません。メソッドの中で `LocalDate.now()` を呼ぶと、実行した日によって結果が変わり、期待値を固定できません。テストごとに期待値を変えるのは、何を保証しているのか分からなくなる書き方です。計算を分け、変わるものは引数で受け取ります。"
+        },
+        {
+          "question": "次のメソッドを単体テストしにくくしている点はどれでしょう。\n\n```java\nstatic int fee(int price) {\n    int rate = LocalDate.now().getDayOfWeek() == DayOfWeek.SUNDAY ? 20 : 10;\n    return price * rate / 100;\n}\n```",
+          "choices": [
+            "曜日を内部で取得しているため、実行した日で結果が変わる",
+            "`static` メソッドとして定義されている",
+            "戻り値の型が `int` になっている",
+            "`price` を引数として受け取っている"
+          ],
+          "answer": 0,
+          "explanation": "時刻や曜日は内部で取得せず引数などで外から渡すと、入力と期待結果を固定できます。"
+        }
       ]
     },
     {
       "id": "45-2",
       "title": "JUnitの基本",
-      "explanation": "## 実行可能な仕様を書く\n\nJUnitでは `@Test` の付いたメソッドをテストランナーが実行します。期待値を左、実測値を右に置く `assertEquals(expected, actual)`、条件の `assertTrue`、例外の `assertThrows` などを使います。\n\n```java\n@Test\nvoid rateZeroKeepsPrice() {\n    assertEquals(1200, PriceService.discounted(1200, 0));\n}\n\n@ParameterizedTest\n@CsvSource({\"1000,20,800\", \"500,100,0\"})\nvoid discounts(int price, int rate, int expected) {\n    assertEquals(expected, PriceService.discounted(price, rate));\n}\n```\n\nテスト名には条件と期待結果を表します。Arrange（準備）、Act（実行）、Assert（検証）を意識すると失敗原因を追いやすくなります。実際のJUnitプロジェクトは `labs/testing-maven` で実行できます。",
-      "samples": [{"caption":"例外も仕様として検証","code":"public class Main {static int parsePort(String s){int n=Integer.parseInt(s);if(n<1||n>65535)throw new IllegalArgumentException();return n;}public static void main(String[] args){try{parsePort(\"0\");throw new AssertionError(\"例外が必要\");}catch(IllegalArgumentException expected){System.out.println(\"OK\");}}}\n"}],
-      "task": "n個の整数と期待合計を読み、実際の合計が一致すれば `PASS`、違えば `FAIL expected=x actual=y` と表示してください。検証結果を作るstaticメソッドへ分けます。",
-      "starterCode": "import java.util.*;\npublic class Main {static String verify(int expected,int actual){return \"\";}public static void main(String[] args){Scanner s=new Scanner(System.in);int n=s.nextInt(),expected=s.nextInt(),actual=0;for(int i=0;i<n;i++)actual+=s.nextInt();System.out.println(verify(expected,actual));}}\n",
-      "visibleCases": [{"label":"成功","stdin":"3 6 1 2 3","expected":"PASS"},{"label":"失敗","stdin":"2 10 3 4","expected":"FAIL expected=10 actual=7"}],
-      "hiddenCases": [{"label":"空","stdin":"0 0","expected":"PASS"},{"label":"空だが期待値が0でない","stdin":"0 5","expected":"FAIL expected=5 actual=0"},{"label":"負数を含んで打ち消す","stdin":"3 0 -1 1 0","expected":"PASS"},{"label":"1件","stdin":"1 7 7","expected":"PASS"}],
-      "hints": ["三項演算子でもifでも構いません。","失敗メッセージは期待値と実測値の順です。"],
-      "solution": "import java.util.*;\npublic class Main {static String verify(int expected,int actual){return expected==actual?\"PASS\":\"FAIL expected=\"+expected+\" actual=\"+actual;}public static void main(String[] args){Scanner s=new Scanner(System.in);int n=s.nextInt(),expected=s.nextInt(),actual=0;for(int i=0;i<n;i++)actual+=s.nextInt();System.out.println(verify(expected,actual));}}\n",
+      "explanation": "## 実行可能な仕様を書く\n\nJUnitでは `@Test` の付いたメソッドをテストランナーが実行します。期待値を左、実測値を右に置く `assertEquals(expected, actual)`、条件の `assertTrue`、例外の `assertThrows` などを使います。\n\n```java\n@Test\nvoid rateZeroKeepsPrice() {\n    assertEquals(1200, PriceService.discounted(1200, 0));\n}\n\n@ParameterizedTest\n@CsvSource({\"1000,20,800\", \"500,100,0\"})\nvoid discounts(int price, int rate, int expected) {\n    assertEquals(expected, PriceService.discounted(price, rate));\n}\n```\n\nテスト名には条件と期待結果を表します。Arrange（準備）、Act（実行）、Assert（検証）を意識すると失敗原因を追いやすくなります。実際のJUnitプロジェクトは `labs/testing-maven` で実行できます。\n\n### 実際に走らせるとこうなる\n\n```\n$ mvn test\n[INFO] Running cafe.lab.PriceServiceTest\n[INFO] Tests run: 6, Failures: 0, Errors: 0, Skipped: 0\n[INFO] BUILD SUCCESS\n```\n\n失敗すると、件数と一緒に **どのテストのどこが違ったか** が出ます。だから\nテストは「落ちたときに読める」形に書きます。\n\n### よく使う書き方\n\n```java\n@Test\nvoid 正常系() {\n    assertEquals(900, PriceService.discounted(1000, 10));   // 期待値を左、実測を右\n}\n\n@Test\nvoid 範囲外は例外() {\n    assertThrows(IllegalArgumentException.class,\n            () -> PriceService.discounted(1000, 101));\n}\n\n@ParameterizedTest\n@CsvSource({\"1000,0,1000\", \"1000,100,0\", \"999,10,900\"})\nvoid 境界値(int price, int rate, int expected) {\n    assertEquals(expected, PriceService.discounted(price, rate));\n}\n```\n\n`@ParameterizedTest` は、同じ検証を値だけ変えて回せます。境界値（`0`、上限、\n割り切れない数）をまとめて置くのに向きます。\n\n> ⚠️ 間違えやすい点 … `assertEquals` の引数は **期待値が先、実測があと** です。\n> 逆に書いても等価判定の結果は同じですが、失敗時のメッセージの\n> expected と actual が入れ替わり、原因を読み違えます。\n> また、1つのテストで複数のことを確かめると、落ちたときにどれが原因か分かりません。\n> テスト名は「何を確かめたか」が読めるように付けます。\n\n### このアプリでの走らせ方\n本物のJUnitは Maven や Gradle がテストクラスを探して起動します。このアプリには\n`MiniJUnit` という小さなランナーを同梱してあるので、`main` から呼んで走らせます。\n**書くテストの側は本物と同じ**（`@Test`、`assertEquals`、`assertThrows`、\n`@ParameterizedTest`）で、起動のしかただけが違います。\n\n```java\npublic static void main(String[] args) {\n    MiniJUnit.run(PriceRulesTest.class);\n}\n```\n\n出力は surefire に似せた形で出ます。\n\n```\nRunning PriceRulesTest\n  PASS rate0KeepsPrice\n  FAIL rate100IsFree -- expected: <0> but was: <12>\nTests run: 2, Failures: 1, Errors: 0\n```\n\n`FAIL` は検証が合わなかったもの、`ERROR` は検証以外の例外で落ちたものです。分けて数えるのは、\n**テスト側の書き間違いと、対象コードの不具合を混同しない**ためです。\n\n> ⚠️ 実行順に頼らない … `MiniJUnit` はメソッド名の順に走らせますが、\n> **本物のJUnitは実行順を保証しません**。「前のテストが作った状態」を当てにすると、\n> 順番が変わった日に落ちます。だからJUnitはテストごとにインスタンスを作り直します\n> （`MiniJUnit` も同じにしてあります）。共通の準備は `@BeforeEach` へ書きます。\n\n> 🧪 アプリで確かめること / labs で動かすこと … この問題で確かめるのは`@Test` とアサーションの書き方。同梱の `MiniJUnit` で本物と同じテストが実際に走りますです。\n> Maven がテストクラスを探して起動する流れと、surefire のレポートは、1ファイル・標準入力だけのこの画面では扱えません。`labs/testing-maven` に本物を置いてあります。",
+      "samples": [
+        {
+          "caption": "例外も仕様として検証",
+          "code": "public class Main {\n    static int parsePort(String s) {\n        int n = Integer.parseInt(s);\n        if (n < 1 || n > 65535) throw new IllegalArgumentException();\n        return n;\n    }\n\n    public static void main(String[] args) {\n        try {\n            parsePort(\"0\");\n            throw new AssertionError(\"例外が必要\");\n        } catch (IllegalArgumentException expected) {\n            System.out.println(\"OK\");\n        }\n    }\n}\n"
+        }
+      ],
+      "task": "`PriceRules.discounted(price, rate)` を、JUnitの書き方でテストします。仕様は3つです。\n\n- `price` が負、または `rate` が 0〜100 の外なら `IllegalArgumentException` を投げる\n- `rate` が 0 なら価格はそのまま\n- `rate` が 100 なら 0 円\n\n`PriceRules` には**4つの版**があり、版0だけが仕様どおりで、版1〜3にはそれぞれ違う不具合が1つずつ混ざっています。標準入力から版番号を1つ読み、`PriceRules.select(版番号)` で切り替えたあと、`MiniJUnit.run(PriceRulesTest.class)` でテストを走らせてください。\n\n`PriceRulesTest` には次の3つを、**この名前どおりに**作ります（レポートに名前がそのまま出るため）。\n\n- `rate0KeepsPrice` … `discounted(1200, 0)` が `1200`\n- `rate100IsFree` … `discounted(1200, 100)` が `0`\n- `negativePriceThrows` … `discounted(-1, 10)` が `IllegalArgumentException` を投げる\n\n`assertEquals` は期待値を先に書きます。表示は `MiniJUnit` がすべてやるので、自分で `System.out` へ書く必要はありません。",
+      "starterCode": "import org.junit.jupiter.api.Test;\n\nimport java.util.Scanner;\n\nimport static org.junit.jupiter.api.Assertions.assertEquals;\nimport static org.junit.jupiter.api.Assertions.assertThrows;\n\nclass PriceRulesTest {\n\n    @Test\n    void rate0KeepsPrice() {\n        /* TODO 期待値を先、実測をあとに書く */\n    }\n\n    @Test\n    void rate100IsFree() {\n        /* TODO */\n    }\n\n    @Test\n    void negativePriceThrows() {\n        /* TODO assertThrows へラムダで渡す */\n    }\n}\n\npublic class Main {\n\n    public static void main(String[] args) {\n        Scanner scanner = new Scanner(System.in);\n        PriceRules.select(scanner.nextInt());\n        MiniJUnit.run(PriceRulesTest.class);\n    }\n}",
+      "visibleCases": [
+        {
+          "label": "版0（仕様どおり）",
+          "stdin": "0",
+          "expected": "Running PriceRulesTest\n  PASS negativePriceThrows\n  PASS rate0KeepsPrice\n  PASS rate100IsFree\nTests run: 3, Failures: 0, Errors: 0"
+        },
+        {
+          "label": "版1（100%引きにしても残る）",
+          "stdin": "1",
+          "expected": "Running PriceRulesTest\n  PASS negativePriceThrows\n  PASS rate0KeepsPrice\n  FAIL rate100IsFree -- expected: <0> but was: <12>\nTests run: 3, Failures: 1, Errors: 0"
+        }
+      ],
+      "hiddenCases": [
+        {
+          "label": "版2（入力の検査が抜けている）",
+          "stdin": "2",
+          "expected": "Running PriceRulesTest\n  FAIL negativePriceThrows -- Expected java.lang.IllegalArgumentException to be thrown, but nothing was thrown.\n  PASS rate0KeepsPrice\n  PASS rate100IsFree\nTests run: 3, Failures: 1, Errors: 0"
+        },
+        {
+          "label": "版3（割引率0でも勝手に引く）",
+          "stdin": "3",
+          "expected": "Running PriceRulesTest\n  PASS negativePriceThrows\n  FAIL rate0KeepsPrice -- expected: <1200> but was: <1140>\n  PASS rate100IsFree\nTests run: 3, Failures: 1, Errors: 0"
+        }
+      ],
+      "hints": [
+        "`assertEquals(期待値, 実測値)` の順です。`assertEquals(1200, PriceRules.discounted(1200, 0))` のように書きます。",
+        "例外は `assertThrows(IllegalArgumentException.class, () -> PriceRules.discounted(-1, 10))` で確かめます。ラムダの中で呼ぶのが要点で、先に呼んでしまうとテストが走る前に落ちます。",
+        "表示は `MiniJUnit` の仕事です。`System.out.println` は書きません。"
+      ],
+      "solution": "import org.junit.jupiter.api.Test;\n\nimport java.util.Scanner;\n\nimport static org.junit.jupiter.api.Assertions.assertEquals;\nimport static org.junit.jupiter.api.Assertions.assertThrows;\n\nclass PriceRulesTest {\n\n    @Test\n    void rate0KeepsPrice() {\n        assertEquals(1200, PriceRules.discounted(1200, 0));\n    }\n\n    @Test\n    void rate100IsFree() {\n        assertEquals(0, PriceRules.discounted(1200, 100));\n    }\n\n    @Test\n    void negativePriceThrows() {\n        assertThrows(IllegalArgumentException.class, () -> PriceRules.discounted(-1, 10));\n    }\n}\n\npublic class Main {\n\n    public static void main(String[] args) {\n        Scanner scanner = new Scanner(System.in);\n        PriceRules.select(scanner.nextInt());\n        MiniJUnit.run(PriceRulesTest.class);\n    }\n}",
       "quiz": [
-        {"question":"例外が投げられることをJUnitで検証するものは？","choices":["assertEquals","assertThrows","assertNullだけ","System.exit"],"answer":1,"explanation":"assertThrowsは期待する例外型と実行処理を受け取ります。"},
-        {"question":"`assertEquals(actual, expected)` のように引数を逆に書くと、どうなるでしょう。","choices":["コンパイルエラーになる","テストが実行されない","等価判定の結果は同じだが、失敗時のexpected/actual表示が入れ替わり原因を読み違えやすい","必ず失敗する"],"answer":2,"explanation":"JUnitは期待値を左、実測値を右に置く規約です。逆に書くと失敗メッセージの意味が反転します。"}
+        {
+          "question": "例外が投げられることをJUnitで検証するものは？",
+          "choices": [
+            "assertEquals",
+            "System.exit",
+            "assertNullだけ",
+            "assertThrows"
+          ],
+          "answer": 3,
+          "explanation": "`assertEquals` は値の一致を見るもので、例外が投げられたかは分かりません。`System.exit` はJVMを終わらせるのでテストが成立しません。`assertNull` は `null` かどうかの判定です。`assertThrows(型.class, () -> ...)` は期待した例外が投げられたかを確かめ、その例外を返します。"
+        },
+        {
+          "question": "`assertEquals(actual, expected)` のように引数を逆に書くと、どうなるでしょう。",
+          "choices": [
+            "引数の順序を検査するので、テストが実行されない",
+            "順序が違うと等価判定そのものが必ず失敗する",
+            "引数の順序が型で決まっているのでコンパイルエラーになる",
+            "失敗したときの expected/actual の表示が入れ替わる"
+          ],
+          "answer": 3,
+          "explanation": "JUnitは期待値を左、実測値を右に置く規約です。逆に書くと失敗メッセージの意味が反転します。等価判定の結果そのものは変わりませんが、原因を読み違えやすくなります。"
+        }
+      ],
+      "libs": [
+        "junit-jupiter",
+        "cafe-price-rules"
+      ],
+      "sourceChecks": [
+        {
+          "pattern": "@Test\\b",
+          "minimum": 3,
+          "message": "3つのテストすべてに `@Test` を付けてください。付いていないメソッドはランナーから見えません。"
+        },
+        {
+          "pattern": "\\bassertEquals\\s*\\(",
+          "minimum": 2,
+          "message": "値の検証は `assertEquals(期待値, 実測値)` で書いてください。"
+        },
+        {
+          "pattern": "\\bassertThrows\\s*\\(",
+          "minimum": 1,
+          "message": "例外の検証は `assertThrows` を使ってください。`try-catch` で書くと、例外が投げられなかった場合を見逃します。"
+        },
+        {
+          "pattern": "System\\s*\\.\\s*out\\s*\\.\\s*print",
+          "minimum": 0,
+          "maximum": 0,
+          "message": "レポートの表示は `MiniJUnit` がやります。自分で `System.out` へ書かないでください。"
+        }
       ]
     },
     {
       "id": "45-3",
       "title": "テストダブルとテストの層",
       "explanation": "## 置き換える境界を選ぶ\n\n単体テストは1つのクラスを速く検証します。統合テストはDBやHTTPなど複数部品の接続を確かめ、E2Eテストは利用者の一連の操作を通します。下の層を多く、上の層を重要な経路に絞ると、速さと信頼性を両立しやすくなります。\n\n```svg 下の層を多く、上の層は重要な経路だけ。速さと信頼性の釣り合いを取る\n<svg viewBox=\"0 0 720 246\">\n  <polygon class=\"fig-box-ng\" points=\"360,38 432,92 288,92\"/>\n  <text class=\"fig-t fig-small\" x=\"360\" y=\"76\" text-anchor=\"middle\">E2E</text>\n  <polygon class=\"fig-box\" points=\"286,96 434,96 484,150 236,150\"/>\n  <text class=\"fig-t fig-small\" x=\"360\" y=\"126\" text-anchor=\"middle\">統合</text>\n  <polygon class=\"fig-box-ok\" points=\"234,154 486,154 536,208 184,208\"/>\n  <text class=\"fig-t fig-small\" x=\"360\" y=\"184\" text-anchor=\"middle\">単体</text>\n\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"270\" y=\"70\" text-anchor=\"end\">利用者の一連の操作を通す</text>\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"220\" y=\"124\" text-anchor=\"end\">DB や HTTP を実際につなぐ</text>\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"170\" y=\"182\" text-anchor=\"end\">1クラスのロジックを速く検証</text>\n  <text class=\"fig-t fig-t-ng fig-small\" x=\"450\" y=\"70\">少なく・遅い・壊れやすい</text>\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"500\" y=\"124\">数を絞る</text>\n  <text class=\"fig-t fig-t-ok fig-small\" x=\"552\" y=\"182\">多く・速い</text>\n\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"14\" y=\"232\">外部サービスは stub / mock で置き換える。まずインターフェースで境界を作り、必要な範囲だけ差し替える</text>\n</svg>\n```\n\n外部サービスを置き換える小さな実装をテストダブルと呼びます。呼び出し結果を返すstub、呼び出された事実も検証するmockなどがあります。まずインターフェースで境界を作り、必要な範囲だけ置き換えます。内部実装の呼び出し回数を細かく固定しすぎると、振る舞いが同じリファクタリングでもテストが壊れます。",
-      "samples": [{"caption":"依存を差し替える","code":"interface RateSource{int rate();}class Price{static int total(int base,RateSource r){return base+base*r.rate()/100;}}public class Main{public static void main(String[] a){RateSource stub=()->10;System.out.println(Price.total(1000,stub));}}\n"}],
+      "samples": [
+        {
+          "caption": "依存を差し替える",
+          "code": "interface RateSource {\n    int rate();\n}\n\nclass Price {\n    static int total(int base, RateSource r) {\n        return base + base * r.rate() / 100;\n    }\n}\n\npublic class Main {\n    public static void main(String[] a) {\n        RateSource stub = () -> 10;\n        System.out.println(Price.total(1000, stub));\n    }\n}\n"
+        }
+      ],
       "task": "基準価格baseと税率rateを読みます。`RateSource` をラムダで差し替えて税込価格を表示してください。負の入力は `INVALID` です。",
-      "starterCode": "import java.util.*;interface RateSource{int rate();}class PriceService{static int total(int base,RateSource source){return 0;}}public class Main{public static void main(String[] a){Scanner s=new Scanner(System.in);int base=s.nextInt(),rate=s.nextInt();/* TODO */}}\n",
-      "visibleCases": [{"label":"10パーセント","stdin":"1000 10","expected":"1100"}],
-      "hiddenCases": [{"label":"不正","stdin":"-1 10","expected":"INVALID"},{"label":"ゼロ","stdin":"0 8","expected":"0"},{"label":"税率0","stdin":"500 0","expected":"500"},{"label":"税率が負","stdin":"1000 -5","expected":"INVALID"},{"label":"切り捨て","stdin":"999 10","expected":"1098"}],
-      "hints": ["`RateSource source = () -> rate;` と差し替えられます。","検証はPriceService内に置きます。"],
-      "solution": "import java.util.*;interface RateSource{int rate();}class PriceService{static int total(int base,RateSource source){int rate=source.rate();if(base<0||rate<0)throw new IllegalArgumentException();return base+base*rate/100;}}public class Main{public static void main(String[] a){Scanner s=new Scanner(System.in);int base=s.nextInt(),rate=s.nextInt();try{RateSource source=()->rate;System.out.println(PriceService.total(base,source));}catch(IllegalArgumentException e){System.out.println(\"INVALID\");}}}\n",
+      "starterCode": "import java.util.*;\n\ninterface RateSource {\n    int rate();\n}\n\nclass PriceService {\n    static int total(int base, RateSource source) {\n        return 0;\n    }\n}\n\npublic class Main {\n    public static void main(String[] a) {\n        Scanner s = new Scanner(System.in);\n        int base = s.nextInt(), rate = s.nextInt();\n        /* TODO */\n    }\n}\n",
+      "visibleCases": [
+        {
+          "label": "10パーセント",
+          "stdin": "1000 10",
+          "expected": "1100"
+        }
+      ],
+      "hiddenCases": [
+        {
+          "label": "不正",
+          "stdin": "-1 10",
+          "expected": "INVALID"
+        },
+        {
+          "label": "ゼロ",
+          "stdin": "0 8",
+          "expected": "0"
+        },
+        {
+          "label": "税率0",
+          "stdin": "500 0",
+          "expected": "500"
+        },
+        {
+          "label": "税率が負",
+          "stdin": "1000 -5",
+          "expected": "INVALID"
+        },
+        {
+          "label": "切り捨て",
+          "stdin": "999 10",
+          "expected": "1098"
+        }
+      ],
+      "hints": [
+        "`RateSource source = () -> rate;` と差し替えられます。",
+        "検証はPriceService内に置きます。"
+      ],
+      "solution": "import java.util.*;\n\ninterface RateSource {\n    int rate();\n}\n\nclass PriceService {\n    static int total(int base, RateSource source) {\n        int rate = source.rate();\n        if (base < 0 || rate < 0) throw new IllegalArgumentException();\n        return base + base * rate / 100;\n    }\n}\n\npublic class Main {\n    public static void main(String[] a) {\n        Scanner s = new Scanner(System.in);\n        int base = s.nextInt(), rate = s.nextInt();\n        try {\n            RateSource source = () -> rate;\n            System.out.println(PriceService.total(base, source));\n        } catch (IllegalArgumentException e) {\n            System.out.println(\"INVALID\");\n        }\n    }\n}\n",
       "quiz": [
-        {"question":"DBとの接続も含めて確認するテストは主にどの層？","choices":["単体テスト","統合テスト","コンパイル警告","コード整形"],"answer":1,"explanation":"実物またはテスト用DBとの連携は統合テストで確認します。"},
-        {"question":"振る舞いを変えないリファクタリングなのにテストが壊れるようになるのは、どの書き方でしょう。","choices":["公開メソッドの戻り値を検証する","境界をインターフェースで切り出す","stubで固定値を返す","内部の呼び出し回数や順序を細かく固定する"],"answer":3,"explanation":"内部実装へ結合したmock検証は、外から見た振る舞いが同じでも壊れます。利用者から見える振る舞いを検証します。"}
+        {
+          "question": "DBとの接続も含めて確認するテストは主にどの層？",
+          "choices": [
+            "コンパイル警告",
+            "単体テスト",
+            "コード整形",
+            "統合テスト"
+          ],
+          "answer": 3,
+          "explanation": "コンパイル警告は静的な指摘、コード整形は見た目の話で、どちらもテストではありません。単体テストは対象を切り離して確かめるもので、DBは切り離す側に入ります。SQLの綴りやスキーマとの食い違いは、実物かテスト用DBへ実際につないで確かめる統合テストで初めて見つかります。"
+        },
+        {
+          "question": "振る舞いを変えないリファクタリングなのにテストが壊れるようになるのは、どの書き方でしょう。",
+          "choices": [
+            "stubで固定値を返す",
+            "内部の呼び出し回数や順序を細かく固定する",
+            "公開メソッドの戻り値を検証する",
+            "境界をインターフェースで切り出す"
+          ],
+          "answer": 1,
+          "explanation": "内部実装へ結合したmock検証は、外から見た振る舞いが同じでも壊れます。利用者から見える振る舞いを検証します。"
+        }
       ]
     },
     {
       "id": "45-4",
       "title": "Mavenと成果物",
-      "explanation": "## 再現可能なビルドを作る\n\nMavenは `pom.xml` にJavaバージョン、依存関係、プラグインを宣言し、標準ディレクトリ `src/main/java` と `src/test/java` を使います。`mvn test` はテスト、`mvn package` はJARなどの成果物作成まで進めます。依存バージョンは明示し、成果物とソースを同じ手順で再現できるようにします。\n\nJARはクラスやリソースをまとめたZIP形式です。実行可能JARではmanifestのMain-Classなどが必要です。JPMSを使う場合は `module-info.java` の `requires` と `exports` でモジュール境界を宣言します。クラスパス方式とモジュールパス方式を混同せず、まず小さなプロジェクトで構造を確認します。`labs/modules` には2モジュールの最小例があり、JARへまとめて実行したあと `exports` を外すと、公開境界がコンパイル時に守られることを確かめられます。",
-      "samples": [{"caption":"実行中のクラスパスを確認","code":"public class Main{public static void main(String[] a){System.out.println(System.getProperty(\"java.class.path\").isBlank()?\"empty\":\"configured\");}}\n"}],
+      "explanation": "## 再現可能なビルドを作る\n\nMavenは `pom.xml` にJavaバージョン、依存関係、プラグインを宣言し、標準ディレクトリ `src/main/java` と `src/test/java` を使います。`mvn test` はテスト、`mvn package` はJARなどの成果物作成まで進めます。依存バージョンは明示し、成果物とソースを同じ手順で再現できるようにします。\n\nJARはクラスやリソースをまとめたZIP形式です。実行可能JARではmanifestのMain-Classなどが必要です。JPMSを使う場合は `module-info.java` の `requires` と `exports` でモジュール境界を宣言します。クラスパス方式とモジュールパス方式を混同せず、まず小さなプロジェクトで構造を確認します。`labs/modules` には2モジュールの最小例があり、JARへまとめて実行したあと `exports` を外すと、公開境界がコンパイル時に守られることを確かめられます。\n\n### ビルドすると何ができるか\n\n```\n$ mvn test\n[INFO] Running cafe.lab.PriceServiceTest\n[INFO] Tests run: 6, Failures: 0, Errors: 0, Skipped: 0\n[INFO] BUILD SUCCESS\n\n$ mvn package\ntarget/testing-maven-lab-1.0.0-SNAPSHOT.jar\n```\n\n`target/` の中は役割で分かれています。\n\n| 場所 | 中身 |\n|---|---|\n| `target/classes` | 本体のクラス（JARに入る） |\n| `target/test-classes` | テストのクラス（**JARに入らない**） |\n| `target/*.jar` | 配布する成果物 |\n\n### scope は「いつ必要か」の宣言\n\n| scope | コンパイル | 実行 | 成果物に入る |\n|---|---|---|---|\n| `compile`（既定） | ○ | ○ | ○ |\n| `test` | テストのみ | テストのみ | × |\n| `provided` | ○ | 動かす環境が用意する | **×** |\n| `runtime` | × | ○ | ○ |\n\nJUnitが `test` なのは、テストを動かすときだけ必要で、利用者へ配る必要がないからです。\nJakarta EEのAPIが `provided` なのは、アプリサーバーが同じものを持っているからです\n（同梱すると同じクラスが2つになって事故になります。第21章）。\n\n> ⚠️ 間違えやすい点 … `SNAPSHOT` は「まだ確定していない版」で、同じバージョン番号のまま\n> 中身が差し替わります。再現性が要るビルド（本番へ出すもの）では、依存に `SNAPSHOT` を\n> 使わないこと。「昨日は通ったのに今日落ちる」の原因になります。\n\n> 🧪 アプリで確かめること / labs で動かすこと … この問題で確かめるのはバージョンが衝突していることを見つける手順です。\n> `mvn dependency:tree` や `jlink` を実際に叩くことは、1ファイル・標準入力だけのこの画面では扱えません。`labs/modules` に本物を置いてあります。",
+      "samples": [
+        {
+          "caption": "実行中のクラスパスを確認",
+          "code": "public class Main {\n    public static void main(String[] a) {\n        System.out.println(System.getProperty(\"java.class.path\").isBlank() ? \"empty\" : \"configured\");\n    }\n}\n"
+        }
+      ],
       "task": "依存関係を `group:artifact:version` の形でn件読み、同一のgroupとartifactが複数バージョンで宣言されていれば辞書順で `CONFLICT group:artifact` と表示してください。なければ `OK`。",
-      "starterCode": "import java.util.*;public class Main{public static void main(String[] a){Scanner s=new Scanner(System.in);int n=s.nextInt();Map<String,Set<String>> versions=new TreeMap<>();for(int i=0;i<n;i++){String[] p=s.next().split(\":\",-1);/* TODO */}/* TODO */}}\n",
-      "visibleCases": [{"label":"競合","stdin":"3 org.demo:core:1.0 org.demo:web:1.0 org.demo:core:2.0","expected":"CONFLICT org.demo:core"},{"label":"なし","stdin":"2 a:b:1 a:c:2","expected":"OK"}],
-      "hiddenCases": [{"label":"同一版重複","stdin":"2 a:b:1 a:b:1","expected":"OK"},{"label":"0件","stdin":"0","expected":"OK"},{"label":"競合が2つ辞書順","stdin":"4 z:z:1 z:z:2 a:a:1 a:a:2","expected":"CONFLICT a:a\nCONFLICT z:z"},{"label":"3バージョン","stdin":"3 a:b:1 a:b:2 a:b:3","expected":"CONFLICT a:b"}],
-      "hints": ["キーは `p[0] + \":\" + p[1]` です。","`computeIfAbsent` でTreeSetを作り、sizeが2以上のキーを出します。"],
-      "solution": "import java.util.*;public class Main{public static void main(String[] a){Scanner s=new Scanner(System.in);int n=s.nextInt();Map<String,Set<String>> versions=new TreeMap<>();for(int i=0;i<n;i++){String[] p=s.next().split(\":\",-1);versions.computeIfAbsent(p[0]+\":\"+p[1],k->new TreeSet<>()).add(p[2]);}boolean ok=true;for(var e:versions.entrySet())if(e.getValue().size()>1){System.out.println(\"CONFLICT \"+e.getKey());ok=false;}if(ok)System.out.println(\"OK\");}}\n",
+      "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] a) {\n        Scanner s = new Scanner(System.in);\n        int n = s.nextInt();\n        Map<String, Set<String>> versions = new TreeMap<>();\n        for (int i = 0; i < n; i++) {\n            String[] p = s.next().split(\":\", - 1);\n            /* TODO */\n        }\n        /* TODO */\n    }\n}\n",
+      "visibleCases": [
+        {
+          "label": "競合",
+          "stdin": "3 org.demo:core:1.0 org.demo:web:1.0 org.demo:core:2.0",
+          "expected": "CONFLICT org.demo:core"
+        },
+        {
+          "label": "なし",
+          "stdin": "2 a:b:1 a:c:2",
+          "expected": "OK"
+        }
+      ],
+      "hiddenCases": [
+        {
+          "label": "同一版重複",
+          "stdin": "2 a:b:1 a:b:1",
+          "expected": "OK"
+        },
+        {
+          "label": "0件",
+          "stdin": "0",
+          "expected": "OK"
+        },
+        {
+          "label": "競合が2つ辞書順",
+          "stdin": "4 z:z:1 z:z:2 a:a:1 a:a:2",
+          "expected": "CONFLICT a:a\nCONFLICT z:z"
+        },
+        {
+          "label": "3バージョン",
+          "stdin": "3 a:b:1 a:b:2 a:b:3",
+          "expected": "CONFLICT a:b"
+        }
+      ],
+      "hints": [
+        "キーは `p[0] + \":\" + p[1]` です。",
+        "`computeIfAbsent` でTreeSetを作り、sizeが2以上のキーを出します。"
+      ],
+      "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] a) {\n        Scanner s = new Scanner(System.in);\n        int n = s.nextInt();\n        Map<String, Set<String>> versions = new TreeMap<>();\n        for (int i = 0; i < n; i++) {\n            String[] p = s.next().split(\":\", - 1);\n            versions.computeIfAbsent(p[0] + \":\" + p[1], k -> new TreeSet<>()).add(p[2]);\n        }\n        boolean ok = true;\n        for (var e : versions.entrySet()) if (e.getValue().size() > 1) {\n            System.out.println(\"CONFLICT \" + e.getKey());\n            ok = false;\n        }\n        if (ok) System.out.println(\"OK\");\n    }\n}\n",
       "quiz": [
-        {"question":"Mavenの標準的なテストソース配置は？","choices":["src/test/java","test/main/java","build/test","lib/java"],"answer":0,"explanation":"標準配置に従うと追加設定を減らせます。"},
-        {"question":"`module-info.java` から `exports` を外すと、そのパッケージを使っていた別モジュールはどうなるでしょう。","choices":["警告は出るが動く","コンパイル時にアクセスできず失敗する","実行時にだけ失敗する","何も変わらない"],"answer":1,"explanation":"公開境界はコンパイル時に検査されます。`labs/modules` で実際に外して確かめられます。"}
+        {
+          "question": "Mavenの標準的なテストソース配置は？",
+          "choices": [
+            "lib/java",
+            "test/main/java",
+            "src/test/java",
+            "build/test"
+          ],
+          "answer": 2,
+          "explanation": "`lib/java`、`test/main/java`、`build/test` はいずれもMavenが見る場所ではありません。テストは `src/test/java`、本体は `src/main/java` という決まった配置になっていて、これに従えば設定を書かずにビルドとテストが動きます。"
+        },
+        {
+          "question": "`module-info.java` から `exports` を外すと、そのパッケージを使っていた別モジュールはどうなるでしょう。",
+          "choices": [
+            "何も変わらない",
+            "コンパイル時にアクセスできず失敗する",
+            "実行時にだけ失敗する",
+            "警告は出るが動く"
+          ],
+          "answer": 1,
+          "explanation": "公開境界はコンパイル時に検査されます。`labs/modules` で実際に外して確かめられます。"
+        }
       ]
     },
     {
       "id": "45-5",
       "title": "章末演習：テストとビルド",
       "explanation": "## この章の知識を、自分の手で組み合わせよう\n\nここでは、**テストしやすい分割・境界値と例外の検証・テストの層・依存バージョンの競合**をまとめて使います。新しい文法は登場しません。分からなくなったら、直前までの解説やサンプルへ戻って確認して大丈夫です。\n\n### 3問の進め方\n\n1. **基本**で、中心となる書き方をもう一度使う\n2. **組み合わせ**で、章内の複数の知識を一緒に使う\n3. **実践**で、少し現実的な入力と条件を整理する\n\nJUnitやMavenそのものは動かしません。ここで書くのは、**テストランナーやビルドツールが内側でしている判断**をJavaへ書き起こしたものです。",
-      "samples": [{"caption":"復習用サンプル：例外が起きたことも1つの結果として比べる","code":"public class Main{public static void main(String[] a){String actual;try{actual=String.valueOf(Integer.parseInt(\"x\"));}catch(NumberFormatException e){actual=\"INVALID\";}System.out.println(actual.equals(\"INVALID\")?\"PASS\":\"FAIL\");}}\n","expected":"PASS"}],
+      "samples": [
+        {
+          "caption": "復習用サンプル：例外が起きたことも1つの結果として比べる",
+          "code": "public class Main {\n    public static void main(String[] a) {\n        String actual;\n        try {\n            actual = String.valueOf(Integer.parseInt(\"x\"));\n        } catch (NumberFormatException e) {\n            actual = \"INVALID\";\n        }\n        System.out.println(actual.equals(\"INVALID\") ? \"PASS\" : \"FAIL\");\n    }\n}\n",
+          "expected": "PASS"
+        }
+      ],
       "task": "【基本】割引計算を検証するミニテストランナーを作ります。ケース数nを読み、続けてn件の `price rate expected` を読みます。`discounted(price, rate)` は `price` が負、または `rate` が0〜100の外なら `IllegalArgumentException` を投げ、そうでなければ `price - price * rate / 100`（整数の切り捨て）を返します。各ケースについて、例外が起きたら実測値を `INVALID`、起きなければ戻り値の文字列とし、`expected` と一致すれば `番号 PASS`、違えば `番号 FAIL expected=期待値 actual=実測値` と表示してください（番号は1から）。最後に成功件数を `PASSED 成功数/全数` の形で表示します。",
-      "starterCode": "import java.util.*;\npublic class Main {\n    static int discounted(int price,int rate){/* TODO 不正値では例外を投げる */return price;}\n    public static void main(String[] args){Scanner s=new Scanner(System.in);int n=s.nextInt();int passed=0;for(int i=1;i<=n;i++){int price=s.nextInt(),rate=s.nextInt();String expected=s.next();/* TODO */}System.out.println(\"PASSED \"+passed+\"/\"+n);}\n}\n",
-      "visibleCases": [{"label":"すべて成功","stdin":"3 1000 20 800 500 100 0 100 -1 INVALID","expected":"1 PASS\n2 PASS\n3 PASS\nPASSED 3/3"},{"label":"期待値とずれる","stdin":"2 1000 20 700 -5 10 5","expected":"1 FAIL expected=700 actual=800\n2 FAIL expected=5 actual=INVALID\nPASSED 0/2"}],
-      "hiddenCases": [{"label":"切り捨て","stdin":"1 999 10 900","expected":"1 PASS\nPASSED 1/1"},{"label":"例外を期待したのに通った","stdin":"1 1000 50 INVALID","expected":"1 FAIL expected=INVALID actual=500\nPASSED 0/1"},{"label":"率の上限を超える","stdin":"1 100 101 INVALID","expected":"1 PASS\nPASSED 1/1"},{"label":"ケース0件","stdin":"0","expected":"PASSED 0/0"}],
-      "hints": ["`discounted` は `price<0||rate<0||rate>100` のときに `throw new IllegalArgumentException();` します。","呼び出しを `try` で囲み、`catch(IllegalArgumentException e)` のときだけ実測値を `\"INVALID\"` にします。","実測値を文字列にしておけば、数値のケースと `INVALID` のケースを同じ `equals` で比べられます。"],
-      "solution": "import java.util.*;\npublic class Main {\n    static int discounted(int price,int rate){if(price<0||rate<0||rate>100)throw new IllegalArgumentException();return price-price*rate/100;}\n    public static void main(String[] args){Scanner s=new Scanner(System.in);int n=s.nextInt();int passed=0;for(int i=1;i<=n;i++){int price=s.nextInt(),rate=s.nextInt();String expected=s.next();String actual;try{actual=String.valueOf(discounted(price,rate));}catch(IllegalArgumentException e){actual=\"INVALID\";}if(actual.equals(expected)){System.out.println(i+\" PASS\");passed++;}else System.out.println(i+\" FAIL expected=\"+expected+\" actual=\"+actual);}System.out.println(\"PASSED \"+passed+\"/\"+n);}\n}\n",
-      "extraTasks": [{"kind":"drill","task":"【組み合わせ】テストをn件 `name layer ms` の形で読みます。`layer` は `unit` / `integration` / `e2e` のいずれかです。まず層ごとの件数と合計時間を `layer 件数 合計ms` の形で、`unit` → `integration` → `e2e` の順に表示してください（0件の層も表示します）。次に、件数が `unit >= integration >= e2e` を満たしていれば `PYRAMID`、満たしていなければ `INVERTED` と表示します。","starterCode":"import java.util.*;\npublic class Main {public static void main(String[] args){Scanner s=new Scanner(System.in);int n=s.nextInt();List<String> layers=List.of(\"unit\",\"integration\",\"e2e\");Map<String,Integer> count=new LinkedHashMap<>(),time=new LinkedHashMap<>();for(String l:layers){count.put(l,0);time.put(l,0);}for(int i=0;i<n;i++){String name=s.next(),layer=s.next();int ms=s.nextInt();/* TODO 集計 */}/* TODO 表示とピラミッド判定 */}}\n","visibleCases":[{"label":"きれいなピラミッド","stdin":"6 a unit 5 b unit 3 c unit 4 d integration 50 e integration 60 f e2e 900","expected":"unit 3 12\nintegration 2 110\ne2e 1 900\nPYRAMID"},{"label":"上が重い","stdin":"3 a unit 5 b e2e 800 c e2e 900","expected":"unit 1 5\nintegration 0 0\ne2e 2 1700\nINVERTED"}],"hiddenCases":[{"label":"テストが0件","stdin":"0","expected":"unit 0 0\nintegration 0 0\ne2e 0 0\nPYRAMID"},{"label":"同数はピラミッド扱い","stdin":"4 a unit 1 b unit 2 c integration 3 d integration 4","expected":"unit 2 3\nintegration 2 7\ne2e 0 0\nPYRAMID"},{"label":"単体テストだけ","stdin":"2 a unit 10 b unit 20","expected":"unit 2 30\nintegration 0 0\ne2e 0 0\nPYRAMID"},{"label":"統合テストが最多","stdin":"3 a unit 1 b integration 2 c integration 3","expected":"unit 1 1\nintegration 2 5\ne2e 0 0\nINVERTED"}],"hints":["件数は `count.merge(layer,1,Integer::sum)`、時間は `time.merge(layer,ms,Integer::sum)` で足せます。","`layers` の順に取り出せば、0件の層も抜けずに表示できます。","判定は2つの比較を `&&` でつなぎます。上の層が下の層より多いとき、テストは遅く壊れやすくなります。"],"solution":"import java.util.*;\npublic class Main {public static void main(String[] args){Scanner s=new Scanner(System.in);int n=s.nextInt();List<String> layers=List.of(\"unit\",\"integration\",\"e2e\");Map<String,Integer> count=new LinkedHashMap<>(),time=new LinkedHashMap<>();for(String l:layers){count.put(l,0);time.put(l,0);}for(int i=0;i<n;i++){String name=s.next(),layer=s.next();int ms=s.nextInt();count.merge(layer,1,Integer::sum);time.merge(layer,ms,Integer::sum);}for(String l:layers)System.out.println(l+\" \"+count.get(l)+\" \"+time.get(l));System.out.println(count.get(\"unit\")>=count.get(\"integration\")&&count.get(\"integration\")>=count.get(\"e2e\")?\"PYRAMID\":\"INVERTED\");}}\n"},{"kind":"applied","task":"【実践】依存関係をn件 `group:artifact:major.minor` の形で読みます。同じ `group:artifact` に異なるバージョンが複数宣言されていれば、`CONFLICT group:artifact` を辞書順に表示してください。続けて、解決後の一覧を `group:artifact=採用バージョン` の形で辞書順に表示します。採用するのは最大のバージョンで、比較は文字列ではなく major と minor の数値で行ってください（`1.10` は `1.2` より新しい）。","starterCode":"import java.util.*;\npublic class Main {\n    static int[] parse(String v){/* TODO major と minor に分ける */return new int[]{0,0};}\n    public static void main(String[] args){Scanner s=new Scanner(System.in);int n=s.nextInt();Map<String,Set<String>> versions=new TreeMap<>();for(int i=0;i<n;i++){String[] p=s.next().split(\":\",-1);/* TODO キーは p[0]+\":\"+p[1] */}/* TODO 競合の表示 */\n/* TODO 解決結果の表示 */}\n}\n","visibleCases":[{"label":"競合を最大版で解決","stdin":"3 org.demo:core:1.9 org.demo:core:1.10 org.demo:web:2.0","expected":"CONFLICT org.demo:core\norg.demo:core=1.10\norg.demo:web=2.0"},{"label":"競合なし","stdin":"2 a:b:1.0 a:c:1.2","expected":"a:b=1.0\na:c=1.2"}],"hiddenCases":[{"label":"同じ版の重複は競合ではない","stdin":"2 a:b:1.0 a:b:1.0","expected":"a:b=1.0"},{"label":"文字列比較では間違える","stdin":"2 a:b:1.2 a:b:1.10","expected":"CONFLICT a:b\na:b=1.10"},{"label":"majorを先に見る","stdin":"2 a:b:2.0 a:b:1.99","expected":"CONFLICT a:b\na:b=2.0"},{"label":"競合が2つ","stdin":"4 z:z:1.0 z:z:2.0 a:a:1.0 a:a:3.0","expected":"CONFLICT a:a\nCONFLICT z:z\na:a=3.0\nz:z=2.0"},{"label":"1件だけ","stdin":"1 x:y:0.1","expected":"x:y=0.1"}],"hints":["`versions` を `TreeMap` にしておくと、取り出すときに `group:artifact` の辞書順になります。","バージョンは `v.split(\"\\\\.\",-1)` で分け、`Integer.parseInt` で数にしてから比べます。","競合の一覧を先に全部出し、そのあとで解決結果を出します。2回ループを回して構いません。"],"solution":"import java.util.*;\npublic class Main {\n    static int[] parse(String v){String[] q=v.split(\"\\\\.\",-1);return new int[]{Integer.parseInt(q[0]),Integer.parseInt(q[1])};}\n    public static void main(String[] args){Scanner s=new Scanner(System.in);int n=s.nextInt();Map<String,Set<String>> versions=new TreeMap<>();for(int i=0;i<n;i++){String[] p=s.next().split(\":\",-1);versions.computeIfAbsent(p[0]+\":\"+p[1],k->new LinkedHashSet<>()).add(p[2]);}for(Map.Entry<String,Set<String>> e:versions.entrySet())if(e.getValue().size()>1)System.out.println(\"CONFLICT \"+e.getKey());for(Map.Entry<String,Set<String>> e:versions.entrySet()){String best=null;for(String v:e.getValue()){if(best==null){best=v;continue;}int[] a=parse(v),b=parse(best);if(a[0]>b[0]||(a[0]==b[0]&&a[1]>b[1]))best=v;}System.out.println(e.getKey()+\"=\"+best);}}\n}\n"}]
+      "starterCode": "import java.util.*;\n\npublic class Main {\n    static int discounted(int price, int rate) {\n        /* TODO 不正値では例外を投げる */ return price;\n    }\n\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        int n = s.nextInt();\n        int passed = 0;\n        for (int i = 1; i <= n; i++) {\n            int price = s.nextInt(), rate = s.nextInt();\n            String expected = s.next();\n            /* TODO */\n        }\n        System.out.println(\"PASSED \" + passed + \"/\" + n);\n    }\n}\n",
+      "visibleCases": [
+        {
+          "label": "すべて成功",
+          "stdin": "3 1000 20 800 500 100 0 100 -1 INVALID",
+          "expected": "1 PASS\n2 PASS\n3 PASS\nPASSED 3/3"
+        },
+        {
+          "label": "期待値とずれる",
+          "stdin": "2 1000 20 700 -5 10 5",
+          "expected": "1 FAIL expected=700 actual=800\n2 FAIL expected=5 actual=INVALID\nPASSED 0/2"
+        }
+      ],
+      "hiddenCases": [
+        {
+          "label": "切り捨て",
+          "stdin": "1 999 10 900",
+          "expected": "1 PASS\nPASSED 1/1"
+        },
+        {
+          "label": "例外を期待したのに通った",
+          "stdin": "1 1000 50 INVALID",
+          "expected": "1 FAIL expected=INVALID actual=500\nPASSED 0/1"
+        },
+        {
+          "label": "率の上限を超える",
+          "stdin": "1 100 101 INVALID",
+          "expected": "1 PASS\nPASSED 1/1"
+        },
+        {
+          "label": "ケース0件",
+          "stdin": "0",
+          "expected": "PASSED 0/0"
+        }
+      ],
+      "hints": [
+        "`discounted` は `price<0||rate<0||rate>100` のときに `throw new IllegalArgumentException();` します。",
+        "呼び出しを `try` で囲み、`catch(IllegalArgumentException e)` のときだけ実測値を `\"INVALID\"` にします。",
+        "実測値を文字列にしておけば、数値のケースと `INVALID` のケースを同じ `equals` で比べられます。"
+      ],
+      "solution": "import java.util.*;\n\npublic class Main {\n    static int discounted(int price, int rate) {\n        if (price < 0 || rate < 0 || rate > 100) throw new IllegalArgumentException();\n        return price - price * rate / 100;\n    }\n\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        int n = s.nextInt();\n        int passed = 0;\n        for (int i = 1; i <= n; i++) {\n            int price = s.nextInt(), rate = s.nextInt();\n            String expected = s.next();\n            String actual;\n            try {\n                actual = String.valueOf(discounted(price, rate));\n            } catch (IllegalArgumentException e) {\n                actual = \"INVALID\";\n            }\n            if (actual.equals(expected)) {\n                System.out.println(i + \" PASS\");\n                passed++;\n            } else System.out.println(i + \" FAIL expected=\" + expected + \" actual=\" + actual);\n        }\n        System.out.println(\"PASSED \" + passed + \"/\" + n);\n    }\n}\n",
+      "extraTasks": [
+        {
+          "kind": "drill",
+          "task": "【組み合わせ】テストをn件 `name layer ms` の形で読みます。`layer` は `unit` / `integration` / `e2e` のいずれかです。まず層ごとの件数と合計時間を `layer 件数 合計ms` の形で、`unit` → `integration` → `e2e` の順に表示してください（0件の層も表示します）。次に、件数が `unit >= integration >= e2e` を満たしていれば `PYRAMID`、満たしていなければ `INVERTED` と表示します。",
+          "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        int n = s.nextInt();\n        List<String> layers = List.of(\"unit\", \"integration\", \"e2e\");\n        Map<String, Integer> count = new LinkedHashMap<>(), time = new LinkedHashMap<>();\n        for (String l : layers) {\n            count.put(l, 0);\n            time.put(l, 0);\n        }\n        for (int i = 0; i < n; i++) {\n            String name = s.next(), layer = s.next();\n            int ms = s.nextInt();\n            /* TODO 集計 */\n        }\n        /* TODO 表示とピラミッド判定 */\n    }\n}\n",
+          "visibleCases": [
+            {
+              "label": "きれいなピラミッド",
+              "stdin": "6 a unit 5 b unit 3 c unit 4 d integration 50 e integration 60 f e2e 900",
+              "expected": "unit 3 12\nintegration 2 110\ne2e 1 900\nPYRAMID"
+            },
+            {
+              "label": "上が重い",
+              "stdin": "3 a unit 5 b e2e 800 c e2e 900",
+              "expected": "unit 1 5\nintegration 0 0\ne2e 2 1700\nINVERTED"
+            }
+          ],
+          "hiddenCases": [
+            {
+              "label": "テストが0件",
+              "stdin": "0",
+              "expected": "unit 0 0\nintegration 0 0\ne2e 0 0\nPYRAMID"
+            },
+            {
+              "label": "同数はピラミッド扱い",
+              "stdin": "4 a unit 1 b unit 2 c integration 3 d integration 4",
+              "expected": "unit 2 3\nintegration 2 7\ne2e 0 0\nPYRAMID"
+            },
+            {
+              "label": "単体テストだけ",
+              "stdin": "2 a unit 10 b unit 20",
+              "expected": "unit 2 30\nintegration 0 0\ne2e 0 0\nPYRAMID"
+            },
+            {
+              "label": "統合テストが最多",
+              "stdin": "3 a unit 1 b integration 2 c integration 3",
+              "expected": "unit 1 1\nintegration 2 5\ne2e 0 0\nINVERTED"
+            }
+          ],
+          "hints": [
+            "件数は `count.merge(layer,1,Integer::sum)`、時間は `time.merge(layer,ms,Integer::sum)` で足せます。",
+            "`layers` の順に取り出せば、0件の層も抜けずに表示できます。",
+            "判定は2つの比較を `&&` でつなぎます。上の層が下の層より多いとき、テストは遅く壊れやすくなります。"
+          ],
+          "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        int n = s.nextInt();\n        List<String> layers = List.of(\"unit\", \"integration\", \"e2e\");\n        Map<String, Integer> count = new LinkedHashMap<>(), time = new LinkedHashMap<>();\n        for (String l : layers) {\n            count.put(l, 0);\n            time.put(l, 0);\n        }\n        for (int i = 0; i < n; i++) {\n            String name = s.next(), layer = s.next();\n            int ms = s.nextInt();\n            count.merge(layer, 1, Integer::sum);\n            time.merge(layer, ms, Integer::sum);\n        }\n        for (String l : layers) System.out.println(l + \" \" + count.get(l) + \" \" + time.get(l));\n        System.out.println(count.get(\"unit\") >= count.get(\"integration\") && count.get(\"integration\") >= count.get(\"e2e\") ? \"PYRAMID\" : \"INVERTED\");\n    }\n}\n",
+          "sourceChecks": [
+            {
+              "pattern": "List\\s*\\.\\s*of\\s*\\(|String\\s*\\[\\s*\\]",
+              "minimum": 1,
+              "message": "出力する層の順番は決まっています。`List.of(\"unit\", \"integration\", \"e2e\")` のように順序を持ってください。"
+            },
+            {
+              "pattern": "\\bnew\\s+LinkedHashMap\\b",
+              "minimum": 1,
+              "message": "入れた順を保つので `LinkedHashMap` を使ってください。`HashMap` では並び順が決まりません。"
+            }
+          ]
+        },
+        {
+          "kind": "applied",
+          "task": "【実践】依存関係をn件 `group:artifact:major.minor` の形で読みます。同じ `group:artifact` に異なるバージョンが複数宣言されていれば、`CONFLICT group:artifact` を辞書順に表示してください。続けて、解決後の一覧を `group:artifact=採用バージョン` の形で辞書順に表示します。採用するのは最大のバージョンで、比較は文字列ではなく major と minor の数値で行ってください（`1.10` は `1.2` より新しい）。",
+          "starterCode": "import java.util.*;\n\npublic class Main {\n    static int[] parse(String v) {\n        /* TODO major と minor に分ける */ return new int[] {0, 0};\n    }\n\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        int n = s.nextInt();\n        Map<String, Set<String>> versions = new TreeMap<>();\n        for (int i = 0; i < n; i++) {\n            String[] p = s.next().split(\":\", - 1);\n            /* TODO キーは p[0]+\":\"+p[1] */\n        }\n        /* TODO 競合の表示 */ /* TODO 解決結果の表示 */\n    }\n}\n",
+          "visibleCases": [
+            {
+              "label": "競合を最大版で解決",
+              "stdin": "3 org.demo:core:1.9 org.demo:core:1.10 org.demo:web:2.0",
+              "expected": "CONFLICT org.demo:core\norg.demo:core=1.10\norg.demo:web=2.0"
+            },
+            {
+              "label": "競合なし",
+              "stdin": "2 a:b:1.0 a:c:1.2",
+              "expected": "a:b=1.0\na:c=1.2"
+            }
+          ],
+          "hiddenCases": [
+            {
+              "label": "同じ版の重複は競合ではない",
+              "stdin": "2 a:b:1.0 a:b:1.0",
+              "expected": "a:b=1.0"
+            },
+            {
+              "label": "文字列比較では間違える",
+              "stdin": "2 a:b:1.2 a:b:1.10",
+              "expected": "CONFLICT a:b\na:b=1.10"
+            },
+            {
+              "label": "majorを先に見る",
+              "stdin": "2 a:b:2.0 a:b:1.99",
+              "expected": "CONFLICT a:b\na:b=2.0"
+            },
+            {
+              "label": "競合が2つ",
+              "stdin": "4 z:z:1.0 z:z:2.0 a:a:1.0 a:a:3.0",
+              "expected": "CONFLICT a:a\nCONFLICT z:z\na:a=3.0\nz:z=2.0"
+            },
+            {
+              "label": "1件だけ",
+              "stdin": "1 x:y:0.1",
+              "expected": "x:y=0.1"
+            }
+          ],
+          "hints": [
+            "`versions` を `TreeMap` にしておくと、取り出すときに `group:artifact` の辞書順になります。",
+            "バージョンは `v.split(\"\\\\.\",-1)` で分け、`Integer.parseInt` で数にしてから比べます。",
+            "競合の一覧を先に全部出し、そのあとで解決結果を出します。2回ループを回して構いません。"
+          ],
+          "solution": "import java.util.*;\n\npublic class Main {\n    static int[] parse(String v) {\n        String[] q = v.split(\"\\\\.\", - 1);\n        return new int[] {Integer.parseInt(q[0]), Integer.parseInt(q[1])};\n    }\n\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        int n = s.nextInt();\n        Map<String, Set<String>> versions = new TreeMap<>();\n        for (int i = 0; i < n; i++) {\n            String[] p = s.next().split(\":\", - 1);\n            versions.computeIfAbsent(p[0] + \":\" + p[1], k -> new LinkedHashSet<>()).add(p[2]);\n        }\n        for (Map.Entry<String, Set<String>> e : versions.entrySet()) if (e.getValue().size() > 1) System.out.println(\"CONFLICT \" + e.getKey());\n        for (Map.Entry<String, Set<String>> e : versions.entrySet()) {\n            String best = null;\n            for (String v : e.getValue()) {\n                if (best == null) {\n                    best = v;\n                    continue;\n                }\n                int[] a = parse(v), b = parse(best);\n                if (a[0] > b[0] || (a[0] == b[0] && a[1] > b[1])) best = v;\n            }\n            System.out.println(e.getKey() + \"=\" + best);\n        }\n    }\n}\n",
+          "sourceChecks": [
+            {
+              "pattern": "\\bnew\\s+TreeMap\\b",
+              "minimum": 1,
+              "message": "辞書順に出すので `TreeMap` を使ってください。"
+            },
+            {
+              "pattern": "Integer\\s*\\.\\s*parseInt",
+              "minimum": 1,
+              "message": "バージョンは区切りごとに数値へ直して比べてください。文字列比較では `1.10` が `1.2` より小さくなります。"
+            },
+            {
+              "pattern": "\\.split\\s*\\(",
+              "minimum": 1,
+              "message": "`group:artifact:major.minor` は `split` で分解してください。"
+            }
+          ]
+        }
+      ]
     }
   ]
 }

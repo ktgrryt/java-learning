@@ -119,7 +119,14 @@
             "2行目は `Calc div = (x, y) -> { if (y == 0) { return 0; } return x / y; };` と変数に入れてから `show(\"割り算\", div, a, b);` と呼びます。",
             "3行目は `Single twice = x -> x * 2;`、4行目は `Fixed tag = () -> \"おわり\";` です。呼ぶときは `twice.apply(a)` と `tag.get()` です。"
           ],
-          "solution": "import java.util.Scanner;\n\n@FunctionalInterface\ninterface Calc {\n    int apply(int a, int b);\n}\n\n@FunctionalInterface\ninterface Single {\n    int apply(int a);\n}\n\n@FunctionalInterface\ninterface Fixed {\n    String get();\n}\n\npublic class Main {\n    // ラムダを引数で受け取って呼び出す\n    static void show(String label, Calc calc, int a, int b) {\n        System.out.println(label + \" \" + calc.apply(a, b));\n    }\n\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int a = sc.nextInt();\n        int b = sc.nextInt();\n\n        show(\"大きい方\", (x, y) -> x > y ? x : y, a, b);\n\n        Calc div = (x, y) -> {\n            if (y == 0) {\n                return 0;\n            }\n            return x / y;\n        };\n        show(\"割り算\", div, a, b);\n\n        Single twice = x -> x * 2;\n        System.out.println(\"2倍 \" + twice.apply(a));\n\n        Fixed tag = () -> \"おわり\";\n        System.out.println(tag.get());\n    }\n}\n"
+          "solution": "import java.util.Scanner;\n\n@FunctionalInterface\ninterface Calc {\n    int apply(int a, int b);\n}\n\n@FunctionalInterface\ninterface Single {\n    int apply(int a);\n}\n\n@FunctionalInterface\ninterface Fixed {\n    String get();\n}\n\npublic class Main {\n    // ラムダを引数で受け取って呼び出す\n    static void show(String label, Calc calc, int a, int b) {\n        System.out.println(label + \" \" + calc.apply(a, b));\n    }\n\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int a = sc.nextInt();\n        int b = sc.nextInt();\n\n        show(\"大きい方\", (x, y) -> x > y ? x : y, a, b);\n\n        Calc div = (x, y) -> {\n            if (y == 0) {\n                return 0;\n            }\n            return x / y;\n        };\n        show(\"割り算\", div, a, b);\n\n        Single twice = x -> x * 2;\n        System.out.println(\"2倍 \" + twice.apply(a));\n\n        Fixed tag = () -> \"おわり\";\n        System.out.println(tag.get());\n    }\n}\n",
+          "sourceChecks": [
+            {
+              "pattern": "->",
+              "minimum": 3,
+              "message": "引数2つ・1つ・0個の3つを、それぞれラムダ（`->`）で書いてください。"
+            }
+          ]
         }
       ]
     },
@@ -248,7 +255,24 @@
             "組み合わせは `isEven.and(isPositive)` `isEven.or(isPositive)` `isEven.negate()` です。どれも新しい `Predicate` を返すので、そのまま `count` に渡せます。",
             "6行目は `numbers.removeIf(isEven.and(isPositive));` してから `System.out.println(numbers);` です。7行目は `try { List.of(1, 2).removeIf(n -> true); } catch (UnsupportedOperationException e) { ... }` です。"
           ],
-          "solution": "import java.util.ArrayList;\nimport java.util.List;\nimport java.util.Scanner;\nimport java.util.function.Predicate;\n\npublic class Main {\n    // 条件を受け取って、当てはまる個数を返す\n    static int count(List<Integer> list, Predicate<Integer> p) {\n        int c = 0;\n        for (int n : list) {\n            if (p.test(n)) {\n                c++;\n            }\n        }\n        return c;\n    }\n\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int k = sc.nextInt();\n\n        List<Integer> numbers = new ArrayList<>();\n        for (int i = 0; i < k; i++) {\n            numbers.add(sc.nextInt());\n        }\n\n        Predicate<Integer> isEven = n -> n % 2 == 0;\n        Predicate<Integer> isPositive = n -> n > 0;\n\n        System.out.println(\"偶数 \" + count(numbers, isEven));\n        System.out.println(\"正 \" + count(numbers, isPositive));\n        System.out.println(\"偶数かつ正 \" + count(numbers, isEven.and(isPositive)));\n        System.out.println(\"偶数または正 \" + count(numbers, isEven.or(isPositive)));\n        System.out.println(\"奇数 \" + count(numbers, isEven.negate()));\n\n        numbers.removeIf(isEven.and(isPositive));\n        System.out.println(numbers);\n\n        try {\n            List.of(1, 2).removeIf(n -> true);\n        } catch (UnsupportedOperationException e) {\n            System.out.println(\"不変 NG\");\n        }\n    }\n}\n"
+          "solution": "import java.util.ArrayList;\nimport java.util.List;\nimport java.util.Scanner;\nimport java.util.function.Predicate;\n\npublic class Main {\n    // 条件を受け取って、当てはまる個数を返す\n    static int count(List<Integer> list, Predicate<Integer> p) {\n        int c = 0;\n        for (int n : list) {\n            if (p.test(n)) {\n                c++;\n            }\n        }\n        return c;\n    }\n\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int k = sc.nextInt();\n\n        List<Integer> numbers = new ArrayList<>();\n        for (int i = 0; i < k; i++) {\n            numbers.add(sc.nextInt());\n        }\n\n        Predicate<Integer> isEven = n -> n % 2 == 0;\n        Predicate<Integer> isPositive = n -> n > 0;\n\n        System.out.println(\"偶数 \" + count(numbers, isEven));\n        System.out.println(\"正 \" + count(numbers, isPositive));\n        System.out.println(\"偶数かつ正 \" + count(numbers, isEven.and(isPositive)));\n        System.out.println(\"偶数または正 \" + count(numbers, isEven.or(isPositive)));\n        System.out.println(\"奇数 \" + count(numbers, isEven.negate()));\n\n        numbers.removeIf(isEven.and(isPositive));\n        System.out.println(numbers);\n\n        try {\n            List.of(1, 2).removeIf(n -> true);\n        } catch (UnsupportedOperationException e) {\n            System.out.println(\"不変 NG\");\n        }\n    }\n}\n",
+          "sourceChecks": [
+            {
+              "pattern": "\\.and\\s*\\(",
+              "minimum": 1,
+              "message": "条件を書き直さず、`isEven.and(isPositive)` のように `and` で組み合わせてください。"
+            },
+            {
+              "pattern": "\\.or\\s*\\(",
+              "minimum": 1,
+              "message": "`or` でも組み合わせてください。"
+            },
+            {
+              "pattern": "\\.negate\\s*\\(",
+              "minimum": 1,
+              "message": "否定は条件を書き直さず `negate()` を使ってください。"
+            }
+          ]
         }
       ]
     },
@@ -367,14 +391,26 @@
             "`Function<String, String> both = len.andThen(label);` と書けます。`len` が `Integer` を返し、それを `label` が受け取るのでつながります。",
             "1つ目のループは `for (String w : words) { print.accept(both.apply(w)); }` です。3つ目は `words.forEach(System.out::println);` の1行です。"
           ],
-          "solution": "import java.util.ArrayList;\nimport java.util.List;\nimport java.util.Scanner;\nimport java.util.function.Consumer;\nimport java.util.function.Function;\nimport java.util.function.Supplier;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int k = sc.nextInt();\n\n        List<String> words = new ArrayList<>();\n        for (int i = 0; i < k; i++) {\n            words.add(sc.next());\n        }\n\n        Function<String, Integer> len = String::length;\n        Function<Integer, String> label = n -> n + \"文字\";\n        Function<String, String> both = len.andThen(label);\n        Consumer<String> print = System.out::println;\n        Supplier<String> line = () -> \"----\";\n\n        for (String w : words) {\n            print.accept(both.apply(w));\n        }\n\n        System.out.println(line.get());\n\n        words.forEach(System.out::println);\n\n        int sum = 0;\n        for (String w : words) {\n            sum += len.apply(w);\n        }\n        System.out.println(\"合計 \" + sum);\n    }\n}\n"
+          "solution": "import java.util.ArrayList;\nimport java.util.List;\nimport java.util.Scanner;\nimport java.util.function.Consumer;\nimport java.util.function.Function;\nimport java.util.function.Supplier;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int k = sc.nextInt();\n\n        List<String> words = new ArrayList<>();\n        for (int i = 0; i < k; i++) {\n            words.add(sc.next());\n        }\n\n        Function<String, Integer> len = String::length;\n        Function<Integer, String> label = n -> n + \"文字\";\n        Function<String, String> both = len.andThen(label);\n        Consumer<String> print = System.out::println;\n        Supplier<String> line = () -> \"----\";\n\n        for (String w : words) {\n            print.accept(both.apply(w));\n        }\n\n        System.out.println(line.get());\n\n        words.forEach(System.out::println);\n\n        int sum = 0;\n        for (String w : words) {\n            sum += len.apply(w);\n        }\n        System.out.println(\"合計 \" + sum);\n    }\n}\n",
+          "sourceChecks": [
+            {
+              "pattern": "::",
+              "minimum": 1,
+              "message": "ラムダを書かずに済むところは `String::length` のようなメソッド参照を使ってください。"
+            },
+            {
+              "pattern": "andThen\\s*\\(",
+              "minimum": 1,
+              "message": "2つの処理をつなぐところは `andThen` を使ってください。"
+            }
+          ]
         }
       ]
     },
     {
       "id": "17-4",
       "title": "Comparator でならべ替える",
-      "explanation": "## 並べ替えの規則を渡す\n\n`List.sort` には並べ方を表す **`Comparator`** を渡します。\n\n```java\nList<String> words = new ArrayList<>(List.of(\"banana\", \"apple\", \"fig\"));\nwords.sort(Comparator.naturalOrder());\n```\n\n`compare(a, b)` は、`a` が前なら負、同じ扱いなら `0`、後なら正を返します。\n必要なのは符号であり、差そのものではありません。整数値を単純に `a - b` とするとオーバーフローして\n符号が逆転することがあるため、**`Integer.compare(a, b)` を使います**。\n\n```java\nwords.sort((s1, s2) -> Integer.compare(s1.length(), s2.length()));\n```\n\nこの例の文字列長では実際にオーバーフローしませんが、比較の定型として `compare` を使う習慣を付けます。\n\n## 用意されている Comparator\n\n| 書き方 | 意味 |\n|---|---|\n| `Comparator.naturalOrder()` | 自然順 |\n| `Comparator.reverseOrder()` | 自然順の逆 |\n| `Comparator.comparing(f)` | `f` で取り出した値で比較 |\n| `Comparator.comparingInt(f)` | `int` のキーで比較 |\n| `.reversed()` | 並び順を逆にする |\n| `.thenComparing(other)` | 同じ扱いのときの次の基準 |\n\n```java\nwords.sort(Comparator.comparingInt(String::length));\nwords.sort(Comparator.comparingInt(String::length).reversed());\n```\n\n## 同じだったときの決め方\n\n```java\nwords.sort(Comparator.comparingInt(String::length)\n        .thenComparing(Comparator.naturalOrder()));\n```\n\nラムダで同じ規則を書く場合も、差ではなく `Integer.compare` を使います。\n\n```java\nwords.sort((s1, s2) -> {\n    int byLength = Integer.compare(s1.length(), s2.length());\n    return byLength != 0 ? byLength : s1.compareTo(s2);\n});\n```\n\n`List.sort` は安定ソートなので、比較結果が `0` の要素どうしは元の相対順序が保たれます。\nまた、リスト自身を変更するため、元を残すなら `new ArrayList<>(元のリスト)` でコピーします。\n`List.of(...)` のような変更不可リストは並べ替えられず、`UnsupportedOperationException` になります。",
+      "explanation": "## 並べ替えの規則を渡す\n\n`List.sort` には並べ方を表す **`Comparator`** を渡します。\n\n```java\nList<String> words = new ArrayList<>(List.of(\"banana\", \"apple\", \"fig\"));\nwords.sort(Comparator.naturalOrder());\n```\n\n`compare(a, b)` は、`a` が前なら負、同じ扱いなら `0`、後なら正を返します。\n必要なのは符号であり、差そのものではありません。整数値を単純に `a - b` とするとオーバーフローして\n符号が逆転することがあるため、**`Integer.compare(a, b)` を使います**。\n\n```java\nwords.sort((s1, s2) -> Integer.compare(s1.length(), s2.length()));\n```\n\nこの例の文字列長では実際にオーバーフローしませんが、比較の定型として `compare` を使う習慣を付けます。\n\n## 用意されている Comparator\n\n| 書き方 | 意味 |\n|---|---|\n| `Comparator.naturalOrder()` | 自然順 |\n| `Comparator.reverseOrder()` | 自然順の逆 |\n| `Comparator.comparing(f)` | `f` で取り出した値で比較 |\n| `Comparator.comparingInt(f)` | `int` のキーで比較 |\n| `.reversed()` | 並び順を逆にする |\n| `.thenComparing(other)` | 同じ扱いのときの次の基準 |\n\n```java\nwords.sort(Comparator.comparingInt(String::length));\nwords.sort(Comparator.comparingInt(String::length).reversed());\n```\n\n## 同じだったときの決め方\n\n```java\nwords.sort(Comparator.comparingInt(String::length)\n        .thenComparing(Comparator.naturalOrder()));\n```\n\nラムダで同じ規則を書く場合も、差ではなく `Integer.compare` を使います。\n\n```java\nwords.sort((s1, s2) -> {\n    int byLength = Integer.compare(s1.length(), s2.length());\n    return byLength != 0 ? byLength : s1.compareTo(s2);\n});\n```\n\n`List.sort` は安定ソートなので、比較結果が `0` の要素どうしは元の相対順序が保たれます。\nまた、リスト自身を変更するため、元を残すなら `new ArrayList<>(元のリスト)` でコピーします。\n`List.of(...)` のような変更不可リストは並べ替えられず、`UnsupportedOperationException` になります。\n\n## クラス自身に順序を持たせる — Comparable\n\n`Comparator` は「並べ替えの規則を **外から渡す**」やり方でした。\n一方、クラス自身が「自分たちの自然な順序」を持つこともできます。それが `Comparable` です。\n\n```java\nclass Item implements Comparable<Item> {\n    String name;\n    int price;\n\n    @Override\n    public int compareTo(Item other) {\n        return Integer.compare(this.price, other.price);\n    }\n}\n```\n\n`compareTo` の戻り値の決まりは、14-3 で見た `String` の `compareTo` と同じです。\n\n| 戻り値 | 意味 |\n|---|---|\n| 負 | 自分が前 |\n| `0` | 順序は同じ |\n| 正 | 自分が後 |\n\n規則を実装しておけば、渡さずに並べ替えられます。\n\n```java\nitems.sort(Comparator.naturalOrder());   // Comparable の順序で並ぶ\n```\n\n第16章の `TreeSet` や `TreeMap` がキーを勝手に並べてくれたのも、`Integer` や `String` が\n`Comparable` を実装しているからです。自分のクラスを `TreeSet` へ入れたいときは、\n`Comparable` を実装するか、`Comparator` を渡す必要があります。\n\n### どちらを使うか\n\n| 場面 | 向いているほう |\n|---|---|\n| そのクラスに「これが自然」と言える順序が1つある | `Comparable` |\n| 場面ごとに違う順序で並べたい | `Comparator` |\n\n> ⚠️ 間違えやすい点 … `compareTo` が `0` を返す2つは「同じ順序」ですが、`equals` が\n> `true` を返すとは限りません。`TreeSet` は **`compareTo` の結果で重複を判断する** ので、\n> `equals` と食い違うと「`equals` では別物なのに `TreeSet` へ入らない」ことが起きます。\n> 順序と等価は、そろえておくのが安全です（10-4）。",
       "samples": [
         {
           "caption": "いろいろな順で並べ替える",
@@ -491,28 +527,45 @@
             "2行目は `Comparator.comparingInt(String::length).reversed().thenComparing(Comparator.naturalOrder())` を `sort` に渡します。`reversed()` が先、`thenComparing` が後です。",
             "5行目は `words.sort(Comparator.reverseOrder());` としてから `System.out.println(\"破壊的 \" + words);` です。6行目は `try { List.of(\"b\", \"a\").sort(Comparator.naturalOrder()); } catch (UnsupportedOperationException e) { ... }` です。"
           ],
-          "solution": "import java.util.ArrayList;\nimport java.util.Comparator;\nimport java.util.List;\nimport java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int k = sc.nextInt();\n\n        List<String> words = new ArrayList<>();\n        for (int i = 0; i < k; i++) {\n            words.add(sc.next());\n        }\n\n        List<String> longFirst = new ArrayList<>(words);\n        longFirst.sort(Comparator.comparingInt(String::length).reversed());\n        System.out.println(\"長い順 \" + longFirst);\n\n        List<String> longThenDict = new ArrayList<>(words);\n        longThenDict.sort(Comparator.comparingInt(String::length).reversed()\n                .thenComparing(Comparator.naturalOrder()));\n        System.out.println(\"長い順→辞書順 \" + longThenDict);\n\n        List<String> byNull = new ArrayList<>(words);\n        byNull.sort(null);\n        System.out.println(\"null \" + byNull);\n\n        System.out.println(\"元 \" + words);\n\n        words.sort(Comparator.reverseOrder());\n        System.out.println(\"破壊的 \" + words);\n\n        try {\n            List.of(\"b\", \"a\").sort(Comparator.naturalOrder());\n        } catch (UnsupportedOperationException e) {\n            System.out.println(\"不変 NG\");\n        }\n    }\n}\n"
+          "solution": "import java.util.ArrayList;\nimport java.util.Comparator;\nimport java.util.List;\nimport java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int k = sc.nextInt();\n\n        List<String> words = new ArrayList<>();\n        for (int i = 0; i < k; i++) {\n            words.add(sc.next());\n        }\n\n        List<String> longFirst = new ArrayList<>(words);\n        longFirst.sort(Comparator.comparingInt(String::length).reversed());\n        System.out.println(\"長い順 \" + longFirst);\n\n        List<String> longThenDict = new ArrayList<>(words);\n        longThenDict.sort(Comparator.comparingInt(String::length).reversed()\n                .thenComparing(Comparator.naturalOrder()));\n        System.out.println(\"長い順→辞書順 \" + longThenDict);\n\n        List<String> byNull = new ArrayList<>(words);\n        byNull.sort(null);\n        System.out.println(\"null \" + byNull);\n\n        System.out.println(\"元 \" + words);\n\n        words.sort(Comparator.reverseOrder());\n        System.out.println(\"破壊的 \" + words);\n\n        try {\n            List.of(\"b\", \"a\").sort(Comparator.naturalOrder());\n        } catch (UnsupportedOperationException e) {\n            System.out.println(\"不変 NG\");\n        }\n    }\n}\n",
+          "sourceChecks": [
+            {
+              "pattern": "Comparator\\.comparingInt\\s*\\(",
+              "minimum": 1,
+              "message": "長さでの並べ替えは `Comparator.comparingInt(String::length)` を使ってください。"
+            },
+            {
+              "pattern": "reversed\\s*\\(",
+              "minimum": 1,
+              "message": "逆順は比較を書き直さず `reversed()` を付けてください。"
+            },
+            {
+              "pattern": "new\\s+ArrayList\\s*<\\s*>\\s*\\(\\s*words\\s*\\)",
+              "minimum": 1,
+              "message": "`sort` は元のリストを書き換えます。`new ArrayList<>(words)` でコピーを作ってから並べ替えてください。"
+            }
+          ]
         }
       ],
       "quiz": [
         {
           "question": "ラムダ式を書けるのはどんなインターフェースでしょう。",
           "choices": [
-            "`default` メソッドを持つインターフェース",
             "抽象メソッドがちょうど1つのインターフェース",
-            "`@FunctionalInterface` が付いているものだけ",
-            "メソッドが1つもないインターフェース"
+            "メソッドが1つもないインターフェース",
+            "`default` メソッドを持つインターフェース",
+            "`@FunctionalInterface` が付いているものだけ"
           ],
-          "answer": 1,
+          "answer": 0,
           "explanation": "抽象メソッドが1つ（関数型インターフェース）ならラムダで書けます。`default` や `static` メソッドは何個あっても構いません。`@FunctionalInterface` は付けると検査してくれる注釈で、必須ではありません。"
         },
         {
           "question": "次のうち **コンパイルエラーになる** ラムダはどれでしょう（`interface Calc { int apply(int a, int b); }`）。",
           "choices": [
-            "`(a, b) -> a + b`",
             "`(int a, int b) -> { return a + b; }`",
+            "`(a, b) -> { return a + b; }`",
             "`(a, b) -> { a + b; }`",
-            "`(a, b) -> { return a + b; }`"
+            "`(a, b) -> a + b`"
           ],
           "answer": 2,
           "explanation": "`{}` を書いたら `return` が必要です。`{ a + b; }` は値を返していないので、`int` を返すはずのメソッドとして成立しません。`{}` を使わなければ式の値がそのまま戻り値になります。"
@@ -520,23 +573,23 @@
         {
           "question": "`Consumer<String>` の説明として正しいのはどれでしょう。",
           "choices": [
-            "引数を受け取り、値を返す（`apply`）",
             "引数を受け取り、値を返さない（`accept`）",
+            "引数を受け取り、値を返す（`apply`）",
             "引数を受け取らず、値を返す（`get`）",
             "引数を受け取り、`boolean` を返す（`test`）"
           ],
-          "answer": 1,
+          "answer": 0,
           "explanation": "`Consumer` は「受け取って終わり」で戻り値がありません。値を返すのは `Function`（`apply`）、引数なしで返すのは `Supplier`（`get`）、`boolean` を返すのは `Predicate`（`test`）です。"
         },
         {
           "question": "`Comparator` の `compare(a, b)` が **負の数** を返すと、並び順はどうなるでしょう。",
           "choices": [
-            "`a` が前になる",
-            "`b` が前になる",
             "順番は変わらない",
-            "例外になる"
+            "`a` が前になる",
+            "例外になる",
+            "`b` が前になる"
           ],
-          "answer": 0,
+          "answer": 1,
           "explanation": "負なら `a` が前、正なら `a` が後、`0` なら同じ扱いです。整数比較を `a - b` で書くとオーバーフローし得るため、昇順は `Integer.compare(a, b)`、降順は `Integer.compare(b, a)` と書きます。"
         }
       ]
@@ -552,7 +605,7 @@
         }
       ],
       "task": "【基本】n個の整数を読み、streamとラムダ式で偶数だけを合計して表示してください。",
-      "starterCode": "import java.util.*;\npublic class Main {public static void main(String[] args){Scanner s=new Scanner(System.in);int n=s.nextInt();List<Integer> values=new ArrayList<>();for(int i=0;i<n;i++)values.add(s.nextInt());int sum=0;/* TODO: streamで求める */System.out.println(sum);}}\n",
+      "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        int n = s.nextInt();\n        List<Integer> values = new ArrayList<>();\n        for (int i = 0; i < n; i++) values.add(s.nextInt());\n        int sum = 0;\n        /* TODO: streamで求める */ System.out.println(sum);\n    }\n}\n",
       "visibleCases": [
         {
           "label": "混在",
@@ -581,12 +634,12 @@
         "filterの条件は `v -> v % 2 == 0` です。",
         "mapToIntのあとsumを呼びます。"
       ],
-      "solution": "import java.util.*;\npublic class Main {public static void main(String[] args){Scanner s=new Scanner(System.in);int n=s.nextInt();List<Integer> values=new ArrayList<>();for(int i=0;i<n;i++)values.add(s.nextInt());int sum=values.stream().filter(v->v%2==0).mapToInt(Integer::intValue).sum();System.out.println(sum);}}\n",
+      "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        int n = s.nextInt();\n        List<Integer> values = new ArrayList<>();\n        for (int i = 0; i < n; i++) values.add(s.nextInt());\n        int sum = values.stream().filter(v -> v % 2 == 0).mapToInt(Integer::intValue).sum();\n        System.out.println(sum);\n    }\n}\n",
       "extraTasks": [
         {
           "kind": "drill",
-          "task": "【組み合わせ】n個の単語を、文字数の短い順、同じ長さなら辞書順に並べて1行ずつ表示してください。Comparatorのラムダまたはメソッドを組み合わせます。",
-          "starterCode": "import java.util.*;\npublic class Main {public static void main(String[] args){Scanner s=new Scanner(System.in);int n=s.nextInt();List<String> words=new ArrayList<>();for(int i=0;i<n;i++)words.add(s.next());/* TODO */words.forEach(System.out::println);}}\n",
+          "task": "【組み合わせ】n個の単語を、文字数の短い順、同じ長さなら辞書順に並べて1行ずつ表示してください。`Comparator.comparingInt` と `thenComparing` を組み合わせます。",
+          "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        int n = s.nextInt();\n        List<String> words = new ArrayList<>();\n        for (int i = 0; i < n; i++) words.add(s.next());\n        /* TODO */ words.forEach(System.out::println);\n    }\n}\n",
           "visibleCases": [
             {
               "label": "長さ違い",
@@ -615,12 +668,24 @@
             "まず `comparingInt(String::length)` で文字数を比べます。",
             "`thenComparing` で同じ長さのときの自然順を足します。"
           ],
-          "solution": "import java.util.*;\npublic class Main {public static void main(String[] args){Scanner s=new Scanner(System.in);int n=s.nextInt();List<String> words=new ArrayList<>();for(int i=0;i<n;i++)words.add(s.next());words.sort(Comparator.comparingInt(String::length).thenComparing(Comparator.naturalOrder()));words.forEach(System.out::println);}}\n"
+          "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        int n = s.nextInt();\n        List<String> words = new ArrayList<>();\n        for (int i = 0; i < n; i++) words.add(s.next());\n        words.sort(Comparator.comparingInt(String::length).thenComparing(Comparator.naturalOrder()));\n        words.forEach(System.out::println);\n    }\n}\n",
+          "sourceChecks": [
+            {
+              "pattern": "Comparator\\s*\\.\\s*comparing",
+              "minimum": 1,
+              "message": "並び順は `Comparator.comparingInt(String::length)` のように作ってください。"
+            },
+            {
+              "pattern": "\\bthenComparing\\b",
+              "minimum": 1,
+              "message": "同じ長さのときの決着は `thenComparing` でつないでください。"
+            }
+          ]
         },
         {
           "kind": "applied",
           "task": "【実践】整数nを読み、`Function<Integer,Integer>` を2つ作ります。1つ目で2倍、2つ目で3を足し、`andThen` でつないだ結果を表示してください。",
-          "starterCode": "import java.util.*;\nimport java.util.function.*;\npublic class Main {public static void main(String[] args){int n=new Scanner(System.in).nextInt();Function<Integer,Integer> twice=x->x;Function<Integer,Integer> plusThree=x->x;/* TODO: 2つのラムダを完成させる */System.out.println(twice.andThen(plusThree).apply(n));}}\n",
+          "starterCode": "import java.util.*;\nimport java.util.function.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        int n = new Scanner(System.in).nextInt();\n        Function<Integer, Integer> twice = x -> x;\n        Function<Integer, Integer> plusThree = x -> x;\n        /* TODO: 2つのラムダを完成させる */ System.out.println(twice.andThen(plusThree).apply(n));\n    }\n}\n",
           "visibleCases": [
             {
               "label": "5",
@@ -649,7 +714,19 @@
             "twiceは `x -> x * 2` です。",
             "`twice.andThen(plusThree).apply(n)` の順に処理されます。"
           ],
-          "solution": "import java.util.*;\nimport java.util.function.*;\npublic class Main {public static void main(String[] args){int n=new Scanner(System.in).nextInt();Function<Integer,Integer> twice=x->x*2;Function<Integer,Integer> plusThree=x->x+3;System.out.println(twice.andThen(plusThree).apply(n));}}\n"
+          "solution": "import java.util.*;\nimport java.util.function.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        int n = new Scanner(System.in).nextInt();\n        Function<Integer, Integer> twice = x -> x * 2;\n        Function<Integer, Integer> plusThree = x -> x + 3;\n        System.out.println(twice.andThen(plusThree).apply(n));\n    }\n}\n",
+          "sourceChecks": [
+            {
+              "pattern": "x\\s*\\*\\s*2",
+              "minimum": 1,
+              "message": "1つ目の `Function` は2倍にするので `x -> x * 2` と書いてください。"
+            },
+            {
+              "pattern": "x\\s*\\+\\s*3",
+              "minimum": 1,
+              "message": "2つ目の `Function` は3を足すので `x -> x + 3` と書いてください。"
+            }
+          ]
         }
       ]
     }

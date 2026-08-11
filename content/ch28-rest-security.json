@@ -1,40 +1,306 @@
 {
-  "id":"ch28","title":"REST APIとセキュリティ","subtitle":"HTTP境界を一貫して安全に設計する","emoji":"🔌","libs":["jakarta-rest"],
-  "lessons":[
+  "id": "ch28",
+  "title": "REST APIとセキュリティ",
+  "subtitle": "HTTP境界を一貫して安全に設計する",
+  "emoji": "🔌",
+  "libs": [
+    "jakarta-rest"
+  ],
+  "lessons": [
     {
-      "id":"28-1","title":"Jakarta RESTでリソースを作る",
-      "explanation":"## はじめて学ぶ人へ\n\nRESTでは、URLを操作名ではなく**扱うもの（リソース）の住所**として設計し、HTTPメソッドで操作を表します。図書館の本棚を住所で選び、「見る」「追加する」「直す」「捨てる」を動詞で指定するイメージです。\n\n```text\nGET    /books       本の一覧を取得\nGET    /books/10    10番の本を取得\nPOST   /books       新しい本を追加\nPUT    /books/10    10番の本を更新\nDELETE /books/10    10番の本を削除\n```\n\nJakarta RESTでは `@Path` が住所、`@GET` などが操作、`@PathParam` や `@QueryParam` がURL内の値をJavaの引数へ結び付けます。まずは「URLは名詞、操作はHTTPメソッド」と分けて読むと整理できます。\n\n## URLを資源として設計する\n\n```java\n@ApplicationPath(\"/api\") class ApiConfig extends Application {}\n@Path(\"/users\") @Produces(MediaType.APPLICATION_JSON)\nclass UserResource {\n @GET public List<UserDto> list() { ... }\n @GET @Path(\"/{id}\") public UserDto find(@PathParam(\"id\") long id) { ... }\n @POST @Consumes(MediaType.APPLICATION_JSON) public Response create(CreateUser input) { ... }\n}\n```\n\nURLは `/getUsers` のような動詞でなく `/users` のような名詞にし、操作はHTTPメソッドで表します。Entityではなく入力DTO・出力DTOを境界に使います。JSON変換はJSON-Bなどのproviderが担います。GETは安全かつ冪等、PUT/DELETEは冪等、POSTは通常非冪等です。\n\n教材では注釈を本物と同じ形でコンパイルし、メソッドをmainから直接呼んで結果を採点します。",
-      "samples":[{"caption":"PathとGETを付ける","code":"import jakarta.ws.rs.*;\nimport jakarta.ws.rs.core.*;\n@Path(\"/hello\") class HelloResource{@GET @Produces(MediaType.TEXT_PLAIN) String hello(){return \"hello\";}}\npublic class RestSample{public static void main(String[]a){System.out.println(new HelloResource().hello());}}\n"}],
-      "task":"`/products/{id}` 相当のResourceを完成させます。`find(long id)` にGETとPathを付け、ID 1はbook/1200、2はpen/150。main入力IDに対しDTOの `id:name:price`、無ければ `not found`。",
-      "starterCode":"import jakarta.ws.rs.*;\nimport jakarta.ws.rs.core.*;\nimport java.util.*;\nrecord ProductDto(long id,String name,int price){}\n// TODO class Path/Produces\nclass ProductResource{private final Map<Long,ProductDto> data=Map.of(1L,new ProductDto(1,\"book\",1200),2L,new ProductDto(2,\"pen\",150));// TODO GET/Path/PathParam\n ProductDto find(long id){return data.get(id);}}\npublic class RestResource{public static void main(String[]a){long id=new Scanner(System.in).nextLong();ProductDto p=new ProductResource().find(id);System.out.println(p==null?\"not found\":p.id()+\":\"+p.name()+\":\"+p.price());}}\n",
-      "visibleCases":[{"label":"ID 1","stdin":"1","expected":"1:book:1200"},{"label":"なし","stdin":"9","expected":"not found"}],"hiddenCases":[{"label":"ID 2","stdin":"2","expected":"2:pen:150"}],
-      "hints":["classに `@Path(\"/products\") @Produces(MediaType.APPLICATION_JSON)`。","メソッドに `@GET @Path(\"/{id}\")`、引数に `@PathParam(\"id\")`。"],
-      "solution":"import jakarta.ws.rs.*;\nimport jakarta.ws.rs.core.*;\nimport java.util.*;\nrecord ProductDto(long id,String name,int price){}\n@Path(\"/products\") @Produces(MediaType.APPLICATION_JSON) class ProductResource{private final Map<Long,ProductDto> data=Map.of(1L,new ProductDto(1,\"book\",1200),2L,new ProductDto(2,\"pen\",150));@GET @Path(\"/{id}\") ProductDto find(@PathParam(\"id\") long id){return data.get(id);}}\npublic class RestResource{public static void main(String[]a){long id=new Scanner(System.in).nextLong();ProductDto p=new ProductResource().find(id);System.out.println(p==null?\"not found\":p.id()+\":\"+p.name()+\":\"+p.price());}}\n",
-      "extraTasks":[{"kind":"applied","task":"POST create(CreateProduct)を作り、nameとpriceからID 3のDTOを返すResponseを201で構築してください。Locationは `/products/3`。不正priceは次レッスンで扱うためここでは入力済みとします。","starterCode":"import jakarta.ws.rs.*;\nimport jakarta.ws.rs.core.*;\nimport java.util.*;\nrecord CreateProduct(String name,int price){} record ProductDto(long id,String name,int price){}\n@Path(\"/products\") class ProductResource{// TODO POST/Consumes\n Response create(CreateProduct in){return null;}}\npublic class RestCreate{public static void main(String[]a){Scanner s=new Scanner(System.in);Response r=new ProductResource().create(new CreateProduct(s.next(),s.nextInt()));ProductDto p=(ProductDto)r.getEntity();System.out.println(r.getStatus()+\" \"+r.getHeaderString(\"Location\")+\" \"+p.id()+\":\"+p.name()+\":\"+p.price());}}\n","visibleCases":[{"label":"作成","stdin":"book 1200","expected":"201 /products/3 3:book:1200"}],"hiddenCases":[{"label":"別商品","stdin":"pen 150","expected":"201 /products/3 3:pen:150"}],"hints":["メソッドに `@POST @Consumes(MediaType.APPLICATION_JSON)`。","`Response.status(201).header(\"Location\",\"/products/3\").entity(new ProductDto(...)).build()`。"],"solution":"import jakarta.ws.rs.*;\nimport jakarta.ws.rs.core.*;\nimport java.util.*;\nrecord CreateProduct(String name,int price){} record ProductDto(long id,String name,int price){}\n@Path(\"/products\") class ProductResource{@POST @Consumes(MediaType.APPLICATION_JSON) Response create(CreateProduct in){return Response.status(201).header(\"Location\",\"/products/3\").entity(new ProductDto(3,in.name(),in.price())).build();}}\npublic class RestCreate{public static void main(String[]a){Scanner s=new Scanner(System.in);Response r=new ProductResource().create(new CreateProduct(s.next(),s.nextInt()));ProductDto p=(ProductDto)r.getEntity();System.out.println(r.getStatus()+\" \"+r.getHeaderString(\"Location\")+\" \"+p.id()+\":\"+p.name()+\":\"+p.price());}}\n"}]
+      "id": "28-1",
+      "title": "Jakarta RESTでリソースを作る",
+      "explanation": "## はじめて学ぶ人へ\n\nRESTでは、URLを操作名ではなく**扱うもの（リソース）の住所**として設計し、HTTPメソッドで操作を表します。図書館の本棚を住所で選び、「見る」「追加する」「直す」「捨てる」を動詞で指定するイメージです。\n\n```text\nGET    /books       本の一覧を取得\nGET    /books/10    10番の本を取得\nPOST   /books       新しい本を追加\nPUT    /books/10    10番の本を更新\nDELETE /books/10    10番の本を削除\n```\n\nJakarta RESTでは `@Path` が住所、`@GET` などが操作、`@PathParam` や `@QueryParam` がURL内の値をJavaの引数へ結び付けます。まずは「URLは名詞、操作はHTTPメソッド」と分けて読むと整理できます。\n\n## URLを資源として設計する\n\n```java\n@ApplicationPath(\"/api\") class ApiConfig extends Application {}\n@Path(\"/users\") @Produces(MediaType.APPLICATION_JSON)\nclass UserResource {\n @GET public List<UserDto> list() { ... }\n @GET @Path(\"/{id}\") public UserDto find(@PathParam(\"id\") long id) { ... }\n @POST @Consumes(MediaType.APPLICATION_JSON) public Response create(CreateUser input) { ... }\n}\n```\n\nURLは `/getUsers` のような動詞でなく `/users` のような名詞にし、操作はHTTPメソッドで表します。Entityではなく入力DTO・出力DTOを境界に使います。JSON変換はJSON-Bなどのproviderが担います。GETは安全かつ冪等、PUT/DELETEは冪等、POSTは通常非冪等です。\n\n教材では注釈を本物と同じ形でコンパイルし、メソッドをmainから直接呼んで結果を採点します。",
+      "samples": [
+        {
+          "caption": "PathとGETを付ける",
+          "code": "import jakarta.ws.rs.*;\nimport jakarta.ws.rs.core.*;\n\n@Path(\"/hello\")\nclass HelloResource {\n    @GET\n    @Produces(MediaType.TEXT_PLAIN)\n    String hello() {\n        return \"hello\";\n    }\n}\n\npublic class RestSample {\n    public static void main(String[] a) {\n        System.out.println(new HelloResource().hello());\n    }\n}\n"
+        }
+      ],
+      "task": "`/products/{id}` 相当のResourceを完成させます。`find(long id)` にGETとPathを付け、ID 1はbook/1200、2はpen/150。main入力IDに対しDTOの `id:name:price`、無ければ `not found`。",
+      "starterCode": "import jakarta.ws.rs.*;\nimport jakarta.ws.rs.core.*;\nimport java.util.*;\n\nrecord ProductDto(long id, String name, int price) { }\n\n// TODO class Path/Produces\nclass ProductResource {\n    private final Map<Long, ProductDto> data = Map.of(1L, new ProductDto(1, \"book\", 1200), 2L, new ProductDto(2, \"pen\", 150));\n\n    // TODO GET/Path/PathParam\n    ProductDto find(long id) {\n        return data.get(id);\n    }\n}\n\npublic class RestResource {\n    public static void main(String[] a) {\n        long id = new Scanner(System.in).nextLong();\n        ProductDto p = new ProductResource().find(id);\n        System.out.println(p == null ? \"not found\" : p.id() + \":\" + p.name() + \":\" + p.price());\n    }\n}\n",
+      "visibleCases": [
+        {
+          "label": "ID 1",
+          "stdin": "1",
+          "expected": "1:book:1200"
+        },
+        {
+          "label": "なし",
+          "stdin": "9",
+          "expected": "not found"
+        }
+      ],
+      "hiddenCases": [
+        {
+          "label": "ID 2",
+          "stdin": "2",
+          "expected": "2:pen:150"
+        }
+      ],
+      "hints": [
+        "classに `@Path(\"/products\") @Produces(MediaType.APPLICATION_JSON)`。",
+        "メソッドに `@GET @Path(\"/{id}\")`、引数に `@PathParam(\"id\")`。"
+      ],
+      "solution": "import jakarta.ws.rs.*;\nimport jakarta.ws.rs.core.*;\nimport java.util.*;\n\nrecord ProductDto(long id, String name, int price) { }\n\n@Path(\"/products\")\n@Produces(MediaType.APPLICATION_JSON)\nclass ProductResource {\n    private final Map<Long, ProductDto> data = Map.of(1L, new ProductDto(1, \"book\", 1200), 2L, new ProductDto(2, \"pen\", 150));\n\n    @GET\n    @Path(\"/{id}\")\n    ProductDto find(@PathParam(\"id\") long id) {\n        return data.get(id);\n    }\n}\n\npublic class RestResource {\n    public static void main(String[] a) {\n        long id = new Scanner(System.in).nextLong();\n        ProductDto p = new ProductResource().find(id);\n        System.out.println(p == null ? \"not found\" : p.id() + \":\" + p.name() + \":\" + p.price());\n    }\n}\n",
+      "extraTasks": [
+        {
+          "kind": "applied",
+          "task": "POST create(CreateProduct)を作り、nameとpriceからID 3のDTOを返すResponseを201で構築してください。Locationは `/products/3`。不正priceは次レッスンで扱うためここでは入力済みとします。",
+          "starterCode": "import jakarta.ws.rs.*;\nimport jakarta.ws.rs.core.*;\nimport java.util.*;\n\nrecord CreateProduct(String name, int price) { }\n\nrecord ProductDto(long id, String name, int price) { }\n\n@Path(\"/products\")\nclass ProductResource {\n    // TODO POST/Consumes\n    Response create(CreateProduct in) {\n        return null;\n    }\n}\n\npublic class RestCreate {\n    public static void main(String[] a) {\n        Scanner s = new Scanner(System.in);\n        Response r = new ProductResource().create(new CreateProduct(s.next(), s.nextInt()));\n        ProductDto p = (ProductDto) r.getEntity();\n        System.out.println(r.getStatus() + \" \" + r.getHeaderString(\"Location\") + \" \" + p.id() + \":\" + p.name() + \":\" + p.price());\n    }\n}\n",
+          "visibleCases": [
+            {
+              "label": "作成",
+              "stdin": "book 1200",
+              "expected": "201 /products/3 3:book:1200"
+            }
+          ],
+          "hiddenCases": [
+            {
+              "label": "別商品",
+              "stdin": "pen 150",
+              "expected": "201 /products/3 3:pen:150"
+            }
+          ],
+          "hints": [
+            "メソッドに `@POST @Consumes(MediaType.APPLICATION_JSON)`。",
+            "`Response.status(201).header(\"Location\",\"/products/3\").entity(new ProductDto(...)).build()`。"
+          ],
+          "solution": "import jakarta.ws.rs.*;\nimport jakarta.ws.rs.core.*;\nimport java.util.*;\n\nrecord CreateProduct(String name, int price) { }\n\nrecord ProductDto(long id, String name, int price) { }\n\n@Path(\"/products\")\nclass ProductResource {\n    @POST\n    @Consumes(MediaType.APPLICATION_JSON)\n    Response create(CreateProduct in) {\n        return Response.status(201).header(\"Location\", \"/products/3\").entity(new ProductDto(3, in.name(), in.price())).build();\n    }\n}\n\npublic class RestCreate {\n    public static void main(String[] a) {\n        Scanner s = new Scanner(System.in);\n        Response r = new ProductResource().create(new CreateProduct(s.next(), s.nextInt()));\n        ProductDto p = (ProductDto) r.getEntity();\n        System.out.println(r.getStatus() + \" \" + r.getHeaderString(\"Location\") + \" \" + p.id() + \":\" + p.name() + \":\" + p.price());\n    }\n}\n",
+          "sourceChecks": [
+            {
+              "pattern": "@POST",
+              "minimum": 1,
+              "message": "作成は POST なので `@POST` を付けてください。"
+            },
+            {
+              "pattern": "Response\\s*\\.\\s*status\\s*\\(\\s*201|Status\\s*\\.\\s*CREATED",
+              "minimum": 1,
+              "message": "作成の成功は 200 ではなく 201 です。"
+            },
+            {
+              "pattern": "\\.header\\s*\\(",
+              "minimum": 1,
+              "message": "作ったものの場所を `Location` ヘッダで返してください。"
+            },
+            {
+              "pattern": "@Consumes",
+              "minimum": 1,
+              "message": "受け取る形式を `@Consumes(MediaType.APPLICATION_JSON)` で宣言してください。"
+            }
+          ]
+        }
+      ]
     },
     {
-      "id":"28-2","title":"ステータス・エラー・一覧API",
-      "explanation":"## はじめて学ぶ人へ\n\nAPIレスポンスは、受け手が機械的に判断できるよう毎回同じ形にします。ステータスコードは封筒の表にある結果ラベル、JSON本文は詳しい説明です。\n\n```json\n{\n  \"code\": \"INVALID_NAME\",\n  \"message\": \"nameは必須です\",\n  \"field\": \"name\"\n}\n```\n\n一覧が増え続けるAPIでは、全件を一度に返さず `?page=2&size=20` のように分割します。入力ミスは400、未認証は401、権限不足は403、対象なしは404など、同じ失敗には同じコードと形式を返します。内部例外をそのまま見せず、ログには調査情報、利用者には修正可能な情報を残します。\n\n## 成功と失敗を機械が判断できる形へ\n\n取得成功200、作成201＋Location、本文なし成功204、入力不正400、未認証401、権限なし403、対象なし404、競合409を使い分けます。エラーDTOは `code`, `message`, `details`, `traceId` など一貫した形にします。内部例外をそのままJSON化しません。\n\n`ExceptionMapper<NotFoundException>` によって例外からResponseへの変換を1か所へ集められます。予期しない例外はログへtraceIdと詳細を残し、応答には一般化したメッセージだけを返します。\n\n一覧は無制限に返さず `limit` に上限を設け、offsetまたはcursorでページングします。並び順は一意になる列（createdAt,idなど）まで指定しないとページ間で重複・欠落します。API変更は後方互換性を意識し、破壊的変更はversioningを検討します。",
-      "samples":[{"caption":"ExceptionMapperで404へ変換","code":"import jakarta.ws.rs.core.*;\nimport jakarta.ws.rs.ext.*;\nclass Missing extends RuntimeException{Missing(String m){super(m);}} record ApiError(String code,String message){}\n@Provider class MissingMapper implements ExceptionMapper<Missing>{public Response toResponse(Missing e){return Response.status(404).entity(new ApiError(\"NOT_FOUND\",e.getMessage())).build();}}\npublic class MapperSample{public static void main(String[]a){Response r=new MissingMapper().toResponse(new Missing(\"ありません\"));System.out.println(r.getStatus()+\" \"+r.getEntity());}}\n"}],
-      "task":"`find(id)` の結果をResponseにします。ID 1なら200とProductDto、無ければ404とApiError(`NOT_FOUND`,`商品が見つかりません`)。mainは `status entity` を表示します。",
-      "starterCode":"import jakarta.ws.rs.core.*;\nimport java.util.*;\nrecord ProductDto(long id,String name){} record ApiError(String code,String message){}\nclass ProductApi{Response find(long id){// TODO\nreturn null;}}\npublic class RestResponse{public static void main(String[]a){long id=new Scanner(System.in).nextLong();Response r=new ProductApi().find(id);System.out.println(r.getStatus()+\" \"+r.getEntity());}}\n",
-      "visibleCases":[{"label":"成功","stdin":"1","expected":"200 ProductDto[id=1, name=book]"},{"label":"404","stdin":"9","expected":"404 ApiError[code=NOT_FOUND, message=商品が見つかりません]"}],"hiddenCases":[{"label":"0も404","stdin":"0","expected":"404 ApiError[code=NOT_FOUND, message=商品が見つかりません]"}],
-      "hints":["id==1なら `Response.ok(new ProductDto(1,\"book\")).build()`。","それ以外は `Response.status(404).entity(new ApiError(...)).build()`。"],
-      "solution":"import jakarta.ws.rs.core.*;\nimport java.util.*;\nrecord ProductDto(long id,String name){} record ApiError(String code,String message){}\nclass ProductApi{Response find(long id){return id==1?Response.ok(new ProductDto(1,\"book\")).build():Response.status(404).entity(new ApiError(\"NOT_FOUND\",\"商品が見つかりません\")).build();}}\npublic class RestResponse{public static void main(String[]a){long id=new Scanner(System.in).nextLong();Response r=new ProductApi().find(id);System.out.println(r.getStatus()+\" \"+r.getEntity());}}\n",
-      "extraTasks":[{"kind":"applied","task":"1〜10の一覧を `offset limit` でページングします。offsetは0以上、limitは1〜5へ丸め（0以下は1、6以上は5）、範囲外なら空。`items=[...] nextOffset=n` と表示し、次が無ければnextOffset=-1。","starterCode":"import java.util.*;\npublic class RestPaging{public static void main(String[]a){Scanner s=new Scanner(System.in);int offset=s.nextInt(),limit=s.nextInt();// TODO\n}}\n","visibleCases":[{"label":"先頭3件","stdin":"0 3","expected":"items=[1, 2, 3] nextOffset=3"},{"label":"末尾","stdin":"8 5","expected":"items=[9, 10] nextOffset=-1"}],"hiddenCases":[{"label":"上限5","stdin":"2 99","expected":"items=[3, 4, 5, 6, 7] nextOffset=7"},{"label":"下限1","stdin":"0 0","expected":"items=[1] nextOffset=1"},{"label":"範囲外","stdin":"20 3","expected":"items=[] nextOffset=-1"}],"hints":["offsetはMath.max(0,offset)、limitはMath.max(1,Math.min(5,limit))。","fromを最大10、toを最大10で計算し、1〜10のリストからsubList。","to<10ならnextOffset=to、そうでなければ-1。"],"solution":"import java.util.*;\npublic class RestPaging{public static void main(String[]a){Scanner s=new Scanner(System.in);int offset=Math.max(0,s.nextInt()),limit=Math.max(1,Math.min(5,s.nextInt()));List<Integer> all=new ArrayList<>();for(int i=1;i<=10;i++)all.add(i);int from=Math.min(offset,all.size()),to=Math.min(from+limit,all.size());List<Integer> page=all.subList(from,to);int next=to<all.size()?to:-1;System.out.println(\"items=\"+page+\" nextOffset=\"+next);}}\n"}]
+      "id": "28-2",
+      "title": "ステータス・エラー・一覧API",
+      "explanation": "## はじめて学ぶ人へ\n\nAPIレスポンスは、受け手が機械的に判断できるよう毎回同じ形にします。ステータスコードは封筒の表にある結果ラベル、JSON本文は詳しい説明です。\n\n```json\n{\n  \"code\": \"INVALID_NAME\",\n  \"message\": \"nameは必須です\",\n  \"field\": \"name\"\n}\n```\n\n一覧が増え続けるAPIでは、全件を一度に返さず `?page=2&size=20` のように分割します。入力ミスは400、未認証は401、権限不足は403、対象なしは404など、同じ失敗には同じコードと形式を返します。内部例外をそのまま見せず、ログには調査情報、利用者には修正可能な情報を残します。\n\n## 成功と失敗を機械が判断できる形へ\n\n取得成功200、作成201＋Location、本文なし成功204、入力不正400、未認証401、権限なし403、対象なし404、競合409を使い分けます。エラーDTOは `code`, `message`, `details`, `traceId` など一貫した形にします。内部例外をそのままJSON化しません。\n\n`ExceptionMapper<NotFoundException>` によって例外からResponseへの変換を1か所へ集められます。予期しない例外はログへtraceIdと詳細を残し、応答には一般化したメッセージだけを返します。\n\n一覧は無制限に返さず `limit` に上限を設け、offsetまたはcursorでページングします。並び順は一意になる列（createdAt,idなど）まで指定しないとページ間で重複・欠落します。API変更は後方互換性を意識し、破壊的変更はversioningを検討します。",
+      "samples": [
+        {
+          "caption": "ExceptionMapperで404へ変換",
+          "code": "import jakarta.ws.rs.core.*;\nimport jakarta.ws.rs.ext.*;\n\nclass Missing extends RuntimeException {\n    Missing(String m) {\n        super(m);\n    }\n}\n\nrecord ApiError(String code, String message) { }\n\n@Provider\nclass MissingMapper implements ExceptionMapper<Missing> {\n    public Response toResponse(Missing e) {\n        return Response.status(404).entity(new ApiError(\"NOT_FOUND\", e.getMessage())).build();\n    }\n}\n\npublic class MapperSample {\n    public static void main(String[] a) {\n        Response r = new MissingMapper().toResponse(new Missing(\"ありません\"));\n        System.out.println(r.getStatus() + \" \" + r.getEntity());\n    }\n}\n"
+        }
+      ],
+      "task": "`find(id)` の結果をResponseにします。ID 1なら200とProductDto、無ければ404とApiError(`NOT_FOUND`,`商品が見つかりません`)。mainは `status entity` を表示します。",
+      "starterCode": "import jakarta.ws.rs.core.*;\nimport java.util.*;\n\nrecord ProductDto(long id, String name) { }\n\nrecord ApiError(String code, String message) { }\n\nclass ProductApi {\n    Response find(long id) {\n        // TODO\n        return null;\n    }\n}\n\npublic class RestResponse {\n    public static void main(String[] a) {\n        long id = new Scanner(System.in).nextLong();\n        Response r = new ProductApi().find(id);\n        System.out.println(r.getStatus() + \" \" + r.getEntity());\n    }\n}\n",
+      "visibleCases": [
+        {
+          "label": "成功",
+          "stdin": "1",
+          "expected": "200 ProductDto[id=1, name=book]"
+        },
+        {
+          "label": "404",
+          "stdin": "9",
+          "expected": "404 ApiError[code=NOT_FOUND, message=商品が見つかりません]"
+        }
+      ],
+      "hiddenCases": [
+        {
+          "label": "0も404",
+          "stdin": "0",
+          "expected": "404 ApiError[code=NOT_FOUND, message=商品が見つかりません]"
+        }
+      ],
+      "hints": [
+        "id==1なら `Response.ok(new ProductDto(1,\"book\")).build()`。",
+        "それ以外は `Response.status(404).entity(new ApiError(...)).build()`。"
+      ],
+      "solution": "import jakarta.ws.rs.core.*;\nimport java.util.*;\n\nrecord ProductDto(long id, String name) { }\n\nrecord ApiError(String code, String message) { }\n\nclass ProductApi {\n    Response find(long id) {\n        return id == 1 ? Response.ok(new ProductDto(1, \"book\")).build() : Response.status(404).entity(new ApiError(\"NOT_FOUND\", \"商品が見つかりません\")).build();\n    }\n}\n\npublic class RestResponse {\n    public static void main(String[] a) {\n        long id = new Scanner(System.in).nextLong();\n        Response r = new ProductApi().find(id);\n        System.out.println(r.getStatus() + \" \" + r.getEntity());\n    }\n}\n",
+      "extraTasks": [
+        {
+          "kind": "applied",
+          "task": "1〜10の一覧を `offset limit` でページングします。offsetは0以上、limitは1〜5へ丸め（0以下は1、6以上は5）、範囲外なら空。`items=[...] nextOffset=n` と表示し、次が無ければnextOffset=-1。",
+          "starterCode": "import java.util.*;\n\npublic class RestPaging {\n    public static void main(String[] a) {\n        Scanner s = new Scanner(System.in);\n        int offset = s.nextInt(), limit = s.nextInt();\n        // TODO\n    }\n}\n",
+          "visibleCases": [
+            {
+              "label": "先頭3件",
+              "stdin": "0 3",
+              "expected": "items=[1, 2, 3] nextOffset=3"
+            },
+            {
+              "label": "末尾",
+              "stdin": "8 5",
+              "expected": "items=[9, 10] nextOffset=-1"
+            }
+          ],
+          "hiddenCases": [
+            {
+              "label": "上限5",
+              "stdin": "2 99",
+              "expected": "items=[3, 4, 5, 6, 7] nextOffset=7"
+            },
+            {
+              "label": "下限1",
+              "stdin": "0 0",
+              "expected": "items=[1] nextOffset=1"
+            },
+            {
+              "label": "範囲外",
+              "stdin": "20 3",
+              "expected": "items=[] nextOffset=-1"
+            }
+          ],
+          "hints": [
+            "offsetはMath.max(0,offset)、limitはMath.max(1,Math.min(5,limit))。",
+            "fromを最大10、toを最大10で計算し、1〜10のリストからsubList。",
+            "to<10ならnextOffset=to、そうでなければ-1。"
+          ],
+          "solution": "import java.util.*;\n\npublic class RestPaging {\n    public static void main(String[] a) {\n        Scanner s = new Scanner(System.in);\n        int offset = Math.max(0, s.nextInt()), limit = Math.max(1, Math.min(5, s.nextInt()));\n        List<Integer> all = new ArrayList<>();\n        for (int i = 1; i <= 10; i++) all.add(i);\n        int from = Math.min(offset, all.size()), to = Math.min(from + limit, all.size());\n        List<Integer> page = all.subList(from, to);\n        int next = to < all.size() ? to : - 1;\n        System.out.println(\"items=\" + page + \" nextOffset=\" + next);\n    }\n}\n"
+        }
+      ]
     },
     {
-      "id":"28-3","title":"認証・認可とWeb攻撃への備え",
-      "explanation":"## はじめて学ぶ人へ\n\n認証は「あなたは誰か」の確認、認可は「その人がこの操作をしてよいか」の確認です。会社の入口で社員証を確認するのが認証、機密室へ入れる部署か確かめるのが認可に当たります。\n\nたとえばログイン済みの利用者が `/orders/123` を開けても、123番が別人の注文なら拒否しなければなりません。URLのIDを変えるだけで他人のデータを読める問題を防ぐには、取得時に所有者IDも条件へ含めます。\n\nさらに、ブラウザからの変更処理ではCSRF、表示時にはXSS、SQL実行時にはインジェクションへ備えます。入力検証だけに頼らず、認証・認可・安全な出力・PreparedStatementをそれぞれの境界で重ねます。\n\n## 認証と認可を分ける\n\n認証は「誰か」、認可は「その人が操作してよいか」です。ログイン済みでも他人の `/users/123/orders` をIDだけ変えて見られないよう、対象データの所有者を毎回確認します（IDOR対策）。画面でボタンを隠すだけでは認可になりません。\n\nパスワードは平文や復号可能暗号で保存せず、Argon2id/bcrypt/PBKDF2などpassword hashing用アルゴリズム＋saltを使います。秘密鍵やDBパスワードはソース・Git・ログへ置かず、実行環境のsecret管理から受け取ります。\n\nCookie認証の状態変更にはCSRF tokenとSameSite、HTMLには出力エンコード、SQLにはPreparedStatement。CORSはブラウザの別origin制御で、認証やCSRF対策の代わりではありません。ログにはパスワード・token・Cookie・個人情報をそのまま残さず、失敗回数制限と監査も設計します。",
-      "samples":[{"caption":"所有者まで確認する","code":"record Order(long id,String owner){}\npublic class AuthorizationSample{static boolean canRead(String caller,Order order){return caller!=null&&caller.equals(order.owner());}public static void main(String[]a){System.out.println(canRead(\"alice\",new Order(1,\"bob\")));}}\n"}],
-      "task":"入力 `caller role owner` の認可判定をします。adminは全件、userはcaller==ownerだけ許可。callerが `-` は401、ログイン済みだが不許可は403、許可は200。",
-      "starterCode":"import java.util.*;\npublic class RestAuth{public static void main(String[]a){Scanner s=new Scanner(System.in);String caller=s.next(),role=s.next(),owner=s.next();// TODO\n}}\n",
-      "visibleCases":[{"label":"本人","stdin":"alice user alice","expected":"200 OK"},{"label":"他人","stdin":"alice user bob","expected":"403 Forbidden"}],
-      "hiddenCases":[{"label":"管理者","stdin":"admin admin bob","expected":"200 OK"},{"label":"未認証","stdin":"- user alice","expected":"401 Unauthorized"},{"label":"未知role","stdin":"alice guest alice","expected":"403 Forbidden"}],
-      "hints":["callerが-なら401でreturn。","許可条件は `role.equals(\"admin\") || role.equals(\"user\") && caller.equals(owner)`。","演算子の優先順位が伝わるよう括弧を付けてもよいです。"],
-      "solution":"import java.util.*;\npublic class RestAuth{public static void main(String[]a){Scanner s=new Scanner(System.in);String caller=s.next(),role=s.next(),owner=s.next();if(caller.equals(\"-\")){System.out.println(\"401 Unauthorized\");return;}boolean allowed=role.equals(\"admin\")||(role.equals(\"user\")&&caller.equals(owner));System.out.println(allowed?\"200 OK\":\"403 Forbidden\");}}\n",
-      "extraTasks":[{"kind":"applied","task":"セッション内CSRF tokenと送信tokenを比較します。状態変更POSTは一致時だけ200、不一致・欠落は403。入力では欠落を `-` と表します。比較は定数側equalsでnull安全にしてください。","starterCode":"import java.util.*;\npublic class RestCsrf{public static void main(String[]a){Scanner s=new Scanner(System.in);String sessionToken=s.next(),submitted=s.next();if(submitted.equals(\"-\"))submitted=null;// TODO\n}}\n","visibleCases":[{"label":"一致","stdin":"abc abc","expected":"200 Updated"},{"label":"不一致","stdin":"abc xyz","expected":"403 CSRF"}],"hiddenCases":[{"label":"欠落","stdin":"abc -","expected":"403 CSRF"}],"hints":["`sessionToken.equals(submitted)` なら200、それ以外403。sessionTokenはサーバ側に必ずある前提です。"],"solution":"import java.util.*;\npublic class RestCsrf{public static void main(String[]a){Scanner s=new Scanner(System.in);String sessionToken=s.next(),submitted=s.next();if(submitted.equals(\"-\"))submitted=null;System.out.println(sessionToken.equals(submitted)?\"200 Updated\":\"403 CSRF\");}}\n"}],
-      "quiz":[{"question":"RESTのURL設計として基本に沿うものは？","choices":["GET /getUsers","POST /createUserNow","GET /users/42","GET /deleteUser/42"],"answer":2,"explanation":"資源を名詞URLで表し、操作をHTTPメソッドで表します。"},{"question":"作成成功でよく使う組み合わせは？","choices":["201とLocation","404とCookie","500とパスワード","200とスタックトレース"],"answer":0,"explanation":"作成した資源の場所をLocationで示します。"},{"question":"認証済み利用者が他人のIDへアクセスできないようにする対策は？","choices":["ボタンを隠すだけ","サーバ側で対象データの所有者・権限を確認","IDを連番にする","CORSだけ設定"],"answer":1,"explanation":"各オブジェクトへの認可をサーバ側で行います。"},{"question":"パスワード保存に適するものは？","choices":["平文","Base64","password hashing用アルゴリズムとsalt","ログへ出力"],"answer":2,"explanation":"Argon2id/bcrypt/PBKDF2など用途に合った低速hashを使います。"}]
+      "id": "28-3",
+      "title": "認証・認可とWeb攻撃への備え",
+      "explanation": "## はじめて学ぶ人へ\n\n認証は「あなたは誰か」の確認、認可は「その人がこの操作をしてよいか」の確認です。会社の入口で社員証を確認するのが認証、機密室へ入れる部署か確かめるのが認可に当たります。\n\nたとえばログイン済みの利用者が `/orders/123` を開けても、123番が別人の注文なら拒否しなければなりません。URLのIDを変えるだけで他人のデータを読める問題を防ぐには、取得時に所有者IDも条件へ含めます。\n\nさらに、ブラウザからの変更処理ではCSRF、表示時にはXSS、SQL実行時にはインジェクションへ備えます。入力検証だけに頼らず、認証・認可・安全な出力・PreparedStatementをそれぞれの境界で重ねます。\n\n## 認証と認可を分ける\n\n認証は「誰か」、認可は「その人が操作してよいか」です。ログイン済みでも他人の `/users/123/orders` をIDだけ変えて見られないよう、対象データの所有者を毎回確認します（IDOR対策）。画面でボタンを隠すだけでは認可になりません。\n\nパスワードは平文や復号可能暗号で保存せず、Argon2id/bcrypt/PBKDF2などpassword hashing用アルゴリズム＋saltを使います。秘密鍵やDBパスワードはソース・Git・ログへ置かず、実行環境のsecret管理から受け取ります。\n\nCookie認証の状態変更にはCSRF tokenとSameSite、HTMLには出力エンコード、SQLにはPreparedStatement。CORSはブラウザの別origin制御で、認証やCSRF対策の代わりではありません。ログにはパスワード・token・Cookie・個人情報をそのまま残さず、失敗回数制限と監査も設計します。",
+      "samples": [
+        {
+          "caption": "所有者まで確認する",
+          "code": "record Order(long id, String owner) { }\n\npublic class AuthorizationSample {\n    static boolean canRead(String caller, Order order) {\n        return caller != null && caller.equals(order.owner());\n    }\n\n    public static void main(String[] a) {\n        System.out.println(canRead(\"alice\", new Order(1, \"bob\")));\n    }\n}\n"
+        }
+      ],
+      "task": "入力 `caller role owner` の認可判定をします。adminは全件、userはcaller==ownerだけ許可。callerが `-` は401、ログイン済みだが不許可は403、許可は200。",
+      "starterCode": "import java.util.*;\n\npublic class RestAuth {\n    public static void main(String[] a) {\n        Scanner s = new Scanner(System.in);\n        String caller = s.next(), role = s.next(), owner = s.next();\n        // TODO\n    }\n}\n",
+      "visibleCases": [
+        {
+          "label": "本人",
+          "stdin": "alice user alice",
+          "expected": "200 OK"
+        },
+        {
+          "label": "他人",
+          "stdin": "alice user bob",
+          "expected": "403 Forbidden"
+        }
+      ],
+      "hiddenCases": [
+        {
+          "label": "管理者",
+          "stdin": "admin admin bob",
+          "expected": "200 OK"
+        },
+        {
+          "label": "未認証",
+          "stdin": "- user alice",
+          "expected": "401 Unauthorized"
+        },
+        {
+          "label": "未知role",
+          "stdin": "alice guest alice",
+          "expected": "403 Forbidden"
+        }
+      ],
+      "hints": [
+        "callerが-なら401でreturn。",
+        "許可条件は `role.equals(\"admin\") || role.equals(\"user\") && caller.equals(owner)`。",
+        "演算子の優先順位が伝わるよう括弧を付けてもよいです。"
+      ],
+      "solution": "import java.util.*;\n\npublic class RestAuth {\n    public static void main(String[] a) {\n        Scanner s = new Scanner(System.in);\n        String caller = s.next(), role = s.next(), owner = s.next();\n        if (caller.equals(\"-\")) {\n            System.out.println(\"401 Unauthorized\");\n            return;\n        }\n        boolean allowed = role.equals(\"admin\") || (role.equals(\"user\") && caller.equals(owner));\n        System.out.println(allowed ? \"200 OK\" : \"403 Forbidden\");\n    }\n}\n",
+      "extraTasks": [
+        {
+          "kind": "applied",
+          "task": "セッション内CSRF tokenと送信tokenを比較します。状態変更POSTは一致時だけ200、不一致・欠落は403。入力では欠落を `-` と表します。比較は定数側equalsでnull安全にしてください。",
+          "starterCode": "import java.util.*;\n\npublic class RestCsrf {\n    public static void main(String[] a) {\n        Scanner s = new Scanner(System.in);\n        String sessionToken = s.next(), submitted = s.next();\n        if (submitted.equals(\"-\")) submitted = null;\n        // TODO\n    }\n}\n",
+          "visibleCases": [
+            {
+              "label": "一致",
+              "stdin": "abc abc",
+              "expected": "200 Updated"
+            },
+            {
+              "label": "不一致",
+              "stdin": "abc xyz",
+              "expected": "403 CSRF"
+            }
+          ],
+          "hiddenCases": [
+            {
+              "label": "欠落",
+              "stdin": "abc -",
+              "expected": "403 CSRF"
+            }
+          ],
+          "hints": [
+            "`sessionToken.equals(submitted)` なら200、それ以外403。sessionTokenはサーバ側に必ずある前提です。"
+          ],
+          "solution": "import java.util.*;\n\npublic class RestCsrf {\n    public static void main(String[] a) {\n        Scanner s = new Scanner(System.in);\n        String sessionToken = s.next(), submitted = s.next();\n        if (submitted.equals(\"-\")) submitted = null;\n        System.out.println(sessionToken.equals(submitted) ? \"200 Updated\" : \"403 CSRF\");\n    }\n}\n",
+          "sourceChecks": [
+            {
+              "pattern": "sessionToken\\s*\\.\\s*equals\\s*\\(",
+              "minimum": 1,
+              "message": "必ず存在する側（セッションのtoken）から `equals` を呼んでください。送信された側から呼ぶと、欠落時に `NullPointerException` になります。"
+            }
+          ]
+        }
+      ],
+      "quiz": [
+        {
+          "question": "RESTのURL設計として基本に沿うものは？",
+          "choices": [
+            "POST /createUserNow",
+            "GET /getUsers",
+            "GET /users/42",
+            "GET /deleteUser/42"
+          ],
+          "answer": 2,
+          "explanation": "`/createUserNow` と `/getUsers` は操作名をURLに入れていて、HTTPメソッドと役割が重複します。`GET /deleteUser/42` はGETで削除するので、リンクを開いたりクローラが辿るだけでデータが消えます。URLは資源を名詞で表し、何をするかはメソッドで表します。"
+        },
+        {
+          "question": "作成成功でよく使う組み合わせは？",
+          "choices": [
+            "201とLocation",
+            "200とスタックトレース",
+            "404とCookie",
+            "500とパスワード"
+          ],
+          "answer": 0,
+          "explanation": "200はすでにある資源を返したときの形で、作ったものの場所が分かりません。スタックトレースやパスワードを返してはいけません。404は見つからないとき、500は失敗したときのコードです。作成の成功は201で、作った資源の位置を `Location` ヘッダで示します。"
+        },
+        {
+          "question": "認証済み利用者が他人のIDへアクセスできないようにする対策は？",
+          "choices": [
+            "CORSの設定だけを行う",
+            "画面のボタンを隠すだけ",
+            "IDを推測しにくい値にするだけ",
+            "サーバ側で対象データの所有者・権限を確認"
+          ],
+          "answer": 3,
+          "explanation": "CORSはブラウザからの呼び出し元を制限するだけで、直接叩かれれば効きません。ボタンを隠すのは見た目の話で、URLを打てば通ります。IDを推測しにくくするのは当てにくくするだけで、1件漏れたらそれは守れません。要求ごとに、その対象データの所有者と権限をサーバ側で確かめます。"
+        },
+        {
+          "question": "パスワード保存に適するものは？",
+          "choices": [
+            "password hashing用アルゴリズムとsalt",
+            "そのまま平文で保存し、必要なときに読み出す",
+            "Base64でエンコードして保存する",
+            "ハッシュ化せずログにも出力して照合する"
+          ],
+          "answer": 0,
+          "explanation": "Argon2id/bcrypt/PBKDF2など用途に合った低速hashを使います。"
+        }
+      ]
     },
     {
       "id": "28-4",
@@ -43,11 +309,11 @@
       "samples": [
         {
           "caption": "復習用サンプル：所有者まで確認する",
-          "code": "record Order(long id,String owner){}\npublic class AuthorizationSample{static boolean canRead(String caller,Order order){return caller!=null&&caller.equals(order.owner());}public static void main(String[]a){System.out.println(canRead(\"alice\",new Order(1,\"bob\")));}}\n"
+          "code": "record Order(long id, String owner) { }\n\npublic class AuthorizationSample {\n    static boolean canRead(String caller, Order order) {\n        return caller != null && caller.equals(order.owner());\n    }\n\n    public static void main(String[] a) {\n        System.out.println(canRead(\"alice\", new Order(1, \"bob\")));\n    }\n}\n"
         }
       ],
       "task": "【基本】BookResourceの `find(int id)` を作ります。ID 1はJava、2はAPIです。見つかれば200と名前、無ければ404と `not found` を持つResponseを返し、mainで `status entity` と表示してください。",
-      "starterCode": "import jakarta.ws.rs.*;\nimport jakarta.ws.rs.core.*;\nimport java.util.*;\n@Path(\"/books\") class BookResource {private final Map<Integer,String> books=Map.of(1,\"Java\",2,\"API\");@GET @Path(\"/{id}\") Response find(@PathParam(\"id\") int id){/* TODO */return null;}}\npublic class Main {public static void main(String[] args){Response r=new BookResource().find(new Scanner(System.in).nextInt());System.out.println(r.getStatus()+\" \"+r.getEntity());}}\n",
+      "starterCode": "import jakarta.ws.rs.*;\nimport jakarta.ws.rs.core.*;\nimport java.util.*;\n\n@Path(\"/books\")\nclass BookResource {\n    private final Map<Integer, String> books = Map.of(1, \"Java\", 2, \"API\");\n\n    @GET\n    @Path(\"/{id}\")\n    Response find(@PathParam(\"id\") int id) {\n        /* TODO */ return null;\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Response r = new BookResource().find(new Scanner(System.in).nextInt());\n        System.out.println(r.getStatus() + \" \" + r.getEntity());\n    }\n}\n",
       "visibleCases": [
         {
           "label": "存在",
@@ -76,12 +342,12 @@
         "Mapから取得した結果がnullかを確認します。",
         "成功はResponse.ok、未検出はResponse.status(404)を使います。"
       ],
-      "solution": "import jakarta.ws.rs.*;\nimport jakarta.ws.rs.core.*;\nimport java.util.*;\n@Path(\"/books\") class BookResource {private final Map<Integer,String> books=Map.of(1,\"Java\",2,\"API\");@GET @Path(\"/{id}\") Response find(@PathParam(\"id\") int id){String book=books.get(id);return book==null?Response.status(404).entity(\"not found\").build():Response.ok(book).build();}}\npublic class Main {public static void main(String[] args){Response r=new BookResource().find(new Scanner(System.in).nextInt());System.out.println(r.getStatus()+\" \"+r.getEntity());}}\n",
+      "solution": "import jakarta.ws.rs.*;\nimport jakarta.ws.rs.core.*;\nimport java.util.*;\n\n@Path(\"/books\")\nclass BookResource {\n    private final Map<Integer, String> books = Map.of(1, \"Java\", 2, \"API\");\n\n    @GET\n    @Path(\"/{id}\")\n    Response find(@PathParam(\"id\") int id) {\n        String book = books.get(id);\n        return book == null ? Response.status(404).entity(\"not found\").build() : Response.ok(book).build();\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Response r = new BookResource().find(new Scanner(System.in).nextInt());\n        System.out.println(r.getStatus() + \" \" + r.getEntity());\n    }\n}\n",
       "extraTasks": [
         {
           "kind": "drill",
           "task": "【組み合わせ】1〜10の整数一覧に対し、0始まりのpageと正のsizeを読みます。該当ページをリスト形式で表示し、範囲外なら空リストにしてください。",
-          "starterCode": "import java.util.*;\npublic class Main {public static void main(String[] args){Scanner s=new Scanner(System.in);int page=s.nextInt(),size=s.nextInt();List<Integer> all=new ArrayList<>();for(int i=1;i<=10;i++)all.add(i);/* TODO */}}\n",
+          "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        int page = s.nextInt(), size = s.nextInt();\n        List<Integer> all = new ArrayList<>();\n        for (int i = 1; i <= 10; i++) all.add(i);\n        /* TODO */\n    }\n}\n",
           "visibleCases": [
             {
               "label": "1ページ目",
@@ -115,12 +381,12 @@
             "fromはpage×sizeですが、一覧サイズを超えないようMath.minします。",
             "page<0またはsize<=0は先に400として処理します。"
           ],
-          "solution": "import java.util.*;\npublic class Main {public static void main(String[] args){Scanner s=new Scanner(System.in);int page=s.nextInt(),size=s.nextInt();List<Integer> all=new ArrayList<>();for(int i=1;i<=10;i++)all.add(i);if(page<0||size<=0){System.out.println(\"400 Bad Request\");return;}int from=Math.min(page*size,all.size());int to=Math.min(from+size,all.size());System.out.println(all.subList(from,to));}}\n"
+          "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        int page = s.nextInt(), size = s.nextInt();\n        List<Integer> all = new ArrayList<>();\n        for (int i = 1; i <= 10; i++) all.add(i);\n        if (page < 0 || size <= 0) {\n            System.out.println(\"400 Bad Request\");\n            return;\n        }\n        int from = Math.min(page * size, all.size());\n        int to = Math.min(from + size, all.size());\n        System.out.println(all.subList(from, to));\n    }\n}\n"
         },
         {
           "kind": "applied",
           "task": "【実践】caller、role、ownerを読みます。callerが `-` なら401、roleがadminまたはcallerとownerが同じなら200、それ以外は403を表示してください。これは認証後に所有者も確認する処理です。",
-          "starterCode": "import java.util.*;\npublic class Main {public static void main(String[] args){Scanner s=new Scanner(System.in);String caller=s.next(),role=s.next(),owner=s.next();/* TODO */}}\n",
+          "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        String caller = s.next(), role = s.next(), owner = s.next();\n        /* TODO */\n    }\n}\n",
           "visibleCases": [
             {
               "label": "所有者",
@@ -149,7 +415,19 @@
             "認証の有無を最初に判定します。",
             "認可はadminか、callerとownerが同じかで判定します。"
           ],
-          "solution": "import java.util.*;\npublic class Main {public static void main(String[] args){Scanner s=new Scanner(System.in);String caller=s.next(),role=s.next(),owner=s.next();if(caller.equals(\"-\")){System.out.println(\"401 Unauthorized\");return;}boolean allowed=role.equals(\"admin\")||caller.equals(owner);System.out.println(allowed?\"200 OK\":\"403 Forbidden\");}}\n"
+          "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        String caller = s.next(), role = s.next(), owner = s.next();\n        if (caller.equals(\"-\")) {\n            System.out.println(\"401 Unauthorized\");\n            return;\n        }\n        boolean allowed = role.equals(\"admin\") || caller.equals(owner);\n        System.out.println(allowed ? \"200 OK\" : \"403 Forbidden\");\n    }\n}\n",
+          "sourceChecks": [
+            {
+              "pattern": "\\|\\|",
+              "minimum": 1,
+              "message": "「adminである **または** 所有者である」なので `||` でつないでください。"
+            },
+            {
+              "pattern": "\\.equals\\s*\\(",
+              "minimum": 2,
+              "message": "文字列の比較は `equals` です（`==` は同じインスタンスかを見るだけです）。"
+            }
+          ]
         }
       ]
     }

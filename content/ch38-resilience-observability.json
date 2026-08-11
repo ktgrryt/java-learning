@@ -8,42 +8,454 @@
       "id": "38-1",
       "title": "失敗と過負荷を通常ケースとして扱う",
       "explanation": "## はじめて学ぶ人へ\n\n本番では、通信失敗やアクセス集中は例外的な事故ではなく必ず起こる前提で設計します。満席の店へ全員が同時に電話をかけ直すと、店はさらに応答できなくなります。無制限の即時リトライも同じ「再試行の嵐」を起こします。\n\n```svg 待ち時間を倍にしながら、ばらつき（jitter）を足して再試行を散らす\n<svg viewBox=\"0 0 720 196\">\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"14\" y=\"24\">失敗したら、待ってから試す（待ち時間は倍々に）</text>\n  <line class=\"fig-line\" x1=\"30\" y1=\"100\" x2=\"690\" y2=\"100\" marker-end=\"arrow\"/>\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"686\" y=\"122\" text-anchor=\"end\">時間</text>\n\n  <circle class=\"fig-fill-ng\" cx=\"70\" cy=\"100\" r=\"7\"/>\n  <text class=\"fig-t fig-t-ng fig-small\" x=\"70\" y=\"76\" text-anchor=\"middle\">1回目 失敗</text>\n  <text class=\"fig-t fig-t-accent fig-small\" x=\"165\" y=\"126\" text-anchor=\"middle\">100ms ＋ ばらつき</text>\n  <circle class=\"fig-fill-ng\" cx=\"260\" cy=\"100\" r=\"7\"/>\n  <text class=\"fig-t fig-t-ng fig-small\" x=\"260\" y=\"76\" text-anchor=\"middle\">2回目 失敗</text>\n  <text class=\"fig-t fig-t-accent fig-small\" x=\"390\" y=\"126\" text-anchor=\"middle\">200ms ＋ ばらつき</text>\n  <circle class=\"fig-fill-ok\" cx=\"520\" cy=\"100\" r=\"7\"/>\n  <text class=\"fig-t fig-t-ok fig-small\" x=\"520\" y=\"76\" text-anchor=\"middle\">3回目 成功</text>\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"620\" y=\"76\" text-anchor=\"middle\">上限に達したら諦める</text>\n\n  <text class=\"fig-t fig-t-dim fig-small\" x=\"14\" y=\"160\">再試行してよいのは、一時的な失敗で、かつ操作が冪等なときだけ</text>\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"14\" y=\"182\">全員が同時に即時再試行すると障害を増幅する。結果が不明な更新には冪等キーが必要</text>\n</svg>\n```\n\nタイムアウトで待つ上限を決め、指数バックオフとjitterで再試行を分散します。キュー上限やSemaphoreによるバックプレッシャーで受け付け量も守ります。終了時は新規受付を止め、処理中の仕事を期限内で終えるgraceful shutdownを行います。\n\n## 待ち時間と再試行に上限を置く\n\n外部I/Oには必ずタイムアウトを設けます。再試行は一時障害かつ操作が冪等な場合に限定し、回数上限、指数バックオフ、jitterを入れます。全利用者が同時に即時再試行すると障害を増幅します。処理結果が不明な更新には冪等キーなどが必要です。\n\n## 過負荷を押し戻す\n\nキュー上限、Semaphoreによる同時実行制限、レート制限、サーキットブレーカーで下流を守ります。待ちを無限に積まず、期限を超えた仕事は早く失敗させます。これをバックプレッシャーと呼びます。\n\n```svg 受け付ける量に上限を置き、あふれた分は早く失敗させて下流を守る\n<svg viewBox=\"0 0 720 226\">\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"14\" y=\"24\">流入</text>\n  <line class=\"fig-line\" x1=\"14\" y1=\"60\" x2=\"94\" y2=\"60\" marker-end=\"arrow\"/>\n  <line class=\"fig-line\" x1=\"14\" y1=\"86\" x2=\"94\" y2=\"86\" marker-end=\"arrow\"/>\n  <line class=\"fig-line\" x1=\"14\" y1=\"112\" x2=\"94\" y2=\"112\" marker-end=\"arrow\"/>\n  <line class=\"fig-line\" x1=\"14\" y1=\"138\" x2=\"94\" y2=\"138\" marker-end=\"arrow\"/>\n\n  <rect class=\"fig-region\" x=\"100\" y=\"44\" width=\"170\" height=\"110\" rx=\"8\"/>\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"185\" y=\"62\" text-anchor=\"middle\">キュー（上限あり）</text>\n  <rect class=\"fig-box\" x=\"116\" y=\"72\" width=\"138\" height=\"24\" rx=\"6\"/>\n  <text class=\"fig-t fig-mono fig-small\" x=\"185\" y=\"84\" text-anchor=\"middle\">task</text>\n  <rect class=\"fig-box\" x=\"116\" y=\"102\" width=\"138\" height=\"24\" rx=\"6\"/>\n  <text class=\"fig-t fig-mono fig-small\" x=\"185\" y=\"114\" text-anchor=\"middle\">task</text>\n  <rect class=\"fig-box\" x=\"116\" y=\"130\" width=\"138\" height=\"18\" rx=\"6\"/>\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"185\" y=\"139\" text-anchor=\"middle\">これ以上は入れない</text>\n\n  <rect class=\"fig-box-accent\" x=\"300\" y=\"72\" width=\"130\" height=\"54\" rx=\"6\"/>\n  <text class=\"fig-t fig-mono fig-small fig-t-accent\" x=\"365\" y=\"92\" text-anchor=\"middle\">Semaphore</text>\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"365\" y=\"112\" text-anchor=\"middle\">同時実行数を絞る</text>\n  <rect class=\"fig-box\" x=\"460\" y=\"72\" width=\"110\" height=\"54\" rx=\"6\"/>\n  <text class=\"fig-t fig-small\" x=\"515\" y=\"99\" text-anchor=\"middle\">処理</text>\n  <rect class=\"fig-box\" x=\"600\" y=\"72\" width=\"106\" height=\"54\" rx=\"6\"/>\n  <text class=\"fig-t fig-small\" x=\"653\" y=\"92\" text-anchor=\"middle\">下流</text>\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"653\" y=\"112\" text-anchor=\"middle\">DB・外部API</text>\n  <line class=\"fig-line\" x1=\"274\" y1=\"99\" x2=\"296\" y2=\"99\" marker-end=\"arrow\"/>\n  <line class=\"fig-line\" x1=\"434\" y1=\"99\" x2=\"456\" y2=\"99\" marker-end=\"arrow\"/>\n  <line class=\"fig-line\" x1=\"574\" y1=\"99\" x2=\"596\" y2=\"99\" marker-end=\"arrow\"/>\n\n  <line class=\"fig-line-ng\" x1=\"185\" y1=\"154\" x2=\"185\" y2=\"172\" marker-end=\"arrow-ng\"/>\n  <rect class=\"fig-box-ng\" x=\"100\" y=\"176\" width=\"330\" height=\"32\" rx=\"6\"/>\n  <text class=\"fig-t fig-small fig-t-ng\" x=\"265\" y=\"192\" text-anchor=\"middle\">あふれた分・期限を超えた分は早く失敗させる</text>\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"450\" y=\"192\">待ちを無限に積まないのがバックプレッシャー</text>\n</svg>\n```\n\n停止時は新規受付を止め、実行中処理に猶予を与え、残タスクをキャンセルし、資源を閉じます。割込みをcatchしたら、処理を中断するか `Thread.currentThread().interrupt()` で状態を戻し、握りつぶしません。",
-      "samples": [{"caption":"回数上限のある再試行","code":"public class Main { public static void main(String[] args){int failFirst=2,maxAttempts=3,attempt=0;boolean ok=false;while(attempt<maxAttempts&&!ok){attempt++;ok=attempt>failFirst;}System.out.println(ok+\" attempts=\"+attempt);} }\n"}],
+      "samples": [
+        {
+          "caption": "回数上限のある再試行",
+          "code": "public class Main {\n    public static void main(String[] args) {\n        int failFirst = 2, maxAttempts = 3, attempt = 0;\n        boolean ok = false;\n        while (attempt < maxAttempts && !ok) {\n            attempt++;\n            ok = attempt > failFirst;\n        }\n        System.out.println(ok + \" attempts=\" + attempt);\n    }\n}\n"
+        }
+      ],
       "task": "最初に失敗する回数failFirstと最大試行回数maxAttemptsを読みます。操作は `attempt > failFirst` になったとき成功するとして、成功または上限まで試行してください。`attempts=回数` と `result=success/failed` を表示します。maxAttemptsは1以上です。",
-      "starterCode": "import java.util.*;\npublic class Main { public static void main(String[] args){ Scanner s=new Scanner(System.in);int failFirst=s.nextInt(),maxAttempts=s.nextInt(); // TODO\n} }\n",
-      "visibleCases": [{"label":"3回目成功","stdin":"2 3","expected":"attempts=3\nresult=success"},{"label":"失敗","stdin":"5 3","expected":"attempts=3\nresult=failed"}],
-      "hiddenCases": [{"label":"初回成功","stdin":"0 4","expected":"attempts=1\nresult=success"},{"label":"1回で失敗","stdin":"1 1","expected":"attempts=1\nresult=failed"}],
-      "hints": ["attemptsがmaxAttempts未満かつ未成功の間ループします。","attemptsを増やした後、`attempts > failFirst` を判定します。"],
-      "solution": "import java.util.*;\npublic class Main { public static void main(String[] args){ Scanner s=new Scanner(System.in);int failFirst=s.nextInt(),maxAttempts=s.nextInt();int attempts=0;boolean success=false;while(attempts<maxAttempts&&!success){attempts++;success=attempts>failFirst;}System.out.println(\"attempts=\"+attempts);System.out.println(\"result=\"+(success?\"success\":\"failed\"));} }\n",
-      "extraTasks": [{"kind":"applied","task":"初期待機ms initial、上限ms max、再試行回数retriesを読みます。各再試行前の待機時間をリストで表示してください。最初はinitial、その後は2倍ですがmaxを超えないようにします。実際にsleepはしません。","starterCode":"import java.util.*;\npublic class Main { public static void main(String[] args){ Scanner s=new Scanner(System.in);long initial=s.nextLong(),max=s.nextLong();int retries=s.nextInt();List<Long> delays=new ArrayList<>(); // TODO\nSystem.out.println(delays); } }\n","visibleCases":[{"label":"上限到達","stdin":"100 1000 5","expected":"[100, 200, 400, 800, 1000]"},{"label":"0回","stdin":"50 500 0","expected":"[]"}],"hiddenCases":[{"label":"初期値が上限","stdin":"1000 1000 3","expected":"[1000, 1000, 1000]"},{"label":"1回","stdin":"25 100 1","expected":"[25]"}],"hints":["delayをinitialで始め、各ループでリストへ追加します。","次の値は `Math.min(max, delay * 2)` です。"],"solution":"import java.util.*;\npublic class Main { public static void main(String[] args){ Scanner s=new Scanner(System.in);long initial=s.nextLong(),max=s.nextLong();int retries=s.nextInt();List<Long> delays=new ArrayList<>();long delay=Math.min(initial,max);for(int i=0;i<retries;i++){delays.add(delay);delay=Math.min(max,delay*2);}System.out.println(delays); } }\n"}],
-      "quiz": [{"question":"再試行が適する条件は？","choices":["永続的な入力エラー","一時障害で操作が冪等または重複防止済み","認可失敗を無限に","すべての例外"],"answer":1,"explanation":"成功可能性と重複実行の安全性を確認します。"},{"question":"指数バックオフへjitterを加える目的は？","choices":["再試行時刻の集中を散らす","必ず0msにする","例外を消す","暗号化する"],"answer":0,"explanation":"同時障害したクライアントの再試行波を分散します。"},{"question":"バックプレッシャーの狙いは？","choices":["仕事を無制限に蓄積","処理能力を超える流入を制限・拒否","全処理を同期化","ログを削除"],"answer":1,"explanation":"過負荷を待ち行列とメモリの増大へ変換しない設計です。"},{"question":"InterruptedExceptionを処理継続のためcatchした場合の基本は？","choices":["必ず無視","中断するかinterrupt状態を戻す","System.gcを呼ぶ","新スレッドを無限作成"],"answer":1,"explanation":"キャンセル信号を失わないよう方針を決めます。"}]
+      "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        int failFirst = s.nextInt(), maxAttempts = s.nextInt();\n        // TODO\n    }\n}\n",
+      "visibleCases": [
+        {
+          "label": "3回目成功",
+          "stdin": "2 3",
+          "expected": "attempts=3\nresult=success"
+        },
+        {
+          "label": "失敗",
+          "stdin": "5 3",
+          "expected": "attempts=3\nresult=failed"
+        }
+      ],
+      "hiddenCases": [
+        {
+          "label": "初回成功",
+          "stdin": "0 4",
+          "expected": "attempts=1\nresult=success"
+        },
+        {
+          "label": "1回で失敗",
+          "stdin": "1 1",
+          "expected": "attempts=1\nresult=failed"
+        }
+      ],
+      "hints": [
+        "attemptsがmaxAttempts未満かつ未成功の間ループします。",
+        "attemptsを増やした後、`attempts > failFirst` を判定します。"
+      ],
+      "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        int failFirst = s.nextInt(), maxAttempts = s.nextInt();\n        int attempts = 0;\n        boolean success = false;\n        while (attempts < maxAttempts && !success) {\n            attempts++;\n            success = attempts > failFirst;\n        }\n        System.out.println(\"attempts=\" + attempts);\n        System.out.println(\"result=\" + (success ? \"success\" : \"failed\"));\n    }\n}\n",
+      "extraTasks": [
+        {
+          "kind": "applied",
+          "task": "初期待機ms initial、上限ms max、再試行回数retriesを読みます。各再試行前の待機時間をリストで表示してください。最初はinitial、その後は2倍ですがmaxを超えないようにします。実際にsleepはしません。",
+          "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        long initial = s.nextLong(), max = s.nextLong();\n        int retries = s.nextInt();\n        List<Long> delays = new ArrayList<>();\n        // TODO\n        System.out.println(delays);\n    }\n}\n",
+          "visibleCases": [
+            {
+              "label": "上限到達",
+              "stdin": "100 1000 5",
+              "expected": "[100, 200, 400, 800, 1000]"
+            },
+            {
+              "label": "0回",
+              "stdin": "50 500 0",
+              "expected": "[]"
+            }
+          ],
+          "hiddenCases": [
+            {
+              "label": "初期値が上限",
+              "stdin": "1000 1000 3",
+              "expected": "[1000, 1000, 1000]"
+            },
+            {
+              "label": "1回",
+              "stdin": "25 100 1",
+              "expected": "[25]"
+            }
+          ],
+          "hints": [
+            "delayをinitialで始め、各ループでリストへ追加します。",
+            "次の値は `Math.min(max, delay * 2)` です。"
+          ],
+          "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        long initial = s.nextLong(), max = s.nextLong();\n        int retries = s.nextInt();\n        List<Long> delays = new ArrayList<>();\n        long delay = Math.min(initial, max);\n        for (int i = 0; i < retries; i++) {\n            delays.add(delay);\n            delay = Math.min(max, delay * 2);\n        }\n        System.out.println(delays);\n    }\n}\n",
+          "sourceChecks": [
+            {
+              "pattern": "Math\\s*\\.\\s*min\\s*\\(|>\\s*max",
+              "minimum": 1,
+              "message": "待ち時間が上限を超えないよう、`Math.min` か比較で抑えてください。"
+            },
+            {
+              "pattern": "\\*\\s*2|<<\\s*1",
+              "minimum": 1,
+              "message": "待ち時間を2倍にしていくのが指数バックオフです。"
+            }
+          ]
+        }
+      ],
+      "quiz": [
+        {
+          "question": "再試行が適する条件は？",
+          "choices": [
+            "あらゆる種類の例外",
+            "永続的な入力エラーのとき",
+            "一時障害で操作が冪等または重複防止済み",
+            "認可の失敗を無限に繰り返す"
+          ],
+          "answer": 2,
+          "explanation": "あらゆる例外を再試行すると、入力の誤りのように何度やっても失敗するものを繰り返し、負荷だけが増えます。永続的な入力エラーは再試行しても直りません。認可の失敗を無限に繰り返すのは攻撃と見分けがつきません。再試行してよいのは「一時的な障害で、かつもう一度実行しても二重処理にならない」場合だけです。"
+        },
+        {
+          "question": "指数バックオフへjitterを加える目的は？",
+          "choices": [
+            "例外を消す",
+            "再試行時刻の集中を散らす",
+            "待ち時間を毎回同じ値にそろえる",
+            "暗号化する"
+          ],
+          "answer": 1,
+          "explanation": "例外は消えませんし、暗号化とも関係ありません。待ち時間を毎回同じ値にそろえるのは jitter の**逆**です。同時に障害を受けたクライアントは同じ間隔で再試行するので、回復した瞬間に全員が一斉に押しかけて再び倒します。少しずつ揺らして、再試行の時刻を散らします。"
+        },
+        {
+          "question": "バックプレッシャーの狙いは？",
+          "choices": [
+            "仕事を無制限に蓄積",
+            "処理能力を超える流入を制限・拒否",
+            "全処理を同期化",
+            "ログを削除"
+          ],
+          "answer": 1,
+          "explanation": "無制限に蓄積するのは、まさに避けたい状態そのものです。全処理を同期化しても流入は減りません。ログの削除は無関係です。処理能力を超えた流入を早めに断る（あるいは送り手を遅くする）ことで、過負荷を「待ち行列とメモリの増大」へ変えずに済ませます。"
+        },
+        {
+          "question": "InterruptedExceptionを処理継続のためcatchした場合の基本は？",
+          "choices": [
+            "中断するかinterrupt状態を戻す",
+            "新スレッドを無限作成",
+            "System.gcを呼ぶ",
+            "ログに書いて処理を続ける"
+          ],
+          "answer": 0,
+          "explanation": "新しいスレッドを無限に作るのは暴走です。`System.gc` は関係ありません。ログに書いて処理を続けるのが最も多い間違いで、これをすると「止まってほしい」という合図が消え、終了できないスレッドが残ります。自分で中断するか、`Thread.currentThread().interrupt()` で状態を戻して上位へ伝えます。"
+        }
+      ]
     },
     {
       "id": "38-2",
       "title": "ログ・メトリクス・トレースをつなぐ",
       "explanation": "## はじめて学ぶ人へ\n\n可観測性は、動いているシステムの内部状態を外から推測できるようにすることです。3つの道具は役割が違います。\n\n- ログ: 何が起きたかを残す防犯カメラの記録\n- メトリクス: 全体の件数や遅さを見る計器盤\n- トレース: 1件の依頼が複数サービスを通る経路を追う配送番号\n\nたとえば注文1件に `traceId=abc` を付け、API、決済、DBのログへ同じIDを残せば、エラー率上昇をメトリクスで発見したあと、その失敗リクエストをログとトレースで追えます。秘密情報や本文すべてを記録せず、処理名・結果・時間・相関IDを構造化して残します。\n\n## 三つの観測信号\n\nログは個別イベントの詳細、メトリクスは件数や分布の時系列、トレースは1リクエストが複数サービスを通る因果関係を表します。障害時に後付けできないため、平常時から設計します。\n\n```svg 同じ `traceId` をログに残せば、メトリクスで気づいた異常をログとトレースまで辿れる\n<svg viewBox=\"0 0 720 244\">\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"14\" y=\"26\">1件のリクエストが通る経路（trace）</text>\n  <rect class=\"fig-box-accent\" x=\"60\" y=\"42\" width=\"600\" height=\"28\" rx=\"6\"/>\n  <text class=\"fig-t fig-mono fig-small fig-t-accent\" x=\"76\" y=\"56\">API /orders   traceId=abc</text>\n  <rect class=\"fig-box\" x=\"140\" y=\"78\" width=\"260\" height=\"26\" rx=\"6\"/>\n  <text class=\"fig-t fig-mono fig-small\" x=\"156\" y=\"91\">決済サービス呼び出し</text>\n  <rect class=\"fig-box\" x=\"420\" y=\"78\" width=\"180\" height=\"26\" rx=\"6\"/>\n  <text class=\"fig-t fig-mono fig-small\" x=\"436\" y=\"91\">DB 更新</text>\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"52\" y=\"56\" text-anchor=\"end\">親</text>\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"132\" y=\"91\" text-anchor=\"end\">子</text>\n\n  <rect class=\"fig-box\" x=\"14\" y=\"130\" width=\"220\" height=\"70\" rx=\"6\"/>\n  <text class=\"fig-t fig-title fig-small\" x=\"124\" y=\"150\" text-anchor=\"middle\">ログ</text>\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"124\" y=\"172\" text-anchor=\"middle\">個別の出来事を残す</text>\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"124\" y=\"190\" text-anchor=\"middle\">構造化して traceId を入れる</text>\n\n  <rect class=\"fig-box\" x=\"250\" y=\"130\" width=\"220\" height=\"70\" rx=\"6\"/>\n  <text class=\"fig-t fig-title fig-small\" x=\"360\" y=\"150\" text-anchor=\"middle\">メトリクス</text>\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"360\" y=\"172\" text-anchor=\"middle\">件数・遅さの時系列</text>\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"360\" y=\"190\" text-anchor=\"middle\">異常に気づくのはここ</text>\n\n  <rect class=\"fig-box-accent\" x=\"486\" y=\"130\" width=\"220\" height=\"70\" rx=\"6\"/>\n  <text class=\"fig-t fig-title fig-small fig-t-accent\" x=\"596\" y=\"150\" text-anchor=\"middle\">トレース</text>\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"596\" y=\"172\" text-anchor=\"middle\">1件が通った経路と時間</text>\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"596\" y=\"190\" text-anchor=\"middle\">どこで遅いかが分かる</text>\n\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"14\" y=\"230\">パスワード・トークン・個人情報は残さない。同じ例外を各層で何度も ERROR にせず、責任を持つ境界で一度記録する</text>\n</svg>\n```\n\nログには時刻、レベル、イベント名、trace/request ID、処理結果、必要な識別子を構造化して入れます。パスワード、トークン、個人情報をそのまま出さず、例外は調査できるスタックトレースを一度、責任を持つ境界で記録します。同じ例外を各層で何度もERRORにしません。\n\nサービスではlatency・traffic・errors・saturationを出発点にします。平均だけでなく分位値、スレッド／接続プール使用率、キュー長も観測します。アラートは原因候補ではなく、利用者影響やSLO違反へ近い信号を中心にし、手順書と変更履歴へつなげます。",
-      "samples": [{"caption":"要求メトリクスを集計","code":"import java.util.*;\nrecord Request(int status,long millis){}\npublic class Main { public static void main(String[] args){var rs=List.of(new Request(200,10),new Request(503,80));long errors=rs.stream().filter(r->r.status()>=500).count();System.out.println(\"requests=\"+rs.size()+\" errors=\"+errors);} }\n"}],
+      "samples": [
+        {
+          "caption": "要求メトリクスを集計",
+          "code": "import java.util.*;\n\nrecord Request(int status, long millis) { }\n\npublic class Main {\n    public static void main(String[] args) {\n        var rs = List.of(new Request(200, 10), new Request(503, 80));\n        long errors = rs.stream().filter(r -> r.status() >= 500).count();\n        System.out.println(\"requests=\" + rs.size() + \" errors=\" + errors);\n    }\n}\n"
+        }
+      ],
       "task": "要求数n、続くn組の `status latencyMs` を読み、`requests=件数`、5xxの `errors=件数`、切捨て平均の `avg=値ms`、`max=値ms` を表示してください。0件なら平均と最大は0です。",
-      "starterCode": "import java.util.*;\npublic class Main { public static void main(String[] args){ Scanner s=new Scanner(System.in);int n=s.nextInt(); // TODO\n} }\n",
-      "visibleCases": [{"label":"エラーあり","stdin":"3 200 10 503 80 404 30","expected":"requests=3\nerrors=1\navg=40ms\nmax=80ms"},{"label":"0件","stdin":"0","expected":"requests=0\nerrors=0\navg=0ms\nmax=0ms"}],
-      "hiddenCases": [{"label":"全エラー","stdin":"2 500 5 599 15","expected":"requests=2\nerrors=2\navg=10ms\nmax=15ms"},{"label":"4xxは5xxでない","stdin":"2 400 7 499 9","expected":"requests=2\nerrors=0\navg=8ms\nmax=9ms"}],
-      "hints": ["各入力でstatusが500以上ならerrorsを増やします。","latencyのsumとmaxを更新し、nが0でなければsum/nを平均にします。"],
-      "solution": "import java.util.*;\npublic class Main { public static void main(String[] args){ Scanner s=new Scanner(System.in);int n=s.nextInt(),errors=0;long sum=0,max=0;for(int i=0;i<n;i++){int status=s.nextInt();long latency=s.nextLong();if(status>=500)errors++;sum+=latency;max=Math.max(max,latency);}System.out.println(\"requests=\"+n);System.out.println(\"errors=\"+errors);System.out.println(\"avg=\"+(n==0?0:sum/n)+\"ms\");System.out.println(\"max=\"+max+\"ms\");} }\n",
-      "extraTasks": [{"kind":"applied","task":"測定数n、続くn組の `endpoint latencyMs` を読み、endpointごとの件数、切捨て平均、最大を辞書順に `endpoint count=件数 avg=値 max=値` と表示してください。record Statsは可変クラス等に置き換えて構いません。","starterCode":"import java.util.*;\nclass Stats { long count,sum,max; void add(long value){} }\npublic class Main { public static void main(String[] args){ Scanner s=new Scanner(System.in);int n=s.nextInt();Map<String,Stats> stats=new TreeMap<>(); // TODO\n} }\n","visibleCases":[{"label":"2エンドポイント","stdin":"4 /users 10 /orders 30 /users 20 /orders 50","expected":"/orders count=2 avg=40 max=50\n/users count=2 avg=15 max=20"},{"label":"1件","stdin":"1 /health 3","expected":"/health count=1 avg=3 max=3"}],"hiddenCases":[{"label":"同一3件","stdin":"3 /a 0 /a 10 /a 20","expected":"/a count=3 avg=10 max=20"},{"label":"辞書順","stdin":"3 /z 5 /a 9 /m 1","expected":"/a count=1 avg=9 max=9\n/m count=1 avg=1 max=1\n/z count=1 avg=5 max=5"}],"hints":["Stats.addでcount、sum、maxを更新します。","`stats.computeIfAbsent(endpoint, k -> new Stats()).add(latency)` を使えます。","TreeMapをforEachし、avgはsum/countで求めます。"],"solution":"import java.util.*;\nclass Stats { long count,sum,max; void add(long value){count++;sum+=value;max=Math.max(max,value);} }\npublic class Main { public static void main(String[] args){ Scanner s=new Scanner(System.in);int n=s.nextInt();Map<String,Stats> stats=new TreeMap<>();for(int i=0;i<n;i++){String endpoint=s.next();long latency=s.nextLong();stats.computeIfAbsent(endpoint,k->new Stats()).add(latency);}stats.forEach((endpoint,v)->System.out.println(endpoint+\" count=\"+v.count+\" avg=\"+(v.sum/v.count)+\" max=\"+v.max));} }\n"}],
-      "quiz": [{"question":"個別イベントの詳細に最も向く信号は？","choices":["ログ","メトリクスだけ","CSS","GCだけ"],"answer":0,"explanation":"ログは文脈を含む離散的なイベントの記録です。"},{"question":"trace IDの主な役割は？","choices":["複数処理・サービスを同一要求として関連付ける","パスワードを保存","CPUを高速化","DBロックを解除"],"answer":0,"explanation":"要求の流れをログとトレースで横断的に追えるようにします。"},{"question":"ログへ通常出すべきでないものは？","choices":["イベント名","処理結果","平文パスワードやトークン","trace ID"],"answer":2,"explanation":"秘密情報や不要な個人情報は漏えいと二次利用の危険があります。"},{"question":"有用なアラートの中心は？","choices":["利用者影響やSLO違反へ近い信号","ログ1行ごと全通知","CPUが1%動いた通知","常に無効"],"answer":0,"explanation":"対応が必要な症状を検知し、手順書や変更履歴へつなげます。"}]
+      "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        int n = s.nextInt();\n        // TODO\n    }\n}\n",
+      "visibleCases": [
+        {
+          "label": "エラーあり",
+          "stdin": "3 200 10 503 80 404 30",
+          "expected": "requests=3\nerrors=1\navg=40ms\nmax=80ms"
+        },
+        {
+          "label": "0件",
+          "stdin": "0",
+          "expected": "requests=0\nerrors=0\navg=0ms\nmax=0ms"
+        }
+      ],
+      "hiddenCases": [
+        {
+          "label": "全エラー",
+          "stdin": "2 500 5 599 15",
+          "expected": "requests=2\nerrors=2\navg=10ms\nmax=15ms"
+        },
+        {
+          "label": "4xxは5xxでない",
+          "stdin": "2 400 7 499 9",
+          "expected": "requests=2\nerrors=0\navg=8ms\nmax=9ms"
+        }
+      ],
+      "hints": [
+        "各入力でstatusが500以上ならerrorsを増やします。",
+        "latencyのsumとmaxを更新し、nが0でなければsum/nを平均にします。"
+      ],
+      "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        int n = s.nextInt(), errors = 0;\n        long sum = 0, max = 0;\n        for (int i = 0; i < n; i++) {\n            int status = s.nextInt();\n            long latency = s.nextLong();\n            if (status >= 500) errors++;\n            sum += latency;\n            max = Math.max(max, latency);\n        }\n        System.out.println(\"requests=\" + n);\n        System.out.println(\"errors=\" + errors);\n        System.out.println(\"avg=\" + (n == 0 ? 0 : sum / n) + \"ms\");\n        System.out.println(\"max=\" + max + \"ms\");\n    }\n}\n",
+      "extraTasks": [
+        {
+          "kind": "applied",
+          "task": "測定数n、続くn組の `endpoint latencyMs` を読み、endpointごとの件数、切捨て平均、最大を辞書順に `endpoint count=件数 avg=値 max=値` と表示してください。record Statsは可変クラス等に置き換えて構いません。",
+          "starterCode": "import java.util.*;\n\nclass Stats {\n    long count, sum, max;\n\n    void add(long value) { }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        int n = s.nextInt();\n        Map<String, Stats> stats = new TreeMap<>();\n        // TODO\n    }\n}\n",
+          "visibleCases": [
+            {
+              "label": "2エンドポイント",
+              "stdin": "4 /users 10 /orders 30 /users 20 /orders 50",
+              "expected": "/orders count=2 avg=40 max=50\n/users count=2 avg=15 max=20"
+            },
+            {
+              "label": "1件",
+              "stdin": "1 /health 3",
+              "expected": "/health count=1 avg=3 max=3"
+            }
+          ],
+          "hiddenCases": [
+            {
+              "label": "同一3件",
+              "stdin": "3 /a 0 /a 10 /a 20",
+              "expected": "/a count=3 avg=10 max=20"
+            },
+            {
+              "label": "辞書順",
+              "stdin": "3 /z 5 /a 9 /m 1",
+              "expected": "/a count=1 avg=9 max=9\n/m count=1 avg=1 max=1\n/z count=1 avg=5 max=5"
+            }
+          ],
+          "hints": [
+            "Stats.addでcount、sum、maxを更新します。",
+            "`stats.computeIfAbsent(endpoint, k -> new Stats()).add(latency)` を使えます。",
+            "TreeMapをforEachし、avgはsum/countで求めます。"
+          ],
+          "solution": "import java.util.*;\n\nclass Stats {\n    long count, sum, max;\n\n    void add(long value) {\n        count++;\n        sum += value;\n        max = Math.max(max, value);\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        int n = s.nextInt();\n        Map<String, Stats> stats = new TreeMap<>();\n        for (int i = 0; i < n; i++) {\n            String endpoint = s.next();\n            long latency = s.nextLong();\n            stats.computeIfAbsent(endpoint, k -> new Stats()).add(latency);\n        }\n        stats.forEach((endpoint, v) -> System.out.println(endpoint + \" count=\" + v.count + \" avg=\" + (v.sum / v.count) + \" max=\" + v.max));\n    }\n}\n",
+          "sourceChecks": [
+            {
+              "pattern": "\\bnew\\s+TreeMap\\b",
+              "minimum": 1,
+              "message": "辞書順に出すので `TreeMap` を使ってください（`HashMap` では順序が決まりません）。"
+            },
+            {
+              "pattern": "computeIfAbsent\\s*\\(",
+              "minimum": 1,
+              "message": "初回だけ作るのは `computeIfAbsent` です。`get` して `null` を確かめる書き方より短くなります。"
+            }
+          ]
+        }
+      ],
+      "quiz": [
+        {
+          "question": "個別イベントの詳細に最も向く信号は？",
+          "choices": [
+            "メトリクスだけ",
+            "GCだけ",
+            "ログ",
+            "CSS"
+          ],
+          "answer": 2,
+          "explanation": "メトリクスは数を集めたもので、1件ごとの文脈は持ちません。GCは処理の一種、CSSは見た目の話です。「この要求のこの時点で何が起きたか」という個別の出来事を、文脈つきで残せるのがログです。集計はメトリクス、横断はトレースと、役割を分けて使います。"
+        },
+        {
+          "question": "trace IDの主な役割は？",
+          "choices": [
+            "DBのロックを解除する",
+            "CPUの処理を高速化する",
+            "パスワードを安全に保存する",
+            "複数処理・サービスを同一要求として関連付ける"
+          ],
+          "answer": 3,
+          "explanation": "ロックの解除・処理の高速化・パスワードの保存とは関係ありません。1つの要求が複数のサービスや処理を通るとき、同じIDを持ち回すことで、散らばったログを「同じ要求のもの」として集められます。これがないと、どのログが同じ要求かを時刻から推測するしかありません。"
+        },
+        {
+          "question": "ログへ通常出すべきでないものは？",
+          "choices": [
+            "平文パスワードやトークン",
+            "処理結果",
+            "イベント名",
+            "trace ID"
+          ],
+          "answer": 0,
+          "explanation": "処理結果・イベント名・trace ID は、調査に必要なのでむしろ残すべきものです。パスワードやトークンをログへ出すと、ログを見られる人すべてに渡り、集約先や長期保管先にも複製されます。マスクするか、そもそも出さないようにします。"
+        },
+        {
+          "question": "有用なアラートの中心は？",
+          "choices": [
+            "ログ1行ごと全通知",
+            "利用者影響やSLO違反へ近い信号",
+            "例外の発生件数そのもの",
+            "CPUが1%動いた通知"
+          ],
+          "answer": 1,
+          "explanation": "ログ1行ごとに通知すると、量に埋もれて誰も見なくなります。例外の発生件数そのものは、再試行で回復しているぶんも含むので鳴りすぎます。CPUが1%動いた通知には意味がありません。中心に置くのは「利用者が困っている」に近い信号で、そこから手順書と直近の変更へつなげます。"
+        }
+      ]
     },
     {
       "id": "38-3",
       "title": "章末演習：本番で壊れにくい処理と可観測性",
       "explanation": "## この章の知識を、自分の手で組み合わせよう\n\nここでは、**指数バックオフ付きの再試行・待ち行列での押し戻し・サーキットブレーカー・成功率（SLI）・traceのつなぎ方**をまとめて使います。新しい文法は登場しません。分からなくなったら、直前までの解説やサンプルへ戻って確認して大丈夫です。\n\n### 3問の進め方\n\n1. **基本**で、中心となる書き方をもう一度使う\n2. **組み合わせ**で、章内の複数の知識を一緒に使う\n3. **実践**で、少し現実的な入力と条件を整理する\n\n壊れにくくする仕組みと、壊れたと分かる仕組みは対になっています。**止めた回数を数えておかないと、守っているのか壊れているのか区別できません。**3問はその対応をたどります。",
-      "samples": [{"caption":"復習用サンプル：待ち時間は倍々にしても上限で頭打ちにする","code":"public class Main{public static void main(String[] a){long base=500,cap=800;for(int k=1;k<=4;k++)System.out.print(Math.min(cap,base*(1L<<(k-1)))+\" \");System.out.println();}}\n","expected":"500 800 800 800"}],
+      "samples": [
+        {
+          "caption": "復習用サンプル：待ち時間は倍々にしても上限で頭打ちにする",
+          "code": "public class Main {\n    public static void main(String[] a) {\n        long base = 500, cap = 800;\n        for (int k = 1; k <= 4; k++) System.out.print(Math.min(cap, base * (1L << (k - 1))) + \" \");\n        System.out.println();\n    }\n}\n",
+          "expected": "500 800 800 800"
+        }
+      ],
       "task": "【基本】最初に失敗する回数failFirst、最大試行回数maxAttempts、初期待ち時間base、待ち時間の上限capを読みます。k回目（1から数えます）の試行は `k > failFirst` のとき成功します。\n\n成功したら `attempt=k OK` と表示し、最後に `result=success attempts=k` と表示して終わります。失敗したときは、次の試行が残っていれば `attempt=k FAIL wait=待ち時間`、最後の試行だったら `attempt=k FAIL` と表示します。待ち時間は `base * 2^(k-1)` を cap で頭打ちにした値です。maxAttempts 回すべて失敗したら、最後に `result=failure attempts=maxAttempts` と表示してください。",
-      "starterCode": "import java.util.*;\npublic class Main {public static void main(String[] args){Scanner s=new Scanner(System.in);int failFirst=s.nextInt(),maxAttempts=s.nextInt();long base=s.nextLong(),cap=s.nextLong();for(int k=1;k<=maxAttempts;k++){/* TODO 成功・失敗と待ち時間 */}System.out.println(\"result=failure attempts=\"+maxAttempts);}}\n",
-      "visibleCases": [{"label":"3回目で成功","stdin":"2 5 100 1000","expected":"attempt=1 FAIL wait=100\nattempt=2 FAIL wait=200\nattempt=3 OK\nresult=success attempts=3"},{"label":"上限で頭打ちのまま失敗","stdin":"4 4 500 800","expected":"attempt=1 FAIL wait=500\nattempt=2 FAIL wait=800\nattempt=3 FAIL wait=800\nattempt=4 FAIL\nresult=failure attempts=4"}],
-      "hiddenCases": [{"label":"1回目で成功","stdin":"0 3 100 1000","expected":"attempt=1 OK\nresult=success attempts=1"},{"label":"1回しか試せない","stdin":"1 1 100 1000","expected":"attempt=1 FAIL\nresult=failure attempts=1"},{"label":"上限に当たらない","stdin":"1 2 10 100000","expected":"attempt=1 FAIL wait=10\nattempt=2 OK\nresult=success attempts=2"},{"label":"待たずにすぐ再試行","stdin":"2 3 0 500","expected":"attempt=1 FAIL wait=0\nattempt=2 FAIL wait=0\nattempt=3 OK\nresult=success attempts=3"}],
-      "hints": ["成功したらその場で表示して `return;` します。ループを抜けた先は「使い切って失敗した」場合だけになります。","倍々は `base*(1L<<(k-1))` で計算し、`Math.min(cap, ...)` で頭打ちにします。`1L` にしておくと桁溢れしにくくなります。","上限に達した最後の試行では待ち時間を出しません。もう次が無いのに待つのは、利用者を待たせるだけです。"],
-      "solution": "import java.util.*;\npublic class Main {public static void main(String[] args){Scanner s=new Scanner(System.in);int failFirst=s.nextInt(),maxAttempts=s.nextInt();long base=s.nextLong(),cap=s.nextLong();for(int k=1;k<=maxAttempts;k++){if(k>failFirst){System.out.println(\"attempt=\"+k+\" OK\");System.out.println(\"result=success attempts=\"+k);return;}if(k<maxAttempts)System.out.println(\"attempt=\"+k+\" FAIL wait=\"+Math.min(cap,base*(1L<<(k-1))));else System.out.println(\"attempt=\"+k+\" FAIL\");}System.out.println(\"result=failure attempts=\"+maxAttempts);}}\n",
-      "extraTasks": [{"kind":"drill","task":"【組み合わせ】過負荷を押し戻す仕組みとサーキットブレーカーを重ねます。待ち行列の容量capacity、連続失敗のしきい値threshold、件数nを読み、続けてn件を `id outcome` の形で読みます（`outcome` は `ok` または `fail`）。待ち行列からの取り出しはないので、受け付けた件数がそのまま行列の長さになります。\n\n上から順に判定してください。\n\n1. ブレーカーがOPENなら、受け付けずに `rejected id`\n2. 待ち行列が満杯（行列の長さが capacity と同じ）なら、受け付けずに `full id`\n3. どちらでもなければ受け付けて行列へ1件積み、`outcome` が `ok` なら `ok id` と表示して連続失敗数を0に戻し、`fail` なら `fail id` と表示して連続失敗数を1つ増やします。連続失敗数が threshold に達したらブレーカーをOPENにします\n\n最後に `state=OPEN` または `state=CLOSED`、`queued=行列の長さ/capacity`、`ok=件数 fail=件数 rejected=件数 full=件数` を表示し、さらに実際に受け付けた件数（`ok` と `fail` の合計）に対する成功率を小数2桁で `success=値%` と表示してください。受け付けた件数が0なら `success=NO_DATA` とします。","starterCode":"import java.util.*;\npublic class Main {public static void main(String[] args){Scanner s=new Scanner(System.in);int capacity=s.nextInt(),threshold=s.nextInt(),n=s.nextInt();int queued=0,consecutive=0,ok=0,fail=0,rejected=0,full=0;boolean open=false;for(int i=0;i<n;i++){String id=s.next(),outcome=s.next();/* TODO OPEN → 満杯 → 受け付け の順に判定 */}System.out.println(\"state=\"+(open?\"OPEN\":\"CLOSED\"));System.out.println(\"queued=\"+queued+\"/\"+capacity);System.out.println(\"ok=\"+ok+\" fail=\"+fail+\" rejected=\"+rejected+\" full=\"+full);/* TODO 成功率 */}}\n","visibleCases":[{"label":"満杯になったら押し戻す","stdin":"2 3 4 a ok b ok c ok d ok","expected":"ok a\nok b\nfull c\nfull d\nstate=CLOSED\nqueued=2/2\nok=2 fail=0 rejected=0 full=2\nsuccess=100.00%"},{"label":"ブレーカーが開いて以降は受け付けない","stdin":"5 2 4 a fail b fail c ok d ok","expected":"fail a\nfail b\nrejected c\nrejected d\nstate=OPEN\nqueued=2/5\nok=0 fail=2 rejected=2 full=0\nsuccess=0.00%"}],"hiddenCases":[{"label":"1件も来ない","stdin":"3 2 0","expected":"state=CLOSED\nqueued=0/3\nok=0 fail=0 rejected=0 full=0\nsuccess=NO_DATA"},{"label":"ブレーカーが満杯より先に効く","stdin":"1 1 3 a fail b ok c ok","expected":"fail a\nrejected b\nrejected c\nstate=OPEN\nqueued=1/1\nok=0 fail=1 rejected=2 full=0\nsuccess=0.00%"},{"label":"容量0はすべて押し戻す","stdin":"0 2 2 a ok b ok","expected":"full a\nfull b\nstate=CLOSED\nqueued=0/0\nok=0 fail=0 rejected=0 full=2\nsuccess=NO_DATA"},{"label":"成功が連続失敗を切る","stdin":"5 3 5 a fail b fail c ok d fail e ok","expected":"fail a\nfail b\nok c\nfail d\nok e\nstate=CLOSED\nqueued=5/5\nok=2 fail=3 rejected=0 full=0\nsuccess=40.00%"},{"label":"押し戻した分は成功率の分母に入れない","stdin":"1 5 3 a ok b ok c ok","expected":"ok a\nfull b\nfull c\nstate=CLOSED\nqueued=1/1\nok=1 fail=0 rejected=0 full=2\nsuccess=100.00%"}],"hints":["判定は「ブレーカーがOPENか」→「待ち行列が満杯か」→「受け付けて結果を見る」の順です。上の2つで止めた件は行列に積みません。","取り出しがないので、積んだ件数がそのまま行列の長さです。`queued==capacity` が満杯の条件になります。","成功率の分母は `ok+fail` だけです。ブレーカーで止めた分と押し戻した分を分母へ入れると、**下流を守るために止めた回数まで失敗として数えてしまいます**。表示は `String.format(Locale.ROOT,\"success=%.2f%%\",...)` で桁を固定します。"],"solution":"import java.util.*;\npublic class Main {public static void main(String[] args){Scanner s=new Scanner(System.in);int capacity=s.nextInt(),threshold=s.nextInt(),n=s.nextInt();int queued=0,consecutive=0,ok=0,fail=0,rejected=0,full=0;boolean open=false;for(int i=0;i<n;i++){String id=s.next(),outcome=s.next();if(open){System.out.println(\"rejected \"+id);rejected++;continue;}if(queued==capacity){System.out.println(\"full \"+id);full++;continue;}queued++;if(outcome.equals(\"ok\")){consecutive=0;ok++;System.out.println(\"ok \"+id);}else{consecutive++;fail++;System.out.println(\"fail \"+id);if(consecutive>=threshold)open=true;}}System.out.println(\"state=\"+(open?\"OPEN\":\"CLOSED\"));System.out.println(\"queued=\"+queued+\"/\"+capacity);System.out.println(\"ok=\"+ok+\" fail=\"+fail+\" rejected=\"+rejected+\" full=\"+full);int handled=ok+fail;System.out.println(handled==0?\"success=NO_DATA\":String.format(Locale.ROOT,\"success=%.2f%%\",ok*100.0/handled));}}\n"},{"kind":"applied","task":"【実践】許容するp95の上限sloMsと件数nを読み、続けてn件のspanを `traceId service durationMs` の形で読みます。\n\nまずtraceIdの辞書順に、そのtraceに属するserviceを**入力順**に ` -> ` でつなぎ、`traceId 経路 total=合計時間` の形で表示してください。次に、全spanのdurationMsからnearest-rank方式のp95を求め `p95=値` と表示します（spanが0件なら0）。続けて、p95がsloMs以下なら `SLO_MET`、超えていれば `SLO_VIOLATED` と表示します。最後に、最も時間のかかったserviceを `slowest=service durationMs` と表示してください（同じ時間なら名前の辞書順で先のもの、spanが0件なら `slowest=NONE 0`）。","starterCode":"import java.util.*;\npublic class Main {\n    static long percentile(long[] sorted,int percent){/* TODO nearest-rank */return 0;}\n    public static void main(String[] args){Scanner s=new Scanner(System.in);long sloMs=s.nextLong();int n=s.nextInt();Map<String,List<String>> paths=new TreeMap<>();Map<String,Long> totals=new TreeMap<>();long[] durations=new long[n];String slowest=null;long slowestMs=-1;for(int i=0;i<n;i++){String traceId=s.next(),service=s.next();long ms=s.nextLong();/* TODO 経路・合計・最遅 */}/* TODO trace ごとの表示 */\n/* TODO p95・SLO判定・slowest */}\n}\n","visibleCases":[{"label":"SLOを超える","stdin":"200 5 t1 api 50 t1 db 120 t2 api 40 t1 cache 5 t2 db 300","expected":"t1 api -> db -> cache total=175\nt2 api -> db total=340\np95=300\nSLO_VIOLATED\nslowest=db 300"},{"label":"余裕がある","stdin":"500 2 t1 api 10 t1 db 20","expected":"t1 api -> db total=30\np95=20\nSLO_MET\nslowest=db 20"}],"hiddenCases":[{"label":"spanが0件","stdin":"500 0","expected":"p95=0\nSLO_MET\nslowest=NONE 0"},{"label":"1件だけ","stdin":"10 1 t9 api 10","expected":"t9 api total=10\np95=10\nSLO_MET\nslowest=api 10"},{"label":"同じ時間は名前の辞書順","stdin":"500 2 t1 zeta 5 t1 alpha 5","expected":"t1 zeta -> alpha total=10\np95=5\nSLO_MET\nslowest=alpha 5"},{"label":"traceIdの辞書順に並べる","stdin":"500 4 t2 b 1 t1 a 2 t2 c 3 t1 d 4","expected":"t1 a -> d total=6\nt2 b -> c total=4\np95=4\nSLO_MET\nslowest=d 4"},{"label":"ちょうどSLOぴったり","stdin":"100 2 t1 a 100 t1 b 50","expected":"t1 a -> b total=150\np95=100\nSLO_MET\nslowest=a 100"}],"hints":["経路は `paths.computeIfAbsent(traceId,k->new ArrayList<>()).add(service)` で貯め、表示は `String.join(\" -> \", list)` です。","`TreeMap` にしておくと、traceIdの辞書順で取り出せます。経路の中身は入力順のままにします。","最遅の更新は「まだ1件も無いとき」「より大きいとき」「同じ時間で名前が辞書順に先のとき」の3つです。`slowest==null` を先に見ておけば、1件目で `null` を比較してしまうことがありません。"],"solution":"import java.util.*;\npublic class Main {\n    static long percentile(long[] sorted,int percent){int rank=(percent*sorted.length+99)/100;return sorted[rank-1];}\n    public static void main(String[] args){Scanner s=new Scanner(System.in);long sloMs=s.nextLong();int n=s.nextInt();Map<String,List<String>> paths=new TreeMap<>();Map<String,Long> totals=new TreeMap<>();long[] durations=new long[n];String slowest=null;long slowestMs=-1;for(int i=0;i<n;i++){String traceId=s.next(),service=s.next();long ms=s.nextLong();paths.computeIfAbsent(traceId,k->new ArrayList<>()).add(service);totals.merge(traceId,ms,Long::sum);durations[i]=ms;if(slowest==null||ms>slowestMs||(ms==slowestMs&&service.compareTo(slowest)<0)){slowestMs=ms;slowest=service;}}for(Map.Entry<String,List<String>> e:paths.entrySet())System.out.println(e.getKey()+\" \"+String.join(\" -> \",e.getValue())+\" total=\"+totals.get(e.getKey()));long p95=0;if(n>0){long[] sorted=Arrays.copyOf(durations,n);Arrays.sort(sorted);p95=percentile(sorted,95);}System.out.println(\"p95=\"+p95);System.out.println(p95<=sloMs?\"SLO_MET\":\"SLO_VIOLATED\");System.out.println(\"slowest=\"+(slowest==null?\"NONE 0\":slowest+\" \"+slowestMs));}\n}\n"}]
+      "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        int failFirst = s.nextInt(), maxAttempts = s.nextInt();\n        long base = s.nextLong(), cap = s.nextLong();\n        for (int k = 1; k <= maxAttempts; k++) {\n            /* TODO 成功・失敗と待ち時間 */\n        }\n        System.out.println(\"result=failure attempts=\" + maxAttempts);\n    }\n}\n",
+      "visibleCases": [
+        {
+          "label": "3回目で成功",
+          "stdin": "2 5 100 1000",
+          "expected": "attempt=1 FAIL wait=100\nattempt=2 FAIL wait=200\nattempt=3 OK\nresult=success attempts=3"
+        },
+        {
+          "label": "上限で頭打ちのまま失敗",
+          "stdin": "4 4 500 800",
+          "expected": "attempt=1 FAIL wait=500\nattempt=2 FAIL wait=800\nattempt=3 FAIL wait=800\nattempt=4 FAIL\nresult=failure attempts=4"
+        }
+      ],
+      "hiddenCases": [
+        {
+          "label": "1回目で成功",
+          "stdin": "0 3 100 1000",
+          "expected": "attempt=1 OK\nresult=success attempts=1"
+        },
+        {
+          "label": "1回しか試せない",
+          "stdin": "1 1 100 1000",
+          "expected": "attempt=1 FAIL\nresult=failure attempts=1"
+        },
+        {
+          "label": "上限に当たらない",
+          "stdin": "1 2 10 100000",
+          "expected": "attempt=1 FAIL wait=10\nattempt=2 OK\nresult=success attempts=2"
+        },
+        {
+          "label": "待たずにすぐ再試行",
+          "stdin": "2 3 0 500",
+          "expected": "attempt=1 FAIL wait=0\nattempt=2 FAIL wait=0\nattempt=3 OK\nresult=success attempts=3"
+        }
+      ],
+      "hints": [
+        "成功したらその場で表示して `return;` します。ループを抜けた先は「使い切って失敗した」場合だけになります。",
+        "倍々は `base*(1L<<(k-1))` で計算し、`Math.min(cap, ...)` で頭打ちにします。`1L` にしておくと桁溢れしにくくなります。",
+        "上限に達した最後の試行では待ち時間を出しません。もう次が無いのに待つのは、利用者を待たせるだけです。"
+      ],
+      "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        int failFirst = s.nextInt(), maxAttempts = s.nextInt();\n        long base = s.nextLong(), cap = s.nextLong();\n        for (int k = 1; k <= maxAttempts; k++) {\n            if (k > failFirst) {\n                System.out.println(\"attempt=\" + k + \" OK\");\n                System.out.println(\"result=success attempts=\" + k);\n                return;\n            }\n            if (k < maxAttempts) System.out.println(\"attempt=\" + k + \" FAIL wait=\" + Math.min(cap, base * (1L << (k - 1))));\n            else System.out.println(\"attempt=\" + k + \" FAIL\");\n        }\n        System.out.println(\"result=failure attempts=\" + maxAttempts);\n    }\n}\n",
+      "extraTasks": [
+        {
+          "kind": "drill",
+          "task": "【組み合わせ】過負荷を押し戻す仕組みとサーキットブレーカーを重ねます。待ち行列の容量capacity、連続失敗のしきい値threshold、件数nを読み、続けてn件を `id outcome` の形で読みます（`outcome` は `ok` または `fail`）。待ち行列からの取り出しはないので、受け付けた件数がそのまま行列の長さになります。\n\n上から順に判定してください。\n\n1. ブレーカーがOPENなら、受け付けずに `rejected id`\n2. 待ち行列が満杯（行列の長さが capacity と同じ）なら、受け付けずに `full id`\n3. どちらでもなければ受け付けて行列へ1件積み、`outcome` が `ok` なら `ok id` と表示して連続失敗数を0に戻し、`fail` なら `fail id` と表示して連続失敗数を1つ増やします。連続失敗数が threshold に達したらブレーカーをOPENにします\n\n最後に `state=OPEN` または `state=CLOSED`、`queued=行列の長さ/capacity`、`ok=件数 fail=件数 rejected=件数 full=件数` を表示し、さらに実際に受け付けた件数（`ok` と `fail` の合計）に対する成功率を小数2桁で `success=値%` と表示してください。受け付けた件数が0なら `success=NO_DATA` とします。",
+          "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        int capacity = s.nextInt(), threshold = s.nextInt(), n = s.nextInt();\n        int queued = 0, consecutive = 0, ok = 0, fail = 0, rejected = 0, full = 0;\n        boolean open = false;\n        for (int i = 0; i < n; i++) {\n            String id = s.next(), outcome = s.next();\n            /* TODO OPEN → 満杯 → 受け付け の順に判定 */\n        }\n        System.out.println(\"state=\" + (open ? \"OPEN\" : \"CLOSED\"));\n        System.out.println(\"queued=\" + queued + \"/\" + capacity);\n        System.out.println(\"ok=\" + ok + \" fail=\" + fail + \" rejected=\" + rejected + \" full=\" + full);\n        /* TODO 成功率 */\n    }\n}\n",
+          "visibleCases": [
+            {
+              "label": "満杯になったら押し戻す",
+              "stdin": "2 3 4 a ok b ok c ok d ok",
+              "expected": "ok a\nok b\nfull c\nfull d\nstate=CLOSED\nqueued=2/2\nok=2 fail=0 rejected=0 full=2\nsuccess=100.00%"
+            },
+            {
+              "label": "ブレーカーが開いて以降は受け付けない",
+              "stdin": "5 2 4 a fail b fail c ok d ok",
+              "expected": "fail a\nfail b\nrejected c\nrejected d\nstate=OPEN\nqueued=2/5\nok=0 fail=2 rejected=2 full=0\nsuccess=0.00%"
+            }
+          ],
+          "hiddenCases": [
+            {
+              "label": "1件も来ない",
+              "stdin": "3 2 0",
+              "expected": "state=CLOSED\nqueued=0/3\nok=0 fail=0 rejected=0 full=0\nsuccess=NO_DATA"
+            },
+            {
+              "label": "ブレーカーが満杯より先に効く",
+              "stdin": "1 1 3 a fail b ok c ok",
+              "expected": "fail a\nrejected b\nrejected c\nstate=OPEN\nqueued=1/1\nok=0 fail=1 rejected=2 full=0\nsuccess=0.00%"
+            },
+            {
+              "label": "容量0はすべて押し戻す",
+              "stdin": "0 2 2 a ok b ok",
+              "expected": "full a\nfull b\nstate=CLOSED\nqueued=0/0\nok=0 fail=0 rejected=0 full=2\nsuccess=NO_DATA"
+            },
+            {
+              "label": "成功が連続失敗を切る",
+              "stdin": "5 3 5 a fail b fail c ok d fail e ok",
+              "expected": "fail a\nfail b\nok c\nfail d\nok e\nstate=CLOSED\nqueued=5/5\nok=2 fail=3 rejected=0 full=0\nsuccess=40.00%"
+            },
+            {
+              "label": "押し戻した分は成功率の分母に入れない",
+              "stdin": "1 5 3 a ok b ok c ok",
+              "expected": "ok a\nfull b\nfull c\nstate=CLOSED\nqueued=1/1\nok=1 fail=0 rejected=0 full=2\nsuccess=100.00%"
+            }
+          ],
+          "hints": [
+            "判定は「ブレーカーがOPENか」→「待ち行列が満杯か」→「受け付けて結果を見る」の順です。上の2つで止めた件は行列に積みません。",
+            "取り出しがないので、積んだ件数がそのまま行列の長さです。`queued==capacity` が満杯の条件になります。",
+            "成功率の分母は `ok+fail` だけです。ブレーカーで止めた分と押し戻した分を分母へ入れると、**下流を守るために止めた回数まで失敗として数えてしまいます**。表示は `String.format(Locale.ROOT,\"success=%.2f%%\",...)` で桁を固定します。"
+          ],
+          "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        int capacity = s.nextInt(), threshold = s.nextInt(), n = s.nextInt();\n        int queued = 0, consecutive = 0, ok = 0, fail = 0, rejected = 0, full = 0;\n        boolean open = false;\n        for (int i = 0; i < n; i++) {\n            String id = s.next(), outcome = s.next();\n            if (open) {\n                System.out.println(\"rejected \" + id);\n                rejected++;\n                continue;\n            }\n            if (queued == capacity) {\n                System.out.println(\"full \" + id);\n                full++;\n                continue;\n            }\n            queued++;\n            if (outcome.equals(\"ok\")) {\n                consecutive = 0;\n                ok++;\n                System.out.println(\"ok \" + id);\n            } else {\n                consecutive++;\n                fail++;\n                System.out.println(\"fail \" + id);\n                if (consecutive >= threshold) open = true;\n            }\n        }\n        System.out.println(\"state=\" + (open ? \"OPEN\" : \"CLOSED\"));\n        System.out.println(\"queued=\" + queued + \"/\" + capacity);\n        System.out.println(\"ok=\" + ok + \" fail=\" + fail + \" rejected=\" + rejected + \" full=\" + full);\n        int handled = ok + fail;\n        System.out.println(handled == 0 ? \"success=NO_DATA\" : String.format(Locale.ROOT, \"success=%.2f%%\", ok * 100.0 / handled));\n    }\n}\n",
+          "sourceChecks": [
+            {
+              "pattern": ">=\\s*threshold|threshold\\s*<=",
+              "minimum": 1,
+              "message": "連続失敗がしきい値に達したら遮断してください。これがサーキットブレーカーの開く条件です。"
+            },
+            {
+              "pattern": "(>=|==)\\s*capacity|capacity\\s*(<=|==)",
+              "minimum": 1,
+              "message": "待ち行列が容量に達したら受け付けないでください。無制限に溜めるとメモリを使い切ります。"
+            }
+          ]
+        },
+        {
+          "kind": "applied",
+          "task": "【実践】許容するp95の上限sloMsと件数nを読み、続けてn件のspanを `traceId service durationMs` の形で読みます。\n\nまずtraceIdの辞書順に、そのtraceに属するserviceを**入力順**に ` -> ` でつなぎ、`traceId 経路 total=合計時間` の形で表示してください。次に、全spanのdurationMsからnearest-rank方式のp95を求め `p95=値` と表示します（spanが0件なら0）。続けて、p95がsloMs以下なら `SLO_MET`、超えていれば `SLO_VIOLATED` と表示します。最後に、最も時間のかかったserviceを `slowest=service durationMs` と表示してください（同じ時間なら名前の辞書順で先のもの、spanが0件なら `slowest=NONE 0`）。",
+          "starterCode": "import java.util.*;\n\npublic class Main {\n    static long percentile(long[] sorted, int percent) {\n        /* TODO nearest-rank */ return 0;\n    }\n\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        long sloMs = s.nextLong();\n        int n = s.nextInt();\n        Map<String, List<String>> paths = new TreeMap<>();\n        Map<String, Long> totals = new TreeMap<>();\n        long[] durations = new long[n];\n        String slowest = null;\n        long slowestMs = - 1;\n        for (int i = 0; i < n; i++) {\n            String traceId = s.next(), service = s.next();\n            long ms = s.nextLong();\n            /* TODO 経路・合計・最遅 */\n        }\n        /* TODO trace ごとの表示 */ /* TODO p95・SLO判定・slowest */\n    }\n}\n",
+          "visibleCases": [
+            {
+              "label": "SLOを超える",
+              "stdin": "200 5 t1 api 50 t1 db 120 t2 api 40 t1 cache 5 t2 db 300",
+              "expected": "t1 api -> db -> cache total=175\nt2 api -> db total=340\np95=300\nSLO_VIOLATED\nslowest=db 300"
+            },
+            {
+              "label": "余裕がある",
+              "stdin": "500 2 t1 api 10 t1 db 20",
+              "expected": "t1 api -> db total=30\np95=20\nSLO_MET\nslowest=db 20"
+            }
+          ],
+          "hiddenCases": [
+            {
+              "label": "spanが0件",
+              "stdin": "500 0",
+              "expected": "p95=0\nSLO_MET\nslowest=NONE 0"
+            },
+            {
+              "label": "1件だけ",
+              "stdin": "10 1 t9 api 10",
+              "expected": "t9 api total=10\np95=10\nSLO_MET\nslowest=api 10"
+            },
+            {
+              "label": "同じ時間は名前の辞書順",
+              "stdin": "500 2 t1 zeta 5 t1 alpha 5",
+              "expected": "t1 zeta -> alpha total=10\np95=5\nSLO_MET\nslowest=alpha 5"
+            },
+            {
+              "label": "traceIdの辞書順に並べる",
+              "stdin": "500 4 t2 b 1 t1 a 2 t2 c 3 t1 d 4",
+              "expected": "t1 a -> d total=6\nt2 b -> c total=4\np95=4\nSLO_MET\nslowest=d 4"
+            },
+            {
+              "label": "ちょうどSLOぴったり",
+              "stdin": "100 2 t1 a 100 t1 b 50",
+              "expected": "t1 a -> b total=150\np95=100\nSLO_MET\nslowest=a 100"
+            }
+          ],
+          "hints": [
+            "経路は `paths.computeIfAbsent(traceId,k->new ArrayList<>()).add(service)` で貯め、表示は `String.join(\" -> \", list)` です。",
+            "`TreeMap` にしておくと、traceIdの辞書順で取り出せます。経路の中身は入力順のままにします。",
+            "最遅の更新は「まだ1件も無いとき」「より大きいとき」「同じ時間で名前が辞書順に先のとき」の3つです。`slowest==null` を先に見ておけば、1件目で `null` を比較してしまうことがありません。"
+          ],
+          "solution": "import java.util.*;\n\npublic class Main {\n    static long percentile(long[] sorted, int percent) {\n        int rank = (percent * sorted.length + 99) / 100;\n        return sorted[rank - 1];\n    }\n\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        long sloMs = s.nextLong();\n        int n = s.nextInt();\n        Map<String, List<String>> paths = new TreeMap<>();\n        Map<String, Long> totals = new TreeMap<>();\n        long[] durations = new long[n];\n        String slowest = null;\n        long slowestMs = - 1;\n        for (int i = 0; i < n; i++) {\n            String traceId = s.next(), service = s.next();\n            long ms = s.nextLong();\n            paths.computeIfAbsent(traceId, k -> new ArrayList<>()).add(service);\n            totals.merge(traceId, ms, Long::sum);\n            durations[i] = ms;\n            if (slowest == null || ms > slowestMs || (ms == slowestMs && service.compareTo(slowest) < 0)) {\n                slowestMs = ms;\n                slowest = service;\n            }\n        }\n        for (Map.Entry<String, List<String>> e : paths.entrySet()) System.out.println(e.getKey() + \" \" + String.join(\" -> \", e.getValue()) + \" total=\" + totals.get(e.getKey()));\n        long p95 = 0;\n        if (n > 0) {\n            long[] sorted = Arrays.copyOf(durations, n);\n            Arrays.sort(sorted);\n            p95 = percentile(sorted, 95);\n        }\n        System.out.println(\"p95=\" + p95);\n        System.out.println(p95 <= sloMs ? \"SLO_MET\" : \"SLO_VIOLATED\");\n        System.out.println(\"slowest=\" + (slowest == null ? \"NONE 0\" : slowest + \" \" + slowestMs));\n    }\n}\n",
+          "sourceChecks": [
+            {
+              "pattern": "\\bnew\\s+TreeMap\\b",
+              "minimum": 1,
+              "message": "traceIdの辞書順に出すので `TreeMap` を使ってください。"
+            },
+            {
+              "pattern": "String\\s*\\.\\s*join\\s*\\(",
+              "minimum": 1,
+              "message": "経路は ` -> ` でつなぐので `String.join` を使ってください。"
+            }
+          ]
+        }
+      ]
     }
   ]
 }

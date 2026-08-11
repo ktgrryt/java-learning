@@ -1,87 +1,456 @@
 {
-  "id":"ch52","title":"チーム開発・ビルド・品質管理","subtitle":"再現でき、レビューでき、継続的に届けられるコードへ","emoji":"🤝",
-  "lessons":[
+  "id": "ch52",
+  "title": "チーム開発・ビルド・品質管理",
+  "subtitle": "再現でき、レビューでき、継続的に届けられるコードへ",
+  "emoji": "🤝",
+  "lessons": [
     {
-      "id":"52-1","title":"Gitとレビュー可能な変更",
-      "explanation":"## 小さく意図を共有する\n\n業務コードは一人で完成しません。課題（issue）で目的と受入条件をすり合わせ、短命なブランチで変更し、意味のまとまりごとにコミットし、pull requestでテスト結果・互換性・移行方法を共有します。ビルド生成物、秘密情報、IDE固有のファイルはコミットせず、`.gitignore` と機密情報の混入検査で防ぎます。\n\n```svg 短いブランチで変更し、意味のまとまりごとに commit して、pull request で共有する\n<svg viewBox=\"0 0 720 226\">\n  <text class=\"fig-t fig-mono fig-small\" x=\"46\" y=\"64\" text-anchor=\"end\">main</text>\n  <line class=\"fig-line\" x1=\"60\" y1=\"64\" x2=\"680\" y2=\"64\" marker-end=\"arrow\"/>\n  <circle class=\"fig-fill-dim\" cx=\"110\" cy=\"64\" r=\"6\"/>\n  <circle class=\"fig-fill-dim\" cx=\"170\" cy=\"64\" r=\"6\"/>\n  <circle class=\"fig-fill-accent\" cx=\"560\" cy=\"64\" r=\"6\"/>\n  <circle class=\"fig-fill-dim\" cx=\"640\" cy=\"64\" r=\"6\"/>\n\n  <path class=\"fig-line-accent\" d=\"M 200 64 C 230 64 236 130 268 130\"/>\n  <line class=\"fig-line-accent\" x1=\"268\" y1=\"130\" x2=\"470\" y2=\"130\"/>\n  <path class=\"fig-line-accent\" d=\"M 470 130 C 510 130 520 70 556 66\"/>\n  <circle class=\"fig-fill-accent\" cx=\"300\" cy=\"130\" r=\"6\"/>\n  <circle class=\"fig-fill-accent\" cx=\"370\" cy=\"130\" r=\"6\"/>\n  <circle class=\"fig-fill-accent\" cx=\"440\" cy=\"130\" r=\"6\"/>\n  <text class=\"fig-t fig-t-accent fig-small\" x=\"370\" y=\"152\" text-anchor=\"middle\">feature（短命なブランチ）</text>\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"370\" y=\"172\" text-anchor=\"middle\">意味のまとまりごとに commit</text>\n  <text class=\"fig-t fig-t-accent fig-small\" x=\"560\" y=\"40\" text-anchor=\"middle\">pull request でレビューして取り込む</text>\n\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"14\" y=\"206\">レビューで見るのは命名や整形だけではない —</text>\n  <text class=\"fig-t fig-t-dim fig-small\" x=\"14\" y=\"222\">境界条件 / 失敗時の挙動 / 並行性 / SQL / 権限 / ログに個人情報が出ていないか / テストの不足</text>\n</svg>\n```\n\nレビューでは命名と整形だけでなく、境界条件、失敗時の挙動、並行性、SQL、権限、ログへの個人情報、テストの不足を見ます。大きな機能はフィーチャーフラグで「配備すること」と「利用者へ公開すること」を分けると、`main` を長く分岐させずに進められます。",
-      "samples":[{"caption":"変更理由をコード上にも残す","code":"record Change(String scope,String reason){}public class Main{public static void main(String[] a){System.out.println(new Change(\"order\",\"reject negative quantity\"));}}\n"}],
-      "task":"変更ファイル数filesと追加削除行数linesを読み、filesが10以下かつlinesが300以下なら `REVIEWABLE`、それ以外は `SPLIT` と表示してください。",
-      "starterCode":"import java.util.*;public class Main{public static void main(String[] a){Scanner s=new Scanner(System.in);int files=s.nextInt(),lines=s.nextInt();/* TODO */}}\n",
-      "visibleCases":[{"label":"小さい変更","stdin":"4 120","expected":"REVIEWABLE"},{"label":"大きい変更","stdin":"8 450","expected":"SPLIT"}],
-      "hiddenCases":[{"label":"境界値","stdin":"10 300","expected":"REVIEWABLE"}],
-      "hints":["両方の条件を `&&` で結びます。"],
-      "solution":"import java.util.*;public class Main{public static void main(String[] a){Scanner s=new Scanner(System.in);int files=s.nextInt(),lines=s.nextInt();System.out.println(files<=10&&lines<=300?\"REVIEWABLE\":\"SPLIT\");}}\n",
-      "quiz":[
-        {"question":"レビューしやすいpull requestは？","choices":["目的と無関係な整形も大量に含む","受入条件・変更理由・テスト結果があり、範囲が小さい","秘密鍵を添付する","失敗時の挙動を隠す"],"answer":1,"explanation":"変更の意図と検証結果が追える、小さな単位にします。"},
-        {"question":"大きな機能の開発中も `main` へ小さくマージし続けるために使える手段はどれでしょう。","choices":["長く生きるブランチを維持する","コミットをすべて1つにまとめる","フィーチャーフラグで配備と公開を分ける","レビューを省略する"],"answer":2,"explanation":"`main` を長く分岐させずに進められます。配備した状態と、利用者へ公開した状態を分けて考えます。"}
+      "id": "52-1",
+      "title": "Gitとレビュー可能な変更",
+      "explanation": "## 小さく意図を共有する\n\n業務コードは一人で完成しません。課題（issue）で目的と受入条件をすり合わせ、短命なブランチで変更し、意味のまとまりごとにコミットし、pull requestでテスト結果・互換性・移行方法を共有します。ビルド生成物、秘密情報、IDE固有のファイルはコミットせず、`.gitignore` と機密情報の混入検査で防ぎます。\n\n```svg 短いブランチで変更し、意味のまとまりごとに commit して、pull request で共有する\n<svg viewBox=\"0 0 720 226\">\n  <text class=\"fig-t fig-mono fig-small\" x=\"46\" y=\"64\" text-anchor=\"end\">main</text>\n  <line class=\"fig-line\" x1=\"60\" y1=\"64\" x2=\"680\" y2=\"64\" marker-end=\"arrow\"/>\n  <circle class=\"fig-fill-dim\" cx=\"110\" cy=\"64\" r=\"6\"/>\n  <circle class=\"fig-fill-dim\" cx=\"170\" cy=\"64\" r=\"6\"/>\n  <circle class=\"fig-fill-accent\" cx=\"560\" cy=\"64\" r=\"6\"/>\n  <circle class=\"fig-fill-dim\" cx=\"640\" cy=\"64\" r=\"6\"/>\n\n  <path class=\"fig-line-accent\" d=\"M 200 64 C 230 64 236 130 268 130\"/>\n  <line class=\"fig-line-accent\" x1=\"268\" y1=\"130\" x2=\"470\" y2=\"130\"/>\n  <path class=\"fig-line-accent\" d=\"M 470 130 C 510 130 520 70 556 66\"/>\n  <circle class=\"fig-fill-accent\" cx=\"300\" cy=\"130\" r=\"6\"/>\n  <circle class=\"fig-fill-accent\" cx=\"370\" cy=\"130\" r=\"6\"/>\n  <circle class=\"fig-fill-accent\" cx=\"440\" cy=\"130\" r=\"6\"/>\n  <text class=\"fig-t fig-t-accent fig-small\" x=\"370\" y=\"152\" text-anchor=\"middle\">feature（短命なブランチ）</text>\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"370\" y=\"172\" text-anchor=\"middle\">意味のまとまりごとに commit</text>\n  <text class=\"fig-t fig-t-accent fig-small\" x=\"560\" y=\"40\" text-anchor=\"middle\">pull request でレビューして取り込む</text>\n\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"14\" y=\"206\">レビューで見るのは命名や整形だけではない —</text>\n  <text class=\"fig-t fig-t-dim fig-small\" x=\"14\" y=\"222\">境界条件 / 失敗時の挙動 / 並行性 / SQL / 権限 / ログに個人情報が出ていないか / テストの不足</text>\n</svg>\n```\n\nレビューでは命名と整形だけでなく、境界条件、失敗時の挙動、並行性、SQL、権限、ログへの個人情報、テストの不足を見ます。大きな機能はフィーチャーフラグで「配備すること」と「利用者へ公開すること」を分けると、`main` を長く分岐させずに進められます。",
+      "samples": [
+        {
+          "caption": "変更理由をコード上にも残す",
+          "code": "record Change(String scope, String reason) { }\n\npublic class Main {\n    public static void main(String[] a) {\n        System.out.println(new Change(\"order\", \"reject negative quantity\"));\n    }\n}\n"
+        }
+      ],
+      "task": "変更ファイル数filesと追加削除行数linesを読み、filesが10以下かつlinesが300以下なら `REVIEWABLE`、それ以外は `SPLIT` と表示してください。",
+      "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] a) {\n        Scanner s = new Scanner(System.in);\n        int files = s.nextInt(), lines = s.nextInt();\n        /* TODO */\n    }\n}\n",
+      "visibleCases": [
+        {
+          "label": "小さい変更",
+          "stdin": "4 120",
+          "expected": "REVIEWABLE"
+        },
+        {
+          "label": "大きい変更",
+          "stdin": "8 450",
+          "expected": "SPLIT"
+        }
+      ],
+      "hiddenCases": [
+        {
+          "label": "境界値",
+          "stdin": "10 300",
+          "expected": "REVIEWABLE"
+        }
+      ],
+      "hints": [
+        "両方の条件を `&&` で結びます。"
+      ],
+      "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] a) {\n        Scanner s = new Scanner(System.in);\n        int files = s.nextInt(), lines = s.nextInt();\n        System.out.println(files <= 10 && lines <= 300 ? \"REVIEWABLE\" : \"SPLIT\");\n    }\n}\n",
+      "quiz": [
+        {
+          "question": "レビューしやすいpull requestは？",
+          "choices": [
+            "失敗したときの挙動を隠している",
+            "秘密鍵をそのまま添付している",
+            "受入条件・変更理由・テスト結果があり、範囲が小さい",
+            "目的と無関係な整形も大量に含んでいる"
+          ],
+          "answer": 2,
+          "explanation": "失敗したときの挙動を隠すのは、レビューで最も見たい部分を隠す行為です。秘密鍵の添付は事故です。目的と無関係な整形を大量に混ぜると、本質的な変更が差分に埋もれます。受入条件・変更理由・テスト結果があり、範囲が小さいものが「読めるpull request」です。"
+        },
+        {
+          "question": "大きな機能の開発中も `main` へ小さくマージし続けるために使える手段はどれでしょう。",
+          "choices": [
+            "レビューを省略する",
+            "長く生きるブランチを維持する",
+            "フィーチャーフラグで配備と公開を分ける",
+            "マージ前にコミットを1つにまとめる"
+          ],
+          "answer": 2,
+          "explanation": "`main` を長く分岐させずに進められます。配備した状態と、利用者へ公開した状態を分けて考えます。"
+        }
       ]
     },
     {
-      "id":"52-2","title":"Maven・Gradleと依存管理",
-      "explanation":"## 誰が実行しても同じビルドにする\n\nMavenはPOMと決まったライフサイクル、Gradleはタスクの依存グラフとDSLを中心にビルドを記述します。どちらでもラッパーをコミットし、JDKのツールチェーン、プラグイン、依存のバージョン、参照先リポジトリを固定します。MavenのBOMやGradleのplatformは互換性のある依存をまとめてそろえ、ロックファイルや依存ツリーの表示は推移的依存の変化を見えるようにしてくれます。\n\n```svg 直接の依存が別の依存を連れてくる（推移依存）。版が食い違うと1つに解決される\n<svg viewBox=\"0 0 720 242\">\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"280\" y=\"36\" text-anchor=\"middle\">直接の依存</text>\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"485\" y=\"36\" text-anchor=\"middle\">推移依存（連れてくる）</text>\n\n  <rect class=\"fig-box\" x=\"14\" y=\"100\" width=\"140\" height=\"44\" rx=\"6\"/>\n  <text class=\"fig-t fig-small\" x=\"84\" y=\"122\" text-anchor=\"middle\">自分のアプリ</text>\n  <rect class=\"fig-box\" x=\"210\" y=\"60\" width=\"140\" height=\"40\" rx=\"6\"/>\n  <text class=\"fig-t fig-mono fig-small\" x=\"280\" y=\"80\" text-anchor=\"middle\">lib-A 1.2</text>\n  <rect class=\"fig-box\" x=\"210\" y=\"144\" width=\"140\" height=\"40\" rx=\"6\"/>\n  <text class=\"fig-t fig-mono fig-small\" x=\"280\" y=\"164\" text-anchor=\"middle\">lib-B 3.4</text>\n  <rect class=\"fig-box-ng\" x=\"410\" y=\"60\" width=\"150\" height=\"40\" rx=\"6\"/>\n  <text class=\"fig-t fig-mono fig-small fig-t-ng\" x=\"485\" y=\"80\" text-anchor=\"middle\">lib-C 1.0</text>\n  <rect class=\"fig-box-ng\" x=\"410\" y=\"144\" width=\"150\" height=\"40\" rx=\"6\"/>\n  <text class=\"fig-t fig-mono fig-small fig-t-ng\" x=\"485\" y=\"164\" text-anchor=\"middle\">lib-C 2.0</text>\n\n  <line class=\"fig-line\" x1=\"158\" y1=\"112\" x2=\"206\" y2=\"86\" marker-end=\"arrow\"/>\n  <line class=\"fig-line\" x1=\"158\" y1=\"132\" x2=\"206\" y2=\"158\" marker-end=\"arrow\"/>\n  <line class=\"fig-line\" x1=\"354\" y1=\"80\" x2=\"406\" y2=\"80\" marker-end=\"arrow\"/>\n  <line class=\"fig-line\" x1=\"354\" y1=\"164\" x2=\"406\" y2=\"164\" marker-end=\"arrow\"/>\n  <line class=\"fig-line-accent\" x1=\"564\" y1=\"86\" x2=\"600\" y2=\"110\" marker-end=\"arrow-accent\"/>\n  <line class=\"fig-line-accent\" x1=\"564\" y1=\"158\" x2=\"600\" y2=\"134\" marker-end=\"arrow-accent\"/>\n  <rect class=\"fig-box-accent\" x=\"604\" y=\"100\" width=\"102\" height=\"44\" rx=\"6\"/>\n  <text class=\"fig-t fig-t-accent fig-small\" x=\"655\" y=\"115\" text-anchor=\"middle\">どちらか</text>\n  <text class=\"fig-t fig-t-accent fig-small\" x=\"655\" y=\"133\" text-anchor=\"middle\">1つに解決</text>\n\n  <text class=\"fig-t fig-t-dim fig-small\" x=\"14\" y=\"208\">BOM / platform で互換のある版をそろえ、ロックファイルと依存ツリーで推移的依存の変化を見えるようにする</text>\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"14\" y=\"230\">ラッパーと JDK ツールチェーンも固定してコミットする。誰が実行しても同じビルドになるように</text>\n</svg>\n```\n\n`compile` と `test` だけでなく、静的解析、結合テスト、成果物の作成、署名、SBOMの生成もCIに組み込みます。複数モジュールへの分割は境界を強制できますが、細かく分けすぎるとビルドとバージョン管理が複雑になります。循環依存を許さない方向で分割します。",
-      "samples":[{"caption":"循環しないモジュールの順序を表す","code":"import java.util.*;public class Main{public static void main(String[] a){System.out.println(String.join(\" -> \",List.of(\"domain\",\"application\",\"adapter\")));}}\n"}],
-      "task":"依存 `module dependency` をn件読みます。自分自身への依存があれば `SELF_CYCLE`、なければ `OK` と表示してください。",
-      "starterCode":"import java.util.*;public class Main{public static void main(String[] a){Scanner s=new Scanner(System.in);int n=s.nextInt();boolean bad=false;for(int i=0;i<n;i++){String m=s.next(),d=s.next();/* TODO */}System.out.println(bad?\"SELF_CYCLE\":\"OK\");}}\n",
-      "visibleCases":[{"label":"正常","stdin":"3 api domain web api batch domain","expected":"OK"}],
-      "hiddenCases":[{"label":"自己依存","stdin":"2 api domain web web","expected":"SELF_CYCLE"}],
-      "hints":["`m.equals(d)` を記録します。"],
-      "solution":"import java.util.*;public class Main{public static void main(String[] a){Scanner s=new Scanner(System.in);int n=s.nextInt();boolean bad=false;for(int i=0;i<n;i++){String m=s.next(),d=s.next();if(m.equals(d))bad=true;}System.out.println(bad?\"SELF_CYCLE\":\"OK\");}}\n",
-      "quiz":[{"question":"再現できるビルドに有効なのは？","choices":["各自が最新バージョンを手で入力する","ラッパーとツールチェーン・プラグイン・依存バージョンを管理する","推移的依存を確認しない","ローカルにしかないJARを参照する"],"answer":1,"explanation":"ビルドの道具と入力を明示し、CIでも同じ手順を使います。"}]
-    },
-    {
-      "id":"52-3","title":"テスト戦略と実DBの結合テスト",
-      "explanation":"## 境界ごとに確信を積み上げる\n\n単体テストはドメインのロジックを高速に検証し、コンポーネントテストはHTTPや永続化といった1つの境界を、エンドツーエンドテストは重要な利用経路を少数だけ検証します。モックは自分が管理していない実装を再現するためではなく、自分が持つ境界でのやり取りを確認するために使います。SQLの方言、制約、トランザクションの分離レベルは、インメモリDBでは再現できないことがあります。だから本番と同じ系統でバージョンも近いDBをコンテナで起動する結合テストが有効です。\n\nテストは「準備・実行・検証」の3つを読み分けられる形に書き、時刻・乱数・外部I/Oは注入できるようにします。失敗を再現できる固定入力を残しつつ、性質ベースのテストやファジングで境界を広く探索します。再実行すると通ってしまう不安定なテスト（flaky test）は再実行で隠さず、競合・時刻依存・共有状態といった原因を直します。",
-      "samples":[{"caption":"時計を注入して決定的にする","code":"import java.time.*;class Greeting{static String part(Clock c){return LocalTime.now(c).getHour()<12?\"AM\":\"PM\";}}public class Main{public static void main(String[] a){Clock c=Clock.fixed(Instant.parse(\"2025-01-01T01:00:00Z\"),ZoneOffset.UTC);System.out.println(Greeting.part(c));}}\n"}],
-      "task":"テストの種別をn件読み、`unit` は1秒、`component` は5秒、`e2e` は20秒として、合計の見積りを表示してください。",
-      "starterCode":"import java.util.*;public class Main{public static void main(String[] a){Map<String,Integer> cost=Map.of(\"unit\",1,\"component\",5,\"e2e\",20);Scanner s=new Scanner(System.in);int n=s.nextInt(),sum=0;for(int i=0;i<n;i++){/* TODO */}System.out.println(sum);}}\n",
-      "visibleCases":[{"label":"テスト一式","stdin":"5 unit unit component e2e unit","expected":"28"}],
-      "hiddenCases":[{"label":"単体のみ","stdin":"3 unit unit unit","expected":"3"}],
-      "hints":["種別を読み、`cost` から引いた値を加算します。"],
-      "solution":"import java.util.*;public class Main{public static void main(String[] a){Map<String,Integer> cost=Map.of(\"unit\",1,\"component\",5,\"e2e\",20);Scanner s=new Scanner(System.in);int n=s.nextInt(),sum=0;for(int i=0;i<n;i++)sum+=cost.get(s.next());System.out.println(sum);}}\n",
-      "quiz":[
-        {"question":"本番がPostgreSQLのとき、実DBを使う結合テストが特に見つけやすい問題は？","choices":["純粋な関数の足し算","SQLの方言・制約・トランザクションの挙動の差","Javaの予約語","READMEの誤字だけ"],"answer":1,"explanation":"本番DB固有の意味は、別のDBやモックだけでは確認しきれません。"},
-        {"question":"再実行すると通ってしまう不安定なテストへの対応として、適切なものはどれでしょう。","choices":["CIで自動的に再実行して緑にする","そのテストを常に飛ばす","検証条件をゆるめて通るようにする","競合・時刻依存・共有状態などの原因を特定して直す"],"answer":3,"explanation":"再実行で隠すと、同じ原因が本番の不具合として残ります。時刻や外部I/Oは注入できるようにします。"}
+      "id": "52-2",
+      "title": "Maven・Gradleと依存管理",
+      "explanation": "## 誰が実行しても同じビルドにする\n\nMavenはPOMと決まったライフサイクル、Gradleはタスクの依存グラフとDSLを中心にビルドを記述します。どちらでもラッパーをコミットし、JDKのツールチェーン、プラグイン、依存のバージョン、参照先リポジトリを固定します。MavenのBOMやGradleのplatformは互換性のある依存をまとめてそろえ、ロックファイルや依存ツリーの表示は推移的依存の変化を見えるようにしてくれます。\n\n```svg 直接の依存が別の依存を連れてくる（推移依存）。版が食い違うと1つに解決される\n<svg viewBox=\"0 0 720 242\">\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"280\" y=\"36\" text-anchor=\"middle\">直接の依存</text>\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"485\" y=\"36\" text-anchor=\"middle\">推移依存（連れてくる）</text>\n\n  <rect class=\"fig-box\" x=\"14\" y=\"100\" width=\"140\" height=\"44\" rx=\"6\"/>\n  <text class=\"fig-t fig-small\" x=\"84\" y=\"122\" text-anchor=\"middle\">自分のアプリ</text>\n  <rect class=\"fig-box\" x=\"210\" y=\"60\" width=\"140\" height=\"40\" rx=\"6\"/>\n  <text class=\"fig-t fig-mono fig-small\" x=\"280\" y=\"80\" text-anchor=\"middle\">lib-A 1.2</text>\n  <rect class=\"fig-box\" x=\"210\" y=\"144\" width=\"140\" height=\"40\" rx=\"6\"/>\n  <text class=\"fig-t fig-mono fig-small\" x=\"280\" y=\"164\" text-anchor=\"middle\">lib-B 3.4</text>\n  <rect class=\"fig-box-ng\" x=\"410\" y=\"60\" width=\"150\" height=\"40\" rx=\"6\"/>\n  <text class=\"fig-t fig-mono fig-small fig-t-ng\" x=\"485\" y=\"80\" text-anchor=\"middle\">lib-C 1.0</text>\n  <rect class=\"fig-box-ng\" x=\"410\" y=\"144\" width=\"150\" height=\"40\" rx=\"6\"/>\n  <text class=\"fig-t fig-mono fig-small fig-t-ng\" x=\"485\" y=\"164\" text-anchor=\"middle\">lib-C 2.0</text>\n\n  <line class=\"fig-line\" x1=\"158\" y1=\"112\" x2=\"206\" y2=\"86\" marker-end=\"arrow\"/>\n  <line class=\"fig-line\" x1=\"158\" y1=\"132\" x2=\"206\" y2=\"158\" marker-end=\"arrow\"/>\n  <line class=\"fig-line\" x1=\"354\" y1=\"80\" x2=\"406\" y2=\"80\" marker-end=\"arrow\"/>\n  <line class=\"fig-line\" x1=\"354\" y1=\"164\" x2=\"406\" y2=\"164\" marker-end=\"arrow\"/>\n  <line class=\"fig-line-accent\" x1=\"564\" y1=\"86\" x2=\"600\" y2=\"110\" marker-end=\"arrow-accent\"/>\n  <line class=\"fig-line-accent\" x1=\"564\" y1=\"158\" x2=\"600\" y2=\"134\" marker-end=\"arrow-accent\"/>\n  <rect class=\"fig-box-accent\" x=\"604\" y=\"100\" width=\"102\" height=\"44\" rx=\"6\"/>\n  <text class=\"fig-t fig-t-accent fig-small\" x=\"655\" y=\"115\" text-anchor=\"middle\">どちらか</text>\n  <text class=\"fig-t fig-t-accent fig-small\" x=\"655\" y=\"133\" text-anchor=\"middle\">1つに解決</text>\n\n  <text class=\"fig-t fig-t-dim fig-small\" x=\"14\" y=\"208\">BOM / platform で互換のある版をそろえ、ロックファイルと依存ツリーで推移的依存の変化を見えるようにする</text>\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"14\" y=\"230\">ラッパーと JDK ツールチェーンも固定してコミットする。誰が実行しても同じビルドになるように</text>\n</svg>\n```\n\n`compile` と `test` だけでなく、静的解析、結合テスト、成果物の作成、署名、SBOMの生成もCIに組み込みます。複数モジュールへの分割は境界を強制できますが、細かく分けすぎるとビルドとバージョン管理が複雑になります。循環依存を許さない方向で分割します。",
+      "samples": [
+        {
+          "caption": "循環しないモジュールの順序を表す",
+          "code": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] a) {\n        System.out.println(String.join(\" -> \", List.of(\"domain\", \"application\", \"adapter\")));\n    }\n}\n"
+        }
+      ],
+      "task": "依存 `module dependency` をn件読みます。自分自身への依存があれば `SELF_CYCLE`、なければ `OK` と表示してください。",
+      "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] a) {\n        Scanner s = new Scanner(System.in);\n        int n = s.nextInt();\n        boolean bad = false;\n        for (int i = 0; i < n; i++) {\n            String m = s.next(), d = s.next();\n            /* TODO */\n        }\n        System.out.println(bad ? \"SELF_CYCLE\" : \"OK\");\n    }\n}\n",
+      "visibleCases": [
+        {
+          "label": "正常",
+          "stdin": "3 api domain web api batch domain",
+          "expected": "OK"
+        }
+      ],
+      "hiddenCases": [
+        {
+          "label": "自己依存",
+          "stdin": "2 api domain web web",
+          "expected": "SELF_CYCLE"
+        }
+      ],
+      "hints": [
+        "`m.equals(d)` を記録します。"
+      ],
+      "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] a) {\n        Scanner s = new Scanner(System.in);\n        int n = s.nextInt();\n        boolean bad = false;\n        for (int i = 0; i < n; i++) {\n            String m = s.next(), d = s.next();\n            if (m.equals(d)) bad = true;\n        }\n        System.out.println(bad ? \"SELF_CYCLE\" : \"OK\");\n    }\n}\n",
+      "quiz": [
+        {
+          "question": "再現できるビルドに有効なのは？",
+          "choices": [
+            "ローカルにしか無いJARを直接参照する",
+            "各自が最新バージョンを手で書き入れる",
+            "推移的依存はとくに確認しない",
+            "ラッパーとツールチェーン・依存バージョンを管理する"
+          ],
+          "answer": 3,
+          "explanation": "ローカルにしか無いJARを直接参照すると、他の人やCIでビルドできません。各自が最新版を手で書き入れると、いつ誰がビルドしたかで結果が変わります。推移的依存を確認しないと、知らないうちに版が動きます。ビルドの道具（ラッパー）と使うJDK、依存の版まで宣言して固定します。"
+        }
       ]
     },
     {
-      "id":"52-4","title":"デバッグ・計算量・静的解析",
-      "explanation":"## 推測せず観測する\n\n不具合はまず再現条件を固定し、デバッガのブレークポイント・ステップ実行・変数の監視、構造化ログ、テストで仮説を一つずつ検証します。例外を握りつぶしたり、値を文字列連結で大量に出力したりすると、原因を見失う一方で機密情報を漏らすことにもなります。IDEのデバッガも、JDIのようなJDKの仕組みの上に成り立っています。\n\n```svg 入力 n が増えたときの伸び方。二重ループを常に避けるのではなく、最大の n と実測で決める\n<svg viewBox=\"0 0 720 236\">\n  <line class=\"fig-line-soft\" x1=\"80\" y1=\"180\" x2=\"500\" y2=\"180\" marker-end=\"arrow\"/>\n  <line class=\"fig-line-soft\" x1=\"80\" y1=\"180\" x2=\"80\" y2=\"36\" marker-end=\"arrow\"/>\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"290\" y=\"200\" text-anchor=\"middle\">入力の大きさ n</text>\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"62\" y=\"108\" text-anchor=\"middle\" transform=\"rotate(-90 62 108)\">かかる時間</text>\n\n  <polyline class=\"fig-line-ok\" points=\"82,172 480,172\"/>\n  <polyline class=\"fig-line-ok fig-dashed\" points=\"82,178 130,152 200,138 300,128 400,122 480,118\"/>\n  <polyline class=\"fig-line\" points=\"82,178 480,60\"/>\n  <polyline class=\"fig-line-accent\" points=\"82,178 160,152 240,118 320,88 400,62 440,48\"/>\n  <polyline class=\"fig-line-ng\" points=\"82,178 180,172 260,152 320,126 370,94 410,62 436,40\"/>\n\n  <line class=\"fig-line-ng\" x1=\"520\" y1=\"60\" x2=\"546\" y2=\"60\"/>\n  <text class=\"fig-t fig-mono fig-small fig-t-ng\" x=\"556\" y=\"60\">O(n²)</text>\n  <line class=\"fig-line-accent\" x1=\"520\" y1=\"86\" x2=\"546\" y2=\"86\"/>\n  <text class=\"fig-t fig-mono fig-small fig-t-accent\" x=\"556\" y=\"86\">O(n log n)</text>\n  <line class=\"fig-line\" x1=\"520\" y1=\"112\" x2=\"546\" y2=\"112\"/>\n  <text class=\"fig-t fig-mono fig-small\" x=\"556\" y=\"112\">O(n)</text>\n  <line class=\"fig-line-ok fig-dashed\" x1=\"520\" y1=\"138\" x2=\"546\" y2=\"138\"/>\n  <text class=\"fig-t fig-mono fig-small fig-t-ok\" x=\"556\" y=\"138\">O(log n)</text>\n  <line class=\"fig-line-ok\" x1=\"520\" y1=\"164\" x2=\"546\" y2=\"164\"/>\n  <text class=\"fig-t fig-mono fig-small fig-t-ok\" x=\"556\" y=\"164\">O(1)</text>\n\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"14\" y=\"224\">n が小さいうちは差が出ない。n が10倍になったときに何倍になるかで考える</text>\n</svg>\n```\n\n正しさを確かめたら、次に入力規模nに対する時間と空間の計算量を見ます。二重ループを常に避けるのではなく、想定する最大のnと実測から判断します。コンパイラの警告、フォーマッタ、Checkstyle / SpotBugs / PMD / Error Proneなどの静的解析はCIでも同じ設定にし、警告を抑制するときは理由と範囲を必ず添えます。ベンチマークはJMHのウォームアップとforkを使い、`System.nanoTime()` を一回測っただけで結論を出さないようにします。",
-      "samples":[{"caption":"Setを使って線形時間で重複を探す","code":"import java.util.*;public class Main{public static void main(String[] a){Set<Integer> seen=new HashSet<>();for(int x:new int[]{2,3,2})if(!seen.add(x))System.out.println(x);}}\n"}],
-      "task":"要素数nと方式 `linear` または `quadratic` を読み、おおよその操作回数（`n` または `n*n`）を `long` で表示してください。",
-      "starterCode":"import java.util.*;public class Main{public static void main(String[] a){Scanner s=new Scanner(System.in);long n=s.nextLong();String kind=s.next();/* TODO */}}\n",
-      "visibleCases":[{"label":"線形","stdin":"1000 linear","expected":"1000"},{"label":"二乗","stdin":"1000 quadratic","expected":"1000000"}],
-      "hiddenCases":[{"label":"longで計算","stdin":"100000 quadratic","expected":"10000000000"}],
-      "hints":["`n` が `long` なので、`n*n` も `long` で計算されます。"],
-      "solution":"import java.util.*;public class Main{public static void main(String[] a){Scanner s=new Scanner(System.in);long n=s.nextLong();String kind=s.next();System.out.println(kind.equals(\"linear\")?n:n*n);}}\n",
-      "quiz":[
-        {"question":"小さな処理の性能測定にJMHを使う主な理由は？","choices":["JITの最適化を無効にするため","ウォームアップやforkなど、JVM特有の測定誤差を扱うため","単体テストを不要にするため","必ず本番の負荷と同じになるため"],"answer":1,"explanation":"JIT、不要コードの削除、GCなどを考慮した測定の枠組みを提供してくれます。"},
-        {"question":"手元では速いのに本番で遅い処理を、`System.nanoTime()` で1回測って結論づけるのが危険なのはなぜでしょう。","choices":["ウォームアップ前のJITの状態や、1回分のばらつきを含むため、定常状態の性能を表さない","`nanoTime` は実装されていないため","`nanoTime` はミリ秒しか測れないため","本番では計測が禁止されているため"],"answer":0,"explanation":"ベンチマークはJMHのウォームアップとforkを使い、想定する最大のnと実測から判断します。"}
+      "id": "52-3",
+      "title": "テスト戦略と実DBの結合テスト",
+      "explanation": "## 境界ごとに確信を積み上げる\n\n単体テストはドメインのロジックを高速に検証し、コンポーネントテストはHTTPや永続化といった1つの境界を、エンドツーエンドテストは重要な利用経路を少数だけ検証します。モックは自分が管理していない実装を再現するためではなく、自分が持つ境界でのやり取りを確認するために使います。SQLの方言、制約、トランザクションの分離レベルは、インメモリDBでは再現できないことがあります。だから本番と同じ系統でバージョンも近いDBをコンテナで起動する結合テストが有効です。\n\nテストは「準備・実行・検証」の3つを読み分けられる形に書き、時刻・乱数・外部I/Oは注入できるようにします。失敗を再現できる固定入力を残しつつ、性質ベースのテストやファジングで境界を広く探索します。再実行すると通ってしまう不安定なテスト（flaky test）は再実行で隠さず、競合・時刻依存・共有状態といった原因を直します。\n\n### 層ごとの役割と、かける時間の目安\n\n| 層 | 何を確かめる | 1件の時間 | 件数 |\n|---|---|---|---|\n| 単体 | 業務ロジックの分岐 | ミリ秒 | 多い |\n| コンポーネント | DIや設定を含めた組み立て | 数百ミリ秒〜秒 | 中くらい |\n| 結合（実DB） | SQL・制約・トランザクション | 秒 | 少ない |\n| E2E | 利用者の代表的な経路 | 数秒〜十数秒 | ごく少ない |\n\n下の層で捕まえられる不具合を上の層で探すと、遅いうえに原因が分かりにくくなります。\n\n### 実DBの結合テストだけが見つけるもの\n\nモックしたリポジトリでは、次はどれも通ってしまいます。\n\n- SQLの構文・列名の誤り\n- 一意制約や外部キー違反の扱い\n- トランザクション境界の誤り（ロールバックされない更新）\n- 製品ごとの方言（NULLの並び、照合順序、型の丸め）\n\n> ⚠️ 間違えやすい点 … Dockerが無い環境で結合テストを **黙ってskip** しないこと。\n> 「緑だから通った」と読めてしまい、いちばん確かめたい層が抜けたまま進みます。\n> CIでは別のジョブとして見えるようにし、落ちたら落ちたと分かる形にします。",
+      "samples": [
+        {
+          "caption": "時計を注入して決定的にする",
+          "code": "import java.time.*;\n\nclass Greeting {\n    static String part(Clock c) {\n        return LocalTime.now(c).getHour() < 12 ? \"AM\" : \"PM\";\n    }\n}\n\npublic class Main {\n    public static void main(String[] a) {\n        Clock c = Clock.fixed(Instant.parse(\"2025-01-01T01:00:00Z\"), ZoneOffset.UTC);\n        System.out.println(Greeting.part(c));\n    }\n}\n"
+        }
+      ],
+      "task": "テストの種別をn件読み、`unit` は1秒、`component` は5秒、`e2e` は20秒として、合計の見積りを表示してください。",
+      "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] a) {\n        Map<String, Integer> cost = Map.of(\"unit\", 1, \"component\", 5, \"e2e\", 20);\n        Scanner s = new Scanner(System.in);\n        int n = s.nextInt(), sum = 0;\n        for (int i = 0; i < n; i++) {\n            /* TODO */\n        }\n        System.out.println(sum);\n    }\n}\n",
+      "visibleCases": [
+        {
+          "label": "テスト一式",
+          "stdin": "5 unit unit component e2e unit",
+          "expected": "28"
+        }
+      ],
+      "hiddenCases": [
+        {
+          "label": "単体のみ",
+          "stdin": "3 unit unit unit",
+          "expected": "3"
+        }
+      ],
+      "hints": [
+        "種別を読み、`cost` から引いた値を加算します。"
+      ],
+      "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] a) {\n        Map<String, Integer> cost = Map.of(\"unit\", 1, \"component\", 5, \"e2e\", 20);\n        Scanner s = new Scanner(System.in);\n        int n = s.nextInt(), sum = 0;\n        for (int i = 0; i < n; i++) sum += cost.get(s.next());\n        System.out.println(sum);\n    }\n}\n",
+      "quiz": [
+        {
+          "question": "本番がPostgreSQLのとき、実DBを使う結合テストが特に見つけやすい問題は？",
+          "choices": [
+            "Javaの予約語の違い",
+            "純粋な関数の足し算の結果",
+            "SQLの方言・制約・トランザクションの挙動の差",
+            "READMEの誤字や表記ゆれ"
+          ],
+          "answer": 2,
+          "explanation": "Javaの予約語はDBによって変わりません。純粋な関数の計算はDBと無関係で、READMEの誤字はテストの対象ではありません。実DBでしか出ないのは、SQLの方言の違い、制約の効き方、分離レベルによる見え方——といったDB固有の意味の部分です。"
+        },
+        {
+          "question": "再実行すると通ってしまう不安定なテストへの対応として、適切なものはどれでしょう。",
+          "choices": [
+            "競合・時刻依存・共有状態などの原因を特定して直す",
+            "そのテストに `@Disabled` を付けて外す",
+            "CIで自動的に再実行して緑にする",
+            "検証条件をゆるめて通るようにする"
+          ],
+          "answer": 0,
+          "explanation": "再実行で隠すと、同じ原因が本番の不具合として残ります。時刻や外部I/Oは注入できるようにします。"
+        }
       ]
     },
     {
-      "id":"52-5","title":"CI/CDと供給網を管理する",
-      "explanation":"## コミットから同じ手順で成果物を作る\n\nCIは、ソースの取得、JDKの設定、依存の取得、コンパイル、テスト、静的解析、パッケージングを自動化します。CDでは同じ成果物を環境間で昇格させ、環境ごとの設定だけを外から与えます。ブランチの保護、通過が必須のチェック、成果物のチェックサムと署名、出自（provenance）の記録、SBOM、依存の脆弱性検査を組み合わせると、「何を・誰が・どう作ったか」を追跡できます。\n\n```svg commit から同じ手順で成果物を作り、同じ成果物を環境へ昇格させる\n<svg viewBox=\"0 0 720 226\">\n  <rect class=\"fig-box\" x=\"10\" y=\"34\" width=\"104\" height=\"42\" rx=\"6\"/>\n  <text class=\"fig-t fig-small\" x=\"62\" y=\"55\" text-anchor=\"middle\">commit</text>\n  <rect class=\"fig-box\" x=\"129\" y=\"34\" width=\"104\" height=\"42\" rx=\"6\"/>\n  <text class=\"fig-t fig-small\" x=\"181\" y=\"55\" text-anchor=\"middle\">compile</text>\n  <rect class=\"fig-box\" x=\"248\" y=\"34\" width=\"104\" height=\"42\" rx=\"6\"/>\n  <text class=\"fig-t fig-small\" x=\"300\" y=\"55\" text-anchor=\"middle\">test</text>\n  <rect class=\"fig-box\" x=\"367\" y=\"34\" width=\"104\" height=\"42\" rx=\"6\"/>\n  <text class=\"fig-t fig-small\" x=\"419\" y=\"55\" text-anchor=\"middle\">静的解析</text>\n  <rect class=\"fig-box-accent\" x=\"486\" y=\"34\" width=\"104\" height=\"42\" rx=\"6\"/>\n  <text class=\"fig-t fig-small fig-t-accent\" x=\"538\" y=\"49\" text-anchor=\"middle\">package</text>\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"538\" y=\"67\" text-anchor=\"middle\">署名・SBOM</text>\n  <rect class=\"fig-box\" x=\"605\" y=\"34\" width=\"104\" height=\"42\" rx=\"6\"/>\n  <text class=\"fig-t fig-small\" x=\"657\" y=\"55\" text-anchor=\"middle\">deploy</text>\n  <line class=\"fig-line\" x1=\"116\" y1=\"55\" x2=\"127\" y2=\"55\" marker-end=\"arrow\"/>\n  <line class=\"fig-line\" x1=\"235\" y1=\"55\" x2=\"246\" y2=\"55\" marker-end=\"arrow\"/>\n  <line class=\"fig-line\" x1=\"354\" y1=\"55\" x2=\"365\" y2=\"55\" marker-end=\"arrow\"/>\n  <line class=\"fig-line\" x1=\"473\" y1=\"55\" x2=\"484\" y2=\"55\" marker-end=\"arrow\"/>\n  <line class=\"fig-line\" x1=\"592\" y1=\"55\" x2=\"603\" y2=\"55\" marker-end=\"arrow\"/>\n\n  <rect class=\"fig-box-accent\" x=\"180\" y=\"118\" width=\"150\" height=\"44\" rx=\"6\"/>\n  <text class=\"fig-t fig-small fig-t-accent\" x=\"255\" y=\"134\" text-anchor=\"middle\">同じ成果物</text>\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"255\" y=\"152\" text-anchor=\"middle\">作り直さない</text>\n  <rect class=\"fig-box\" x=\"400\" y=\"120\" width=\"94\" height=\"40\" rx=\"6\"/>\n  <text class=\"fig-t fig-small\" x=\"447\" y=\"140\" text-anchor=\"middle\">dev</text>\n  <rect class=\"fig-box\" x=\"506\" y=\"120\" width=\"94\" height=\"40\" rx=\"6\"/>\n  <text class=\"fig-t fig-small\" x=\"553\" y=\"140\" text-anchor=\"middle\">stg</text>\n  <rect class=\"fig-box\" x=\"612\" y=\"120\" width=\"94\" height=\"40\" rx=\"6\"/>\n  <text class=\"fig-t fig-small\" x=\"659\" y=\"140\" text-anchor=\"middle\">prod</text>\n  <line class=\"fig-line-accent\" x1=\"334\" y1=\"140\" x2=\"396\" y2=\"140\" marker-end=\"arrow-accent\"/>\n  <line class=\"fig-line\" x1=\"498\" y1=\"140\" x2=\"502\" y2=\"140\" marker-end=\"arrow\"/>\n  <line class=\"fig-line\" x1=\"604\" y1=\"140\" x2=\"608\" y2=\"140\" marker-end=\"arrow\"/>\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"14\" y=\"140\">環境ごとに変えるのは設定だけ</text>\n\n  <text class=\"fig-t fig-t-dim fig-small\" x=\"14\" y=\"192\">キャッシュのキーにロックファイルと JDK を含める。成果物の正しさをキャッシュに依存させない</text>\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"14\" y=\"214\">デプロイ後はヘルスチェックと主要指標を見る。カナリア / ブルーグリーンと自動切り戻しの条件は事前に決めておく</text>\n</svg>\n```\n\nキャッシュはビルドを速くできますが、キーにロックファイルやJDKのバージョンを含めて、成果物の正しさをキャッシュに依存させないようにします。DBのスキーマ移行はアプリとの前方・後方互換を考え、expand / migrate / contract の段階に分けます。デプロイ後はヘルスチェックと主要指標を見て、カナリアやブルーグリーンの進め方と、自動で切り戻す条件を事前に決めておきます。\n\n> 🧪 画面内問題はリリース判定の小さなモデルです。ワークフローの実例は `labs/delivery` の `ci-maven.yml` にあり、イメージの脆弱性検査とSBOMが何を列挙するか、同じイメージを設定だけ変えて昇格できるかも、そこで観察できます。",
-      "samples":[{"caption":"品質の関門をすべて満たすか","code":"import java.util.*;public class Main{public static void main(String[] a){System.out.println(List.of(true,true,true).stream().allMatch(Boolean::booleanValue)?\"PASS\":\"BLOCK\");}}\n"}],
-      "task":"`compile test scan package` の成否を0/1で読み、すべて1なら `RELEASE`、一つでも0なら `BLOCK` と表示してください。",
-      "starterCode":"import java.util.*;public class Main{public static void main(String[] a){Scanner s=new Scanner(System.in);boolean ok=true;for(int i=0;i<4;i++){/* TODO */}System.out.println(ok?\"RELEASE\":\"BLOCK\");}}\n",
-      "visibleCases":[{"label":"すべて通過","stdin":"1 1 1 1","expected":"RELEASE"}],
-      "hiddenCases":[{"label":"脆弱性検査で失敗","stdin":"1 1 0 1","expected":"BLOCK"}],
-      "hints":["いまの `ok` と `s.nextInt()==1` を `&&` で結んで更新します。"],
-      "solution":"import java.util.*;public class Main{public static void main(String[] a){Scanner s=new Scanner(System.in);boolean ok=true;for(int i=0;i<4;i++)ok=ok&&s.nextInt()==1;System.out.println(ok?\"RELEASE\":\"BLOCK\");}}\n",
-      "quiz":[{"question":"環境間で成果物を作り直さず昇格させる理由は？","choices":["環境ごとに異なるソースを混ぜるため","検証したbyte列と本番投入物を同一にするため","秘密をJARへ埋め込むため","CIを省略するため"],"answer":1,"explanation":"build once, deploy manyにより再現性と追跡性を保ちます。"}]
+      "id": "52-4",
+      "title": "デバッグ・計算量・静的解析",
+      "explanation": "## 推測せず観測する\n\n不具合はまず再現条件を固定し、デバッガのブレークポイント・ステップ実行・変数の監視、構造化ログ、テストで仮説を一つずつ検証します。例外を握りつぶしたり、値を文字列連結で大量に出力したりすると、原因を見失う一方で機密情報を漏らすことにもなります。IDEのデバッガも、JDIのようなJDKの仕組みの上に成り立っています。\n\n```svg 入力 n が増えたときの伸び方。二重ループを常に避けるのではなく、最大の n と実測で決める\n<svg viewBox=\"0 0 720 236\">\n  <line class=\"fig-line-soft\" x1=\"80\" y1=\"180\" x2=\"500\" y2=\"180\" marker-end=\"arrow\"/>\n  <line class=\"fig-line-soft\" x1=\"80\" y1=\"180\" x2=\"80\" y2=\"36\" marker-end=\"arrow\"/>\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"290\" y=\"200\" text-anchor=\"middle\">入力の大きさ n</text>\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"62\" y=\"108\" text-anchor=\"middle\" transform=\"rotate(-90 62 108)\">かかる時間</text>\n\n  <polyline class=\"fig-line-ok\" points=\"82,172 480,172\"/>\n  <polyline class=\"fig-line-ok fig-dashed\" points=\"82,178 130,152 200,138 300,128 400,122 480,118\"/>\n  <polyline class=\"fig-line\" points=\"82,178 480,60\"/>\n  <polyline class=\"fig-line-accent\" points=\"82,178 160,152 240,118 320,88 400,62 440,48\"/>\n  <polyline class=\"fig-line-ng\" points=\"82,178 180,172 260,152 320,126 370,94 410,62 436,40\"/>\n\n  <line class=\"fig-line-ng\" x1=\"520\" y1=\"60\" x2=\"546\" y2=\"60\"/>\n  <text class=\"fig-t fig-mono fig-small fig-t-ng\" x=\"556\" y=\"60\">O(n²)</text>\n  <line class=\"fig-line-accent\" x1=\"520\" y1=\"86\" x2=\"546\" y2=\"86\"/>\n  <text class=\"fig-t fig-mono fig-small fig-t-accent\" x=\"556\" y=\"86\">O(n log n)</text>\n  <line class=\"fig-line\" x1=\"520\" y1=\"112\" x2=\"546\" y2=\"112\"/>\n  <text class=\"fig-t fig-mono fig-small\" x=\"556\" y=\"112\">O(n)</text>\n  <line class=\"fig-line-ok fig-dashed\" x1=\"520\" y1=\"138\" x2=\"546\" y2=\"138\"/>\n  <text class=\"fig-t fig-mono fig-small fig-t-ok\" x=\"556\" y=\"138\">O(log n)</text>\n  <line class=\"fig-line-ok\" x1=\"520\" y1=\"164\" x2=\"546\" y2=\"164\"/>\n  <text class=\"fig-t fig-mono fig-small fig-t-ok\" x=\"556\" y=\"164\">O(1)</text>\n\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"14\" y=\"224\">n が小さいうちは差が出ない。n が10倍になったときに何倍になるかで考える</text>\n</svg>\n```\n\n正しさを確かめたら、次に入力規模nに対する時間と空間の計算量を見ます。二重ループを常に避けるのではなく、想定する最大のnと実測から判断します。コンパイラの警告、フォーマッタ、Checkstyle / SpotBugs / PMD / Error Proneなどの静的解析はCIでも同じ設定にし、警告を抑制するときは理由と範囲を必ず添えます。ベンチマークはJMHのウォームアップとforkを使い、`System.nanoTime()` を一回測っただけで結論を出さないようにします。",
+      "samples": [
+        {
+          "caption": "Setを使って線形時間で重複を探す",
+          "code": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] a) {\n        Set<Integer> seen = new HashSet<>();\n        for (int x : new int[] {2, 3, 2}) if (!seen.add(x)) System.out.println(x);\n    }\n}\n"
+        }
+      ],
+      "task": "要素数nと方式 `linear` または `quadratic` を読み、おおよその操作回数（`n` または `n*n`）を `long` で表示してください。",
+      "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] a) {\n        Scanner s = new Scanner(System.in);\n        long n = s.nextLong();\n        String kind = s.next();\n        /* TODO */\n    }\n}\n",
+      "visibleCases": [
+        {
+          "label": "線形",
+          "stdin": "1000 linear",
+          "expected": "1000"
+        },
+        {
+          "label": "二乗",
+          "stdin": "1000 quadratic",
+          "expected": "1000000"
+        }
+      ],
+      "hiddenCases": [
+        {
+          "label": "longで計算",
+          "stdin": "100000 quadratic",
+          "expected": "10000000000"
+        }
+      ],
+      "hints": [
+        "`n` が `long` なので、`n*n` も `long` で計算されます。"
+      ],
+      "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] a) {\n        Scanner s = new Scanner(System.in);\n        long n = s.nextLong();\n        String kind = s.next();\n        System.out.println(kind.equals(\"linear\") ? n : n * n);\n    }\n}\n",
+      "quiz": [
+        {
+          "question": "小さな処理の性能測定にJMHを使う主な理由は？",
+          "choices": [
+            "本番と同じ負荷を再現できるため",
+            "ウォームアップやforkなど測定誤差を扱うため",
+            "単体テストを書かなくてよくなるため",
+            "JITの最適化を完全に無効にできるため"
+          ],
+          "answer": 1,
+          "explanation": "JMHは本番と同じ負荷を再現する道具ではありません（それは負荷試験の役目です）。単体テストの代わりにもならず、JITの最適化を完全に無効にもしません。JMHが扱うのは、ウォームアップ、forkによる状態の切り分け、不要コードの削除といった**測り方の誤差**です。"
+        },
+        {
+          "question": "手元では速いのに本番で遅い処理を、`System.nanoTime()` で1回測って結論づけるのが危険なのはなぜでしょう。",
+          "choices": [
+            "本番環境では計測そのものが禁止されているため",
+            "`nanoTime` はミリ秒しか測れないため",
+            "ウォームアップ前のJITの状態や1回分のばらつきを含むため",
+            "`nanoTime` は実装されていないため"
+          ],
+          "answer": 2,
+          "explanation": "ベンチマークはJMHのウォームアップとforkを使い、想定する最大のnと実測から判断します。定常状態の性能を表しません。"
+        }
+      ]
+    },
+    {
+      "id": "52-5",
+      "title": "CI/CDと供給網を管理する",
+      "explanation": "## コミットから同じ手順で成果物を作る\n\nCIは、ソースの取得、JDKの設定、依存の取得、コンパイル、テスト、静的解析、パッケージングを自動化します。CDでは同じ成果物を環境間で昇格させ、環境ごとの設定だけを外から与えます。ブランチの保護、通過が必須のチェック、成果物のチェックサムと署名、出自（provenance）の記録、SBOM、依存の脆弱性検査を組み合わせると、「何を・誰が・どう作ったか」を追跡できます。\n\n```svg commit から同じ手順で成果物を作り、同じ成果物を環境へ昇格させる\n<svg viewBox=\"0 0 720 226\">\n  <rect class=\"fig-box\" x=\"10\" y=\"34\" width=\"104\" height=\"42\" rx=\"6\"/>\n  <text class=\"fig-t fig-small\" x=\"62\" y=\"55\" text-anchor=\"middle\">commit</text>\n  <rect class=\"fig-box\" x=\"129\" y=\"34\" width=\"104\" height=\"42\" rx=\"6\"/>\n  <text class=\"fig-t fig-small\" x=\"181\" y=\"55\" text-anchor=\"middle\">compile</text>\n  <rect class=\"fig-box\" x=\"248\" y=\"34\" width=\"104\" height=\"42\" rx=\"6\"/>\n  <text class=\"fig-t fig-small\" x=\"300\" y=\"55\" text-anchor=\"middle\">test</text>\n  <rect class=\"fig-box\" x=\"367\" y=\"34\" width=\"104\" height=\"42\" rx=\"6\"/>\n  <text class=\"fig-t fig-small\" x=\"419\" y=\"55\" text-anchor=\"middle\">静的解析</text>\n  <rect class=\"fig-box-accent\" x=\"486\" y=\"34\" width=\"104\" height=\"42\" rx=\"6\"/>\n  <text class=\"fig-t fig-small fig-t-accent\" x=\"538\" y=\"49\" text-anchor=\"middle\">package</text>\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"538\" y=\"67\" text-anchor=\"middle\">署名・SBOM</text>\n  <rect class=\"fig-box\" x=\"605\" y=\"34\" width=\"104\" height=\"42\" rx=\"6\"/>\n  <text class=\"fig-t fig-small\" x=\"657\" y=\"55\" text-anchor=\"middle\">deploy</text>\n  <line class=\"fig-line\" x1=\"116\" y1=\"55\" x2=\"127\" y2=\"55\" marker-end=\"arrow\"/>\n  <line class=\"fig-line\" x1=\"235\" y1=\"55\" x2=\"246\" y2=\"55\" marker-end=\"arrow\"/>\n  <line class=\"fig-line\" x1=\"354\" y1=\"55\" x2=\"365\" y2=\"55\" marker-end=\"arrow\"/>\n  <line class=\"fig-line\" x1=\"473\" y1=\"55\" x2=\"484\" y2=\"55\" marker-end=\"arrow\"/>\n  <line class=\"fig-line\" x1=\"592\" y1=\"55\" x2=\"603\" y2=\"55\" marker-end=\"arrow\"/>\n\n  <rect class=\"fig-box-accent\" x=\"180\" y=\"118\" width=\"150\" height=\"44\" rx=\"6\"/>\n  <text class=\"fig-t fig-small fig-t-accent\" x=\"255\" y=\"134\" text-anchor=\"middle\">同じ成果物</text>\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"255\" y=\"152\" text-anchor=\"middle\">作り直さない</text>\n  <rect class=\"fig-box\" x=\"400\" y=\"120\" width=\"94\" height=\"40\" rx=\"6\"/>\n  <text class=\"fig-t fig-small\" x=\"447\" y=\"140\" text-anchor=\"middle\">dev</text>\n  <rect class=\"fig-box\" x=\"506\" y=\"120\" width=\"94\" height=\"40\" rx=\"6\"/>\n  <text class=\"fig-t fig-small\" x=\"553\" y=\"140\" text-anchor=\"middle\">stg</text>\n  <rect class=\"fig-box\" x=\"612\" y=\"120\" width=\"94\" height=\"40\" rx=\"6\"/>\n  <text class=\"fig-t fig-small\" x=\"659\" y=\"140\" text-anchor=\"middle\">prod</text>\n  <line class=\"fig-line-accent\" x1=\"334\" y1=\"140\" x2=\"396\" y2=\"140\" marker-end=\"arrow-accent\"/>\n  <line class=\"fig-line\" x1=\"498\" y1=\"140\" x2=\"502\" y2=\"140\" marker-end=\"arrow\"/>\n  <line class=\"fig-line\" x1=\"604\" y1=\"140\" x2=\"608\" y2=\"140\" marker-end=\"arrow\"/>\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"14\" y=\"140\">環境ごとに変えるのは設定だけ</text>\n\n  <text class=\"fig-t fig-t-dim fig-small\" x=\"14\" y=\"192\">キャッシュのキーにロックファイルと JDK を含める。成果物の正しさをキャッシュに依存させない</text>\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"14\" y=\"214\">デプロイ後はヘルスチェックと主要指標を見る。カナリア / ブルーグリーンと自動切り戻しの条件は事前に決めておく</text>\n</svg>\n```\n\nキャッシュはビルドを速くできますが、キーにロックファイルやJDKのバージョンを含めて、成果物の正しさをキャッシュに依存させないようにします。DBのスキーマ移行はアプリとの前方・後方互換を考え、expand / migrate / contract の段階に分けます。デプロイ後はヘルスチェックと主要指標を見て、カナリアやブルーグリーンの進め方と、自動で切り戻す条件を事前に決めておきます。\n\n> 🧪 画面内問題はリリース判定の小さなモデルです。ワークフローの実例は `labs/delivery` の `ci-maven.yml` にあり、イメージの脆弱性検査とSBOMが何を列挙するか、同じイメージを設定だけ変えて昇格できるかも、そこで観察できます。\n\n> 🧪 アプリで確かめること / labs で動かすこと … この問題で確かめるのはパイプラインの段をどう並べるかの判断です。\n> CIを実際に回すことは、1ファイル・標準入力だけのこの画面では扱えません。`labs/delivery` に本物を置いてあります。",
+      "samples": [
+        {
+          "caption": "品質の関門をすべて満たすか",
+          "code": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] a) {\n        System.out.println(List.of(true, true, true).stream().allMatch(Boolean::booleanValue) ? \"PASS\" : \"BLOCK\");\n    }\n}\n"
+        }
+      ],
+      "task": "`compile test scan package` の成否を0/1で読み、すべて1なら `RELEASE`、一つでも0なら `BLOCK` と表示してください。",
+      "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] a) {\n        Scanner s = new Scanner(System.in);\n        boolean ok = true;\n        for (int i = 0; i < 4; i++) {\n            /* TODO */\n        }\n        System.out.println(ok ? \"RELEASE\" : \"BLOCK\");\n    }\n}\n",
+      "visibleCases": [
+        {
+          "label": "すべて通過",
+          "stdin": "1 1 1 1",
+          "expected": "RELEASE"
+        }
+      ],
+      "hiddenCases": [
+        {
+          "label": "脆弱性検査で失敗",
+          "stdin": "1 1 0 1",
+          "expected": "BLOCK"
+        }
+      ],
+      "hints": [
+        "いまの `ok` と `s.nextInt()==1` を `&&` で結んで更新します。"
+      ],
+      "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] a) {\n        Scanner s = new Scanner(System.in);\n        boolean ok = true;\n        for (int i = 0; i < 4; i++) ok = ok && s.nextInt() == 1;\n        System.out.println(ok ? \"RELEASE\" : \"BLOCK\");\n    }\n}\n",
+      "quiz": [
+        {
+          "question": "環境間で成果物を作り直さず昇格させる理由は？",
+          "choices": [
+            "検証したbyte列と本番投入物を同一にするため",
+            "秘密をJARへ埋め込むため",
+            "環境ごとに異なるソースを混ぜるため",
+            "CIを省略するため"
+          ],
+          "answer": 0,
+          "explanation": "秘密をJARへ埋め込むのは避けるべきことで、環境ごとに違うソースを混ぜるのは再現性を壊します。CIを省略する話でもありません。環境ごとに作り直すと、検証した成果物と本番へ入れた成果物が別物になります。一度だけ作って同じものを昇格させれば、検証結果がそのまま本番の根拠になります。"
+        }
+      ]
     },
     {
       "id": "52-6",
       "title": "章末演習：チーム開発・ビルド・品質管理",
-      "explanation": "## この章の知識を、自分の手で組み合わせよう\n\nここでは、**レビューできる変更の大きさ・依存の循環・テスト時間の見積り・リリースのゲート**をまとめて使います。新しい文法は登場しません。分からなくなったら、直前までの解説やサンプルへ戻って確認して大丈夫です。\n\n### 3問の進め方\n\n1. **基本**で、中心となる書き方をもう一度使う\n2. **組み合わせ**で、章内の複数の知識を一緒に使う\n3. **実践**で、少し現実的な入力と条件を整理する\n\nCIを回すのは `labs/delivery` です。ここで書くのは、**そのCIが自動で下している判断**をJavaへ書き起こしたものです。",
-      "samples": [{"caption":"復習用サンプル：止める理由は優先度の高いものから見る","code":"public class Main{public static void main(String[] a){int secrets=1,files=3;System.out.println(secrets>0?\"BLOCK_SECRET\":files>10?\"SPLIT_FILES\":\"REVIEWABLE\");}}\n","expected":"BLOCK_SECRET"}],
+      "explanation": "## この章の知識を、自分の手で組み合わせよう\n\nここでは、**レビューできる変更の大きさ・依存の循環・テスト時間の見積り・リリースのゲート**をまとめて使います。新しい文法は登場しません。分からなくなったら、直前までの解説やサンプルへ戻って確認して大丈夫です。\n\n### 3問の進め方\n\n1. **基本**で、中心となる書き方をもう一度使う\n2. **組み合わせ**で、章内の複数の知識を一緒に使う\n3. **実践**で、少し現実的な入力と条件を整理する\n\nCIを回すのは `labs/delivery` です。ここで書くのは、**そのCIが自動で下している判断**をJavaへ書き起こしたものです。\n\n> 🧪 アプリで確かめること / labs で動かすこと … この問題で確かめるのはチーム開発の進め方と品質管理の判断です。\n> ビルドとCIを実際に回すことは、1ファイル・標準入力だけのこの画面では扱えません。`labs/delivery` に本物を置いてあります。\n> ★はアプリの問題に対して付きます。labs をやったかどうかは★には出ないので、\n> 手を動かした記録は labs 側のREADMEの手順で残してください。",
+      "samples": [
+        {
+          "caption": "復習用サンプル：止める理由は優先度の高いものから見る",
+          "code": "public class Main {\n    public static void main(String[] a) {\n        int secrets = 1, files = 3;\n        System.out.println(secrets > 0 ? \"BLOCK_SECRET\" : files > 10 ? \"SPLIT_FILES\" : \"REVIEWABLE\");\n    }\n}\n",
+          "expected": "BLOCK_SECRET"
+        }
+      ],
       "task": "【基本】レビューの上限を `maxFiles maxLines` の形で読み、続けてpull requestをn件 `pr files lines secrets` の形で読みます（`secrets` は混ざってしまった秘密情報の件数）。各pull requestについて次を上から順に確かめ、読んだ順に `pr STATUS` と表示してください。\n\n1. `secrets` が1件以上 → `BLOCK_SECRET`\n2. `files` が maxFiles を超える → `SPLIT_FILES`\n3. `lines` が maxLines を超える → `SPLIT_LINES`\n4. どれでもない → `REVIEWABLE`\n\n最後に、そのままレビューできる件数を `REVIEWABLE 件数/全件数` の形で表示します。",
-      "starterCode": "import java.util.*;\npublic class Main {public static void main(String[] args){Scanner s=new Scanner(System.in);int maxFiles=s.nextInt(),maxLines=s.nextInt(),n=s.nextInt(),ok=0;for(int i=0;i<n;i++){String pr=s.next();int files=s.nextInt(),lines=s.nextInt(),secrets=s.nextInt();/* TODO 4つの判定 */}System.out.println(\"REVIEWABLE \"+ok+\"/\"+n);}}\n",
-      "visibleCases": [{"label":"大きすぎる変更","stdin":"10 300 3 pr1 4 120 0 pr2 12 200 0 pr3 5 900 0","expected":"pr1 REVIEWABLE\npr2 SPLIT_FILES\npr3 SPLIT_LINES\nREVIEWABLE 1/3"},{"label":"秘密情報が混ざる","stdin":"10 300 1 pr9 2 10 1","expected":"pr9 BLOCK_SECRET\nREVIEWABLE 0/1"}],
-      "hiddenCases": [{"label":"秘密情報が最優先","stdin":"10 300 1 big 50 5000 2","expected":"big BLOCK_SECRET\nREVIEWABLE 0/1"},{"label":"ちょうど上限は通す","stdin":"10 300 1 edge 10 300 0","expected":"edge REVIEWABLE\nREVIEWABLE 1/1"},{"label":"pull request 0件","stdin":"10 300 0","expected":"REVIEWABLE 0/0"},{"label":"すべて小さい","stdin":"10 300 2 a 1 1 0 b 2 2 0","expected":"a REVIEWABLE\nb REVIEWABLE\nREVIEWABLE 2/2"}],
-      "hints": ["条件演算子を上から順につなぐか、else if で書きます。どちらでも「最初に当てはまった1つ」になります。","「超える」なので、上限とちょうど同じ値は通します。境界の向きを取り違えないよう、テストケースで確かめます。","秘密情報は大きさに関係なく最優先で止めます。混ざったcommitは履歴に残るので、分割の相談より先に対処が必要です。"],
-      "solution": "import java.util.*;\npublic class Main {public static void main(String[] args){Scanner s=new Scanner(System.in);int maxFiles=s.nextInt(),maxLines=s.nextInt(),n=s.nextInt(),ok=0;for(int i=0;i<n;i++){String pr=s.next();int files=s.nextInt(),lines=s.nextInt(),secrets=s.nextInt();String status=secrets>0?\"BLOCK_SECRET\":files>maxFiles?\"SPLIT_FILES\":lines>maxLines?\"SPLIT_LINES\":\"REVIEWABLE\";if(status.equals(\"REVIEWABLE\"))ok++;System.out.println(pr+\" \"+status);}System.out.println(\"REVIEWABLE \"+ok+\"/\"+n);}}\n",
-      "extraTasks": [{"kind":"drill","task":"【組み合わせ】モジュールの依存をn件 `module dependency` の形で読みます。まず、自分自身へ依存しているモジュールを名前の辞書順に `SELF module` と表示してください（同じモジュールが何度出てきても1行だけ）。次に、互いに依存し合っている2つのモジュールを `CYCLE 名前1 名前2`（名前の辞書順、組が複数あれば組も辞書順）と表示します。どちらも1件も無ければ `ACYCLIC` と表示します。\n\n最後に、他のモジュールから最も多く依存されているモジュールを `MOST_DEPENDED module 件数` の形で表示します。同じ依存が複数回書かれていればその回数だけ数え、自分自身への依存は数えません。同じ件数が並ぶときは名前の辞書順で先のものにします。依存が1件も無ければ `MOST_DEPENDED NONE 0` と表示します。","starterCode":"import java.util.*;\npublic class Main {public static void main(String[] args){Scanner s=new Scanner(System.in);int n=s.nextInt();Set<String> selfs=new TreeSet<>();Set<String> edges=new LinkedHashSet<>();Map<String,Integer> depended=new TreeMap<>();for(int i=0;i<n;i++){String module=s.next(),dependency=s.next();/* TODO 自己依存・辺・被依存数の記録 */}/* TODO SELF の表示 */\n/* TODO CYCLE の表示と ACYCLIC の判定 */\n/* TODO MOST_DEPENDED の表示 */}}\n","visibleCases":[{"label":"相互依存","stdin":"4 api domain domain api web api batch domain","expected":"CYCLE api domain\nMOST_DEPENDED api 2"},{"label":"自分自身への依存","stdin":"3 api domain web web batch domain","expected":"SELF web\nMOST_DEPENDED domain 2"}],"hiddenCases":[{"label":"循環なし","stdin":"3 api domain web api batch domain","expected":"ACYCLIC\nMOST_DEPENDED domain 2"},{"label":"依存0件","stdin":"0","expected":"ACYCLIC\nMOST_DEPENDED NONE 0"},{"label":"自己依存が2つ","stdin":"2 a a b b","expected":"SELF a\nSELF b\nMOST_DEPENDED NONE 0"},{"label":"組が2つ","stdin":"4 a b b a c d d c","expected":"CYCLE a b\nCYCLE c d\nMOST_DEPENDED a 1"},{"label":"同じ依存が2回","stdin":"2 api domain api domain","expected":"ACYCLIC\nMOST_DEPENDED domain 2"},{"label":"自己依存は被依存に数えない","stdin":"2 a a a b","expected":"SELF a\nMOST_DEPENDED b 1"}],"hints":["辺は `module+\">\"+dependency` のような1つの文字列にして `Set` へ入れておくと、逆向きの有無を `contains` で調べられます。","相互依存を1組につき1行だけ出すには、辞書順で先の側から見たときにだけ表示します。","`TreeSet` と `TreeMap` を使うと、取り出すときに名前の辞書順になります。件数の最大は、辞書順にたどって「より大きいときだけ」更新すると同数の先勝ちになります。"],"solution":"import java.util.*;\npublic class Main {public static void main(String[] args){Scanner s=new Scanner(System.in);int n=s.nextInt();Set<String> selfs=new TreeSet<>();Set<String> edges=new LinkedHashSet<>();Map<String,Integer> depended=new TreeMap<>();List<String[]> pairs=new ArrayList<>();for(int i=0;i<n;i++){String module=s.next(),dependency=s.next();if(module.equals(dependency)){selfs.add(module);continue;}edges.add(module+\">\"+dependency);pairs.add(new String[]{module,dependency});depended.merge(dependency,1,Integer::sum);}for(String m:selfs)System.out.println(\"SELF \"+m);Set<String> shown=new TreeSet<>();for(String[] p:pairs)if(edges.contains(p[1]+\">\"+p[0])){String a=p[0].compareTo(p[1])<=0?p[0]:p[1],b=p[0].compareTo(p[1])<=0?p[1]:p[0];shown.add(a+\" \"+b);}for(String c:shown)System.out.println(\"CYCLE \"+c);if(selfs.isEmpty()&&shown.isEmpty())System.out.println(\"ACYCLIC\");String best=\"NONE\";int bestCount=0;for(Map.Entry<String,Integer> e:depended.entrySet())if(e.getValue()>bestCount){best=e.getKey();bestCount=e.getValue();}System.out.println(\"MOST_DEPENDED \"+best+\" \"+bestCount);}}\n"},{"kind":"applied","task":"【実践】CIの制限時間 budgetSeconds とテスト数nを読み、続けてn件のテスト種別を `unit` / `component` / `e2e` のいずれかで読みます。さらに最後に、ゲートの結果を `compile test scan package` の順で4つ、`1`（成功）か `0`（失敗）で読みます。\n\n1行目に、テストの合計見積り時間を `ESTIMATE 秒` の形で表示してください（`unit` は1秒、`component` は5秒、`e2e` は20秒）。2行目に、合計が budgetSeconds 以内なら `WITHIN_BUDGET 残り秒`、超えていれば `OVER_BUDGET 超過秒` と表示します。続けて、失敗したゲートを読んだ順に `FAILED ゲート名` と表示します。最後に、4つのゲートすべてが成功し、かつ制限時間以内なら `RELEASE`、そうでなければ `BLOCK` と表示します（テストが制限時間に収まらないとCIが完走しないので、これもリリースを止める条件です）。","starterCode":"import java.util.*;\npublic class Main {public static void main(String[] args){Scanner s=new Scanner(System.in);Map<String,Integer> cost=Map.of(\"unit\",1,\"component\",5,\"e2e\",20);int budget=s.nextInt(),n=s.nextInt(),estimate=0;for(int i=0;i<n;i++)estimate+=cost.get(s.next());List<String> gates=List.of(\"compile\",\"test\",\"scan\",\"package\");/* TODO ESTIMATE と予算の表示 */\n/* TODO ゲートの読み取りと FAILED の表示 */\n/* TODO RELEASE か BLOCK */}}\n","visibleCases":[{"label":"すべて通る","stdin":"60 5 unit unit component e2e unit 1 1 1 1","expected":"ESTIMATE 28\nWITHIN_BUDGET 32\nRELEASE"},{"label":"時間もゲートも足りない","stdin":"20 3 e2e e2e unit 1 0 1 0","expected":"ESTIMATE 41\nOVER_BUDGET 21\nFAILED test\nFAILED package\nBLOCK"}],"hiddenCases":[{"label":"テスト0件","stdin":"10 0 1 1 1 1","expected":"ESTIMATE 0\nWITHIN_BUDGET 10\nRELEASE"},{"label":"ちょうど予算内","stdin":"28 5 unit unit component e2e unit 1 1 1 1","expected":"ESTIMATE 28\nWITHIN_BUDGET 0\nRELEASE"},{"label":"予算超過だけで止まる","stdin":"10 1 e2e 1 1 1 1","expected":"ESTIMATE 20\nOVER_BUDGET 10\nBLOCK"},{"label":"compileが落ちる","stdin":"100 1 unit 0 1 1 1","expected":"ESTIMATE 1\nWITHIN_BUDGET 99\nFAILED compile\nBLOCK"},{"label":"全ゲート失敗","stdin":"100 1 unit 0 0 0 0","expected":"ESTIMATE 1\nWITHIN_BUDGET 99\nFAILED compile\nFAILED test\nFAILED scan\nFAILED package\nBLOCK"}],"hints":["見積りは `Map` で種別ごとの秒数を引いて足します。","残りと超過はどちらも差の絶対値です。`estimate<=budget` かどうかで表示を切り替えます。","ゲートは `gates` の順に読み、`0` のものだけ `FAILED` を出しつつ、1つでもあったことを `boolean` で覚えておきます。上位の判定（`RELEASE`）は最後にまとめて決めます。"],"solution":"import java.util.*;\npublic class Main {public static void main(String[] args){Scanner s=new Scanner(System.in);Map<String,Integer> cost=Map.of(\"unit\",1,\"component\",5,\"e2e\",20);int budget=s.nextInt(),n=s.nextInt(),estimate=0;for(int i=0;i<n;i++)estimate+=cost.get(s.next());List<String> gates=List.of(\"compile\",\"test\",\"scan\",\"package\");System.out.println(\"ESTIMATE \"+estimate);boolean within=estimate<=budget;System.out.println(within?\"WITHIN_BUDGET \"+(budget-estimate):\"OVER_BUDGET \"+(estimate-budget));boolean allPass=true;for(String gate:gates)if(s.nextInt()==0){System.out.println(\"FAILED \"+gate);allPass=false;}System.out.println(allPass&&within?\"RELEASE\":\"BLOCK\");}}\n"}]
+      "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        int maxFiles = s.nextInt(), maxLines = s.nextInt(), n = s.nextInt(), ok = 0;\n        for (int i = 0; i < n; i++) {\n            String pr = s.next();\n            int files = s.nextInt(), lines = s.nextInt(), secrets = s.nextInt();\n            /* TODO 4つの判定 */\n        }\n        System.out.println(\"REVIEWABLE \" + ok + \"/\" + n);\n    }\n}\n",
+      "visibleCases": [
+        {
+          "label": "大きすぎる変更",
+          "stdin": "10 300 3 pr1 4 120 0 pr2 12 200 0 pr3 5 900 0",
+          "expected": "pr1 REVIEWABLE\npr2 SPLIT_FILES\npr3 SPLIT_LINES\nREVIEWABLE 1/3"
+        },
+        {
+          "label": "秘密情報が混ざる",
+          "stdin": "10 300 1 pr9 2 10 1",
+          "expected": "pr9 BLOCK_SECRET\nREVIEWABLE 0/1"
+        }
+      ],
+      "hiddenCases": [
+        {
+          "label": "秘密情報が最優先",
+          "stdin": "10 300 1 big 50 5000 2",
+          "expected": "big BLOCK_SECRET\nREVIEWABLE 0/1"
+        },
+        {
+          "label": "ちょうど上限は通す",
+          "stdin": "10 300 1 edge 10 300 0",
+          "expected": "edge REVIEWABLE\nREVIEWABLE 1/1"
+        },
+        {
+          "label": "pull request 0件",
+          "stdin": "10 300 0",
+          "expected": "REVIEWABLE 0/0"
+        },
+        {
+          "label": "すべて小さい",
+          "stdin": "10 300 2 a 1 1 0 b 2 2 0",
+          "expected": "a REVIEWABLE\nb REVIEWABLE\nREVIEWABLE 2/2"
+        }
+      ],
+      "hints": [
+        "条件演算子を上から順につなぐか、else if で書きます。どちらでも「最初に当てはまった1つ」になります。",
+        "「超える」なので、上限とちょうど同じ値は通します。境界の向きを取り違えないよう、テストケースで確かめます。",
+        "秘密情報は大きさに関係なく最優先で止めます。混ざったcommitは履歴に残るので、分割の相談より先に対処が必要です。"
+      ],
+      "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        int maxFiles = s.nextInt(), maxLines = s.nextInt(), n = s.nextInt(), ok = 0;\n        for (int i = 0; i < n; i++) {\n            String pr = s.next();\n            int files = s.nextInt(), lines = s.nextInt(), secrets = s.nextInt();\n            String status = secrets > 0 ? \"BLOCK_SECRET\" : files > maxFiles ? \"SPLIT_FILES\" : lines > maxLines ? \"SPLIT_LINES\" : \"REVIEWABLE\";\n            if (status.equals(\"REVIEWABLE\")) ok++;\n            System.out.println(pr + \" \" + status);\n        }\n        System.out.println(\"REVIEWABLE \" + ok + \"/\" + n);\n    }\n}\n",
+      "extraTasks": [
+        {
+          "kind": "drill",
+          "task": "【組み合わせ】モジュールの依存をn件 `module dependency` の形で読みます。まず、自分自身へ依存しているモジュールを名前の辞書順に `SELF module` と表示してください（同じモジュールが何度出てきても1行だけ）。次に、互いに依存し合っている2つのモジュールを `CYCLE 名前1 名前2`（名前の辞書順、組が複数あれば組も辞書順）と表示します。どちらも1件も無ければ `ACYCLIC` と表示します。\n\n最後に、他のモジュールから最も多く依存されているモジュールを `MOST_DEPENDED module 件数` の形で表示します。同じ依存が複数回書かれていればその回数だけ数え、自分自身への依存は数えません。同じ件数が並ぶときは名前の辞書順で先のものにします。依存が1件も無ければ `MOST_DEPENDED NONE 0` と表示します。",
+          "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        int n = s.nextInt();\n        Set<String> selfs = new TreeSet<>();\n        Set<String> edges = new LinkedHashSet<>();\n        Map<String, Integer> depended = new TreeMap<>();\n        for (int i = 0; i < n; i++) {\n            String module = s.next(), dependency = s.next();\n            /* TODO 自己依存・辺・被依存数の記録 */\n        }\n        /* TODO SELF の表示 */ /* TODO CYCLE の表示と ACYCLIC の判定 */ /* TODO MOST_DEPENDED の表示 */\n    }\n}\n",
+          "visibleCases": [
+            {
+              "label": "相互依存",
+              "stdin": "4 api domain domain api web api batch domain",
+              "expected": "CYCLE api domain\nMOST_DEPENDED api 2"
+            },
+            {
+              "label": "自分自身への依存",
+              "stdin": "3 api domain web web batch domain",
+              "expected": "SELF web\nMOST_DEPENDED domain 2"
+            }
+          ],
+          "hiddenCases": [
+            {
+              "label": "循環なし",
+              "stdin": "3 api domain web api batch domain",
+              "expected": "ACYCLIC\nMOST_DEPENDED domain 2"
+            },
+            {
+              "label": "依存0件",
+              "stdin": "0",
+              "expected": "ACYCLIC\nMOST_DEPENDED NONE 0"
+            },
+            {
+              "label": "自己依存が2つ",
+              "stdin": "2 a a b b",
+              "expected": "SELF a\nSELF b\nMOST_DEPENDED NONE 0"
+            },
+            {
+              "label": "組が2つ",
+              "stdin": "4 a b b a c d d c",
+              "expected": "CYCLE a b\nCYCLE c d\nMOST_DEPENDED a 1"
+            },
+            {
+              "label": "同じ依存が2回",
+              "stdin": "2 api domain api domain",
+              "expected": "ACYCLIC\nMOST_DEPENDED domain 2"
+            },
+            {
+              "label": "自己依存は被依存に数えない",
+              "stdin": "2 a a a b",
+              "expected": "SELF a\nMOST_DEPENDED b 1"
+            }
+          ],
+          "hints": [
+            "辺は `module+\">\"+dependency` のような1つの文字列にして `Set` へ入れておくと、逆向きの有無を `contains` で調べられます。",
+            "相互依存を1組につき1行だけ出すには、辞書順で先の側から見たときにだけ表示します。",
+            "`TreeSet` と `TreeMap` を使うと、取り出すときに名前の辞書順になります。件数の最大は、辞書順にたどって「より大きいときだけ」更新すると同数の先勝ちになります。"
+          ],
+          "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        int n = s.nextInt();\n        Set<String> selfs = new TreeSet<>();\n        Set<String> edges = new LinkedHashSet<>();\n        Map<String, Integer> depended = new TreeMap<>();\n        List<String[]> pairs = new ArrayList<>();\n        for (int i = 0; i < n; i++) {\n            String module = s.next(), dependency = s.next();\n            if (module.equals(dependency)) {\n                selfs.add(module);\n                continue;\n            }\n            edges.add(module + \">\" + dependency);\n            pairs.add(new String[] {module, dependency});\n            depended.merge(dependency, 1, Integer::sum);\n        }\n        for (String m : selfs) System.out.println(\"SELF \" + m);\n        Set<String> shown = new TreeSet<>();\n        for (String[] p : pairs) if (edges.contains(p[1] + \">\" + p[0])) {\n            String a = p[0].compareTo(p[1]) <= 0 ? p[0] : p[1], b = p[0].compareTo(p[1]) <= 0 ? p[1] : p[0];\n            shown.add(a + \" \" + b);\n        }\n        for (String c : shown) System.out.println(\"CYCLE \" + c);\n        if (selfs.isEmpty() && shown.isEmpty()) System.out.println(\"ACYCLIC\");\n        String best = \"NONE\";\n        int bestCount = 0;\n        for (Map.Entry<String, Integer> e : depended.entrySet()) if (e.getValue() > bestCount) {\n            best = e.getKey();\n            bestCount = e.getValue();\n        }\n        System.out.println(\"MOST_DEPENDED \" + best + \" \" + bestCount);\n    }\n}\n",
+          "sourceChecks": [
+            {
+              "pattern": "\\bnew\\s+TreeSet\\b|\\.sorted\\s*\\(|Collections\\s*\\.\\s*sort",
+              "minimum": 1,
+              "message": "辞書順で1行だけ出すので `TreeSet` を使うと、重複除去と並べ替えが同時にできます。"
+            },
+            {
+              "pattern": "\\bnew\\s+LinkedHashSet\\b|\\bnew\\s+TreeMap\\b",
+              "minimum": 1,
+              "message": "出現順や辞書順を保ちながら重複を除くので、順序のある入れ物を選んでください。"
+            }
+          ]
+        },
+        {
+          "kind": "applied",
+          "task": "【実践】CIの制限時間 budgetSeconds とテスト数nを読み、続けてn件のテスト種別を `unit` / `component` / `e2e` のいずれかで読みます。さらに最後に、ゲートの結果を `compile test scan package` の順で4つ、`1`（成功）か `0`（失敗）で読みます。\n\n1行目に、テストの合計見積り時間を `ESTIMATE 秒` の形で表示してください（`unit` は1秒、`component` は5秒、`e2e` は20秒）。2行目に、合計が budgetSeconds 以内なら `WITHIN_BUDGET 残り秒`、超えていれば `OVER_BUDGET 超過秒` と表示します。続けて、失敗したゲートを読んだ順に `FAILED ゲート名` と表示します。最後に、4つのゲートすべてが成功し、かつ制限時間以内なら `RELEASE`、そうでなければ `BLOCK` と表示します（テストが制限時間に収まらないとCIが完走しないので、これもリリースを止める条件です）。",
+          "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        Map<String, Integer> cost = Map.of(\"unit\", 1, \"component\", 5, \"e2e\", 20);\n        int budget = s.nextInt(), n = s.nextInt(), estimate = 0;\n        for (int i = 0; i < n; i++) estimate += cost.get(s.next());\n        List<String> gates = List.of(\"compile\", \"test\", \"scan\", \"package\");\n        /* TODO ESTIMATE と予算の表示 */ /* TODO ゲートの読み取りと FAILED の表示 */ /* TODO RELEASE か BLOCK */\n    }\n}\n",
+          "visibleCases": [
+            {
+              "label": "すべて通る",
+              "stdin": "60 5 unit unit component e2e unit 1 1 1 1",
+              "expected": "ESTIMATE 28\nWITHIN_BUDGET 32\nRELEASE"
+            },
+            {
+              "label": "時間もゲートも足りない",
+              "stdin": "20 3 e2e e2e unit 1 0 1 0",
+              "expected": "ESTIMATE 41\nOVER_BUDGET 21\nFAILED test\nFAILED package\nBLOCK"
+            }
+          ],
+          "hiddenCases": [
+            {
+              "label": "テスト0件",
+              "stdin": "10 0 1 1 1 1",
+              "expected": "ESTIMATE 0\nWITHIN_BUDGET 10\nRELEASE"
+            },
+            {
+              "label": "ちょうど予算内",
+              "stdin": "28 5 unit unit component e2e unit 1 1 1 1",
+              "expected": "ESTIMATE 28\nWITHIN_BUDGET 0\nRELEASE"
+            },
+            {
+              "label": "予算超過だけで止まる",
+              "stdin": "10 1 e2e 1 1 1 1",
+              "expected": "ESTIMATE 20\nOVER_BUDGET 10\nBLOCK"
+            },
+            {
+              "label": "compileが落ちる",
+              "stdin": "100 1 unit 0 1 1 1",
+              "expected": "ESTIMATE 1\nWITHIN_BUDGET 99\nFAILED compile\nBLOCK"
+            },
+            {
+              "label": "全ゲート失敗",
+              "stdin": "100 1 unit 0 0 0 0",
+              "expected": "ESTIMATE 1\nWITHIN_BUDGET 99\nFAILED compile\nFAILED test\nFAILED scan\nFAILED package\nBLOCK"
+            }
+          ],
+          "hints": [
+            "見積りは `Map` で種別ごとの秒数を引いて足します。",
+            "残りと超過はどちらも差の絶対値です。`estimate<=budget` かどうかで表示を切り替えます。",
+            "ゲートは `gates` の順に読み、`0` のものだけ `FAILED` を出しつつ、1つでもあったことを `boolean` で覚えておきます。上位の判定（`RELEASE`）は最後にまとめて決めます。"
+          ],
+          "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        Map<String, Integer> cost = Map.of(\"unit\", 1, \"component\", 5, \"e2e\", 20);\n        int budget = s.nextInt(), n = s.nextInt(), estimate = 0;\n        for (int i = 0; i < n; i++) estimate += cost.get(s.next());\n        List<String> gates = List.of(\"compile\", \"test\", \"scan\", \"package\");\n        System.out.println(\"ESTIMATE \" + estimate);\n        boolean within = estimate <= budget;\n        System.out.println(within ? \"WITHIN_BUDGET \" + (budget - estimate) : \"OVER_BUDGET \" + (estimate - budget));\n        boolean allPass = true;\n        for (String gate : gates) if (s.nextInt() == 0) {\n            System.out.println(\"FAILED \" + gate);\n            allPass = false;\n        }\n        System.out.println(allPass && within ? \"RELEASE\" : \"BLOCK\");\n    }\n}\n",
+          "sourceChecks": [
+            {
+              "pattern": "Map\\s*\\.\\s*of\\s*\\(|new\\s+(Hash|LinkedHash|Tree)Map|\\bswitch\\b",
+              "minimum": 1,
+              "message": "テスト種別ごとの所要時間は表として持ってください。`if` を並べるより、費用の対応が一目で読めます。"
+            },
+            {
+              "pattern": "List\\s*\\.\\s*of\\s*\\(|String\\s*\\[\\s*\\]",
+              "minimum": 1,
+              "message": "ゲートは並び順そのものが意味を持つので、リストで持ってください。"
+            }
+          ]
+        }
+      ]
     }
   ]
 }

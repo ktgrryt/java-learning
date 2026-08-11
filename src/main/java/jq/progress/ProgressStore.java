@@ -45,13 +45,25 @@ import java.util.concurrent.TimeUnit;
  */
 public final class ProgressStore {
 
-    private static final int CAFE_ECONOMY_VERSION = 11;
+    // 12: 教材が全516問へ増えたぶん、出店費を上げて投資率を戻した
+    private static final int CAFE_ECONOMY_VERSION = 12;
     private static final int CUP_PRICE = 500;
     private static final int MAX_CAFE_STORES = 512;
     private static final long FIRST_EXPANSION_COST = 2_500L;
-    /** 5店舗以降の出店費（規模の三乗に掛ける係数）。終盤の主なコイン消費先。 */
-    private static final long EXPANSION_CUBIC_COST = 8_500L;
-    /** 完成した章の問題1問あたりのブランド成長。全507問で約x9.62になる。 */
+    /**
+     * 5店舗以降の出店費（規模の三乗に掛ける係数）。終盤の主なコイン消費先。
+     *
+     * <p><b>問題数を増やしたら、この値を見直して {@code tools/simulate-cafe.sh} を通すこと。</b>
+     * 生涯売上はブランド倍率（下の定数）が設備効果へ掛かるぶん、問題数に対して
+     * 加速して伸びる。一方で購入費の合計は問題数と無関係なので、教材を増やすだけで
+     * 投資率（購入費 ÷ 生涯売上）が下がり、目標の25〜45%を割る。
+     * 売上側を削ると学習の報酬感が変わるため、終盤の消費先であるここで吸収している。</p>
+     *
+     * <p>実測: 全509問で8,500だと22.9%、全516問だと20.9%まで落ちた。
+     * 15,000にすると全516問で27.7%で、問題を増やす前（全507問・8,500）の27.5%とほぼ同じになる。</p>
+     */
+    private static final long EXPANSION_CUBIC_COST = 15_000L;
+    /** 完成した章の問題1問あたりのブランド成長。全516問で約x9.77になる。 */
     private static final int BRAND_GROWTH_BASIS_POINTS_PER_TASK = 170;
     private static final int LUCKY_COIN_CHANCE_PERCENT = 12;
     private static final int TASK_COMBO_INTERVAL = 5;

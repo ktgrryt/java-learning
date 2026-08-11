@@ -1,78 +1,413 @@
 {
-  "id":"ch54","title":"実DB・スキーマ移行・非同期連携","subtitle":"データを壊さず、境界を越えて届ける","emoji":"🗄️",
-  "lessons":[
+  "id": "ch54",
+  "title": "実DB・スキーマ移行・非同期連携",
+  "subtitle": "データを壊さず、境界を越えて届ける",
+  "emoji": "🗄️",
+  "lessons": [
     {
-      "id":"54-1","title":"本番同等DBで検証する",
-      "explanation":"## SQLだけでなく挙動を合わせる\n\nリポジトリの単体テストに加えて、本番と同じ系統でバージョンも近いDBをコンテナで起動し、スキーマ移行を先頭から適用してから結合テストを行います。型、照合順序、タイムゾーン、制約、インデックス、ロック、分離レベル、実行計画は、DB製品によって違います。テストごとにロールバックする方式は速い一方で、コミット後に働く制約やイベントを見逃すことがあるため、用途に応じてデータの後片付け方式と使い分けます。\n\nコネクションプールには上限、取得のタイムアウト、接続の検証方法を設定します。プールを増やせば速くなるとは限りません。DBの最大接続数とクエリの所要時間から、全インスタンス分の接続予算を決めます。N+1問題や無制限な全件取得は、SQLログ・メトリクス・実行計画で検出します。",
-      "samples":[{"caption":"全インスタンス分の接続予算","code":"public class Main{public static void main(String[] a){int instances=4,pool=20,reserved=10;System.out.println(instances*pool+reserved);}}\n"}],
-      "task":"DBの最大接続数、予約分、インスタンス数nを読み、1インスタンスあたりの安全なプール上限 `(max-reserved)/n` を表示してください。",
-      "starterCode":"import java.util.*;public class Main{public static void main(String[] a){Scanner s=new Scanner(System.in);int max=s.nextInt(),reserved=s.nextInt(),n=s.nextInt();/* TODO */}}\n",
-      "visibleCases":[{"label":"接続予算","stdin":"100 10 3","expected":"30"}],
-      "hiddenCases":[{"label":"端数切捨て","stdin":"50 5 4","expected":"11"}],
-      "hints":["整数除算で `(max-reserved)/n`。"],
-      "solution":"import java.util.*;public class Main{public static void main(String[] a){Scanner s=new Scanner(System.in);int max=s.nextInt(),reserved=s.nextInt(),n=s.nextInt();System.out.println((max-reserved)/n);}}\n",
-      "quiz":[
-        {"question":"実DBを使う結合テストでスキーマを作る、望ましい方法は？","choices":["本番とは別に手で書いたDDLだけを使う","本番と同じ移行スクリプトを先頭から適用する","JPAのクラスだけを見て毎回推測する","制約をすべて外す"],"answer":1,"explanation":"移行スクリプトそのものと、最終的なスキーマの両方を検証できます。"},
-        {"question":"各テストの最後にロールバックする方式は速い一方、見逃しやすいものはどれでしょう。","choices":["SQLの構文エラー","コミット後に働く制約やイベントなど、コミットしないと現れない挙動","コネクションプールの上限","インデックス定義の誤り"],"answer":1,"explanation":"用途によって、ロールバック方式とデータの後片付け方式を使い分けます。"}
+      "id": "54-1",
+      "title": "本番同等DBで検証する",
+      "explanation": "## SQLだけでなく挙動を合わせる\n\nリポジトリの単体テストに加えて、本番と同じ系統でバージョンも近いDBをコンテナで起動し、スキーマ移行を先頭から適用してから結合テストを行います。型、照合順序、タイムゾーン、制約、インデックス、ロック、分離レベル、実行計画は、DB製品によって違います。テストごとにロールバックする方式は速い一方で、コミット後に働く制約やイベントを見逃すことがあるため、用途に応じてデータの後片付け方式と使い分けます。\n\nコネクションプールには上限、取得のタイムアウト、接続の検証方法を設定します。プールを増やせば速くなるとは限りません。DBの最大接続数とクエリの所要時間から、全インスタンス分の接続予算を決めます。N+1問題や無制限な全件取得は、SQLログ・メトリクス・実行計画で検出します。\n\n### 何が違うのかを具体で見る\n\n「SQLが通る」ことと「同じ挙動になる」ことは別です。よく食い違うのはこのあたりです。\n\n| 観点 | 食い違いの例 |\n|---|---|\n| 文字列比較 | 照合順序（collation）によって大文字小文字の区別が変わる |\n| NULLの並び | `ORDER BY` でNULLが先か後か（PostgreSQLは既定で後） |\n| 自動採番 | `IDENTITY` / `SERIAL` / シーケンスの挙動と、ロールバック時の欠番 |\n| 型の丸め | `DECIMAL` と浮動小数の扱い、日時の精度 |\n| 実行計画 | 同じSQLでもインデックスを使うかが製品と件数で変わる |\n\nだから「開発はH2、本番はPostgreSQL」だと、**テストが通るのに本番で落ちる**、あるいは\n逆に本番だけ遅いという形で出ます。結合テストは本番と同じ製品・同じメジャーバージョンで\n動かすのが原則です。\n\n### ロールバック方式で見逃すもの\n\n各テストの最後にロールバックする方式は速い一方、**コミットしないと現れない挙動** を\n見逃します。\n\n- コミット時に評価される制約（遅延制約）\n- コミット後に動くトリガーや通知\n- 別トランザクションから見えるかどうか（分離レベルの影響）\n\n> ⚠️ 間違えやすい点 … ロールバック方式は「テストの後片付けが速い」だけで、\n> 本番と同じ経路を通ったわけではありません。コミットを伴う経路が要るテストは、\n> 後片付け方式（truncate や毎回作り直し）に分けて用意します。\n> どちらか一方に統一しようとすると、必ずどちらかが検証できなくなります。",
+      "samples": [
+        {
+          "caption": "全インスタンス分の接続予算",
+          "code": "public class Main {\n    public static void main(String[] a) {\n        int instances = 4, pool = 20, reserved = 10;\n        System.out.println(instances * pool + reserved);\n    }\n}\n"
+        }
+      ],
+      "task": "DBの最大接続数、予約分、インスタンス数nを読み、1インスタンスあたりの安全なプール上限 `(max-reserved)/n` を表示してください。",
+      "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] a) {\n        Scanner s = new Scanner(System.in);\n        int max = s.nextInt(), reserved = s.nextInt(), n = s.nextInt();\n        /* TODO */\n    }\n}\n",
+      "visibleCases": [
+        {
+          "label": "接続予算",
+          "stdin": "100 10 3",
+          "expected": "30"
+        }
+      ],
+      "hiddenCases": [
+        {
+          "label": "端数切捨て",
+          "stdin": "50 5 4",
+          "expected": "11"
+        }
+      ],
+      "hints": [
+        "整数除算で `(max-reserved)/n`。"
+      ],
+      "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] a) {\n        Scanner s = new Scanner(System.in);\n        int max = s.nextInt(), reserved = s.nextInt(), n = s.nextInt();\n        System.out.println((max - reserved) / n);\n    }\n}\n",
+      "quiz": [
+        {
+          "question": "実DBを使う結合テストでスキーマを作る、望ましい方法は？",
+          "choices": [
+            "制約を外した簡易スキーマを使う",
+            "JPAのクラスだけを見て毎回推測する",
+            "本番とは別に手で書いたDDLだけを使う",
+            "本番と同じ移行スクリプトを先頭から適用する"
+          ],
+          "answer": 3,
+          "explanation": "制約を外すと、本番でだけ制約違反が出ます。JPAのクラスから推測すると、実際のスキーマとずれても気づけません。手で書いた別のDDLを使うと、移行スクリプト自体が正しいかを確かめられません。本番と同じ移行を先頭から当てれば、最終形と移行手順の両方を検証できます。"
+        },
+        {
+          "question": "各テストの最後にロールバックする方式は速い一方、見逃しやすいものはどれでしょう。",
+          "choices": [
+            "インデックス定義の誤りによる遅さ",
+            "SQLの構文エラーや型の不一致",
+            "コネクションプールの上限に達する不具合",
+            "コミットしないと現れない制約やイベントの挙動"
+          ],
+          "answer": 3,
+          "explanation": "構文エラーや型の不一致は、実行した時点で分かります。インデックス定義の誤りによる遅さやプールの上限も、ロールバックとは別に観測できます。見逃すのは、遅延して評価される制約や、コミット後に動く仕組み（トリガーや通知）のように、**確定しないと現れない**挙動です。"
+        }
       ]
     },
     {
-      "id":"54-2","title":"スキーマ移行を段階化する",
-      "explanation":"## アプリケーションとDBを同時に切り替えない\n\nローリングデプロイでは、旧版と新版が一時的に同居します。列名を変えるなら、まず新しい列をNULL可で追加し（expand）、両方へ書くか既存データを埋め（backfill）、読み取りを切り替え（migrate）、旧版がすべて消えたあとに古い列を削除します（contract）。大きなテーブルへのロックを伴うDDLは、所要時間と中止・切り戻しの手順を事前に測っておきます。\n\nFlywayやLiquibaseのような移行ツールは、適用履歴とチェックサムを管理します。すでに適用したファイルは書き換えず、新しい移行を足して前へ進みます。バックアップがあることと、切り戻せることは別の話です。破壊的な変更の前には、復元のリハーサルも行います。\n\n> 🧪 画面内問題は、段階と操作の対応です。`labs/integration-data` の `db/migration` には `V1`〜`V3` の番号付き移行があり、空のDBへV1から全部適用できるか、ローリングデプロイ中に旧版と新版が同居できるか、切り戻したあとにoutboxだけが残らないかを確認できます。",
-      "samples":[{"caption":"expand → migrate → contract の順序","code":"import java.util.*;public class Main{public static void main(String[] a){List.of(\"expand\",\"migrate\",\"contract\").forEach(System.out::println);}}\n"}],
-      "task":"段階を1語読み、`expand`なら `ADD_COMPATIBLE`、`migrate`なら `BACKFILL_AND_SWITCH`、`contract`なら `REMOVE_OLD` と表示してください。",
-      "starterCode":"import java.util.*;public class Main{public static void main(String[] a){String phase=new Scanner(System.in).next();/* TODO */}}\n",
-      "visibleCases":[{"label":"移行中","stdin":"migrate","expected":"BACKFILL_AND_SWITCH"}],
-      "hiddenCases":[{"label":"削除段階","stdin":"contract","expected":"REMOVE_OLD"}],
-      "hints":["switch式で3段階を対応付けます。"],
-      "solution":"import java.util.*;public class Main{public static void main(String[] a){String phase=new Scanner(System.in).next();System.out.println(switch(phase){case \"expand\"->\"ADD_COMPATIBLE\";case \"migrate\"->\"BACKFILL_AND_SWITCH\";case \"contract\"->\"REMOVE_OLD\";default->\"UNKNOWN\";});}}\n",
-      "quiz":[
-        {"question":"ローリングデプロイ中に列をすぐ削除すると危険な理由は？","choices":["新版しか動かないため","同居している旧版がその列を参照する可能性があるため","インデックスが必ず増えるため","Javaが再コンパイルされるため"],"answer":1,"explanation":"旧版と新版が共存できる互換期間を設けます。"},
-        {"question":"すでに適用済みの移行ファイルを直接書き換えると、何が問題になるでしょう。","choices":["ファイル名が長くなる","SQLが実行できなくなる","履歴のチェックサムと一致せず、環境間で適用状態が食い違う","切り戻しが自動化されてしまう"],"answer":2,"explanation":"適用済みのファイルは書き換えず、新しい移行を足して前へ進みます。"}
+      "id": "54-2",
+      "title": "スキーマ移行を段階化する",
+      "explanation": "## アプリケーションとDBを同時に切り替えない\n\nローリングデプロイでは、旧版と新版が一時的に同居します。列名を変えるなら、まず新しい列をNULL可で追加し（expand）、両方へ書くか既存データを埋め（backfill）、読み取りを切り替え（migrate）、旧版がすべて消えたあとに古い列を削除します（contract）。大きなテーブルへのロックを伴うDDLは、所要時間と中止・切り戻しの手順を事前に測っておきます。\n\nFlywayやLiquibaseのような移行ツールは、適用履歴とチェックサムを管理します。すでに適用したファイルは書き換えず、新しい移行を足して前へ進みます。バックアップがあることと、切り戻せることは別の話です。破壊的な変更の前には、復元のリハーサルも行います。\n\n> 🧪 画面内問題は、段階と操作の対応です。`labs/integration-data` の `db/migration` には `V1`〜`V3` の番号付き移行があり、空のDBへV1から全部適用できるか、ローリングデプロイ中に旧版と新版が同居できるか、切り戻したあとにoutboxだけが残らないかを確認できます。\n\n### expand → migrate → contract を具体で見る\n\n`db/migration` の `V2` は、こう書いてあります。\n\n```sql\n-- expand: 旧applicationも動けるよう、まず既定値つきで追加する。\nALTER TABLE customer ADD COLUMN status VARCHAR(20) NOT NULL DEFAULT 'ACTIVE';\n```\n\n`DEFAULT 'ACTIVE'` が付いているのが要点です。列の存在を知らない旧アプリの\n`INSERT INTO customer (email, display_name, created_at) VALUES (...)` が、\nこれなら通ります。\n\n段階はこうなります。\n\n| 段階 | DB | アプリ |\n|---|---|---|\n| expand | 列を **既定値つき** で追加 | 旧のまま（新しい列を知らない） |\n| migrate | 既存行の値を埋める | 新しいアプリを出す（両方の形を読める） |\n| contract | 制約を厳しくする・古い列を消す | 旧アプリはもう動いていない |\n\n**DBの変更とアプリの入れ替えを同時にやらない**のが目的です。ローリングデプロイ中は\n新旧のアプリが同時に動くので、どちらでも壊れない形を経由する必要があります。\n\n> ⚠️ 間違えやすい点 … `NOT NULL` を **既定値なしで** 足すと、その列を知らない旧アプリの\n> INSERTがその瞬間から落ちます。ロールバックしたくなっても、すでに新しい列に依存した\n> 行が書かれていると戻せません。「足すだけ」は安全に見えて、いちばん事故が多い操作です。\n> また、適用済みの移行ファイルを **後から書き換えない** こと（履歴のチェックサムが合わず、\n> 環境ごとに適用状態が食い違います）。\n\n> 🧪 アプリで確かめること / labs で動かすこと … この問題で確かめるのは移行を段階に分ける順序です。\n> 実DBへ移行を流すことは、1ファイル・標準入力だけのこの画面では扱えません。`labs/integration-data` に本物を置いてあります。",
+      "samples": [
+        {
+          "caption": "expand → migrate → contract の順序",
+          "code": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] a) {\n        List.of(\"expand\", \"migrate\", \"contract\").forEach(System.out::println);\n    }\n}\n"
+        }
+      ],
+      "task": "段階を1語読み、`expand`なら `ADD_COMPATIBLE`、`migrate`なら `BACKFILL_AND_SWITCH`、`contract`なら `REMOVE_OLD` と表示してください。",
+      "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] a) {\n        String phase = new Scanner(System.in).next();\n        /* TODO */\n    }\n}\n",
+      "visibleCases": [
+        {
+          "label": "移行中",
+          "stdin": "migrate",
+          "expected": "BACKFILL_AND_SWITCH"
+        }
+      ],
+      "hiddenCases": [
+        {
+          "label": "削除段階",
+          "stdin": "contract",
+          "expected": "REMOVE_OLD"
+        }
+      ],
+      "hints": [
+        "switch式で3段階を対応付けます。"
+      ],
+      "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] a) {\n        String phase = new Scanner(System.in).next();\n        System.out.println(switch (phase) {\n            case \"expand\" -> \"ADD_COMPATIBLE\";\n            case \"migrate\" -> \"BACKFILL_AND_SWITCH\";\n            case \"contract\" -> \"REMOVE_OLD\";\n            default -> \"UNKNOWN\";\n        });\n    }\n}\n",
+      "quiz": [
+        {
+          "question": "ローリングデプロイ中に列をすぐ削除すると危険な理由は？",
+          "choices": [
+            "インデックスの再構築に時間がかかるため",
+            "同居している旧版がその列を参照する可能性があるため",
+            "新版しか動かないため",
+            "Javaが再コンパイルされるため"
+          ],
+          "answer": 1,
+          "explanation": "インデックスの再構築時間は主な理由ではありません。ローリングデプロイの最中は新版と旧版が同時に動いているので、「新版しか動かない」も誤りです。Javaの再コンパイルは起きません。旧版がまだその列を読み書きしている可能性があるため、削除は互換期間を置いてから行います。"
+        },
+        {
+          "question": "すでに適用済みの移行ファイルを直接書き換えると、何が問題になるでしょう。",
+          "choices": [
+            "移行ファイルの名前が長くなる",
+            "履歴のチェックサムと一致せず、環境間で適用状態が食い違う",
+            "切り戻しが自動化されて元に戻ってしまう",
+            "そのSQL自体が実行できなくなる"
+          ],
+          "answer": 1,
+          "explanation": "ファイル名の長さは問題ではなく、切り戻しが自動化されることもなく、SQLが実行できなくなるわけでもありません。移行ツールは適用済みファイルのチェックサムを記録しているので、あとから中身を変えると照合に失敗し、環境によって適用された内容が違う状態になります。"
+        }
       ]
     },
     {
-      "id":"54-3","title":"キャッシュの整合性を設計する",
-      "explanation":"## 速さと引き換えに「古さ」を引き受ける\n\ncache-aside方式では、キャッシュに無ければDBから読み、その結果をキャッシュへ保存します。更新のときはDBのコミット後にキャッシュを破棄するのが基本ですが、その間に別の読み取りが割り込む競合や、破棄そのものの失敗も考える必要があります。TTL（有効期間）は、許容できる古さの上限・容量・障害時のDB負荷を踏まえて決めます。人気のキーが一斉に切れてDBへ問い合わせが集中する現象（cache stampede）には、同じ要求をまとめる仕組み、TTLのばらつき（ジッター）、期限前の先読み更新を使います。\n\nキャッシュのキーには、テナント・ロケール・認可によって結果が変わる条件を必ず含めます。含め忘れると情報漏えいになります。「存在しない」という結果もキャッシュしておくと連打を防げますが、作成直後しばらく見えない期間が生まれます。キャッシュは正となるデータ（source of truth）にはせず、消えても再構築できる設計にします。",
-      "samples":[{"caption":"テナントを含むキー","code":"record Key(String tenant,long id){}public class Main{public static void main(String[] a){System.out.println(new Key(\"acme\",42));}}\n"}],
-      "task":"基準となるTTL（秒）、ばらつきの幅（秒）、キーを読み、毎回同じ値になるTTL `base + floorMod(key.hashCode(), jitter+1)` を表示してください。",
-      "starterCode":"import java.util.*;public class Main{public static void main(String[] a){Scanner s=new Scanner(System.in);int base=s.nextInt(),jitter=s.nextInt();String key=s.next();/* TODO */}}\n",
-      "visibleCases":[{"label":"ばらつきなし","stdin":"60 0 user42","expected":"60"}],
-      "hiddenCases":[{"label":"範囲内","stdin":"100 10 a","expected":"109"}],
-      "hints":["`Math.floorMod(key.hashCode(),jitter+1)` を加えます。文字列 `\"a\"` の `hashCode()` は97です。"],
-      "solution":"import java.util.*;public class Main{public static void main(String[] a){Scanner s=new Scanner(System.in);int base=s.nextInt(),jitter=s.nextInt();String key=s.next();System.out.println(base+Math.floorMod(key.hashCode(),jitter+1));}}\n",
-      "quiz":[
-        {"question":"キャッシュのキーにテナントを含めることが重要な理由は？","choices":["キーを長く見せるため","テナント間で値が混ざり、情報漏えいになるのを防ぐため","DBのトランザクションを不要にするため","TTLを無限にするため"],"answer":1,"explanation":"結果を変えるすべての条件を、キーへ反映させます。"},
-        {"question":"人気のキーのTTLが一斉に切れて、DBへ問い合わせが集中しました。対策として適切なものはどれでしょう。","choices":["TTLを全キーで完全に同じ値へそろえる","キャッシュを正となるデータにする","「存在しない」結果のキャッシュを無効にする","TTLにばらつき（ジッター）を加え、同じ要求をまとめる仕組みや先読み更新を併用する"],"answer":3,"explanation":"cache stampedeへの対策です。画面内問題のばらつき付きTTLは、この考え方の小さなモデルです。"}
+      "id": "54-3",
+      "title": "キャッシュの整合性を設計する",
+      "explanation": "## 速さと引き換えに「古さ」を引き受ける\n\ncache-aside方式では、キャッシュに無ければDBから読み、その結果をキャッシュへ保存します。更新のときはDBのコミット後にキャッシュを破棄するのが基本ですが、その間に別の読み取りが割り込む競合や、破棄そのものの失敗も考える必要があります。TTL（有効期間）は、許容できる古さの上限・容量・障害時のDB負荷を踏まえて決めます。人気のキーが一斉に切れてDBへ問い合わせが集中する現象（cache stampede）には、同じ要求をまとめる仕組み、TTLのばらつき（ジッター）、期限前の先読み更新を使います。\n\nキャッシュのキーには、テナント・ロケール・認可によって結果が変わる条件を必ず含めます。含め忘れると情報漏えいになります。「存在しない」という結果もキャッシュしておくと連打を防げますが、作成直後しばらく見えない期間が生まれます。キャッシュは正となるデータ（source of truth）にはせず、消えても再構築できる設計にします。\n\n### いっせいに切れると、DBへ集中する\n\nTTLを全キーで同じにすると、書き込んだタイミングが近いキーが**同時に切れます**。\n切れた瞬間、同じ問い合わせが一斉にDBへ流れます（cache stampede）。\n\n対策は3つを組み合わせます。\n\n| 対策 | すること |\n|---|---|\n| ジッター | TTLに±10%程度のばらつきを持たせ、切れる時刻を散らす |\n| 同一要求のまとめ | 同じキーの再計算は1つだけ走らせ、他は待って結果を共有する |\n| 先読み更新 | 期限が近づいたら裏で更新し、切れる前に差し替える |\n\n### 「無い」もキャッシュする\n\n問い合わせても見つからなかったという結果をキャッシュしないと、存在しないキーへの\nアクセスが **毎回DBまで到達します**。攻撃にも使われるので、短いTTLで「無い」を\n覚えておきます（negative caching）。\n\n> ⚠️ 間違えやすい点 … キャッシュを「正しいデータの置き場所」にしないこと。\n> 正はDBで、キャッシュはいつ消えても業務が続けられる複製です。\n> 更新時は「DBを更新してからキャッシュを消す」の順にします。逆にすると、\n> 消してからDB更新までの一瞬に古い値を読み直して、また入れてしまいます。",
+      "samples": [
+        {
+          "caption": "テナントを含むキー",
+          "code": "record Key(String tenant, long id) { }\n\npublic class Main {\n    public static void main(String[] a) {\n        System.out.println(new Key(\"acme\", 42));\n    }\n}\n"
+        }
+      ],
+      "task": "基準となるTTL（秒）、ばらつきの幅（秒）、キーを読み、毎回同じ値になるTTL `base + floorMod(key.hashCode(), jitter+1)` を表示してください。",
+      "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] a) {\n        Scanner s = new Scanner(System.in);\n        int base = s.nextInt(), jitter = s.nextInt();\n        String key = s.next();\n        /* TODO */\n    }\n}\n",
+      "visibleCases": [
+        {
+          "label": "ばらつきなし",
+          "stdin": "60 0 user42",
+          "expected": "60"
+        }
+      ],
+      "hiddenCases": [
+        {
+          "label": "範囲内",
+          "stdin": "100 10 a",
+          "expected": "109"
+        }
+      ],
+      "hints": [
+        "`Math.floorMod(key.hashCode(),jitter+1)` を加えます。文字列 `\"a\"` の `hashCode()` は97です。"
+      ],
+      "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] a) {\n        Scanner s = new Scanner(System.in);\n        int base = s.nextInt(), jitter = s.nextInt();\n        String key = s.next();\n        System.out.println(base + Math.floorMod(key.hashCode(), jitter + 1));\n    }\n}\n",
+      "quiz": [
+        {
+          "question": "キャッシュのキーにテナントを含めることが重要な理由は？",
+          "choices": [
+            "TTLを無限にするため",
+            "キーを長く見せるため",
+            "テナント間で値が混ざり、情報漏えいになるのを防ぐため",
+            "DBのトランザクションを不要にするため"
+          ],
+          "answer": 2,
+          "explanation": "TTLを無限にするためでも、キーを長く見せるためでもなく、トランザクションが不要になる話でもありません。テナントを含めないと、あるテナント向けに作った結果を別のテナントが受け取ることになり、情報漏えいになります。結果を変える条件はすべてキーへ入れる、が原則です。"
+        },
+        {
+          "question": "人気のキーのTTLが一斉に切れて、DBへ問い合わせが集中しました。対策として適切なものはどれでしょう。",
+          "choices": [
+            "TTLを全キーで完全に同じ値へそろえて予測しやすくする",
+            "TTLにばらつきを加え、同じ要求をまとめる仕組みを併用する",
+            "「存在しない」結果のキャッシュを無効にする",
+            "キャッシュを正となるデータとして扱う"
+          ],
+          "answer": 1,
+          "explanation": "cache stampedeへの対策です。画面内問題のばらつき付きTTLは、この考え方の小さなモデルです。先読み更新も併用します。"
+        }
       ]
     },
     {
-      "id":"54-4","title":"メッセージングとoutbox",
-      "explanation":"## 「少なくとも一回」を前提にする\n\nメッセージブローカーは送信側と受信側を時間的に切り離してくれますが、通信障害によって「処理は終えたのに、確認応答（ack）を返せなかった」状態が起きます。だから at-least-once（少なくとも一回）配信では重複を前提にして、イベントIDの処理済み記録や業務上の一意制約によって、受信側を冪等にします。再試行には指数バックオフと上限を持たせ、回復しないエラーはdead-letter queueへ隔離して、再処理の手順を用意します。\n\nDBの更新とメッセージ送信を別々に行う「二重書き込み」は、片方だけ成功しえます。transactional outboxは、業務データとイベントを同じDBトランザクションで保存し、別のプロセスがoutboxを読んで送信する方式です。順序が必要な範囲は集約のキーなどに限定し、イベント形式の互換性と、個人情報をどこまで保持するかも合わせて管理します。\n\n```svg 別々に書くと片方だけ成功しうる。同じトランザクションで outbox に書き、後から publish する\n<svg viewBox=\"0 0 720 250\">\n  <text class=\"fig-t fig-title fig-t-ng\" x=\"172\" y=\"22\" text-anchor=\"middle\">dual write</text>\n  <text class=\"fig-t fig-title fig-t-ok\" x=\"543\" y=\"22\" text-anchor=\"middle\">transactional outbox</text>\n\n  <rect class=\"fig-box\" x=\"90\" y=\"40\" width=\"160\" height=\"36\" rx=\"6\"/>\n  <text class=\"fig-t fig-small\" x=\"170\" y=\"58\" text-anchor=\"middle\">業務処理</text>\n  <line class=\"fig-line-ok\" x1=\"140\" y1=\"76\" x2=\"100\" y2=\"104\" marker-end=\"arrow-ok\"/>\n  <line class=\"fig-line-ng\" x1=\"200\" y1=\"76\" x2=\"250\" y2=\"104\" marker-end=\"arrow-ng\"/>\n  <rect class=\"fig-box-ok\" x=\"30\" y=\"108\" width=\"130\" height=\"36\" rx=\"6\"/>\n  <text class=\"fig-t fig-small fig-t-ok\" x=\"95\" y=\"126\" text-anchor=\"middle\">DB 更新 成功</text>\n  <rect class=\"fig-box-ng\" x=\"190\" y=\"108\" width=\"130\" height=\"36\" rx=\"6\"/>\n  <text class=\"fig-t fig-small fig-t-ng\" x=\"255\" y=\"126\" text-anchor=\"middle\">publish 失敗</text>\n  <text class=\"fig-t fig-t-ng fig-small\" x=\"14\" y=\"172\">片方だけ成功して、データとイベントがずれる</text>\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"14\" y=\"194\">あとから整合させる手段が無い</text>\n\n  <rect class=\"fig-box\" x=\"460\" y=\"40\" width=\"160\" height=\"36\" rx=\"6\"/>\n  <text class=\"fig-t fig-small\" x=\"540\" y=\"58\" text-anchor=\"middle\">業務処理</text>\n  <line class=\"fig-line-ok\" x1=\"540\" y1=\"76\" x2=\"540\" y2=\"88\" marker-end=\"arrow-ok\"/>\n  <rect class=\"fig-box-accent\" x=\"390\" y=\"92\" width=\"300\" height=\"62\" rx=\"8\"/>\n  <text class=\"fig-t fig-t-accent fig-small\" x=\"540\" y=\"108\" text-anchor=\"middle\">同じトランザクション</text>\n  <rect class=\"fig-box\" x=\"404\" y=\"116\" width=\"130\" height=\"30\" rx=\"6\"/>\n  <text class=\"fig-t fig-small\" x=\"469\" y=\"131\" text-anchor=\"middle\">業務データ</text>\n  <rect class=\"fig-box\" x=\"546\" y=\"116\" width=\"130\" height=\"30\" rx=\"6\"/>\n  <text class=\"fig-t fig-mono fig-small\" x=\"611\" y=\"131\" text-anchor=\"middle\">outbox</text>\n  <line class=\"fig-line\" x1=\"610\" y1=\"154\" x2=\"610\" y2=\"172\" marker-end=\"arrow\"/>\n  <rect class=\"fig-box\" x=\"530\" y=\"176\" width=\"160\" height=\"32\" rx=\"6\"/>\n  <text class=\"fig-t fig-small\" x=\"610\" y=\"192\" text-anchor=\"middle\">別プロセスが publish</text>\n  <line class=\"fig-line\" x1=\"526\" y1=\"192\" x2=\"506\" y2=\"192\" marker-end=\"arrow\"/>\n  <rect class=\"fig-box\" x=\"390\" y=\"176\" width=\"112\" height=\"32\" rx=\"6\"/>\n  <text class=\"fig-t fig-small\" x=\"446\" y=\"192\" text-anchor=\"middle\">broker</text>\n\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"14\" y=\"238\">受信側は at-least-once（重複あり）前提で冪等にする。イベント ID の処理済み記録や業務の一意制約で吸収する</text>\n</svg>\n```",
-      "samples":[{"caption":"イベントIDで重複を除く","code":"import java.util.*;public class Main{public static void main(String[] a){Set<String> done=new HashSet<>();for(String id:List.of(\"e1\",\"e1\",\"e2\"))if(done.add(id))System.out.println(id);}}\n"}],
-      "task":"イベントIDをn件読み、初めて見たものだけ `PROCESS id`、すでに見たものは `SKIP id` と表示してください。",
-      "starterCode":"import java.util.*;public class Main{public static void main(String[] a){Scanner s=new Scanner(System.in);int n=s.nextInt();Set<String> done=new HashSet<>();for(int i=0;i<n;i++){String id=s.next();/* TODO */}}}\n",
-      "visibleCases":[{"label":"再配送","stdin":"4 e1 e2 e1 e3","expected":"PROCESS e1\nPROCESS e2\nSKIP e1\nPROCESS e3"}],
-      "hiddenCases":[{"label":"すべて重複","stdin":"3 x x x","expected":"PROCESS x\nSKIP x\nSKIP x"}],
-      "hints":["`Set.add` の戻り値は、新しく追加できたときだけ `true` です。"],
-      "solution":"import java.util.*;public class Main{public static void main(String[] a){Scanner s=new Scanner(System.in);int n=s.nextInt();Set<String> done=new HashSet<>();for(int i=0;i<n;i++){String id=s.next();System.out.println((done.add(id)?\"PROCESS \":\"SKIP \")+id);}}}\n",
-      "quiz":[
-        {"question":"transactional outboxが解決する中心的な課題は？","choices":["Javaの型消去","DBの更新とメッセージ送信を別々に書くことで生じる不整合","JSONのインデント","JVMのクラスロード"],"answer":1,"explanation":"業務データの更新と「送るべきイベント」を、1つのDBトランザクションで確定させます。"},
-        {"question":"受信側が処理を終えた直後に、確認応答（ack）の送信が失敗しました。at-least-onceを前提にすると、必要な備えはどれでしょう。","choices":["同じイベントが再配信されても結果が変わらないよう、処理済み記録や業務上の一意制約で冪等にする","ブローカーを作り直す","再試行を無効にする","順序保証をシステム全体へ広げる"],"answer":0,"explanation":"「処理したのにackできない」状態は避けられないので、重複を前提に設計します。"}
+      "id": "54-4",
+      "title": "メッセージングとoutbox",
+      "explanation": "## 「少なくとも一回」を前提にする\n\nメッセージブローカーは送信側と受信側を時間的に切り離してくれますが、通信障害によって「処理は終えたのに、確認応答（ack）を返せなかった」状態が起きます。だから at-least-once（少なくとも一回）配信では重複を前提にして、イベントIDの処理済み記録や業務上の一意制約によって、受信側を冪等にします。再試行には指数バックオフと上限を持たせ、回復しないエラーはdead-letter queueへ隔離して、再処理の手順を用意します。\n\nDBの更新とメッセージ送信を別々に行う「二重書き込み」は、片方だけ成功しえます。transactional outboxは、業務データとイベントを同じDBトランザクションで保存し、別のプロセスがoutboxを読んで送信する方式です。順序が必要な範囲は集約のキーなどに限定し、イベント形式の互換性と、個人情報をどこまで保持するかも合わせて管理します。\n\n```svg 別々に書くと片方だけ成功しうる。同じトランザクションで outbox に書き、後から publish する\n<svg viewBox=\"0 0 720 250\">\n  <text class=\"fig-t fig-title fig-t-ng\" x=\"172\" y=\"22\" text-anchor=\"middle\">dual write</text>\n  <text class=\"fig-t fig-title fig-t-ok\" x=\"543\" y=\"22\" text-anchor=\"middle\">transactional outbox</text>\n\n  <rect class=\"fig-box\" x=\"90\" y=\"40\" width=\"160\" height=\"36\" rx=\"6\"/>\n  <text class=\"fig-t fig-small\" x=\"170\" y=\"58\" text-anchor=\"middle\">業務処理</text>\n  <line class=\"fig-line-ok\" x1=\"140\" y1=\"76\" x2=\"100\" y2=\"104\" marker-end=\"arrow-ok\"/>\n  <line class=\"fig-line-ng\" x1=\"200\" y1=\"76\" x2=\"250\" y2=\"104\" marker-end=\"arrow-ng\"/>\n  <rect class=\"fig-box-ok\" x=\"30\" y=\"108\" width=\"130\" height=\"36\" rx=\"6\"/>\n  <text class=\"fig-t fig-small fig-t-ok\" x=\"95\" y=\"126\" text-anchor=\"middle\">DB 更新 成功</text>\n  <rect class=\"fig-box-ng\" x=\"190\" y=\"108\" width=\"130\" height=\"36\" rx=\"6\"/>\n  <text class=\"fig-t fig-small fig-t-ng\" x=\"255\" y=\"126\" text-anchor=\"middle\">publish 失敗</text>\n  <text class=\"fig-t fig-t-ng fig-small\" x=\"14\" y=\"172\">片方だけ成功して、データとイベントがずれる</text>\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"14\" y=\"194\">あとから整合させる手段が無い</text>\n\n  <rect class=\"fig-box\" x=\"460\" y=\"40\" width=\"160\" height=\"36\" rx=\"6\"/>\n  <text class=\"fig-t fig-small\" x=\"540\" y=\"58\" text-anchor=\"middle\">業務処理</text>\n  <line class=\"fig-line-ok\" x1=\"540\" y1=\"76\" x2=\"540\" y2=\"88\" marker-end=\"arrow-ok\"/>\n  <rect class=\"fig-box-accent\" x=\"390\" y=\"92\" width=\"300\" height=\"62\" rx=\"8\"/>\n  <text class=\"fig-t fig-t-accent fig-small\" x=\"540\" y=\"108\" text-anchor=\"middle\">同じトランザクション</text>\n  <rect class=\"fig-box\" x=\"404\" y=\"116\" width=\"130\" height=\"30\" rx=\"6\"/>\n  <text class=\"fig-t fig-small\" x=\"469\" y=\"131\" text-anchor=\"middle\">業務データ</text>\n  <rect class=\"fig-box\" x=\"546\" y=\"116\" width=\"130\" height=\"30\" rx=\"6\"/>\n  <text class=\"fig-t fig-mono fig-small\" x=\"611\" y=\"131\" text-anchor=\"middle\">outbox</text>\n  <line class=\"fig-line\" x1=\"610\" y1=\"154\" x2=\"610\" y2=\"172\" marker-end=\"arrow\"/>\n  <rect class=\"fig-box\" x=\"530\" y=\"176\" width=\"160\" height=\"32\" rx=\"6\"/>\n  <text class=\"fig-t fig-small\" x=\"610\" y=\"192\" text-anchor=\"middle\">別プロセスが publish</text>\n  <line class=\"fig-line\" x1=\"526\" y1=\"192\" x2=\"506\" y2=\"192\" marker-end=\"arrow\"/>\n  <rect class=\"fig-box\" x=\"390\" y=\"176\" width=\"112\" height=\"32\" rx=\"6\"/>\n  <text class=\"fig-t fig-small\" x=\"446\" y=\"192\" text-anchor=\"middle\">broker</text>\n\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"14\" y=\"238\">受信側は at-least-once（重複あり）前提で冪等にする。イベント ID の処理済み記録や業務の一意制約で吸収する</text>\n</svg>\n```",
+      "samples": [
+        {
+          "caption": "イベントIDで重複を除く",
+          "code": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] a) {\n        Set<String> done = new HashSet<>();\n        for (String id : List.of(\"e1\", \"e1\", \"e2\")) if (done.add(id)) System.out.println(id);\n    }\n}\n"
+        }
+      ],
+      "task": "イベントIDをn件読み、初めて見たものだけ `PROCESS id`、すでに見たものは `SKIP id` と表示してください。",
+      "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] a) {\n        Scanner s = new Scanner(System.in);\n        int n = s.nextInt();\n        Set<String> done = new HashSet<>();\n        for (int i = 0; i < n; i++) {\n            String id = s.next();\n            /* TODO */\n        }\n    }\n}\n",
+      "visibleCases": [
+        {
+          "label": "再配送",
+          "stdin": "4 e1 e2 e1 e3",
+          "expected": "PROCESS e1\nPROCESS e2\nSKIP e1\nPROCESS e3"
+        }
+      ],
+      "hiddenCases": [
+        {
+          "label": "すべて重複",
+          "stdin": "3 x x x",
+          "expected": "PROCESS x\nSKIP x\nSKIP x"
+        }
+      ],
+      "hints": [
+        "`Set.add` の戻り値は、新しく追加できたときだけ `true` です。"
+      ],
+      "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] a) {\n        Scanner s = new Scanner(System.in);\n        int n = s.nextInt();\n        Set<String> done = new HashSet<>();\n        for (int i = 0; i < n; i++) {\n            String id = s.next();\n            System.out.println((done.add(id) ? \"PROCESS \" : \"SKIP \") + id);\n        }\n    }\n}\n",
+      "quiz": [
+        {
+          "question": "transactional outboxが解決する中心的な課題は？",
+          "choices": [
+            "JVMのクラスロードの順序",
+            "JSONのインデントの揺れ",
+            "Javaのジェネリクスの型消去",
+            "DBの更新とメッセージ送信の間に生じる不整合"
+          ],
+          "answer": 3,
+          "explanation": "業務データの更新と「送るべきイベント」を、1つのDBトランザクションで確定させます。"
+        },
+        {
+          "question": "受信側が処理を終えた直後に、確認応答（ack）の送信が失敗しました。at-least-onceを前提にすると、必要な備えはどれでしょう。",
+          "choices": [
+            "順序保証をシステム全体へ広げれば重複は起きなくなる",
+            "ブローカーを作り直して未確認のメッセージを消す",
+            "再試行を無効にして、ackできなかった分は捨てる",
+            "処理済み記録や業務上の一意制約を使い、冪等に処理する"
+          ],
+          "answer": 3,
+          "explanation": "「処理したのにackできない」状態は避けられないので、重複を前提に設計します。同じイベントが再配信されても結果が変わらないようにします。"
+        }
       ]
     },
     {
       "id": "54-5",
       "title": "章末演習：実DB・スキーマ移行・非同期連携",
-      "explanation": "## この章の知識を、自分の手で組み合わせよう\n\nここでは、**接続予算の配分・スキーマ移行の段階・少なくとも一回の配送・冪等な受信側**をまとめて使います。新しい文法は登場しません。分からなくなったら、直前までの解説やサンプルへ戻って確認して大丈夫です。\n\n### 3問の進め方\n\n1. **基本**で、中心となる書き方をもう一度使う\n2. **組み合わせ**で、章内の複数の知識を一緒に使う\n3. **実践**で、少し現実的な入力と条件を整理する\n\n実DBとメッセージブローカーを動かすのは `labs/integration-data` です。ここで書くのは、**そこで壊れないために先に決めておく規則**のほうです。",
-      "samples": [{"caption":"復習用サンプル：初めて見たIDかどうかは add の戻り値で分かる","code":"import java.util.*;\npublic class Main{public static void main(String[] a){Set<String> done=new HashSet<>();for(String id:List.of(\"e1\",\"e2\",\"e1\"))System.out.println((done.add(id)?\"PROCESS \":\"SKIP \")+id);}}\n","expected":"PROCESS e1\nPROCESS e2\nSKIP e1"}],
+      "explanation": "## この章の知識を、自分の手で組み合わせよう\n\nここでは、**接続予算の配分・スキーマ移行の段階・少なくとも一回の配送・冪等な受信側**をまとめて使います。新しい文法は登場しません。分からなくなったら、直前までの解説やサンプルへ戻って確認して大丈夫です。\n\n### 3問の進め方\n\n1. **基本**で、中心となる書き方をもう一度使う\n2. **組み合わせ**で、章内の複数の知識を一緒に使う\n3. **実践**で、少し現実的な入力と条件を整理する\n\n実DBとメッセージブローカーを動かすのは `labs/integration-data` です。ここで書くのは、**そこで壊れないために先に決めておく規則**のほうです。\n\n> 🧪 アプリで確かめること / labs で動かすこと … この問題で確かめるのは実DB・スキーマ移行・非同期連携の判断です。\n> 実DBとメッセージングを実際に動かすことは、1ファイル・標準入力だけのこの画面では扱えません。`labs/integration-data` に本物を置いてあります。\n> ★はアプリの問題に対して付きます。labs をやったかどうかは★には出ないので、\n> 手を動かした記録は labs 側のREADMEの手順で残してください。",
+      "samples": [
+        {
+          "caption": "復習用サンプル：初めて見たIDかどうかは add の戻り値で分かる",
+          "code": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] a) {\n        Set<String> done = new HashSet<>();\n        for (String id : List.of(\"e1\", \"e2\", \"e1\")) System.out.println((done.add(id) ? \"PROCESS \" : \"SKIP \") + id);\n    }\n}\n",
+          "expected": "PROCESS e1\nPROCESS e2\nSKIP e1"
+        }
+      ],
       "task": "【基本】DBの最大接続数 max、DB管理用に空けておく reserved（max 以下）、サービス数nを読み、続けてn件を `service instances` の形で読みます。\n\n1行目に、アプリで使える接続数を `BUDGET 値` の形で表示してください（`max - reserved`）。2行目に、1インスタンス当たりの上限を `PER_INSTANCE 値` の形で表示します。これは使える接続数を全サービスのインスタンス総数で割った切り捨ての値で、インスタンス総数が0のときは0とします。\n\n続けて、サービスごとの合計接続数を読んだ順に `service 値`（インスタンス数 × 1インスタンス当たりの上限）と表示します。次に配り切れなかった数を `SPARE 値` と表示します。最後に、インスタンスが1つ以上あるのに1インスタンス当たりの上限が0になってしまった場合は `INSUFFICIENT`、そうでなければ `OK` と表示します。",
-      "starterCode": "import java.util.*;\npublic class Main {public static void main(String[] args){Scanner s=new Scanner(System.in);int max=s.nextInt(),reserved=s.nextInt(),n=s.nextInt();String[] names=new String[n];int[] instances=new int[n];int totalInstances=0;for(int i=0;i<n;i++){names[i]=s.next();instances[i]=s.nextInt();totalInstances+=instances[i];}int budget=max-reserved;/* TODO BUDGET と PER_INSTANCE */\n/* TODO サービスごとの割り当てと SPARE */\n/* TODO INSUFFICIENT の判定 */}}\n",
-      "visibleCases": [{"label":"ちょうど配り切れる","stdin":"100 10 3 api 3 batch 2 report 1","expected":"BUDGET 90\nPER_INSTANCE 15\napi 45\nbatch 30\nreport 15\nSPARE 0\nOK"},{"label":"余りが出る","stdin":"100 10 2 api 4 batch 3","expected":"BUDGET 90\nPER_INSTANCE 12\napi 48\nbatch 36\nSPARE 6\nOK"}],
-      "hiddenCases": [{"label":"接続が足りない","stdin":"10 8 1 api 5","expected":"BUDGET 2\nPER_INSTANCE 0\napi 0\nSPARE 2\nINSUFFICIENT"},{"label":"配る相手が居ない","stdin":"100 10 0","expected":"BUDGET 90\nPER_INSTANCE 0\nSPARE 90\nOK"},{"label":"予約で使い切る","stdin":"10 10 1 api 1","expected":"BUDGET 0\nPER_INSTANCE 0\napi 0\nSPARE 0\nINSUFFICIENT"},{"label":"1インスタンスずつ","stdin":"9 0 3 a 1 b 1 c 1","expected":"BUDGET 9\nPER_INSTANCE 3\na 3\nb 3\nc 3\nSPARE 0\nOK"},{"label":"ちょうど1接続ずつ","stdin":"5 0 5 a 1 b 1 c 1 d 1 e 1","expected":"BUDGET 5\nPER_INSTANCE 1\na 1\nb 1\nc 1\nd 1\ne 1\nSPARE 0\nOK"}],
-      "hints": ["インスタンス総数が0のときに割り算をすると落ちます。先に0かどうかを確かめてから割ります。","余りは `budget - 1インスタンス当たりの上限 × インスタンス総数` です。","poolを増やせば速くなるとは限りません。DBの最大接続から逆算して、全インスタンス分の予算を先に決めるための計算です。"],
-      "solution": "import java.util.*;\npublic class Main {public static void main(String[] args){Scanner s=new Scanner(System.in);int max=s.nextInt(),reserved=s.nextInt(),n=s.nextInt();String[] names=new String[n];int[] instances=new int[n];int totalInstances=0;for(int i=0;i<n;i++){names[i]=s.next();instances[i]=s.nextInt();totalInstances+=instances[i];}int budget=max-reserved;int per=totalInstances==0?0:budget/totalInstances;System.out.println(\"BUDGET \"+budget);System.out.println(\"PER_INSTANCE \"+per);for(int i=0;i<n;i++)System.out.println(names[i]+\" \"+instances[i]*per);System.out.println(\"SPARE \"+(budget-per*totalInstances));System.out.println(totalInstances>0&&per==0?\"INSUFFICIENT\":\"OK\");}}\n",
-      "extraTasks": [{"kind":"drill","task":"【組み合わせ】rolling deploy中のschema migrationを点検します。現在の段階 phase（`expand` / `migrate` / `contract`）と操作数nを読み、続けてn件の操作名を読みます。\n\n1行目に段階の意味を `PHASE ADD_COMPATIBLE`（expand）、`PHASE BACKFILL_AND_SWITCH`（migrate）、`PHASE REMOVE_OLD`（contract）の形で表示してください。\n\n続けて各操作を読んだ順に `行番号 操作名 ALLOW` または `行番号 操作名 FORBID` と表示します（行番号は1から）。その段階で許される操作は次のとおりです。\n\n- `expand` … `add-nullable-column`、`write-both`\n- `migrate` … `write-both`、`backfill`、`switch-read`\n- `contract` … `drop-old-column`\n\nただし `add-not-null-column` は、旧版が新しい列へ書けないため、どの段階でも `FORBID` です。最後に `FORBID` の件数を `FORBIDDEN 件数` の形で表示します。","starterCode":"import java.util.*;\npublic class Main {public static void main(String[] args){Scanner s=new Scanner(System.in);String phase=s.next();int n=s.nextInt();Map<String,Set<String>> allowed=Map.of(\"expand\",Set.of(\"add-nullable-column\",\"write-both\"),\"migrate\",Set.of(\"write-both\",\"backfill\",\"switch-read\"),\"contract\",Set.of(\"drop-old-column\"));/* TODO PHASE の表示 */\nfor(int k=1;k<=n;k++){String op=s.next();/* TODO ALLOW か FORBID */}/* TODO FORBIDDEN の表示 */}}\n","visibleCases":[{"label":"expandで旧列を消そうとする","stdin":"expand 3 add-nullable-column write-both drop-old-column","expected":"PHASE ADD_COMPATIBLE\n1 add-nullable-column ALLOW\n2 write-both ALLOW\n3 drop-old-column FORBID\nFORBIDDEN 1"},{"label":"migrateでNOT NULL列を足そうとする","stdin":"migrate 3 backfill switch-read add-not-null-column","expected":"PHASE BACKFILL_AND_SWITCH\n1 backfill ALLOW\n2 switch-read ALLOW\n3 add-not-null-column FORBID\nFORBIDDEN 1"}],"hiddenCases":[{"label":"contractで戻ろうとする","stdin":"contract 2 drop-old-column backfill","expected":"PHASE REMOVE_OLD\n1 drop-old-column ALLOW\n2 backfill FORBID\nFORBIDDEN 1"},{"label":"操作0件","stdin":"expand 0","expected":"PHASE ADD_COMPATIBLE\nFORBIDDEN 0"},{"label":"両方書きは2つの段階で許される","stdin":"migrate 1 write-both","expected":"PHASE BACKFILL_AND_SWITCH\n1 write-both ALLOW\nFORBIDDEN 0"},{"label":"NOT NULL列の追加はいつでも止める","stdin":"contract 1 add-not-null-column","expected":"PHASE REMOVE_OLD\n1 add-not-null-column FORBID\nFORBIDDEN 1"},{"label":"すべて許される","stdin":"expand 2 write-both add-nullable-column","expected":"PHASE ADD_COMPATIBLE\n1 write-both ALLOW\n2 add-nullable-column ALLOW\nFORBIDDEN 0"}],"hints":["段階ごとの許可集合を `Map<String,Set<String>>` にしておくと、判定は `contains` 1回で済みます。","`add-not-null-column` は許可集合に入れず、先に弾きます。段階に関係なく止める規則です。","旧版と新版が同居する間は、両方が読み書きできる形しか置けません。だから追加→両方書き→読み替え→削除の順に分けます。"],"solution":"import java.util.*;\npublic class Main {public static void main(String[] args){Scanner s=new Scanner(System.in);String phase=s.next();int n=s.nextInt();Map<String,Set<String>> allowed=Map.of(\"expand\",Set.of(\"add-nullable-column\",\"write-both\"),\"migrate\",Set.of(\"write-both\",\"backfill\",\"switch-read\"),\"contract\",Set.of(\"drop-old-column\"));Map<String,String> meaning=Map.of(\"expand\",\"ADD_COMPATIBLE\",\"migrate\",\"BACKFILL_AND_SWITCH\",\"contract\",\"REMOVE_OLD\");System.out.println(\"PHASE \"+meaning.get(phase));int forbidden=0;for(int k=1;k<=n;k++){String op=s.next();boolean ok=!op.equals(\"add-not-null-column\")&&allowed.get(phase).contains(op);if(!ok)forbidden++;System.out.println(k+\" \"+op+\" \"+(ok?\"ALLOW\":\"FORBID\"));}System.out.println(\"FORBIDDEN \"+forbidden);}}\n"},{"kind":"applied","task":"【実践】at-least-once配送を受け取る側を組みます。最大試行回数 maxAttempts と配送件数nを読み、続けてn件を `eventId attempt outcome` の形で読みます（`outcome` は `ok` / `retryable` / `permanent`）。\n\n読んだ順に1行ずつ、次のように表示してください。\n\n- そのeventIdを既に処理済みなら、`outcome` に関係なく `SKIP eventId`\n- そうでなく `outcome` が `ok` なら `PROCESS eventId` として処理済みに記録する\n- そうでなく `outcome` が `permanent` なら `DLQ eventId`（恒久エラーなので隔離します。処理済みには記録しません）\n- そうでなく `outcome` が `retryable` なら、`attempt` が maxAttempts 以上のとき `DLQ eventId`、未満のとき `RETRY eventId 次の試行回数`\n\n最後に集計を `SUMMARY processed=件数 skipped=件数 retried=件数 dlq=件数` の形で1行表示します。","starterCode":"import java.util.*;\npublic class Main {public static void main(String[] args){Scanner s=new Scanner(System.in);int maxAttempts=s.nextInt(),n=s.nextInt();Set<String> done=new HashSet<>();int processed=0,skipped=0,retried=0,dlq=0;for(int i=0;i<n;i++){String id=s.next();int attempt=s.nextInt();String outcome=s.next();/* TODO 4つの分岐 */}/* TODO SUMMARY */}}\n","visibleCases":[{"label":"再配送と上限","stdin":"3 4 e1 1 ok e2 1 retryable e1 2 ok e3 3 retryable","expected":"PROCESS e1\nRETRY e2 2\nSKIP e1\nDLQ e3\nSUMMARY processed=1 skipped=1 retried=1 dlq=1"},{"label":"恒久エラーは隔離する","stdin":"3 2 e9 1 permanent e8 1 ok","expected":"DLQ e9\nPROCESS e8\nSUMMARY processed=1 skipped=0 retried=0 dlq=1"}],"hiddenCases":[{"label":"配送0件","stdin":"3 0","expected":"SUMMARY processed=0 skipped=0 retried=0 dlq=0"},{"label":"重複はすべてSKIP","stdin":"3 3 e1 1 ok e1 2 ok e1 3 ok","expected":"PROCESS e1\nSKIP e1\nSKIP e1\nSUMMARY processed=1 skipped=2 retried=0 dlq=0"},{"label":"上限ちょうどで隔離","stdin":"2 1 e1 2 retryable","expected":"DLQ e1\nSUMMARY processed=0 skipped=0 retried=0 dlq=1"},{"label":"上限未満は再試行","stdin":"5 1 e1 4 retryable","expected":"RETRY e1 5\nSUMMARY processed=0 skipped=0 retried=1 dlq=0"},{"label":"隔離しても処理済みにはしない","stdin":"3 2 e9 1 permanent e9 2 ok","expected":"DLQ e9\nPROCESS e9\nSUMMARY processed=1 skipped=0 retried=0 dlq=1"}],"hints":["処理済みの判定を最初に置きます。ここが冪等性の要で、同じeventIdを二重に処理しないための記録です。","`retryable` の分岐だけが `attempt` と maxAttempts を比べます。`RETRY` に出すのは次の試行回数（`attempt+1`）です。","`DLQ` へ送ったeventを処理済みに記録しないのは、再処理の手順であらためて扱うからです。「隔離した」と「処理した」は別の状態です。"],"solution":"import java.util.*;\npublic class Main {public static void main(String[] args){Scanner s=new Scanner(System.in);int maxAttempts=s.nextInt(),n=s.nextInt();Set<String> done=new HashSet<>();int processed=0,skipped=0,retried=0,dlq=0;for(int i=0;i<n;i++){String id=s.next();int attempt=s.nextInt();String outcome=s.next();if(done.contains(id)){System.out.println(\"SKIP \"+id);skipped++;}else if(outcome.equals(\"ok\")){done.add(id);System.out.println(\"PROCESS \"+id);processed++;}else if(outcome.equals(\"permanent\")){System.out.println(\"DLQ \"+id);dlq++;}else if(attempt>=maxAttempts){System.out.println(\"DLQ \"+id);dlq++;}else{System.out.println(\"RETRY \"+id+\" \"+(attempt+1));retried++;}}System.out.println(\"SUMMARY processed=\"+processed+\" skipped=\"+skipped+\" retried=\"+retried+\" dlq=\"+dlq);}}\n"}]
+      "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        int max = s.nextInt(), reserved = s.nextInt(), n = s.nextInt();\n        String[] names = new String[n];\n        int[] instances = new int[n];\n        int totalInstances = 0;\n        for (int i = 0; i < n; i++) {\n            names[i] = s.next();\n            instances[i] = s.nextInt();\n            totalInstances += instances[i];\n        }\n        int budget = max - reserved;\n        /* TODO BUDGET と PER_INSTANCE */ /* TODO サービスごとの割り当てと SPARE */ /* TODO INSUFFICIENT の判定 */\n    }\n}\n",
+      "visibleCases": [
+        {
+          "label": "ちょうど配り切れる",
+          "stdin": "100 10 3 api 3 batch 2 report 1",
+          "expected": "BUDGET 90\nPER_INSTANCE 15\napi 45\nbatch 30\nreport 15\nSPARE 0\nOK"
+        },
+        {
+          "label": "余りが出る",
+          "stdin": "100 10 2 api 4 batch 3",
+          "expected": "BUDGET 90\nPER_INSTANCE 12\napi 48\nbatch 36\nSPARE 6\nOK"
+        }
+      ],
+      "hiddenCases": [
+        {
+          "label": "接続が足りない",
+          "stdin": "10 8 1 api 5",
+          "expected": "BUDGET 2\nPER_INSTANCE 0\napi 0\nSPARE 2\nINSUFFICIENT"
+        },
+        {
+          "label": "配る相手が居ない",
+          "stdin": "100 10 0",
+          "expected": "BUDGET 90\nPER_INSTANCE 0\nSPARE 90\nOK"
+        },
+        {
+          "label": "予約で使い切る",
+          "stdin": "10 10 1 api 1",
+          "expected": "BUDGET 0\nPER_INSTANCE 0\napi 0\nSPARE 0\nINSUFFICIENT"
+        },
+        {
+          "label": "1インスタンスずつ",
+          "stdin": "9 0 3 a 1 b 1 c 1",
+          "expected": "BUDGET 9\nPER_INSTANCE 3\na 3\nb 3\nc 3\nSPARE 0\nOK"
+        },
+        {
+          "label": "ちょうど1接続ずつ",
+          "stdin": "5 0 5 a 1 b 1 c 1 d 1 e 1",
+          "expected": "BUDGET 5\nPER_INSTANCE 1\na 1\nb 1\nc 1\nd 1\ne 1\nSPARE 0\nOK"
+        }
+      ],
+      "hints": [
+        "インスタンス総数が0のときに割り算をすると落ちます。先に0かどうかを確かめてから割ります。",
+        "余りは `budget - 1インスタンス当たりの上限 × インスタンス総数` です。",
+        "poolを増やせば速くなるとは限りません。DBの最大接続から逆算して、全インスタンス分の予算を先に決めるための計算です。"
+      ],
+      "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        int max = s.nextInt(), reserved = s.nextInt(), n = s.nextInt();\n        String[] names = new String[n];\n        int[] instances = new int[n];\n        int totalInstances = 0;\n        for (int i = 0; i < n; i++) {\n            names[i] = s.next();\n            instances[i] = s.nextInt();\n            totalInstances += instances[i];\n        }\n        int budget = max - reserved;\n        int per = totalInstances == 0 ? 0 : budget / totalInstances;\n        System.out.println(\"BUDGET \" + budget);\n        System.out.println(\"PER_INSTANCE \" + per);\n        for (int i = 0; i < n; i++) System.out.println(names[i] + \" \" + instances[i] * per);\n        System.out.println(\"SPARE \" + (budget - per * totalInstances));\n        System.out.println(totalInstances > 0 && per == 0 ? \"INSUFFICIENT\" : \"OK\");\n    }\n}\n",
+      "extraTasks": [
+        {
+          "kind": "drill",
+          "task": "【組み合わせ】rolling deploy中のschema migrationを点検します。現在の段階 phase（`expand` / `migrate` / `contract`）と操作数nを読み、続けてn件の操作名を読みます。\n\n1行目に段階の意味を `PHASE ADD_COMPATIBLE`（expand）、`PHASE BACKFILL_AND_SWITCH`（migrate）、`PHASE REMOVE_OLD`（contract）の形で表示してください。\n\n続けて各操作を読んだ順に `行番号 操作名 ALLOW` または `行番号 操作名 FORBID` と表示します（行番号は1から）。その段階で許される操作は次のとおりです。\n\n- `expand` … `add-nullable-column`、`write-both`\n- `migrate` … `write-both`、`backfill`、`switch-read`\n- `contract` … `drop-old-column`\n\nただし `add-not-null-column` は、旧版が新しい列へ書けないため、どの段階でも `FORBID` です。最後に `FORBID` の件数を `FORBIDDEN 件数` の形で表示します。",
+          "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        String phase = s.next();\n        int n = s.nextInt();\n        Map<String, Set<String>> allowed = Map.of(\"expand\", Set.of(\"add-nullable-column\", \"write-both\"), \"migrate\", Set.of(\"write-both\", \"backfill\", \"switch-read\"), \"contract\", Set.of(\"drop-old-column\"));\n        /* TODO PHASE の表示 */ for (int k = 1; k <= n; k++) {\n            String op = s.next();\n            /* TODO ALLOW か FORBID */\n        }\n        /* TODO FORBIDDEN の表示 */\n    }\n}\n",
+          "visibleCases": [
+            {
+              "label": "expandで旧列を消そうとする",
+              "stdin": "expand 3 add-nullable-column write-both drop-old-column",
+              "expected": "PHASE ADD_COMPATIBLE\n1 add-nullable-column ALLOW\n2 write-both ALLOW\n3 drop-old-column FORBID\nFORBIDDEN 1"
+            },
+            {
+              "label": "migrateでNOT NULL列を足そうとする",
+              "stdin": "migrate 3 backfill switch-read add-not-null-column",
+              "expected": "PHASE BACKFILL_AND_SWITCH\n1 backfill ALLOW\n2 switch-read ALLOW\n3 add-not-null-column FORBID\nFORBIDDEN 1"
+            }
+          ],
+          "hiddenCases": [
+            {
+              "label": "contractで戻ろうとする",
+              "stdin": "contract 2 drop-old-column backfill",
+              "expected": "PHASE REMOVE_OLD\n1 drop-old-column ALLOW\n2 backfill FORBID\nFORBIDDEN 1"
+            },
+            {
+              "label": "操作0件",
+              "stdin": "expand 0",
+              "expected": "PHASE ADD_COMPATIBLE\nFORBIDDEN 0"
+            },
+            {
+              "label": "両方書きは2つの段階で許される",
+              "stdin": "migrate 1 write-both",
+              "expected": "PHASE BACKFILL_AND_SWITCH\n1 write-both ALLOW\nFORBIDDEN 0"
+            },
+            {
+              "label": "NOT NULL列の追加はいつでも止める",
+              "stdin": "contract 1 add-not-null-column",
+              "expected": "PHASE REMOVE_OLD\n1 add-not-null-column FORBID\nFORBIDDEN 1"
+            },
+            {
+              "label": "すべて許される",
+              "stdin": "expand 2 write-both add-nullable-column",
+              "expected": "PHASE ADD_COMPATIBLE\n1 write-both ALLOW\n2 add-nullable-column ALLOW\nFORBIDDEN 0"
+            }
+          ],
+          "hints": [
+            "段階ごとの許可集合を `Map<String,Set<String>>` にしておくと、判定は `contains` 1回で済みます。",
+            "`add-not-null-column` は許可集合に入れず、先に弾きます。段階に関係なく止める規則です。",
+            "旧版と新版が同居する間は、両方が読み書きできる形しか置けません。だから追加→両方書き→読み替え→削除の順に分けます。"
+          ],
+          "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        String phase = s.next();\n        int n = s.nextInt();\n        Map<String, Set<String>> allowed = Map.of(\"expand\", Set.of(\"add-nullable-column\", \"write-both\"), \"migrate\", Set.of(\"write-both\", \"backfill\", \"switch-read\"), \"contract\", Set.of(\"drop-old-column\"));\n        Map<String, String> meaning = Map.of(\"expand\", \"ADD_COMPATIBLE\", \"migrate\", \"BACKFILL_AND_SWITCH\", \"contract\", \"REMOVE_OLD\");\n        System.out.println(\"PHASE \" + meaning.get(phase));\n        int forbidden = 0;\n        for (int k = 1; k <= n; k++) {\n            String op = s.next();\n            boolean ok = !op.equals(\"add-not-null-column\") && allowed.get(phase).contains(op);\n            if (!ok) forbidden++;\n            System.out.println(k + \" \" + op + \" \" + (ok ? \"ALLOW\" : \"FORBID\"));\n        }\n        System.out.println(\"FORBIDDEN \" + forbidden);\n    }\n}\n",
+          "sourceChecks": [
+            {
+              "pattern": "Map\\s*\\.\\s*of\\s*\\(|new\\s+(Hash|LinkedHash|Tree)Map|\\bswitch\\b",
+              "minimum": 2,
+              "message": "段階ごとの「許される操作」と「段階の意味」を、それぞれ表として持ってください。"
+            },
+            {
+              "pattern": "\\.contains\\s*\\(",
+              "minimum": 1,
+              "message": "その段階で許される操作かどうかは `contains` で調べてください。"
+            }
+          ]
+        },
+        {
+          "kind": "applied",
+          "task": "【実践】at-least-once配送を受け取る側を組みます。最大試行回数 maxAttempts と配送件数nを読み、続けてn件を `eventId attempt outcome` の形で読みます（`outcome` は `ok` / `retryable` / `permanent`）。\n\n読んだ順に1行ずつ、次のように表示してください。\n\n- そのeventIdを既に処理済みなら、`outcome` に関係なく `SKIP eventId`\n- そうでなく `outcome` が `ok` なら `PROCESS eventId` として処理済みに記録する\n- そうでなく `outcome` が `permanent` なら `DLQ eventId`（恒久エラーなので隔離します。処理済みには記録しません）\n- そうでなく `outcome` が `retryable` なら、`attempt` が maxAttempts 以上のとき `DLQ eventId`、未満のとき `RETRY eventId 次の試行回数`\n\n最後に集計を `SUMMARY processed=件数 skipped=件数 retried=件数 dlq=件数` の形で1行表示します。",
+          "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        int maxAttempts = s.nextInt(), n = s.nextInt();\n        Set<String> done = new HashSet<>();\n        int processed = 0, skipped = 0, retried = 0, dlq = 0;\n        for (int i = 0; i < n; i++) {\n            String id = s.next();\n            int attempt = s.nextInt();\n            String outcome = s.next();\n            /* TODO 4つの分岐 */\n        }\n        /* TODO SUMMARY */\n    }\n}\n",
+          "visibleCases": [
+            {
+              "label": "再配送と上限",
+              "stdin": "3 4 e1 1 ok e2 1 retryable e1 2 ok e3 3 retryable",
+              "expected": "PROCESS e1\nRETRY e2 2\nSKIP e1\nDLQ e3\nSUMMARY processed=1 skipped=1 retried=1 dlq=1"
+            },
+            {
+              "label": "恒久エラーは隔離する",
+              "stdin": "3 2 e9 1 permanent e8 1 ok",
+              "expected": "DLQ e9\nPROCESS e8\nSUMMARY processed=1 skipped=0 retried=0 dlq=1"
+            }
+          ],
+          "hiddenCases": [
+            {
+              "label": "配送0件",
+              "stdin": "3 0",
+              "expected": "SUMMARY processed=0 skipped=0 retried=0 dlq=0"
+            },
+            {
+              "label": "重複はすべてSKIP",
+              "stdin": "3 3 e1 1 ok e1 2 ok e1 3 ok",
+              "expected": "PROCESS e1\nSKIP e1\nSKIP e1\nSUMMARY processed=1 skipped=2 retried=0 dlq=0"
+            },
+            {
+              "label": "上限ちょうどで隔離",
+              "stdin": "2 1 e1 2 retryable",
+              "expected": "DLQ e1\nSUMMARY processed=0 skipped=0 retried=0 dlq=1"
+            },
+            {
+              "label": "上限未満は再試行",
+              "stdin": "5 1 e1 4 retryable",
+              "expected": "RETRY e1 5\nSUMMARY processed=0 skipped=0 retried=1 dlq=0"
+            },
+            {
+              "label": "隔離しても処理済みにはしない",
+              "stdin": "3 2 e9 1 permanent e9 2 ok",
+              "expected": "DLQ e9\nPROCESS e9\nSUMMARY processed=1 skipped=0 retried=0 dlq=1"
+            }
+          ],
+          "hints": [
+            "処理済みの判定を最初に置きます。ここが冪等性の要で、同じeventIdを二重に処理しないための記録です。",
+            "`retryable` の分岐だけが `attempt` と maxAttempts を比べます。`RETRY` に出すのは次の試行回数（`attempt+1`）です。",
+            "`DLQ` へ送ったeventを処理済みに記録しないのは、再処理の手順であらためて扱うからです。「隔離した」と「処理した」は別の状態です。"
+          ],
+          "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        int maxAttempts = s.nextInt(), n = s.nextInt();\n        Set<String> done = new HashSet<>();\n        int processed = 0, skipped = 0, retried = 0, dlq = 0;\n        for (int i = 0; i < n; i++) {\n            String id = s.next();\n            int attempt = s.nextInt();\n            String outcome = s.next();\n            if (done.contains(id)) {\n                System.out.println(\"SKIP \" + id);\n                skipped++;\n            } else if (outcome.equals(\"ok\")) {\n                done.add(id);\n                System.out.println(\"PROCESS \" + id);\n                processed++;\n            } else if (outcome.equals(\"permanent\")) {\n                System.out.println(\"DLQ \" + id);\n                dlq++;\n            } else if (attempt >= maxAttempts) {\n                System.out.println(\"DLQ \" + id);\n                dlq++;\n            } else {\n                System.out.println(\"RETRY \" + id + \" \" + (attempt + 1));\n                retried++;\n            }\n        }\n        System.out.println(\"SUMMARY processed=\" + processed + \" skipped=\" + skipped + \" retried=\" + retried + \" dlq=\" + dlq);\n    }\n}\n",
+          "sourceChecks": [
+            {
+              "pattern": "\\bSet\\s*<",
+              "minimum": 1,
+              "message": "同じイベントが2回届いても1回しか処理しないよう、処理済みIDを集合で覚えてください。これが at-least-once を受ける側の冪等性です。"
+            },
+            {
+              "pattern": "maxAttempts",
+              "minimum": 1,
+              "message": "試行回数が上限に達したものはDLQへ送ってください。際限なく再試行しないための境界です。"
+            }
+          ]
+        }
+      ]
     }
   ]
 }

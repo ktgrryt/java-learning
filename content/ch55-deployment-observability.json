@@ -1,78 +1,418 @@
 {
-  "id":"ch55","title":"設定・コンテナ・可観測性","subtitle":"本番で安全に起動し、状態を説明できるようにする","emoji":"🚢",
-  "lessons":[
+  "id": "ch55",
+  "title": "設定・コンテナ・可観測性",
+  "subtitle": "本番で安全に起動し、状態を説明できるようにする",
+  "emoji": "🚢",
+  "lessons": [
     {
-      "id":"55-1","title":"設定と機密情報を外から与える",
-      "explanation":"## ビルドと環境差を分離する\n\n同じ成果物・同じコンテナイメージを各環境で使い、接続先・タイムアウト・機能フラグなどは環境変数、設定ファイル、設定配信サービスから注入します。既定値・必須値・型・範囲は起動時に検証し、設定が不正なら早い段階で停止します。設定の優先順位と変更履歴は文書に残し、動かしたまま変更できる値は絞り込みます。\n\nパスワード、トークン、秘密鍵は、ソースコード・イメージ・通常のログへ入れません。シークレット管理サービスから、短命な資格情報として受け取ります。読み取り権限はサービスの識別情報ごとに最小化し、鍵を入れ替える（ローテーション）ときに古い資格情報と新しい資格情報が一時的に共存する手順を、あらかじめテストしておきます。値そのものは伏せたままでも、設定のバージョンや取得の成否は観測できるようにします。",
-      "samples":[{"caption":"必須環境変数を検証する形","code":"public class Main{public static void main(String[] a){String v=System.getenv(\"APP_MODE\");System.out.println(v==null?\"missing\":v);}}\n"}],
-      "task":"`timeout`、`poolSize`、`secretPresent`（0か1）を読みます。timeoutが1〜30000、poolSizeが1〜100、secretPresentが1のときだけ `START`、それ以外は `CONFIG_ERROR` と表示してください。",
-      "starterCode":"import java.util.*;public class Main{public static void main(String[] a){Scanner s=new Scanner(System.in);int timeout=s.nextInt(),pool=s.nextInt(),secret=s.nextInt();/* TODO */}}\n",
-      "visibleCases":[{"label":"正常設定","stdin":"2000 20 1","expected":"START"},{"label":"secretなし","stdin":"2000 20 0","expected":"CONFIG_ERROR"}],
-      "hiddenCases":[{"label":"範囲外","stdin":"30001 10 1","expected":"CONFIG_ERROR"}],
-      "hints":["3条件を&&で結びます。"],
-      "solution":"import java.util.*;public class Main{public static void main(String[] a){Scanner s=new Scanner(System.in);int timeout=s.nextInt(),pool=s.nextInt(),secret=s.nextInt();boolean ok=timeout>=1&&timeout<=30000&&pool>=1&&pool<=100&&secret==1;System.out.println(ok?\"START\":\"CONFIG_ERROR\");}}\n",
-      "quiz":[
-        {"question":"環境ごとにアプリケーションを再ビルドしない理由は？","choices":["設定をソースコードへ埋め込むため","検証済みの成果物を同一に保ち、設定だけを分離するため","機密情報を公開するため","ロールバックを難しくするため"],"answer":1,"explanation":"成果物の同一性と、環境差の追跡性を保てます。"},
-        {"question":"必須の設定値が欠けたまま起動を続け、最初のリクエストで初めて失敗する作りが望ましくないのはなぜでしょう。","choices":["起動が速くなりすぎるため","設定ファイルが読めなくなるため","不正な状態のインスタンスがトラフィックを受けてしまい、原因の分かりにくい障害になるため","シークレット管理サービスが使えなくなるため"],"answer":2,"explanation":"既定値・必須値・型・範囲を起動時に検証し、設定が不正なら早く停止します。"}
+      "id": "55-1",
+      "title": "設定と機密情報を外から与える",
+      "explanation": "## ビルドと環境差を分離する\n\n同じ成果物・同じコンテナイメージを各環境で使い、接続先・タイムアウト・機能フラグなどは環境変数、設定ファイル、設定配信サービスから注入します。既定値・必須値・型・範囲は起動時に検証し、設定が不正なら早い段階で停止します。設定の優先順位と変更履歴は文書に残し、動かしたまま変更できる値は絞り込みます。\n\nパスワード、トークン、秘密鍵は、ソースコード・イメージ・通常のログへ入れません。シークレット管理サービスから、短命な資格情報として受け取ります。読み取り権限はサービスの識別情報ごとに最小化し、鍵を入れ替える（ローテーション）ときに古い資格情報と新しい資格情報が一時的に共存する手順を、あらかじめテストしておきます。値そのものは伏せたままでも、設定のバージョンや取得の成否は観測できるようにします。\n\n### 起動時に検証して、不正なら止める\n\n設定は「使うときに読む」のではなく、**起動時にまとめて検証** します。\n\n```java\nstatic int requiredInt(String name, int min, int max) {\n    String raw = System.getenv(name);\n    if (raw == null || raw.isBlank()) {\n        throw new IllegalStateException(name + \" が設定されていません\");\n    }\n    int value = Integer.parseInt(raw);\n    if (value < min || value > max) {\n        throw new IllegalStateException(name + \" が範囲外です: \" + value);\n    }\n    return value;\n}\n```\n\nこうしておくと、設定を1つ書き忘れただけで **起動しません**。逆に検証しないと、\n最初のリクエストが来るまで気づかず、不正な状態のインスタンスがトラフィックを\n受けてしまいます。\n\n### 何を外から与えるか\n\n| 外から与える | ビルドに含める |\n|---|---|\n| 接続先、タイムアウト、機能フラグ | 業務ロジック、依存ライブラリ |\n| 資格情報（シークレット管理から短命で） | 既定値・妥当な範囲の定義 |\n\n同じ成果物・同じコンテナイメージを全環境で使い、差は設定だけにします。\n\n> ⚠️ 間違えやすい点 … 「とりあえず既定値を入れておく」は、設定し忘れを本番まで\n> 隠します。**本番で必ず変えるべき値には既定値を置かない** のが安全です。\n> パスワードやトークンはソース・イメージ・通常のログへ入れません。値そのものは\n> 伏せたまま、設定のバージョンや取得の成否だけを観測できるようにします。",
+      "samples": [
+        {
+          "caption": "必須環境変数を検証する形",
+          "code": "public class Main {\n    public static void main(String[] a) {\n        String v = System.getenv(\"APP_MODE\");\n        System.out.println(v == null ? \"missing\" : v);\n    }\n}\n"
+        }
+      ],
+      "task": "`timeout`、`poolSize`、`secretPresent`（0か1）を読みます。timeoutが1〜30000、poolSizeが1〜100、secretPresentが1のときだけ `START`、それ以外は `CONFIG_ERROR` と表示してください。",
+      "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] a) {\n        Scanner s = new Scanner(System.in);\n        int timeout = s.nextInt(), pool = s.nextInt(), secret = s.nextInt();\n        /* TODO */\n    }\n}\n",
+      "visibleCases": [
+        {
+          "label": "正常設定",
+          "stdin": "2000 20 1",
+          "expected": "START"
+        },
+        {
+          "label": "secretなし",
+          "stdin": "2000 20 0",
+          "expected": "CONFIG_ERROR"
+        }
+      ],
+      "hiddenCases": [
+        {
+          "label": "範囲外",
+          "stdin": "30001 10 1",
+          "expected": "CONFIG_ERROR"
+        }
+      ],
+      "hints": [
+        "3条件を&&で結びます。"
+      ],
+      "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] a) {\n        Scanner s = new Scanner(System.in);\n        int timeout = s.nextInt(), pool = s.nextInt(), secret = s.nextInt();\n        boolean ok = timeout >= 1 && timeout <= 30000 && pool >= 1 && pool <= 100 && secret == 1;\n        System.out.println(ok ? \"START\" : \"CONFIG_ERROR\");\n    }\n}\n",
+      "quiz": [
+        {
+          "question": "環境ごとにアプリケーションを再ビルドしない理由は？",
+          "choices": [
+            "設定をソースコードへ埋め込めるため",
+            "機密情報を公開できるようにするため",
+            "ロールバックを難しくできるため",
+            "検証済みの成果物を同一に保ち、設定だけを分離するため"
+          ],
+          "answer": 3,
+          "explanation": "設定をソースへ埋め込むのは、環境ごとの再ビルドを必要にする原因そのものです。機密を公開できるようにすることや、ロールバックを難しくすることは目的になりません。検証した成果物とまったく同じものを各環境へ運び、違いは設定として外から与えます。"
+        },
+        {
+          "question": "必須の設定値が欠けたまま起動を続け、最初のリクエストで初めて失敗する作りが望ましくないのはなぜでしょう。",
+          "choices": [
+            "起動後に設定ファイルが読めなくなるため",
+            "シークレット管理サービスへの接続が使えなくなるため",
+            "起動が速くなりすぎて監視が追いつかないため",
+            "不正な状態のインスタンスがトラフィックを受けてしまうため"
+          ],
+          "answer": 3,
+          "explanation": "既定値・必須値・型・範囲を起動時に検証し、設定が不正なら早く停止します。原因の分かりにくい障害になります。"
+        }
       ]
     },
     {
-      "id":"55-2","title":"コンテナとJVMの資源を合わせる",
-      "explanation":"## メモリ上限はヒープだけではない\n\nコンテナイメージは小さく、非rootで、読み取り専用のファイルシステムを基本にし、JDK / JREの層とアプリケーションの層を分けます。ベースイメージのdigest、OSパッケージ、JDKのパッチは継続的に更新し、マルチステージビルドや `jlink` も選択肢にします。PID 1へシグナルが届くentrypointにして、終了処理が動くことを確認します。\n\nコンテナのメモリ上限に入るのは、ヒープだけではありません。Metaspace、コードキャッシュ、スレッドスタック、ダイレクトバッファ、ネイティブライブラリも同じ上限に含まれます。`-Xmx` を上限いっぱいにせず余白を取り、GCログやNative Memory Trackingなどで実測します。CPUのクォータはGC・JIT・スレッドプールの並列度にも影響します。要求量と上限（request / limit）とJVMの設定は、負荷テストで組にして決めます。\n\n> 🧪 画面内問題はヒープ上限の見積り計算です。非root・読み取り専用を前提にした `labs/delivery` の `Dockerfile` と `ContainerApp.java` をメモリ上限付きで起動し、上限内に収まるか、SIGTERMで期限内に終了するかを観察してください。",
-      "samples":[{"caption":"ヒープ以外の予算を引く","code":"public class Main{public static void main(String[] a){long limit=1024,nativeBudget=384;System.out.println(limit-nativeBudget);}}\n"}],
-      "task":"コンテナのメモリ上限（MiB）、ヒープ以外に見込む予算（MiB）、安全余白（MiB）を読み、ヒープ上限の候補 `limit - nonHeap - margin` を表示します。0以下になったら `INVALID` と表示してください。",
-      "starterCode":"import java.util.*;public class Main{public static void main(String[] a){Scanner s=new Scanner(System.in);int limit=s.nextInt(),nonHeap=s.nextInt(),margin=s.nextInt();int heap=limit-nonHeap-margin;/* TODO */}}\n",
-      "visibleCases":[{"label":"メモリ予算","stdin":"1024 300 100","expected":"624"}],
-      "hiddenCases":[{"label":"不足","stdin":"256 200 100","expected":"INVALID"}],
-      "hints":["ヒープが正の数なら値を、そうでなければ `INVALID` を表示します。"],
-      "solution":"import java.util.*;public class Main{public static void main(String[] a){Scanner s=new Scanner(System.in);int limit=s.nextInt(),nonHeap=s.nextInt(),margin=s.nextInt();int heap=limit-nonHeap-margin;System.out.println(heap>0?heap:\"INVALID\");}}\n",
-      "quiz":[
-        {"question":"コンテナのメモリ上限に含まれるものは？","choices":["Javaのヒープだけ","ヒープに加えてMetaspace・スレッドスタック・ダイレクト/ネイティブメモリなど","クラスファイルのソースだけ","DBサーバーのメモリ全体"],"answer":1,"explanation":"プロセス全体の使用量を予算として見積もります。"},
-        {"question":"コンテナのメモリ上限が512MiBのときに `-Xmx512m` を指定すると、起きやすいことはどれでしょう。","choices":["ヒープが自動的に縮小される","ヒープ以外の領域の分で上限を超え、コンテナが強制終了されやすい","GCが停止する","CPUのクォータが無視される"],"answer":1,"explanation":"Metaspace、コードキャッシュ、スレッドスタック、ダイレクトバッファなども同じ上限に入るため、余白を取ります。"}
+      "id": "55-2",
+      "title": "コンテナとJVMの資源を合わせる",
+      "explanation": "## メモリ上限はヒープだけではない\n\nコンテナイメージは小さく、非rootで、読み取り専用のファイルシステムを基本にし、JDK / JREの層とアプリケーションの層を分けます。ベースイメージのdigest、OSパッケージ、JDKのパッチは継続的に更新し、マルチステージビルドや `jlink` も選択肢にします。PID 1へシグナルが届くentrypointにして、終了処理が動くことを確認します。\n\nコンテナのメモリ上限に入るのは、ヒープだけではありません。Metaspace、コードキャッシュ、スレッドスタック、ダイレクトバッファ、ネイティブライブラリも同じ上限に含まれます。`-Xmx` を上限いっぱいにせず余白を取り、GCログやNative Memory Trackingなどで実測します。CPUのクォータはGC・JIT・スレッドプールの並列度にも影響します。要求量と上限（request / limit）とJVMの設定は、負荷テストで組にして決めます。\n\n> 🧪 画面内問題はヒープ上限の見積り計算です。非root・読み取り専用を前提にした `labs/delivery` の `Dockerfile` と `ContainerApp.java` をメモリ上限付きで起動し、上限内に収まるか、SIGTERMで期限内に終了するかを観察してください。\n\n### 上限はプロセス全体にかかる\n\nJVMが確保するのはヒープだけではありません。\n\n| 領域 | 何に使うか |\n|---|---|\n| ヒープ | `new` したオブジェクト（`-Xmx` で指定） |\n| Metaspace | クラスのメタデータ。ライブラリが多いと増える |\n| スレッドスタック | スレッド1本ごとに約1MB |\n| ダイレクト/ネイティブ | NIOのバッファ、JITのコード、GCの作業領域 |\n\nコンテナの `--memory` はこの **合計** にかかります。だから\n`--memory=256m` に対して `-Xmx256m` を指定すると、ヒープだけで上限に達し、\n残りの領域を取ろうとした時点で **コンテナが強制終了されます**（OOM Killer）。\nJVM内の `OutOfMemoryError` ではないので、スタックトレースも残りません。\n\n### 上限を割合で指定する\n\n```sh\njava -XX:MaxRAMPercentage=70 -jar app.jar\n```\n\nコンテナの上限を見て、その割合をヒープにします。`--memory` を変えたときに\n`-Xmx` を直し忘れる事故が防げます。\n\n実際に確かめられます。\n\n```java\nRuntime.getRuntime().maxMemory() / 1024 / 1024   // ヒープ上限（MiB）\nRuntime.getRuntime().availableProcessors()       // 使えるCPU数\n```\n\n指定しなければヒープ上限は環境のメモリ量から決まります（この環境では9216MiB、\n`-Xmx256m` を付けると256MiB になりました）。\n\n> ⚠️ 間違えやすい点 … `availableProcessors()` はコンテナのCPU制限を見ます。\n> スレッドプールの大きさをこれで決めていると、`--cpus=1` にした途端に\n> 並列度が1になって遅くなります。制限を変えたら、プールの設定も見直します。\n\n> 🧪 アプリで確かめること / labs で動かすこと … この問題で確かめるのはコンテナの制限からヒープの上限を決める計算です。\n> 制限をかけたコンテナの中で `maxMemory` を実際に見ることは、1ファイル・標準入力だけのこの画面では扱えません。`labs/delivery` に本物を置いてあります。",
+      "samples": [
+        {
+          "caption": "ヒープ以外の予算を引く",
+          "code": "public class Main {\n    public static void main(String[] a) {\n        long limit = 1024, nativeBudget = 384;\n        System.out.println(limit - nativeBudget);\n    }\n}\n"
+        }
+      ],
+      "task": "コンテナのメモリ上限（MiB）、ヒープ以外に見込む予算（MiB）、安全余白（MiB）を読み、ヒープ上限の候補 `limit - nonHeap - margin` を表示します。0以下になったら `INVALID` と表示してください。",
+      "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] a) {\n        Scanner s = new Scanner(System.in);\n        int limit = s.nextInt(), nonHeap = s.nextInt(), margin = s.nextInt();\n        int heap = limit - nonHeap - margin;\n        /* TODO */\n    }\n}\n",
+      "visibleCases": [
+        {
+          "label": "メモリ予算",
+          "stdin": "1024 300 100",
+          "expected": "624"
+        }
+      ],
+      "hiddenCases": [
+        {
+          "label": "不足",
+          "stdin": "256 200 100",
+          "expected": "INVALID"
+        }
+      ],
+      "hints": [
+        "ヒープが正の数なら値を、そうでなければ `INVALID` を表示します。"
+      ],
+      "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] a) {\n        Scanner s = new Scanner(System.in);\n        int limit = s.nextInt(), nonHeap = s.nextInt(), margin = s.nextInt();\n        int heap = limit - nonHeap - margin;\n        System.out.println(heap > 0 ? heap : \"INVALID\");\n    }\n}\n",
+      "quiz": [
+        {
+          "question": "コンテナのメモリ上限に含まれるものは？",
+          "choices": [
+            "同じホストで動くDBサーバーの使用量も合算される",
+            "読み込んだクラスファイルの合計サイズだけ",
+            "ヒープに加えてMetaspaceやスレッドスタック、ネイティブメモリ",
+            "JVMのヒープ領域だけで、それ以外は上限の対象にならない"
+          ],
+          "answer": 2,
+          "explanation": "プロセス全体の使用量を予算として見積もります。ダイレクトバッファも含め、プロセス全体の使用量を予算として見積もります。"
+        },
+        {
+          "question": "コンテナのメモリ上限が512MiBのときに `-Xmx512m` を指定すると、起きやすいことはどれでしょう。",
+          "choices": [
+            "ヒープが自動的に縮小して収まる",
+            "CPUのクォータの指定が無視される",
+            "ヒープ以外の分で上限を超え、強制終了されやすい",
+            "GCが停止してメモリが解放されない"
+          ],
+          "answer": 2,
+          "explanation": "Metaspace、コードキャッシュ、スレッドスタック、ダイレクトバッファなども同じ上限に入るため、余白を取ります。コンテナはプロセス全体の使用量で判断します。"
+        }
       ]
     },
     {
-      "id":"55-3","title":"ヘルスチェック・安全な停止・ロールアウト",
-      "explanation":"## 「生きているか」と「受け付けられるか」を分ける\n\nlivenessは「プロセスを再起動すべきか」、readinessは「新しいトラフィックを受けられるか」、startup probeは「初期化が遅いときに誤って再起動されるのを防ぐため」に使います。外部のDBが一時停止しただけで全インスタンスのlivenessを失敗させると、いっせいに再起動が走って復旧が遅れます。依存先の状態は、主にreadinessと業務メトリクスで表します。\n\n終了シグナルを受けたら、まずreadinessを落として新規の受付を止め、実行中のリクエストやメッセージを期限内に処理し終えて、資源を閉じます。デプロイ方式はローリング・カナリア・ブルーグリーンから選び、エラー率・応答時間・飽和度などの停止条件とロールバックを自動化します。ロールバックできる期間は、スキーマやメッセージの互換性で決まります。",
-      "samples":[{"caption":"受付できる状態かを明示する模型","code":"import java.util.concurrent.atomic.*;public class Main{public static void main(String[] a){AtomicBoolean ready=new AtomicBoolean(true);ready.set(false);System.out.println(ready.get()?\"READY\":\"DRAINING\");}}\n"}],
-      "task":"状態 `starting` / `ready` / `draining` / `failed` を読み、ヘルスチェックのHTTPステータスをそれぞれ `503` / `200` / `503` / `500` と表示してください。",
-      "starterCode":"import java.util.*;public class Main{public static void main(String[] a){String state=new Scanner(System.in).next();/* TODO */}}\n",
-      "visibleCases":[{"label":"受付中","stdin":"ready","expected":"200"},{"label":"排出中","stdin":"draining","expected":"503"}],
-      "hiddenCases":[{"label":"故障","stdin":"failed","expected":"500"}],
-      "hints":["switch式で対応付けられます。"],
-      "solution":"import java.util.*;public class Main{public static void main(String[] a){String state=new Scanner(System.in).next();System.out.println(switch(state){case \"ready\"->200;case \"failed\"->500;default->503;});}}\n",
-      "quiz":[
-        {"question":"DBの一時障害をlivenessの失敗へ直結させない方がよい理由は？","choices":["DBは絶対に止まらないため","全インスタンスがいっせいに再起動し、かえって復旧が遅れるため","readinessがHTTPを使えないため","JVMはシグナルを受け取れないため"],"answer":1,"explanation":"プロセス自体の故障と、外部依存が原因で受け付けられない状態を分けて扱います。"},
-        {"question":"終了シグナルを受けたインスタンスが、readinessを落とす前にプロセスを終了すると何が起きやすいでしょう。","choices":["デプロイが速くなるだけ","livenessが必ず失敗する","ロールバックが自動実行される","まだトラフィックが振られている間に停止し、処理中のリクエストが失敗する"],"answer":3,"explanation":"シグナルを受けたら、まずreadinessを落として新規受付を止め、実行中の処理を期限内に終えます。"}
+      "id": "55-3",
+      "title": "ヘルスチェック・安全な停止・ロールアウト",
+      "explanation": "## 「生きているか」と「受け付けられるか」を分ける\n\nlivenessは「プロセスを再起動すべきか」、readinessは「新しいトラフィックを受けられるか」、startup probeは「初期化が遅いときに誤って再起動されるのを防ぐため」に使います。外部のDBが一時停止しただけで全インスタンスのlivenessを失敗させると、いっせいに再起動が走って復旧が遅れます。依存先の状態は、主にreadinessと業務メトリクスで表します。\n\n終了シグナルを受けたら、まずreadinessを落として新規の受付を止め、実行中のリクエストやメッセージを期限内に処理し終えて、資源を閉じます。デプロイ方式はローリング・カナリア・ブルーグリーンから選び、エラー率・応答時間・飽和度などの停止条件とロールバックを自動化します。ロールバックできる期間は、スキーマやメッセージの互換性で決まります。\n\n### 終了は「受付を止める」から始める\n\nSIGTERMを受けてすぐプロセスを終えると、ロードバランサはまだこのインスタンスへ\n振り分けています。順番が大事です。\n\n```\nSIGTERM を受け取る\n  ↓ readiness を false にする      ← 新規の振り分けを止めてもらう\n  ↓ 数秒待つ                        ← LBが気づくまでの時間（設定に依存）\n  ↓ 実行中のリクエストを終える        ← 期限つき（例: 10秒）\n  ↓ プロセス終了\n```\n\nこの順を守らないと、停止の瞬間に処理中のリクエストが失敗します。\n\n### liveness と readiness は別のもの\n\n| 種類 | 意味 | 失敗したとき |\n|---|---|---|\n| liveness | プロセスが壊れていないか | **再起動される** |\n| readiness | いまトラフィックを受けられるか | 振り分けから外される（再起動しない） |\n\n起動直後や一時的に混んでいるときは、liveness は成功・readiness は失敗が正しい形です。\n\n> ⚠️ 間違えやすい点 … liveness の判定に **依存先（DBや外部API）を入れない** こと。\n> DBが一時的に落ちただけで全インスタンスが再起動を繰り返し、DBが戻っても\n> 起動の嵐で復旧できなくなります。依存先の状態は readiness で表します。",
+      "samples": [
+        {
+          "caption": "受付できる状態かを明示する模型",
+          "code": "import java.util.concurrent.atomic.*;\n\npublic class Main {\n    public static void main(String[] a) {\n        AtomicBoolean ready = new AtomicBoolean(true);\n        ready.set(false);\n        System.out.println(ready.get() ? \"READY\" : \"DRAINING\");\n    }\n}\n"
+        }
+      ],
+      "task": "状態 `starting` / `ready` / `draining` / `failed` を読み、ヘルスチェックのHTTPステータスをそれぞれ `503` / `200` / `503` / `500` と表示してください。",
+      "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] a) {\n        String state = new Scanner(System.in).next();\n        /* TODO */\n    }\n}\n",
+      "visibleCases": [
+        {
+          "label": "受付中",
+          "stdin": "ready",
+          "expected": "200"
+        },
+        {
+          "label": "排出中",
+          "stdin": "draining",
+          "expected": "503"
+        }
+      ],
+      "hiddenCases": [
+        {
+          "label": "故障",
+          "stdin": "failed",
+          "expected": "500"
+        }
+      ],
+      "hints": [
+        "switch式で対応付けられます。"
+      ],
+      "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] a) {\n        String state = new Scanner(System.in).next();\n        System.out.println(switch (state) {\n            case \"ready\" -> 200;\n            case \"failed\" -> 500;\n            default -> 503;\n        });\n    }\n}\n",
+      "quiz": [
+        {
+          "question": "DBの一時障害をlivenessの失敗へ直結させない方がよい理由は？",
+          "choices": [
+            "readinessがHTTPを使えないため",
+            "全インスタンスがいっせいに再起動し、かえって復旧が遅れるため",
+            "DBの障害はreadinessでは検知できないため",
+            "JVMはシグナルを受け取れないため"
+          ],
+          "answer": 1,
+          "explanation": "readinessもHTTPを使えますし、DBの障害はreadinessで表せます。JVMはシグナルを受け取れます。livenessに失敗すると再起動されるので、共通のDBが一時的に落ちた瞬間に**全インスタンスが同時に再起動**し、DBが戻っても暖まっていない状態から始まって、かえって復旧が遅れます。"
+        },
+        {
+          "question": "終了シグナルを受けたインスタンスが、readinessを落とす前にプロセスを終了すると何が起きやすいでしょう。",
+          "choices": [
+            "livenessの検査が必ず失敗するようになる",
+            "まだトラフィックが振られている間に停止し、処理中の要求が失敗する",
+            "デプロイのロールバックが自動で実行される",
+            "新規受付が止まってデプロイが速くなるだけ"
+          ],
+          "answer": 1,
+          "explanation": "シグナルを受けたら、まずreadinessを落として新規受付を止め、実行中の処理を期限内に終えます。"
+        }
       ]
     },
     {
-      "id":"55-4","title":"ログ・メトリクス・トレースとSLO",
-      "explanation":"## 症状から1つのリクエストへたどる\n\n構造化ログには、時刻・重大度・サービス名・イベント名・トレースIDやリクエストID・主要な（機密でない）文脈情報を持たせます。メトリクスはリクエスト数・エラー数・応答時間・飽和度を集計し、トレースはサービスをまたぐ一回の処理をspanでつなぎます。利用者IDや生のURLのように値の種類が多いものはメトリクスのラベルにせず、サンプリング率と保存期間は費用と調査の要件に合わせて決めます。\n\nSLIは利用者が感じる可用性や応答時間の測定値、SLOはその目標値、エラーバジェットは許容できる失敗の量です。アラートは原因の候補ではなく、利用者への影響に近い「バジェットの消費速度（burn rate）」を中心に設計し、対応手順書とダッシュボードへつなげます。障害のあとは、誰かを責めるのではなく、時系列・検知の経緯・影響範囲・寄与した要因・再発防止を記録に残します。",
-      "samples":[{"caption":"成功率を計算する","code":"public class Main{public static void main(String[] a){long total=1000,good=997;System.out.printf(\"%.2f%%%n\",good*100.0/total);}}\n"}],
-      "task":"総数と失敗数を読み、成功率を小数2桁のパーセントで表示してください。総数が0なら `NO_DATA` です。",
-      "starterCode":"import java.util.*;public class Main{public static void main(String[] a){Scanner s=new Scanner(System.in);long total=s.nextLong(),failed=s.nextLong();/* TODO */}}\n",
-      "visibleCases":[{"label":"SLI","stdin":"1000 3","expected":"99.70%"}],
-      "hiddenCases":[{"label":"データなし","stdin":"0 0","expected":"NO_DATA"}],
-      "hints":["総数が0かどうかを先に判定し、そのあと `(total-failed)*100.0/total` を求めます。"],
-      "solution":"import java.util.*;public class Main{public static void main(String[] a){Scanner s=new Scanner(System.in);long total=s.nextLong(),failed=s.nextLong();if(total==0)System.out.println(\"NO_DATA\");else System.out.printf(\"%.2f%%%n\",(total-failed)*100.0/total);}}\n",
-      "quiz":[
-        {"question":"メトリクスのラベルに利用者IDを使いにくい理由は？","choices":["数値でないため","値の種類が増えすぎて、監視基盤の費用と性能を悪化させるため","トレースIDと必ず同じ値になるため","ログが不要になるため"],"answer":1,"explanation":"集計の軸は種類が限られた安定した値にし、個別の追跡はトレースやログで行います。"},
-        {"question":"「CPU使用率が80%を超えた」ではなく、エラーバジェットの消費速度（burn rate）でアラートを鳴らす利点はどれでしょう。","choices":["原因の候補ではなく利用者への影響に近い信号で鳴るため、対応すべき事象へ絞りやすい","監視対象の数を減らせる","SLOが不要になる","サンプリングが不要になる"],"answer":0,"explanation":"アラートは対応手順書とダッシュボードへつなげ、利用者への影響を中心に設計します。"}
+      "id": "55-4",
+      "title": "ログ・メトリクス・トレースとSLO",
+      "explanation": "## 症状から1つのリクエストへたどる\n\n構造化ログには、時刻・重大度・サービス名・イベント名・トレースIDやリクエストID・主要な（機密でない）文脈情報を持たせます。メトリクスはリクエスト数・エラー数・応答時間・飽和度を集計し、トレースはサービスをまたぐ一回の処理をspanでつなぎます。利用者IDや生のURLのように値の種類が多いものはメトリクスのラベルにせず、サンプリング率と保存期間は費用と調査の要件に合わせて決めます。\n\nSLIは利用者が感じる可用性や応答時間の測定値、SLOはその目標値、エラーバジェットは許容できる失敗の量です。アラートは原因の候補ではなく、利用者への影響に近い「バジェットの消費速度（burn rate）」を中心に設計し、対応手順書とダッシュボードへつなげます。障害のあとは、誰かを責めるのではなく、時系列・検知の経緯・影響範囲・寄与した要因・再発防止を記録に残します。\n\n### エラーバジェットを数で見る\n\nSLOを決めると、許容できる失敗の量が計算できます。30日は43,200分なので、\n\n| SLO | 30日で許容できる失敗 |\n|---|---|\n| 99.0% | 432分（7時間12分） |\n| 99.9% | 43.2分 |\n| 99.95% | 21.6分 |\n\n99.9%なら予算は43.2分です。ここで **1時間のうち4.32分** 失敗したとすると、\n1時間で予算の10%を使ったことになります。均等に使えば1時間あたり0.139%\n（1/720）なので、消費速度は **72倍** です。これが burn rate です。\n\nburn rate で鳴らすと「CPUが80%を超えた」より、対応すべき事象に絞れます。\nCPUは高くても利用者に影響がなければ鳴らす必要がなく、逆にCPUが低くても\n外部APIの失敗で利用者が困っていれば鳴ってほしいからです。\n\n### 症状から1件へたどる\n\nアラートはダッシュボードと手順書へつながり、そこから **1つのリクエスト** へ\nたどれる必要があります。メトリクス（全体の傾向）→ トレース（1件の経路）→\nログ（その時点の詳細）の順に降りていける形にしておきます。\n\n> ⚠️ 間違えやすい点 … 短い窓だけで鳴らすと一瞬のスパイクで誤報になり、長い窓だけだと\n> 気づくのが遅れます。短い窓と長い窓の**両方が同時に閾値を超えたときだけ**鳴らす、\n> という組み合わせがよく使われます。\n> また、メトリクスのラベルに利用者IDのような**値の種類が多いもの**を入れないこと\n> （組み合わせの数だけ時系列が増え、監視基盤の費用と性能を壊します）。",
+      "samples": [
+        {
+          "caption": "成功率を計算する",
+          "code": "public class Main {\n    public static void main(String[] a) {\n        long total = 1000, good = 997;\n        System.out.printf(\"%.2f%%%n\", good * 100.0 / total);\n    }\n}\n"
+        }
+      ],
+      "task": "総数と失敗数を読み、成功率を小数2桁のパーセントで表示してください。総数が0なら `NO_DATA` です。",
+      "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] a) {\n        Scanner s = new Scanner(System.in);\n        long total = s.nextLong(), failed = s.nextLong();\n        /* TODO */\n    }\n}\n",
+      "visibleCases": [
+        {
+          "label": "SLI",
+          "stdin": "1000 3",
+          "expected": "99.70%"
+        }
+      ],
+      "hiddenCases": [
+        {
+          "label": "データなし",
+          "stdin": "0 0",
+          "expected": "NO_DATA"
+        }
+      ],
+      "hints": [
+        "総数が0かどうかを先に判定し、そのあと `(total-failed)*100.0/total` を求めます。"
+      ],
+      "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] a) {\n        Scanner s = new Scanner(System.in);\n        long total = s.nextLong(), failed = s.nextLong();\n        if (total == 0) System.out.println(\"NO_DATA\");\n        else System.out.printf(\"%.2f%%%n\",(total - failed) * 100.0 / total);\n    }\n}\n",
+      "quiz": [
+        {
+          "question": "メトリクスのラベルに利用者IDを使いにくい理由は？",
+          "choices": [
+            "値が数値ではないため",
+            "ログそのものが不要になるため",
+            "値の種類が増えすぎて監視基盤の費用が増えるため",
+            "トレースIDと重複してしまうため"
+          ],
+          "answer": 2,
+          "explanation": "集計の軸は種類が限られた安定した値にし、個別の追跡はトレースやログで行います。性能も悪化します。"
+        },
+        {
+          "question": "「CPU使用率が80%を超えた」ではなく、エラーバジェットの消費速度（burn rate）でアラートを鳴らす利点はどれでしょう。",
+          "choices": [
+            "監視する項目の数を減らせるので運用が楽になる",
+            "利用者への影響に近い信号で鳴るので、対応すべき事象に絞れる",
+            "SLOそのものを決めなくてもよくなる",
+            "トレースのサンプリング設定が不要になる"
+          ],
+          "answer": 1,
+          "explanation": "アラートは対応手順書とダッシュボードへつなげ、利用者への影響を中心に設計します。CPU使用率のような原因の候補は、利用者に影響がなくても鳴ってしまいます。"
+        }
       ]
     },
     {
       "id": "55-5",
       "title": "章末演習：設定・コンテナ・可観測性",
-      "explanation": "## この章の知識を、自分の手で組み合わせよう\n\nここでは、**設定の起動時検証・コンテナのメモリ配分・「生きているか」と「受け付けられるか」の区別・SLIとエラーバジェット**をまとめて使います。新しい文法は登場しません。分からなくなったら、直前までの解説やサンプルへ戻って確認して大丈夫です。\n\n### 3問の進め方\n\n1. **基本**で、中心となる書き方をもう一度使う\n2. **組み合わせ**で、章内の複数の知識を一緒に使う\n3. **実践**で、少し現実的な入力と条件を整理する\n\nコンテナを起動して観察するのは `labs/delivery` です。ここで書くのは、**起動前と障害中に機械が下している判断**をJavaへ書き起こしたものです。",
-      "samples": [{"caption":"復習用サンプル：割合の比較は小数にせず整数のまま行う","code":"public class Main{public static void main(String[] a){long total=1000,failed=6,budgetPerMille=5;System.out.println(failed*1000>total*budgetPerMille?\"BURN\":\"OK\");}}\n","expected":"BURN"}],
+      "explanation": "## この章の知識を、自分の手で組み合わせよう\n\nここでは、**設定の起動時検証・コンテナのメモリ配分・「生きているか」と「受け付けられるか」の区別・SLIとエラーバジェット**をまとめて使います。新しい文法は登場しません。分からなくなったら、直前までの解説やサンプルへ戻って確認して大丈夫です。\n\n### 3問の進め方\n\n1. **基本**で、中心となる書き方をもう一度使う\n2. **組み合わせ**で、章内の複数の知識を一緒に使う\n3. **実践**で、少し現実的な入力と条件を整理する\n\nコンテナを起動して観察するのは `labs/delivery` です。ここで書くのは、**起動前と障害中に機械が下している判断**をJavaへ書き起こしたものです。\n\n> 🧪 アプリで確かめること / labs で動かすこと … この問題で確かめるのは設定・コンテナ・可観測性の判断です。\n> コンテナを実際に動かして観測することは、1ファイル・標準入力だけのこの画面では扱えません。`labs/delivery` に本物を置いてあります。\n> ★はアプリの問題に対して付きます。labs をやったかどうかは★には出ないので、\n> 手を動かした記録は labs 側のREADMEの手順で残してください。",
+      "samples": [
+        {
+          "caption": "復習用サンプル：割合の比較は小数にせず整数のまま行う",
+          "code": "public class Main {\n    public static void main(String[] a) {\n        long total = 1000, failed = 6, budgetPerMille = 5;\n        System.out.println(failed * 1000 > total * budgetPerMille ? \"BURN\" : \"OK\");\n    }\n}\n",
+          "expected": "BURN"
+        }
+      ],
       "task": "【基本】設定項目をn件 `key value` の形で読み、起動前に検証します。各項目を読んだ順に1行ずつ、次のように表示してください。\n\n- `timeout` … 1〜30000なら `timeout OK`、外れていれば `timeout OUT_OF_RANGE`\n- `poolSize` … 1〜100なら `poolSize OK`、外れていれば `poolSize OUT_OF_RANGE`\n- `secret` … 値が1なら `secret OK`、そうでなければ `secret MISSING_SECRET`\n- 上のどれでもないキー … `key UNKNOWN_KEY`\n\n最後に、`timeout` `poolSize` `secret` の3つがすべて現れていて、かつ1件も問題が無ければ `START`、そうでなければ `CONFIG_ERROR` と表示します。",
-      "starterCode": "import java.util.*;\npublic class Main {public static void main(String[] args){Scanner s=new Scanner(System.in);int n=s.nextInt();Set<String> seen=new HashSet<>();boolean bad=false;for(int i=0;i<n;i++){String key=s.next();int value=s.nextInt();/* TODO 4つの判定 */}/* TODO START か CONFIG_ERROR */}}\n",
-      "visibleCases": [{"label":"正しい設定","stdin":"3 timeout 2000 poolSize 20 secret 1","expected":"timeout OK\npoolSize OK\nsecret OK\nSTART"},{"label":"3つとも不正","stdin":"3 timeout 0 poolSize 200 secret 0","expected":"timeout OUT_OF_RANGE\npoolSize OUT_OF_RANGE\nsecret MISSING_SECRET\nCONFIG_ERROR"}],
-      "hiddenCases": [{"label":"綴り違いのキーも止める","stdin":"4 timeout 2000 poolSize 20 secret 1 debug 1","expected":"timeout OK\npoolSize OK\nsecret OK\ndebug UNKNOWN_KEY\nCONFIG_ERROR"},{"label":"必須キーが足りない","stdin":"2 timeout 2000 poolSize 20","expected":"timeout OK\npoolSize OK\nCONFIG_ERROR"},{"label":"上限ちょうど","stdin":"3 timeout 30000 poolSize 100 secret 1","expected":"timeout OK\npoolSize OK\nsecret OK\nSTART"},{"label":"下限ちょうど","stdin":"3 timeout 1 poolSize 1 secret 1","expected":"timeout OK\npoolSize OK\nsecret OK\nSTART"},{"label":"設定が空","stdin":"0","expected":"CONFIG_ERROR"}],
-      "hints": ["現れたキーを `Set` へ入れておけば、最後に3つそろっているかを `containsAll` で確かめられます。","問題があったかどうかは `boolean` 1つで覚えます。表示は項目ごと、判定は最後にまとめてです。","知らないキーも止めます。綴りを間違えた設定が黙って無視されると、既定値のまま本番へ出てしまいます。"],
-      "solution": "import java.util.*;\npublic class Main {public static void main(String[] args){Scanner s=new Scanner(System.in);int n=s.nextInt();Set<String> seen=new HashSet<>();boolean bad=false;for(int i=0;i<n;i++){String key=s.next();int value=s.nextInt();seen.add(key);String result;switch(key){case \"timeout\"->result=value>=1&&value<=30000?\"OK\":\"OUT_OF_RANGE\";case \"poolSize\"->result=value>=1&&value<=100?\"OK\":\"OUT_OF_RANGE\";case \"secret\"->result=value==1?\"OK\":\"MISSING_SECRET\";default->result=\"UNKNOWN_KEY\";}if(!result.equals(\"OK\"))bad=true;System.out.println(key+\" \"+result);}System.out.println(!bad&&seen.containsAll(List.of(\"timeout\",\"poolSize\",\"secret\"))?\"START\":\"CONFIG_ERROR\");}}\n",
-      "extraTasks": [{"kind":"drill","task":"【組み合わせ】container memoryの予算と、起動から終了までのhealth応答をまとめて確かめます。`limit nonHeap margin` をMiBで読み、続けて状態の数nと、n件の状態を読みます（状態は `starting` / `ready` / `draining` / `failed`）。\n\n1行目に、heap上限の候補を `HEAP 値` の形で表示してください。値は `limit - nonHeap - margin` です。0以下になったら `HEAP INVALID` と表示します。\n\n続けて各状態を読んだ順に `行番号 状態 status` と表示します（行番号は1から）。statusは `ready` が `200`、`failed` が `500`、`starting` と `draining` は `503` です。最後に、`ready` の状態が1件以上あれば `RECEIVED_TRAFFIC 件数`、1件も無ければ `NO_TRAFFIC` と表示します。","starterCode":"import java.util.*;\npublic class Main {public static void main(String[] args){Scanner s=new Scanner(System.in);int limit=s.nextInt(),nonHeap=s.nextInt(),margin=s.nextInt(),heap=limit-nonHeap-margin;/* TODO HEAP の表示 */\nint n=s.nextInt(),ready=0;for(int k=1;k<=n;k++){String state=s.next();/* TODO status の表示と ready の数え上げ */}/* TODO RECEIVED_TRAFFIC か NO_TRAFFIC */}}\n","visibleCases":[{"label":"起動から排出まで","stdin":"1024 300 100 4 starting starting ready draining","expected":"HEAP 624\n1 starting 503\n2 starting 503\n3 ready 200\n4 draining 503\nRECEIVED_TRAFFIC 1"},{"label":"余白が取れない","stdin":"512 400 200 2 failed ready","expected":"HEAP INVALID\n1 failed 500\n2 ready 200\nRECEIVED_TRAFFIC 1"}],"hiddenCases":[{"label":"0も余白なしとみなす","stdin":"500 300 200 1 ready","expected":"HEAP INVALID\n1 ready 200\nRECEIVED_TRAFFIC 1"},{"label":"状態0件","stdin":"1024 300 100 0","expected":"HEAP 624\nNO_TRAFFIC"},{"label":"一度も受付できない","stdin":"1024 300 100 2 starting failed","expected":"HEAP 624\n1 starting 503\n2 failed 500\nNO_TRAFFIC"},{"label":"受付できた回数を数える","stdin":"2048 512 256 3 ready ready draining","expected":"HEAP 1280\n1 ready 200\n2 ready 200\n3 draining 503\nRECEIVED_TRAFFIC 2"}],"hints":["`heap>0` かどうかで表示を切り替えます。コンテナの上限ぎりぎりに `-Xmx` を置かないための計算です。","ステータスは `switch` 式で書けます。`starting` と `draining` は同じ503です。","livenessは「再起動すべきか」、readinessは「トラフィックを受けられるか」です。`draining` が503でもプロセスは生きています。だから状態とステータスを別に持っています。"],"solution":"import java.util.*;\npublic class Main {public static void main(String[] args){Scanner s=new Scanner(System.in);int limit=s.nextInt(),nonHeap=s.nextInt(),margin=s.nextInt(),heap=limit-nonHeap-margin;System.out.println(heap>0?\"HEAP \"+heap:\"HEAP INVALID\");int n=s.nextInt(),ready=0;for(int k=1;k<=n;k++){String state=s.next();int status=switch(state){case \"ready\"->200;case \"failed\"->500;default->503;};if(state.equals(\"ready\"))ready++;System.out.println(k+\" \"+state+\" \"+status);}System.out.println(ready>0?\"RECEIVED_TRAFFIC \"+ready:\"NO_TRAFFIC\");}}\n"},{"kind":"applied","task":"【実践】SLOのerror budgetを集計します。許容する失敗率をパーミル（1000分のいくつ）で budgetPerMille として読み、続けて期間数nと、n件の `window total failed` を読みます。\n\n各期間を読んだ順に1行ずつ表示してください。`total` が0なら `window NO_DATA` です。そうでなければ成功率を小数2桁のパーセントにして、失敗率が予算を超えていれば `window 成功率% BURN`、超えていなければ `window 成功率% OK` と表示します。超えているかどうかは、小数にせず `failed * 1000 > total * budgetPerMille` で判定してください。\n\n続けて全期間を合計した成功率を `TOTAL 成功率%` の形で表示します（合計の `total` が0なら `TOTAL NO_DATA`）。最後に、`BURN` が1件以上あれば `ALERT`、無ければ `HEALTHY` と表示します。","starterCode":"import java.util.*;\npublic class Main {public static void main(String[] args){Scanner s=new Scanner(System.in);long budgetPerMille=s.nextLong();int n=s.nextInt();long sumTotal=0,sumFailed=0;boolean alert=false;for(int i=0;i<n;i++){String window=s.next();long total=s.nextLong(),failed=s.nextLong();/* TODO NO_DATA / BURN / OK */}/* TODO TOTAL の表示 */\n/* TODO ALERT か HEALTHY */}}\n","visibleCases":[{"label":"1つの期間だけ焼き切る","stdin":"5 3 w1 1000 3 w2 1000 20 w3 0 0","expected":"w1 99.70% OK\nw2 98.00% BURN\nw3 NO_DATA\nTOTAL 98.85%\nALERT"},{"label":"予算内におさまる","stdin":"10 2 a 500 1 b 500 4","expected":"a 99.80% OK\nb 99.20% OK\nTOTAL 99.50%\nHEALTHY"}],"hiddenCases":[{"label":"全期間データなし","stdin":"5 2 a 0 0 b 0 0","expected":"a NO_DATA\nb NO_DATA\nTOTAL NO_DATA\nHEALTHY"},{"label":"期間0件","stdin":"5 0","expected":"TOTAL NO_DATA\nHEALTHY"},{"label":"ちょうど予算いっぱいは超過ではない","stdin":"5 1 a 1000 5","expected":"a 99.50% OK\nTOTAL 99.50%\nHEALTHY"},{"label":"1件だけ超える","stdin":"5 1 a 1000 6","expected":"a 99.40% BURN\nTOTAL 99.40%\nALERT"},{"label":"予算0では1件でも超過","stdin":"0 1 a 10 10","expected":"a 0.00% BURN\nTOTAL 0.00%\nALERT"},{"label":"データなしの期間はBURNにしない","stdin":"0 2 a 0 0 b 5 0","expected":"a NO_DATA\nb 100.00% OK\nTOTAL 100.00%\nHEALTHY"}],"hints":["成功率は `(total-failed)*100.0/total` です。表示は `String.format(Locale.ROOT,\"%.2f%%\",rate)` のように桁を固定します。","超過の判定を小数で行うと、境界がわずかな誤差で入れ替わります。`failed*1000` と `total*budgetPerMille` の整数比較なら、ちょうど予算いっぱいの場合を確実に通せます。","合計は各期間の `total` と `failed` を足してから1回だけ割ります。期間ごとの割合を平均すると、件数の重みが消えて実際の利用者影響から離れます。"],"solution":"import java.util.*;\npublic class Main {\n    static String rate(long total,long failed){return String.format(Locale.ROOT,\"%.2f%%\",(total-failed)*100.0/total);}\n    public static void main(String[] args){Scanner s=new Scanner(System.in);long budgetPerMille=s.nextLong();int n=s.nextInt();long sumTotal=0,sumFailed=0;boolean alert=false;for(int i=0;i<n;i++){String window=s.next();long total=s.nextLong(),failed=s.nextLong();sumTotal+=total;sumFailed+=failed;if(total==0){System.out.println(window+\" NO_DATA\");continue;}boolean burn=failed*1000>total*budgetPerMille;if(burn)alert=true;System.out.println(window+\" \"+rate(total,failed)+\" \"+(burn?\"BURN\":\"OK\"));}System.out.println(sumTotal==0?\"TOTAL NO_DATA\":\"TOTAL \"+rate(sumTotal,sumFailed));System.out.println(alert?\"ALERT\":\"HEALTHY\");}\n}\n"}]
+      "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        int n = s.nextInt();\n        Set<String> seen = new HashSet<>();\n        boolean bad = false;\n        for (int i = 0; i < n; i++) {\n            String key = s.next();\n            int value = s.nextInt();\n            /* TODO 4つの判定 */\n        }\n        /* TODO START か CONFIG_ERROR */\n    }\n}\n",
+      "visibleCases": [
+        {
+          "label": "正しい設定",
+          "stdin": "3 timeout 2000 poolSize 20 secret 1",
+          "expected": "timeout OK\npoolSize OK\nsecret OK\nSTART"
+        },
+        {
+          "label": "3つとも不正",
+          "stdin": "3 timeout 0 poolSize 200 secret 0",
+          "expected": "timeout OUT_OF_RANGE\npoolSize OUT_OF_RANGE\nsecret MISSING_SECRET\nCONFIG_ERROR"
+        }
+      ],
+      "hiddenCases": [
+        {
+          "label": "綴り違いのキーも止める",
+          "stdin": "4 timeout 2000 poolSize 20 secret 1 debug 1",
+          "expected": "timeout OK\npoolSize OK\nsecret OK\ndebug UNKNOWN_KEY\nCONFIG_ERROR"
+        },
+        {
+          "label": "必須キーが足りない",
+          "stdin": "2 timeout 2000 poolSize 20",
+          "expected": "timeout OK\npoolSize OK\nCONFIG_ERROR"
+        },
+        {
+          "label": "上限ちょうど",
+          "stdin": "3 timeout 30000 poolSize 100 secret 1",
+          "expected": "timeout OK\npoolSize OK\nsecret OK\nSTART"
+        },
+        {
+          "label": "下限ちょうど",
+          "stdin": "3 timeout 1 poolSize 1 secret 1",
+          "expected": "timeout OK\npoolSize OK\nsecret OK\nSTART"
+        },
+        {
+          "label": "設定が空",
+          "stdin": "0",
+          "expected": "CONFIG_ERROR"
+        }
+      ],
+      "hints": [
+        "現れたキーを `Set` へ入れておけば、最後に3つそろっているかを `containsAll` で確かめられます。",
+        "問題があったかどうかは `boolean` 1つで覚えます。表示は項目ごと、判定は最後にまとめてです。",
+        "知らないキーも止めます。綴りを間違えた設定が黙って無視されると、既定値のまま本番へ出てしまいます。"
+      ],
+      "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        int n = s.nextInt();\n        Set<String> seen = new HashSet<>();\n        boolean bad = false;\n        for (int i = 0; i < n; i++) {\n            String key = s.next();\n            int value = s.nextInt();\n            seen.add(key);\n            String result;\n            switch (key) {\n                case \"timeout\" -> result = value >= 1 && value <= 30000 ? \"OK\" : \"OUT_OF_RANGE\";\n                case \"poolSize\" -> result = value >= 1 && value <= 100 ? \"OK\" : \"OUT_OF_RANGE\";\n                case \"secret\" -> result = value == 1 ? \"OK\" : \"MISSING_SECRET\";\n                default -> result = \"UNKNOWN_KEY\";\n            }\n            if (!result.equals(\"OK\")) bad = true;\n            System.out.println(key + \" \" + result);\n        }\n        System.out.println(!bad && seen.containsAll(List.of(\"timeout\", \"poolSize\", \"secret\")) ? \"START\" : \"CONFIG_ERROR\");\n    }\n}\n",
+      "extraTasks": [
+        {
+          "kind": "drill",
+          "task": "【組み合わせ】container memoryの予算と、起動から終了までのhealth応答をまとめて確かめます。`limit nonHeap margin` をMiBで読み、続けて状態の数nと、n件の状態を読みます（状態は `starting` / `ready` / `draining` / `failed`）。\n\n1行目に、heap上限の候補を `HEAP 値` の形で表示してください。値は `limit - nonHeap - margin` です。0以下になったら `HEAP INVALID` と表示します。\n\n続けて各状態を読んだ順に `行番号 状態 status` と表示します（行番号は1から）。statusは `ready` が `200`、`failed` が `500`、`starting` と `draining` は `503` です。最後に、`ready` の状態が1件以上あれば `RECEIVED_TRAFFIC 件数`、1件も無ければ `NO_TRAFFIC` と表示します。",
+          "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        int limit = s.nextInt(), nonHeap = s.nextInt(), margin = s.nextInt(), heap = limit - nonHeap - margin;\n        /* TODO HEAP の表示 */ int n = s.nextInt(), ready = 0;\n        for (int k = 1; k <= n; k++) {\n            String state = s.next();\n            /* TODO status の表示と ready の数え上げ */\n        }\n        /* TODO RECEIVED_TRAFFIC か NO_TRAFFIC */\n    }\n}\n",
+          "visibleCases": [
+            {
+              "label": "起動から排出まで",
+              "stdin": "1024 300 100 4 starting starting ready draining",
+              "expected": "HEAP 624\n1 starting 503\n2 starting 503\n3 ready 200\n4 draining 503\nRECEIVED_TRAFFIC 1"
+            },
+            {
+              "label": "余白が取れない",
+              "stdin": "512 400 200 2 failed ready",
+              "expected": "HEAP INVALID\n1 failed 500\n2 ready 200\nRECEIVED_TRAFFIC 1"
+            }
+          ],
+          "hiddenCases": [
+            {
+              "label": "0も余白なしとみなす",
+              "stdin": "500 300 200 1 ready",
+              "expected": "HEAP INVALID\n1 ready 200\nRECEIVED_TRAFFIC 1"
+            },
+            {
+              "label": "状態0件",
+              "stdin": "1024 300 100 0",
+              "expected": "HEAP 624\nNO_TRAFFIC"
+            },
+            {
+              "label": "一度も受付できない",
+              "stdin": "1024 300 100 2 starting failed",
+              "expected": "HEAP 624\n1 starting 503\n2 failed 500\nNO_TRAFFIC"
+            },
+            {
+              "label": "受付できた回数を数える",
+              "stdin": "2048 512 256 3 ready ready draining",
+              "expected": "HEAP 1280\n1 ready 200\n2 ready 200\n3 draining 503\nRECEIVED_TRAFFIC 2"
+            }
+          ],
+          "hints": [
+            "`heap>0` かどうかで表示を切り替えます。コンテナの上限ぎりぎりに `-Xmx` を置かないための計算です。",
+            "ステータスは `switch` 式で書けます。`starting` と `draining` は同じ503です。",
+            "livenessは「再起動すべきか」、readinessは「トラフィックを受けられるか」です。`draining` が503でもプロセスは生きています。だから状態とステータスを別に持っています。"
+          ],
+          "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        int limit = s.nextInt(), nonHeap = s.nextInt(), margin = s.nextInt(), heap = limit - nonHeap - margin;\n        System.out.println(heap > 0 ? \"HEAP \" + heap : \"HEAP INVALID\");\n        int n = s.nextInt(), ready = 0;\n        for (int k = 1; k <= n; k++) {\n            String state = s.next();\n            int status = switch (state) {\n                case \"ready\" -> 200;\n                case \"failed\" -> 500;\n                default -> 503;\n            };\n            if (state.equals(\"ready\")) ready++;\n            System.out.println(k + \" \" + state + \" \" + status);\n        }\n        System.out.println(ready > 0 ? \"RECEIVED_TRAFFIC \" + ready : \"NO_TRAFFIC\");\n    }\n}\n",
+          "sourceChecks": [
+            {
+              "pattern": "limit\\s*-\\s*nonHeap",
+              "minimum": 1,
+              "message": "ヒープの上限は、コンテナの制限からJVM以外の使用量と余裕を引いて求めます。制限いっぱいにするとOOM Killerに落とされます。"
+            }
+          ]
+        },
+        {
+          "kind": "applied",
+          "task": "【実践】SLOのerror budgetを集計します。許容する失敗率をパーミル（1000分のいくつ）で budgetPerMille として読み、続けて期間数nと、n件の `window total failed` を読みます。\n\n各期間を読んだ順に1行ずつ表示してください。`total` が0なら `window NO_DATA` です。そうでなければ成功率を小数2桁のパーセントにして、失敗率が予算を超えていれば `window 成功率% BURN`、超えていなければ `window 成功率% OK` と表示します。超えているかどうかは、小数にせず `failed * 1000 > total * budgetPerMille` で判定してください。\n\n続けて全期間を合計した成功率を `TOTAL 成功率%` の形で表示します（合計の `total` が0なら `TOTAL NO_DATA`）。最後に、`BURN` が1件以上あれば `ALERT`、無ければ `HEALTHY` と表示します。",
+          "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        long budgetPerMille = s.nextLong();\n        int n = s.nextInt();\n        long sumTotal = 0, sumFailed = 0;\n        boolean alert = false;\n        for (int i = 0; i < n; i++) {\n            String window = s.next();\n            long total = s.nextLong(), failed = s.nextLong();\n            /* TODO NO_DATA / BURN / OK */\n        }\n        /* TODO TOTAL の表示 */ /* TODO ALERT か HEALTHY */\n    }\n}\n",
+          "visibleCases": [
+            {
+              "label": "1つの期間だけ焼き切る",
+              "stdin": "5 3 w1 1000 3 w2 1000 20 w3 0 0",
+              "expected": "w1 99.70% OK\nw2 98.00% BURN\nw3 NO_DATA\nTOTAL 98.85%\nALERT"
+            },
+            {
+              "label": "予算内におさまる",
+              "stdin": "10 2 a 500 1 b 500 4",
+              "expected": "a 99.80% OK\nb 99.20% OK\nTOTAL 99.50%\nHEALTHY"
+            }
+          ],
+          "hiddenCases": [
+            {
+              "label": "全期間データなし",
+              "stdin": "5 2 a 0 0 b 0 0",
+              "expected": "a NO_DATA\nb NO_DATA\nTOTAL NO_DATA\nHEALTHY"
+            },
+            {
+              "label": "期間0件",
+              "stdin": "5 0",
+              "expected": "TOTAL NO_DATA\nHEALTHY"
+            },
+            {
+              "label": "ちょうど予算いっぱいは超過ではない",
+              "stdin": "5 1 a 1000 5",
+              "expected": "a 99.50% OK\nTOTAL 99.50%\nHEALTHY"
+            },
+            {
+              "label": "1件だけ超える",
+              "stdin": "5 1 a 1000 6",
+              "expected": "a 99.40% BURN\nTOTAL 99.40%\nALERT"
+            },
+            {
+              "label": "予算0では1件でも超過",
+              "stdin": "0 1 a 10 10",
+              "expected": "a 0.00% BURN\nTOTAL 0.00%\nALERT"
+            },
+            {
+              "label": "データなしの期間はBURNにしない",
+              "stdin": "0 2 a 0 0 b 5 0",
+              "expected": "a NO_DATA\nb 100.00% OK\nTOTAL 100.00%\nHEALTHY"
+            }
+          ],
+          "hints": [
+            "成功率は `(total-failed)*100.0/total` です。表示は `String.format(Locale.ROOT,\"%.2f%%\",rate)` のように桁を固定します。",
+            "超過の判定を小数で行うと、境界がわずかな誤差で入れ替わります。`failed*1000` と `total*budgetPerMille` の整数比較なら、ちょうど予算いっぱいの場合を確実に通せます。",
+            "合計は各期間の `total` と `failed` を足してから1回だけ割ります。期間ごとの割合を平均すると、件数の重みが消えて実際の利用者影響から離れます。"
+          ],
+          "solution": "import java.util.*;\n\npublic class Main {\n    static String rate(long total, long failed) {\n        return String.format(Locale.ROOT, \"%.2f%%\",(total - failed) * 100.0 / total);\n    }\n\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        long budgetPerMille = s.nextLong();\n        int n = s.nextInt();\n        long sumTotal = 0, sumFailed = 0;\n        boolean alert = false;\n        for (int i = 0; i < n; i++) {\n            String window = s.next();\n            long total = s.nextLong(), failed = s.nextLong();\n            sumTotal += total;\n            sumFailed += failed;\n            if (total == 0) {\n                System.out.println(window + \" NO_DATA\");\n                continue;\n            }\n            boolean burn = failed * 1000 > total * budgetPerMille;\n            if (burn) alert = true;\n            System.out.println(window + \" \" + rate(total, failed) + \" \" + (burn ? \"BURN\" : \"OK\"));\n        }\n        System.out.println(sumTotal == 0 ? \"TOTAL NO_DATA\" : \"TOTAL \" + rate(sumTotal, sumFailed));\n        System.out.println(alert ? \"ALERT\" : \"HEALTHY\");\n    }\n}\n",
+          "sourceChecks": [
+            {
+              "pattern": "Locale\\s*\\.\\s*ROOT",
+              "minimum": 1,
+              "message": "小数の書式には `Locale.ROOT` を渡してください。既定のLocaleでは小数点がカンマになる国があり、出力が環境で変わります。"
+            },
+            {
+              "pattern": "String\\s*\\.\\s*format\\s*\\(",
+              "minimum": 1,
+              "message": "桁を揃えた表示は `String.format` を使ってください。"
+            }
+          ]
+        }
+      ]
     }
   ]
 }

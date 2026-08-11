@@ -109,7 +109,14 @@
             "`diff` は `return Math.abs(this.age - other.age);` です。どちらが大きくても `0` 以上になります。",
             "出力は `System.out.println(\"1人目が年上 \" + p1.olderThan(p2));` の形です。2行目は `p2.olderThan(p1)` と、呼ぶ相手を入れ替えます。"
           ],
-          "solution": "import java.util.Scanner;\n\nclass Person {\n    private String name;\n    private int age;\n\n    Person(String name, int age) {\n        this.name = name;\n        this.age = age;\n    }\n\n    String getName() {\n        return name;\n    }\n\n    boolean olderThan(Person other) {\n        return this.age > other.age;\n    }\n\n    int diff(Person other) {\n        return Math.abs(this.age - other.age);\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        String name1 = sc.next();\n        int age1 = sc.nextInt();\n        String name2 = sc.next();\n        int age2 = sc.nextInt();\n\n        Person p1 = new Person(name1, age1);\n        Person p2 = new Person(name2, age2);\n\n        System.out.println(\"1人目が年上 \" + p1.olderThan(p2));\n        System.out.println(\"2人目が年上 \" + p2.olderThan(p1));\n        System.out.println(\"差 \" + p1.diff(p2));\n    }\n}\n"
+          "solution": "import java.util.Scanner;\n\nclass Person {\n    private String name;\n    private int age;\n\n    Person(String name, int age) {\n        this.name = name;\n        this.age = age;\n    }\n\n    String getName() {\n        return name;\n    }\n\n    boolean olderThan(Person other) {\n        return this.age > other.age;\n    }\n\n    int diff(Person other) {\n        return Math.abs(this.age - other.age);\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        String name1 = sc.next();\n        int age1 = sc.nextInt();\n        String name2 = sc.next();\n        int age2 = sc.nextInt();\n\n        Person p1 = new Person(name1, age1);\n        Person p2 = new Person(name2, age2);\n\n        System.out.println(\"1人目が年上 \" + p1.olderThan(p2));\n        System.out.println(\"2人目が年上 \" + p2.olderThan(p1));\n        System.out.println(\"差 \" + p1.diff(p2));\n    }\n}\n",
+          "sourceChecks": [
+            {
+              "pattern": "other\\s*\\.\\s*age",
+              "minimum": 1,
+              "message": "`private` はクラスの外に対する秘密です。同じクラスの中なので `other.age` を直接読んで比べてください。"
+            }
+          ]
         }
       ]
     },
@@ -213,7 +220,14 @@
             "`bump(a)` に渡されるのは参照のコピーです（第7章の話）。`final` かどうかとは無関係に、指している本体は同じなので `a[1]` が変わります。",
             "3行目は `t.toUpperCase();` と **セミコロンで終わらせて捨ててから** `System.out.println(t);` です。`t` は変わりません。4行目で `System.out.println(t.toUpperCase());` と戻り値を使えば大文字になります。"
           ],
-          "solution": "import java.util.Arrays;\nimport java.util.Scanner;\n\npublic class Main {\n\n    static void bump(int[] arr) {\n        arr[1] += 10;\n    }\n\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n        String s = sc.next();\n\n        final int[] a = {n, n, n};\n        a[0] += 1;\n        System.out.println(Arrays.toString(a));\n\n        bump(a);\n        System.out.println(Arrays.toString(a));\n\n        final String t = s;\n        t.toUpperCase();\n        System.out.println(t);\n        System.out.println(t.toUpperCase());\n    }\n}\n"
+          "solution": "import java.util.Arrays;\nimport java.util.Scanner;\n\npublic class Main {\n\n    static void bump(int[] arr) {\n        arr[1] += 10;\n    }\n\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n        String s = sc.next();\n\n        final int[] a = {n, n, n};\n        a[0] += 1;\n        System.out.println(Arrays.toString(a));\n\n        bump(a);\n        System.out.println(Arrays.toString(a));\n\n        final String t = s;\n        t.toUpperCase();\n        System.out.println(t);\n        System.out.println(t.toUpperCase());\n    }\n}\n",
+          "sourceChecks": [
+            {
+              "pattern": "static\\s+void\\s+bump\\s*\\(",
+              "minimum": 1,
+              "message": "`static void bump(int[] arr)` を作ってください。"
+            }
+          ]
         }
       ]
     },
@@ -317,7 +331,24 @@
             "`total()` は `return price * stock;` です。クラスの中なので `private` の `price` にそのまま触れます。",
             "`main` からは `item.name`（同じパッケージ）と `item.stock`（public）は書けますが、`item.price` は **書けません**。`item.getPrice()` を使ってください。"
           ],
-          "solution": "import java.util.*;\n\nclass Item {\n    private int price;\n    String name;\n    public int stock;\n\n    public Item(String name, int price, int stock) {\n        this.name = name;\n        this.price = price;\n        this.stock = stock;\n    }\n\n    public int total() {\n        return price * stock;\n    }\n\n    public int getPrice() {\n        return price;\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        String name = sc.next();\n        int price = sc.nextInt();\n        int stock = sc.nextInt();\n\n        Item item = new Item(name, price, stock);\n        System.out.println(\"名前 \" + item.name);\n        System.out.println(\"在庫 \" + item.stock);\n        System.out.println(\"合計 \" + item.total());\n        System.out.println(\"価格 \" + item.getPrice());\n    }\n}\n"
+          "solution": "import java.util.*;\n\nclass Item {\n    private int price;\n    String name;\n    public int stock;\n\n    public Item(String name, int price, int stock) {\n        this.name = name;\n        this.price = price;\n        this.stock = stock;\n    }\n\n    public int total() {\n        return price * stock;\n    }\n\n    public int getPrice() {\n        return price;\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        String name = sc.next();\n        int price = sc.nextInt();\n        int stock = sc.nextInt();\n\n        Item item = new Item(name, price, stock);\n        System.out.println(\"名前 \" + item.name);\n        System.out.println(\"在庫 \" + item.stock);\n        System.out.println(\"合計 \" + item.total());\n        System.out.println(\"価格 \" + item.getPrice());\n    }\n}\n",
+          "sourceChecks": [
+            {
+              "pattern": "private\\s+int\\s+price",
+              "minimum": 1,
+              "message": "`price` は `private` で宣言してください。"
+            },
+            {
+              "pattern": "public\\s+int\\s+stock",
+              "minimum": 1,
+              "message": "`stock` は `public` で宣言してください。"
+            },
+            {
+              "pattern": "public\\s+int\\s+total\\s*\\(",
+              "minimum": 1,
+              "message": "`total()` は `public` で宣言してください。"
+            }
+          ]
         }
       ]
     },
@@ -432,30 +463,42 @@
             "`withdraw` の検査は `if (amount <= 0 || amount > balance) { return false; }` の1行にまとめられます。`amount > balance` なので、**ちょうど同額なら通ります**。",
             "出力の1行は `System.out.println((ok ? \"成功\" : \"失敗\") + \" \" + a.getBalance() + \" \" + b.getBalance());` の形です。`ok` は `a.transferTo(b, amount)` の戻り値です。"
           ],
-          "solution": "import java.util.Scanner;\n\nclass Account {\n    private final String owner;\n    private int balance;\n\n    Account(String owner, int balance) {\n        this.owner = owner;\n        this.balance = balance;\n    }\n\n    String getOwner() {\n        return owner;\n    }\n\n    int getBalance() {\n        return balance;\n    }\n\n    boolean deposit(int amount) {\n        if (amount <= 0) {\n            return false;\n        }\n        balance += amount;\n        return true;\n    }\n\n    boolean withdraw(int amount) {\n        if (amount <= 0 || amount > balance) {\n            return false;\n        }\n        balance -= amount;\n        return true;\n    }\n\n    boolean transferTo(Account other, int amount) {\n        if (!this.withdraw(amount)) {\n            return false;\n        }\n        other.deposit(amount);\n        return true;\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        Account a = new Account(sc.next(), sc.nextInt());\n        Account b = new Account(sc.next(), sc.nextInt());\n        int k = sc.nextInt();\n\n        for (int i = 0; i < k; i++) {\n            int amount = sc.nextInt();\n            boolean ok = a.transferTo(b, amount);\n            System.out.println((ok ? \"成功\" : \"失敗\") + \" \" + a.getBalance() + \" \" + b.getBalance());\n        }\n\n        System.out.println(a.getOwner() + \" \" + a.getBalance() + \" \" + b.getOwner() + \" \" + b.getBalance());\n    }\n}\n"
+          "solution": "import java.util.Scanner;\n\nclass Account {\n    private final String owner;\n    private int balance;\n\n    Account(String owner, int balance) {\n        this.owner = owner;\n        this.balance = balance;\n    }\n\n    String getOwner() {\n        return owner;\n    }\n\n    int getBalance() {\n        return balance;\n    }\n\n    boolean deposit(int amount) {\n        if (amount <= 0) {\n            return false;\n        }\n        balance += amount;\n        return true;\n    }\n\n    boolean withdraw(int amount) {\n        if (amount <= 0 || amount > balance) {\n            return false;\n        }\n        balance -= amount;\n        return true;\n    }\n\n    boolean transferTo(Account other, int amount) {\n        if (!this.withdraw(amount)) {\n            return false;\n        }\n        other.deposit(amount);\n        return true;\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        Account a = new Account(sc.next(), sc.nextInt());\n        Account b = new Account(sc.next(), sc.nextInt());\n        int k = sc.nextInt();\n\n        for (int i = 0; i < k; i++) {\n            int amount = sc.nextInt();\n            boolean ok = a.transferTo(b, amount);\n            System.out.println((ok ? \"成功\" : \"失敗\") + \" \" + a.getBalance() + \" \" + b.getBalance());\n        }\n\n        System.out.println(a.getOwner() + \" \" + a.getBalance() + \" \" + b.getOwner() + \" \" + b.getBalance());\n    }\n}\n",
+          "sourceChecks": [
+            {
+              "pattern": "private\\s+final\\s+String\\s+owner",
+              "minimum": 1,
+              "message": "名義は `private final String owner` として、あとから変えられないようにしてください。"
+            },
+            {
+              "pattern": "transferTo",
+              "minimum": 2,
+              "message": "`transferTo` を作り、`main` から呼び出してください。"
+            }
+          ]
         }
       ],
       "quiz": [
         {
           "question": "アクセス修飾子を **狭い順** に並べたのはどれでしょう。",
           "choices": [
-            "`private` → `protected` → 修飾子なし → `public`",
             "`private` → 修飾子なし → `protected` → `public`",
             "修飾子なし → `private` → `protected` → `public`",
-            "`private` → `public` → `protected` → 修飾子なし"
+            "`private` → `public` → `protected` → 修飾子なし",
+            "`private` → `protected` → 修飾子なし → `public`"
           ],
-          "answer": 1,
+          "answer": 0,
           "explanation": "修飾子なし（パッケージプライベート）は「同じパッケージだけ」、`protected` はそれに加えて「別パッケージのサブクラス」からも見えます。だから `protected` の方が **広い** です。"
         },
         {
           "question": "別のパッケージにある親クラスの `protected` なフィールドは、サブクラスから使えるでしょうか。",
           "choices": [
-            "使える",
             "使えない（同じパッケージでないとダメ）",
-            "`public` にしないと使えない",
-            "リフレクションを使わないと読めない"
+            "使える",
+            "リフレクションを使わないと読めない",
+            "`public` にしないと使えない"
           ],
-          "answer": 0,
+          "answer": 1,
           "explanation": "`protected` は「同じパッケージ」＋「パッケージが違ってもサブクラスなら」見えます。これが修飾子なしとの唯一の違いです。ただし別パッケージからは **自分自身（や自分の型）を通してのみ** アクセスできます。"
         },
         {
@@ -463,21 +506,21 @@
           "choices": [
             "`final int[] a = {1,2,3};` のあと `a[0] = 9;` はコンパイルエラー",
             "`final` フィールドはどこでも初期化しなくてよい",
-            "`final` な参照は指し先を変えられないが、中身は変えられる",
-            "`final` なクラスは継承できるが、上書きはできない"
+            "`final` なクラスは継承できるが、上書きはできない",
+            "`final` な参照は指し先を決して変えられないが、中身は変えられる"
           ],
-          "answer": 2,
+          "answer": 3,
           "explanation": "`final` が固定するのは **変数の指し先** だけです。配列の中身やオブジェクトのフィールドは変えられます。`final` フィールドは宣言時かコンストラクタで必ず初期化しなければならず、`final` なクラスは継承できません。"
         },
         {
           "question": "`private` について正しいのはどれでしょう。",
           "choices": [
-            "同じクラスの別のインスタンスの `private` フィールドは読めない",
-            "同じクラスの中なら他のインスタンスの `private` フィールドも読める",
             "同じパッケージなら読める",
-            "サブクラスからは読める"
+            "サブクラスからは読める",
+            "同じクラスの別のインスタンスの `private` フィールドは読めない",
+            "同じクラスの中なら他のインスタンスの `private` フィールドも読める"
           ],
-          "answer": 1,
+          "answer": 3,
           "explanation": "`private` は「インスタンスごとの秘密」ではなく **「クラスの外に対する秘密」** です。だから `boolean older(Person other) { return this.age > other.age; }` のような書き方ができます。"
         }
       ]
@@ -493,7 +536,7 @@
         }
       ],
       "task": "【基本】privateなbalanceを持つAccountを作ります。`withdraw(int amount)` は、amountが正で残高以下なら減算してtrue、それ以外はfalseを返します。初期残高と出金額を読み、`success=... balance=...` と表示してください。",
-      "starterCode": "import java.util.*;\nclass Account { private int balance; Account(int balance){this.balance=balance;} boolean withdraw(int amount){return false;} int getBalance(){return 0;} }\npublic class Main {public static void main(String[] args){Scanner s=new Scanner(System.in);Account a=new Account(s.nextInt());boolean ok=a.withdraw(s.nextInt());System.out.println(\"success=\"+ok+\" balance=\"+a.getBalance());}}\n",
+      "starterCode": "import java.util.*;\n\nclass Account {\n    private int balance;\n\n    Account(int balance) {\n        this.balance = balance;\n    }\n\n    boolean withdraw(int amount) {\n        return false;\n    }\n\n    int getBalance() {\n        return 0;\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        Account a = new Account(s.nextInt());\n        boolean ok = a.withdraw(s.nextInt());\n        System.out.println(\"success=\" + ok + \" balance=\" + a.getBalance());\n    }\n}\n",
       "visibleCases": [
         {
           "label": "成功",
@@ -522,12 +565,12 @@
         "balanceはクラス外から直接変更できないprivateにします。",
         "条件を満たさないときは残高を変えずfalseを返します。"
       ],
-      "solution": "import java.util.*;\nclass Account { private int balance; Account(int balance){this.balance=balance;} boolean withdraw(int amount){if(amount<=0||amount>balance)return false;balance-=amount;return true;} int getBalance(){return balance;} }\npublic class Main {public static void main(String[] args){Scanner s=new Scanner(System.in);Account a=new Account(s.nextInt());boolean ok=a.withdraw(s.nextInt());System.out.println(\"success=\"+ok+\" balance=\"+a.getBalance());}}\n",
+      "solution": "import java.util.*;\n\nclass Account {\n    private int balance;\n\n    Account(int balance) {\n        this.balance = balance;\n    }\n\n    boolean withdraw(int amount) {\n        if (amount <= 0 || amount > balance) return false;\n        balance -= amount;\n        return true;\n    }\n\n    int getBalance() {\n        return balance;\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        Account a = new Account(s.nextInt());\n        boolean ok = a.withdraw(s.nextInt());\n        System.out.println(\"success=\" + ok + \" balance=\" + a.getBalance());\n    }\n}\n",
       "extraTasks": [
         {
           "kind": "drill",
           "task": "【組み合わせ】0〜100だけを保持するScoreクラスを作ります。`setValue` に範囲外の値が来たら0または100へ収めます。入力値を設定し、`score=...` と表示してください。",
-          "starterCode": "import java.util.*;\nclass Score { private int value; void setValue(int value){ /* TODO */ } int getValue(){return value;} }\npublic class Main {public static void main(String[] args){Score s=new Score();s.setValue(new Scanner(System.in).nextInt());System.out.println(\"score=\"+s.getValue());}}\n",
+          "starterCode": "import java.util.*;\n\nclass Score {\n    private int value;\n\n    void setValue(int value) {\n        /* TODO */\n    }\n\n    int getValue() {\n        return value;\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Score s = new Score();\n        s.setValue(new Scanner(System.in).nextInt());\n        System.out.println(\"score=\" + s.getValue());\n    }\n}\n",
           "visibleCases": [
             {
               "label": "範囲内",
@@ -556,12 +599,24 @@
             "setterの中で値を検証します。",
             "`Math.max(0, Math.min(100, value))` で範囲へ収められます。"
           ],
-          "solution": "import java.util.*;\nclass Score { private int value; void setValue(int value){this.value=Math.max(0,Math.min(100,value));} int getValue(){return value;} }\npublic class Main {public static void main(String[] args){Score s=new Score();s.setValue(new Scanner(System.in).nextInt());System.out.println(\"score=\"+s.getValue());}}\n"
+          "solution": "import java.util.*;\n\nclass Score {\n    private int value;\n\n    void setValue(int value) {\n        this.value = Math.max(0, Math.min(100, value));\n    }\n\n    int getValue() {\n        return value;\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Score s = new Score();\n        s.setValue(new Scanner(System.in).nextInt());\n        System.out.println(\"score=\" + s.getValue());\n    }\n}\n",
+          "sourceChecks": [
+            {
+              "pattern": "\\bprivate\\s+int\\s+value\\b",
+              "minimum": 1,
+              "message": "外から直接書き換えられないよう、フィールドは `private` にしてください。"
+            },
+            {
+              "pattern": "\\bvoid\\s+setValue\\s*\\(",
+              "minimum": 1,
+              "message": "値を入れる窓口として `setValue` を作り、その中で範囲へ収めてください。"
+            }
+          ]
         },
         {
           "kind": "applied",
           "task": "【実践】finalなamountを持つ変更不能なMoneyクラスを作り、`add(Money other)` は新しいMoneyを返します。2整数a、bを読み、`original=a added=a+b` と表示してください。",
-          "starterCode": "import java.util.*;\nfinal class Money { private final int amount; Money(int amount){this.amount=amount;} Money add(Money other){return null;} int amount(){return amount;} }\npublic class Main {public static void main(String[] args){Scanner s=new Scanner(System.in);Money original=new Money(s.nextInt());Money added=original.add(new Money(s.nextInt()));System.out.println(\"original=\"+original.amount()+\" added=\"+added.amount());}}\n",
+          "starterCode": "import java.util.*;\n\nfinal class Money {\n    private final int amount;\n\n    Money(int amount) {\n        this.amount = amount;\n    }\n\n    Money add(Money other) {\n        return null;\n    }\n\n    int amount() {\n        return amount;\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        Money original = new Money(s.nextInt());\n        Money added = original.add(new Money(s.nextInt()));\n        System.out.println(\"original=\" + original.amount() + \" added=\" + added.amount());\n    }\n}\n",
           "visibleCases": [
             {
               "label": "加算",
@@ -590,7 +645,14 @@
             "既存のamountは変更せず、合計を持つ `new Money(...)` を返します。",
             "同じMoneyクラス内ならotherのprivateフィールドも読めます。"
           ],
-          "solution": "import java.util.*;\nfinal class Money { private final int amount; Money(int amount){this.amount=amount;} Money add(Money other){return new Money(amount+other.amount);} int amount(){return amount;} }\npublic class Main {public static void main(String[] args){Scanner s=new Scanner(System.in);Money original=new Money(s.nextInt());Money added=original.add(new Money(s.nextInt()));System.out.println(\"original=\"+original.amount()+\" added=\"+added.amount());}}\n"
+          "solution": "import java.util.*;\n\nfinal class Money {\n    private final int amount;\n\n    Money(int amount) {\n        this.amount = amount;\n    }\n\n    Money add(Money other) {\n        return new Money(amount + other.amount);\n    }\n\n    int amount() {\n        return amount;\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        Money original = new Money(s.nextInt());\n        Money added = original.add(new Money(s.nextInt()));\n        System.out.println(\"original=\" + original.amount() + \" added=\" + added.amount());\n    }\n}\n",
+          "sourceChecks": [
+            {
+              "pattern": "return\\s+new\\s+Money\\s*\\(",
+              "minimum": 1,
+              "message": "`add` は自分を書き換えず、`return new Money(...)` で新しいインスタンスを返してください。"
+            }
+          ]
         }
       ]
     }

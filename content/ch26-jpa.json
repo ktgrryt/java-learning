@@ -1,39 +1,297 @@
 {
-  "id":"ch26","title":"Jakarta Persistence (JPA)","subtitle":"EntityとDBの対応を管理する","emoji":"🧱","libs":["jakarta-persistence"],
-  "lessons":[
+  "id": "ch26",
+  "title": "Jakarta Persistence (JPA)",
+  "subtitle": "EntityとDBの対応を管理する",
+  "emoji": "🧱",
+  "libs": [
+    "jakarta-persistence"
+  ],
+  "lessons": [
     {
-      "id":"26-1","title":"Entityを正しく設計する",
-      "explanation":"## はじめて学ぶ人へ\n\nEntityは、DBの表にある1行をJavaオブジェクトとして扱うための対応表です。たとえば `users` 表の1行が、`User` オブジェクト1個になります。\n\n```text\nusers表: id=1, name=山田\n              ↕ 対応付け\nUserオブジェクト: id=1, name=\"山田\"\n```\n\n`@Entity` は永続化対象、`@Id` は行を見分ける主キー、`@Column` は列との対応を示します。JPAがDBからオブジェクトを復元できるよう、引数なしコンストラクタも用意します。Entityは単なる画面入力箱ではなく、DB上の同一性と業務上のルールを持つオブジェクトだと考えましょう。\n\n## テーブルの行をJavaオブジェクトへ対応させる\n\n```java\n@Entity\n@Table(name=\"users\")\nclass User {\n @Id @GeneratedValue\n private Long id;\n @Column(nullable=false, length=100)\n private String name;\n protected User() {}       // JPA用\n User(String name) { this.name=name; }\n}\n```\n\nEntityには主キーと、少なくとも `public` または `protected` の引数なしコンストラクタが必要です。重要な整合性はDB制約でも守ります。\nEntityをそのまま画面/APIへ出すと、遅延ロード、循環参照、機密情報の漏えいにつながるため、境界ではDTOへ変換します。\n`equals/hashCode` に可変フィールドや採番前の `null` IDを安易に使うと、コレクション内で整合しなくなるため、識別戦略を決めます。\n\n## この章のMiniJpaについて\n\n演習の `MiniJpa` は、注釈、簡単なCRUD、JPQLの形を学ぶための**メモリ上の教材実装**です。\n実際のJPAプロバイダー、DB、flush、トランザクション、ロックを再現しません。MiniJpaでは `persist` 直後に連番IDを設定しますが、\n実環境でIDが利用可能になる時点は採番方式やflushのタイミングに依存します。\n\n実環境の変更処理は通常、サービスメソッドなどのトランザクション境界内で行います。\n\n```java\n@Transactional\npublic Product create(String name, int price) {\n    Product product = new Product(name, price);\n    em.persist(product);\n    return product;\n}\n```",
-      "samples":[{"caption":"MiniJpaでEntity注釈とpersistの形を試す（実DB・トランザクションは模擬しない）","code":"import jakarta.persistence.*;\n@Entity class JpaUser{@Id @GeneratedValue Long id;@Column(nullable=false) String name;protected JpaUser(){}JpaUser(String n){name=n;}}\npublic class EntitySample{public static void main(String[]a){EntityManager em=MiniJpa.open();JpaUser u=new JpaUser(\"山田\");em.persist(u);System.out.println(u.id+\":\"+u.name);}}\n"}],
-      "task":"教材用の `MiniJpa` を使い、Product Entityの注釈と `persist` の形を練習します。`products` テーブル、idは自動採番、nameはnull不可・長さ80、priceはそのまま列にします。入力 `name price` から作り `id=1 name=... price=...` と出力してください。MiniJpaは直後にIDを設定しますが、実JPAではトランザクション内で処理し、IDが確定する時点は採番方式などに依存します。",
-      "starterCode":"import jakarta.persistence.*;\nimport java.util.*;\n// TODO Entity/Table\nclass Product{// TODO id annotations\n Long id;// TODO name column\n String name;int price;protected Product(){}Product(String n,int p){name=n;price=p;}}\npublic class JpaEntity{public static void main(String[]a){Scanner s=new Scanner(System.in);Product p=new Product(s.next(),s.nextInt());EntityManager em=MiniJpa.open();// TODO persist\nSystem.out.println(\"id=\"+p.id+\" name=\"+p.name+\" price=\"+p.price);}}\n",
-      "visibleCases":[{"label":"商品","stdin":"book 1200","expected":"id=1 name=book price=1200"}],"hiddenCases":[{"label":"0円","stdin":"free 0","expected":"id=1 name=free price=0"}],
-      "hints":["クラスに `@Entity @Table(name=\"products\")`。","idに `@Id @GeneratedValue`、nameに `@Column(nullable=false,length=80)`。","`em.persist(p)`。"],
-      "solution":"import jakarta.persistence.*;\nimport java.util.*;\n@Entity @Table(name=\"products\") class Product{@Id @GeneratedValue Long id;@Column(nullable=false,length=80) String name;int price;protected Product(){}Product(String n,int p){name=n;price=p;}}\npublic class JpaEntity{public static void main(String[]a){Scanner s=new Scanner(System.in);Product p=new Product(s.next(),s.nextInt());EntityManager em=MiniJpa.open();em.persist(p);System.out.println(\"id=\"+p.id+\" name=\"+p.name+\" price=\"+p.price);}}\n",
-      "extraTasks":[{"kind":"applied","task":"EntityにはpasswordHashを持たせつつ、外へ返すUserDtoにはnameだけを詰め替え、機密値を出力しないでください。","starterCode":"import jakarta.persistence.*;\nimport java.util.*;\n@Entity class User{@Id @GeneratedValue Long id;String name;String passwordHash;protected User(){}User(String n,String h){name=n;passwordHash=h;}}\nrecord UserDto(Long id,String name){}\npublic class JpaDto{static UserDto toDto(User u){// TODO\nreturn null;}public static void main(String[]a){Scanner s=new Scanner(System.in);User u=new User(s.next(),s.next());EntityManager em=MiniJpa.open();em.persist(u);System.out.println(toDto(u));}}\n","visibleCases":[{"label":"機密を除外","stdin":"yamada secretHash","expected":"UserDto[id=1, name=yamada]"}],"hiddenCases":[{"label":"別利用者","stdin":"sato hash123","expected":"UserDto[id=1, name=sato]"}],"hints":["`return new UserDto(u.id, u.name);`。passwordHashは渡しません。"],"solution":"import jakarta.persistence.*;\nimport java.util.*;\n@Entity class User{@Id @GeneratedValue Long id;String name;String passwordHash;protected User(){}User(String n,String h){name=n;passwordHash=h;}}\nrecord UserDto(Long id,String name){}\npublic class JpaDto{static UserDto toDto(User u){return new UserDto(u.id,u.name);}public static void main(String[]a){Scanner s=new Scanner(System.in);User u=new User(s.next(),s.next());EntityManager em=MiniJpa.open();em.persist(u);System.out.println(toDto(u));}}\n"}]
+      "id": "26-1",
+      "title": "Entityを正しく設計する",
+      "explanation": "## はじめて学ぶ人へ\n\nEntityは、DBの表にある1行をJavaオブジェクトとして扱うための対応表です。たとえば `users` 表の1行が、`User` オブジェクト1個になります。\n\n```text\nusers表: id=1, name=山田\n              ↕ 対応付け\nUserオブジェクト: id=1, name=\"山田\"\n```\n\n`@Entity` は永続化対象、`@Id` は行を見分ける主キー、`@Column` は列との対応を示します。JPAがDBからオブジェクトを復元できるよう、引数なしコンストラクタも用意します。Entityは単なる画面入力箱ではなく、DB上の同一性と業務上のルールを持つオブジェクトだと考えましょう。\n\n## テーブルの行をJavaオブジェクトへ対応させる\n\n```java\n@Entity\n@Table(name=\"users\")\nclass User {\n @Id @GeneratedValue\n private Long id;\n @Column(nullable=false, length=100)\n private String name;\n protected User() {}       // JPA用\n User(String name) { this.name=name; }\n}\n```\n\nEntityには主キーと、少なくとも `public` または `protected` の引数なしコンストラクタが必要です。重要な整合性はDB制約でも守ります。\nEntityをそのまま画面/APIへ出すと、遅延ロード、循環参照、機密情報の漏えいにつながるため、境界ではDTOへ変換します。\n`equals/hashCode` に可変フィールドや採番前の `null` IDを安易に使うと、コレクション内で整合しなくなるため、識別戦略を決めます。\n\n## この章のMiniJpaについて\n\n演習の `MiniJpa` は、注釈、簡単なCRUD、JPQLの形を学ぶための**メモリ上の教材実装**です。\n実際のJPAプロバイダー、DB、flush、トランザクション、ロックを再現しません。MiniJpaでは `persist` 直後に連番IDを設定しますが、\n実環境でIDが利用可能になる時点は採番方式やflushのタイミングに依存します。\n\n実環境の変更処理は通常、サービスメソッドなどのトランザクション境界内で行います。\n\n```java\n@Transactional\npublic Product create(String name, int price) {\n    Product product = new Product(name, price);\n    em.persist(product);\n    return product;\n}\n```",
+      "samples": [
+        {
+          "caption": "MiniJpaでEntity注釈とpersistの形を試す（実DB・トランザクションは模擬しない）",
+          "code": "import jakarta.persistence.*;\n\n@Entity\nclass JpaUser {\n    @Id\n    @GeneratedValue\n    Long id;\n    @Column(nullable = false)\n    String name;\n\n    protected JpaUser() { }\n\n    JpaUser(String n) {\n        name = n;\n    }\n}\n\npublic class EntitySample {\n    public static void main(String[] a) {\n        EntityManager em = MiniJpa.open();\n        JpaUser u = new JpaUser(\"山田\");\n        em.persist(u);\n        System.out.println(u.id + \":\" + u.name);\n    }\n}\n"
+        }
+      ],
+      "task": "教材用の `MiniJpa` を使い、Product Entityの注釈と `persist` の形を練習します。`products` テーブル、idは自動採番、nameはnull不可・長さ80、priceはそのまま列にします。入力 `name price` から作り `id=1 name=... price=...` と出力してください。MiniJpaは直後にIDを設定しますが、実JPAではトランザクション内で処理し、IDが確定する時点は採番方式などに依存します。",
+      "starterCode": "import jakarta.persistence.*;\nimport java.util.*;\n// TODO Entity/Table\nclass Product {\n    // TODO id annotations\n    Long id;\n    // TODO name column\n    String name;\n    int price;\n\n    protected Product() { }\n\n    Product(String n, int p) {\n        name = n;\n        price = p;\n    }\n}\n\npublic class JpaEntity {\n    public static void main(String[] a) {\n        Scanner s = new Scanner(System.in);\n        Product p = new Product(s.next(), s.nextInt());\n        EntityManager em = MiniJpa.open();\n        // TODO persist\n        System.out.println(\"id=\" + p.id + \" name=\" + p.name + \" price=\" + p.price);\n    }\n}\n",
+      "visibleCases": [
+        {
+          "label": "商品",
+          "stdin": "book 1200",
+          "expected": "id=1 name=book price=1200"
+        }
+      ],
+      "hiddenCases": [
+        {
+          "label": "0円",
+          "stdin": "free 0",
+          "expected": "id=1 name=free price=0"
+        }
+      ],
+      "hints": [
+        "クラスに `@Entity @Table(name=\"products\")`。",
+        "idに `@Id @GeneratedValue`、nameに `@Column(nullable=false,length=80)`。",
+        "`em.persist(p)`。"
+      ],
+      "solution": "import jakarta.persistence.*;\nimport java.util.*;\n\n@Entity\n@Table(name = \"products\")\nclass Product {\n    @Id\n    @GeneratedValue\n    Long id;\n    @Column(nullable = false, length = 80)\n    String name;\n    int price;\n\n    protected Product() { }\n\n    Product(String n, int p) {\n        name = n;\n        price = p;\n    }\n}\n\npublic class JpaEntity {\n    public static void main(String[] a) {\n        Scanner s = new Scanner(System.in);\n        Product p = new Product(s.next(), s.nextInt());\n        EntityManager em = MiniJpa.open();\n        em.persist(p);\n        System.out.println(\"id=\" + p.id + \" name=\" + p.name + \" price=\" + p.price);\n    }\n}\n",
+      "extraTasks": [
+        {
+          "kind": "applied",
+          "task": "EntityにはpasswordHashを持たせつつ、外へ返すUserDtoにはnameだけを詰め替え、機密値を出力しないでください。",
+          "starterCode": "import jakarta.persistence.*;\nimport java.util.*;\n\n@Entity\nclass User {\n    @Id\n    @GeneratedValue\n    Long id;\n    String name;\n    String passwordHash;\n\n    protected User() { }\n\n    User(String n, String h) {\n        name = n;\n        passwordHash = h;\n    }\n}\n\nrecord UserDto(Long id, String name) { }\n\npublic class JpaDto {\n    static UserDto toDto(User u) {\n        // TODO\n        return null;\n    }\n\n    public static void main(String[] a) {\n        Scanner s = new Scanner(System.in);\n        User u = new User(s.next(), s.next());\n        EntityManager em = MiniJpa.open();\n        em.persist(u);\n        System.out.println(toDto(u));\n    }\n}\n",
+          "visibleCases": [
+            {
+              "label": "機密を除外",
+              "stdin": "yamada secretHash",
+              "expected": "UserDto[id=1, name=yamada]"
+            }
+          ],
+          "hiddenCases": [
+            {
+              "label": "別利用者",
+              "stdin": "sato hash123",
+              "expected": "UserDto[id=1, name=sato]"
+            }
+          ],
+          "hints": [
+            "`return new UserDto(u.id, u.name);`。passwordHashは渡しません。"
+          ],
+          "solution": "import jakarta.persistence.*;\nimport java.util.*;\n\n@Entity\nclass User {\n    @Id\n    @GeneratedValue\n    Long id;\n    String name;\n    String passwordHash;\n\n    protected User() { }\n\n    User(String n, String h) {\n        name = n;\n        passwordHash = h;\n    }\n}\n\nrecord UserDto(Long id, String name) { }\n\npublic class JpaDto {\n    static UserDto toDto(User u) {\n        return new UserDto(u.id, u.name);\n    }\n\n    public static void main(String[] a) {\n        Scanner s = new Scanner(System.in);\n        User u = new User(s.next(), s.next());\n        EntityManager em = MiniJpa.open();\n        em.persist(u);\n        System.out.println(toDto(u));\n    }\n}\n",
+          "sourceChecks": [
+            {
+              "pattern": "@Entity",
+              "minimum": 1,
+              "message": "DBに対応するクラスには `@Entity` を付けてください。"
+            },
+            {
+              "pattern": "@Id",
+              "minimum": 1,
+              "message": "主キーには `@Id` を付けてください。"
+            },
+            {
+              "pattern": "\\brecord\\s+UserDto\\s*\\(\\s*Long\\s+id\\s*,\\s*String\\s+name\\s*\\)",
+              "minimum": 1,
+              "message": "DTOは外へ返す値だけにします。`passwordHash` を含めないでください。"
+            }
+          ]
+        }
+      ]
     },
     {
-      "id":"26-2","title":"EntityManagerとEntityの状態",
-      "explanation":"## はじめて学ぶ人へ\n\nEntityManagerは、EntityとDBのやり取りを管理する受付です。Entityには「まだDBと関係がない」「現在管理中」「以前は管理されていた」などの状態があります。図書館の本が、持ち込み前・貸出管理中・管理対象外になる流れに似ています。\n\n```text\nnewしただけ（new）\n  → persist\n管理中（managed）\n  → トランザクション終了時に変更をDBへ反映\n管理外（detached）\n```\n\n管理中のEntityは、setterなどで値を変えると、明示的なUPDATEを書かなくても変更検知（dirty checking）で反映されます。便利な一方、いつDB更新になるか見失わないよう、トランザクションの範囲とEntityの状態をセットで追うことが大切です。\n\n## persist・find・merge・remove\n\n`EntityManager` は永続化コンテキストを管理します。`persist` は新規Entityを管理状態にし、`find` は主キーで検索し、\n`remove` は管理Entityを削除予定にします。管理Entityを**トランザクション内**で変更すると、通常はcommit/flush時のdirty checkingでUPDATEされます。\n\nEntityにはnew/transient、managed、detached、removedの状態があります。`merge(detached)` は渡したオブジェクト自体を管理状態へ戻すのではなく、\nその状態をコピーした管理Entityを返すため、戻り値を使います。\n\n```svg Entityの状態は `persist` / `merge` / `remove` とトランザクションの終わりで移り変わる\n<svg viewBox=\"0 0 720 292\">\n  <rect class=\"fig-box\" x=\"20\" y=\"74\" width=\"150\" height=\"52\" rx=\"6\"/>\n  <text class=\"fig-t fig-title fig-small\" x=\"95\" y=\"94\" text-anchor=\"middle\">new / transient</text>\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"95\" y=\"114\" text-anchor=\"middle\">DB とは無関係</text>\n\n  <rect class=\"fig-box-accent\" x=\"250\" y=\"74\" width=\"180\" height=\"52\" rx=\"6\"/>\n  <text class=\"fig-t fig-title fig-t-accent\" x=\"340\" y=\"94\" text-anchor=\"middle\">managed</text>\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"340\" y=\"114\" text-anchor=\"middle\">永続化コンテキストが管理</text>\n\n  <rect class=\"fig-box\" x=\"510\" y=\"74\" width=\"170\" height=\"52\" rx=\"6\"/>\n  <text class=\"fig-t fig-title fig-small\" x=\"595\" y=\"94\" text-anchor=\"middle\">detached</text>\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"595\" y=\"114\" text-anchor=\"middle\">管理の外に出た</text>\n\n  <rect class=\"fig-box\" x=\"250\" y=\"186\" width=\"180\" height=\"52\" rx=\"6\"/>\n  <text class=\"fig-t fig-title fig-small\" x=\"340\" y=\"206\" text-anchor=\"middle\">removed</text>\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"340\" y=\"226\" text-anchor=\"middle\">削除予定</text>\n\n  <line class=\"fig-line-accent\" x1=\"174\" y1=\"100\" x2=\"246\" y2=\"100\" marker-end=\"arrow-accent\"/>\n  <text class=\"fig-t fig-mono fig-t-accent fig-small\" x=\"210\" y=\"84\" text-anchor=\"middle\">persist</text>\n  <line class=\"fig-line\" x1=\"434\" y1=\"90\" x2=\"506\" y2=\"90\" marker-end=\"arrow\"/>\n  <text class=\"fig-t fig-t-dim fig-small\" x=\"470\" y=\"56\" text-anchor=\"middle\">トランザクション終了</text>\n  <line class=\"fig-line\" x1=\"506\" y1=\"112\" x2=\"434\" y2=\"112\" marker-end=\"arrow\"/>\n  <text class=\"fig-t fig-t-dim fig-small\" x=\"470\" y=\"140\" text-anchor=\"middle\">merge の戻り値</text>\n  <line class=\"fig-line-ng\" x1=\"340\" y1=\"130\" x2=\"340\" y2=\"180\" marker-end=\"arrow-ng\"/>\n  <text class=\"fig-t fig-mono fig-t-ng fig-small\" x=\"352\" y=\"156\">remove</text>\n\n  <text class=\"fig-t fig-t-dim fig-small\" x=\"20\" y=\"262\">managed のあいだは setter で値を変えるだけで、commit / flush 時に UPDATE される（dirty checking）</text>\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"20\" y=\"284\">merge は渡したオブジェクトを管理下に戻さない。管理されるのは戻り値の方</text>\n</svg>\n```\n\nコンテナ管理でtransaction-scopedな `EntityManager` を使う一般的な構成では、`persist`、`remove`、flushを伴う更新には\nアクティブなトランザクションが必要です。トランザクション外では `TransactionRequiredException` になり得ます。\n\n```java\n@Transactional\npublic void rename(long id, String text) {\n    Note note = em.find(Note.class, id);\n    note.text = text;               // commit時にdirty checking\n}\n```\n\n`EntityManager` 自体はスレッドセーフではありません。長寿命オブジェクトへ自作のEntityManagerを共有せず、\nJakarta EEでは通常 `@PersistenceContext` でコンテナ管理proxyを注入し、トランザクション境界と組み合わせます。\nこのレッスンのMiniJpaコードは状態遷移の形を簡略化したもので、実際のトランザクションやflushを実行しません。",
-      "samples":[{"caption":"MiniJpaでCRUDの形を確認する（実JPAでは変更をトランザクション内で行う）","code":"import jakarta.persistence.*;\n@Entity class Note{@Id @GeneratedValue Long id;String text;protected Note(){}Note(String t){text=t;}}\npublic class EntityManagerSample{public static void main(String[]a){EntityManager em=MiniJpa.open();Note n=new Note(\"before\");em.persist(n);Note found=em.find(Note.class,n.id);found.text=\"after\";System.out.println(em.find(Note.class,n.id).text);em.remove(found);System.out.println(em.find(Note.class,n.id));}}\n"}],
-      "task":"教材用MiniJpaで、3件のTaskを `persist` し、入力IDを `find` して `id:text`、なければ `not found` を出してください。実JPAの `persist` などの変更処理はトランザクション内で行います。",
-      "starterCode":"import jakarta.persistence.*;\nimport java.util.*;\n@Entity class Task{@Id @GeneratedValue Long id;String text;protected Task(){}Task(String t){text=t;}}\npublic class JpaFind{public static void main(String[]a){EntityManager em=MiniJpa.open();for(String t:List.of(\"設計\",\"実装\",\"テスト\")){// TODO persist\n}long id=new Scanner(System.in).nextLong();// TODO find/output\n}}\n",
-      "visibleCases":[{"label":"2件目","stdin":"2","expected":"2:実装"},{"label":"なし","stdin":"9","expected":"not found"}],"hiddenCases":[{"label":"1件目","stdin":"1","expected":"1:設計"},{"label":"3件目","stdin":"3","expected":"3:テスト"}],
-      "hints":["loop内で `em.persist(new Task(t))`。","`Task found=em.find(Task.class,id)`。nullで分けます。"],
-      "solution":"import jakarta.persistence.*;\nimport java.util.*;\n@Entity class Task{@Id @GeneratedValue Long id;String text;protected Task(){}Task(String t){text=t;}}\npublic class JpaFind{public static void main(String[]a){EntityManager em=MiniJpa.open();for(String t:List.of(\"設計\",\"実装\",\"テスト\"))em.persist(new Task(t));long id=new Scanner(System.in).nextLong();Task f=em.find(Task.class,id);System.out.println(f==null?\"not found\":f.id+\":\"+f.text);}}\n",
-      "extraTasks":[{"kind":"applied","task":"入力IDのTaskをremoveし、削除前後の件数を `before=3 after=2` の形で出してください。存在しないIDなら件数は変わりません。JPQLで全件を取ります。","starterCode":"import jakarta.persistence.*;\nimport java.util.*;\n@Entity class Task{@Id @GeneratedValue Long id;String text;protected Task(){}Task(String t){text=t;}}\npublic class JpaRemove{public static void main(String[]a){EntityManager em=MiniJpa.open();for(String t:List.of(\"a\",\"b\",\"c\"))em.persist(new Task(t));long id=new Scanner(System.in).nextLong();List<Task> before=em.createQuery(\"SELECT t FROM Task t\",Task.class).getResultList();// TODO\n}}\n","visibleCases":[{"label":"削除あり","stdin":"2","expected":"before=3 after=2"}],"hiddenCases":[{"label":"削除なし","stdin":"9","expected":"before=3 after=3"}],"hints":["findし、nullでなければremove。","同じJPQLをもう一度実行してafterを取り、sizeを表示。"],"solution":"import jakarta.persistence.*;\nimport java.util.*;\n@Entity class Task{@Id @GeneratedValue Long id;String text;protected Task(){}Task(String t){text=t;}}\npublic class JpaRemove{public static void main(String[]a){EntityManager em=MiniJpa.open();for(String t:List.of(\"a\",\"b\",\"c\"))em.persist(new Task(t));long id=new Scanner(System.in).nextLong();List<Task> before=em.createQuery(\"SELECT t FROM Task t\",Task.class).getResultList();Task found=em.find(Task.class,id);if(found!=null)em.remove(found);List<Task> after=em.createQuery(\"SELECT t FROM Task t\",Task.class).getResultList();System.out.println(\"before=\"+before.size()+\" after=\"+after.size());}}\n"}]
+      "id": "26-2",
+      "title": "EntityManagerとEntityの状態",
+      "explanation": "## はじめて学ぶ人へ\n\nEntityManagerは、EntityとDBのやり取りを管理する受付です。Entityには「まだDBと関係がない」「現在管理中」「以前は管理されていた」などの状態があります。図書館の本が、持ち込み前・貸出管理中・管理対象外になる流れに似ています。\n\n```text\nnewしただけ（new）\n  → persist\n管理中（managed）\n  → トランザクション終了時に変更をDBへ反映\n管理外（detached）\n```\n\n管理中のEntityは、setterなどで値を変えると、明示的なUPDATEを書かなくても変更検知（dirty checking）で反映されます。便利な一方、いつDB更新になるか見失わないよう、トランザクションの範囲とEntityの状態をセットで追うことが大切です。\n\n## persist・find・merge・remove\n\n`EntityManager` は永続化コンテキストを管理します。`persist` は新規Entityを管理状態にし、`find` は主キーで検索し、\n`remove` は管理Entityを削除予定にします。管理Entityを**トランザクション内**で変更すると、通常はcommit/flush時のdirty checkingでUPDATEされます。\n\nEntityにはnew/transient、managed、detached、removedの状態があります。`merge(detached)` は渡したオブジェクト自体を管理状態へ戻すのではなく、\nその状態をコピーした管理Entityを返すため、戻り値を使います。\n\n```svg Entityの状態は `persist` / `merge` / `remove` とトランザクションの終わりで移り変わる\n<svg viewBox=\"0 0 720 292\">\n  <rect class=\"fig-box\" x=\"20\" y=\"74\" width=\"150\" height=\"52\" rx=\"6\"/>\n  <text class=\"fig-t fig-title fig-small\" x=\"95\" y=\"94\" text-anchor=\"middle\">new / transient</text>\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"95\" y=\"114\" text-anchor=\"middle\">DB とは無関係</text>\n\n  <rect class=\"fig-box-accent\" x=\"250\" y=\"74\" width=\"180\" height=\"52\" rx=\"6\"/>\n  <text class=\"fig-t fig-title fig-t-accent\" x=\"340\" y=\"94\" text-anchor=\"middle\">managed</text>\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"340\" y=\"114\" text-anchor=\"middle\">永続化コンテキストが管理</text>\n\n  <rect class=\"fig-box\" x=\"510\" y=\"74\" width=\"170\" height=\"52\" rx=\"6\"/>\n  <text class=\"fig-t fig-title fig-small\" x=\"595\" y=\"94\" text-anchor=\"middle\">detached</text>\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"595\" y=\"114\" text-anchor=\"middle\">管理の外に出た</text>\n\n  <rect class=\"fig-box\" x=\"250\" y=\"186\" width=\"180\" height=\"52\" rx=\"6\"/>\n  <text class=\"fig-t fig-title fig-small\" x=\"340\" y=\"206\" text-anchor=\"middle\">removed</text>\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"340\" y=\"226\" text-anchor=\"middle\">削除予定</text>\n\n  <line class=\"fig-line-accent\" x1=\"174\" y1=\"100\" x2=\"246\" y2=\"100\" marker-end=\"arrow-accent\"/>\n  <text class=\"fig-t fig-mono fig-t-accent fig-small\" x=\"210\" y=\"84\" text-anchor=\"middle\">persist</text>\n  <line class=\"fig-line\" x1=\"434\" y1=\"90\" x2=\"506\" y2=\"90\" marker-end=\"arrow\"/>\n  <text class=\"fig-t fig-t-dim fig-small\" x=\"470\" y=\"56\" text-anchor=\"middle\">トランザクション終了</text>\n  <line class=\"fig-line\" x1=\"506\" y1=\"112\" x2=\"434\" y2=\"112\" marker-end=\"arrow\"/>\n  <text class=\"fig-t fig-t-dim fig-small\" x=\"470\" y=\"140\" text-anchor=\"middle\">merge の戻り値</text>\n  <line class=\"fig-line-ng\" x1=\"340\" y1=\"130\" x2=\"340\" y2=\"180\" marker-end=\"arrow-ng\"/>\n  <text class=\"fig-t fig-mono fig-t-ng fig-small\" x=\"352\" y=\"156\">remove</text>\n\n  <text class=\"fig-t fig-t-dim fig-small\" x=\"20\" y=\"262\">managed のあいだは setter で値を変えるだけで、commit / flush 時に UPDATE される（dirty checking）</text>\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"20\" y=\"284\">merge は渡したオブジェクトを管理下に戻さない。管理されるのは戻り値の方</text>\n</svg>\n```\n\nコンテナ管理でtransaction-scopedな `EntityManager` を使う一般的な構成では、`persist`、`remove`、flushを伴う更新には\nアクティブなトランザクションが必要です。トランザクション外では `TransactionRequiredException` になり得ます。\n\n```java\n@Transactional\npublic void rename(long id, String text) {\n    Note note = em.find(Note.class, id);\n    note.text = text;               // commit時にdirty checking\n}\n```\n\n`EntityManager` 自体はスレッドセーフではありません。長寿命オブジェクトへ自作のEntityManagerを共有せず、\nJakarta EEでは通常 `@PersistenceContext` でコンテナ管理proxyを注入し、トランザクション境界と組み合わせます。\nこのレッスンのMiniJpaコードは状態遷移の形を簡略化したもので、実際のトランザクションやflushを実行しません。",
+      "samples": [
+        {
+          "caption": "MiniJpaでCRUDの形を確認する（実JPAでは変更をトランザクション内で行う）",
+          "code": "import jakarta.persistence.*;\n\n@Entity\nclass Note {\n    @Id\n    @GeneratedValue\n    Long id;\n    String text;\n\n    protected Note() { }\n\n    Note(String t) {\n        text = t;\n    }\n}\n\npublic class EntityManagerSample {\n    public static void main(String[] a) {\n        EntityManager em = MiniJpa.open();\n        Note n = new Note(\"before\");\n        em.persist(n);\n        Note found = em.find(Note.class, n.id);\n        found.text = \"after\";\n        System.out.println(em.find(Note.class, n.id).text);\n        em.remove(found);\n        System.out.println(em.find(Note.class, n.id));\n    }\n}\n"
+        }
+      ],
+      "task": "教材用MiniJpaで、3件のTaskを `persist` し、入力IDを `find` して `id:text`、なければ `not found` を出してください。実JPAの `persist` などの変更処理はトランザクション内で行います。",
+      "starterCode": "import jakarta.persistence.*;\nimport java.util.*;\n\n@Entity\nclass Task {\n    @Id\n    @GeneratedValue\n    Long id;\n    String text;\n\n    protected Task() { }\n\n    Task(String t) {\n        text = t;\n    }\n}\n\npublic class JpaFind {\n    public static void main(String[] a) {\n        EntityManager em = MiniJpa.open();\n        for (String t : List.of(\"設計\", \"実装\", \"テスト\")) {\n            // TODO persist\n        }\n        long id = new Scanner(System.in).nextLong();\n        // TODO find/output\n    }\n}\n",
+      "visibleCases": [
+        {
+          "label": "2件目",
+          "stdin": "2",
+          "expected": "2:実装"
+        },
+        {
+          "label": "なし",
+          "stdin": "9",
+          "expected": "not found"
+        }
+      ],
+      "hiddenCases": [
+        {
+          "label": "1件目",
+          "stdin": "1",
+          "expected": "1:設計"
+        },
+        {
+          "label": "3件目",
+          "stdin": "3",
+          "expected": "3:テスト"
+        }
+      ],
+      "hints": [
+        "loop内で `em.persist(new Task(t))`。",
+        "`Task found=em.find(Task.class,id)`。nullで分けます。"
+      ],
+      "solution": "import jakarta.persistence.*;\nimport java.util.*;\n\n@Entity\nclass Task {\n    @Id\n    @GeneratedValue\n    Long id;\n    String text;\n\n    protected Task() { }\n\n    Task(String t) {\n        text = t;\n    }\n}\n\npublic class JpaFind {\n    public static void main(String[] a) {\n        EntityManager em = MiniJpa.open();\n        for (String t : List.of(\"設計\", \"実装\", \"テスト\")) em.persist(new Task(t));\n        long id = new Scanner(System.in).nextLong();\n        Task f = em.find(Task.class, id);\n        System.out.println(f == null ? \"not found\" : f.id + \":\" + f.text);\n    }\n}\n",
+      "extraTasks": [
+        {
+          "kind": "applied",
+          "task": "入力IDのTaskをremoveし、削除前後の件数を `before=3 after=2` の形で出してください。存在しないIDなら件数は変わりません。JPQLで全件を取ります。",
+          "starterCode": "import jakarta.persistence.*;\nimport java.util.*;\n\n@Entity\nclass Task {\n    @Id\n    @GeneratedValue\n    Long id;\n    String text;\n\n    protected Task() { }\n\n    Task(String t) {\n        text = t;\n    }\n}\n\npublic class JpaRemove {\n    public static void main(String[] a) {\n        EntityManager em = MiniJpa.open();\n        for (String t : List.of(\"a\", \"b\", \"c\")) em.persist(new Task(t));\n        long id = new Scanner(System.in).nextLong();\n        List<Task> before = em.createQuery(\"SELECT t FROM Task t\", Task.class).getResultList();\n        // TODO\n    }\n}\n",
+          "visibleCases": [
+            {
+              "label": "削除あり",
+              "stdin": "2",
+              "expected": "before=3 after=2"
+            }
+          ],
+          "hiddenCases": [
+            {
+              "label": "削除なし",
+              "stdin": "9",
+              "expected": "before=3 after=3"
+            }
+          ],
+          "hints": [
+            "findし、nullでなければremove。",
+            "同じJPQLをもう一度実行してafterを取り、sizeを表示。"
+          ],
+          "solution": "import jakarta.persistence.*;\nimport java.util.*;\n\n@Entity\nclass Task {\n    @Id\n    @GeneratedValue\n    Long id;\n    String text;\n\n    protected Task() { }\n\n    Task(String t) {\n        text = t;\n    }\n}\n\npublic class JpaRemove {\n    public static void main(String[] a) {\n        EntityManager em = MiniJpa.open();\n        for (String t : List.of(\"a\", \"b\", \"c\")) em.persist(new Task(t));\n        long id = new Scanner(System.in).nextLong();\n        List<Task> before = em.createQuery(\"SELECT t FROM Task t\", Task.class).getResultList();\n        Task found = em.find(Task.class, id);\n        if (found != null) em.remove(found);\n        List<Task> after = em.createQuery(\"SELECT t FROM Task t\", Task.class).getResultList();\n        System.out.println(\"before=\" + before.size() + \" after=\" + after.size());\n    }\n}\n",
+          "sourceChecks": [
+            {
+              "pattern": "\\.remove\\s*\\(",
+              "minimum": 1,
+              "message": "削除は `em.remove` です。管理状態のEntityを渡します。"
+            },
+            {
+              "pattern": "createQuery\\s*\\(",
+              "minimum": 2,
+              "message": "削除の前と後で件数を数えるので、JPQLを2回実行してください。"
+            },
+            {
+              "pattern": "!=\\s*null",
+              "minimum": 1,
+              "message": "`find` は見つからなければ `null` を返します。`remove` の前に確かめてください。"
+            }
+          ]
+        }
+      ]
     },
     {
-      "id":"26-3","title":"JPQL・関連・N+1とロック",
-      "explanation":"## はじめて学ぶ人へ\n\nJPQLは表名・列名ではなく、Entity名・フィールド名を使って検索を書く言語です。SQLが倉庫の棚を直接探す指示なら、JPQLはJava側の商品カタログを基準に探す指示、と考えられます。\n\nN+1問題は、一覧を1回取得したあと、関連データを各行ごとに追加取得してしまう状態です。注文100件なら「注文一覧1回 + 顧客取得100回 = 101回」となり、遅さの原因になります。必要な関連だけをJOIN FETCHなどでまとめて読む設計を検討します。\n\nまた `@Version` は更新回数を照合する仕組みです。2人が同じ商品を編集したとき、後から保存した人が先の変更を黙って消すのを防ぎ、競合として検出できます。\n\n## JPQLはテーブルでなくEntityを検索する\n\n```java\nem.createQuery(\"SELECT u FROM User u WHERE u.name = :name\", User.class)\n  .setParameter(\"name\", name)\n  .getResultList();\n```\n\nJPQLではテーブル名・列名ではなくEntity名・属性名を使います。値は名前付きパラメータなどで渡し、文字列連結しません。\n関連は `@ManyToOne` / `@OneToMany(mappedBy=...)` などで表します。双方向関連は補助メソッドで両側を同期し、外部にはDTOを返します。\n\nLAZY関連を一覧ループで順次読むと、一覧の問い合わせに加えて行ごとの問い合わせが発生するN+1問題になり得ます。\nユースケースに合わせてJOIN FETCHやDTO projection、EntityGraphなどを選び、すべてをEAGERにはしません。\n\n```svg 一覧のあとに行ごとに関連を読むと、問い合わせが件数分だけ増える\n<svg viewBox=\"0 0 720 252\">\n  <text class=\"fig-t fig-t-ng fig-small\" x=\"14\" y=\"26\">N+1 問題</text>\n  <rect class=\"fig-box\" x=\"14\" y=\"40\" width=\"210\" height=\"34\" rx=\"6\"/>\n  <text class=\"fig-t fig-mono fig-small\" x=\"119\" y=\"57\" text-anchor=\"middle\">SELECT o FROM Order o</text>\n  <line class=\"fig-line\" x1=\"119\" y1=\"74\" x2=\"119\" y2=\"84\" marker-end=\"arrow\"/>\n  <rect class=\"fig-box\" x=\"40\" y=\"88\" width=\"160\" height=\"28\" rx=\"6\"/>\n  <text class=\"fig-t fig-small\" x=\"120\" y=\"102\" text-anchor=\"middle\">注文 1</text>\n  <rect class=\"fig-box\" x=\"40\" y=\"124\" width=\"160\" height=\"28\" rx=\"6\"/>\n  <text class=\"fig-t fig-small\" x=\"120\" y=\"138\" text-anchor=\"middle\">注文 2</text>\n  <rect class=\"fig-box\" x=\"40\" y=\"160\" width=\"160\" height=\"28\" rx=\"6\"/>\n  <text class=\"fig-t fig-small\" x=\"120\" y=\"174\" text-anchor=\"middle\">… 注文 100</text>\n  <line class=\"fig-line-ng\" x1=\"204\" y1=\"102\" x2=\"238\" y2=\"102\" marker-end=\"arrow-ng\"/>\n  <line class=\"fig-line-ng\" x1=\"204\" y1=\"138\" x2=\"238\" y2=\"138\" marker-end=\"arrow-ng\"/>\n  <line class=\"fig-line-ng\" x1=\"204\" y1=\"174\" x2=\"238\" y2=\"174\" marker-end=\"arrow-ng\"/>\n  <text class=\"fig-t fig-mono fig-small fig-t-ng\" x=\"244\" y=\"102\">SELECT customer</text>\n  <text class=\"fig-t fig-mono fig-small fig-t-ng\" x=\"244\" y=\"138\">SELECT customer</text>\n  <text class=\"fig-t fig-mono fig-small fig-t-ng\" x=\"244\" y=\"174\">SELECT customer</text>\n  <text class=\"fig-t fig-t-ng fig-small\" x=\"14\" y=\"208\">合計 1 + 100 = 101回の問い合わせ</text>\n\n  <line class=\"fig-line-soft fig-dashed\" x1=\"392\" y1=\"30\" x2=\"392\" y2=\"212\"/>\n\n  <text class=\"fig-t fig-t-ok fig-small\" x=\"410\" y=\"26\">まとめて読む</text>\n  <rect class=\"fig-box-ok\" x=\"410\" y=\"40\" width=\"296\" height=\"34\" rx=\"6\"/>\n  <text class=\"fig-t fig-mono fig-small fig-t-ok\" x=\"558\" y=\"57\" text-anchor=\"middle\">JOIN FETCH o.customer</text>\n  <line class=\"fig-line-ok\" x1=\"558\" y1=\"74\" x2=\"558\" y2=\"86\" marker-end=\"arrow-ok\"/>\n  <rect class=\"fig-box\" x=\"410\" y=\"90\" width=\"296\" height=\"98\" rx=\"6\"/>\n  <text class=\"fig-t fig-small\" x=\"558\" y=\"122\" text-anchor=\"middle\">注文と顧客を一緒に取得</text>\n  <text class=\"fig-t fig-t-ok fig-small\" x=\"558\" y=\"152\" text-anchor=\"middle\">問い合わせは1回</text>\n  <text class=\"fig-t fig-t-ok fig-small\" x=\"410\" y=\"208\">必要な関連だけをまとめて読む</text>\n\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"14\" y=\"240\">全部を EAGER にはしない。ユースケースごとに JOIN FETCH / DTO projection / EntityGraph を選ぶ</text>\n</svg>\n```\n\n## @Versionはプロバイダーが管理する\n\n同時更新の上書き防止には `@Version` の楽観ロックを使えます。アプリは通常、versionを手動で `++` したり、\n現在値との比較だけで競合制御したりしません。JPAプロバイダーがUPDATE条件へversionを含め、成功時に値を更新し、\n競合時には `OptimisticLockException` などで通知します。\n\n```java\n@Version\nprivate long version;\n```\n\n競合時の再読込・再試行・利用者への通知はアプリ側で設計します。競合が激しい残席確保などでは、\n悲観ロックや条件付きUPDATEも検討します。MiniJpaは実DBもロックも持たないため、後続演習ではこの仕組みを概念的に模擬します。",
-      "samples":[{"caption":"MiniJpaで名前付きパラメータの形を確認する","code":"import jakarta.persistence.*;\n@Entity class Person{@Id @GeneratedValue Long id;String name;protected Person(){}Person(String n){name=n;}}\npublic class JpqlSample{public static void main(String[]a){EntityManager em=MiniJpa.open();em.persist(new Person(\"A\"));em.persist(new Person(\"B\"));System.out.println(em.createQuery(\"SELECT p FROM Person p WHERE p.name = :name\",Person.class).setParameter(\"name\",\"B\").getResultList().size());}}\n"}],
-      "task":"教材用MiniJpaで3人を `persist` し、入力名と完全一致するEntityを名前付きパラメータ `:name` で検索してください。結果を `件数=n` と出します。実環境の登録はトランザクション内で行います。",
-      "starterCode":"import jakarta.persistence.*;\nimport java.util.*;\n@Entity class Person{@Id @GeneratedValue Long id;String name;protected Person(){}Person(String n){name=n;}}\npublic class JpaQuery{public static void main(String[]a){EntityManager em=MiniJpa.open();for(String n:List.of(\"山田\",\"佐藤\",\"山田\"))em.persist(new Person(n));String name=new Scanner(System.in).nextLine();// TODO JPQL\n}}\n",
-      "visibleCases":[{"label":"2件","stdin":"山田","expected":"件数=2"}],"hiddenCases":[{"label":"1件","stdin":"佐藤","expected":"件数=1"},{"label":"0件","stdin":"鈴木","expected":"件数=0"}],
-      "hints":["`createQuery(\"SELECT p FROM Person p WHERE p.name = :name\", Person.class)`。","続けて `.setParameter(\"name\", name).getResultList()`。"],
-      "solution":"import jakarta.persistence.*;\nimport java.util.*;\n@Entity class Person{@Id @GeneratedValue Long id;String name;protected Person(){}Person(String n){name=n;}}\npublic class JpaQuery{public static void main(String[]a){EntityManager em=MiniJpa.open();for(String n:List.of(\"山田\",\"佐藤\",\"山田\"))em.persist(new Person(n));String name=new Scanner(System.in).nextLine();List<Person> list=em.createQuery(\"SELECT p FROM Person p WHERE p.name = :name\",Person.class).setParameter(\"name\",name).getResultList();System.out.println(\"件数=\"+list.size());}}\n",
-      "extraTasks":[{"kind":"applied","task":"**JPAそのものではなく、楽観ロックの考え方を単純化したメモリ上の模擬問題**です。現在のversionと画面が送ったversionが一致すれば更新してversionを1増やし、不一致なら `競合: 再読込してください` と出します。入力は `currentVersion requestVersion` です。実JPAの `@Version` フィールドはプロバイダーが比較・更新するため、アプリがこのように手動で `version++` するコードは書きません。","starterCode":"import java.util.*;\nclass Document{int version;String text;Document(int v,String t){version=v;text=t;}boolean update(int expected,String next){// TODO: 楽観ロックの概念を模擬\nreturn false;}}\npublic class JpaVersion{public static void main(String[]a){Scanner s=new Scanner(System.in);Document d=new Document(s.nextInt(),\"old\");int expected=s.nextInt();if(d.update(expected,\"new\"))System.out.println(\"更新 version=\"+d.version);else System.out.println(\"競合: 再読込してください\");}}\n","visibleCases":[{"label":"一致","stdin":"3 3","expected":"更新 version=4"},{"label":"競合","stdin":"4 3","expected":"競合: 再読込してください"}],"hiddenCases":[{"label":"初期version","stdin":"0 0","expected":"更新 version=1"}],"hints":["この演習は仕組みの模擬です。`if(version != expected) return false;` と比較します。","一致時だけtextを変更しversionを増やしてtrueを返します。実JPAの `@Version` ではこの処理をプロバイダーが行います。"],"solution":"import java.util.*;\nclass Document{int version;String text;Document(int v,String t){version=v;text=t;}boolean update(int expected,String next){if(version!=expected)return false;text=next;version++;return true;}}\npublic class JpaVersion{public static void main(String[]a){Scanner s=new Scanner(System.in);Document d=new Document(s.nextInt(),\"old\");int expected=s.nextInt();if(d.update(expected,\"new\"))System.out.println(\"更新 version=\"+d.version);else System.out.println(\"競合: 再読込してください\");}}\n"}],
-      "quiz":[{"question":"管理状態Entityをトランザクション内で変更したときの一般的な動作は？","choices":["必ず手書きSQLが必要","dirty checkingで更新対象になる","自動で削除される","Servletへ変換される"],"answer":1,"explanation":"管理状態の変更を永続化コンテキストが検出し、通常はflush時にSQLへ反映します。"},{"question":"mergeの戻り値について正しいのは？","choices":["常にnull","渡したdetached実体と必ず同一","内容をコピーした管理実体なので戻り値を使う","ResultSet"],"answer":2,"explanation":"merge後に管理されるのは返された実体です。"},{"question":"N+1問題への対策候補は？","choices":["全関連を常にEAGER","必要な関連のJOIN FETCHやDTO projection","ループ内findを増やす","トランザクションを削除"],"answer":1,"explanation":"ユースケースごとに必要なデータを一括取得します。"},{"question":"@Versionの目的は？","choices":["パスワード暗号化","楽観ロックによる更新競合検出","主キー自動採番","SQLインジェクション対策"],"answer":1,"explanation":"JPAプロバイダーがversionを更新条件に含め、読み込み後に別処理が更新した競合を検出します。通常、アプリがversionを手動で増やしません。"}]
+      "id": "26-3",
+      "title": "JPQL・関連・N+1とロック",
+      "explanation": "## はじめて学ぶ人へ\n\nJPQLは表名・列名ではなく、Entity名・フィールド名を使って検索を書く言語です。SQLが倉庫の棚を直接探す指示なら、JPQLはJava側の商品カタログを基準に探す指示、と考えられます。\n\nN+1問題は、一覧を1回取得したあと、関連データを各行ごとに追加取得してしまう状態です。注文100件なら「注文一覧1回 + 顧客取得100回 = 101回」となり、遅さの原因になります。必要な関連だけをJOIN FETCHなどでまとめて読む設計を検討します。\n\nまた `@Version` は更新回数を照合する仕組みです。2人が同じ商品を編集したとき、後から保存した人が先の変更を黙って消すのを防ぎ、競合として検出できます。\n\n## JPQLはテーブルでなくEntityを検索する\n\n```java\nem.createQuery(\"SELECT u FROM User u WHERE u.name = :name\", User.class)\n  .setParameter(\"name\", name)\n  .getResultList();\n```\n\nJPQLではテーブル名・列名ではなくEntity名・属性名を使います。値は名前付きパラメータなどで渡し、文字列連結しません。\n関連は `@ManyToOne` / `@OneToMany(mappedBy=...)` などで表します。双方向関連は補助メソッドで両側を同期し、外部にはDTOを返します。\n\nLAZY関連を一覧ループで順次読むと、一覧の問い合わせに加えて行ごとの問い合わせが発生するN+1問題になり得ます。\nユースケースに合わせてJOIN FETCHやDTO projection、EntityGraphなどを選び、すべてをEAGERにはしません。\n\n```svg 一覧のあとに行ごとに関連を読むと、問い合わせが件数分だけ増える\n<svg viewBox=\"0 0 720 252\">\n  <text class=\"fig-t fig-t-ng fig-small\" x=\"14\" y=\"26\">N+1 問題</text>\n  <rect class=\"fig-box\" x=\"14\" y=\"40\" width=\"210\" height=\"34\" rx=\"6\"/>\n  <text class=\"fig-t fig-mono fig-small\" x=\"119\" y=\"57\" text-anchor=\"middle\">SELECT o FROM Order o</text>\n  <line class=\"fig-line\" x1=\"119\" y1=\"74\" x2=\"119\" y2=\"84\" marker-end=\"arrow\"/>\n  <rect class=\"fig-box\" x=\"40\" y=\"88\" width=\"160\" height=\"28\" rx=\"6\"/>\n  <text class=\"fig-t fig-small\" x=\"120\" y=\"102\" text-anchor=\"middle\">注文 1</text>\n  <rect class=\"fig-box\" x=\"40\" y=\"124\" width=\"160\" height=\"28\" rx=\"6\"/>\n  <text class=\"fig-t fig-small\" x=\"120\" y=\"138\" text-anchor=\"middle\">注文 2</text>\n  <rect class=\"fig-box\" x=\"40\" y=\"160\" width=\"160\" height=\"28\" rx=\"6\"/>\n  <text class=\"fig-t fig-small\" x=\"120\" y=\"174\" text-anchor=\"middle\">… 注文 100</text>\n  <line class=\"fig-line-ng\" x1=\"204\" y1=\"102\" x2=\"238\" y2=\"102\" marker-end=\"arrow-ng\"/>\n  <line class=\"fig-line-ng\" x1=\"204\" y1=\"138\" x2=\"238\" y2=\"138\" marker-end=\"arrow-ng\"/>\n  <line class=\"fig-line-ng\" x1=\"204\" y1=\"174\" x2=\"238\" y2=\"174\" marker-end=\"arrow-ng\"/>\n  <text class=\"fig-t fig-mono fig-small fig-t-ng\" x=\"244\" y=\"102\">SELECT customer</text>\n  <text class=\"fig-t fig-mono fig-small fig-t-ng\" x=\"244\" y=\"138\">SELECT customer</text>\n  <text class=\"fig-t fig-mono fig-small fig-t-ng\" x=\"244\" y=\"174\">SELECT customer</text>\n  <text class=\"fig-t fig-t-ng fig-small\" x=\"14\" y=\"208\">合計 1 + 100 = 101回の問い合わせ</text>\n\n  <line class=\"fig-line-soft fig-dashed\" x1=\"392\" y1=\"30\" x2=\"392\" y2=\"212\"/>\n\n  <text class=\"fig-t fig-t-ok fig-small\" x=\"410\" y=\"26\">まとめて読む</text>\n  <rect class=\"fig-box-ok\" x=\"410\" y=\"40\" width=\"296\" height=\"34\" rx=\"6\"/>\n  <text class=\"fig-t fig-mono fig-small fig-t-ok\" x=\"558\" y=\"57\" text-anchor=\"middle\">JOIN FETCH o.customer</text>\n  <line class=\"fig-line-ok\" x1=\"558\" y1=\"74\" x2=\"558\" y2=\"86\" marker-end=\"arrow-ok\"/>\n  <rect class=\"fig-box\" x=\"410\" y=\"90\" width=\"296\" height=\"98\" rx=\"6\"/>\n  <text class=\"fig-t fig-small\" x=\"558\" y=\"122\" text-anchor=\"middle\">注文と顧客を一緒に取得</text>\n  <text class=\"fig-t fig-t-ok fig-small\" x=\"558\" y=\"152\" text-anchor=\"middle\">問い合わせは1回</text>\n  <text class=\"fig-t fig-t-ok fig-small\" x=\"410\" y=\"208\">必要な関連だけをまとめて読む</text>\n\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"14\" y=\"240\">全部を EAGER にはしない。ユースケースごとに JOIN FETCH / DTO projection / EntityGraph を選ぶ</text>\n</svg>\n```\n\n## @Versionはプロバイダーが管理する\n\n同時更新の上書き防止には `@Version` の楽観ロックを使えます。アプリは通常、versionを手動で `++` したり、\n現在値との比較だけで競合制御したりしません。JPAプロバイダーがUPDATE条件へversionを含め、成功時に値を更新し、\n競合時には `OptimisticLockException` などで通知します。\n\n```java\n@Version\nprivate long version;\n```\n\n競合時の再読込・再試行・利用者への通知はアプリ側で設計します。競合が激しい残席確保などでは、\n悲観ロックや条件付きUPDATEも検討します。MiniJpaは実DBもロックも持たないため、後続演習ではこの仕組みを概念的に模擬します。",
+      "samples": [
+        {
+          "caption": "MiniJpaで名前付きパラメータの形を確認する",
+          "code": "import jakarta.persistence.*;\n\n@Entity\nclass Person {\n    @Id\n    @GeneratedValue\n    Long id;\n    String name;\n\n    protected Person() { }\n\n    Person(String n) {\n        name = n;\n    }\n}\n\npublic class JpqlSample {\n    public static void main(String[] a) {\n        EntityManager em = MiniJpa.open();\n        em.persist(new Person(\"A\"));\n        em.persist(new Person(\"B\"));\n        System.out.println(em.createQuery(\"SELECT p FROM Person p WHERE p.name = :name\", Person.class).setParameter(\"name\", \"B\").getResultList().size());\n    }\n}\n"
+        }
+      ],
+      "task": "教材用MiniJpaで3人を `persist` し、入力名と完全一致するEntityを名前付きパラメータ `:name` で検索してください。結果を `件数=n` と出します。実環境の登録はトランザクション内で行います。",
+      "starterCode": "import jakarta.persistence.*;\nimport java.util.*;\n\n@Entity\nclass Person {\n    @Id\n    @GeneratedValue\n    Long id;\n    String name;\n\n    protected Person() { }\n\n    Person(String n) {\n        name = n;\n    }\n}\n\npublic class JpaQuery {\n    public static void main(String[] a) {\n        EntityManager em = MiniJpa.open();\n        for (String n : List.of(\"山田\", \"佐藤\", \"山田\")) em.persist(new Person(n));\n        String name = new Scanner(System.in).nextLine();\n        // TODO JPQL\n    }\n}\n",
+      "visibleCases": [
+        {
+          "label": "2件",
+          "stdin": "山田",
+          "expected": "件数=2"
+        }
+      ],
+      "hiddenCases": [
+        {
+          "label": "1件",
+          "stdin": "佐藤",
+          "expected": "件数=1"
+        },
+        {
+          "label": "0件",
+          "stdin": "鈴木",
+          "expected": "件数=0"
+        }
+      ],
+      "hints": [
+        "`createQuery(\"SELECT p FROM Person p WHERE p.name = :name\", Person.class)`。",
+        "続けて `.setParameter(\"name\", name).getResultList()`。"
+      ],
+      "solution": "import jakarta.persistence.*;\nimport java.util.*;\n\n@Entity\nclass Person {\n    @Id\n    @GeneratedValue\n    Long id;\n    String name;\n\n    protected Person() { }\n\n    Person(String n) {\n        name = n;\n    }\n}\n\npublic class JpaQuery {\n    public static void main(String[] a) {\n        EntityManager em = MiniJpa.open();\n        for (String n : List.of(\"山田\", \"佐藤\", \"山田\")) em.persist(new Person(n));\n        String name = new Scanner(System.in).nextLine();\n        List<Person> list = em.createQuery(\"SELECT p FROM Person p WHERE p.name = :name\", Person.class).setParameter(\"name\", name).getResultList();\n        System.out.println(\"件数=\" + list.size());\n    }\n}\n",
+      "extraTasks": [
+        {
+          "kind": "applied",
+          "task": "**JPAそのものではなく、楽観ロックの考え方を単純化したメモリ上の模擬問題**です。現在のversionと画面が送ったversionが一致すれば更新してversionを1増やし、不一致なら `競合: 再読込してください` と出します。入力は `currentVersion requestVersion` です。実JPAの `@Version` フィールドはプロバイダーが比較・更新するため、アプリがこのように手動で `version++` するコードは書きません。",
+          "starterCode": "import java.util.*;\n\nclass Document {\n    int version;\n    String text;\n\n    Document(int v, String t) {\n        version = v;\n        text = t;\n    }\n\n    boolean update(int expected, String next) {\n        // TODO: 楽観ロックの概念を模擬\n        return false;\n    }\n}\n\npublic class JpaVersion {\n    public static void main(String[] a) {\n        Scanner s = new Scanner(System.in);\n        Document d = new Document(s.nextInt(), \"old\");\n        int expected = s.nextInt();\n        if (d.update(expected, \"new\")) System.out.println(\"更新 version=\" + d.version);\n        else System.out.println(\"競合: 再読込してください\");\n    }\n}\n",
+          "visibleCases": [
+            {
+              "label": "一致",
+              "stdin": "3 3",
+              "expected": "更新 version=4"
+            },
+            {
+              "label": "競合",
+              "stdin": "4 3",
+              "expected": "競合: 再読込してください"
+            }
+          ],
+          "hiddenCases": [
+            {
+              "label": "初期version",
+              "stdin": "0 0",
+              "expected": "更新 version=1"
+            }
+          ],
+          "hints": [
+            "この演習は仕組みの模擬です。`if(version != expected) return false;` と比較します。",
+            "一致時だけtextを変更しversionを増やしてtrueを返します。実JPAの `@Version` ではこの処理をプロバイダーが行います。"
+          ],
+          "solution": "import java.util.*;\n\nclass Document {\n    int version;\n    String text;\n\n    Document(int v, String t) {\n        version = v;\n        text = t;\n    }\n\n    boolean update(int expected, String next) {\n        if (version != expected) return false;\n        text = next;\n        version++;\n        return true;\n    }\n}\n\npublic class JpaVersion {\n    public static void main(String[] a) {\n        Scanner s = new Scanner(System.in);\n        Document d = new Document(s.nextInt(), \"old\");\n        int expected = s.nextInt();\n        if (d.update(expected, \"new\")) System.out.println(\"更新 version=\" + d.version);\n        else System.out.println(\"競合: 再読込してください\");\n    }\n}\n",
+          "sourceChecks": [
+            {
+              "pattern": "version\\s*!=\\s*expected|expected\\s*!=\\s*version|version\\s*==\\s*expected|expected\\s*==\\s*version",
+              "minimum": 1,
+              "message": "画面が送ったversionと現在のversionが一致するかで、更新できるかを決めてください。"
+            },
+            {
+              "pattern": "version\\s*(\\+\\+|\\+=)|\\+\\+\\s*version",
+              "minimum": 1,
+              "message": "更新できたらversionを1増やしてください。これが次の更新の突き合わせに使われます。"
+            }
+          ]
+        }
+      ],
+      "quiz": [
+        {
+          "question": "管理状態Entityをトランザクション内で変更したときの一般的な動作は？",
+          "choices": [
+            "`persist` を呼び直さないと反映されない",
+            "Servletへ変換される",
+            "自動で削除される",
+            "dirty checkingで更新対象になる"
+          ],
+          "answer": 3,
+          "explanation": "管理状態の変更を永続化コンテキストが検出し、通常はflush時にSQLへ反映します。"
+        },
+        {
+          "question": "mergeの戻り値について正しいのは？",
+          "choices": [
+            "内容をコピーした管理実体なので戻り値を使う",
+            "渡したdetached実体と必ず同一",
+            "ResultSet",
+            "主キーが未設定のときだけ新しい実体を返す"
+          ],
+          "answer": 0,
+          "explanation": "渡した detached な実体がそのまま管理状態になるわけではありません。`ResultSet` はJDBCの型で `merge` は返しません。主キーの有無で戻り値の意味が変わるのでもありません。`merge` は内容をコピーした**別の管理実体**を返すので、以降はその戻り値を使います。元の実体を触り続けても保存されません。"
+        },
+        {
+          "question": "N+1問題への対策候補は？",
+          "choices": [
+            "トランザクションを外して都度コミットするようにする",
+            "必要な関連のJOIN FETCHやDTO projection",
+            "すべての関連を常にEAGERで取得する",
+            "ループの中の find をさらに増やす"
+          ],
+          "answer": 1,
+          "explanation": "トランザクションを外して都度コミットしても、発行されるSQLの本数は変わりません。すべてEAGERにすると、要らない関連まで毎回取ってきて別の遅さを作ります。ループの中の `find` を増やすのは問題そのものです。使う場面ごとに、必要な関連だけを `JOIN FETCH` かDTO projectionで一度に取ります。"
+        },
+        {
+          "question": "@Versionの目的は？",
+          "choices": [
+            "SQLインジェクション対策",
+            "楽観ロックによる更新競合検出",
+            "パスワード暗号化",
+            "主キー自動採番"
+          ],
+          "answer": 1,
+          "explanation": "JPAプロバイダーがversionを更新条件に含め、読み込み後に別処理が更新した競合を検出します。通常、アプリがversionを手動で増やしません。"
+        }
+      ]
     },
     {
       "id": "26-4",
@@ -42,11 +300,11 @@
       "samples": [
         {
           "caption": "復習用サンプル：MiniJpaで名前付きパラメータの形を確認する",
-          "code": "import jakarta.persistence.*;\n@Entity class Person{@Id @GeneratedValue Long id;String name;protected Person(){}Person(String n){name=n;}}\npublic class JpqlSample{public static void main(String[]a){EntityManager em=MiniJpa.open();em.persist(new Person(\"A\"));em.persist(new Person(\"B\"));System.out.println(em.createQuery(\"SELECT p FROM Person p WHERE p.name = :name\",Person.class).setParameter(\"name\",\"B\").getResultList().size());}}\n"
+          "code": "import jakarta.persistence.*;\n\n@Entity\nclass Person {\n    @Id\n    @GeneratedValue\n    Long id;\n    String name;\n\n    protected Person() { }\n\n    Person(String n) {\n        name = n;\n    }\n}\n\npublic class JpqlSample {\n    public static void main(String[] a) {\n        EntityManager em = MiniJpa.open();\n        em.persist(new Person(\"A\"));\n        em.persist(new Person(\"B\"));\n        System.out.println(em.createQuery(\"SELECT p FROM Person p WHERE p.name = :name\", Person.class).setParameter(\"name\", \"B\").getResultList().size());\n    }\n}\n"
         }
       ],
       "task": "【基本】`@Entity` なBookに自動採番のid、title、priceを持たせます。入力から生成してpersistし、`id=1 title=... price=...` と表示してください。引数なしコンストラクタも用意します。",
-      "starterCode": "import jakarta.persistence.*;\nimport java.util.*;\n@Entity class Book {@Id @GeneratedValue Long id;String title;int price;protected Book(){}Book(String title,int price){/* TODO: フィールドへ保存 */}}\npublic class Main {public static void main(String[] args){Scanner s=new Scanner(System.in);Book book=new Book(s.next(),s.nextInt());EntityManager em=MiniJpa.open();em.persist(book);System.out.println(\"id=\"+book.id+\" title=\"+book.title+\" price=\"+book.price);}}\n",
+      "starterCode": "import jakarta.persistence.*;\nimport java.util.*;\n\n@Entity\nclass Book {\n    @Id\n    @GeneratedValue\n    Long id;\n    String title;\n    int price;\n\n    protected Book() { }\n\n    Book(String title, int price) {\n        /* TODO: フィールドへ保存 */\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        Book book = new Book(s.next(), s.nextInt());\n        EntityManager em = MiniJpa.open();\n        em.persist(book);\n        System.out.println(\"id=\" + book.id + \" title=\" + book.title + \" price=\" + book.price);\n    }\n}\n",
       "visibleCases": [
         {
           "label": "保存",
@@ -64,12 +322,12 @@
         "@Idと@GeneratedValueをidへ付けます。",
         "protectedの引数なしコンストラクタと、値を受け取るコンストラクタを用意します。"
       ],
-      "solution": "import jakarta.persistence.*;\nimport java.util.*;\n@Entity class Book {@Id @GeneratedValue Long id;String title;int price;protected Book(){}Book(String title,int price){this.title=title;this.price=price;}}\npublic class Main {public static void main(String[] args){Scanner s=new Scanner(System.in);Book book=new Book(s.next(),s.nextInt());EntityManager em=MiniJpa.open();em.persist(book);System.out.println(\"id=\"+book.id+\" title=\"+book.title+\" price=\"+book.price);}}\n",
+      "solution": "import jakarta.persistence.*;\nimport java.util.*;\n\n@Entity\nclass Book {\n    @Id\n    @GeneratedValue\n    Long id;\n    String title;\n    int price;\n\n    protected Book() { }\n\n    Book(String title, int price) {\n        this.title = title;\n        this.price = price;\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        Book book = new Book(s.next(), s.nextInt());\n        EntityManager em = MiniJpa.open();\n        em.persist(book);\n        System.out.println(\"id=\" + book.id + \" title=\" + book.title + \" price=\" + book.price);\n    }\n}\n",
       "extraTasks": [
         {
           "kind": "drill",
           "task": "【組み合わせ】3冊のBookをpersistしてからIDを読み、`find` で見つかれば `id:title`、無ければ `not found` と表示してください。本はA、B、Cの順で保存します。",
-          "starterCode": "import jakarta.persistence.*;\nimport java.util.*;\n@Entity class Book {@Id @GeneratedValue Long id;String title;protected Book(){}Book(String t){title=t;}}\npublic class Main {public static void main(String[] args){EntityManager em=MiniJpa.open();for(String t:List.of(\"A\",\"B\",\"C\"))em.persist(new Book(t));long id=new Scanner(System.in).nextLong();/* TODO */}}\n",
+          "starterCode": "import jakarta.persistence.*;\nimport java.util.*;\n\n@Entity\nclass Book {\n    @Id\n    @GeneratedValue\n    Long id;\n    String title;\n\n    protected Book() { }\n\n    Book(String t) {\n        title = t;\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        EntityManager em = MiniJpa.open();\n        for (String t : List.of(\"A\", \"B\", \"C\")) em.persist(new Book(t));\n        long id = new Scanner(System.in).nextLong();\n        /* TODO */\n    }\n}\n",
           "visibleCases": [
             {
               "label": "2番",
@@ -98,12 +356,29 @@
             "`em.find(Book.class, id)` を呼びます。",
             "戻り値がnullかどうかで分岐します。"
           ],
-          "solution": "import jakarta.persistence.*;\nimport java.util.*;\n@Entity class Book {@Id @GeneratedValue Long id;String title;protected Book(){}Book(String t){title=t;}}\npublic class Main {public static void main(String[] args){EntityManager em=MiniJpa.open();for(String t:List.of(\"A\",\"B\",\"C\"))em.persist(new Book(t));long id=new Scanner(System.in).nextLong();Book b=em.find(Book.class,id);System.out.println(b==null?\"not found\":b.id+\":\"+b.title);}}\n"
+          "solution": "import jakarta.persistence.*;\nimport java.util.*;\n\n@Entity\nclass Book {\n    @Id\n    @GeneratedValue\n    Long id;\n    String title;\n\n    protected Book() { }\n\n    Book(String t) {\n        title = t;\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        EntityManager em = MiniJpa.open();\n        for (String t : List.of(\"A\", \"B\", \"C\")) em.persist(new Book(t));\n        long id = new Scanner(System.in).nextLong();\n        Book b = em.find(Book.class, id);\n        System.out.println(b == null ? \"not found\" : b.id + \":\" + b.title);\n    }\n}\n",
+          "sourceChecks": [
+            {
+              "pattern": "\\.persist\\s*\\(",
+              "minimum": 1,
+              "message": "3冊を `em.persist` で保存してください。"
+            },
+            {
+              "pattern": "\\.find\\s*\\(\\s*Book\\s*\\.\\s*class",
+              "minimum": 1,
+              "message": "主キーでの1件取得は `em.find(Book.class, id)` です。"
+            },
+            {
+              "pattern": "==\\s*null|!=\\s*null",
+              "minimum": 1,
+              "message": "`find` は見つからなければ `null` を返すので、`not found` の分岐を書いてください。"
+            }
+          ]
         },
         {
           "kind": "applied",
           "task": "【実践】nameを持つCustomerを3件（Aki、Ren、Aki）persistします。検索名を読み、JPQL `SELECT c FROM Customer c WHERE c.name = :name` で検索して `count=件数` と表示してください。",
-          "starterCode": "import jakarta.persistence.*;\nimport java.util.*;\n@Entity class Customer {@Id @GeneratedValue Long id;String name;protected Customer(){}Customer(String n){name=n;}}\npublic class Main {public static void main(String[] args){EntityManager em=MiniJpa.open();for(String n:List.of(\"Aki\",\"Ren\",\"Aki\"))em.persist(new Customer(n));String name=new Scanner(System.in).next();/* TODO */}}\n",
+          "starterCode": "import jakarta.persistence.*;\nimport java.util.*;\n\n@Entity\nclass Customer {\n    @Id\n    @GeneratedValue\n    Long id;\n    String name;\n\n    protected Customer() { }\n\n    Customer(String n) {\n        name = n;\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        EntityManager em = MiniJpa.open();\n        for (String n : List.of(\"Aki\", \"Ren\", \"Aki\")) em.persist(new Customer(n));\n        String name = new Scanner(System.in).next();\n        /* TODO */\n    }\n}\n",
           "visibleCases": [
             {
               "label": "2件",
@@ -127,7 +402,19 @@
             "JPQLはEntityのフィールド名nameを使います。",
             "`:name` へsetParameterで検索値を設定します。"
           ],
-          "solution": "import jakarta.persistence.*;\nimport java.util.*;\n@Entity class Customer {@Id @GeneratedValue Long id;String name;protected Customer(){}Customer(String n){name=n;}}\npublic class Main {public static void main(String[] args){EntityManager em=MiniJpa.open();for(String n:List.of(\"Aki\",\"Ren\",\"Aki\"))em.persist(new Customer(n));String name=new Scanner(System.in).next();List<Customer> found=em.createQuery(\"SELECT c FROM Customer c WHERE c.name = :name\",Customer.class).setParameter(\"name\",name).getResultList();System.out.println(\"count=\"+found.size());}}\n"
+          "solution": "import jakarta.persistence.*;\nimport java.util.*;\n\n@Entity\nclass Customer {\n    @Id\n    @GeneratedValue\n    Long id;\n    String name;\n\n    protected Customer() { }\n\n    Customer(String n) {\n        name = n;\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        EntityManager em = MiniJpa.open();\n        for (String n : List.of(\"Aki\", \"Ren\", \"Aki\")) em.persist(new Customer(n));\n        String name = new Scanner(System.in).next();\n        List<Customer> found = em.createQuery(\"SELECT c FROM Customer c WHERE c.name = :name\", Customer.class).setParameter(\"name\", name).getResultList();\n        System.out.println(\"count=\" + found.size());\n    }\n}\n",
+          "sourceChecks": [
+            {
+              "pattern": "createQuery\\s*\\(",
+              "minimum": 1,
+              "message": "条件付きの検索はJPQLを `createQuery` で組み立ててください。"
+            },
+            {
+              "pattern": "setParameter\\s*\\(",
+              "minimum": 1,
+              "message": "検索名はJPQLへ文字列連結せず、`:name` へ `setParameter` で渡してください。"
+            }
+          ]
         }
       ]
     }

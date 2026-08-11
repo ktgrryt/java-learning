@@ -114,7 +114,19 @@
             "3行目は `java.util.function.Predicate<Integer> p = n -> n > 0;` と、パッケージ名から書きます。`import java.util.*;` はサブパッケージを含まないので短くは書けません。",
             "`round(PI * pow(a, 2))` の `pow` は `double` を返します。`round` に渡せば四捨五入した `long` になります。"
           ],
-          "solution": "import java.util.*;\n\nimport static java.lang.Math.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int a = sc.nextInt();\n        int b = sc.nextInt();\n\n        System.out.println(\"面積 \" + round(PI * pow(a, 2)));\n        System.out.println(\"平方根 \" + round(sqrt(abs(b))));\n\n        java.util.function.Predicate<Integer> p = n -> n > 0;\n        int count = 0;\n        if (p.test(a)) {\n            count++;\n        }\n        if (p.test(b)) {\n            count++;\n        }\n        System.out.println(\"正の数 \" + count);\n\n        List<Integer> list = new ArrayList<>();\n        list.add(a);\n        list.add(b);\n        System.out.println(\"リスト \" + list);\n\n        System.out.println(\"自動 \" + String.valueOf(a).length());\n    }\n}\n"
+          "solution": "import java.util.*;\n\nimport static java.lang.Math.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int a = sc.nextInt();\n        int b = sc.nextInt();\n\n        System.out.println(\"面積 \" + round(PI * pow(a, 2)));\n        System.out.println(\"平方根 \" + round(sqrt(abs(b))));\n\n        java.util.function.Predicate<Integer> p = n -> n > 0;\n        int count = 0;\n        if (p.test(a)) {\n            count++;\n        }\n        if (p.test(b)) {\n            count++;\n        }\n        System.out.println(\"正の数 \" + count);\n\n        List<Integer> list = new ArrayList<>();\n        list.add(a);\n        list.add(b);\n        System.out.println(\"リスト \" + list);\n\n        System.out.println(\"自動 \" + String.valueOf(a).length());\n    }\n}\n",
+          "sourceChecks": [
+            {
+              "pattern": "import\\s+static\\s+java\\.lang\\.Math",
+              "minimum": 1,
+              "message": "`Math.` を付けずに書けるよう、`import static java.lang.Math.*;` を自分で書いてください。"
+            },
+            {
+              "pattern": "java\\.util\\.function\\.Predicate",
+              "minimum": 1,
+              "message": "`import` せずに使うところは、完全修飾名で `java.util.function.Predicate` と書いてください。"
+            }
+          ]
         }
       ]
     },
@@ -230,7 +242,19 @@
             "`自作` のラムダは `(x, y) -> { int c = Integer.compare(x.subtotal(), y.subtotal()); return c != 0 ? c : y.name().compareTo(x.name()); }`。名前を降順にしたいので `y` から比べます。",
             "名前を並べる部分は `String s = \"\";` に `s += \" \" + item.name();` を足していき、`System.out.println(\"個数順\" + s);` と出すと先頭のスペースがちょうど区切りになります。"
           ],
-          "solution": "import java.util.ArrayList;\nimport java.util.Comparator;\nimport java.util.List;\nimport java.util.Scanner;\nimport java.util.TreeMap;\n\nrecord Item(String name, int count, int price) {\n    int subtotal() {\n        return count * price;\n    }\n}\n\npublic class Main {\n    static String names(List<Item> items) {\n        String s = \"\";\n        for (Item item : items) {\n            s += \" \" + item.name();\n        }\n        return s;\n    }\n\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int k = sc.nextInt();\n\n        List<Item> items = new ArrayList<>();\n        for (int i = 0; i < k; i++) {\n            String name = sc.next();\n            int count = sc.nextInt();\n            int price = sc.nextInt();\n            items.add(new Item(name, count, price));\n        }\n\n        List<Item> byCount = new ArrayList<>(items);\n        byCount.sort(Comparator.comparingInt(Item::count).thenComparing(Item::name));\n        System.out.println(\"個数順\" + names(byCount));\n\n        List<Item> byPrice = new ArrayList<>(items);\n        byPrice.sort(Comparator.comparingInt(Item::price).reversed().thenComparing(Item::name));\n        System.out.println(\"高い順\" + names(byPrice));\n\n        List<Item> mine = new ArrayList<>(items);\n        mine.sort((x, y) -> {\n            int bySubtotal = Integer.compare(x.subtotal(), y.subtotal());\n            return bySubtotal != 0 ? bySubtotal : y.name().compareTo(x.name());\n        });\n        System.out.println(\"自作\" + names(mine));\n\n        TreeMap<String, Integer> stock = new TreeMap<>();\n        for (Item item : items) {\n            stock.put(item.name(), stock.getOrDefault(item.name(), 0) + item.count());\n        }\n        System.out.println(\"在庫 \" + stock);\n    }\n}\n"
+          "solution": "import java.util.ArrayList;\nimport java.util.Comparator;\nimport java.util.List;\nimport java.util.Scanner;\nimport java.util.TreeMap;\n\nrecord Item(String name, int count, int price) {\n    int subtotal() {\n        return count * price;\n    }\n}\n\npublic class Main {\n    static String names(List<Item> items) {\n        String s = \"\";\n        for (Item item : items) {\n            s += \" \" + item.name();\n        }\n        return s;\n    }\n\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int k = sc.nextInt();\n\n        List<Item> items = new ArrayList<>();\n        for (int i = 0; i < k; i++) {\n            String name = sc.next();\n            int count = sc.nextInt();\n            int price = sc.nextInt();\n            items.add(new Item(name, count, price));\n        }\n\n        List<Item> byCount = new ArrayList<>(items);\n        byCount.sort(Comparator.comparingInt(Item::count).thenComparing(Item::name));\n        System.out.println(\"個数順\" + names(byCount));\n\n        List<Item> byPrice = new ArrayList<>(items);\n        byPrice.sort(Comparator.comparingInt(Item::price).reversed().thenComparing(Item::name));\n        System.out.println(\"高い順\" + names(byPrice));\n\n        List<Item> mine = new ArrayList<>(items);\n        mine.sort((x, y) -> {\n            int bySubtotal = Integer.compare(x.subtotal(), y.subtotal());\n            return bySubtotal != 0 ? bySubtotal : y.name().compareTo(x.name());\n        });\n        System.out.println(\"自作\" + names(mine));\n\n        TreeMap<String, Integer> stock = new TreeMap<>();\n        for (Item item : items) {\n            stock.put(item.name(), stock.getOrDefault(item.name(), 0) + item.count());\n        }\n        System.out.println(\"在庫 \" + stock);\n    }\n}\n",
+          "sourceChecks": [
+            {
+              "pattern": "record\\s+Item\\s*\\(",
+              "minimum": 1,
+              "message": "`record Item(String name, int count, int price)` を書き、`subtotal()` を持たせてください。"
+            },
+            {
+              "pattern": "thenComparing",
+              "minimum": 1,
+              "message": "「同じなら名前の辞書順」は `thenComparing` でつないでください。"
+            }
+          ]
         }
       ]
     },
@@ -346,7 +370,14 @@
             "`worst` が `null` のままなら単語が1つも無かったということなので `最少 なし` を出します。",
             "`明細` は `new TreeMap<>(counts)` を、`頭文字` は `heads` を、そのまま `+` でつなげば `{...}` `[...]` の形で出ます。"
           ],
-          "solution": "import java.util.HashMap;\nimport java.util.Map;\nimport java.util.Scanner;\nimport java.util.Set;\nimport java.util.TreeMap;\nimport java.util.TreeSet;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int k = sc.nextInt();\n\n        Map<String, Integer> counts = new HashMap<>();\n        Set<String> heads = new TreeSet<>();\n\n        for (int i = 0; i < k; i++) {\n            String word = sc.next();\n            counts.put(word, counts.getOrDefault(word, 0) + 1);\n            heads.add(word.substring(0, 1));\n        }\n        String t = sc.next();\n\n        String worst = null;\n        int worstCount = 0;\n        for (String key : new TreeSet<>(counts.keySet())) {\n            if (worst == null || counts.get(key) < worstCount) {\n                worst = key;\n                worstCount = counts.get(key);\n            }\n        }\n        if (worst == null) {\n            System.out.println(\"最少 なし\");\n        } else {\n            System.out.println(\"最少 \" + worst + \" \" + worstCount);\n        }\n\n        System.out.println(\"明細 \" + new TreeMap<>(counts));\n        System.out.println(\"頭文字 \" + heads);\n        System.out.println(\"検索 \" + t + \" \" + counts.containsKey(t) + \" \" + counts.getOrDefault(t, 0));\n    }\n}\n"
+          "solution": "import java.util.HashMap;\nimport java.util.Map;\nimport java.util.Scanner;\nimport java.util.Set;\nimport java.util.TreeMap;\nimport java.util.TreeSet;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int k = sc.nextInt();\n\n        Map<String, Integer> counts = new HashMap<>();\n        Set<String> heads = new TreeSet<>();\n\n        for (int i = 0; i < k; i++) {\n            String word = sc.next();\n            counts.put(word, counts.getOrDefault(word, 0) + 1);\n            heads.add(word.substring(0, 1));\n        }\n        String t = sc.next();\n\n        String worst = null;\n        int worstCount = 0;\n        for (String key : new TreeSet<>(counts.keySet())) {\n            if (worst == null || counts.get(key) < worstCount) {\n                worst = key;\n                worstCount = counts.get(key);\n            }\n        }\n        if (worst == null) {\n            System.out.println(\"最少 なし\");\n        } else {\n            System.out.println(\"最少 \" + worst + \" \" + worstCount);\n        }\n\n        System.out.println(\"明細 \" + new TreeMap<>(counts));\n        System.out.println(\"頭文字 \" + heads);\n        System.out.println(\"検索 \" + t + \" \" + counts.containsKey(t) + \" \" + counts.getOrDefault(t, 0));\n    }\n}\n",
+          "sourceChecks": [
+            {
+              "pattern": "getOrDefault\\s*\\(",
+              "minimum": 1,
+              "message": "出現回数の数え上げは `getOrDefault` を使ってください。"
+            }
+          ]
         }
       ]
     },
@@ -462,17 +493,29 @@
             "最高・最低は `if (valid > max) { max = valid; }` と `if (valid < min) { min = valid; }` を try の中で。",
             "最後は `System.out.println(\"最高 \" + (max < 0 ? \"なし\" : String.valueOf(max)));` のように書けます。`min` は `min > 100` で判定します。"
           ],
-          "solution": "import java.util.Scanner;\nimport java.util.TreeMap;\n\nclass InvalidScoreException extends Exception {\n    InvalidScoreException(String message) {\n        super(message);\n    }\n}\n\npublic class Main {\n    static int check(int score) throws InvalidScoreException {\n        if (score < 0 || score > 100) {\n            throw new InvalidScoreException(\"範囲外: \" + score);\n        }\n        return score;\n    }\n\n    static String grade(int score) {\n        return switch (score / 10) {\n            case 10, 9 -> \"A\";\n            case 8, 7 -> \"B\";\n            case 6 -> \"C\";\n            default -> \"D\";\n        };\n    }\n\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int k = sc.nextInt();\n\n        TreeMap<String, Integer> grades = new TreeMap<>();\n        int max = -1;\n        int min = 101;\n        int invalid = 0;\n\n        for (int i = 0; i < k; i++) {\n            String name = sc.next();\n            int score = sc.nextInt();\n\n            try {\n                int valid = check(score);\n                String g = grade(valid);\n                System.out.println(name + \" \" + g);\n                grades.put(g, grades.getOrDefault(g, 0) + 1);\n                if (valid > max) {\n                    max = valid;\n                }\n                if (valid < min) {\n                    min = valid;\n                }\n            } catch (InvalidScoreException e) {\n                System.out.println(name + \" \" + e.getMessage());\n                invalid++;\n            }\n        }\n\n        System.out.println(\"評価 \" + grades);\n        System.out.println(\"最高 \" + (max < 0 ? \"なし\" : String.valueOf(max)));\n        System.out.println(\"最低 \" + (min > 100 ? \"なし\" : String.valueOf(min)));\n        System.out.println(\"無効 \" + invalid);\n    }\n}\n"
+          "solution": "import java.util.Scanner;\nimport java.util.TreeMap;\n\nclass InvalidScoreException extends Exception {\n    InvalidScoreException(String message) {\n        super(message);\n    }\n}\n\npublic class Main {\n    static int check(int score) throws InvalidScoreException {\n        if (score < 0 || score > 100) {\n            throw new InvalidScoreException(\"範囲外: \" + score);\n        }\n        return score;\n    }\n\n    static String grade(int score) {\n        return switch (score / 10) {\n            case 10, 9 -> \"A\";\n            case 8, 7 -> \"B\";\n            case 6 -> \"C\";\n            default -> \"D\";\n        };\n    }\n\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int k = sc.nextInt();\n\n        TreeMap<String, Integer> grades = new TreeMap<>();\n        int max = -1;\n        int min = 101;\n        int invalid = 0;\n\n        for (int i = 0; i < k; i++) {\n            String name = sc.next();\n            int score = sc.nextInt();\n\n            try {\n                int valid = check(score);\n                String g = grade(valid);\n                System.out.println(name + \" \" + g);\n                grades.put(g, grades.getOrDefault(g, 0) + 1);\n                if (valid > max) {\n                    max = valid;\n                }\n                if (valid < min) {\n                    min = valid;\n                }\n            } catch (InvalidScoreException e) {\n                System.out.println(name + \" \" + e.getMessage());\n                invalid++;\n            }\n        }\n\n        System.out.println(\"評価 \" + grades);\n        System.out.println(\"最高 \" + (max < 0 ? \"なし\" : String.valueOf(max)));\n        System.out.println(\"最低 \" + (min > 100 ? \"なし\" : String.valueOf(min)));\n        System.out.println(\"無効 \" + invalid);\n    }\n}\n",
+          "sourceChecks": [
+            {
+              "pattern": "catch\\s*\\(\\s*InvalidScoreException",
+              "minimum": 1,
+              "message": "範囲外の点数は `catch (InvalidScoreException e)` で受け止めてください。"
+            },
+            {
+              "pattern": "getMessage\\s*\\(",
+              "minimum": 1,
+              "message": "エラーの内容は `e.getMessage()` から取り出してください。"
+            }
+          ]
         }
       ],
       "quiz": [
         {
           "question": "`import java.util.*;` と書いたとき、短い名前で使えるようになるのはどれでしょう。",
           "choices": [
-            "`java.util.List` と `java.util.function.Predicate` の両方",
+            "何も変わらない（`*` は使えない）",
             "`java.util.List` だけ（サブパッケージは含まない）",
-            "`java.util` 以下のすべてのクラスとサブパッケージ",
-            "何も変わらない（`*` は使えない）"
+            "`java.util.List` と `java.util.function.Predicate` の両方",
+            "`java.util` 以下のすべてのクラスとサブパッケージ"
           ],
           "answer": 1,
           "explanation": "`*` はそのパッケージの **クラス** だけを対象にし、**サブパッケージは含みません**。`java.util.function.Predicate` を短く書くには `import java.util.function.*;` が別に必要です。"
@@ -480,34 +523,34 @@
         {
           "question": "`Math.abs(-5)` を `abs(-5)` と書けるようにするには、どう書けばよいでしょう。",
           "choices": [
-            "`import java.lang.Math;`",
-            "`import java.lang.Math.*;`",
+            "何も書かなくても `abs(-5)` と書ける",
             "`import static java.lang.Math.abs;`",
-            "何も書かなくても `abs(-5)` と書ける"
+            "`import java.lang.Math.*;`",
+            "`import java.lang.Math;`"
           ],
-          "answer": 2,
+          "answer": 1,
           "explanation": "`static` メンバーをクラス名なしで使うには **`import static`** が必要です。`java.lang` は自動 import されますが、それは `Math.abs(...)` と書けるようになるだけです。"
         },
         {
           "question": "`module-info.java` に書く `exports` の意味はどれでしょう。",
           "choices": [
-            "このモジュールが依存する他のモジュールを指定する",
             "このモジュールが外部に公開するパッケージを指定する",
-            "コンパイル対象のファイルを列挙する",
-            "実行時のクラスパスを指定する"
+            "実行時のクラスパスを指定する",
+            "このモジュールが依存する他のモジュールを指定する",
+            "コンパイル対象のファイルを列挙する"
           ],
-          "answer": 1,
+          "answer": 0,
           "explanation": "`exports` は **公開するパッケージ**、`requires` は **依存するモジュール** です。`exports` していないパッケージのクラスは、たとえ `public` でも他のモジュールから使えません。"
         },
         {
           "question": "`module-info.java` を置かない場合、そのコードはどうなるでしょう。",
           "choices": [
-            "コンパイルできない",
+            "すべてのパッケージが自動的に exports される専用モジュールになる",
             "実行時に例外になる",
-            "「名前のないモジュール」として、従来どおりクラスパスで動く",
-            "すべてのパッケージが自動的に exports される専用モジュールになる"
+            "コンパイルできない",
+            "「名前のないモジュール」として、従来どおりクラスパスで動く"
           ],
-          "answer": 2,
+          "answer": 3,
           "explanation": "モジュールは必須ではありません。`module-info.java` がなければ **unnamed module** として扱われ、これまでどおり動きます（このアプリもそうです）。なお `java.base` はどのモジュールからも暗黙的に `requires` されるので、`String` や `List` はいつでも使えます。"
         }
       ]
@@ -523,7 +566,7 @@
         }
       ],
       "task": "【基本】n個の `商品名 個数` を読み、TreeMapで商品ごとの合計個数を集計してキー順に表示してください。",
-      "starterCode": "import java.util.*;\npublic class Main {public static void main(String[] args){Scanner s=new Scanner(System.in);int n=s.nextInt();Map<String,Integer> stock=new TreeMap<>();for(int i=0;i<n;i++){String name=s.next();int count=s.nextInt();/* TODO */}stock.forEach((k,v)->System.out.println(k+\"=\"+v));}}\n",
+      "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        int n = s.nextInt();\n        Map<String, Integer> stock = new TreeMap<>();\n        for (int i = 0; i < n; i++) {\n            String name = s.next();\n            int count = s.nextInt();\n            /* TODO */\n        }\n        stock.forEach((k, v) -> System.out.println(k + \"=\" + v));\n    }\n}\n",
       "visibleCases": [
         {
           "label": "重複商品",
@@ -552,12 +595,12 @@
         "商品名をキー、個数を値にします。",
         "`merge(name, count, Integer::sum)` で同じ商品の個数を足します。"
       ],
-      "solution": "import java.util.*;\npublic class Main {public static void main(String[] args){Scanner s=new Scanner(System.in);int n=s.nextInt();Map<String,Integer> stock=new TreeMap<>();for(int i=0;i<n;i++){String name=s.next();int count=s.nextInt();stock.merge(name,count,Integer::sum);}stock.forEach((k,v)->System.out.println(k+\"=\"+v));}}\n",
+      "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        int n = s.nextInt();\n        Map<String, Integer> stock = new TreeMap<>();\n        for (int i = 0; i < n; i++) {\n            String name = s.next();\n            int count = s.nextInt();\n            stock.put(name, stock.getOrDefault(name, 0) + count);\n        }\n        stock.forEach((k, v) -> System.out.println(k + \"=\" + v));\n    }\n}\n",
       "extraTasks": [
         {
           "kind": "drill",
-          "task": "【組み合わせ】`record Result(String name,int score)` を作り、n人分を読みます。60点以上だけを点数の高い順、同点なら名前順に並べ、`name:score` を表示してください。",
-          "starterCode": "import java.util.*;\nrecord Result(String name,int score){}\npublic class Main {public static void main(String[] args){Scanner s=new Scanner(System.in);int n=s.nextInt();List<Result> list=new ArrayList<>();for(int i=0;i<n;i++)list.add(new Result(s.next(),s.nextInt()));/* TODO */}}\n",
+          "task": "【組み合わせ】`record Result(String name,int score)` を作り、n人分を読みます。60点以上だけを点数の高い順、同点なら名前順に並べ、`name:score` を表示してください。Streamで書きます。",
+          "starterCode": "import java.util.*;\n\nrecord Result(String name, int score) { }\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        int n = s.nextInt();\n        List<Result> list = new ArrayList<>();\n        for (int i = 0; i < n; i++) list.add(new Result(s.next(), s.nextInt()));\n        /* TODO */\n    }\n}\n",
           "visibleCases": [
             {
               "label": "合格者",
@@ -586,12 +629,34 @@
             "まずscoreが60以上のResultだけfilterします。",
             "点数はreversed、続けて名前の自然順を指定します。"
           ],
-          "solution": "import java.util.*;\nrecord Result(String name,int score){}\npublic class Main {public static void main(String[] args){Scanner s=new Scanner(System.in);int n=s.nextInt();List<Result> list=new ArrayList<>();for(int i=0;i<n;i++)list.add(new Result(s.next(),s.nextInt()));list.stream().filter(r->r.score()>=60).sorted(Comparator.comparingInt(Result::score).reversed().thenComparing(Result::name)).forEach(r->System.out.println(r.name()+\":\"+r.score()));}}\n"
+          "solution": "import java.util.*;\n\nrecord Result(String name, int score) { }\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        int n = s.nextInt();\n        List<Result> list = new ArrayList<>();\n        for (int i = 0; i < n; i++) list.add(new Result(s.next(), s.nextInt()));\n        list.stream().filter(r -> r.score() >= 60).sorted(Comparator.comparingInt(Result::score).reversed().thenComparing(Result::name)).forEach(r -> System.out.println(r.name() + \":\" + r.score()));\n    }\n}\n",
+          "sourceChecks": [
+            {
+              "pattern": "\\brecord\\s+Result\\s*\\(",
+              "minimum": 1,
+              "message": "`record Result(String name, int score)` として宣言してください。"
+            },
+            {
+              "pattern": "\\.filter\\s*\\(",
+              "minimum": 1,
+              "message": "60点以上だけを残すので `filter` を使ってください。"
+            },
+            {
+              "pattern": "\\.reversed\\s*\\(\\s*\\)",
+              "minimum": 1,
+              "message": "点数は高い順なので、`Comparator` を `reversed()` で逆にしてください。"
+            },
+            {
+              "pattern": "\\bthenComparing\\b",
+              "minimum": 1,
+              "message": "同点のときの決着は `thenComparing` でつないでください（`reversed()` を先に呼ぶ点に注意）。"
+            }
+          ]
         },
         {
           "kind": "applied",
           "task": "【実践】注文日 `yyyy-MM-dd` と発送までの日数、商品名を読みます。`record Shipment(String item, LocalDate shipDate)` を作り、`商品名 ships yyyy-MM-dd` と表示してください。",
-          "starterCode": "import java.time.*;\nimport java.util.*;\nrecord Shipment(String item,LocalDate shipDate){}\npublic class Main {public static void main(String[] args){Scanner s=new Scanner(System.in);LocalDate ordered=LocalDate.parse(s.next());long days=s.nextLong();String item=s.next();/* TODO */}}\n",
+          "starterCode": "import java.time.*;\nimport java.util.*;\n\nrecord Shipment(String item, LocalDate shipDate) { }\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        LocalDate ordered = LocalDate.parse(s.next());\n        long days = s.nextLong();\n        String item = s.next();\n        /* TODO */\n    }\n}\n",
           "visibleCases": [
             {
               "label": "翌日発送",
@@ -620,7 +685,19 @@
             "発送日は `ordered.plusDays(days)` です。",
             "計算した日付と商品名でShipmentを生成します。"
           ],
-          "solution": "import java.time.*;\nimport java.util.*;\nrecord Shipment(String item,LocalDate shipDate){}\npublic class Main {public static void main(String[] args){Scanner s=new Scanner(System.in);LocalDate ordered=LocalDate.parse(s.next());long days=s.nextLong();String item=s.next();Shipment shipment=new Shipment(item,ordered.plusDays(days));System.out.println(shipment.item()+\" ships \"+shipment.shipDate());}}\n"
+          "solution": "import java.time.*;\nimport java.util.*;\n\nrecord Shipment(String item, LocalDate shipDate) { }\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        LocalDate ordered = LocalDate.parse(s.next());\n        long days = s.nextLong();\n        String item = s.next();\n        Shipment shipment = new Shipment(item, ordered.plusDays(days));\n        System.out.println(shipment.item() + \" ships \" + shipment.shipDate());\n    }\n}\n",
+          "sourceChecks": [
+            {
+              "pattern": "new\\s+Shipment\\s*\\(",
+              "minimum": 1,
+              "message": "文字列を組み立てるだけでなく、`new Shipment(item, ...)` を作ってから表示してください。"
+            },
+            {
+              "pattern": "plusDays\\s*\\(",
+              "minimum": 1,
+              "message": "発送日は `ordered.plusDays(days)` で求めてください。"
+            }
+          ]
         }
       ]
     }
