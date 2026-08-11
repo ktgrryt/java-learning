@@ -1550,6 +1550,22 @@ public final class ProgressStore {
 
     /** 進捗を全て消す。 */
     public synchronized void resetAll() {
+        clearAllState();
+        saveSoon();
+    }
+
+    /**
+     * 保持している状態を全て初期値へ戻す。
+     *
+     * {@link #resetAll()}（利用者が消したとき）と {@link #load()} の復旧処理
+     * （進捗ファイルが壊れていたとき）の両方から呼ぶ。
+     *
+     * <p>この2箇所は以前それぞれが同じ並びを書き写していて、片方だけに
+     * フィールドが足され、{@code cafeAchievements} と {@code cafeQuizFirstStreak} の
+     * 消し忘れが生まれていた。フィールドを増やしたときに片方だけ直す事故を防ぐため、
+     * 消す場所はこの1つに寄せる。</p>
+     */
+    private void clearAllState() {
         cleared.clear();
         codes.clear();
         hintsRevealed.clear();
@@ -1575,7 +1591,6 @@ public final class ProgressStore {
         cafePassiveSessionId = null;
         cafePassiveLastTickNanos = 0;
         cafePassiveRemainder = 0;
-        saveSoon();
     }
 
     private static String quizKey(String lessonId, int index) {
@@ -1721,29 +1736,10 @@ public final class ProgressStore {
             } catch (IOException ignored) {
                 // 退避に失敗しても、以降の書き出しで上書きされる
             }
-            cleared.clear();
-            codes.clear();
-            hintsRevealed.clear();
-            attempts.clear();
-            bestPassed.clear();
-            quizChoices.clear();
-            clearDates.clear();
-            cafeCash = 0;
-            cafeCups = 0;
-            cafeLifetimeCash = 0;
-            cafeRewardSequence = 0;
-            cafeTaskRewardCount = 0;
-            cafePassiveCashSinceTask = 0;
-            cafeStores = 1;
-            cafeUpgrades.clear();
-            cafeAutomationUpgrades.clear();
-            cafeItems.clear();
-            cafeSeenItems.clear();
-            rewardedQuizzes.clear();
-            rewardedChapters.clear();
-            cafePassiveSessionId = null;
-            cafePassiveLastTickNanos = 0;
-            cafePassiveRemainder = 0;
+            // 途中まで読めていた分が残らないよう、全ての状態を初期値へ戻す。
+            // （例外は最後の refreshCafeAchievements() でも起き得るので、
+            //   達成条件や連続正解数まで消える必要がある）
+            clearAllState();
         }
     }
 

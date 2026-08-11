@@ -19,6 +19,10 @@
   var hlJava = window.JQHighlight.java;
 
   var state = null;        // サーバから受け取った最新の state
+  var lessonIndex = {};    // レッスンID -> レッスン（setState で作る）
+  var chapterOfLesson = {};// レッスンID -> 章
+  var chapterIndex = {};   // 章ID -> 章
+  var lessonList = [];     // 全レッスンを出題順に並べたもの
   var currentId = null;    // いま開いているレッスンID（ホーム／カフェ表示中は null）
   var currentView = 'menu'; // menu / cafe / lesson
   var editors = {};        // 問題ID -> エディタ（1レッスンに複数問あるので複数持つ）
@@ -52,8 +56,20 @@
           body: JSON.stringify(payload)
         };
     return fetch('/api/' + path, options).then(function (res) {
-      return res.json().then(function (data) {
-        if (!res.ok) { throw new Error(data.error || ('通信に失敗しました (' + res.status + ')')); }
+      // 応答がJSONでないこともある（サーバが落ちた、間にプロキシが挟まった、など）。
+      // res.json() をそのまま信じると、そこで出た構文エラーがそのまま画面へ出て
+      // 「Unexpected token」のような、利用者に何もできないメッセージになる。
+      // 本文を文字列で受けてから解釈し、読めなければ状態コードで案内する。
+      return res.text().then(function (body) {
+        var data = null;
+        try { data = body ? JSON.parse(body) : null; } catch (e) { data = null; }
+        if (!res.ok) {
+          throw new Error((data && data.error)
+            || ('通信に失敗しました (' + res.status + ')'));
+        }
+        if (data === null) {
+          throw new Error('サーバの応答を読めませんでした (' + res.status + ')');
+        }
         return data;
       });
     });
@@ -61,26 +77,47 @@
 
   // ------------------------------------------------------- state のとり回し
 
-  function allLessons() {
-    var list = [];
+  /**
+   * state を差し替え、レッスンIDから引くための索引を作り直す。
+   *
+   * 索引を持たないと、レッスン1件を引くたびに全章・全レッスンを走査することになる。
+   * サイドバーは253レッスンぶんの行を毎回作り、その各行が `displayLessonId` から
+   * `chapterOf` を呼ぶので、1回の描画で数万回の走査になっていた。
+   * state が変わるのは読み込み時とリセット時だけなので、そのときに1回作れば足りる。
+   */
+  function setState(data) {
+    state = data;
+    lessonIndex = {};
+    chapterOfLesson = {};
+    chapterIndex = {};
+    lessonList = [];
     state.chapters.forEach(function (ch) {
-      ch.lessons.forEach(function (l) { list.push(l); });
+      chapterIndex[ch.id] = ch;
+      ch.lessons.forEach(function (l) {
+        lessonIndex[l.id] = l;
+        chapterOfLesson[l.id] = ch;
+        lessonList.push(l);
+      });
     });
-    return list;
+  }
+
+  /**
+   * 全レッスンを出題順に並べたもの。
+   *
+   * 毎回作り直さず {@code setState} で作った配列をそのまま返す。
+   * <b>戻り値を書き換えないこと</b>（索引と同じ配列なので、並べ替えたり
+   * 要素を足すと他の参照も一緒に狂う）。並べ替えたいときは `slice()` で写す。
+   */
+  function allLessons() {
+    return lessonList;
   }
 
   function findLesson(id) {
-    var found = null;
-    allLessons().forEach(function (l) { if (l.id === id) { found = l; } });
-    return found;
+    return lessonIndex[id] || null;
   }
 
   function chapterOf(id) {
-    var found = null;
-    state.chapters.forEach(function (ch) {
-      ch.lessons.forEach(function (l) { if (l.id === id) { found = ch; } });
-    });
-    return found;
+    return chapterOfLesson[id] || null;
   }
 
   /** manifestで定義した大区分。古いstateに対しては全章を1区分として扱う。 */
@@ -117,15 +154,31 @@
     return displayChapterNumber(chapter) + lesson.id.substring(dash);
   }
 
-  /** 既存教材に書かれた通し章番号を、現在の編を明示した表記へ読み替える。 */
+  function chapterById(id) {
+    return chapterIndex[id] || null;
+  }
+
+  /**
+   * 教材に書かれた章番号を、画面の表示番号へ読み替える。
+   *
+   * 教材は `第43章` のようにファイル名の番号（content/ch43-*.json）で参照を書く。
+   * 一方で画面の章番号は編ごとに1から振り直すので、そのまま出すと存在しない番号に
+   * なってしまう（基礎編に「第43章」は無い）。ここでファイル名から実際の章を引き、
+   * その章の表示番号へ直す。別の編を指しているときだけ編名を前に付ける
+   * （同じ編の中では番号だけで足りるし、毎回編名が付くと読みにくい）。
+   *
+   * 対応する章が無い番号は、読み替えずそのまま残す（誤った番号を作らないため）。
+   */
   function localizeChapterReferences(text) {
-    var chapter = currentId && chapterOf(currentId);
-    if (!chapter || chapter.partId !== 'jakarta-ee') { return text; }
-    return String(text || '').replace(/第(\d+)章/g, function (_, rawNumber) {
-      var number = Number(rawNumber);
-      return number >= 21
-        ? 'Web・Jakarta EE編 第' + (number - 20) + '章'
-        : 'Java基礎編 第' + number + '章';
+    var here = currentId && chapterOf(currentId);
+    if (!here) { return text; }
+    return String(text || '').replace(/第(\d+)章/g, function (whole, rawNumber) {
+      var target = chapterById('ch' + (rawNumber.length < 2 ? '0' + rawNumber : rawNumber));
+      if (!target) { return whole; }
+      var shown = '第' + displayChapterNumber(target) + '章';
+      if (target.partId === here.partId) { return shown; }
+      var part = partOfChapter(target);
+      return part ? part.title + ' ' + shown : shown;
     });
   }
 
@@ -2154,7 +2207,7 @@
   function boot() {
     api('state')
       .then(function (data) {
-        state = data;
+        setState(data);
         // ハッシュ付きで開いたときだけそのレッスンへ。それ以外はメインメニューから始める
         var route = routeFromHash();
         currentView = route.view;
@@ -2197,7 +2250,7 @@
     if (!window.confirm('★・書いたコード・カフェのコイン・店舗・設備・アイテムがすべて消えます。本当にリセットしますか？')) { return; }
     api('reset', {})
       .then(function (data) {
-        state = data;
+        setState(data);
         sideExpanded = {};
         try { localStorage.removeItem('jq-last-lesson'); } catch (e) { /* 同上 */ }
         goHome();

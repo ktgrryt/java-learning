@@ -12,7 +12,7 @@
       "task": "価格priceと割引率rateを読み、割引後価格を表示してください。負の価格、または0〜100外の率は `INVALID`。整数の切り捨てで構いません。計算はstaticメソッドへ分離します。",
       "starterCode": "import java.util.*;\npublic class Main {static int discounted(int price,int rate){return 0;}public static void main(String[] args){Scanner s=new Scanner(System.in);int price=s.nextInt(),rate=s.nextInt();/* TODO */}}\n",
       "visibleCases": [{"label":"通常","stdin":"1000 20","expected":"800"},{"label":"境界","stdin":"500 100","expected":"0"}],
-      "hiddenCases": [{"label":"不正","stdin":"100 -1","expected":"INVALID"}],
+      "hiddenCases": [{"label":"不正","stdin":"100 -1","expected":"INVALID"},{"label":"率0なら変わらない","stdin":"1200 0","expected":"1200"},{"label":"率が上限を超える","stdin":"100 101","expected":"INVALID"},{"label":"価格0","stdin":"0 50","expected":"0"},{"label":"切り捨て","stdin":"999 10","expected":"900"}],
       "hints": ["不正値では `IllegalArgumentException` を投げます。","mainでは例外をcatchしてINVALIDを表示します。"],
       "solution": "import java.util.*;\npublic class Main {static int discounted(int price,int rate){if(price<0||rate<0||rate>100)throw new IllegalArgumentException();return price-price*rate/100;}public static void main(String[] args){Scanner s=new Scanner(System.in);int price=s.nextInt(),rate=s.nextInt();try{System.out.println(discounted(price,rate));}catch(IllegalArgumentException e){System.out.println(\"INVALID\");}}}\n",
       "quiz": [
@@ -28,7 +28,7 @@
       "task": "n個の整数と期待合計を読み、実際の合計が一致すれば `PASS`、違えば `FAIL expected=x actual=y` と表示してください。検証結果を作るstaticメソッドへ分けます。",
       "starterCode": "import java.util.*;\npublic class Main {static String verify(int expected,int actual){return \"\";}public static void main(String[] args){Scanner s=new Scanner(System.in);int n=s.nextInt(),expected=s.nextInt(),actual=0;for(int i=0;i<n;i++)actual+=s.nextInt();System.out.println(verify(expected,actual));}}\n",
       "visibleCases": [{"label":"成功","stdin":"3 6 1 2 3","expected":"PASS"},{"label":"失敗","stdin":"2 10 3 4","expected":"FAIL expected=10 actual=7"}],
-      "hiddenCases": [{"label":"空","stdin":"0 0","expected":"PASS"}],
+      "hiddenCases": [{"label":"空","stdin":"0 0","expected":"PASS"},{"label":"空だが期待値が0でない","stdin":"0 5","expected":"FAIL expected=5 actual=0"},{"label":"負数を含んで打ち消す","stdin":"3 0 -1 1 0","expected":"PASS"},{"label":"1件","stdin":"1 7 7","expected":"PASS"}],
       "hints": ["三項演算子でもifでも構いません。","失敗メッセージは期待値と実測値の順です。"],
       "solution": "import java.util.*;\npublic class Main {static String verify(int expected,int actual){return expected==actual?\"PASS\":\"FAIL expected=\"+expected+\" actual=\"+actual;}public static void main(String[] args){Scanner s=new Scanner(System.in);int n=s.nextInt(),expected=s.nextInt(),actual=0;for(int i=0;i<n;i++)actual+=s.nextInt();System.out.println(verify(expected,actual));}}\n",
       "quiz": [
@@ -39,12 +39,12 @@
     {
       "id": "45-3",
       "title": "テストダブルとテストの層",
-      "explanation": "## 置き換える境界を選ぶ\n\n単体テストは1つのクラスを速く検証します。統合テストはDBやHTTPなど複数部品の接続を確かめ、E2Eテストは利用者の一連の操作を通します。下の層を多く、上の層を重要な経路に絞ると、速さと信頼性を両立しやすくなります。\n\n外部サービスを置き換える小さな実装をテストダブルと呼びます。呼び出し結果を返すstub、呼び出された事実も検証するmockなどがあります。まずインターフェースで境界を作り、必要な範囲だけ置き換えます。内部実装の呼び出し回数を細かく固定しすぎると、振る舞いが同じリファクタリングでもテストが壊れます。",
+      "explanation": "## 置き換える境界を選ぶ\n\n単体テストは1つのクラスを速く検証します。統合テストはDBやHTTPなど複数部品の接続を確かめ、E2Eテストは利用者の一連の操作を通します。下の層を多く、上の層を重要な経路に絞ると、速さと信頼性を両立しやすくなります。\n\n```svg 下の層を多く、上の層は重要な経路だけ。速さと信頼性の釣り合いを取る\n<svg viewBox=\"0 0 720 246\">\n  <polygon class=\"fig-box-ng\" points=\"360,38 432,92 288,92\"/>\n  <text class=\"fig-t fig-small\" x=\"360\" y=\"76\" text-anchor=\"middle\">E2E</text>\n  <polygon class=\"fig-box\" points=\"286,96 434,96 484,150 236,150\"/>\n  <text class=\"fig-t fig-small\" x=\"360\" y=\"126\" text-anchor=\"middle\">統合</text>\n  <polygon class=\"fig-box-ok\" points=\"234,154 486,154 536,208 184,208\"/>\n  <text class=\"fig-t fig-small\" x=\"360\" y=\"184\" text-anchor=\"middle\">単体</text>\n\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"270\" y=\"70\" text-anchor=\"end\">利用者の一連の操作を通す</text>\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"220\" y=\"124\" text-anchor=\"end\">DB や HTTP を実際につなぐ</text>\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"170\" y=\"182\" text-anchor=\"end\">1クラスのロジックを速く検証</text>\n  <text class=\"fig-t fig-t-ng fig-small\" x=\"450\" y=\"70\">少なく・遅い・壊れやすい</text>\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"500\" y=\"124\">数を絞る</text>\n  <text class=\"fig-t fig-t-ok fig-small\" x=\"552\" y=\"182\">多く・速い</text>\n\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"14\" y=\"232\">外部サービスは stub / mock で置き換える。まずインターフェースで境界を作り、必要な範囲だけ差し替える</text>\n</svg>\n```\n\n外部サービスを置き換える小さな実装をテストダブルと呼びます。呼び出し結果を返すstub、呼び出された事実も検証するmockなどがあります。まずインターフェースで境界を作り、必要な範囲だけ置き換えます。内部実装の呼び出し回数を細かく固定しすぎると、振る舞いが同じリファクタリングでもテストが壊れます。",
       "samples": [{"caption":"依存を差し替える","code":"interface RateSource{int rate();}class Price{static int total(int base,RateSource r){return base+base*r.rate()/100;}}public class Main{public static void main(String[] a){RateSource stub=()->10;System.out.println(Price.total(1000,stub));}}\n"}],
       "task": "基準価格baseと税率rateを読みます。`RateSource` をラムダで差し替えて税込価格を表示してください。負の入力は `INVALID` です。",
       "starterCode": "import java.util.*;interface RateSource{int rate();}class PriceService{static int total(int base,RateSource source){return 0;}}public class Main{public static void main(String[] a){Scanner s=new Scanner(System.in);int base=s.nextInt(),rate=s.nextInt();/* TODO */}}\n",
       "visibleCases": [{"label":"10パーセント","stdin":"1000 10","expected":"1100"}],
-      "hiddenCases": [{"label":"不正","stdin":"-1 10","expected":"INVALID"},{"label":"ゼロ","stdin":"0 8","expected":"0"}],
+      "hiddenCases": [{"label":"不正","stdin":"-1 10","expected":"INVALID"},{"label":"ゼロ","stdin":"0 8","expected":"0"},{"label":"税率0","stdin":"500 0","expected":"500"},{"label":"税率が負","stdin":"1000 -5","expected":"INVALID"},{"label":"切り捨て","stdin":"999 10","expected":"1098"}],
       "hints": ["`RateSource source = () -> rate;` と差し替えられます。","検証はPriceService内に置きます。"],
       "solution": "import java.util.*;interface RateSource{int rate();}class PriceService{static int total(int base,RateSource source){int rate=source.rate();if(base<0||rate<0)throw new IllegalArgumentException();return base+base*rate/100;}}public class Main{public static void main(String[] a){Scanner s=new Scanner(System.in);int base=s.nextInt(),rate=s.nextInt();try{RateSource source=()->rate;System.out.println(PriceService.total(base,source));}catch(IllegalArgumentException e){System.out.println(\"INVALID\");}}}\n",
       "quiz": [
@@ -60,7 +60,7 @@
       "task": "依存関係を `group:artifact:version` の形でn件読み、同一のgroupとartifactが複数バージョンで宣言されていれば辞書順で `CONFLICT group:artifact` と表示してください。なければ `OK`。",
       "starterCode": "import java.util.*;public class Main{public static void main(String[] a){Scanner s=new Scanner(System.in);int n=s.nextInt();Map<String,Set<String>> versions=new TreeMap<>();for(int i=0;i<n;i++){String[] p=s.next().split(\":\",-1);/* TODO */}/* TODO */}}\n",
       "visibleCases": [{"label":"競合","stdin":"3 org.demo:core:1.0 org.demo:web:1.0 org.demo:core:2.0","expected":"CONFLICT org.demo:core"},{"label":"なし","stdin":"2 a:b:1 a:c:2","expected":"OK"}],
-      "hiddenCases": [{"label":"同一版重複","stdin":"2 a:b:1 a:b:1","expected":"OK"}],
+      "hiddenCases": [{"label":"同一版重複","stdin":"2 a:b:1 a:b:1","expected":"OK"},{"label":"0件","stdin":"0","expected":"OK"},{"label":"競合が2つ辞書順","stdin":"4 z:z:1 z:z:2 a:a:1 a:a:2","expected":"CONFLICT a:a\nCONFLICT z:z"},{"label":"3バージョン","stdin":"3 a:b:1 a:b:2 a:b:3","expected":"CONFLICT a:b"}],
       "hints": ["キーは `p[0] + \":\" + p[1]` です。","`computeIfAbsent` でTreeSetを作り、sizeが2以上のキーを出します。"],
       "solution": "import java.util.*;public class Main{public static void main(String[] a){Scanner s=new Scanner(System.in);int n=s.nextInt();Map<String,Set<String>> versions=new TreeMap<>();for(int i=0;i<n;i++){String[] p=s.next().split(\":\",-1);versions.computeIfAbsent(p[0]+\":\"+p[1],k->new TreeSet<>()).add(p[2]);}boolean ok=true;for(var e:versions.entrySet())if(e.getValue().size()>1){System.out.println(\"CONFLICT \"+e.getKey());ok=false;}if(ok)System.out.println(\"OK\");}}\n",
       "quiz": [

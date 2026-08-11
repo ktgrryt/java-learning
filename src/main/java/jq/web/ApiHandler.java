@@ -28,6 +28,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
@@ -415,7 +416,11 @@ public final class ApiHandler implements HttpHandler {
 
             if (allPass) {
                 Set<String> before = progress.clearedIds();
-                Chapter chapter = c.chapterOf(lessonId);
+                // レッスンが引けている以上、その章も必ず引ける（Curriculum が両方を
+                // 同時に索引する）。以前はここだけ null を許す書き方が混ざっていて、
+                // 「null になり得る」と読めてしまっていた。前提をここで1回明示する。
+                Chapter chapter = Objects.requireNonNull(
+                        c.chapterOf(lessonId), "章が引けません: " + lessonId);
                 boolean chapterWasCleared = c.isChapterCleared(chapter, before);
                 boolean lessonWasCleared = c.isLessonCleared(lesson, before);
 
@@ -431,7 +436,7 @@ public final class ApiHandler implements HttpHandler {
                 if (firstTime) {
                     cafeAward = progress.rewardTask(cafeLearningAfter, key);
                 }
-                if (chapter != null && c.isChapterCleared(chapter, after)) {
+                if (c.isChapterCleared(chapter, after)) {
                     progress.noteChapterAchievements(chapterTaskKeys(chapter));
                 }
                 boolean chapterCleared = false;

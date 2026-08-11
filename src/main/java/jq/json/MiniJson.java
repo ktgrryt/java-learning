@@ -267,7 +267,14 @@ public final class MiniJson {
             sb.append(value);
         } else if (value instanceof Number n) {
             double d = n.doubleValue();
-            if (d == Math.rint(d) && !Double.isInfinite(d)) {
+            // JSONに NaN と Infinity は無い。そのまま書くと "NaN" / "Infinity" という
+            // 裸の語になり、ブラウザ側の JSON.parse が応答全体で失敗する（画面が丸ごと
+            // 止まり、しかも原因がここだと分かりにくい）。値を1つ捨てる方がましなので
+            // null にする。数として扱えない値を作った側の不具合なので、痕跡は残す。
+            if (Double.isNaN(d) || Double.isInfinite(d)) {
+                System.err.println("JSONにできない数値なので null にしました: " + d);
+                sb.append("null");
+            } else if (d == Math.rint(d)) {
                 sb.append((long) d);
             } else {
                 sb.append(d);

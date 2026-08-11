@@ -12,7 +12,7 @@
       "task": "1行の名前を読み、JSON object `{\"name\":\"...\"}` を出力してください。バックスラッシュ、ダブルクォート、改行コード、タブをJSON文字列としてエスケープするstaticメソッドを作ります。",
       "starterCode": "import java.util.*;public class Main{static String quote(String value){return \"\";}public static void main(String[] a){Scanner s=new Scanner(System.in);String name=s.nextLine();System.out.println(\"{\\\"name\\\":\"+quote(name)+\"}\");}}\n",
       "visibleCases": [{"label":"通常","stdin":"Java Cafe","expected":"{\"name\":\"Java Cafe\"}"},{"label":"引用符","stdin":"A\"B","expected":"{\"name\":\"A\\\"B\"}"}],
-      "hiddenCases": [{"label":"バックスラッシュ","stdin":"C:\\work","expected":"{\"name\":\"C:\\\\work\"}"}],
+      "hiddenCases": [{"label":"バックスラッシュ","stdin":"C:\\work","expected":"{\"name\":\"C:\\\\work\"}"},{"label":"タブを含む","stdin":"a\tb","expected":"{\"name\":\"a\\tb\"}"},{"label":"引用符とバックスラッシュの混在","stdin":"a\"b\\c","expected":"{\"name\":\"a\\\"b\\\\c\"}"},{"label":"空白だけ","stdin":" ","expected":"{\"name\":\" \"}"}],
       "hints": ["1文字ずつswitchで処理すると、置換順序の事故を避けられます。","最後に前後へダブルクォートを付けます。"],
       "solution": "import java.util.*;public class Main{static String quote(String value){StringBuilder b=new StringBuilder(\"\\\"\");for(char c:value.toCharArray())switch(c){case '\\\\'->b.append(\"\\\\\\\\\");case '\"'->b.append(\"\\\\\\\"\");case '\\n'->b.append(\"\\\\n\");case '\\r'->b.append(\"\\\\r\");case '\\t'->b.append(\"\\\\t\");default->b.append(c);}return b.append('\"').toString();}public static void main(String[] a){Scanner s=new Scanner(System.in);String name=s.nextLine();System.out.println(\"{\\\"name\\\":\"+quote(name)+\"}\");}}\n",
       "quiz": [
@@ -28,7 +28,7 @@
       "task": "hostと整数idを読み、`https://host/items/id` へのGETリクエストを組み立て、`GET /items/id timeout=3` と表示してください。通信はしません。hostは妥当なホスト名、idは0以上です。",
       "starterCode": "import java.net.*;import java.net.http.*;import java.time.*;import java.util.*;public class Main{public static void main(String[] a){Scanner s=new Scanner(System.in);String host=s.next();int id=s.nextInt();/* TODO */}}\n",
       "visibleCases": [{"label":"構築","stdin":"api.example.test 42","expected":"GET /items/42 timeout=3"}],
-      "hiddenCases": [{"label":"ゼロ","stdin":"localhost 0","expected":"GET /items/0 timeout=3"}],
+      "hiddenCases": [{"label":"ゼロ","stdin":"localhost 0","expected":"GET /items/0 timeout=3"},{"label":"大きいid","stdin":"example.test 2147483647","expected":"GET /items/2147483647 timeout=3"},{"label":"サブドメイン付き","stdin":"a.b.c.example.test 7","expected":"GET /items/7 timeout=3"}],
       "hints": ["`URI.create(\"https://\" + host + \"/items/\" + id)`。","`request.timeout().orElseThrow().toSeconds()` で秒を確認できます。"],
       "solution": "import java.net.*;import java.net.http.*;import java.time.*;import java.util.*;public class Main{public static void main(String[] a){Scanner s=new Scanner(System.in);String host=s.next();int id=s.nextInt();HttpRequest r=HttpRequest.newBuilder(URI.create(\"https://\"+host+\"/items/\"+id)).timeout(Duration.ofSeconds(3)).GET().build();System.out.println(r.method()+\" \"+r.uri().getPath()+\" timeout=\"+r.timeout().orElseThrow().toSeconds());}}\n",
       "quiz": [
@@ -60,7 +60,7 @@
       "task": "n件の `name age` を外部DTO相当として読み、名前が`null`、または年齢が0〜150外なら `INVALID 行番号`、それ以外は `name:age` を表示してください。文字列 `null` を欠落値とみなします。",
       "starterCode": "import java.util.*;record UserDto(String name,int age){}public class Main{static Optional<String> map(UserDto dto){return Optional.empty();}public static void main(String[] a){Scanner s=new Scanner(System.in);int n=s.nextInt();for(int i=1;i<=n;i++){var dto=new UserDto(s.next(),s.nextInt());var value=map(dto);System.out.println(value.orElse(\"INVALID \"+i));}}}\n",
       "visibleCases": [{"label":"混在","stdin":"3 aki 20 null 30 bob -1","expected":"aki:20\nINVALID 2\nINVALID 3"}],
-      "hiddenCases": [{"label":"上限","stdin":"2 old 150 over 151","expected":"old:150\nINVALID 2"}],
+      "hiddenCases": [{"label":"上限","stdin":"2 old 150 over 151","expected":"old:150\nINVALID 2"},{"label":"年齢0は有効","stdin":"1 baby 0","expected":"baby:0"},{"label":"すべて有効","stdin":"2 a 1 b 150","expected":"a:1\nb:150"},{"label":"すべて無効","stdin":"2 null 20 x 200","expected":"INVALID 1\nINVALID 2"}],
       "hints": ["不正ならOptional.emptyを返します。","正常なら `Optional.of(dto.name() + \":\" + dto.age())`。"],
       "solution": "import java.util.*;record UserDto(String name,int age){}public class Main{static Optional<String> map(UserDto dto){if(dto.name().equals(\"null\")||dto.age()<0||dto.age()>150)return Optional.empty();return Optional.of(dto.name()+\":\"+dto.age());}public static void main(String[] a){Scanner s=new Scanner(System.in);int n=s.nextInt();for(int i=1;i<=n;i++){var dto=new UserDto(s.next(),s.nextInt());var value=map(dto);System.out.println(value.orElse(\"INVALID \"+i));}}}\n",
       "quiz": [

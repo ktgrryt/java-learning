@@ -2,69 +2,69 @@
   "id":"ch51","title":"JDKの選定・互換性・標準ツール","subtitle":"バージョンを選び、調べ、配布するための実務知識","emoji":"🧰",
   "lessons":[
     {
-      "id":"51-1","title":"feature releaseとLTSを選ぶ",
-      "explanation":"## 新しさだけで決めない\n\nJavaは一定間隔でfeature releaseが公開されます。LTSは言語仕様上の特別な版ではなく、ベンダーが長期サポートを提供する版という運用上の区分です。同じfeature versionでも、vendor、無償更新期間、有償サポート、OS・CPU対応、暗号要件は確認が必要です。\n\n本番JDKは、利用中のフレームワークやAPサーバが認証する範囲、組織の更新期限、コンテナ基盤の対応を先に決めます。開発・CI・本番のvendorとversionを記録し、パッチ更新を継続します。`java -version` と `java -XshowSettings:properties -version` は調査の出発点です。",
-      "samples":[{"caption":"実行中のfeature versionとvendor","code":"public class Main{public static void main(String[] a){System.out.println(Runtime.version().feature());System.out.println(System.getProperty(\"java.vendor\"));}}\n"}],
-      "task":"候補n件を `version supported` で読みます。`supported` が `yes` の候補から最大versionを表示し、なければ `NONE` と表示してください。",
+      "id":"51-1","title":"フィーチャーリリースとLTSを選ぶ",
+      "explanation":"## 新しさだけで決めない\n\nJavaは一定の間隔でフィーチャーリリース（機能追加を含む新しい版）が公開されます。LTSは言語仕様の上で特別な版というわけではなく、ベンダーが長期サポートを提供する版という**運用上の区分**です。同じバージョン番号でも、ベンダー・無償更新の期間・有償サポート・OSとCPUの対応・暗号に関する要件は、それぞれ確認が必要です。\n\n本番で使うJDKは、利用中のフレームワークやアプリケーションサーバーが動作を保証している範囲、組織の更新期限、コンテナ基盤の対応状況を先に決めます。開発・CI・本番それぞれのベンダーとバージョンを記録し、パッチ更新を続けます。`java -version` と `java -XshowSettings:properties -version` が調査の出発点です。",
+      "samples":[{"caption":"実行中のバージョンとベンダーを見る","code":"public class Main{public static void main(String[] a){System.out.println(Runtime.version().feature());System.out.println(System.getProperty(\"java.vendor\"));}}\n"}],
+      "task":"候補をn件 `version supported` の形で読みます。`supported` が `yes` の候補のうち最大のバージョンを表示し、1件も無ければ `NONE` と表示してください。",
       "starterCode":"import java.util.*;public class Main{public static void main(String[] a){Scanner s=new Scanner(System.in);int n=s.nextInt(),best=-1;for(int i=0;i<n;i++){int v=s.nextInt();String ok=s.next();/* TODO */}System.out.println(best<0?\"NONE\":best);}}\n",
       "visibleCases":[{"label":"認証済みから選ぶ","stdin":"4 17 yes 21 yes 25 no 11 yes","expected":"21"}],
-      "hiddenCases":[{"label":"対応なし","stdin":"2 21 no 25 no","expected":"NONE"}],
+      "hiddenCases":[{"label":"対応なし","stdin":"2 21 no 25 no","expected":"NONE"},{"label":"候補0件","stdin":"0","expected":"NONE"},{"label":"最大が最後に来る","stdin":"3 11 yes 17 yes 25 yes","expected":"25"},{"label":"1件だけ対応","stdin":"3 25 no 8 yes 21 no","expected":"8"}],
       "hints":["`ok.equals(\"yes\")` のときだけ `Math.max`。"],
       "solution":"import java.util.*;public class Main{public static void main(String[] a){Scanner s=new Scanner(System.in);int n=s.nextInt(),best=-1;for(int i=0;i<n;i++){int v=s.nextInt();String ok=s.next();if(ok.equals(\"yes\"))best=Math.max(best,v);}System.out.println(best<0?\"NONE\":best);}}\n",
       "quiz":[
         {"question":"LTSについて正しい説明は？","choices":["Java言語から機能が削られた版","ベンダーの長期サポート方針に関わる運用上の区分","必ず無料更新が永久に続く版","Jakarta EE専用版"],"answer":1,"explanation":"期間と条件はベンダーごとに確認し、対応製品との組合せで選びます。"},
-        {"question":"本番と開発でどちらも「Java 21」なのに、無償更新期限や暗号の条件が違いました。確認すべきものはどれでしょう。","choices":["ソースファイルの文字コード","feature versionだけをもう一度確認する","vendorと配布物（更新期間・サポート・OS/CPU対応など）","Mavenのversion"],"answer":2,"explanation":"同じfeature versionでも配布元ごとに条件が違います。開発・CI・本番のvendorとversionを記録します。"}
+        {"question":"本番と開発でどちらも「Java 21」なのに、無償更新の期限や暗号の条件が違いました。確認すべきものはどれでしょう。","choices":["ソースファイルの文字コード","バージョン番号だけをもう一度確認する","ベンダーと配布物（更新期間・サポート・OSとCPUの対応など）","Mavenのバージョン"],"answer":2,"explanation":"同じバージョン番号でも、配布元ごとに条件が違います。開発・CI・本番のベンダーとバージョンを記録します。"}
       ]
     },
     {
-      "id":"51-2","title":"ソース・bytecode・実行環境の互換性",
-      "explanation":"## コンパイルできることと動くことは別\n\n`javac --release 17` は、出力classの対象versionだけでなく、コンパイル時に見える標準APIもJava 17相当に制限します。`-source` と `-target` だけでは、新しいJDKのAPIを誤って参照できるため、通常は `--release` を使います。\n\n古いJVMは新しいclass fileを読めません。逆方向も、削除されたAPI、強いカプセル化、リフレクション、文字コードやGC既定値の変化で壊れる可能性があります。ビルドのtoolchainを固定し、サポート対象の最小JDKと本番同等JDKの両方でテストします。",
-      "samples":[{"caption":"実行時versionを条件にする","code":"public class Main{public static void main(String[] a){int v=Runtime.version().feature();System.out.println(v>=21?\"modern\":\"legacy\");}}\n"}],
+      "id":"51-2","title":"ソース・バイトコード・実行環境の互換性",
+      "explanation":"## コンパイルできることと、動くことは別\n\n`javac --release 17` は、出力するクラスファイルの対象バージョンだけでなく、コンパイル時に見える標準APIもJava 17相当に制限します。`-source` と `-target` だけでは新しいJDKのAPIを誤って参照できてしまうため、通常は `--release` を使います。\n\n古いJVMは、新しいクラスファイルを読めません。逆に新しいJVMで動かす場合も、削除されたAPI、強いカプセル化、リフレクション、文字コードやGCの既定値の変化によって壊れる可能性があります。ビルドのツールチェーンを固定し、サポート対象の最小JDKと、本番と同等のJDKの両方でテストします。",
+      "samples":[{"caption":"実行時のバージョンで分岐する","code":"public class Main{public static void main(String[] a){int v=Runtime.version().feature();System.out.println(v>=21?\"modern\":\"legacy\");}}\n"}],
       "task":"`compile target runtime` の3整数を読みます。compileよりtargetが大きければ `INVALID_TARGET`、runtimeがtarget未満なら `RUNTIME_TOO_OLD`、それ以外は `OK` と表示してください。",
       "starterCode":"import java.util.*;public class Main{public static void main(String[] a){Scanner s=new Scanner(System.in);int compile=s.nextInt(),target=s.nextInt(),runtime=s.nextInt();/* TODO */}}\n",
       "visibleCases":[{"label":"実行環境が古い","stdin":"21 17 11","expected":"RUNTIME_TOO_OLD"},{"label":"互換","stdin":"21 17 21","expected":"OK"}],
-      "hiddenCases":[{"label":"不正な対象","stdin":"17 21 21","expected":"INVALID_TARGET"}],
-      "hints":["判定順はtargetの妥当性、次にruntimeです。"],
+      "hiddenCases":[{"label":"不正な対象","stdin":"17 21 21","expected":"INVALID_TARGET"},{"label":"3つとも同じ","stdin":"21 21 21","expected":"OK"},{"label":"runtimeがtargetと同じ","stdin":"21 17 17","expected":"OK"},{"label":"runtimeが1つ足りない","stdin":"21 17 16","expected":"RUNTIME_TOO_OLD"},{"label":"target不正が実行環境より先","stdin":"17 21 11","expected":"INVALID_TARGET"}],
+      "hints":["先に `target` の妥当性を判定し、そのあと実行環境を見ます。"],
       "solution":"import java.util.*;public class Main{public static void main(String[] a){Scanner s=new Scanner(System.in);int compile=s.nextInt(),target=s.nextInt(),runtime=s.nextInt();System.out.println(target>compile?\"INVALID_TARGET\":runtime<target?\"RUNTIME_TOO_OLD\":\"OK\");}}\n",
       "quiz":[
-        {"question":"`javac --release 17` の主な利点は？","choices":["実行時JVMを自動更新する","class形式と利用可能な標準APIを17相当にそろえる","外部依存をすべて削除する","テストを省略する"],"answer":1,"explanation":"古い実行環境向けビルドで新しい標準APIを誤用する事故を防ぎます。"},
-        {"question":"Java 21でビルドしたclassを、Java 17のJVMで実行するとどうなるでしょう。","choices":["class fileのversionが新しいため読み込めず、実行時に失敗する","警告付きで動く","自動的に17向けへ変換される","ビルド時に必ず検出される"],"answer":0,"explanation":"古いJVMは新しいclass fileを読めません。17向けにしたいなら `--release 17` でビルドします。"}
+        {"question":"`javac --release 17` の主な利点は？","choices":["実行するJVMを自動更新する","クラスファイルの形式と、使える標準APIをどちらも17相当にそろえる","外部依存をすべて削除する","テストを省略する"],"answer":1,"explanation":"古い実行環境向けのビルドで、新しい標準APIを誤って使ってしまう事故を防げます。"},
+        {"question":"Java 21でビルドしたクラスファイルを、Java 17のJVMで実行するとどうなるでしょう。","choices":["クラスファイルの形式が新しいため読み込めず、実行時に失敗する","警告付きで動く","自動的に17向けへ変換される","ビルド時に必ず検出される"],"answer":0,"explanation":"古いJVMは新しいクラスファイルを読めません。17向けにしたいなら `--release 17` でビルドします。"}
       ]
     },
     {
       "id":"51-3","title":"JDK付属ツールを使い分ける",
-      "explanation":"## IDEの外にも調査道具がある\n\n`jshell` は短いAPI実験、`javap` はclassの構造やbytecode確認、`jdeps` は依存モジュール分析、`jlink` は必要なモジュールだけのruntime image作成、`jpackage` はOS向け配布物の作成に使います。`jar` と `javadoc` もJDKの一部です。\n\n運用調査では `jcmd` を入口に、JFR記録、thread dump、class histogramなどを取得します。PIDや取得時刻、実行コマンドを記録し、負荷のある操作は本番手順と権限を確認してから行います。\n\n> 🧪 画面内問題は目的とツールの対応表です。`javap` が出力するbytecode、`jdeps` が挙げる依存module、`jlink` で縮小したruntime imageは `labs/jdk-tools` で実際に動かして観察してください。",
-      "samples":[{"caption":"利用可能なtool providerを確認","code":"import java.util.spi.ToolProvider;public class Main{public static void main(String[] a){System.out.println(ToolProvider.findFirst(\"javac\").isPresent());}}\n"}],
+      "explanation":"## IDEの外にも調査の道具がある\n\n`jshell` は短いAPIの実験、`javap` はクラスの構造やバイトコードの確認、`jdeps` は依存モジュールの分析、`jlink` は必要なモジュールだけを含むランタイムイメージの作成、`jpackage` はOS向け配布物の作成に使います。`jar` と `javadoc` もJDKの一部です。\n\n運用中の調査では `jcmd` を入口にして、JFRの記録、スレッドダンプ、クラスごとのインスタンス数などを取得します。PIDや取得時刻、実行したコマンドを記録し、負荷のかかる操作は本番の手順と権限を確認してから行います。\n\n> 🧪 画面内問題は、目的とツールの対応表です。`javap` が出力するバイトコード、`jdeps` が挙げる依存モジュール、`jlink` で小さくしたランタイムイメージは、`labs/jdk-tools` で実際に動かして観察してください。",
+      "samples":[{"caption":"使えるツールがあるか確認する","code":"import java.util.spi.ToolProvider;public class Main{public static void main(String[] a){System.out.println(ToolProvider.findFirst(\"javac\").isPresent());}}\n"}],
       "task":"目的n件を読み、`experiment→jshell`、`bytecode→javap`、`dependencies→jdeps`、`runtime→jlink`、`installer→jpackage` と表示してください。",
       "starterCode":"import java.util.*;public class Main{public static void main(String[] a){Map<String,String> tools=Map.of(\"experiment\",\"jshell\",\"bytecode\",\"javap\",\"dependencies\",\"jdeps\",\"runtime\",\"jlink\",\"installer\",\"jpackage\");Scanner s=new Scanner(System.in);int n=s.nextInt();for(int i=0;i<n;i++){/* TODO */}}}\n",
       "visibleCases":[{"label":"道具を選ぶ","stdin":"5 experiment bytecode dependencies runtime installer","expected":"jshell\njavap\njdeps\njlink\njpackage"}],
-      "hiddenCases":[{"label":"一件","stdin":"1 bytecode","expected":"javap"}],
-      "hints":["読んだ文字列をMapのキーにします。"],
+      "hiddenCases":[{"label":"一件","stdin":"1 bytecode","expected":"javap"},{"label":"0件","stdin":"0","expected":""},{"label":"同じ目的を2回","stdin":"2 runtime runtime","expected":"jlink\njlink"}],
+      "hints":["読んだ文字列を `Map` のキーとして使います。"],
       "solution":"import java.util.*;public class Main{public static void main(String[] a){Map<String,String> tools=Map.of(\"experiment\",\"jshell\",\"bytecode\",\"javap\",\"dependencies\",\"jdeps\",\"runtime\",\"jlink\",\"installer\",\"jpackage\");Scanner s=new Scanner(System.in);int n=s.nextInt();for(int i=0;i<n;i++)System.out.println(tools.get(s.next()));}}\n",
       "quiz":[
-        {"question":"アプリが依存するJDKモジュールを調べるツールは？","choices":["javadoc","jdeps","jshell","keytool"],"answer":1,"explanation":"jdepsはclassやJARの依存関係を分析します。"},
-        {"question":"本番プロセスから `jcmd` でthread dumpやJFRを取るとき、事前に確認すべきこととして適切なものはどれでしょう。","choices":["取得は無負荷なので確認は不要","アプリを再起動してから取得すること","操作の負荷・必要な権限・本番手順を確認し、PIDや取得時刻・実行コマンドを記録すること","IDEを起動しておくこと"],"answer":2,"explanation":"調査自体が本番へ影響し得ます。手順と権限を確認し、いつ何を取ったか残します。"}
+        {"question":"アプリが依存するJDKモジュールを調べるツールは？","choices":["javadoc","jdeps","jshell","keytool"],"answer":1,"explanation":"`jdeps` はクラスやJARの依存関係を分析します。"},
+        {"question":"本番のプロセスから `jcmd` でスレッドダンプやJFRを取るとき、事前に確認すべきこととして適切なものはどれでしょう。","choices":["取得は負荷をかけないので確認は不要","アプリを再起動してから取得すること","操作の負荷・必要な権限・本番の手順を確認し、PIDや取得時刻・実行したコマンドを記録すること","IDEを起動しておくこと"],"answer":2,"explanation":"調査そのものが本番へ影響しえます。手順と権限を確認し、いつ何を取ったかを残します。"}
       ]
     },
     {
-      "id":"51-4","title":"preview・非推奨化・移行",
-      "explanation":"## 段階を追って更新する\n\npreview featureはフィードバックを得るための暫定機能で、コンパイルと実行の双方に `--enable-preview` が必要です。後の版で仕様が変わるため、長期保守する業務コードでは採用条件を明文化します。incubator moduleも確定APIではありません。deprecatedは即時削除ではありませんが、`forRemoval=true` は移行優先度を上げる信号です。\n\n更新では、release noteと依存製品の対応表を読み、`jdeprscan` や警告を確認し、小さいversion差で段階的にCIを通します。コンパイル、単体・結合・性能テスト、本番相当の起動、ロールバックを一つの移行計画にします。",
+      "id":"51-4","title":"プレビュー機能・非推奨化・移行",
+      "explanation":"## 段階を追って更新する\n\nプレビュー機能はフィードバックを得るための暫定的な機能で、コンパイルと実行の両方に `--enable-preview` が必要です。あとの版で仕様が変わるため、長く保守する業務コードでは採用の条件を文書に残します。incubatorモジュールも、確定したAPIではありません。非推奨（deprecated）はすぐ削除されるわけではありませんが、`forRemoval=true` は移行の優先度を上げる合図です。\n\n更新のときは、リリースノートと依存製品の対応表を読み、`jdeprscan` や警告を確認し、バージョンの差を小さく保ちながら段階的にCIを通します。コンパイル、単体・結合・性能テスト、本番相当の環境での起動、そして切り戻しまでを、1つの移行計画にまとめます。",
       "samples":[{"caption":"非推奨APIを宣言して検出する","code":"class OldApi{@Deprecated(forRemoval=true)static void old(){}}public class Main{public static void main(String[] a){OldApi.old();}}\n"}],
-      "task":"機能状態n件を読み、`standard→USE`、`preview→EVALUATE`、`deprecated→MIGRATE`、`removed→BLOCK` と表示してください。",
+      "task":"機能の状態をn件読み、`standard→USE`、`preview→EVALUATE`、`deprecated→MIGRATE`、`removed→BLOCK` と表示してください。",
       "starterCode":"import java.util.*;public class Main{public static void main(String[] a){Map<String,String> action=Map.of(\"standard\",\"USE\",\"preview\",\"EVALUATE\",\"deprecated\",\"MIGRATE\",\"removed\",\"BLOCK\");Scanner s=new Scanner(System.in);int n=s.nextInt();for(int i=0;i<n;i++){/* TODO */}}}\n",
       "visibleCases":[{"label":"移行判断","stdin":"4 standard preview deprecated removed","expected":"USE\nEVALUATE\nMIGRATE\nBLOCK"}],
-      "hiddenCases":[{"label":"preview","stdin":"1 preview","expected":"EVALUATE"}],
-      "hints":["Mapから対応するactionを取り出します。"],
+      "hiddenCases":[{"label":"preview","stdin":"1 preview","expected":"EVALUATE"},{"label":"0件","stdin":"0","expected":""},{"label":"削除済みが混ざる","stdin":"3 removed standard removed","expected":"BLOCK\nUSE\nBLOCK"}],
+      "hints":["`Map` から対応する動作を取り出します。"],
       "solution":"import java.util.*;public class Main{public static void main(String[] a){Map<String,String> action=Map.of(\"standard\",\"USE\",\"preview\",\"EVALUATE\",\"deprecated\",\"MIGRATE\",\"removed\",\"BLOCK\");Scanner s=new Scanner(System.in);int n=s.nextInt();for(int i=0;i<n;i++)System.out.println(action.get(s.next()));}}\n",
       "quiz":[
-        {"question":"preview featureを本番採用するときに必要な姿勢は？","choices":["将来も仕様不変とみなす","変更・撤回と起動optionを含めて採用条件を管理する","コンパイル時だけ有効化する","LTSなら無条件で標準機能になる"],"answer":1,"explanation":"previewは確定前なので、更新時の追随コストを含めて判断します。"},
-        {"question":"preview featureを使ったコードはコンパイルできたのに、実行時に起動できませんでした。最も考えられる原因はどれでしょう。","choices":["previewはコンパイルのみ可能な機能である","実行時にも `--enable-preview` が必要で、付け忘れている","previewはLTSでは使えない","class fileが壊れている"],"answer":1,"explanation":"previewはコンパイルと実行の双方に `--enable-preview` が必要です。"}
+        {"question":"プレビュー機能を本番で採用するときに必要な姿勢は？","choices":["将来も仕様は変わらないとみなす","仕様変更や撤回の可能性と、起動オプションの管理まで含めて採用条件を決める","コンパイル時だけ有効化する","LTSなら無条件で標準機能になる"],"answer":1,"explanation":"プレビュー機能は仕様が確定する前のものなので、更新時に追随するコストまで含めて判断します。"},
+        {"question":"プレビュー機能を使ったコードはコンパイルできたのに、実行時に起動できませんでした。最も考えられる原因はどれでしょう。","choices":["プレビュー機能はコンパイルしかできない","実行時にも `--enable-preview` が必要で、付け忘れている","プレビュー機能はLTSでは使えない","クラスファイルが壊れている"],"answer":1,"explanation":"プレビュー機能は、コンパイルと実行の両方に `--enable-preview` が必要です。"}
       ]
     },
     {
       "id": "51-5",
       "title": "章末演習：JDKの選定・互換性・標準ツール",
-      "explanation": "## この章の知識を、自分の手で組み合わせよう\n\nここでは、**認証済み候補とLTSの選び方・`--release` と実行環境の互換・付属ツールの選択・preview と非推奨の扱い**をまとめて使います。新しい文法は登場しません。分からなくなったら、直前までの解説やサンプルへ戻って確認して大丈夫です。\n\n### 3問の進め方\n\n1. **基本**で、中心となる書き方をもう一度使う\n2. **組み合わせ**で、章内の複数の知識を一緒に使う\n3. **実践**で、少し現実的な入力と条件を整理する\n\nJDKを入れ替える作業自体は `labs/jdk-tools` で試します。ここで書くのは、**入れ替える前に台帳と互換表から決めておく判断**の部分です。",
+      "explanation": "## この章の知識を、自分の手で組み合わせよう\n\nここでは、**動作保証された候補とLTSの選び方・`--release` と実行環境の互換・付属ツールの選択・プレビュー機能と非推奨の扱い**をまとめて使います。新しい文法は登場しません。分からなくなったら、直前までの解説やサンプルへ戻って確認して大丈夫です。\n\n### 3問の進め方\n\n1. **基本**で、中心となる書き方をもう一度使う\n2. **組み合わせ**で、章内の複数の知識を一緒に使う\n3. **実践**で、少し現実的な入力と条件を整理する\n\nJDKを入れ替える作業自体は `labs/jdk-tools` で試します。ここで書くのは、**入れ替える前に台帳と互換表から決めておく判断**の部分です。",
       "samples": [{"caption":"復習用サンプル：降順に並べたあと、条件で絞ってから先頭を採る","code":"import java.util.*;\npublic class Main{public static void main(String[] a){List<Integer> vs=new ArrayList<>(List.of(17,25,21));vs.sort(Comparator.reverseOrder());System.out.println(vs+\" -> \"+vs.stream().filter(v->v!=25).findFirst().get());}}\n","expected":"[25, 21, 17] -> 21"}],
       "task": "【基本】必要な最低版 minVersion と候補数nを読み、続けてn件を `version vendor supported lts` の形で読みます（`supported` と `lts` は `yes` / `no`）。`supported` が `yes` で、かつ `version` が minVersion 以上の候補だけを採用できるものとして、versionの降順（同じversionならvendorの辞書順）に `version vendor LTS表示` と表示してください。LTS表示は `lts` が `yes` なら `LTS`、そうでなければ `-` です。採用できる候補が無ければ `NONE` と表示します。\n\n続けて、採用できる候補の中から1つを選び `PICK version vendor` と表示します。LTSの候補が1件でもあればその中の最大version、LTSが無ければ全体の最大versionを選びます。同じversionが並ぶときはvendorの辞書順で先のものにします。候補が無ければ `PICK NONE` と表示します。",
       "starterCode": "import java.util.*;\nrecord Candidate(int version,String vendor,boolean lts){}\npublic class Main {public static void main(String[] args){Scanner s=new Scanner(System.in);int minVersion=s.nextInt(),n=s.nextInt();List<Candidate> ok=new ArrayList<>();for(int i=0;i<n;i++){int version=s.nextInt();String vendor=s.next();boolean supported=s.next().equals(\"yes\"),lts=s.next().equals(\"yes\");/* TODO 採用できるものだけ ok へ */}/* TODO 並べ替えと一覧の表示 */\n/* TODO PICK の決定 */}}\n",
