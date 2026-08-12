@@ -19,6 +19,10 @@ import java.util.Set;
  * 全教材を順番に初回クリアし、買える経営要素を安い順に購入する経済回帰テスト。
  * 本番と同じ ProgressStore の計算を使うため、設備追加後の終盤詰まりやコイン余りを確認できる。
  *
+ * <p>完走したときの投資率だけでなく、<b>序盤の解放ペース</b>も見る
+ * （{@link #verifyEarlyPacing}）。設備の歯止めは価格だけなので、Rank1が1問の報酬に対して
+ * 安いと最初の章で店が一気に完成してしまう。</p>
+ *
  * <p>2つのシナリオを回す。効果が「学習の仕方」に依存する要素（常連サービス系統の
  * 今日の1杯目、復習が育てるブランド倍率）は、片方だけでは測れないため。</p>
  *
@@ -44,6 +48,9 @@ public final class CafeBalanceSimulation {
     /** 初回クリア1問あたりのブランド成長。復習ぶんがこれを超えないことを確かめる。 */
     private static final long FIRST_CLEAR_BRAND_BASIS_POINTS_PER_TASK = 170;
 
+    /** 序盤ペースの検査に使う★の範囲。最初の2章が収まる長さにする。 */
+    private static final int EARLY_TRACE_STARS = 60;
+
     private record Candidate(String kind, String id, long cost) {
     }
 
@@ -65,14 +72,20 @@ public final class CafeBalanceSimulation {
         RUSH_SALES
     }
 
-    /** 1シナリオの結果。 */
+    /**
+     * 1シナリオの結果。
+     *
+     * @param earlyFacilities ★1個目から順に、その時点で持っている設備＋自動営業の数。
+     *                        序盤の解放ペースを見るため {@link #EARLY_TRACE_STARS} 個まで
+     */
     private record Outcome(
             String label,
             Map<String, Object> cafe,
             double spendPercent,
             int clearedTasks,
             int investments,
-            boolean streakSeeded) {
+            boolean streakSeeded,
+            List<Integer> earlyFacilities) {
 
         long lifetime() {
             return number(cafe.get("lifetimeCash"));
@@ -102,6 +115,7 @@ public final class CafeBalanceSimulation {
                 curriculum, "plain", false, 0, true, STANDARD_LUCKY_UNLOCK_SEED);
         verifyContentReachable(curriculum, plain);
         verifyLearningStaysAhead(plain);
+        verifyEarlyPacing(curriculum, plain);
         require(plain.spendPercent() >= 25.0 && plain.spendPercent() <= 45.0,
                 "復習なしの投資率が目標25〜45%を外れています: " + plain.spendPercent() + "%");
         // 同じ日に完走するので連続日数は伸びない（皆勤の日めくりの下駄3日だけが効く）。
@@ -152,8 +166,16 @@ public final class CafeBalanceSimulation {
                 reviewer.spendPercent(), reviewer.lifetime(),
                 number(reviewer.cafe().get("brandMultiplierBasisPoints")) / 10_000.0,
                 number(reviewer.cafe().get("reviewBrandBasisPoints")) / 10_000.0);
+        System.out.printf("序盤ペース 設備数: ★2=%d ★6=%d 1章=%d 2章=%d%n",
+                facilitiesAt(plain.earlyFacilities(), 2),
+                facilitiesAt(plain.earlyFacilities(), 6),
+                facilitiesAt(plain.earlyFacilities(),
+                        curriculum.taskCount(curriculum.chapters().get(0))),
+                facilitiesAt(plain.earlyFacilities(),
+                        curriculum.taskCount(curriculum.chapters().get(0))
+                                + curriculum.taskCount(curriculum.chapters().get(1))));
         System.out.println("BALANCE OK: 復習なし／復習あり／ラッキーコイン未解放で"
-                + "購入到達性・投資率・学習優位の上限を確認しました");
+                + "購入到達性・投資率・学習優位の上限・序盤の解放ペースを確認しました");
     }
 
     /**
@@ -195,6 +217,7 @@ public final class CafeBalanceSimulation {
             seedProgress(progressFile, streakDays, luckyUnlockSeed);
             ProgressStore progress = new ProgressStore(progressFile);
             boolean firstTask = true;
+            List<Integer> earlyFacilities = new ArrayList<>();
 
             if (printRows) {
                 System.out.println("star\tchapters\tcash\tlifetime\tnextTask\tstores"
@@ -228,6 +251,10 @@ public final class CafeBalanceSimulation {
                                     chapter.id(), learning, curriculum.taskCount(chapter));
                         }
                         buyAllAffordable(progress, learning(curriculum, progress), strategy);
+                        if (earlyFacilities.size() < EARLY_TRACE_STARS) {
+                            earlyFacilities.add(facilityCount(
+                                    cafe(progress, learning(curriculum, progress))));
+                        }
                         if (printRows && MILESTONES.contains(progress.clearedIds().size())) {
                             printRow(progress, learning(curriculum, progress));
                         }
@@ -254,7 +281,8 @@ public final class CafeBalanceSimulation {
             System.out.printf("FINAL[%s] spend=%,d (%.2f%%) cash=%,d lifetime=%,d%n",
                     label, lifetime - cash, spendPercent, cash, lifetime);
             return new Outcome(label, cafe, spendPercent,
-                    progress.clearedIds().size(), expectedInvestments, streakDays >= 7);
+                    progress.clearedIds().size(), expectedInvestments, streakDays >= 7,
+                    List.copyOf(earlyFacilities));
         } finally {
             Files.deleteIfExists(progressFile);
             Files.deleteIfExists(tempDir);
@@ -439,6 +467,50 @@ public final class CafeBalanceSimulation {
                 at + "終盤任意投資を全て完了できません");
         require(list(cafe.get("ownedItems")).size() == 9,
                 at + "ラッキーコイン以外の到達可能な9アイテムを全購入できません");
+    }
+
+    /**
+     * 序盤は「少しずつできることが増える」ペースであること。
+     *
+     * <p>設備の歯止めは価格だけなので、Rank1が安いと数問解いた時点で6系統すべての
+     * Rank1が同時に買え、最初の章で店が一気に完成してしまう。1節はおおむね2問なので、
+     * 「1節では1つも買えない」「3節以内には1つ買える」を両端に置き、そこから
+     * 章ごとの上下限で緩やかさを縛る。</p>
+     *
+     * <p>上限だけでなく下限も見る。序盤を絞りすぎると、こんどは何章も進めても
+     * 店が育たない ―「学習が売上になる」という手応えそのものが薄れる。</p>
+     */
+    private static void verifyEarlyPacing(Curriculum curriculum, Outcome outcome) {
+        List<Integer> owned = outcome.earlyFacilities();
+        String at = "[" + outcome.label() + "] ";
+        require(owned.size() >= EARLY_TRACE_STARS,
+                at + "序盤ペースを見るには★" + EARLY_TRACE_STARS + "分の教材が必要です");
+        require(facilitiesAt(owned, 2) == 0,
+                at + "★2（1節）で設備が買えてしまいます（"
+                        + facilitiesAt(owned, 2) + "個）。Rank1が1問の報酬に対して安すぎます");
+        require(facilitiesAt(owned, 6) >= 1,
+                at + "★6（3節）でも設備が1つも買えません。Rank1が高すぎます");
+
+        // 章の区切りは教材から数える。章の問題数が変わっても検査がずれない。
+        int firstChapter = curriculum.taskCount(curriculum.chapters().get(0));
+        int secondChapter = firstChapter + curriculum.taskCount(curriculum.chapters().get(1));
+        require(secondChapter <= EARLY_TRACE_STARS,
+                at + "最初の2章が★" + EARLY_TRACE_STARS + "に収まりません");
+        int afterFirst = facilitiesAt(owned, firstChapter);
+        int afterSecond = facilitiesAt(owned, secondChapter);
+        require(afterFirst >= 2 && afterFirst <= 3,
+                at + "1章クリア時点の設備が2〜3個から外れています: " + afterFirst + "個");
+        require(afterSecond >= 5 && afterSecond <= 7,
+                at + "2章クリア時点の設備が5〜7個から外れています: " + afterSecond + "個");
+    }
+
+    /** ★n個目を取り終えた時点で持っていた設備＋自動営業の数。 */
+    private static int facilitiesAt(List<Integer> earlyFacilities, int star) {
+        return earlyFacilities.get(star - 1);
+    }
+
+    private static int facilityCount(Map<String, Object> cafe) {
+        return list(cafe.get("ownedUpgrades")).size() + list(cafe.get("ownedAutomation")).size();
     }
 
     /** 自動売上が学習を追い越さないこと。 */

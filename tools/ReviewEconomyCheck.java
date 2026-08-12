@@ -54,6 +54,37 @@ public final class ReviewEconomyCheck {
         System.out.println("OK  " + label + " (" + actual + ")");
     }
 
+    /** その設備の現在価格。 */
+    @SuppressWarnings("unchecked")
+    private static long upgradeCost(ProgressStore p, String id) {
+        for (Object entry : (Iterable<Object>) cafe(p, ZERO).get("upgrades")) {
+            Map<String, Object> upgrade = (Map<String, Object>) entry;
+            if (id.equals(upgrade.get("id"))) {
+                return upgrade.get("cost") instanceof Number n ? n.longValue() : 0L;
+            }
+        }
+        throw new IllegalStateException("設備が見つかりません: " + id);
+    }
+
+    /**
+     * その設備が買えるまで、初クリア報酬だけを受け取る。
+     *
+     * <p>必要な問題数を数え打ちにすると、序盤の価格を調整するたびにこの検査が落ちる。
+     * ここで試したいのは価格ではなく「今日の1杯目が1日1回か」なので、
+     * 「何問か解けば買える」という前提だけを表す。</p>
+     */
+    private static void earnUntilAffordable(ProgressStore p, String keyPrefix, String upgradeId) {
+        long cost = upgradeCost(p, upgradeId);
+        for (int i = 1; i <= 200; i++) {
+            if (value(p, "cash") >= cost) {
+                return;
+            }
+            p.markCleared(keyPrefix + i);
+            p.rewardTask(ZERO, keyPrefix + i);
+        }
+        throw new IllegalStateException("200問ぶんの報酬でも買えません: " + upgradeId);
+    }
+
     /** 販売戦略・常連サービスの両系統を、指定Rankまで順に買う。 */
     private static void buyTrack(ProgressStore p, String... ids) {
         for (String id : ids) {
@@ -123,13 +154,10 @@ public final class ReviewEconomyCheck {
     private static void dailyFirstBonus(Path file) throws Exception {
         System.out.println("\n[今日の1杯目]");
         ProgressStore p = new ProgressStore(file);
-        // 設備に★の解放条件は無いので、★1でも常連サービスRank1（連続1日ごと+3%）を買える。
-        // 足りるコインを作るため、報酬だけ数問ぶん受け取っておく
-        for (int i = 1; i <= 3; i++) {
-            p.markCleared("a-1#" + i);
-            p.rewardTask(ZERO, "a-1#" + i);
-        }
-        long cash = value(p, "cash");
+        // 設備に★の解放条件は無いので、★が少なくても常連サービスRank1（連続1日ごと+3%）を
+        // 買える。足りるコインを作るため、買えるまで報酬だけ受け取っておく。
+        // ここまでの報酬では今日の1杯目は発動しない（倍率0%のときは受取日を記録しない）。
+        earnUntilAffordable(p, "a-2#", "morning_playlist");
         check("Rank1を買う前は今日の1杯目が0%", value(p, "dailyFirstBonusPercent") == 0);
 
         buyTrack(p, "morning_playlist");
@@ -141,25 +169,29 @@ public final class ReviewEconomyCheck {
         checkEquals("全報酬の倍率には入らない",
                 value(p, "bonusPercent"), value(p, "salesBonusPercent"));
 
+        // 倍率の乗り方は、その1問を解く直前の「次の1問の売上」と比べる。解いた後の値と
+        // 比べると、その1問で店構えLvが上がったときに杯数が変わって比較にならない。
+        long firstBaseline = value(p, "nextOrderCash");
         p.markCleared("a-1#10");
         ProgressStore.CafeAward first = p.rewardTask(ZERO, "a-1#10");
-        long plain = value(p, "nextOrderCash");
-        check("その日の1問目に+3%が乗る（" + first.cash() + " > " + plain + "）",
-                first.cash() > plain);
+        check("その日の1問目に+3%が乗る（" + first.cash() + " > " + firstBaseline + "）",
+                first.cash() > firstBaseline);
         check("受取済みになる", Boolean.FALSE.equals(
                 cafe(p, ZERO).get("dailyFirstBonusReady")));
 
+        long secondBaseline = value(p, "nextOrderCash");
         p.markCleared("a-1#11");
         ProgressStore.CafeAward second = p.rewardTask(ZERO, "a-1#11");
-        checkEquals("同じ日の2問目には乗らない", second.cash(), plain);
+        checkEquals("同じ日の2問目には乗らない", second.cash(), secondBaseline);
 
         // 日をまたげばまた受け取れる。進捗ファイルの日付を1日前へ書き換えて確かめる
+        long cashBeforeReload = value(p, "cash");
         p.flushNow();
         rewriteDailyDay(file, LocalDate.now().minusDays(1).toString());
         ProgressStore reloaded = new ProgressStore(file);
         check("日をまたぐと未受取へ戻る", Boolean.TRUE.equals(
                 cafe(reloaded, ZERO).get("dailyFirstBonusReady")));
-        check("残高は引き継がれる", value(reloaded, "cash") >= cash);
+        checkEquals("残高は引き継がれる", value(reloaded, "cash"), cashBeforeReload);
     }
 
     // ─── 2. 復習はブランド倍率を1問1回だけ育てる ────────────────────────────

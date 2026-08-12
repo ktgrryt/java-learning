@@ -42,6 +42,7 @@
   var notificationTimer = null;
   var notificationStartedAt = 0;
   var notificationRemainingMs = 0;
+  var confettiTimer = null; // 降り終わった紙吹雪をDOMから片付けるまでの待ち
 
   // 復習モード。セッションは画面の中だけで持つ（再読込したら1問復習に戻る）
   var reviewSession = null; // { queue: [{lessonId, taskId}], index, cleared, clearedKeys }
@@ -3002,14 +3003,30 @@
       balance: cafeState().cash,
       newStar: true,
       chapterCleared: res.chapterCleared,
+      chapterNumber: res.chapterNumber,
+      chapterTitle: res.chapterTitle,
+      next: res.next,
       levelUp: levelUp
     });
   }
 
-  /** 金額を主役にした報酬通知。通常通知より長く表示し、ホバー中は時間を止める。 */
+  /**
+   * 金額を主役にした報酬通知。問題文を隠しすぎない短さで出し、ホバー中は時間を止める。
+   *
+   * 章クリアもこの1枚に載せる（以前は全画面のお祝いで手が止まっていた）。クリア直後は
+   * 模範解答を見たりその場に残りたいことがあるので、画面は塞がず、次の章へ進むかどうかも
+   * 自分で選べるようにしている。
+   */
   function showCafeRewardNotification(award, options) {
     options = options || {};
     var events = award.itemEvents || [];
+    var chapter = options.chapterCleared
+      ? {
+        number: options.chapterNumber,
+        title: options.chapterTitle || '',
+        next: options.next || null
+      }
+      : null;
     enqueueNotification({
       type: 'reward',
       kicker: options.kicker || 'JAVA CAFÉ',
@@ -3019,11 +3036,14 @@
       cups: Number(award.cups || 0),
       balance: Number(options.balance || 0),
       newStar: !!options.newStar,
-      chapterCleared: !!options.chapterCleared,
+      chapter: chapter,
       levelUp: options.levelUp || null,
       events: events,
-      // 基本9秒。補足が多い通知は最大14秒まで延ばす。
-      duration: Math.min(14000, 9000 + events.length * 900 + (options.levelUp ? 1800 : 0))
+      // 章クリアは節目なので自動では消さない（0=時間で消さない）。それ以外は基本4.5秒、
+      // 補足が多い通知は最大7秒まで延ばす。読みたいときはホバーで止まる。
+      duration: chapter
+        ? 0
+        : Math.min(7000, 4500 + events.length * 500 + (options.levelUp ? 900 : 0))
     });
   }
 
@@ -3034,6 +3054,8 @@
 
   function enqueueNotification(notification) {
     notificationQueue.push(notification);
+    // 自動で消さない通知（章クリア）が出たままだと後続がいつまでも待たされる。次が来たら譲る。
+    if (activeNotification && !activeNotification.duration) { dismissNotification(); }
     showNextNotification();
   }
 
@@ -3063,8 +3085,15 @@
         stats.push('<div class="toast-stat"><span aria-hidden="true">☕</span>'
           + '<small>提供したコーヒー</small><b>+' + numberText(notification.cups) + '杯</b></div>');
       }
-      var bonusHtml = notification.chapterCleared
-        ? '<div class="toast-bonus">🎉 章クリアボーナスを含みます</div>'
+      var chapterHtml = notification.chapter
+        ? '<div class="toast-chapter"><span>🎉 第'
+          + numberText(notification.chapter.number) + '章クリア！</span>'
+          + '<b>「' + esc(notification.chapter.title) + '」を全問クリアしました。'
+          + '章制覇ボーナスとブランド倍率も伸びています。</b></div>'
+        : '';
+      var actionHtml = notification.chapter && notification.chapter.next
+        ? '<div class="toast-actions"><button class="primary-btn toast-action" type="button"'
+          + ' data-role="next">次の章へ進む</button></div>'
         : '';
       var levelHtml = notification.levelUp
         ? '<div class="toast-level-up"><span>店構えが成長しました</span><b>Lv.'
@@ -3087,23 +3116,33 @@
         + '<div><small>獲得コイン</small><strong><b>+' + numberText(notification.cash)
         + '</b><span>コイン</span></strong></div></div>'
         + (stats.length ? '<div class="toast-stats">' + stats.join('') + '</div>' : '')
-        + bonusHtml + levelHtml + eventsHtml
+        + chapterHtml + levelHtml + eventsHtml
         + '<div class="toast-balance"><span>現在の残高</span><b>'
-        + numberText(notification.balance) + 'コイン</b></div>';
+        + numberText(notification.balance) + 'コイン</b></div>'
+        + actionHtml;
     } else {
       el.innerHTML = '<div class="toast-message-body"><span>' + esc(notification.message) + '</span>'
         + toastCloseButtonHtml() + '</div>';
     }
-    bindNotificationEvents(el);
+    bindNotificationEvents(el, notification);
   }
 
   function toastCloseButtonHtml() {
     return '<button class="toast-close" type="button" aria-label="通知を閉じる">×</button>';
   }
 
-  function bindNotificationEvents(el) {
+  function bindNotificationEvents(el, notification) {
     var close = el.querySelector('.toast-close');
     if (close) { close.addEventListener('click', dismissNotification); }
+    var next = el.querySelector('[data-role="next"]');
+    if (next) {
+      // 行き先は描いた通知から取る（閉じたあとに activeNotification は消えている）
+      var target = notification.chapter ? notification.chapter.next : null;
+      next.addEventListener('click', function () {
+        dismissNotification();
+        goToTask(target);
+      });
+    }
     el.onmouseenter = pauseNotificationTimer;
     el.onmouseleave = resumeNotificationTimer;
     el.onfocusin = pauseNotificationTimer;
@@ -3112,6 +3151,8 @@
 
   function startNotificationTimer() {
     clearTimeout(notificationTimer);
+    // 0 は「時間では消さない」。閉じるボタンか、次の通知が来たときだけ消える。
+    if (!notificationRemainingMs) { notificationTimer = null; return; }
     notificationStartedAt = Date.now();
     notificationTimer = setTimeout(dismissNotification, notificationRemainingMs);
   }
@@ -3142,40 +3183,44 @@
     }, 300);
   }
 
+  /**
+   * 章クリアのお祝いは報酬通知（showCafeRewardNotification）へ移した。画面を塞ぐのは
+   * 学習の最後の1回、全問制覇だけにする。クリア直後は模範解答を読み返したり、その問題に
+   * 残って考え直したりしたいので、進むかどうかを通知の中から選べればそれで足りる。
+   *
+   * 紙吹雪は章クリアでも降らせる。操作を邪魔しない層（.confetti）に置いてあるので、
+   * 降っている間もそのまま画面を触れる。
+   */
   function celebrate(res) {
-    if (res.allChaptersCleared) {
+    // 全問制覇は、最後の1問を初めてクリアした瞬間だけ祝う（クリア後の再提出では出さない）
+    if (res.allChaptersCleared && res.newStar) {
       // 章数・問題数はカリキュラムから取る（章を足しても文言が古びないように）
       showOverlay('🏆', '全問制覇！',
         '全' + state.chapters.length + '章 ' + state.totalTasks + '問、すべてクリアです。'
-        + 'ここまで自分の手で書いてきたことが、そのまま力になっています。',
-        null);
+        + 'ここまで自分の手で書いてきたことが、そのまま力になっています。');
     } else if (res.chapterCleared) {
-      showOverlay('🎉', '第' + res.chapterNumber + '章クリア！',
-        '「' + res.chapterTitle + '」を全問クリアしました。カフェにも章制覇ボーナスが届きました。'
-          + ' ブランド倍率も、この章で身につけた問題数に応じて成長しました！',
-        res.next);
+      dropConfetti();
     }
   }
 
-  function showOverlay(emoji, title, body, next) {
+  /** 全画面のお祝い。行き先は用意しない（章クリアの「次の章へ進む」は通知側へ移した）。 */
+  function showOverlay(emoji, title, body) {
     var overlay = document.getElementById('overlay');
     document.getElementById('overlayEmoji').textContent = emoji;
     document.getElementById('overlayTitle').textContent = title;
     document.getElementById('overlayBody').textContent = body;
 
     var btn = document.getElementById('overlayBtn');
-    btn.textContent = next ? '次の章へ進む' : '閉じる';
+    btn.textContent = '閉じる';
     overlay.hidden = false;
     dropConfetti();
 
-    btn.onclick = function () {
-      overlay.hidden = true;
-      goToTask(next);
-    };
+    btn.onclick = function () { overlay.hidden = true; };
   }
 
   function dropConfetti() {
     var host = document.getElementById('confetti');
+    clearTimeout(confettiTimer);
     host.innerHTML = '';
     var colors = ['#f4b942', '#e8734a', '#5aa9e6', '#7ad151', '#c77dff'];
     for (var i = 0; i < 60; i++) {
@@ -3187,6 +3232,10 @@
       p.style.transform = 'rotate(' + Math.floor(Math.random() * 360) + 'deg)';
       host.appendChild(p);
     }
+    // 降り終わった紙吹雪は片付ける。全画面のお祝いの中ではなく画面全体にかぶせる層に
+    // なったので、置きっぱなしにすると次のお祝いまでDOMに残り続ける。
+    // 待つ時間は「最も遅い開始(0.6s) + 最も長い落下(2.8s)」より少しだけ長く。
+    confettiTimer = setTimeout(function () { host.innerHTML = ''; }, 3600);
   }
 
   // ------------------------------------------------------------------ 画面遷移
