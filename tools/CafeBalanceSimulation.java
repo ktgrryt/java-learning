@@ -32,6 +32,11 @@ import java.util.Set;
  */
 public final class CafeBalanceSimulation {
 
+    /** 171回目でラッキーコインを引く、再現可能な通常試算用シード。 */
+    private static final long STANDARD_LUCKY_UNLOCK_SEED = 77_777L;
+    /** 574回の初回正解では引かない、最も不運な場合の境界試算用シード。 */
+    private static final long UNLUCKY_UNLOCK_SEED = 47L;
+
     private static final Set<Integer> MILESTONES = Set.of(
             1, 20, 50, 100, 170, 240, 310, 370, 420, 460, 480, 493, 500, 503, 507,
             520, 540, 560, 574);
@@ -93,7 +98,8 @@ public final class CafeBalanceSimulation {
         Path project = Path.of(args.length > 0 ? args[0] : ".").toAbsolutePath().normalize();
         Curriculum curriculum = new ContentLoader(project.resolve("content")).load();
 
-        Outcome plain = simulate(curriculum, "plain", false, 0, true);
+        Outcome plain = simulate(
+                curriculum, "plain", false, 0, true, STANDARD_LUCKY_UNLOCK_SEED);
         verifyContentReachable(curriculum, plain);
         verifyLearningStaysAhead(plain);
         require(plain.spendPercent() >= 25.0 && plain.spendPercent() <= 45.0,
@@ -107,7 +113,17 @@ public final class CafeBalanceSimulation {
         require(number(plain.cafe().get("equipmentDiscountPercent")) == 20,
                 "マイスター工具箱の設備費20%OFFが効いていません");
 
-        Outcome reviewer = simulate(curriculum, "reviewer", true, 7, false);
+        // 1%抽選なので、全574問を解いても外れ続ける可能性は約0.3%ある。
+        // その場合でも必須設備・店舗・終盤投資を買えて、投資率が破綻しないことを見る。
+        Outcome unlucky = simulate(
+                curriculum, "unlucky", false, 0, false, UNLUCKY_UNLOCK_SEED);
+        verifyUnluckyContentReachable(curriculum, unlucky);
+        require(unlucky.spendPercent() >= 25.0 && unlucky.spendPercent() <= 45.0,
+                "ラッキーコイン未解放時の投資率が目標25〜45%を外れています: "
+                        + unlucky.spendPercent() + "%");
+
+        Outcome reviewer = simulate(
+                curriculum, "reviewer", true, 7, false, STANDARD_LUCKY_UNLOCK_SEED);
         verifyContentReachable(curriculum, reviewer);
         verifyLearningStaysAhead(reviewer);
         require(reviewer.spendPercent() <= 45.0,
@@ -136,8 +152,8 @@ public final class CafeBalanceSimulation {
                 reviewer.spendPercent(), reviewer.lifetime(),
                 number(reviewer.cafe().get("brandMultiplierBasisPoints")) / 10_000.0,
                 number(reviewer.cafe().get("reviewBrandBasisPoints")) / 10_000.0);
-        System.out.println("BALANCE OK: 復習なし／復習ありの両方で"
-                + "全コンテンツ購入可・投資率・学習優位の上限を確認しました");
+        System.out.println("BALANCE OK: 復習なし／復習あり／ラッキーコイン未解放で"
+                + "購入到達性・投資率・学習優位の上限を確認しました");
     }
 
     /**
@@ -150,19 +166,33 @@ public final class CafeBalanceSimulation {
     private static Outcome simulate(
             Curriculum curriculum, String label, boolean review, int streakDays, boolean printRows)
             throws Exception {
-        return simulate(curriculum, label, review, streakDays, printRows, Strategy.CHEAPEST);
+        return simulate(curriculum, label, review, streakDays, printRows,
+                Strategy.CHEAPEST, STANDARD_LUCKY_UNLOCK_SEED);
+    }
+
+    private static Outcome simulate(
+            Curriculum curriculum, String label, boolean review, int streakDays,
+            boolean printRows, long luckyUnlockSeed) throws Exception {
+        return simulate(curriculum, label, review, streakDays, printRows,
+                Strategy.CHEAPEST, luckyUnlockSeed);
     }
 
     private static Outcome simulate(
             Curriculum curriculum, String label, boolean review, int streakDays,
             boolean printRows, Strategy strategy)
             throws Exception {
+        return simulate(curriculum, label, review, streakDays, printRows,
+                strategy, STANDARD_LUCKY_UNLOCK_SEED);
+    }
+
+    private static Outcome simulate(
+            Curriculum curriculum, String label, boolean review, int streakDays,
+            boolean printRows, Strategy strategy, long luckyUnlockSeed)
+            throws Exception {
         Path tempDir = Files.createTempDirectory("java-cafe-balance-");
         Path progressFile = tempDir.resolve("progress.json");
         try {
-            if (streakDays > 0) {
-                seedStreak(progressFile, streakDays);
-            }
+            seedProgress(progressFile, streakDays, luckyUnlockSeed);
             ProgressStore progress = new ProgressStore(progressFile);
             boolean firstTask = true;
 
@@ -183,6 +213,9 @@ public final class CafeBalanceSimulation {
                             }
                             firstTask = false;
                         }
+                        // 本番と同じく、正解の記録を初クリア判定より先に通す。
+                        // ラッキーコインの1%解放抽選はこの共通経路で行われる。
+                        progress.recordMasterySubmission(key, true);
                         progress.markCleared(key);
                         ProgressStore.CafeLearningProgress learning = learning(curriculum, progress);
                         progress.rewardTask(learning, key);
@@ -240,15 +273,18 @@ public final class CafeBalanceSimulation {
         progress.recordMasterySubmission(key, true);
     }
 
-    /** 連続学習日数を作るため、直近の日付だけを書いた進捗ファイルを先に置く。 */
-    private static void seedStreak(Path progressFile, int days) throws Exception {
+    /** 抽選を再現可能にし、必要なら直近の連続学習日数も置いた進捗ファイルを作る。 */
+    private static void seedProgress(Path progressFile, int days, long luckyUnlockSeed)
+            throws Exception {
         StringBuilder dates = new StringBuilder();
         LocalDate first = LocalDate.now().minusDays(days - 1L);
         for (int i = 0; i < days; i++) {
             dates.append(i == 0 ? "\"" : ",\"").append(first.plusDays(i)).append("\"");
         }
         Files.writeString(progressFile,
-                "{\"clearDates\":[" + dates + "],\"cafe\":{\"economyVersion\":19}}",
+                "{\"clearDates\":[" + dates + "],\"cafe\":{" +
+                        "\"economyVersion\":21,\"luckyCoinUnlockSeed\":"
+                        + luckyUnlockSeed + "}}",
                 StandardCharsets.UTF_8);
     }
 
@@ -385,6 +421,24 @@ public final class CafeBalanceSimulation {
         require(list(cafe.get("ownedItems")).size() == outcome.expectedItems(),
                 at + "この試算で達成できるスペシャルアイテム"
                         + outcome.expectedItems() + "個を全購入できません");
+    }
+
+    /** 抽選へ外れ続けても、ラッキーコイン以外の全経営要素へ到達できること。 */
+    private static void verifyUnluckyContentReachable(Curriculum curriculum, Outcome outcome) {
+        Map<String, Object> cafe = outcome.cafe();
+        String at = "[" + outcome.label() + "] ";
+        require(outcome.clearedTasks() == curriculum.totalTaskCount(), at + "全問題を完走できません");
+        require(number(cafe.get("level")) == 12, at + "最終カフェレベルへ到達できません");
+        require(number(cafe.get("storeCount")) == number(cafe.get("maxStores")),
+                at + "最大店舗数へ到達できません");
+        require(list(cafe.get("ownedUpgrades")).size() == 60,
+                at + "通常設備60個を全購入できません");
+        require(list(cafe.get("ownedAutomation")).size() == 12,
+                at + "自動営業設備12個を全購入できません");
+        require(number(cafe.get("investmentLevel")) == outcome.investments(),
+                at + "終盤任意投資を全て完了できません");
+        require(list(cafe.get("ownedItems")).size() == 9,
+                at + "ラッキーコイン以外の到達可能な9アイテムを全購入できません");
     }
 
     /** 自動売上が学習を追い越さないこと。 */

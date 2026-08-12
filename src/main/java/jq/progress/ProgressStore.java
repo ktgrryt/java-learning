@@ -21,6 +21,7 @@ import java.util.Set;
 import java.util.TreeSet;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -48,9 +49,11 @@ import java.util.concurrent.TimeUnit;
  */
 public final class ProgressStore {
 
-    // 19: 常連サービスを「今日の1杯目」へ付け替え、復習をブランド倍率と自動売上へ繋いだ。
-    //     あわせて設備の★解放条件を全て外し、歯止めを価格だけにした（Rank8以降を1段×6.5〜7.5へ）
-    private static final int CAFE_ECONOMY_VERSION = 19;
+    // 21: ラッキーコインの解放を、★・累計売上条件から「問題正解ごとに1%抽選」へ変更した。
+    //     574問すべて外れても投資率45%以内になるよう、終盤改装の基準額を450億へ下げた。
+    // 20: ラッキーコインを「頻繁な小当たり」から「5%の大当たり」へ変更し、価格を77,777にした。
+    //     期待売上が下がるぶん、全購入時の投資率を範囲内へ戻すため終盤改装の基準額も下げた。
+    private static final int CAFE_ECONOMY_VERSION = 21;
     private static final int CUP_PRICE = 500;
     private static final int MAX_CAFE_STORES = 512;
     private static final long FIRST_EXPANSION_COST = 2_500L;
@@ -106,6 +109,8 @@ public final class ProgressStore {
     private static final int RETRY_BONUS_ATTEMPTS = 5;
     /** 粘りのドリッパーそのものが解放される提出回数（1問への累計）。 */
     private static final int RETRY_ACHIEVEMENT_ATTEMPTS = 10;
+    /** 初回・復習を問わず、問題へ正解したときにラッキーコインを引く確率。 */
+    private static final int LUCKY_COIN_UNLOCK_CHANCE_PERCENT = 1;
     /** 「今日の1杯目」に数える連続日数の既定の上限。皆勤の日めくりだけがこれを広げる。 */
     private static final int STREAK_BONUS_CAP_DAYS = 7;
     /**
@@ -117,7 +122,7 @@ public final class ProgressStore {
     private static final int ENDGAME_INVESTMENT_START_STARS = 500;
     private static final int ENDGAME_INVESTMENT_STAR_INTERVAL = 20;
     /** 収益効果のない任意投資。1段階ごとに価格を2倍にし、追加章のコイン余りを受け止める。 */
-    private static final long ENDGAME_INVESTMENT_BASE_COST = 250_000_000_000L;
+    private static final long ENDGAME_INVESTMENT_BASE_COST = 45_000_000_000L;
     /*
      * 設備（通常設備・自動営業）に★の解放条件は<b>置かない</b>。
      *
@@ -247,6 +252,10 @@ public final class ProgressStore {
     private long cafeLifetimeCash;
     /** 報酬を受け取った回数。再起動によるラッキー判定の引き直しを防ぐ。 */
     private long cafeRewardSequence;
+    /** ラッキーコイン解放抽選を利用者ごとに変える種。進捗リセット時だけ作り直す。 */
+    private long cafeLuckyCoinUnlockSeed = ThreadLocalRandom.current().nextLong();
+    /** 正解後にラッキーコイン解放抽選を行った回数。再起動による引き直しを防ぐ。 */
+    private long cafeLuckyCoinUnlockDrawCount;
     /** 問題クリア報酬を受け取った回数。コンボ報酬の進行を保存する。 */
     private long cafeTaskRewardCount;
     /** 最後に★を獲得してから受け取った自動売上。上限をリロードで引き直さないため保存する。 */
@@ -598,9 +607,9 @@ public final class ProgressStore {
      */
     private static final List<CafeItem> CAFE_ITEMS = List.of(
             new CafeItem("lucky_coin", "ラッキーコイン", "🪙",
-                    "問題・章・クイズ報酬で22%の確率で獲得コインが2倍",
-                    505_000L, 6, 10_000L, "",
-                    List.of(fx("lucky_double", 2), fx("lucky_chance", 22))),
+                    "問題・章・クイズ報酬で5%の確率で大当たり（獲得コイン+100%）",
+                    77_777L, 0, 0L, "lucky_coin_draw",
+                    List.of(fx("lucky_double", 2), fx("lucky_chance", 5))),
             new CafeItem("golden_bean", "コンボスタンプ帳", "🗒️",
                     "問題を5問クリアするたび、その問題の獲得コインが必ず7倍",
                     80_000L, 0, 0L, "same_day_15",
@@ -655,6 +664,7 @@ public final class ProgressStore {
      * 復習するか、25問を無傷で連続クリアしないと届かない。
      */
     private static final Map<String, String> ACHIEVEMENT_NOTES = Map.ofEntries(
+            Map.entry("lucky_coin_draw", "問題または復習問題へ正解するたび、1%の確率で解放"),
             Map.entry("same_day_15", "同じ日に異なる15問を初クリアまたは復習で正解"),
             Map.entry("streak_7", "7日連続で学習"),
             Map.entry("quiz_streak_20", "確認クイズの異なる20問に連続正解（初回答・復習どちらでも可）"),
@@ -1274,7 +1284,7 @@ public final class ProgressStore {
             int times = luckyCoin.effectValue("lucky_double");
             rewardedCash = saturatedMultiply(rewardedCash, times);
             itemEvents.add(luckyCoin.emoji() + " " + luckyCoin.name()
-                    + "発動！ コイン×" + times);
+                    + "大当たり！ 獲得コイン+" + ((times - 1) * 100) + "%");
         }
 
         CafeItem comboBook = ownedItemWithEffect("task_combo");
@@ -1415,6 +1425,10 @@ public final class ProgressStore {
                 : addReviewWeight(taskKey, 1);
         boolean scheduled = updateReviewPlan(taskKey, passed);
         changed |= scheduled;
+        if (passed) {
+            // 初クリア前にも呼ばれる共通経路なので、通常問題と復習問題を同じ1回として抽選できる。
+            changed |= drawLuckyCoinUnlock();
+        }
 
         if (!passed || !cleared.containsKey(taskKey)) {
             // 復習の合間に未クリア問題で失敗した場合も「連続正解」ではなくなる。
@@ -1631,6 +1645,25 @@ public final class ProgressStore {
         return reached && cafeAchievements.add(achievement);
     }
 
+    /**
+     * 問題へ正解した1回ぶん、ラッキーコインの解放を抽選する。
+     *
+     * <p>種と抽選回数を保存するため、外れた直後に再起動しても同じ回を引き直せない。
+     * いちど解放された後は抽選もカウントも止める。</p>
+     *
+     * @return 抽選回数または解放状態が変わったら true
+     */
+    private boolean drawLuckyCoinUnlock() {
+        if (cafeAchievements.contains("lucky_coin_draw")) {
+            return false;
+        }
+        cafeLuckyCoinUnlockDrawCount = saturatedAdd(cafeLuckyCoinUnlockDrawCount, 1L);
+        if (isLuckyUnlockHit(cafeLuckyCoinUnlockSeed, cafeLuckyCoinUnlockDrawCount)) {
+            cafeAchievements.add("lucky_coin_draw");
+        }
+        return true;
+    }
+
     /** これまでで最も長く続いた連続学習日数。今の連続が途切れていても残る。 */
     private int longestClearStreak() {
         int best = 0;
@@ -1665,6 +1698,18 @@ public final class ProgressStore {
     /** 保存された報酬回数から疑似乱数を作るため、再起動しても同じ報酬を引き直せない。 */
     private static boolean isLuckyHit(long sequence, int chancePercent) {
         long value = sequence ^ ((long) "lucky_coin".hashCode() << 32);
+        return isLuckyValue(value, chancePercent);
+    }
+
+    /** 利用者ごとの種を混ぜた、ラッキーコイン解放専用の1%抽選。 */
+    private static boolean isLuckyUnlockHit(long seed, long sequence) {
+        long value = seed ^ ((long) "lucky_coin_unlock".hashCode() << 32)
+                ^ Long.rotateLeft(sequence * 0x9e3779b97f4a7c15L, 17);
+        return isLuckyValue(value, LUCKY_COIN_UNLOCK_CHANCE_PERCENT);
+    }
+
+    /** 抽選ごとに作った値を十分に混ぜ、100個の確率枠へ割り当てる。 */
+    private static boolean isLuckyValue(long value, int chancePercent) {
         value ^= value >>> 33;
         value *= 0xff51afd7ed558ccdL;
         value ^= value >>> 33;
@@ -2173,6 +2218,8 @@ public final class ProgressStore {
         cafeCups = 0;
         cafeLifetimeCash = 0;
         cafeRewardSequence = 0;
+        cafeLuckyCoinUnlockSeed = ThreadLocalRandom.current().nextLong();
+        cafeLuckyCoinUnlockDrawCount = 0;
         cafeTaskRewardCount = 0;
         cafePassiveCashSinceTask = 0;
         cafeReviewPassiveCredits = 0;
@@ -2310,6 +2357,10 @@ public final class ProgressStore {
                         ? longOf(cafe, "lifetimeCash", cafeCash)
                         : Math.max(cafeCash, saturatedMultiply(cafeCups, CUP_PRICE));
                 cafeRewardSequence = longOf(cafe, "rewardSequence", 0);
+                cafeLuckyCoinUnlockSeed = longOf(
+                        cafe, "luckyCoinUnlockSeed", cafeLuckyCoinUnlockSeed);
+                cafeLuckyCoinUnlockDrawCount = Math.max(
+                        0L, longOf(cafe, "luckyCoinUnlockDrawCount", 0));
                 cafeTaskRewardCount = longOf(cafe, "taskRewardCount", cleared.size());
                 cafePassiveCashSinceTask = longOf(cafe, "passiveCashSinceTask", 0);
                 cafeReviewPassiveCredits = Math.min(MAX_REVIEW_PASSIVE_CREDITS,
@@ -2553,6 +2604,8 @@ public final class ProgressStore {
         cafe.put("cups", cafeCups);
         cafe.put("lifetimeCash", cafeLifetimeCash);
         cafe.put("rewardSequence", cafeRewardSequence);
+        cafe.put("luckyCoinUnlockSeed", cafeLuckyCoinUnlockSeed);
+        cafe.put("luckyCoinUnlockDrawCount", cafeLuckyCoinUnlockDrawCount);
         cafe.put("taskRewardCount", cafeTaskRewardCount);
         cafe.put("passiveCashSinceTask", cafePassiveCashSinceTask);
         cafe.put("reviewPassiveCredits", cafeReviewPassiveCredits);

@@ -10,7 +10,7 @@ import java.util.Set;
 /**
  * スペシャルアイテム12種が、条件を満たしたときだけ現れるか確かめる。
  *
- * <p>9種は達成条件（学ぶ過程）で、3種は★数と累計コイン（学習の節目）で解放する。
+ * <p>10種は達成条件または抽選（学ぶ過程）で、2種は★数と累計コイン（学習の節目）で解放する。
  * 達成条件のうち {@code review_200} と {@code flawless_25} は重い2つで、
  * ここでは「1問足りないと出ない」ところまで見る。</p>
  */
@@ -20,15 +20,15 @@ public final class AchievementCheck {
     private static final ProgressStore.CafeLearningProgress ZERO =
             new ProgressStore.CafeLearningProgress(0, 0);
 
-    /** 達成条件で解放される9種。 */
+    /** 達成条件または正解時の抽選で解放される10種。 */
     private static final List<String> ACHIEVEMENT_ITEMS = List.of(
-            "golden_bean", "first_try_tamper", "persistence_dripper", "attendance_calendar",
+            "lucky_coin", "golden_bean", "first_try_tamper", "persistence_dripper", "attendance_calendar",
             "food_truck", "quiz_crown", "fortune_cat",
             "quiz_festival_pass", "lifelong_trophy");
 
-    /** ★数と累計コインで解放される3種。完走時の救済で贈るのもこの3つ。 */
+    /** ★数と累計コインで解放される2種。完走時の救済で贈るのもこの2つ。 */
     private static final List<String> MILESTONE_ITEMS =
-            List.of("lucky_coin", "fever_bell", "java_relic");
+            List.of("fever_bell", "java_relic");
 
     private AchievementCheck() {
     }
@@ -63,11 +63,13 @@ public final class AchievementCheck {
     private static ProgressStore everything() throws Exception {
         Path dir = Files.createTempDirectory("jq-all-items-");
         Path file = dir.resolve("progress.json");
+        Files.writeString(file,
+                "{\"cafe\":{\"economyVersion\":21,\"luckyCoinUnlockSeed\":77777}}");
         ProgressStore p = new ProgressStore(file);
         for (int i = 1; i <= 300; i++) {
             p.markCleared("all#" + i);
         }
-        p.ensureCafeCompletionCatchUp(300, 300);          // ★条件の3種
+        p.ensureCafeCompletionCatchUp(300, 300);          // ★条件の2種
         for (int i = 0; i < 20; i++) {
             p.recordQuiz("allq", i, 0, true);             // quiz_streak_20
         }
@@ -91,6 +93,9 @@ public final class AchievementCheck {
         }
         for (int i = 1; i <= 200; i++) {
             p.recordMasterySubmission("all#" + i, true);  // review_200
+        }
+        for (int guard = 0; guard < 10_000 && !has(p, "lucky_coin"); guard++) {
+            p.recordMasterySubmission("all#1", true);     // lucky_coin_draw
         }
         p.flushNow();
         String json = Files.readString(file);
@@ -123,6 +128,98 @@ public final class AchievementCheck {
             for (String id : ACHIEVEMENT_ITEMS) {
                 check("初期状態: " + id, has(fresh, id), false);
             }
+
+            // ── 1.5 ラッキーコインは初回・復習の正解ごとに1%抽選 ──────────
+            Path luckyFile = dir.resolve("lucky.json");
+            Files.writeString(luckyFile,
+                    "{\"cafe\":{\"economyVersion\":21,\"luckyCoinUnlockSeed\":77777}}");
+            ProgressStore lucky = new ProgressStore(luckyFile);
+            for (int i = 0; i < 20; i++) {
+                lucky.rewardTask(ZERO, "luck#reward");
+            }
+            for (int i = 1; i <= 6; i++) {
+                lucky.markCleared("luck#" + i);
+            }
+            check("旧条件の★6・累計1万では出ない: lucky_coin",
+                    has(lucky, "lucky_coin"), false);
+            for (int i = 0; i < 200; i++) {
+                lucky.recordMasterySubmission("luck#failed", false);
+            }
+            check("不正解では抽選されない: lucky_coin", has(lucky, "lucky_coin"), false);
+            int initialDraws = 0;
+            while (!has(lucky, "lucky_coin") && initialDraws < 10_000) {
+                String key = "luck#initial-" + initialDraws;
+                lucky.recordMasterySubmission(key, true);
+                lucky.markCleared(key);
+                initialDraws++;
+            }
+            check("初回問題の正解で1%抽選: lucky_coin", has(lucky, "lucky_coin"), true);
+            Map<String, Object> luckyItem = items(lucky).stream()
+                    .filter(item -> "lucky_coin".equals(item.get("id")))
+                    .findFirst()
+                    .orElseThrow();
+            check("カードに1%抽選条件を表示",
+                    String.valueOf(luckyItem.get("unlockNote")).contains("1%"), true);
+
+            Path reviewLuckyFile = dir.resolve("review-lucky.json");
+            Files.writeString(reviewLuckyFile,
+                    "{\"cafe\":{\"economyVersion\":21,\"luckyCoinUnlockSeed\":77777}}");
+            ProgressStore reviewLucky = new ProgressStore(reviewLuckyFile);
+            reviewLucky.markCleared("luck#review");
+            int reviewDraws = 0;
+            while (!has(reviewLucky, "lucky_coin") && reviewDraws < 10_000) {
+                reviewLucky.recordMasterySubmission("luck#review", true);
+                reviewDraws++;
+            }
+            check("復習問題の正解でも1%抽選: lucky_coin",
+                    has(reviewLucky, "lucky_coin"), true);
+
+            Path reloadLuckyFile = dir.resolve("reload-lucky.json");
+            Files.writeString(reloadLuckyFile,
+                    "{\"cafe\":{\"economyVersion\":21,\"luckyCoinUnlockSeed\":77777}}");
+            ProgressStore beforeReload = new ProgressStore(reloadLuckyFile);
+            for (int i = 0; i < 100; i++) {
+                beforeReload.recordMasterySubmission("luck#reload-" + i, true);
+            }
+            beforeReload.flushNow();
+            ProgressStore afterReload = new ProgressStore(reloadLuckyFile);
+            for (int i = 100; i < 170; i++) {
+                afterReload.recordMasterySubmission("luck#reload-" + i, true);
+            }
+            check("再起動後も外れた170回を引き直さない: lucky_coin",
+                    has(afterReload, "lucky_coin"), false);
+            afterReload.recordMasterySubmission("luck#reload-170", true);
+            check("再起動後は171回目の抽選へ進む: lucky_coin",
+                    has(afterReload, "lucky_coin"), true);
+            check("ラッキーコインの価格は77,777",
+                    number(luckyItem.get("cost")) == 77_777L, true);
+            @SuppressWarnings("unchecked")
+            List<Map<String, Object>> luckyEffects =
+                    (List<Map<String, Object>>) (List<?>) luckyItem.get("effects");
+            Map<String, Long> luckyEffectValues = luckyEffects.stream().collect(
+                    java.util.stream.Collectors.toMap(
+                            effect -> String.valueOf(effect.get("type")),
+                            effect -> number(effect.get("value"))));
+            check("ラッキーコインは5%で発動",
+                    luckyEffectValues.getOrDefault("lucky_chance", 0L) == 5L, true);
+            check("大当たりは獲得コイン+100%",
+                    luckyEffectValues.getOrDefault("lucky_double", 0L) == 2L, true);
+            while (number(cafeOf(lucky).get("cash")) < 77_777L) {
+                lucky.rewardTask(ZERO, "luck#fund");
+            }
+            check("77,777コインで購入できる",
+                    lucky.purchaseCafeItem("lucky_coin").purchased(), true);
+            boolean jackpot = false;
+            for (int i = 0; i < 200 && !jackpot; i++) {
+                long normalCash = number(cafeOf(lucky).get("nextOrderCash"));
+                ProgressStore.CafeAward award = lucky.rewardTask(ZERO, "luck#draw");
+                jackpot = award.itemEvents().stream().anyMatch(event -> event.contains("大当たり"));
+                if (jackpot) {
+                    check("大当たり時は実際の報酬も+100%",
+                            award.cash() == normalCash * 2L, true);
+                }
+            }
+            check("大当たり演出が発生する", jackpot, true);
 
             // ── 2. ヒントなし・一発で25問 → 生涯学習トロフィー（重い条件） ────
             for (int i = 1; i <= 24; i++) {
@@ -295,15 +392,15 @@ public final class AchievementCheck {
                     .filter(item -> MILESTONE_ITEMS.contains(item.get("id")))
                     .toList();
             check("完走時に節目型アイテムを贈る", grantedItems == MILESTONE_ITEMS.size(), true);
-            check("節目型3アイテムを発見", milestoneItems.size() == MILESTONE_ITEMS.size(), true);
-            check("節目型3アイテムを所持",
+            check("節目型2アイテムを発見", milestoneItems.size() == MILESTONE_ITEMS.size(), true);
+            check("節目型2アイテムを所持",
                     milestoneItems.stream().allMatch(item -> Boolean.TRUE.equals(item.get("owned"))),
                     true);
             check("完走記念品は重複しない",
                     catchUp.ensureCafeCompletionCatchUp(475, 475) == 0, true);
 
             // ── 12. アイテムは1種類ずつしか持てない ─────────────────────────
-            ProgressStore.ItemPurchaseResult again = catchUp.purchaseCafeItem("lucky_coin");
+            ProgressStore.ItemPurchaseResult again = catchUp.purchaseCafeItem("fever_bell");
             check("所持済みアイテムは買えない", !again.purchased(), true);
             System.out.println("    （理由: " + again.error() + "）");
             Set<String> ids = new java.util.LinkedHashSet<>();
@@ -324,10 +421,11 @@ public final class AchievementCheck {
                         effects.size() == allowed, true);
             }
 
-            System.out.println("\nACHIEVEMENTS OK: 12種の解放条件・重い2種・完走時救済を確認しました");
+            System.out.println("\nACHIEVEMENTS OK: 12種の解放条件・1%抽選・重い2種・完走時救済を確認しました");
         } finally {
             for (String name : new String[] {
-                    "catch-up.json", "dated.json", "spam.json", "review.json",
+                    "catch-up.json", "dated.json", "spam.json", "review.json", "lucky.json",
+                    "review-lucky.json", "reload-lucky.json",
                     "replay.json", "other.json", "progress.json" }) {
                 Files.deleteIfExists(dir.resolve(name));
             }
