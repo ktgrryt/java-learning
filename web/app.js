@@ -36,6 +36,13 @@
   var selectedChapterByPart = {}; // ホームの編ごとに、最後に見ていた章を覚える
   var onboardingTourStep = 0; // 初回だけホーム上に重ねる操作ガイドの現在位置
 
+  // 右上通知。同時に複数の成果が発生しても上書きせず、読める時間を確保して順番に出す。
+  var notificationQueue = [];
+  var activeNotification = null;
+  var notificationTimer = null;
+  var notificationStartedAt = 0;
+  var notificationRemainingMs = 0;
+
   // 復習モード。セッションは画面の中だけで持つ（再読込したら1問復習に戻る）
   var reviewSession = null; // { queue: [{lessonId, taskId}], index, cleared, clearedKeys }
   var reviewTaskId = null;  // 復習で開いている問題ID（レッスンIDは currentId）
@@ -2533,9 +2540,11 @@
         var lesson = findLesson(lessonId);
         if (lesson && lessonId === currentId) { renderQuiz(lesson); }
         if (res.cafeAward && res.cafeAward.cash > 0) {
-          var itemEvents = res.cafeAward.itemEvents || [];
-          toast((itemEvents.length ? itemEvents.join(' / ') + '　' : '🪙 初正解チップ ')
-            + '+' + cafeNumberText(res.cafeAward.cash) + 'コイン');
+          showCafeRewardNotification(res.cafeAward, {
+            title: '確認クイズ正解・チップ獲得',
+            label: lesson ? lesson.title : '',
+            balance: cafeState().cash
+          });
         }
       })
       .catch(toastError);
@@ -2699,6 +2708,7 @@
     })
       .then(function (res) {
         var wasCurrent = currentId;
+        var cafeBefore = cafeLevelSnapshot();
         applyDelta(res.delta);
         renderHeader();
         renderSidebar();
@@ -2711,7 +2721,8 @@
           if (review) {
             onReviewCleared(taskId);
           } else {
-            celebrate(res, wasCurrent, taskId);
+            notifyTaskReward(res, wasCurrent, taskId, cafeBefore);
+            celebrate(res);
           }
         }
       })
@@ -2783,19 +2794,6 @@
       html += '<div class="hint-box"><strong>🧩 問題で指定された書き方を確認してください</strong><ul>'
         + sourceFailures.map(function (message) { return '<li>' + esc(message) + '</li>'; }).join('')
         + '</ul></div>';
-    }
-
-    if (res.cafeAward && (res.cafeAward.cash > 0 || res.cafeAward.cups > 0)) {
-      var itemEvents = res.cafeAward.itemEvents || [];
-      html += '<div class="cafe-receipt">' +
-        '<span title="正確な報酬 ' + numberText(res.cafeAward.cash) + 'コイン"><small>獲得コイン</small><b>+'
-          + cafeNumberText(res.cafeAward.cash) + 'コイン</b></span>' +
-        '<span><small>提供しました</small><b>+' + numberText(res.cafeAward.cups) + '杯 ☕</b></span>' +
-        (res.chapterCleared ? '<em>章クリアボーナス込み</em>' : '') +
-        (itemEvents.length ? '<div class="cafe-item-events">' + itemEvents.map(function (event) {
-          return '<strong>✨ ' + esc(event) + '</strong>';
-        }).join('') + '</div>' : '') +
-        '</div>';
     }
 
     if (!res.allPass && !outputAllPass) {
@@ -2977,24 +2975,171 @@
     });
   }
 
-  // -------------------------------------------------------------- お祝い演出
+  // ---------------------------------------------------------- 右上通知とお祝い演出
 
-  function toast(message) {
-    var el = document.getElementById('toast');
-    el.textContent = message;
-    el.classList.add('show');
-    setTimeout(function () { el.classList.remove('show'); }, 2600);
+  /** 店構えの変化を、進捗の差分を適用する前後で比較するための小さなスナップショット。 */
+  function cafeLevelSnapshot() {
+    var cafe = cafeState();
+    return {
+      level: Number(cafe.level || 1),
+      title: cafe.levelTitle || '屋台カフェ'
+    };
   }
 
-  function celebrate(res, lessonId, taskId) {
+  /** 初回クリアの報酬と、その瞬間に起きた店構えの変化を1枚の通知へまとめる。 */
+  function notifyTaskReward(res, lessonId, taskId, cafeBefore) {
+    if (!res.newStar || !res.cafeAward
+        || !(res.cafeAward.cash > 0 || res.cafeAward.cups > 0)) { return; }
     var lesson = findLesson(lessonId);
-    if (res.newStar) {
-      var task = lesson && findTask(lesson, taskId);
-      // 1レッスンに複数問あるので、どの問題で★が付いたのか分かるようにする
-      var label = lesson ? lesson.title : '';
-      if (task && lesson && lesson.taskCount > 1) { label += '（' + task.label + '）'; }
-      toast('★ 注文完了！　' + label);
+    var task = lesson && findTask(lesson, taskId);
+    var label = lesson ? lesson.title : '';
+    if (task && lesson && lesson.taskCount > 1) { label += '（' + task.label + '）'; }
+    var cafeAfter = cafeLevelSnapshot();
+    var levelUp = cafeBefore && cafeAfter.level > cafeBefore.level
+      ? { before: cafeBefore, after: cafeAfter }
+      : null;
+
+    showCafeRewardNotification(res.cafeAward, {
+      title: '注文完了・報酬を獲得',
+      label: label,
+      balance: cafeState().cash,
+      newStar: true,
+      chapterCleared: res.chapterCleared,
+      levelUp: levelUp
+    });
+  }
+
+  /** 金額を主役にした報酬通知。通常通知より長く表示し、ホバー中は時間を止める。 */
+  function showCafeRewardNotification(award, options) {
+    options = options || {};
+    var events = award.itemEvents || [];
+    enqueueNotification({
+      type: 'reward',
+      title: options.title || '報酬を獲得',
+      label: options.label || '',
+      cash: Number(award.cash || 0),
+      cups: Number(award.cups || 0),
+      balance: Number(options.balance || 0),
+      newStar: !!options.newStar,
+      chapterCleared: !!options.chapterCleared,
+      levelUp: options.levelUp || null,
+      events: events,
+      // 基本9秒。補足が多い通知は最大14秒まで延ばす。
+      duration: Math.min(14000, 9000 + events.length * 900 + (options.levelUp ? 1800 : 0))
+    });
+  }
+
+  /** 従来の短い操作結果も同じ右上通知へ送り、同時発生時の上書きを防ぐ。 */
+  function toast(message) {
+    enqueueNotification({ type: 'message', message: String(message), duration: 5000 });
+  }
+
+  function enqueueNotification(notification) {
+    notificationQueue.push(notification);
+    showNextNotification();
+  }
+
+  function showNextNotification() {
+    if (activeNotification || !notificationQueue.length) { return; }
+    activeNotification = notificationQueue.shift();
+    notificationRemainingMs = activeNotification.duration;
+    renderNotification(activeNotification);
+
+    var el = document.getElementById('toast');
+    // classを付ける前の位置を確定し、右から入る動きを毎回発生させる。
+    void el.offsetWidth;
+    el.classList.add('show');
+    startNotificationTimer();
+  }
+
+  function renderNotification(notification) {
+    var el = document.getElementById('toast');
+    el.className = 'toast toast-' + notification.type;
+    if (notification.type === 'reward') {
+      var notes = [];
+      if (notification.newStar) {
+        notes.push('<span>★ +1</span>');
+      }
+      if (notification.cups > 0) {
+        notes.push('<span>☕ +' + numberText(notification.cups) + '杯を提供</span>');
+      }
+      if (notification.chapterCleared) {
+        notes.push('<span>🎉 章クリアボーナス込み</span>');
+      }
+      var levelHtml = notification.levelUp
+        ? '<div class="toast-level-up"><span>店構えが成長しました</span><b>Lv.'
+          + numberText(notification.levelUp.before.level) + ' '
+          + esc(notification.levelUp.before.title) + ' → Lv.'
+          + numberText(notification.levelUp.after.level) + ' '
+          + esc(notification.levelUp.after.title) + '</b></div>'
+        : '';
+      var eventsHtml = notification.events.length
+        ? '<div class="toast-events">' + notification.events.map(function (event) {
+          return '<span>✨ ' + esc(event) + '</span>';
+        }).join('') + '</div>'
+        : '';
+      el.innerHTML = '<div class="toast-head">'
+        + '<div><small>JAVA CAFÉ</small><strong>' + esc(notification.title) + '</strong></div>'
+        + toastCloseButtonHtml() + '</div>'
+        + (notification.label ? '<p class="toast-label">' + esc(notification.label) + '</p>' : '')
+        + '<div class="toast-reward"><b>+' + numberText(notification.cash)
+        + '</b><span>コイン</span></div>'
+        + '<div class="toast-balance">現在の残高 ' + numberText(notification.balance) + 'コイン</div>'
+        + (notes.length ? '<div class="toast-notes">' + notes.join('') + '</div>' : '')
+        + levelHtml + eventsHtml;
+    } else {
+      el.innerHTML = '<div class="toast-message-body"><span>' + esc(notification.message) + '</span>'
+        + toastCloseButtonHtml() + '</div>';
     }
+    bindNotificationEvents(el);
+  }
+
+  function toastCloseButtonHtml() {
+    return '<button class="toast-close" type="button" aria-label="通知を閉じる">×</button>';
+  }
+
+  function bindNotificationEvents(el) {
+    var close = el.querySelector('.toast-close');
+    if (close) { close.addEventListener('click', dismissNotification); }
+    el.onmouseenter = pauseNotificationTimer;
+    el.onmouseleave = resumeNotificationTimer;
+    el.onfocusin = pauseNotificationTimer;
+    el.onfocusout = resumeNotificationTimer;
+  }
+
+  function startNotificationTimer() {
+    clearTimeout(notificationTimer);
+    notificationStartedAt = Date.now();
+    notificationTimer = setTimeout(dismissNotification, notificationRemainingMs);
+  }
+
+  function pauseNotificationTimer() {
+    if (!activeNotification || !notificationTimer) { return; }
+    clearTimeout(notificationTimer);
+    notificationTimer = null;
+    notificationRemainingMs = Math.max(800,
+      notificationRemainingMs - (Date.now() - notificationStartedAt));
+  }
+
+  function resumeNotificationTimer() {
+    if (activeNotification && !activeNotification.closing && !notificationTimer) {
+      startNotificationTimer();
+    }
+  }
+
+  function dismissNotification() {
+    if (!activeNotification || activeNotification.closing) { return; }
+    activeNotification.closing = true;
+    clearTimeout(notificationTimer);
+    notificationTimer = null;
+    document.getElementById('toast').classList.remove('show');
+    setTimeout(function () {
+      activeNotification = null;
+      showNextNotification();
+    }, 300);
+  }
+
+  function celebrate(res) {
     if (res.allChaptersCleared) {
       // 章数・問題数はカリキュラムから取る（章を足しても文言が古びないように）
       showOverlay('🏆', '全問制覇！',
