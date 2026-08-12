@@ -1797,7 +1797,7 @@
     cups: {
       name: '毎注文',
       body: '1回の学習で提供する杯数が増えます。杯数はすべての報酬の土台なので、'
-        + '問題・章・クイズ・自動売上のすべてが一緒に増えます。序盤ほど伸びが大きい系統です。'
+        + '問題・章・クイズ・自動売上のすべてが一緒に増えます。'
     },
     chapter: {
       name: '章ボーナス',
@@ -1805,18 +1805,18 @@
     },
     tips: {
       name: '正解チップ',
-      body: '確認クイズに初めて正解したときの追加コインが増えます。★の判定には影響しません。'
+      body: '確認クイズに初めて正解したときの追加コインが増えます。'
     },
     streak: {
       name: '今日の1杯目',
       body: 'その日いちばん最初に★を取った1問だけ、報酬が大きく増えます。'
-        + '倍率は連続して学習した日数ぶん積み上がり、7日分が上限です（皆勤の日めくりで10日）。'
+        + '倍率は連続して学習した日数ぶん積み上がり、7日分が上限です。'
         + '1日1回なので、毎日開くほど得になります。'
     },
     automation: {
       name: '自動売上',
-      body: 'アプリを表示している間だけ、ゆっくり売上を作ります。オフラインでは増えません。'
-        + '次の★を取るまでの自動売上は最大5問分です。最上位設備でも上限まで100分かかります。'
+      body: 'アプリを表示している間だけ、ゆっくり売上を作ります。'
+        + '次の★を取るまでの自動売上は最大5問分です。'
     }
   };
 
@@ -1930,12 +1930,7 @@
           ? (cafe.dailyFirstBonusReady ? '（未受取）' : '（本日受取済み）') : '') + '</span>' +
       '<span>' + perMinuteText('自動 +' + cafeNumberText(cafe.passiveCashPerMinute), '') + '</span>' +
       '</div></header>' +
-      '<p class="menu-note cafe-section-note">売上は、問題を初めてクリアして★を取ったとき、'
-        + '章をすべてクリアしたとき、確認クイズに初めて正解したとき、そして自動売上で入ります。'
-        + '上位設備を買うと、同じ系統の設備と効果が上位性能へ置き換わります。'
-        + ' ★による解放条件はありません。コインが足りればどの系統からでも伸ばせます。'
-        + '上のRankほど価格の上がり方が急なので、1系統を深く買うか浅く広く買うかはお好みです。'
-        + 'それぞれの設備が何を増やすのかは、カードの「?」にカーソルを当てると出ます。'
+      '<p class="menu-note cafe-section-note">コインは学習を進めると入手できます。'
         + ((cafe.equipmentDiscountPercent || 0) > 0
           ? ' 設備費は現在 ' + cafe.equipmentDiscountPercent + '%OFF です。' : '') + '</p>' +
       '<div class="equipment-paths">' + trackOrder.map(function (type) {
@@ -2541,7 +2536,8 @@
         if (lesson && lessonId === currentId) { renderQuiz(lesson); }
         if (res.cafeAward && res.cafeAward.cash > 0) {
           showCafeRewardNotification(res.cafeAward, {
-            title: '確認クイズ正解・チップ獲得',
+            kicker: '確認クイズ正解',
+            title: 'チップを獲得しました',
             label: lesson ? lesson.title : '',
             balance: cafeState().cash
           });
@@ -3000,7 +2996,8 @@
       : null;
 
     showCafeRewardNotification(res.cafeAward, {
-      title: '注文完了・報酬を獲得',
+      kicker: '注文完了',
+      title: '報酬を獲得しました',
       label: label,
       balance: cafeState().cash,
       newStar: true,
@@ -3015,6 +3012,7 @@
     var events = award.itemEvents || [];
     enqueueNotification({
       type: 'reward',
+      kicker: options.kicker || 'JAVA CAFÉ',
       title: options.title || '報酬を獲得',
       label: options.label || '',
       cash: Number(award.cash || 0),
@@ -3056,16 +3054,18 @@
     var el = document.getElementById('toast');
     el.className = 'toast toast-' + notification.type;
     if (notification.type === 'reward') {
-      var notes = [];
+      var stats = [];
       if (notification.newStar) {
-        notes.push('<span>★ +1</span>');
+        stats.push('<div class="toast-stat"><span aria-hidden="true">★</span>'
+          + '<small>スター</small><b>+1</b></div>');
       }
       if (notification.cups > 0) {
-        notes.push('<span>☕ +' + numberText(notification.cups) + '杯を提供</span>');
+        stats.push('<div class="toast-stat"><span aria-hidden="true">☕</span>'
+          + '<small>提供したコーヒー</small><b>+' + numberText(notification.cups) + '杯</b></div>');
       }
-      if (notification.chapterCleared) {
-        notes.push('<span>🎉 章クリアボーナス込み</span>');
-      }
+      var bonusHtml = notification.chapterCleared
+        ? '<div class="toast-bonus">🎉 章クリアボーナスを含みます</div>'
+        : '';
       var levelHtml = notification.levelUp
         ? '<div class="toast-level-up"><span>店構えが成長しました</span><b>Lv.'
           + numberText(notification.levelUp.before.level) + ' '
@@ -3079,14 +3079,17 @@
         }).join('') + '</div>'
         : '';
       el.innerHTML = '<div class="toast-head">'
-        + '<div><small>JAVA CAFÉ</small><strong>' + esc(notification.title) + '</strong></div>'
+        + '<div class="toast-title"><small>' + esc(notification.kicker)
+        + '</small><strong>' + esc(notification.title) + '</strong></div>'
         + toastCloseButtonHtml() + '</div>'
         + (notification.label ? '<p class="toast-label">' + esc(notification.label) + '</p>' : '')
-        + '<div class="toast-reward"><b>+' + numberText(notification.cash)
-        + '</b><span>コイン</span></div>'
-        + '<div class="toast-balance">現在の残高 ' + numberText(notification.balance) + 'コイン</div>'
-        + (notes.length ? '<div class="toast-notes">' + notes.join('') + '</div>' : '')
-        + levelHtml + eventsHtml;
+        + '<div class="toast-earned"><span class="toast-earned-icon" aria-hidden="true">🪙</span>'
+        + '<div><small>獲得コイン</small><strong><b>+' + numberText(notification.cash)
+        + '</b><span>コイン</span></strong></div></div>'
+        + (stats.length ? '<div class="toast-stats">' + stats.join('') + '</div>' : '')
+        + bonusHtml + levelHtml + eventsHtml
+        + '<div class="toast-balance"><span>現在の残高</span><b>'
+        + numberText(notification.balance) + 'コイン</b></div>';
     } else {
       el.innerHTML = '<div class="toast-message-body"><span>' + esc(notification.message) + '</span>'
         + toastCloseButtonHtml() + '</div>';
