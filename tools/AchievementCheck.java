@@ -7,22 +7,104 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-/** 達成条件で解放されるアイテム9種が、条件を満たしたときだけ現れるか確かめる。 */
+/**
+ * スペシャルアイテム12種が、条件を満たしたときだけ現れるか確かめる。
+ *
+ * <p>9種は達成条件（学ぶ過程）で、3種は★数と累計コイン（学習の節目）で解放する。
+ * 達成条件のうち {@code review_200} と {@code flawless_25} は重い2つで、
+ * ここでは「1問足りないと出ない」ところまで見る。</p>
+ */
 public final class AchievementCheck {
+
+    /** 復習を1問も数えていない状態の学習進捗。 */
+    private static final ProgressStore.CafeLearningProgress ZERO =
+            new ProgressStore.CafeLearningProgress(0, 0);
+
+    /** 達成条件で解放される9種。 */
+    private static final List<String> ACHIEVEMENT_ITEMS = List.of(
+            "golden_bean", "first_try_tamper", "persistence_dripper", "attendance_calendar",
+            "food_truck", "quiz_crown", "fortune_cat",
+            "quiz_festival_pass", "lifelong_trophy");
+
+    /** ★数と累計コインで解放される3種。完走時の救済で贈るのもこの3つ。 */
+    private static final List<String> MILESTONE_ITEMS =
+            List.of("lucky_coin", "fever_bell", "java_relic");
 
     private AchievementCheck() {
     }
 
     @SuppressWarnings("unchecked")
+    private static Map<String, Object> cafeOf(ProgressStore p) {
+        Map<String, Object> root = (Map<String, Object>) p.toClientJson(ZERO);
+        return (Map<String, Object>) root.get("cafe");
+    }
+
+    private static long number(Object value) {
+        return value instanceof Number n ? n.longValue() : 0L;
+    }
+
+    @SuppressWarnings("unchecked")
     private static List<Map<String, Object>> items(ProgressStore p) {
-        Map<String, Object> root =
-                (Map<String, Object>) p.toClientJson(new ProgressStore.CafeLearningProgress(0, 0));
+        Map<String, Object> root = (Map<String, Object>) p.toClientJson(ZERO);
         Map<String, Object> cafe = (Map<String, Object>) root.get("cafe");
         return (List<Map<String, Object>>) (List<?>) cafe.get("items");
     }
 
     private static boolean has(ProgressStore p, String id) {
         return items(p).stream().anyMatch(i -> id.equals(i.get("id")));
+    }
+
+    /**
+     * 全12種が見えている状態を作る。
+     *
+     * 未発見のアイテムはクライアントJSONへ載らないので、カード全体を検査するには
+     * 達成条件と★条件の両方を満たしておく必要がある。
+     */
+    private static ProgressStore everything() throws Exception {
+        Path dir = Files.createTempDirectory("jq-all-items-");
+        Path file = dir.resolve("progress.json");
+        ProgressStore p = new ProgressStore(file);
+        for (int i = 1; i <= 300; i++) {
+            p.markCleared("all#" + i);
+        }
+        p.ensureCafeCompletionCatchUp(300, 300);          // ★条件の3種
+        for (int i = 0; i < 20; i++) {
+            p.recordQuiz("allq", i, 0, true);             // quiz_streak_20
+        }
+        for (int i = 0; i < 10; i++) {
+            p.recordAttempt("all#1");                     // persistent_clear
+        }
+        p.noteChapterAchievements(List.of("all#1", "all#2"));  // 章の2条件
+        // store_5: コインを貯めて5店舗まで広げる
+        ProgressStore.CafeLearningProgress zero = ZERO;
+        for (int guard = 0; guard < 10_000; guard++) {
+            Map<String, Object> cafe = cafeOf(p);
+            if (number(cafe.get("storeCount")) >= 5) {
+                break;
+            }
+            Object cost = cafe.get("expansionCost");
+            if (cost instanceof Number n && number(cafe.get("cash")) >= n.longValue()) {
+                p.expandCafeNetwork();
+            } else {
+                p.rewardTask(zero, "all#1");
+            }
+        }
+        for (int i = 1; i <= 200; i++) {
+            p.recordMasterySubmission("all#" + i, true);  // review_200
+        }
+        p.flushNow();
+        String json = Files.readString(file);
+        StringBuilder days = new StringBuilder();
+        LocalDate day = LocalDate.now().minusDays(6);
+        for (int i = 0; i < 7; i++) {
+            days.append(i == 0 ? "\"" : ",\"").append(day.plusDays(i)).append("\"");
+        }
+        Files.writeString(file, json.replaceFirst("\"clearDates\":\\[[^\\]]*\\]",
+                "\"clearDates\":[" + days + "]"));       // streak_7
+        ProgressStore reloaded = new ProgressStore(file);
+        Files.deleteIfExists(file);
+        Files.deleteIfExists(dir);
+        return reloaded;
     }
 
     private static void check(String label, boolean actual, boolean expected) {
@@ -38,78 +120,71 @@ public final class AchievementCheck {
         try {
             // ── 1. 何もしていない状態では、達成型アイテムは1つも現れない ──────
             ProgressStore fresh = new ProgressStore(file);
-            for (String id : List.of("first_try_tamper", "prep_pot", "attendance_calendar",
-                    "quiz_bell", "unscathed_medal", "one_sitting_bookmark",
-                    "persistence_dripper", "food_truck", "clover_coaster")) {
+            for (String id : ACHIEVEMENT_ITEMS) {
                 check("初期状態: " + id, has(fresh, id), false);
             }
 
-            // ── 2. ヒントなし・一発で10問 → 一発仕上げのタンパー ─────────────
-            for (int i = 1; i <= 9; i++) {
+            // ── 2. ヒントなし・一発で25問 → 生涯学習トロフィー（重い条件） ────
+            for (int i = 1; i <= 24; i++) {
                 fresh.markCleared("x-1#" + i);
             }
-            check("9問では出ない: first_try_tamper", has(fresh, "first_try_tamper"), false);
-            fresh.markCleared("x-1#10");
-            check("10問連続: first_try_tamper", has(fresh, "first_try_tamper"), true);
+            check("24問では出ない: lifelong_trophy", has(fresh, "lifelong_trophy"), false);
+            fresh.markCleared("x-1#25");
+            check("25問連続で無傷: lifelong_trophy", has(fresh, "lifelong_trophy"), true);
 
-            // ── 3. 同じ日に15問 → 仕込み用の大鍋 ─────────────────────────────
-            check("10問では出ない: prep_pot", has(fresh, "prep_pot"), false);
-            for (int i = 11; i <= 15; i++) {
-                fresh.markCleared("x-1#" + i);
-            }
-            check("同じ日に15問: prep_pot", has(fresh, "prep_pot"), true);
+            // ── 3. 同じ日に15問 → コンボスタンプ帳 ───────────────────────────
+            check("15問は超えている: golden_bean", has(fresh, "golden_bean"), true);
 
-            // ── 4. 10回以上提出してクリア → 粘りのドリッパー ─────────────────
+            // ── 3.5 1問へ累計10回提出 → 粘りのドリッパー ────────────────────
             check("まだ出ない: persistence_dripper", has(fresh, "persistence_dripper"), false);
-            for (int i = 0; i < 10; i++) {
+            for (int i = 0; i < 9; i++) {
                 fresh.recordAttempt("y-1#1");
             }
             fresh.markCleared("y-1#1");
-            check("10回提出してクリア: persistence_dripper",
+            check("9回では出ない: persistence_dripper",
+                    has(fresh, "persistence_dripper"), false);
+            fresh.recordAttempt("y-1#1");
+            check("累計10回提出: persistence_dripper",
                     has(fresh, "persistence_dripper"), true);
-            // 粘った問題が混ざると一発連続は途切れる。すでに解放済みなので消えない
-            check("解放は取り消されない: first_try_tamper",
-                    has(fresh, "first_try_tamper"), true);
+            // 粘った問題が混ざると無傷の連続は途切れる。解放済みなら消えない
+            check("解放は取り消されない: lifelong_trophy",
+                    has(fresh, "lifelong_trophy"), true);
 
-            // ── 5. クイズ20問連続の初回正解 → 早押しベル ─────────────────────
+            // ── 4. クイズ20問連続の初回正解 → ひらめきメガホン ───────────────
             for (int i = 0; i < 19; i++) {
                 fresh.recordQuiz("q-1", i, 0, true);
             }
-            check("19問では出ない: quiz_bell", has(fresh, "quiz_bell"), false);
+            check("19問では出ない: quiz_crown", has(fresh, "quiz_crown"), false);
             fresh.recordQuiz("q-1", 19, 0, true);
-            check("20問連続で初回正解: quiz_bell", has(fresh, "quiz_bell"), true);
-            // 間違えたら連続は0へ戻るが、解放済みのベルは残る
+            check("20問連続で初回正解: quiz_crown", has(fresh, "quiz_crown"), true);
             fresh.recordQuiz("q-2", 0, 1, false);
-            check("間違えても残る: quiz_bell", has(fresh, "quiz_bell"), true);
+            check("間違えても残る: quiz_crown", has(fresh, "quiz_crown"), true);
 
-            // ── 6. 章をヒントなし・同じ日に全問クリア → 勲章としおり ─────────
-            check("まだ出ない: unscathed_medal", has(fresh, "unscathed_medal"), false);
+            // ── 5. 章をヒントなし・同じ日に全問クリア → ケーキとしおり ────────
+            check("まだ出ない: first_try_tamper", has(fresh, "first_try_tamper"), false);
             fresh.noteChapterAchievements(List.of("x-1#1", "x-1#2", "x-1#3"));
-            check("ヒントなしで章制覇: unscathed_medal", has(fresh, "unscathed_medal"), true);
-            check("同じ日に章制覇: one_sitting_bookmark",
-                    has(fresh, "one_sitting_bookmark"), true);
+            check("ヒントなしで章制覇: first_try_tamper",
+                    has(fresh, "first_try_tamper"), true);
+            check("同じ日に章制覇: fortune_cat", has(fresh, "fortune_cat"), true);
 
-            // ── 7. ヒントを使った章では勲章の条件を満たさない ────────────────
+            // ── 6. ヒントを使った章では、ケーキの条件を満たさない ────────────
             Path other = dir.resolve("other.json");
             ProgressStore hinted = new ProgressStore(other);
             hinted.revealHint("z-1#1", 0);
             hinted.markCleared("z-1#1");
             hinted.markCleared("z-1#2");
             hinted.noteChapterAchievements(List.of("z-1#1", "z-1#2"));
-            check("ヒントを使った章: unscathed_medal", has(hinted, "unscathed_medal"), false);
-            check("同じ日ではある: one_sitting_bookmark",
-                    has(hinted, "one_sitting_bookmark"), true);
+            check("ヒントを使った章: first_try_tamper",
+                    has(hinted, "first_try_tamper"), false);
+            check("同じ日ではある: fortune_cat", has(hinted, "fortune_cat"), true);
+            // 全問へ再正解すれば、ヒントを使った章でも回収できる
+            hinted.recordMasterySubmission("z-1#1", true);
+            hinted.recordMasterySubmission("z-1#2", true);
+            hinted.noteChapterAchievements(List.of("z-1#1", "z-1#2"));
+            check("ヒント使用後に章を復習: first_try_tamper",
+                    has(hinted, "first_try_tamper"), true);
 
-            // ── 8. クイズに累計50問正解 → 四つ葉のコースター ─────────────────
-            ProgressStore.CafeLearningProgress zero =
-                    new ProgressStore.CafeLearningProgress(0, 0);
-            check("まだ出ない: clover_coaster", has(fresh, "clover_coaster"), false);
-            for (int i = 0; i < 60; i++) {
-                fresh.rewardQuiz("q-4", i, zero);
-            }
-            check("累計50問正解: clover_coaster", has(fresh, "clover_coaster"), true);
-
-            // ── 9. 7日連続の履歴を持つ進捗ファイルは、起動時に解放される ─────
+            // ── 7. 7日連続の履歴を持つ進捗ファイルは、起動時に解放される ─────
             fresh.flushNow();
             String json = Files.readString(file);
             StringBuilder days = new StringBuilder();
@@ -123,66 +198,63 @@ public final class AchievementCheck {
             ProgressStore reloaded = new ProgressStore(file);
             check("7日連続の履歴で起動: attendance_calendar",
                     has(reloaded, "attendance_calendar"), true);
-            check("再読み込みでも残る: first_try_tamper",
-                    has(reloaded, "first_try_tamper"), true);
+            check("再読み込みでも残る: lifelong_trophy",
+                    has(reloaded, "lifelong_trophy"), true);
 
-            // ── 10. 初回条件を逃しても、異なる問題の復習で一発記録を作り直せる ─
+            // ── 8. 初回の無傷記録を逃しても、復習の連続正解で作り直せる ───────
             Path replayFile = dir.resolve("replay.json");
             ProgressStore replay = new ProgressStore(replayFile);
-            for (int i = 1; i <= 10; i++) {
+            for (int i = 1; i <= 25; i++) {
                 replay.recordAttempt("r-1#" + i);
                 replay.recordAttempt("r-1#" + i);
                 replay.markCleared("r-1#" + i);
             }
-            check("初回を逃した状態: first_try_tamper",
-                    has(replay, "first_try_tamper"), false);
-            for (int i = 0; i < 20; i++) {
+            check("初回を逃した状態: lifelong_trophy",
+                    has(replay, "lifelong_trophy"), false);
+            for (int i = 0; i < 40; i++) {
                 replay.recordMasterySubmission("r-1#1", true);
             }
-            check("同じ復習問題の連打では出ない: first_try_tamper",
-                    has(replay, "first_try_tamper"), false);
+            check("同じ復習問題の連打では出ない: lifelong_trophy",
+                    has(replay, "lifelong_trophy"), false);
             replay.recordMasterySubmission("r-1#1", false);
-            for (int i = 1; i <= 9; i++) {
+            for (int i = 1; i <= 24; i++) {
                 replay.recordMasterySubmission("r-1#" + i, true);
             }
-            check("復習9問では出ない: first_try_tamper",
-                    has(replay, "first_try_tamper"), false);
+            check("復習24問では出ない: lifelong_trophy",
+                    has(replay, "lifelong_trophy"), false);
             replay.flushNow();
             replay = new ProgressStore(replayFile);
-            replay.recordMasterySubmission("r-1#10", true);
-            check("再起動をまたぐ復習10問: first_try_tamper",
-                    has(replay, "first_try_tamper"), true);
+            replay.recordMasterySubmission("r-1#25", true);
+            check("再起動をまたぐ復習25問: lifelong_trophy",
+                    has(replay, "lifelong_trophy"), true);
 
-            // クリア後の提出も累計へ入り、10回になれば粘りのドリッパーを回収できる。
-            check("復習前: persistence_dripper",
-                    has(replay, "persistence_dripper"), false);
-            for (int i = 0; i < 8; i++) {
-                replay.recordAttempt("r-1#1");
+            // ── 9. 復習で異なる200問 → 復習ノート（重い条件） ────────────────
+            Path reviewFile = dir.resolve("review.json");
+            ProgressStore reviewer = new ProgressStore(reviewFile);
+            for (int i = 1; i <= 200; i++) {
+                reviewer.markCleared("v-1#" + i);
             }
-            check("クリア後も累計10回: persistence_dripper",
-                    has(replay, "persistence_dripper"), true);
+            check("クリアだけでは出ない: quiz_festival_pass",
+                    has(reviewer, "quiz_festival_pass"), false);
+            for (int i = 1; i <= 199; i++) {
+                reviewer.recordMasterySubmission("v-1#" + i, true);
+            }
+            check("復習199問では出ない: quiz_festival_pass",
+                    has(reviewer, "quiz_festival_pass"), false);
+            reviewer.recordMasterySubmission("v-1#200", true);
+            check("復習200問: quiz_festival_pass",
+                    has(reviewer, "quiz_festival_pass"), true);
+            // 同じ問題の連打では数が増えないことも確かめる
+            Path spamFile = dir.resolve("spam.json");
+            ProgressStore spam = new ProgressStore(spamFile);
+            spam.markCleared("w-1#1");
+            for (int i = 0; i < 300; i++) {
+                spam.recordMasterySubmission("w-1#1", true);
+            }
+            check("同じ1問を300回復習しても出ない: quiz_festival_pass",
+                    has(spam, "quiz_festival_pass"), false);
 
-            // ── 11. 全クイズの初回答を間違えても、異なる20問の復習で回収できる ─
-            Path quizReplayFile = dir.resolve("quiz-replay.json");
-            ProgressStore quizReplay = new ProgressStore(quizReplayFile);
-            for (int i = 0; i < 20; i++) {
-                quizReplay.recordQuiz("qr-1", i, 1, false);
-            }
-            check("初回答を逃した状態: quiz_bell", has(quizReplay, "quiz_bell"), false);
-            for (int i = 0; i < 25; i++) {
-                quizReplay.recordQuiz("qr-1", 0, 0, true);
-            }
-            check("同じクイズの連打では出ない: quiz_bell",
-                    has(quizReplay, "quiz_bell"), false);
-            quizReplay.recordQuiz("qr-1", 0, 1, false);
-            for (int i = 0; i < 19; i++) {
-                quizReplay.recordQuiz("qr-1", i, 0, true);
-            }
-            check("復習19問では出ない: quiz_bell", has(quizReplay, "quiz_bell"), false);
-            quizReplay.recordQuiz("qr-1", 19, 0, true);
-            check("復習20問連続: quiz_bell", has(quizReplay, "quiz_bell"), true);
-
-            // ── 12. 初クリア日がばらばらでも、同日復習と章の再制覇で回収できる ─
+            // ── 10. 初クリア日がばらばらでも、同日復習と章の再制覇で回収できる ─
             Path datedFile = dir.resolve("dated.json");
             ProgressStore dated = new ProgressStore(datedFile);
             for (int i = 1; i <= 14; i++) {
@@ -200,26 +272,17 @@ public final class AchievementCheck {
             Files.writeString(datedFile, datedJson);
             dated = new ProgressStore(datedFile);
             dated.markCleared("d-1#15");
-            check("初クリア日が分散: prep_pot", has(dated, "prep_pot"), false);
+            check("初クリア日が分散: golden_bean", has(dated, "golden_bean"), false);
             dated.noteChapterAchievements(List.of("d-1#1", "d-1#2"));
-            check("初クリア日が分散: one_sitting_bookmark",
-                    has(dated, "one_sitting_bookmark"), false);
+            check("初クリア日が分散: fortune_cat", has(dated, "fortune_cat"), false);
             for (int i = 1; i <= 15; i++) {
                 dated.recordMasterySubmission("d-1#" + i, true);
             }
-            check("同じ日に異なる15問を復習: prep_pot", has(dated, "prep_pot"), true);
+            check("同じ日に異なる15問を復習: golden_bean", has(dated, "golden_bean"), true);
             dated.noteChapterAchievements(List.of("d-1#1", "d-1#2"));
-            check("同じ日に章を復習: one_sitting_bookmark",
-                    has(dated, "one_sitting_bookmark"), true);
+            check("同じ日に章を復習: fortune_cat", has(dated, "fortune_cat"), true);
 
-            // ヒントを使った章も、全問へ再正解すれば無傷の勲章を回収できる。
-            hinted.recordMasterySubmission("z-1#1", true);
-            hinted.recordMasterySubmission("z-1#2", true);
-            hinted.noteChapterAchievements(List.of("z-1#1", "z-1#2"));
-            check("ヒント使用後に章を復習: unscathed_medal",
-                    has(hinted, "unscathed_medal"), true);
-
-            // ── 13. カフェを育てず完走しても、節目型12アイテムを受け取れる ───
+            // ── 11. カフェを育てず完走しても、節目型2アイテムを受け取れる ─────
             Path catchUpFile = dir.resolve("catch-up.json");
             ProgressStore catchUp = new ProgressStore(catchUpFile);
             for (int i = 1; i <= 475; i++) {
@@ -228,30 +291,46 @@ public final class AchievementCheck {
             check("未完走では記念品を贈らない",
                     catchUp.ensureCafeCompletionCatchUp(474, 475) == 0, true);
             int grantedItems = catchUp.ensureCafeCompletionCatchUp(475, 475);
-            Set<String> milestoneIds = Set.of(
-                    "lucky_coin", "golden_bean", "quiz_crown", "fortune_cat",
-                    "fever_bell", "java_relic", "rhythm_recipe", "comeback_ticket",
-                    "brand_charter", "quiz_festival_pass", "mastery_archive",
-                    "lifelong_trophy");
             List<Map<String, Object>> milestoneItems = items(catchUp).stream()
-                    .filter(item -> milestoneIds.contains(item.get("id")))
+                    .filter(item -> MILESTONE_ITEMS.contains(item.get("id")))
                     .toList();
-            check("完走時に節目型アイテムを贈る", grantedItems == 12, true);
-            check("節目型12アイテムを発見", milestoneItems.size() == 12, true);
-            check("節目型12アイテムを所持",
+            check("完走時に節目型アイテムを贈る", grantedItems == MILESTONE_ITEMS.size(), true);
+            check("節目型3アイテムを発見", milestoneItems.size() == MILESTONE_ITEMS.size(), true);
+            check("節目型3アイテムを所持",
                     milestoneItems.stream().allMatch(item -> Boolean.TRUE.equals(item.get("owned"))),
                     true);
             check("完走記念品は重複しない",
                     catchUp.ensureCafeCompletionCatchUp(475, 475) == 0, true);
 
-            System.out.println("\nACHIEVEMENTS OK: 9種の初回・復習条件と完走時救済を確認しました");
+            // ── 12. アイテムは1種類ずつしか持てない ─────────────────────────
+            ProgressStore.ItemPurchaseResult again = catchUp.purchaseCafeItem("lucky_coin");
+            check("所持済みアイテムは買えない", !again.purchased(), true);
+            System.out.println("    （理由: " + again.error() + "）");
+            Set<String> ids = new java.util.LinkedHashSet<>();
+            for (Map<String, Object> item : items(catchUp)) {
+                check("IDが重複していない: " + item.get("id"),
+                        ids.add(String.valueOf(item.get("id"))), true);
+            }
+
+            // ── 13. 1枚のカードが持つ効果は1つだけ ─────────────────────────
+            // 効果を束ねると「何のカードか」が言えなくなるので、ここで縛っておく。
+            // ラッキーコインだけは確率と倍率の対で1つの効果を表すため2つ持つ。
+            for (Map<String, Object> item : items(everything())) {
+                @SuppressWarnings("unchecked")
+                List<Map<String, Object>> effects =
+                        (List<Map<String, Object>>) (List<?>) item.get("effects");
+                int allowed = "lucky_coin".equals(item.get("id")) ? 2 : 1;
+                check("効果は" + allowed + "つ: " + item.get("name"),
+                        effects.size() == allowed, true);
+            }
+
+            System.out.println("\nACHIEVEMENTS OK: 12種の解放条件・重い2種・完走時救済を確認しました");
         } finally {
-            Files.deleteIfExists(dir.resolve("catch-up.json"));
-            Files.deleteIfExists(dir.resolve("dated.json"));
-            Files.deleteIfExists(dir.resolve("quiz-replay.json"));
-            Files.deleteIfExists(dir.resolve("replay.json"));
-            Files.deleteIfExists(dir.resolve("other.json"));
-            Files.deleteIfExists(file);
+            for (String name : new String[] {
+                    "catch-up.json", "dated.json", "spam.json", "review.json",
+                    "replay.json", "other.json", "progress.json" }) {
+                Files.deleteIfExists(dir.resolve(name));
+            }
             Files.deleteIfExists(dir);
         }
     }

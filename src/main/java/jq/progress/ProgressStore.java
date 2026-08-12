@@ -11,6 +11,7 @@ import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.time.LocalDate;
 import java.time.format.DateTimeParseException;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -30,6 +31,7 @@ import java.util.concurrent.TimeUnit;
  *  - 問題ごとに最後に書いたコード（再訪時に復元する）
  *  - 確認クイズで選んだ選択肢（正解かどうかは保存せず、出題側と突き合わせて毎回求める）
  *  - 何か1問クリアした日付の集合（連続学習日数の計算に使う）
+ *  - 問題ごとの苦手度とブックマーク（復習モードの出題順に使う）
  *  - Java Café の売上・累計提供数・設備・受取済みボーナス
  *
  * 1レッスンに練習問題が複数あるので、★もコードもヒントも **問題ごと** に持つ。
@@ -45,8 +47,9 @@ import java.util.concurrent.TimeUnit;
  */
 public final class ProgressStore {
 
-    // 18: 復習達成と、全問完走時に未回収の節目アイテムを贈る救済を追加した
-    private static final int CAFE_ECONOMY_VERSION = 18;
+    // 19: 常連サービスを「今日の1杯目」へ付け替え、復習をブランド倍率と自動売上へ繋いだ。
+    //     あわせて設備の★解放条件を全て外し、歯止めを価格だけにした（Rank8以降を1段×6.5〜7.5へ）
+    private static final int CAFE_ECONOMY_VERSION = 19;
     private static final int CUP_PRICE = 500;
     private static final int MAX_CAFE_STORES = 512;
     private static final long FIRST_EXPANSION_COST = 2_500L;
@@ -67,13 +70,42 @@ public final class ProgressStore {
     private static final long EXPANSION_CUBIC_COST = 57_000L;
     /** 完成した章の問題1問あたりのブランド成長。全574問で約x10.76になる。 */
     private static final int BRAND_GROWTH_BASIS_POINTS_PER_TASK = 170;
-    private static final int LUCKY_COIN_CHANCE_PERCENT = 12;
+    /**
+     * 復習で再正解した問題1問あたりのブランド成長。
+     *
+     * <p>復習にコインは払わない（クリア済みの問題は何度でも解き直せるので、
+     * 1回ごとに支払うと無限に稼げてしまう）。代わりに、ここで倍率だけを育てる。
+     * 対象は {@code cafeMasteryTasks} ―「復習で正解した重複しない問題」の集合なので、
+     * 1問につき1回しか数えない。上限は問題数で構造的に決まる。</p>
+     *
+     * <p>復習ノートを持つと4倍になるため、1問あたりの上限は 40 * 4 = 160。
+     * <b>初回クリアの170を超えないこと</b>が不変条件で、
+     * {@code tools/simulate-cafe.sh} がここを検査する。順序を崩すと
+     * 「新しい問題を解くより復習した方が儲かる」状態になる。</p>
+     */
+    private static final int REVIEW_BRAND_GROWTH_BASIS_POINTS_PER_TASK = 40;
+    /**
+     * 復習で戻せる自動売上の枠（問題数ぶん）の上限。
+     *
+     * 枠を戻さないままアプリを閉じて溜め込めないようにする。回収そのものは
+     * レート（最上位でも5%/分）で律速されるので、1問分でも回収には20分かかる。
+     */
+    private static final int MAX_REVIEW_PASSIVE_CREDITS = 5;
     private static final int TASK_COMBO_INTERVAL = 5;
-    /** 一気読みのしおりが効く間隔。コンボ(5)・レシピ(7)と重ならない値にする。 */
-    private static final int TASK_BEAT_INTERVAL = 4;
+    /**
+     * 取得の重い2アイテムの条件。
+     *
+     * 12種のうちこの2つだけは、学習量ではなく「やり込み」で解放する。
+     * 復習ノートは全問の3分の1以上を復習したとき、生涯学習トロフィーは
+     * ヒントなし・一発で25問続けたときに初めて現れる。
+     */
+    private static final int REVIEW_MASTERY_ITEM_TASKS = 200;
+    private static final int FLAWLESS_ITEM_RUN = 25;
     /** 粘りのドリッパーが「粘った」とみなす提出回数。 */
     private static final int RETRY_BONUS_ATTEMPTS = 5;
-    /** 連続学習ボーナスの既定の上限日数。皆勤の日めくりだけがこれを広げる。 */
+    /** 粘りのドリッパーそのものが解放される提出回数（1問への累計）。 */
+    private static final int RETRY_ACHIEVEMENT_ATTEMPTS = 10;
+    /** 「今日の1杯目」に数える連続日数の既定の上限。皆勤の日めくりだけがこれを広げる。 */
     private static final int STREAK_BONUS_CAP_DAYS = 7;
     /**
      * 自動売上は、次に★を取るまで現在の問題報酬5問分まで。
@@ -85,9 +117,19 @@ public final class ProgressStore {
     private static final int ENDGAME_INVESTMENT_STAR_INTERVAL = 20;
     /** 収益効果のない任意投資。1段階ごとに価格を2倍にし、追加章のコイン余りを受け止める。 */
     private static final long ENDGAME_INVESTMENT_BASE_COST = 250_000_000_000L;
-    /** 通常設備Rank 1〜12の基準★。5系統へ0〜8の差を付け、一斉解放を避ける。 */
-    private static final int[] EQUIPMENT_REQUIRED_STARS =
-            {0, 1, 14, 36, 65, 101, 144, 194, 251, 320, 386, 452, 497};
+    /*
+     * 設備（通常設備・自動営業）に★の解放条件は<b>置かない</b>。
+     *
+     * 以前はRankごとに必要★を決めていたが、それは「今このRankしか買えない」という
+     * 一本道になり、どの系統へ先に投資するかという選択そのものを奪っていた。
+     * 代わりに、上のRankほど価格が急に上がること（1段ごとに約5〜7倍。効果の伸びは
+     * 1段あたり4〜7割なので、上のRankは1コインあたりの価値が下がる）を歯止めにする。
+     * 手が届く範囲では常に「浅く広く買うか、1系統を深く買うか」を選べる。
+     *
+     * 残っている★条件は設備ではない ― 店構えLv（下の CAFE_LEVELS）、店舗の出店枠
+     * （STORE_UNLOCK_STARS）、終盤改装（ENDGAME_INVESTMENT_START_STARS）、
+     * アイテムの発見条件。どれも一本道なので、選択の幅を狭めない。
+     */
     /** ★の進行に応じて段階的に広がる店舗上限。 */
     private static final int[] STORE_UNLOCK_STARS =
             {4, 22, 57, 101, 144, 187, 230, 270, 310, 345, 385, 425, 458, 483, 502};
@@ -95,6 +137,34 @@ public final class ProgressStore {
             {2, 3, 5, 8, 12, 18, 27, 41, 62, 93, 140, 210, 315, 473, MAX_CAFE_STORES};
     /** ブラウザのタイマー停止を「放置中の売上」として誤加算しないための1回あたり上限。 */
     private static final long MAX_PASSIVE_TICK_MILLIS = 10_000L;
+
+    /**
+     * 苦手度の目盛り。1点ぶんを何単位で数えるか。
+     *
+     * <p>「実行」＝「採点」にしたので、コードを書いている途中の失敗まで全部数える。
+     * 失敗1回で1点上がると、試行錯誤しただけで最大まで振り切れてしまう。
+     * 内部を4倍の細かさで持ち、<b>失敗1回は1単位（=0.25点）</b>にしてある。
+     * 4回失敗して、ようやく従来の1回ぶん。</p>
+     */
+    private static final int REVIEW_WEIGHT_SCALE = 4;
+
+    /**
+     * 苦手度の上限（単位）。表示上は 8点 に相当する。
+     *
+     * 何度も間違えた1問がそこで止まらず伸び続けると、復習の順番をその問題が独占して
+     * 他の問題が出てこなくなる。上限を決めておけば「よく間違える問題ほど出やすい」は
+     * 保ったまま、他の問題も混ざる。
+     */
+    private static final int MAX_REVIEW_WEIGHT = 8 * REVIEW_WEIGHT_SCALE;
+
+    /**
+     * 復習の間隔（日）。レベルが上がるほど間を空ける ― 忘却曲線に合わせた確認。
+     *
+     * <p>初クリアの翌日が最初の期限で、正解するたび次のレベルへ進む。最後まで進むと
+     * 4か月ごとの確認になる。期限は「最後に復習した日 + この間隔」で決まるので、
+     * ここを変えれば過去の記録にも新しい間隔がそのまま効く（期限日は保存しない）。</p>
+     */
+    private static final int[] REVIEW_INTERVAL_DAYS = {1, 3, 7, 14, 30, 60, 120};
 
     /**
      * ★の獲得や購入のような「失うと痛い変更」を書き出すまでの待ち時間。
@@ -147,6 +217,23 @@ public final class ProgressStore {
     private final Map<String, Integer> quizChoices = new LinkedHashMap<>();
     /** 何かをクリアした日付 */
     private final Set<String> clearDates = new TreeSet<>();
+    /**
+     * 問題キー -> 苦手度（単位。0〜{@link #MAX_REVIEW_WEIGHT}）。復習の並び順に使う。
+     *
+     * 実行が通らないと1単位上がり、クリア済みの問題に正解すると1点（=4単位）下がる。
+     * ここに載っていないことは「一度も間違えていない」を意味する。
+     * 出題そのものを決めるのは苦手度ではなく復習の期限（{@link #reviewSchedule}）で、
+     * 苦手度は同じ期限のときにどちらを先に出すかを決めるだけ。
+     */
+    private final Map<String, Integer> reviewWeight = new LinkedHashMap<>();
+    /** ブックマークした問題キー。復習モードで絞り込める。 */
+    private final Set<String> bookmarks = new LinkedHashSet<>();
+    /**
+     * 問題キー -> 復習の予定。忘却曲線でいつ確認するかを決める。
+     *
+     * 載っていない問題は「初クリアの翌日が期限」として扱う（{@link #reviewSchedule}）。
+     */
+    private final Map<String, ReviewPlan> reviewPlans = new LinkedHashMap<>();
 
     /** カフェで現在使える売上。設備を買うと減る。 */
     private long cafeCash;
@@ -160,6 +247,15 @@ public final class ProgressStore {
     private long cafeTaskRewardCount;
     /** 最後に★を獲得してから受け取った自動売上。上限をリロードで引き直さないため保存する。 */
     private long cafePassiveCashSinceTask;
+    /**
+     * 復習で戻したが、まだ自動売上の枠へ反映していない問題数。
+     *
+     * 枠の計算には「完成した章の問題数」（教材側しか知らない）が要るので、
+     * 復習した時点では数えるだけにして、次に自動売上を集めるときへ持ち越す。
+     */
+    private int cafeReviewPassiveCredits;
+    /** 「今日の1杯目」ボーナスを既に払った日。1日1回に留めるために保存する。 */
+    private String cafeDailyFirstRewardDay = "";
     /** 現在営業している店舗数。出店するたび、全店ぶんの注文を同時に受ける。 */
     private int cafeStores = 1;
     /** ★520以降の任意の改装・社会貢献プロジェクトを完了した段階。 */
@@ -178,7 +274,7 @@ public final class ProgressStore {
     private int cafeQuizFirstStreak;
     /** 復習で連続正解した、重複しない問題。失敗すると空に戻る。 */
     private final Set<String> cafeMasteryTaskRun = new LinkedHashSet<>();
-    /** 復習で再正解した問題。章をもう一度仕上げたかの判定に使う。 */
+    /** 復習で再正解した問題。章をもう一度仕上げたかの判定と、ブランド成長に使う。 */
     private final Set<String> cafeMasteryTasks = new LinkedHashSet<>();
     /** 復習問題を最後に正解した日。日が変わったら当日分を空にする。 */
     private String cafeMasteryDay = "";
@@ -264,12 +360,39 @@ public final class ProgressStore {
             int unlockStars,
             long unlockLifetimeCash,
             String unlockAchievement,
-            String effectType,
-            int effectValue) {
+            List<CafeItemEffect> effects) {
 
         boolean byAchievement() {
             return !unlockAchievement.isEmpty();
         }
+
+        /** その効果の値。このアイテムが持たない効果なら0。 */
+        int effectValue(String type) {
+            for (CafeItemEffect effect : effects) {
+                if (effect.type().equals(type)) {
+                    return effect.value();
+                }
+            }
+            return 0;
+        }
+
+        boolean hasEffect(String type) {
+            return effectValue(type) != 0;
+        }
+    }
+
+    /**
+     * アイテム1つが持つ効果。
+     *
+     * <p>1つのアイテムが複数の効果を持てる。アイテムは1種類ずつしか持てないので
+     * （{@code cafeItems} が集合で、購入時に重複を弾く）、近い効果を1枚に束ねるほど
+     * 1枚あたりの特別感が上がる。効果の合計は束ねる前と変えない。</p>
+     */
+    public record CafeItemEffect(String type, int value) {
+    }
+
+    private static CafeItemEffect fx(String type, int value) {
+        return new CafeItemEffect(type, value);
     }
 
     public record ItemPurchaseResult(boolean purchased, String error, CafeItem item) {
@@ -282,7 +405,6 @@ public final class ProgressStore {
             String description,
             long cost,
             int tier,
-            int requiredStars,
             int rateBasisPointsPerMinute) {
     }
 
@@ -296,7 +418,11 @@ public final class ProgressStore {
     public record PassiveSalesResult(long cash, long cashPerMinute, boolean active) {
     }
 
-    /** カフェ計算に必要な、教材側で算出した学習進捗。 */
+    /**
+     * カフェ計算に必要な、教材側で算出した学習進捗。
+     *
+     * 章にどの問題が属するかは教材側しか知らないので、章単位の集計はここで受け取る。
+     */
     public record CafeLearningProgress(int clearedChapters, int masteredChapterTasks) {
     }
 
@@ -327,7 +453,7 @@ public final class ProgressStore {
             new CafeUpgrade("tip_jar", "小さなチップ瓶", "🫙",
                     "クイズを楽しむお客さんが増える · 正解チップ +25%", 300, 1, "tips", 25),
             new CafeUpgrade("morning_playlist", "朝のプレイリスト", "🎵",
-                    "毎日通いたくなる空間 · 連続1日ごと注文売上 +1%", 1_000, 1, "streak", 1),
+                    "毎日通いたくなる空間 · 連続1日ごと 今日の1杯目 +3%", 500, 1, "streak", 3),
 
             new CafeUpgrade("signboard", "手書きの看板", "🪧",
                     "店を見つけてもらいやすくする · 注文売上 +6%", 7_000, 2, "sales", 6),
@@ -338,7 +464,7 @@ public final class ProgressStore {
             new CafeUpgrade("cookie_plate", "試食クッキープレート", "🍪",
                     "正解を祝うひと口サービス · 正解チップ +50%", 2_100, 2, "tips", 50),
             new CafeUpgrade("window_seat", "窓際の指定席", "🪟",
-                    "毎日の常連席をつくる · 連続1日ごと注文売上 +2%", 7_000, 2, "streak", 2),
+                    "毎日の常連席をつくる · 連続1日ごと 今日の1杯目 +6%", 3_500, 2, "streak", 6),
 
             new CafeUpgrade("grinder", "セラミックグラインダー", "⚙️",
                     "豆の品質で客単価アップ · 注文売上 +13%", 50_000, 3, "sales", 13),
@@ -349,7 +475,7 @@ public final class ProgressStore {
             new CafeUpgrade("latte_art", "ラテアート練習台", "🎨",
                     "正解祝いの一杯を特別に · 正解チップ +80%", 15_000, 3, "tips", 80),
             new CafeUpgrade("study_table", "学習者の大テーブル", "📚",
-                    "学び続ける常連が集まる · 連続1日ごと注文売上 +3%", 50_000, 3, "streak", 3),
+                    "学び続ける常連が集まる · 連続1日ごと 今日の1杯目 +9%", 25_000, 3, "streak", 9),
 
             new CafeUpgrade("espresso", "エスプレッソマシン", "☕",
                     "高単価メニューを提供 · 注文売上 +23%", 300_000, 4, "sales", 23),
@@ -360,7 +486,7 @@ public final class ProgressStore {
             new CafeUpgrade("dessert_pairing", "デザートペアリング", "🍰",
                     "知識と味の組み合わせを祝う · 正解チップ +110%", 90_000, 4, "tips", 110),
             new CafeUpgrade("loyalty_board", "常連ネームボード", "🏷️",
-                    "連続来店を店内で称える · 連続1日ごと注文売上 +4%", 300_000, 4, "streak", 4),
+                    "連続来店を店内で称える · 連続1日ごと 今日の1杯目 +12%", 150_000, 4, "streak", 12),
 
             new CafeUpgrade("roaster", "小型ロースター", "🔥",
                     "自家焙煎でブランド化 · 注文売上 +38%", 1_500_000, 5, "sales", 38),
@@ -371,7 +497,7 @@ public final class ProgressStore {
             new CafeUpgrade("tasting_flight", "飲み比べフライト", "🥃",
                     "正解後の体験価値を上げる · 正解チップ +145%", 450_000, 5, "tips", 145),
             new CafeUpgrade("daily_roast_log", "本日の焙煎ログ", "📋",
-                    "学習と焙煎を毎日記録 · 連続1日ごと注文売上 +5%", 1_500_000, 5, "streak", 5),
+                    "学習と焙煎を毎日記録 · 連続1日ごと 今日の1杯目 +15%", 750_000, 5, "streak", 15),
 
             new CafeUpgrade("pos", "POSレジ", "🖥️",
                     "販売データで価格を最適化 · 注文売上 +58%", 8_000_000, 6, "sales", 58),
@@ -382,7 +508,7 @@ public final class ProgressStore {
             new CafeUpgrade("barista_school", "バリスタ講座", "🎓",
                     "正解の価値を伝える接客 · 正解チップ +180%", 2_400_000, 6, "tips", 180),
             new CafeUpgrade("commuter_pass", "常連パスポート", "🪪",
-                    "日々の来店を習慣化 · 連続1日ごと注文売上 +6%", 8_000_000, 6, "streak", 6),
+                    "日々の来店を習慣化 · 連続1日ごと 今日の1杯目 +18%", 4_000_000, 6, "streak", 18),
 
             new CafeUpgrade("second_store", "フランチャイズ本部", "🏢",
                     "全店の販売戦略を統一する · 注文売上 +88%", 40_000_000, 7, "sales", 88),
@@ -393,141 +519,148 @@ public final class ProgressStore {
             new CafeUpgrade("vip_counter", "VIPカウンター", "💎",
                     "クイズ好きの特別席 · 正解チップ +220%", 12_000_000, 7, "tips", 220),
             new CafeUpgrade("daily_newsletter", "毎朝のニュースレター", "📰",
-                    "常連へ学びの話題を届ける · 連続1日ごと注文売上 +7%", 40_000_000, 7, "streak", 7),
+                    "常連へ学びの話題を届ける · 連続1日ごと 今日の1杯目 +21%", 20_000_000, 7, "streak", 21),
 
             new CafeUpgrade("flagship_store", "フラッグシップ店", "🏛️",
-                    "街の名所になり客単価上昇 · 注文売上 +128%", 200_000_000, 8, "sales", 128),
+                    "街の名所になり客単価上昇 · 注文売上 +128%", 260_000_000L, 8, "sales", 128),
             new CafeUpgrade("robot_barista", "ロボットバリスタ", "🤖",
-                    "大量注文を正確に抽出 · 毎注文 +128杯", 400_000_000, 8, "cups", 128),
+                    "大量注文を正確に抽出 · 毎注文 +128杯", 520_000_000L, 8, "cups", 128),
             new CafeUpgrade("catering", "法人ケータリング", "🚚",
-                    "章末に大型注文を獲得 · 章ボーナス +135%", 140_000_000, 8, "chapter", 135),
+                    "章末に大型注文を獲得 · 章ボーナス +135%", 182_000_000L, 8, "chapter", 135),
             new CafeUpgrade("concierge", "コーヒーコンシェルジュ", "🤵",
-                    "知識に合わせて一杯を提案 · 正解チップ +260%", 60_000_000, 8, "tips", 260),
+                    "知識に合わせて一杯を提案 · 正解チップ +260%", 78_000_000L, 8, "tips", 260),
             new CafeUpgrade("habit_app", "学習習慣アプリ", "📲",
-                    "毎日の来店を楽しく通知 · 連続1日ごと注文売上 +8%", 200_000_000, 8, "streak", 8),
+                    "毎日の来店を楽しく通知 · 連続1日ごと 今日の1杯目 +24%", 130_000_000L, 8, "streak", 24),
 
             new CafeUpgrade("airport_store", "空港ラウンジ店", "✈️",
-                    "世界の旅行客へ販売 · 注文売上 +183%", 1_000_000_000L, 9, "sales", 183),
+                    "世界の旅行客へ販売 · 注文売上 +183%", 2_000_000_000L, 9, "sales", 183),
             new CafeUpgrade("smart_kitchen", "スマートキッチン", "🦾",
-                    "全工程を自動連携 · 毎注文 +228杯", 2_000_000_000L, 9, "cups", 228),
+                    "全工程を自動連携 · 毎注文 +228杯", 4_000_000_000L, 9, "cups", 228),
             new CafeUpgrade("coffee_festival", "都市コーヒーフェス", "🎆",
-                    "章末に街じゅうを集客 · 章ボーナス +170%", 700_000_000, 9, "chapter", 170),
+                    "章末に街じゅうを集客 · 章ボーナス +170%", 1_400_000_000L, 9, "chapter", 170),
             new CafeUpgrade("members_lounge", "会員制ラウンジ", "🛋️",
-                    "正解を語り合う上質な席 · 正解チップ +300%", 300_000_000, 9, "tips", 300),
+                    "正解を語り合う上質な席 · 正解チップ +300%", 600_000_000L, 9, "tips", 300),
             new CafeUpgrade("mentor_club", "朝活メンタークラブ", "🌅",
-                    "仲間と毎日学び続ける · 連続1日ごと注文売上 +9%", 1_000_000_000L, 9, "streak", 9),
+                    "仲間と毎日学び続ける · 連続1日ごと 今日の1杯目 +27%", 1_000_000_000L, 9, "streak", 27),
 
             new CafeUpgrade("global_brand", "グローバルブランド", "🌍",
-                    "世界共通の一杯へ · 注文売上 +258%", 5_000_000_000L, 10, "sales", 258),
+                    "世界共通の一杯へ · 注文売上 +258%", 15_000_000_000L, 10, "sales", 258),
             new CafeUpgrade("coffee_lab", "全自動コーヒーラボ", "🧪",
-                    "研究設備で超大量抽出 · 毎注文 +388杯", 10_000_000_000L, 10, "cups", 388),
+                    "研究設備で超大量抽出 · 毎注文 +388杯", 30_000_000_000L, 10, "cups", 388),
             new CafeUpgrade("world_expo", "ワールドコーヒーEXPO", "🎡",
-                    "章末に世界規模の注文 · 章ボーナス +210%", 3_500_000_000L, 10, "chapter", 210),
+                    "章末に世界規模の注文 · 章ボーナス +210%", 10_500_000_000L, 10, "chapter", 210),
             new CafeUpgrade("founders_club", "創業者クラブ", "👑",
-                    "最高の学びへ最大級の祝福 · 正解チップ +350%", 1_500_000_000L, 10, "tips", 350),
+                    "最高の学びへ最大級の祝福 · 正解チップ +350%", 4_500_000_000L, 10, "tips", 350),
             new CafeUpgrade("learning_retreat", "学習リトリート", "🏝️",
-                    "学びを生活の一部にする · 連続1日ごと注文売上 +10%", 5_000_000_000L, 10, "streak", 10),
+                    "学びを生活の一部にする · 連続1日ごと 今日の1杯目 +30%", 7_500_000_000L, 10, "streak", 30),
 
             new CafeUpgrade("quantum_campaign", "量子級ブランドキャンペーン", "🪐",
-                    "開発者コミュニティ全体へ届ける · 注文売上 +360%", 25_000_000_000L, 11, "sales", 360),
+                    "開発者コミュニティ全体へ届ける · 注文売上 +360%", 110_000_000_000L, 11, "sales", 360),
             new CafeUpgrade("orbital_roastery", "軌道ロースタリー", "🛰️",
-                    "軌道上の巨大設備で抽出 · 毎注文 +640杯", 50_000_000_000L, 11, "cups", 640),
+                    "軌道上の巨大設備で抽出 · 毎注文 +640杯", 220_000_000_000L, 11, "cups", 640),
             new CafeUpgrade("developer_summit", "世界開発者サミット", "🧑‍🚀",
-                    "章末に世界の学習者が集う · 章ボーナス +260%", 17_500_000_000L, 11, "chapter", 260),
+                    "章末に世界の学習者が集う · 章ボーナス +260%", 77_000_000_000L, 11, "chapter", 260),
             new CafeUpgrade("knowledge_vault", "知識の宝物庫", "🏆",
-                    "正解の知識を価値ある体験へ · 正解チップ +400%", 7_500_000_000L, 11, "tips", 400),
+                    "正解の知識を価値ある体験へ · 正解チップ +400%", 33_000_000_000L, 11, "tips", 400),
             new CafeUpgrade("learning_guild", "世界学習ギルド", "🤝",
-                    "仲間と学ぶ文化を世界へ · 連続1日ごと注文売上 +11%", 25_000_000_000L, 11, "streak", 11),
+                    "仲間と学ぶ文化を世界へ · 連続1日ごと 今日の1杯目 +33%", 55_000_000_000L, 11, "streak", 33),
 
             new CafeUpgrade("java_legacy", "Javaレガシー殿堂", "🏛️",
-                    "積み重ねた学びを永続するブランドへ · 注文売上 +500%", 100_000_000_000L, 12, "sales", 500),
+                    "積み重ねた学びを永続するブランドへ · 注文売上 +500%", 820_000_000_000L, 12, "sales", 500),
             new CafeUpgrade("planetary_brew", "惑星間ブリューシステム", "🚀",
-                    "惑星規模の注文を同時抽出 · 毎注文 +1024杯", 200_000_000_000L, 12, "cups", 1_024),
+                    "惑星規模の注文を同時抽出 · 毎注文 +1024杯", 1_640_000_000_000L, 12, "cups", 1_024),
             new CafeUpgrade("mastery_congress", "マスタリー世界会議", "🎓",
-                    "全章の学びを祝う最大イベント · 章ボーナス +320%", 70_000_000_000L, 12, "chapter", 320),
+                    "全章の学びを祝う最大イベント · 章ボーナス +320%", 574_000_000_000L, 12, "chapter", 320),
             new CafeUpgrade("hall_of_fame_counter", "殿堂カウンター", "🥇",
-                    "最高難度の正解を盛大に祝う · 正解チップ +450%", 30_000_000_000L, 12, "tips", 450),
+                    "最高難度の正解を盛大に祝う · 正解チップ +450%", 246_000_000_000L, 12, "tips", 450),
             new CafeUpgrade("lifelong_academy", "生涯学習アカデミー", "♾️",
-                    "学び続ける文化を完成させる · 連続1日ごと注文売上 +12%", 100_000_000_000L, 12, "streak", 12));
+                    "学び続ける文化を完成させる · 連続1日ごと 今日の1杯目 +36%", 410_000_000_000L, 12, "streak", 36));
 
+    /**
+     * スペシャルアイテム12種。1種類ずつしか持てず、<b>1枚が持つ効果は1つだけ</b>。
+     *
+     * <p>効果を1枚へ束ねると、そのカードが何のカードなのか言えなくなる
+     * （「一発で解いた」と「5回以上粘った」のように条件が正反対のものまで同居した）。
+     * 12枠に収まるところまで効果を削り、残したものは全て単独カードにしてある。</p>
+     *
+     * <p>削った効果の値は、同じ軸に残したカードへ寄せている ―
+     * 当日ボーナスはコンボスタンプ帳（5問ごと6倍→7倍）へ、
+     * ブランド+0.25は生涯学習トロフィー（+10%→+13%）へ、
+     * 復習ぶんの重み付け3つは復習ノート（倍率を4倍）へ。</p>
+     *
+     * <p>解放は2通り。{@code unlockAchievement} が空なら★数と累計コイン（学習の節目）、
+     * 値があれば {@link #ACHIEVEMENT_NOTES} の達成条件で解放する。
+     * 最後の2つ（復習ノート・生涯学習トロフィー）だけは条件が重い。</p>
+     */
     private static final List<CafeItem> CAFE_ITEMS = List.of(
             new CafeItem("lucky_coin", "ラッキーコイン", "🪙",
-                    "問題・章・クイズ報酬で12%の確率で獲得コインが2倍",
-                    5_000L, 6, 10_000L, "", "lucky_double", 2),
+                    "問題・章・クイズ報酬で22%の確率で獲得コインが2倍",
+                    505_000L, 6, 10_000L, "",
+                    List.of(fx("lucky_double", 2), fx("lucky_chance", 22))),
             new CafeItem("golden_bean", "コンボスタンプ帳", "🗒️",
-                    "問題を5問クリアするたび、その問題の獲得コインが必ず3倍",
-                    40_000L, 20, 100_000L, "", "task_combo", 3),
+                    "問題を5問クリアするたび、その問題の獲得コインが必ず7倍",
+                    80_000L, 0, 0L, "same_day_15",
+                    List.of(fx("task_combo", 7))),
+            new CafeItem("first_try_tamper", "一発仕上げのタンパー", "🥄",
+                    "ヒントなし・1回の提出でクリアした問題の獲得コインが+20%",
+                    15_000L, 0, 0L, "chapter_no_hint",
+                    List.of(fx("first_try_percent", 20))),
+            new CafeItem("persistence_dripper", "粘りのドリッパー", "💧",
+                    "5回以上提出してクリアした問題の獲得コインが2倍",
+                    12_000L, 0, 0L, "persistent_clear",
+                    List.of(fx("retry_double", 2))),
+            new CafeItem("attendance_calendar", "皆勤の日めくり", "📅",
+                    "「今日の1杯目」に数える連続日数の上限が7日から10日に広がる",
+                    120_000L, 0, 0L, "streak_7",
+                    List.of(fx("streak_cap", 10))),
+            new CafeItem("food_truck", "移動販売トラック", "🚚",
+                    "注文の集客が2店舗ぶん増える（店舗が少ないうちほど効く）",
+                    900_000L, 0, 0L, "store_5",
+                    List.of(fx("store_bonus", 2))),
             new CafeItem("quiz_crown", "ひらめきメガホン", "📣",
-                    "確認クイズの初回正解チップが必ず5倍",
-                    250_000L, 50, 500_000L, "", "quiz_multiplier", 5),
+                    "確認クイズの初回正解チップが必ず20倍",
+                    250_000L, 0, 0L, "quiz_streak_20",
+                    List.of(fx("quiz_multiplier", 20))),
             new CafeItem("fortune_cat", "祝福のホールケーキ", "🎂",
-                    "章を初めて制覇したときの獲得コインが必ず2倍",
-                    2_000_000L, 100, 5_000_000L, "", "chapter_multiplier", 2),
+                    "章を初めて制覇したときの獲得コインが必ず4.5倍",
+                    2_000_000L, 0, 0L, "chapter_one_day",
+                    List.of(fx("chapter_percent", 450))),
             new CafeItem("fever_bell", "フランチャイズ地図", "🗺️",
                     "新店舗の出店費用がいつでも25%OFF",
-                    20_000_000L, 170, 50_000_000L, "", "expansion_discount", 25),
+                    20_000_000L, 170, 50_000_000L, "",
+                    List.of(fx("expansion_discount", 25))),
             new CafeItem("java_relic", "マイスター工具箱", "🧰",
                     "すべての設備アップグレード費用がいつでも20%OFF",
-                    200_000_000L, 240, 500_000_000L, "", "equipment_discount", 20),
-            new CafeItem("rhythm_recipe", "7品目のレシピ帳", "📖",
-                    "問題を7問クリアするたび、その問題の獲得コインが必ず2倍",
-                    800_000_000L, 280, 2_000_000_000L, "", "task_rhythm", 2),
-            new CafeItem("comeback_ticket", "おかえり優待券", "🎟️",
-                    "連続学習が途切れても、注文売上は連続3日分から再開",
-                    3_000_000_000L, 320, 10_000_000_000L, "", "streak_floor", 3),
-            new CafeItem("brand_charter", "Java Caféブランド憲章", "📜",
-                    "完成した章から育つブランド倍率へさらに+0.25",
-                    10_000_000_000L, 360, 30_000_000_000L, "", "brand_bonus", 2_500),
-            new CafeItem("quiz_festival_pass", "クイズフェス招待券", "🎟️",
-                    "確認クイズの初回正解チップがさらに2倍",
-                    30_000_000_000L, 400, 100_000_000_000L, "", "quiz_extra_multiplier", 2),
-            new CafeItem("mastery_archive", "章マスタリーアーカイブ", "🗄️",
-                    "章を初めて制覇したときの獲得コインがさらに50%増加",
-                    80_000_000_000L, 440, 300_000_000_000L, "", "chapter_extra_percent", 50),
+                    200_000_000L, 240, 500_000_000L, "",
+                    List.of(fx("equipment_discount", 20))),
+
+            // ここから2つは取得条件が重い。全問の3分の1以上の復習、または25問連続の無傷クリア。
+            new CafeItem("quiz_festival_pass", "復習ノート", "📖",
+                    "復習で育つブランド倍率の成長が4倍になる",
+                    110_000_000_000L, 0, 0L, "review_200",
+                    List.of(fx("review_brand_multiplier", 4))),
             new CafeItem("lifelong_trophy", "生涯学習トロフィー", "🏆",
-                    "問題・章・クイズで得るすべての学習報酬が10%増加",
-                    200_000_000_000L, 475, 800_000_000_000L, "", "mastery_bonus", 10),
+                    "問題・章・クイズで得るすべての学習報酬が13%増加",
+                    210_000_000_000L, 0, 0L, "flawless_25",
+                    List.of(fx("mastery_bonus", 13))));
 
-            // ここから下は★ではなく「学習の仕方」で解放される。条件は ACHIEVEMENT_NOTES。
-            new CafeItem("first_try_tamper", "一発仕上げのタンパー", "\uD83E\uDD4C",
-                    "ヒントなし・1回の提出でクリアした問題の獲得コインが+20%",
-                    15_000L, 0, 0L, "flawless_10", "first_try_percent", 20),
-            new CafeItem("prep_pot", "仕込み用の大鍋", "\uD83C\uDF72",
-                    "同じ日にクリアするほど当日の獲得コインが増える（1問ごと+1%、最大+15%）",
-                    40_000L, 0, 0L, "same_day_15", "daily_ramp_percent", 15),
-            new CafeItem("attendance_calendar", "皆勤の日めくり", "\uD83D\uDCC5",
-                    "連続学習ボーナスの上限が7日から10日に広がる",
-                    120_000L, 0, 0L, "streak_7", "streak_cap", 10),
-            new CafeItem("quiz_bell", "早押しベル", "\uD83D\uDD14",
-                    "確認クイズの初回正解チップがさらに2倍",
-                    300_000L, 0, 0L, "quiz_streak_20", "quiz_bell_multiplier", 2),
-            new CafeItem("unscathed_medal", "無傷の勲章", "\uD83C\uDF96\uFE0F",
-                    "章を初めて制覇したときの獲得コインがさらに50%増加",
-                    600_000L, 0, 0L, "chapter_no_hint", "chapter_medal_percent", 50),
-            new CafeItem("one_sitting_bookmark", "一気読みのしおり", "\uD83D\uDCC3",
-                    "問題を4問クリアするたび、その問題の獲得コインが必ず2倍",
-                    600_000L, 0, 0L, "chapter_one_day", "task_beat", 2),
-            new CafeItem("persistence_dripper", "粘りのドリッパー", "\uD83D\uDCA7",
-                    "5回以上提出してクリアした問題の獲得コインが2倍",
-                    12_000L, 0, 0L, "persistent_clear", "retry_double", 2),
-            new CafeItem("food_truck", "移動販売トラック", "\uD83D\uDE9A",
-                    "注文の集客が2店舗ぶん増える（店舗が少ないうちほど効く）",
-                    900_000L, 0, 0L, "store_5", "store_bonus", 2),
-            new CafeItem("clover_coaster", "四つ葉のコースター", "\uD83C\uDF40",
-                    "ラッキー発動の確率が10%増える（ラッキーコインと合わせて22%）",
-                    500_000L, 0, 0L, "quiz_total_50", "lucky_chance", 10));
-
-    /** 達成型アイテムの解放条件。画面のカードにそのまま出す。 */
+    /**
+     * 達成型アイテムの解放条件。画面のカードにそのまま出す。
+     *
+     * 下2つ（{@code review_200} / {@code flawless_25}）が重い条件。全574問の3分の1以上を
+     * 復習するか、25問を無傷で連続クリアしないと届かない。
+     */
     private static final Map<String, String> ACHIEVEMENT_NOTES = Map.ofEntries(
-            Map.entry("flawless_10", "初回にヒントなし・1回提出で10問連続クリア、または復習で異なる10問に連続正解"),
             Map.entry("same_day_15", "同じ日に異なる15問を初クリアまたは復習で正解"),
             Map.entry("streak_7", "7日連続で学習"),
             Map.entry("quiz_streak_20", "確認クイズの異なる20問に連続正解（初回答・復習どちらでも可）"),
             Map.entry("chapter_no_hint", "1つの章をヒントなしで初制覇、または復習で全問に再正解"),
             Map.entry("chapter_one_day", "1つの章を同じ日に初制覇、または同じ日に全問復習"),
-            Map.entry("persistent_clear", "クリア済みの1問へ累計10回以上提出"),
             Map.entry("store_5", "店舗を5店まで広げる"),
-            Map.entry("quiz_total_50", "確認クイズの異なる50問に正解（答え直し可）"));
+            Map.entry("persistent_clear", "クリア済みの1問へ累計10回以上提出"),
+            Map.entry("review_200", "復習で異なる200問に正解する"),
+            Map.entry("flawless_25",
+                    "ヒントなし・1回の提出で25問連続クリア、または復習で異なる25問に連続正解"));
 
     /**
      * アプリ画面を表示している間だけ動く自動営業設備。
@@ -538,31 +671,50 @@ public final class ProgressStore {
      */
     private static final List<CafeAutomation> CAFE_AUTOMATION = List.of(
             new CafeAutomation("warming_pot", "保温ポット", "🫖",
-                    "作り置きを少しずつ販売 · 学習1回分の0.5%/分", 2_500L, 1, 4, 50),
+                    "作り置きを少しずつ販売 · 学習1回分の0.5%/分", 2_500L, 1, 50),
             new CafeAutomation("self_service", "セルフサービス台", "🥤",
-                    "会計を待たずに販売 · 学習1回分の0.9%/分", 20_000L, 2, 22, 90),
+                    "会計を待たずに販売 · 学習1回分の0.9%/分", 20_000L, 2, 90),
             new CafeAutomation("order_kiosk", "注文キオスク", "🖥️",
-                    "注文と決済を自動化 · 学習1回分の1.3%/分", 150_000L, 3, 57, 130),
+                    "注文と決済を自動化 · 学習1回分の1.3%/分", 150_000L, 3, 130),
             new CafeAutomation("auto_brew_line", "自動抽出ライン", "⚙️",
-                    "抽出工程を自動連携 · 学習1回分の1.7%/分", 1_000_000L, 4, 101, 170),
+                    "抽出工程を自動連携 · 学習1回分の1.7%/分", 1_000_000L, 4, 170),
             new CafeAutomation("unmanned_cafe", "自動会計システム", "💳",
-                    "提供後の会計まで自動化 · 学習1回分の2.1%/分", 6_000_000L, 5, 144, 210),
+                    "提供後の会計まで自動化 · 学習1回分の2.1%/分", 6_000_000L, 5, 210),
             new CafeAutomation("serving_robot", "配膳ロボット", "🤖",
-                    "客席への提供も自動化 · 学習1回分の2.5%/分", 30_000_000L, 6, 187, 250),
+                    "客席への提供も自動化 · 学習1回分の2.5%/分", 30_000_000L, 6, 250),
             new CafeAutomation("demand_ai", "AI需要予測", "📈",
-                    "来店予測で作り置きを最適化 · 学習1回分の3%/分", 150_000_000L, 7, 230, 300),
+                    "来店予測で作り置きを最適化 · 学習1回分の3%/分", 150_000_000L, 7, 300),
             new CafeAutomation("smart_store_control", "スマート店舗管制", "🛰️",
-                    "全設備を一括制御 · 学習1回分の3.5%/分", 750_000_000L, 8, 280, 350),
+                    "全設備を一括制御 · 学習1回分の3.5%/分", 750_000_000L, 8, 350),
             new CafeAutomation("round_clock_cafe", "24時間無人店舗", "🌙",
-                    "表示中の店舗運営を完全無人化 · 学習1回分の4%/分", 4_000_000_000L, 9, 330, 400),
+                    "表示中の店舗運営を完全無人化 · 学習1回分の4%/分", 4_000_000_000L, 9, 400),
             new CafeAutomation("autonomous_cafe", "完全自律カフェ", "🦾",
-                    "注文から提供まで自律運転 · 学習1回分の4.4%/分", 20_000_000_000L, 10, 380, 440),
+                    "注文から提供まで自律運転 · 学習1回分の4.4%/分", 20_000_000_000L, 10, 440),
             new CafeAutomation("learning_grid", "学習グリッド管制", "🌐",
-                    "世界の店舗を共同制御 · 学習1回分の4.7%/分", 100_000_000_000L, 11, 445, 470),
+                    "世界の店舗を共同制御 · 学習1回分の4.7%/分", 100_000_000_000L, 11, 470),
             new CafeAutomation("mastery_ai", "マスタリー運営AI", "🧠",
-                    "全店舗の注文を最適化 · 学習1回分の5%/分", 400_000_000_000L, 12, 499, 500));
+                    "全店舗の注文を最適化 · 学習1回分の5%/分", 400_000_000_000L, 12, 500));
 
     public record Cleared(String clearedAt, int hintsUsed, int attempts) {
+    }
+
+    /**
+     * 1問の復習予定。
+     *
+     * @param level    どの間隔まで進んだか（{@link #REVIEW_INTERVAL_DAYS} の添字）
+     * @param lastAt   最後に復習した日。ここに間隔を足したものが次の期限
+     * @param lastFailAt 最後に失敗した日。同じ日に失敗してから通した正解は「危なかった」
+     *                   とみなしてレベルを1つ戻すために持つ
+     */
+    public record ReviewPlan(int level, String lastAt, String lastFailAt) {
+    }
+
+    /** 復習の期限。画面はこれを見て「期限切れ」「あと○日」を出す。 */
+    public record ReviewDue(int level, String dueDate, int daysUntilDue) {
+
+        public boolean overdue() {
+            return daysUntilDue <= 0;
+        }
     }
 
     public ProgressStore(Path file) {
@@ -596,6 +748,15 @@ public final class ProgressStore {
     /** その問題でこれまでに最も多く通ったケース数。一度も提出していなければ 0。 */
     public synchronized int bestPassed(String taskKey) {
         return bestPassed.getOrDefault(taskKey, 0);
+    }
+
+    /** その問題の苦手度。一度も間違えていなければ 0。 */
+    public synchronized int reviewWeight(String taskKey) {
+        return reviewWeight.getOrDefault(taskKey, 0);
+    }
+
+    public synchronized boolean isBookmarked(String taskKey) {
+        return bookmarks.contains(taskKey);
     }
 
     /** 今日を含む連続学習日数。今日も昨日も学習していなければ 0。 */
@@ -643,7 +804,7 @@ public final class ProgressStore {
                 ? CAFE_LEVELS.get(level.level())
                 : null;
         long orderCups = cupsPerNetworkOrderWithUpgrades();
-        long brandMultiplierBasisPoints = cafeBrandMultiplierBasisPoints(learning.masteredChapterTasks());
+        long brandMultiplierBasisPoints = cafeBrandMultiplierBasisPoints(learning);
         boolean maximumNetwork = cafeStores >= MAX_CAFE_STORES;
         int progressStoreLimit = currentCafeStoreLimit();
         boolean canExpandNetwork = !maximumNetwork && cafeStores < progressStoreLimit;
@@ -659,23 +820,35 @@ public final class ProgressStore {
         cafe.put("nextLevelStars", nextLevel == null ? null : nextLevel.threshold());
         cafe.put("cupsPerOrder", level.cupsPerOrder());
         cafe.put("orderCups", orderCups);
-        cafe.put("nextOrderCash", cafeCashForCups(orderCups, learning.masteredChapterTasks()));
-        cafe.put("passiveCashPerMinute", cafePassiveCashPerMinute(learning.masteredChapterTasks()));
-        long passiveCap = cafePassiveCashCap(learning.masteredChapterTasks());
+        long nextOrderCash = cafeCashForCups(orderCups, learning);
+        cafe.put("nextOrderCash", nextOrderCash);
+        cafe.put("passiveCashPerMinute", cafePassiveCashPerMinute(learning));
+        long passiveCap = cafePassiveCashCap(learning);
         cafe.put("passiveCashCap", passiveCap);
-        cafe.put("passiveCashRemaining", Math.max(0L, passiveCap - cafePassiveCashSinceTask));
+        // 復習で戻した枠は次のtickで反映されるが、表示だけは先に差し引いて見せる
+        long passiveSpent = Math.max(0L, cafePassiveCashSinceTask
+                - saturatedMultiply(nextOrderCash, cafeReviewPassiveCredits));
+        cafe.put("passiveCashRemaining", Math.max(0L, passiveCap - passiveSpent));
         CafeAutomation activeAutomation = currentCafeAutomation();
         cafe.put("passiveRateBasisPoints", activeAutomation == null
                 ? 0 : activeAutomation.rateBasisPointsPerMinute());
-        cafe.put("bonusPercent", cafeBonusPercent());
+        // 全報酬へ掛かるのは販売戦略だけ。常連サービスは dailyFirstBonusPercent が持つ
+        cafe.put("bonusPercent", cafeSalesBonusPercent());
         cafe.put("salesBonusPercent", cafeSalesBonusPercent());
-        cafe.put("streakBonusPercent", cafeStreakBonusPercent());
+        cafe.put("dailyFirstBonusPercent", cafeDailyFirstBonusPercent());
+        cafe.put("dailyFirstBonusReady",
+                !LocalDate.now().toString().equals(cafeDailyFirstRewardDay));
+        cafe.put("streakDays", effectiveStreakDays());
         cafe.put("extraCups", cafeExtraCups());
         cafe.put("chapterBonusPercent", cafeChapterBonusPercent());
         cafe.put("quizTipPercent", cafeQuizTipPercent());
         cafe.put("clearedChapters", learning.clearedChapters());
         cafe.put("masteredChapterTasks", learning.masteredChapterTasks());
         cafe.put("brandMultiplierBasisPoints", brandMultiplierBasisPoints);
+        cafe.put("reviewBrandBasisPoints", cafeReviewBrandBasisPoints());
+        cafe.put("reviewedTasks", cafeMasteryTasks.size());
+        cafe.put("reviewedTaskPercent", reviewedTaskPercent());
+        cafe.put("equipmentDiscountPercent", equipmentDiscountPercent());
         cafe.put("storeCount", cafeStores);
         cafe.put("maxStores", MAX_CAFE_STORES);
         cafe.put("storeLimit", Math.max(cafeStores, progressStoreLimit));
@@ -709,9 +882,6 @@ public final class ProgressStore {
             item.put("baseCost", u.cost());
             item.put("discounted", effectiveCost < u.cost());
             item.put("tier", u.tier());
-            int requiredStars = equipmentRequiredStars(u);
-            item.put("requiredStars", requiredStars);
-            item.put("starReady", cleared.size() >= requiredStars);
             item.put("effectType", u.effectType());
             item.put("effectValue", u.effectValue());
             item.put("owned", cafeUpgrades.contains(u.id()));
@@ -734,8 +904,6 @@ public final class ProgressStore {
             value.put("baseCost", item.cost());
             value.put("discounted", effectiveCost < item.cost());
             value.put("tier", item.tier());
-            value.put("requiredStars", item.requiredStars());
-            value.put("starReady", cleared.size() >= item.requiredStars());
             value.put("rateBasisPointsPerMinute", item.rateBasisPointsPerMinute());
             value.put("owned", cafeAutomationUpgrades.contains(item.id()));
             value.put("equipped", activeAutomation != null && activeAutomation.id().equals(item.id()));
@@ -765,8 +933,14 @@ public final class ProgressStore {
             value.put("discovered", true);
             value.put("unseen", unseen);
             value.put("owned", owned);
-            value.put("effectType", item.effectType());
-            value.put("effectValue", item.effectValue());
+            List<Object> effects = new ArrayList<>();
+            for (CafeItemEffect effect : item.effects()) {
+                Map<String, Object> e = new LinkedHashMap<>();
+                e.put("type", effect.type());
+                e.put("value", effect.value());
+                effects.add(e);
+            }
+            value.put("effects", effects);
             value.put("unlockNote", item.byAchievement()
                     ? ACHIEVEMENT_NOTES.getOrDefault(item.unlockAchievement(), "")
                     : "");
@@ -778,18 +952,20 @@ public final class ProgressStore {
     }
 
     /**
-     * 初クリアした注文の報酬。客単価・連続学習ボーナスは売上へ掛ける。
+     * 初クリアした注文の報酬。客単価は売上へ掛ける。
      *
      * {@code taskKey} は、ヒントを使ったか・何回で通ったかを見るアイテム
      * （一発仕上げのタンパー、粘りのドリッパー）のために受け取る。
      */
     public synchronized CafeAward rewardTask(CafeLearningProgress learning, String taskKey) {
         cafePassiveCashSinceTask = 0;
+        // 枠が満タンに戻るので、復習で戻しておいたぶんは使わずに捨てる
+        cafeReviewPassiveCredits = 0;
         resetCafePassiveClock();
         // テストケース数ではなく店舗の集客力で販売数を増やす。
         // 店舗ごとに同じ注文が入り、章クリアで育つブランド倍率を最後に掛ける。
         long cups = cupsPerNetworkOrderWithUpgrades();
-        long cash = cafeCashForCups(cups, learning.masteredChapterTasks());
+        long cash = cafeCashForCups(cups, learning);
         return addCafeReward("task", cash, cups, taskKey);
     }
 
@@ -804,7 +980,7 @@ public final class ProgressStore {
                 cupsPerNetworkOrderWithUpgrades(), Math.max(1, chapterTaskCount));
         long baseCups = ceilDivide(chapterOrderCups, 4L);
         long cups = applyPercent(baseCups, 100L + cafeChapterBonusPercent());
-        long cash = cafeCashForCups(cups, learning.masteredChapterTasks());
+        long cash = cafeCashForCups(cups, learning);
         return addCafeReward("chapter", cash, cups);
     }
 
@@ -820,8 +996,7 @@ public final class ProgressStore {
         refreshCafeAchievements();
         // 現在の1問売上の2%を基準にする。難しい後半でもクイズの価値が薄れず、
         // クイズ接客設備を最大にしても通常の学習報酬を恒常的には超えない。
-        long taskCash = cafeCashForCups(
-                cupsPerNetworkOrderWithUpgrades(), learning.masteredChapterTasks());
+        long taskCash = cafeCashForCups(cupsPerNetworkOrderWithUpgrades(), learning);
         long baseTip = Math.max(saturatedMultiply(100L, cafeStores), applyPercent(taskCash, 2L));
         long cash = applyPercent(baseTip, 100L + cafeQuizTipPercent());
         return addCafeReward("quiz", cash, 0);
@@ -850,11 +1025,6 @@ public final class ProgressStore {
             String nextName = next == null ? "現在の設備" : "「" + next.name() + "」";
             return new PurchaseResult(false,
                     "先に" + nextName + "へアップグレードしてください", upgrade, equipped);
-        }
-        int requiredStars = equipmentRequiredStars(upgrade);
-        if (cleared.size() < requiredStars) {
-            return new PurchaseResult(false,
-                    "この設備ランクには★" + requiredStars + "が必要です", upgrade, equipped);
         }
         long cost = cafeUpgradeCost(upgrade);
         if (cafeCash < cost) {
@@ -888,10 +1058,6 @@ public final class ProgressStore {
             return new AutomationPurchaseResult(false,
                     "先に" + nextName + "へアップグレードしてください", automation, equipped);
         }
-        if (cleared.size() < automation.requiredStars()) {
-            return new AutomationPurchaseResult(false,
-                    "この設備には★" + automation.requiredStars() + "が必要です", automation, equipped);
-        }
         long cost = cafeAutomationCost(automation);
         if (cafeCash < cost) {
             return new AutomationPurchaseResult(false, "コインが足りません", automation, equipped);
@@ -905,27 +1071,28 @@ public final class ProgressStore {
 
     /** アプリ画面を表示した。ここを起点にするため、画面外だった時間は売上にならない。 */
     public synchronized PassiveSalesResult startCafePassiveSales(
-            String sessionId, int masteredChapterTasks) {
+            String sessionId, CafeLearningProgress learning) {
         cafePassiveSessionId = sessionId;
         cafePassiveLastTickNanos = System.nanoTime();
         cafePassiveRemainder = 0;
-        return new PassiveSalesResult(0, cafePassiveCashPerMinute(masteredChapterTasks), true);
+        return new PassiveSalesResult(0, cafePassiveCashPerMinute(learning), true);
     }
 
     /** 表示中のアプリ画面からの定期連絡ぶんだけ、自動売上を加算する。 */
     public synchronized PassiveSalesResult collectCafePassiveSales(
-            String sessionId, int masteredChapterTasks) {
+            String sessionId, CafeLearningProgress learning) {
         if (sessionId == null || !sessionId.equals(cafePassiveSessionId)) {
-            return new PassiveSalesResult(0, cafePassiveCashPerMinute(masteredChapterTasks), false);
+            return new PassiveSalesResult(0, cafePassiveCashPerMinute(learning), false);
         }
         long now = System.nanoTime();
         long elapsedMillis = Math.max(0L, (now - cafePassiveLastTickNanos) / 1_000_000L);
         elapsedMillis = Math.min(elapsedMillis, MAX_PASSIVE_TICK_MILLIS);
         cafePassiveLastTickNanos = now;
 
-        long ratePerMinute = cafePassiveCashPerMinute(masteredChapterTasks);
-        long remaining = Math.max(0L,
-                cafePassiveCashCap(masteredChapterTasks) - cafePassiveCashSinceTask);
+        long ratePerMinute = cafePassiveCashPerMinute(learning);
+        // 復習で戻した枠は、1問ぶんの売上額が分かるここで初めて使う
+        consumeReviewPassiveCredits(learning);
+        long remaining = Math.max(0L, cafePassiveCashCap(learning) - cafePassiveCashSinceTask);
         if (ratePerMinute <= 0 || elapsedMillis <= 0 || remaining <= 0) {
             return new PassiveSalesResult(0, ratePerMinute, true);
         }
@@ -946,14 +1113,32 @@ public final class ProgressStore {
 
     /** 画面を離れる直前までを精算して、自動営業セッションを閉じる。 */
     public synchronized PassiveSalesResult stopCafePassiveSales(
-            String sessionId, int masteredChapterTasks) {
-        PassiveSalesResult result = collectCafePassiveSales(sessionId, masteredChapterTasks);
+            String sessionId, CafeLearningProgress learning) {
+        PassiveSalesResult result = collectCafePassiveSales(sessionId, learning);
         if (sessionId != null && sessionId.equals(cafePassiveSessionId)) {
             cafePassiveSessionId = null;
             cafePassiveLastTickNanos = 0;
             cafePassiveRemainder = 0;
         }
         return new PassiveSalesResult(result.cash(), result.cashPerMinute(), false);
+    }
+
+    /**
+     * 復習で戻した枠を、実際に「受け取った自動売上」から引く。
+     *
+     * <p>復習した時点では1問ぶんの売上額（完成した章の問題数が要る）が分からないので、
+     * 問題数だけ数えておいて、自動売上を集めるここで換算する。0を下回らせないので、
+     * 何問復習しても枠が既定の5問分より広くなることはない。</p>
+     */
+    private void consumeReviewPassiveCredits(CafeLearningProgress learning) {
+        if (cafeReviewPassiveCredits <= 0) {
+            return;
+        }
+        long oneTask = cafeCashForCups(cupsPerNetworkOrderWithUpgrades(), learning);
+        long refund = saturatedMultiply(oneTask, cafeReviewPassiveCredits);
+        cafeReviewPassiveCredits = 0;
+        cafePassiveCashSinceTask = Math.max(0L, cafePassiveCashSinceTask - refund);
+        saveEventually();
     }
 
     /** 発見済みのスペシャルアイテムを購入する。アイテムは設備とは別枠で全て同時に所持できる。 */
@@ -1063,115 +1248,78 @@ public final class ProgressStore {
         long rewardedCash = cash;
         List<String> itemEvents = new ArrayList<>();
 
-        CafeItem luckyCoin = cafeItemByEffect("lucky_double");
-        CafeItem clover = cafeItemByEffect("lucky_chance");
-        int luckyPercent = (isCafeItemOwned(luckyCoin) ? LUCKY_COIN_CHANCE_PERCENT : 0)
-                + (isCafeItemOwned(clover) ? clover.effectValue() : 0);
-        if (luckyPercent > 0 && isLuckyHit(cafeRewardSequence, luckyPercent)) {
-            CafeItem source = isCafeItemOwned(luckyCoin) ? luckyCoin : clover;
-            rewardedCash = saturatedMultiply(rewardedCash, 2L);
-            itemEvents.add(source.emoji() + " " + source.name() + "発動！ コイン×2");
+        CafeItem luckyCoin = ownedItemWithEffect("lucky_double");
+        if (luckyCoin != null
+                && isLuckyHit(cafeRewardSequence, luckyCoin.effectValue("lucky_chance"))) {
+            int times = luckyCoin.effectValue("lucky_double");
+            rewardedCash = saturatedMultiply(rewardedCash, times);
+            itemEvents.add(luckyCoin.emoji() + " " + luckyCoin.name()
+                    + "発動！ コイン×" + times);
         }
 
-        CafeItem comboBook = cafeItemByEffect("task_combo");
-        if (trigger.equals("task") && isCafeItemOwned(comboBook)
+        CafeItem comboBook = ownedItemWithEffect("task_combo");
+        if (trigger.equals("task") && comboBook != null
                 && cafeTaskRewardCount % TASK_COMBO_INTERVAL == 0) {
-            rewardedCash = saturatedMultiply(rewardedCash, comboBook.effectValue());
+            int times = comboBook.effectValue("task_combo");
+            rewardedCash = saturatedMultiply(rewardedCash, times);
             itemEvents.add(comboBook.emoji() + " " + comboBook.name()
-                    + "完成！ 5問目ボーナス×" + comboBook.effectValue());
+                    + "完成！ " + TASK_COMBO_INTERVAL + "問目ボーナス×" + times);
         }
 
-        CafeItem rhythmRecipe = cafeItemByEffect("task_rhythm");
-        if (trigger.equals("task") && isCafeItemOwned(rhythmRecipe)
-                && cafeTaskRewardCount % 7L == 0) {
-            rewardedCash = saturatedMultiply(rewardedCash, rhythmRecipe.effectValue());
-            itemEvents.add(rhythmRecipe.emoji() + " " + rhythmRecipe.name()
-                    + "完成！ 7問目ボーナス×" + rhythmRecipe.effectValue());
-        }
-
-        CafeItem beatBookmark = cafeItemByEffect("task_beat");
-        if (trigger.equals("task") && isCafeItemOwned(beatBookmark)
-                && cafeTaskRewardCount % TASK_BEAT_INTERVAL == 0) {
-            rewardedCash = saturatedMultiply(rewardedCash, beatBookmark.effectValue());
-            itemEvents.add(beatBookmark.emoji() + " " + beatBookmark.name()
-                    + "完成！ " + TASK_BEAT_INTERVAL + "問目ボーナス×" + beatBookmark.effectValue());
+        // 常連サービス系統は「その日の最初の1問」にだけ乗る。全報酬へ足すと
+        // 販売戦略系統と同じ変数になり、同じ買い物が2系統に分かれてしまう。
+        // ここで初めて払う日を記録するので、同じ日に何問解いても1回で終わる。
+        int dailyFirstPercent = cafeDailyFirstBonusPercent();
+        if (trigger.equals("task") && dailyFirstPercent > 0) {
+            String today = LocalDate.now().toString();
+            if (!today.equals(cafeDailyFirstRewardDay)) {
+                cafeDailyFirstRewardDay = today;
+                rewardedCash = applyPercent(rewardedCash, 100L + dailyFirstPercent);
+                itemEvents.add("☀️ 今日の1杯目 +" + dailyFirstPercent + "%（連続"
+                        + effectiveStreakDays() + "日）");
+            }
         }
 
         Cleared clearedTask = taskKey == null ? null : cleared.get(taskKey);
 
-        CafeItem tamper = cafeItemByEffect("first_try_percent");
-        if (trigger.equals("task") && isCafeItemOwned(tamper) && clearedTask != null
+        CafeItem tamper = ownedItemWithEffect("first_try_percent");
+        if (trigger.equals("task") && tamper != null && clearedTask != null
                 && clearedTask.hintsUsed() == 0 && clearedTask.attempts() <= 1) {
-            rewardedCash = applyPercent(rewardedCash, 100L + tamper.effectValue());
-            itemEvents.add(tamper.emoji() + " " + tamper.name()
-                    + "で一発クリア+" + tamper.effectValue() + "%");
+            int percent = tamper.effectValue("first_try_percent");
+            rewardedCash = applyPercent(rewardedCash, 100L + percent);
+            itemEvents.add(tamper.emoji() + " " + tamper.name() + "で一発クリア+" + percent + "%");
         }
 
-        CafeItem dripper = cafeItemByEffect("retry_double");
-        if (trigger.equals("task") && isCafeItemOwned(dripper) && clearedTask != null
+        CafeItem dripper = ownedItemWithEffect("retry_double");
+        if (trigger.equals("task") && dripper != null && clearedTask != null
                 && clearedTask.attempts() >= RETRY_BONUS_ATTEMPTS) {
-            rewardedCash = saturatedMultiply(rewardedCash, dripper.effectValue());
-            itemEvents.add(dripper.emoji() + " " + dripper.name()
-                    + "で粘りボーナス×" + dripper.effectValue());
+            int times = dripper.effectValue("retry_double");
+            rewardedCash = saturatedMultiply(rewardedCash, times);
+            itemEvents.add(dripper.emoji() + " " + dripper.name() + "で粘りボーナス×" + times);
         }
 
-        CafeItem prepPot = cafeItemByEffect("daily_ramp_percent");
-        if (trigger.equals("task") && isCafeItemOwned(prepPot)) {
-            int ramp = Math.min(prepPot.effectValue(), todayClearCount());
-            if (ramp > 0) {
-                rewardedCash = applyPercent(rewardedCash, 100L + ramp);
-                itemEvents.add(prepPot.emoji() + " " + prepPot.name()
-                        + "で今日の仕込み+" + ramp + "%");
-            }
-        }
-
-        CafeItem quizMegaphone = cafeItemByEffect("quiz_multiplier");
-        if (trigger.equals("quiz") && isCafeItemOwned(quizMegaphone)) {
-            rewardedCash = saturatedMultiply(rewardedCash, quizMegaphone.effectValue());
+        CafeItem quizMegaphone = ownedItemWithEffect("quiz_multiplier");
+        if (trigger.equals("quiz") && quizMegaphone != null) {
+            int times = quizMegaphone.effectValue("quiz_multiplier");
+            rewardedCash = saturatedMultiply(rewardedCash, times);
             itemEvents.add(quizMegaphone.emoji() + " " + quizMegaphone.name()
-                    + "で正解チップ×" + quizMegaphone.effectValue());
+                    + "で正解チップ×" + times);
         }
 
-        CafeItem quizFestival = cafeItemByEffect("quiz_extra_multiplier");
-        if (trigger.equals("quiz") && isCafeItemOwned(quizFestival)) {
-            rewardedCash = saturatedMultiply(rewardedCash, quizFestival.effectValue());
-            itemEvents.add(quizFestival.emoji() + " " + quizFestival.name()
-                    + "で正解チップ×" + quizFestival.effectValue());
-        }
-
-        CafeItem quizBell = cafeItemByEffect("quiz_bell_multiplier");
-        if (trigger.equals("quiz") && isCafeItemOwned(quizBell)) {
-            rewardedCash = saturatedMultiply(rewardedCash, quizBell.effectValue());
-            itemEvents.add(quizBell.emoji() + " " + quizBell.name()
-                    + "で正解チップ×" + quizBell.effectValue());
-        }
-
-        CafeItem medal = cafeItemByEffect("chapter_medal_percent");
-        if (trigger.equals("chapter") && isCafeItemOwned(medal)) {
-            rewardedCash = applyPercent(rewardedCash, 100L + medal.effectValue());
-            itemEvents.add(medal.emoji() + " " + medal.name()
-                    + "で章報酬+" + medal.effectValue() + "%");
-        }
-
-        CafeItem chapterCake = cafeItemByEffect("chapter_multiplier");
-        if (trigger.equals("chapter") && isCafeItemOwned(chapterCake)) {
-            rewardedCash = saturatedMultiply(rewardedCash, chapterCake.effectValue());
+        CafeItem chapterCake = ownedItemWithEffect("chapter_percent");
+        if (trigger.equals("chapter") && chapterCake != null) {
+            int percent = chapterCake.effectValue("chapter_percent");
+            rewardedCash = applyPercent(rewardedCash, percent);
             itemEvents.add(chapterCake.emoji() + " " + chapterCake.name()
-                    + "で章制覇ボーナス×" + chapterCake.effectValue());
+                    + "で章制覇ボーナス×" + (percent / 100.0));
         }
 
-        CafeItem masteryArchive = cafeItemByEffect("chapter_extra_percent");
-        if (trigger.equals("chapter") && isCafeItemOwned(masteryArchive)) {
-            rewardedCash = applyPercent(rewardedCash, 100L + masteryArchive.effectValue());
-            itemEvents.add(masteryArchive.emoji() + " " + masteryArchive.name()
-                    + "で章報酬+" + masteryArchive.effectValue() + "%");
-        }
-
-        CafeItem lifelongTrophy = cafeItemByEffect("mastery_bonus");
-        if (isCafeItemOwned(lifelongTrophy)) {
-            rewardedCash = applyPercent(rewardedCash, 100L + lifelongTrophy.effectValue());
+        CafeItem lifelongTrophy = ownedItemWithEffect("mastery_bonus");
+        if (lifelongTrophy != null) {
+            int percent = lifelongTrophy.effectValue("mastery_bonus");
+            rewardedCash = applyPercent(rewardedCash, 100L + percent);
             itemEvents.add(lifelongTrophy.emoji() + " " + lifelongTrophy.name()
-                    + "で学習報酬+" + lifelongTrophy.effectValue() + "%");
+                    + "で学習報酬+" + percent + "%");
         }
         cafeCash = saturatedAdd(cafeCash, rewardedCash);
         cafeLifetimeCash = saturatedAdd(cafeLifetimeCash, rewardedCash);
@@ -1218,22 +1366,43 @@ public final class ProgressStore {
     }
 
     /**
-     * クリア済み問題の再提出結果を、取り逃したアイテムの復習チャレンジへ記録する。
-     * 同じ問題の連打では数を増やさず、失敗した提出は10問連続の記録だけを切る。
-     * ★と通常報酬は呼び出し側の初回判定で引き続き付与しない。
+     * 提出結果を、苦手度と「取り逃したアイテムの復習チャレンジ」へ記録する。
+     *
+     * 苦手度は、間違えたら上げてクリア済みの問題に正解したら下げる。復習モードは
+     * この値を出題頻度に使う（{@link #reviewWeight(String)}）。初回の学習中に間違えた分も
+     * 数えるので、「一度でも間違えた問題」はクリア後の復習で自然と出やすくなる。
+     *
+     * 復習チャレンジの方は、同じ問題の連打では数を増やさず、失敗した提出は
+     * 10問連続の記録だけを切る。★と通常報酬は呼び出し側の初回判定で引き続き付与しない。
+     *
+     * カフェへ渡すのは「倍率」と「自動売上の枠」だけで、コインは1枚も払わない。
+     * クリア済みの問題は何度でも解き直せるので、支払うと無限に稼げてしまう。
+     * どちらも1問につき1回しか数えないため、上限は問題数で構造的に決まる。
+     *
+     * <p>この関数は {@code ApiHandler.doSubmit} で {@code markCleared} より<b>前</b>に
+     * 呼ばれる。初クリアの時点ではまだ {@code cleared} に入っていないので、
+     * 下の早期returnで抜ける ― つまり初クリアが復習ぶんの報酬を二重取りしない。
+     * 順番を入れ替えるとこの前提が崩れる。</p>
      */
     public synchronized void recordMasterySubmission(String taskKey, boolean passed) {
-        if (!cleared.containsKey(taskKey)) {
+        // 下げるのはクリア済みの問題に正解したときだけ。まだ通っていない問題で
+        // 1ケースだけ通った提出などを「復習で正解」と数えないため。
+        // 失敗は1単位（=0.25点）だけ上げる。書いている途中の失敗も全部ここを通るので、
+        // 1回で1点上げると試行錯誤しただけで振り切れてしまう。
+        // 正解したときは1点（=4単位）まとめて下げる。
+        boolean changed = passed
+                ? cleared.containsKey(taskKey) && addReviewWeight(taskKey, -REVIEW_WEIGHT_SCALE)
+                : addReviewWeight(taskKey, 1);
+        boolean scheduled = updateReviewPlan(taskKey, passed);
+        changed |= scheduled;
+
+        if (!passed || !cleared.containsKey(taskKey)) {
             // 復習の合間に未クリア問題で失敗した場合も「連続正解」ではなくなる。
             if (!passed && !cafeMasteryTaskRun.isEmpty()) {
                 cafeMasteryTaskRun.clear();
-                saveSoon();
+                changed = true;
             }
-            return;
-        }
-        if (!passed) {
-            if (!cafeMasteryTaskRun.isEmpty()) {
-                cafeMasteryTaskRun.clear();
+            if (changed) {
                 saveSoon();
             }
             return;
@@ -1245,10 +1414,108 @@ public final class ProgressStore {
             cafeMasteryDayTasks.clear();
         }
         cafeMasteryTaskRun.add(taskKey);
+        // ブランド倍率が数えるのはこの集合なので、同じ問題を何度解き直しても1回きり
         cafeMasteryTasks.add(taskKey);
         cafeMasteryDayTasks.add(taskKey);
+        // 自動売上の枠だけは毎回1問分戻す。完走後は★が増えないので、ここが自動営業設備を
+        // 動かし続ける唯一の入口になる。何度復習しても枠は既定の5問分より広がらず、
+        // 回収はレート（最上位でも5%/分）で律速されるので、1問分でも20分かかる。
+        cafeReviewPassiveCredits =
+                Math.min(MAX_REVIEW_PASSIVE_CREDITS, cafeReviewPassiveCredits + 1);
         refreshCafeAchievements();
         saveSoon();
+    }
+
+    /**
+     * 復習の予定を、提出の結果に応じて進める。
+     *
+     * <p>「実行」＝「採点」なので、1問を仕上げるまでに何度も失敗が届く。そのため
+     * <b>期限を動かすのは正解したときだけ</b>にしてある。失敗では日付を触らず、
+     * 「その日に失敗した」という印だけを残す。こうすると:</p>
+     *
+     * <ul>
+     *   <li>すっと通れば次のレベルへ（間隔が伸びて、しばらく出てこない）</li>
+     *   <li>同じ日に失敗してから通したら1つ戻す（危なかったので早めにまた出す）</li>
+     *   <li>失敗したまま諦めたら期限は動かない ― 期限切れのまま残るので、次も出てくる</li>
+     * </ul>
+     *
+     * @return 記録が変わったら true
+     */
+    private boolean updateReviewPlan(String taskKey, boolean passed) {
+        String today = LocalDate.now().toString();
+        ReviewPlan current = reviewPlans.get(taskKey);
+        if (!passed) {
+            // 期限は動かさない。通せていないのだから、また出てくるのが正しい
+            ReviewPlan base = current == null
+                    ? new ReviewPlan(0, clearedDate(taskKey), "")
+                    : current;
+            if (today.equals(base.lastFailAt())) {
+                return false;
+            }
+            reviewPlans.put(taskKey, new ReviewPlan(base.level(), base.lastAt(), today));
+            return true;
+        }
+        if (!cleared.containsKey(taskKey)) {
+            return false;
+        }
+        int level = current == null ? 0 : current.level();
+        boolean stumbled = current != null && today.equals(current.lastFailAt());
+        int next = stumbled
+                ? Math.max(0, level - 1)
+                : Math.min(REVIEW_INTERVAL_DAYS.length - 1, level + 1);
+        reviewPlans.put(taskKey, new ReviewPlan(next, today, ""));
+        return true;
+    }
+
+    /** その問題を初クリアした日。分からなければ今日。復習予定の起点に使う。 */
+    private String clearedDate(String taskKey) {
+        Cleared c = cleared.get(taskKey);
+        return c == null ? LocalDate.now().toString() : c.clearedAt();
+    }
+
+    /**
+     * その問題を次に確認すべき日。
+     *
+     * <p>まだ一度も復習していない問題は「初クリアの翌日」が最初の期限になる。
+     * 期限日そのものは保存せず、最後の復習日とレベルから毎回引き直す ―
+     * {@link #REVIEW_INTERVAL_DAYS} を調整したら過去の記録にもそのまま効く。</p>
+     */
+    public synchronized ReviewDue reviewDue(String taskKey) {
+        ReviewPlan plan = reviewPlans.get(taskKey);
+        int level = plan == null ? 0 : Math.min(plan.level(), REVIEW_INTERVAL_DAYS.length - 1);
+        String from = plan == null || plan.lastAt().isEmpty()
+                ? clearedDate(taskKey)
+                : plan.lastAt();
+        LocalDate base;
+        try {
+            base = LocalDate.parse(from);
+        } catch (RuntimeException e) {
+            base = LocalDate.now();
+        }
+        LocalDate due = base.plusDays(REVIEW_INTERVAL_DAYS[level]);
+        long days = ChronoUnit.DAYS.between(LocalDate.now(), due);
+        return new ReviewDue(level, due.toString(),
+                (int) Math.max(Integer.MIN_VALUE, Math.min(Integer.MAX_VALUE, days)));
+    }
+
+    /**
+     * 苦手度を上下させ、値が変わったら true を返す。単位は {@link #REVIEW_WEIGHT_SCALE} 刻み。
+     *
+     * 0と上限で頭打ちにする。0のときは記録を消す（既定値なので、進捗ファイルに
+     * 「間違えていない問題」を並べても意味がない）。
+     */
+    private boolean addReviewWeight(String taskKey, int delta) {
+        int current = reviewWeight.getOrDefault(taskKey, 0);
+        int next = Math.max(0, Math.min(MAX_REVIEW_WEIGHT, current + delta));
+        if (next == current) {
+            return false;
+        }
+        if (next == 0) {
+            reviewWeight.remove(taskKey);
+        } else {
+            reviewWeight.put(taskKey, next);
+        }
+        return true;
     }
 
     /**
@@ -1270,7 +1537,8 @@ public final class ProgressStore {
             } else {
                 flawlessRun = 0;
             }
-            if (Math.max(c.attempts(), attempts.getOrDefault(entry.getKey(), 0)) >= 10) {
+            if (Math.max(c.attempts(), attempts.getOrDefault(entry.getKey(), 0))
+                    >= RETRY_ACHIEVEMENT_ATTEMPTS) {
                 persistent = true;
             }
             clearsPerDay.merge(c.clearedAt(), 1, Integer::sum);
@@ -1288,15 +1556,17 @@ public final class ProgressStore {
             }
             busiestDay = Math.max(busiestDay, todayTasks.size());
         }
-        boolean changed = award("flawless_10",
-                bestFlawlessRun >= 10 || cafeMasteryTaskRun.size() >= 10);
-        changed |= award("same_day_15", busiestDay >= 15);
+        boolean changed = award("same_day_15", busiestDay >= 15);
         changed |= award("streak_7", longestClearStreak() >= 7);
         changed |= award("quiz_streak_20",
                 cafeQuizFirstStreak >= 20 || cafeQuizMasteryRun.size() >= 20);
-        changed |= award("quiz_total_50", rewardedQuizzes.size() >= 50);
-        changed |= award("persistent_clear", persistent);
         changed |= award("store_5", cafeStores >= 5);
+        changed |= award("persistent_clear", persistent);
+        // 重い2つ。復習ノートは全574問の3分の1以上、トロフィーは25問連続の無傷クリア
+        changed |= award("review_200", cafeMasteryTasks.size() >= REVIEW_MASTERY_ITEM_TASKS);
+        changed |= award("flawless_25",
+                bestFlawlessRun >= FLAWLESS_ITEM_RUN
+                        || cafeMasteryTaskRun.size() >= FLAWLESS_ITEM_RUN);
         return changed;
     }
 
@@ -1360,7 +1630,7 @@ public final class ProgressStore {
         return best;
     }
 
-    /** 今日クリアした問題数。仕込み用の大鍋が積み上げる割合に使う。 */
+    /** 今日クリアした問題数。コンボスタンプ帳が積み上げる割合に使う。 */
     private int todayClearCount() {
         String today = LocalDate.now().toString();
         int count = 0;
@@ -1383,37 +1653,49 @@ public final class ProgressStore {
         return Long.remainderUnsigned(value, 100L) < chancePercent;
     }
 
-    private boolean isCafeItemOwned(CafeItem item) {
-        return item != null && cafeItems.contains(item.id());
+    /**
+     * その効果を持つアイテムを所持していれば返す。していなければ null。
+     *
+     * 1つのアイテムが複数の効果を持つので、効果名から引いてから
+     * {@link CafeItem#effectValue(String)} でその効果の値を取る。
+     */
+    private CafeItem ownedItemWithEffect(String effectType) {
+        for (CafeItem item : CAFE_ITEMS) {
+            if (item.hasEffect(effectType) && cafeItems.contains(item.id())) {
+                return item;
+            }
+        }
+        return null;
     }
 
-    private static CafeItem cafeItemByEffect(String effectType) {
-        return CAFE_ITEMS.stream()
-                .filter(item -> item.effectType().equals(effectType))
-                .findFirst()
-                .orElse(null);
-    }
-
-    private int cafeBonusPercent() {
-        return cafeSalesBonusPercent() + cafeStreakBonusPercent();
-    }
-
+    /**
+     * 全報酬（問題・章・クイズ・自動売上）に掛かる唯一の売上%。
+     *
+     * <p>ここに足せる系統は販売戦略だけにする。以前は常連サービス系統も同じ和へ
+     * 入れていたので、値段が同じで効果だけが弱い「劣化した販売戦略」になっていた。
+     * 常連サービスは {@link #cafeDailyFirstBonusPercent()} が持つ別のスコープ
+     * （その日の最初の1問だけ）へ移した。</p>
+     */
     private int cafeSalesBonusPercent() {
         return cafeEffectTotal("sales");
     }
 
-    /** 連続日数による注文売上アップ。長期離脱で差が開きすぎないよう7日を上限にする。 */
-    private int cafeStreakBonusPercent() {
-        CafeItem comebackTicket = cafeItemByEffect("streak_floor");
-        int effectiveStreak = streak();
-        if (isCafeItemOwned(comebackTicket)) {
-            effectiveStreak = Math.max(effectiveStreak, comebackTicket.effectValue());
-        }
-        CafeItem calendar = cafeItemByEffect("streak_cap");
-        int cap = isCafeItemOwned(calendar)
-                ? Math.max(STREAK_BONUS_CAP_DAYS, calendar.effectValue())
-                : STREAK_BONUS_CAP_DAYS;
-        return cafeEffectTotal("streak") * Math.min(effectiveStreak, cap);
+    /**
+     * 常連サービス系統の効果。その日最初に初クリアした1問の報酬にだけ掛かる。
+     *
+     * 連続日数の数え方（下駄・上限）は皆勤の日めくり1枚が持つ。
+     */
+    private int cafeDailyFirstBonusPercent() {
+        return cafeEffectTotal("streak") * effectiveStreakDays();
+    }
+
+    /** ボーナスに数える連続日数。長期離脱で差が開きすぎないよう既定は7日を上限にする。 */
+    private int effectiveStreakDays() {
+        CafeItem calendar = ownedItemWithEffect("streak_cap");
+        int cap = calendar == null
+                ? STREAK_BONUS_CAP_DAYS
+                : Math.max(STREAK_BONUS_CAP_DAYS, calendar.effectValue("streak_cap"));
+        return Math.min(streak(), cap);
     }
 
     private int cafeExtraCups() {
@@ -1459,40 +1741,48 @@ public final class ProgressStore {
     }
 
     private long cupsPerNetworkOrderWithUpgrades() {
-        CafeItem truck = cafeItemByEffect("store_bonus");
-        long stores = isCafeItemOwned(truck) ? cafeStores + truck.effectValue() : cafeStores;
+        CafeItem truck = ownedItemWithEffect("store_bonus");
+        long stores = truck == null ? cafeStores : cafeStores + truck.effectValue("store_bonus");
         return saturatedMultiply(cupsPerOrderWithUpgrades(), stores);
     }
 
-    private long cafeCashForCups(long cups, int masteredChapterTasks) {
+    private long cafeCashForCups(long cups, CafeLearningProgress learning) {
         long baseCash = saturatedMultiply(cups, CUP_PRICE);
-        long cashWithEquipment = applyPercent(baseCash, 100L + cafeBonusPercent());
-        return applyBasisPoints(cashWithEquipment,
-                cafeBrandMultiplierBasisPoints(masteredChapterTasks));
+        long cashWithEquipment = applyPercent(baseCash, 100L + cafeSalesBonusPercent());
+        return applyBasisPoints(cashWithEquipment, cafeBrandMultiplierBasisPoints(learning));
     }
 
-    /** 完成した章に含まれる問題数で加算し、短い章だけを先取りする攻略を防ぐ。 */
-    private long cafeBrandMultiplierBasisPoints(int masteredChapterTasks) {
-        long growth = saturatedMultiply(Math.max(0, masteredChapterTasks),
+    /**
+     * ブランド倍率。初回クリアと復習の2つが育て、報酬すべてに掛かる。
+     *
+     * <p>初回は完成した章に含まれる問題数で加算し、短い章だけを先取りする攻略を防ぐ。
+     * 復習ぶんは {@link #cafeReviewBrandBasisPoints()} が持つ。</p>
+     */
+    private long cafeBrandMultiplierBasisPoints(CafeLearningProgress learning) {
+        long growth = saturatedMultiply(Math.max(0, learning.masteredChapterTasks()),
                 BRAND_GROWTH_BASIS_POINTS_PER_TASK);
         long basisPoints = saturatedAdd(10_000L, growth);
-        CafeItem charter = cafeItemByEffect("brand_bonus");
-        if (isCafeItemOwned(charter)) {
-            basisPoints = saturatedAdd(basisPoints, charter.effectValue());
-        }
-        return basisPoints;
+        return saturatedAdd(basisPoints, cafeReviewBrandBasisPoints());
     }
 
-    private static int equipmentRequiredStars(CafeUpgrade upgrade) {
-        int index = Math.max(1, Math.min(upgrade.tier(), EQUIPMENT_REQUIRED_STARS.length - 1));
-        int trackOffset = switch (upgrade.effectType()) {
-            case "cups" -> 2;
-            case "chapter" -> 4;
-            case "tips" -> 6;
-            case "streak" -> 8;
-            default -> 0;
-        };
-        return EQUIPMENT_REQUIRED_STARS[index] + trackOffset;
+    /**
+     * 復習が育てたブランド倍率ぶん。
+     *
+     * <p>復習にコインは払わず、ここで倍率だけを育てる。1問につき1回しか数えないので
+     * （集合で持っている）、解き直しを繰り返しても増えない。倍率は<b>これから</b>の
+     * 報酬へ掛かるため、早く復習した人ほど得になる ―「間隔をあけて復習してほしい」
+     * という教材側の狙いと、報酬の形が一致する。</p>
+     *
+     * <p>1問あたりの上限は復習ノートの4倍が乗って160で、初回クリアの170を超えない。
+     * この順序は {@code tools/simulate-cafe.sh} が検査する。</p>
+     */
+    private long cafeReviewBrandBasisPoints() {
+        long growth = saturatedMultiply(cafeMasteryTasks.size(),
+                REVIEW_BRAND_GROWTH_BASIS_POINTS_PER_TASK);
+        CafeItem note = ownedItemWithEffect("review_brand_multiplier");
+        return note == null
+                ? growth
+                : saturatedMultiply(growth, note.effectValue("review_brand_multiplier"));
     }
 
     private int currentCafeStoreLimit() {
@@ -1605,22 +1895,38 @@ public final class ProgressStore {
         long quadraticCost = saturatedMultiply(FIRST_EXPANSION_COST, square);
         long cubicCost = saturatedMultiply(EXPANSION_CUBIC_COST, saturatedMultiply(square, cafeStores));
         long baseCost = Math.max(quadraticCost, cubicCost);
-        CafeItem map = cafeItemByEffect("expansion_discount");
-        return isCafeItemOwned(map) ? discountedCost(baseCost, map.effectValue()) : baseCost;
+        CafeItem toolbox = ownedItemWithEffect("expansion_discount");
+        return toolbox == null
+                ? baseCost
+                : discountedCost(baseCost, toolbox.effectValue("expansion_discount"));
     }
 
     private long cafeUpgradeCost(CafeUpgrade upgrade) {
-        CafeItem toolbox = cafeItemByEffect("equipment_discount");
-        return isCafeItemOwned(toolbox)
-                ? discountedCost(upgrade.cost(), toolbox.effectValue())
-                : upgrade.cost();
+        return discountedCost(upgrade.cost(), equipmentDiscountPercent());
     }
 
     private long cafeAutomationCost(CafeAutomation automation) {
-        CafeItem toolbox = cafeItemByEffect("equipment_discount");
-        return isCafeItemOwned(toolbox)
-                ? discountedCost(automation.cost(), toolbox.effectValue())
-                : automation.cost();
+        return discountedCost(automation.cost(), equipmentDiscountPercent());
+    }
+
+    /** 設備費の割引率。マイスター工具箱を持っていれば20%。 */
+    private int equipmentDiscountPercent() {
+        CafeItem toolbox = ownedItemWithEffect("equipment_discount");
+        return toolbox == null ? 0 : toolbox.effectValue("equipment_discount");
+    }
+
+    /** クリア済みの問題のうち、復習で仕上げた割合（0〜100）。画面表示に使う。 */
+    private int reviewedTaskPercent() {
+        if (cleared.isEmpty()) {
+            return 0;
+        }
+        int reviewed = 0;
+        for (String key : cafeMasteryTasks) {
+            if (cleared.containsKey(key)) {
+                reviewed++;
+            }
+        }
+        return Math.min(100, reviewed * 100 / cleared.size());
     }
 
     private CafeAutomation currentCafeAutomation() {
@@ -1644,19 +1950,17 @@ public final class ProgressStore {
     }
 
     /** 自動売上は現在の1問クリア売上の最大5%/分。 */
-    private long cafePassiveCashPerMinute(int masteredChapterTasks) {
+    private long cafePassiveCashPerMinute(CafeLearningProgress learning) {
         CafeAutomation automation = currentCafeAutomation();
         if (automation == null) {
             return 0;
         }
-        long taskCash = cafeCashForCups(
-                cupsPerNetworkOrderWithUpgrades(), masteredChapterTasks);
+        long taskCash = cafeCashForCups(cupsPerNetworkOrderWithUpgrades(), learning);
         return Math.max(1L, applyBasisPoints(taskCash, automation.rateBasisPointsPerMinute()));
     }
 
-    private long cafePassiveCashCap(int masteredChapterTasks) {
-        long taskCash = cafeCashForCups(
-                cupsPerNetworkOrderWithUpgrades(), masteredChapterTasks);
+    private long cafePassiveCashCap(CafeLearningProgress learning) {
+        long taskCash = cafeCashForCups(cupsPerNetworkOrderWithUpgrades(), learning);
         return applyBasisPoints(taskCash, PASSIVE_CASH_CAP_BASIS_POINTS);
     }
 
@@ -1762,6 +2066,21 @@ public final class ProgressStore {
         return isNew;
     }
 
+    /**
+     * ブックマークを付け外しして、切り替え後の状態を返す。
+     *
+     * クリア前の問題にも付けられる（気になった問題を後で見直せるように）。
+     * 復習モードの一覧に出るのはクリア済みの問題だけ。
+     */
+    public synchronized boolean toggleBookmark(String taskKey) {
+        boolean bookmarked = !bookmarks.remove(taskKey);
+        if (bookmarked) {
+            bookmarks.add(taskKey);
+        }
+        saveSoon();
+        return bookmarked;
+    }
+
     /** ヒントを1つ開示したことを記録し、開示済み総数を返す。 */
     public synchronized int revealHint(String taskKey, int index) {
         int current = hintsRevealed.getOrDefault(taskKey, 0);
@@ -1817,12 +2136,17 @@ public final class ProgressStore {
         bestPassed.clear();
         quizChoices.clear();
         clearDates.clear();
+        reviewWeight.clear();
+        bookmarks.clear();
+        reviewPlans.clear();
         cafeCash = 0;
         cafeCups = 0;
         cafeLifetimeCash = 0;
         cafeRewardSequence = 0;
         cafeTaskRewardCount = 0;
         cafePassiveCashSinceTask = 0;
+        cafeReviewPassiveCredits = 0;
+        cafeDailyFirstRewardDay = "";
         cafeStores = 1;
         cafeInvestmentLevel = 0;
         cafeUpgrades.clear();
@@ -1909,6 +2233,42 @@ public final class ProgressStore {
                     clearDates.add(s);
                 }
             }
+            // 目盛りを細かくする前のファイルは1点=1で入っている。4倍して読み替える
+            int weightScale = MiniJson.intOf(root, "reviewWeightScale", 1);
+            int weightFactor = weightScale >= REVIEW_WEIGHT_SCALE
+                    ? 1
+                    : REVIEW_WEIGHT_SCALE / Math.max(1, weightScale);
+            MiniJson.obj(root, "reviewWeight").forEach((id, v) -> {
+                if (v instanceof Number n) {
+                    int weight = Math.min(MAX_REVIEW_WEIGHT,
+                            Math.max(0, n.intValue() * weightFactor));
+                    if (weight > 0) {
+                        reviewWeight.put(migrateKey(id), weight);
+                    }
+                }
+            });
+            MiniJson.obj(root, "reviewPlans").forEach((id, v) -> {
+                Map<String, Object> plan = MiniJson.asObj(v);
+                int level = Math.max(0, Math.min(REVIEW_INTERVAL_DAYS.length - 1,
+                        MiniJson.intOf(plan, "level", 0)));
+                String lastAt = MiniJson.str(plan, "at", "");
+                String lastFailAt = MiniJson.str(plan, "failAt", "");
+                if (!lastAt.isEmpty() && !isDate(lastAt)) {
+                    lastAt = "";
+                }
+                if (!lastFailAt.isEmpty() && !isDate(lastFailAt)) {
+                    lastFailAt = "";
+                }
+                reviewPlans.put(migrateKey(id), new ReviewPlan(level, lastAt, lastFailAt));
+            });
+            for (Object o : MiniJson.list(root, "bookmarks")) {
+                if (o instanceof String s) {
+                    bookmarks.add(migrateKey(s));
+                }
+            }
+            if (!root.containsKey("reviewWeight")) {
+                seedReviewWeightFromAttempts();
+            }
 
             if (hasCafeState) {
                 Map<String, Object> cafe = MiniJson.obj(root, "cafe");
@@ -1920,6 +2280,9 @@ public final class ProgressStore {
                 cafeRewardSequence = longOf(cafe, "rewardSequence", 0);
                 cafeTaskRewardCount = longOf(cafe, "taskRewardCount", cleared.size());
                 cafePassiveCashSinceTask = longOf(cafe, "passiveCashSinceTask", 0);
+                cafeReviewPassiveCredits = Math.min(MAX_REVIEW_PASSIVE_CREDITS,
+                        Math.max(0, MiniJson.intOf(cafe, "reviewPassiveCredits", 0)));
+                cafeDailyFirstRewardDay = MiniJson.str(cafe, "dailyFirstRewardDay", "");
                 cafeStores = Math.min(MAX_CAFE_STORES,
                         Math.max(1, MiniJson.intOf(cafe, "storeCount", 1)));
                 cafeInvestmentLevel = Math.min(1_000,
@@ -2014,6 +2377,24 @@ public final class ProgressStore {
             //   達成条件や連続正解数まで消える必要がある）
             clearAllState();
         }
+    }
+
+    /**
+     * 復習モードより前の進捗ファイルに、これまでの提出回数から苦手度を作る。
+     *
+     * 苦手度を記録していなかった頃のファイルには「どの問題で間違えたか」が残っていないが、
+     * 初クリアまでの提出回数（{@link Cleared#attempts()}）は分かる。2回以上かかった問題は
+     * 少なくともその回数ぶん間違えているので、それを初期値にする。こうしないと、
+     * これまで解いてきた人の復習が全問同じ頻度から始まり、苦手な問題が埋もれてしまう。
+     */
+    private void seedReviewWeightFromAttempts() {
+        cleared.forEach((key, c) -> {
+            // 当時の1回は採点1回ぶんなので、新しい目盛りではそのまま1単位で数える
+            int misses = Math.min(MAX_REVIEW_WEIGHT, c.attempts() - 1);
+            if (misses > 0) {
+                reviewWeight.put(key, misses);
+            }
+        });
     }
 
     /**
@@ -2118,6 +2499,18 @@ public final class ProgressStore {
         m.put("bestPassed", new LinkedHashMap<>(bestPassed));
         m.put("quizChoices", new LinkedHashMap<>(quizChoices));
         m.put("clearDates", new ArrayList<>(clearDates));
+        m.put("reviewWeightScale", REVIEW_WEIGHT_SCALE);
+        m.put("reviewWeight", new LinkedHashMap<>(reviewWeight));
+        Map<String, Object> plans = new LinkedHashMap<>();
+        reviewPlans.forEach((key, plan) -> {
+            Map<String, Object> pm = new LinkedHashMap<>();
+            pm.put("level", plan.level());
+            pm.put("at", plan.lastAt());
+            pm.put("failAt", plan.lastFailAt());
+            plans.put(key, pm);
+        });
+        m.put("reviewPlans", plans);
+        m.put("bookmarks", new ArrayList<>(bookmarks));
 
         Map<String, Object> cafe = new LinkedHashMap<>();
         cafe.put("economyVersion", CAFE_ECONOMY_VERSION);
@@ -2127,6 +2520,8 @@ public final class ProgressStore {
         cafe.put("rewardSequence", cafeRewardSequence);
         cafe.put("taskRewardCount", cafeTaskRewardCount);
         cafe.put("passiveCashSinceTask", cafePassiveCashSinceTask);
+        cafe.put("reviewPassiveCredits", cafeReviewPassiveCredits);
+        cafe.put("dailyFirstRewardDay", cafeDailyFirstRewardDay);
         cafe.put("storeCount", cafeStores);
         cafe.put("investmentLevel", cafeInvestmentLevel);
         cafe.put("ownedUpgrades", new ArrayList<>(cafeUpgrades));

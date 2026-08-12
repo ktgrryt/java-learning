@@ -285,16 +285,28 @@ body.sidebar-hidden .content { margin-left: 0; }
 
 /* ── サイドバー: 章とレッスン ───────────────────────────────────────── */
 
+/* 編の見出しは上端に貼り付けて、章を追ってスクロールしている間も
+   「いま何編を見ているか」が分かるようにする。次の編の見出しが下から
+   押し上げていくので、常に手前の1枚だけが残る。
+   裏を章が通るので、
+   - 背景は不透明にする
+   - 左右はサイドバーのパディング分（-12px）まで広げる（端の隙間から覗かないように）
+   - 上下の余白は margin ではなく padding で持たせる（margin があるとその分だけ
+     下がった位置で止まり、上に隙間ができてしまう） */
 .side-part-head {
+  position: sticky;
+  top: 0;
+  z-index: 2;
   display: flex;
   align-items: center;
   gap: 7px;
-  margin: 14px 6px 8px;
-  padding: 9px 8px 8px;
+  margin: 0 -12px 8px;
+  padding: 23px 26px 8px;
+  background: var(--bg-elev);
   border-bottom: 1px solid var(--border);
   color: var(--text-dim);
 }
-.side-part-head:first-child { margin-top: 0; }
+.side-part-head:first-child { padding-top: 9px; }
 .side-part-head.current { color: var(--text); border-bottom-color: var(--accent); }
 .side-part-emoji { flex: none; font-size: 15px; }
 .side-part-title { flex: 1; font-size: 12.5px; font-weight: 800; letter-spacing: 0.04em; }
@@ -2058,6 +2070,99 @@ pre.code-plain { color: var(--text-dim); }
 }
 .editor-input::selection { background: rgba(232, 163, 61, 0.28); }
 
+/* ── コード補完の候補 ───────────────────────────────────────────────
+   エディタの箱は overflow:hidden なので、その中に候補を置くと切れてしまう。
+   窓は body 直下に置き、カーソルの座標に合わせて position:fixed で動かす
+   （座標の計算は complete.js）。 */
+
+.cmp-popup {
+  position: fixed;
+  z-index: 120;           /* ヘッダ(40)やトースト(90)より前に出す */
+  min-width: 260px;
+  max-width: 480px;
+  background: var(--bg-elev-2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.42);
+  overflow: hidden;
+  font-family: var(--mono);
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.cmp-list {
+  margin: 0;
+  padding: 4px;
+  list-style: none;
+  max-height: 236px;      /* 8件ぶん。それ以上はスクロールする */
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.cmp-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 6px;
+  border-radius: 5px;
+  color: var(--text);
+  white-space: nowrap;
+  cursor: pointer;
+}
+.cmp-item:hover { background: rgba(232, 163, 61, 0.08); }
+.cmp-item.is-selected { background: rgba(232, 163, 61, 0.16); }
+
+/* 種類を表す1文字の印。色はコードの色付けと合わせてある
+   （メソッドは黄、型は水色、キーワードは桃色…） */
+.cmp-icon {
+  flex: none;
+  width: 17px;
+  height: 17px;
+  border-radius: 4px;
+  background: var(--text-dim);
+  color: var(--bg-code);
+  font-size: 10.5px;
+  font-weight: 700;
+  line-height: 17px;
+  text-align: center;
+}
+.cmp-icon-method { background: var(--tok-fn); }
+.cmp-icon-field { background: var(--info); }
+.cmp-icon-var { background: var(--ok); }
+.cmp-icon-class,
+.cmp-icon-type { background: var(--tok-type); }
+.cmp-icon-keyword,
+.cmp-icon-literal { background: var(--tok-keyword); }
+
+.cmp-label { flex: none; }
+.cmp-label b { color: var(--accent); font-weight: 700; }
+
+.cmp-detail {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-align: right;
+  color: var(--text-faint);
+  font-size: 12px;
+}
+
+.cmp-doc {
+  padding: 7px 10px;
+  border-top: 1px solid var(--border-soft);
+  background: var(--bg-elev);
+  color: var(--text-dim);
+  font-family: var(--sans);
+  font-size: 12.5px;
+  white-space: normal;
+}
+.cmp-doc b {
+  margin-right: 7px;
+  color: var(--tok-type);
+  font-family: var(--mono);
+  font-weight: 600;
+}
+
 .actions {
   display: flex;
   align-items: center;
@@ -2437,6 +2542,233 @@ pre.code-plain { color: var(--text-dim); }
 .quiz-explain { margin-top: 9px; font-size: 13px; color: var(--text-dim); }
 .quiz-explain .md-p:last-child { margin-bottom: 0; }
 
+/* ── 復習モード ─────────────────────────────────────────────────────
+   .card や .lesson-next の見た目を上書きするところがあるので、
+   それらより後ろに置いてある（同じ強さのセレクタは後ろが勝つため）。 */
+
+/* 「続ける」と「復習する」は縦に並べる。横並びにすると、どちらが本命の動線か
+   分からなくなる。幅を揃えて下に付けることで、次点の入口だと分かる。 */
+.hero-buttons {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 156px;
+}
+.review-cta {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+  padding: 8px 20px;
+  border-radius: 11px;
+  font-size: 13.5px;
+}
+.review-cta small { color: var(--text-faint); font-size: 10.5px; }
+.review-cta:disabled { opacity: 0.55; }
+
+/* ── 復習ホーム ──────────────────────────────────────────────────── */
+
+.review-filters { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0 14px; }
+.review-filter {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 13px;
+  border: 1px solid var(--border-soft);
+  border-radius: 10px;
+  background: var(--bg-elev-2);
+  color: var(--text-dim);
+  text-align: left;
+  transition: color 0.15s, border-color 0.15s;
+}
+.review-filter:hover:not(:disabled):not(.active) {
+  border-color: var(--text-faint);
+  color: var(--text);
+}
+.review-filter.active {
+  border-color: color-mix(in srgb, var(--accent) 55%, var(--border));
+  background: color-mix(in srgb, var(--accent) 12%, var(--bg-elev-2));
+  color: var(--text);
+}
+.review-filter:disabled { opacity: 0.45; }
+.review-filter-icon { display: flex; align-items: center; font-size: 14px; line-height: 1; }
+.review-filter-copy { display: flex; flex-direction: column; line-height: 1.25; }
+.review-filter-copy strong { font-size: 12.5px; font-weight: 600; }
+.review-filter-copy small { color: var(--text-faint); font-size: 10.5px; }
+
+.review-summary,
+.review-empty {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 18px 22px;
+  border: 1px solid var(--border-soft);
+  border-radius: 14px;
+  background: var(--bg-elev);
+}
+.review-summary-icon,
+.review-empty-icon { flex: none; font-size: 28px; }
+.review-summary strong,
+.review-empty strong { font-size: 14px; }
+.review-summary p,
+.review-empty p { margin: 4px 0 0; color: var(--text-dim); font-size: 12.5px; }
+.review-empty .primary-btn { flex: none; margin-left: auto; }
+
+.review-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 4px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.review-row { display: flex; align-items: stretch; gap: 6px; }
+.review-row-main {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 13px;
+  border: 1px solid var(--border-soft);
+  border-radius: 10px;
+  background: var(--bg-elev);
+  color: var(--text);
+  text-align: left;
+  transition: border-color 0.15s;
+}
+.review-row-main:hover { border-color: color-mix(in srgb, var(--accent) 45%, var(--border)); }
+.review-row-id {
+  flex: none;
+  min-width: 42px;
+  color: var(--text-dim);
+  font-family: var(--mono);
+  font-size: 11.5px;
+}
+.review-row-copy { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.review-row-copy strong {
+  overflow: hidden;
+  font-size: 13px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.review-row-copy small { color: var(--text-faint); font-size: 11px; }
+.review-list-more { margin-top: 10px; }
+
+/* 次に確認したい日。期限を過ぎたものだけ色を変える（色だけに頼らず言葉も入れる）。 */
+.review-due {
+  flex: none;
+  margin-left: auto;
+  padding: 3px 9px;
+  border: 1px solid var(--border-soft);
+  border-radius: 999px;
+  font-size: 11px;
+  white-space: nowrap;
+  color: var(--text-faint);
+}
+.review-due.overdue {
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
+  color: var(--accent);
+  font-weight: 600;
+}
+
+/* 苦手度。色だけで示すと分からない人がいるので、必ず言葉も入れる。 */
+.review-weight {
+  flex: none;
+  padding: 3px 9px;
+  border: 1px solid var(--border-soft);
+  border-radius: 999px;
+  font-size: 11px;
+  white-space: nowrap;
+}
+.review-weight[data-level="0"] { color: var(--text-faint); }
+.review-weight[data-level="1"] {
+  border-color: color-mix(in srgb, var(--info) 40%, var(--border));
+  color: var(--info);
+}
+.review-weight[data-level="2"] {
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
+  color: var(--accent);
+}
+.review-weight[data-level="3"] {
+  border-color: color-mix(in srgb, var(--ng) 45%, var(--border));
+  color: var(--ng);
+}
+
+/* ── ブックマーク ────────────────────────────────────────────────── */
+
+.bookmark-btn {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 6px 10px;
+  border: 1px solid var(--border-soft);
+  border-radius: 9px;
+  background: transparent;
+  color: var(--text-faint);
+  transition: color 0.15s, border-color 0.15s;
+}
+.bookmark-btn:hover:not(:disabled) { border-color: var(--text-dim); color: var(--text-dim); }
+.bookmark-btn.on {
+  border-color: color-mix(in srgb, var(--accent) 50%, var(--border));
+  color: var(--accent);
+}
+/* しおりは現在の文字色で描くSVG（.bookmark-btn.on ならアクセント色になる） */
+.bookmark-mark { display: flex; align-items: center; line-height: 1; }
+.bookmark-icon { display: block; }
+.bookmark-label { font-size: 11px; }
+/* 問題の見出しと一覧の行は幅が足りないので、印だけにして文字は読み上げ用に残す */
+.task-block-head .bookmark-label,
+.review-row .bookmark-label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+.review-row .bookmark-btn { padding: 0 13px; }
+
+/* ── 復習で1問を解く画面 ──────────────────────────────────────────── */
+
+.review-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 16px;
+  padding: 10px 14px;
+  border: 1px solid color-mix(in srgb, var(--accent) 35%, var(--border-soft));
+  border-radius: 11px;
+  background: color-mix(in srgb, var(--accent) 8%, var(--bg-elev));
+}
+.review-bar .spacer { flex: 1; }
+.review-bar-title { color: var(--accent); font-size: 12.5px; font-weight: 600; }
+.review-bar-progress {
+  padding: 2px 9px;
+  border-radius: 999px;
+  background: var(--bg-elev-2);
+  color: var(--text-dim);
+  font-family: var(--mono);
+  font-size: 11.5px;
+}
+.review-bar-note { color: var(--text-faint); font-size: 11px; }
+
+.review-explain { padding: 0; margin-bottom: 16px; }
+.review-explain > summary {
+  padding: 12px 16px;
+  color: var(--text-dim);
+  font-size: 12.5px;
+  cursor: pointer;
+}
+.review-explain > summary:hover { color: var(--text); }
+.review-explain[open] > summary { border-bottom: 1px solid var(--border-soft); }
+.review-explain-body { padding: 6px 20px 16px; }
+
 @media (max-width: 900px) {
   :root { --sidebar-w: 0px; }
   .menu-hero { padding: 22px; gap: 22px; justify-content: center; text-align: center; }
@@ -2492,6 +2824,8 @@ pre.code-plain { color: var(--text-dim); }
 }
 
 @media (max-width: 560px) {
+  .cmp-popup { min-width: 0; max-width: calc(100vw - 20px); }
+  .cmp-list { max-height: 180px; }
   .topbar { gap: 8px; padding: 0 10px; }
   .brand { padding-right: 5px; }
   .brand-name { display: none; }
@@ -2506,6 +2840,15 @@ pre.code-plain { color: var(--text-dim); }
   .learning-hero .hero-body { min-width: 0; text-align: left; }
   .hero-action { align-items: stretch; flex-direction: column; gap: 12px; }
   .primary-btn.big { width: 100%; }
+  .hero-buttons { min-width: 0; }
+  .review-filters { gap: 6px; }
+  .review-filter { flex: 1 1 auto; justify-content: center; padding: 7px 10px; }
+  .review-summary,
+  .review-empty { align-items: flex-start; flex-direction: column; gap: 12px; }
+  .review-empty .primary-btn { width: 100%; margin-left: 0; }
+  .review-row-main { gap: 8px; padding: 9px 11px; }
+  .review-row-id { min-width: 0; }
+  .review-bar-note { display: none; }
   .part-tab-sub { display: none; }
   .screen-heading { align-items: flex-start; flex-direction: column; gap: 12px; }
   .cafe-page .cafe-scene-slot { min-height: 220px; }
@@ -2599,6 +2942,25 @@ pre.code-plain { color: var(--text-dim); }
 .guide-foot { font-size: 12.5px; }
 .guide-text b { font-size: 14px; }
 kbd { font-size: 12.5px; }
+
+/* 復習モード。苦手度と件数は判断に使う文字なので、飾りより大きめに保つ。 */
+.review-cta small,
+.review-filter-copy small,
+.review-row-copy small,
+.review-bar-note,
+.review-list-more { font-size: 12px; }
+.review-filter-copy strong,
+.review-row-copy strong,
+.review-bar-title,
+.review-summary strong,
+.review-empty strong { font-size: 14px; }
+.review-weight,
+.review-due,
+.review-row-id,
+.review-bar-progress { font-size: 12.5px; }
+.review-cta { font-size: 15px; }
+.review-summary p,
+.review-empty p { font-size: 13px; }
 
 /* カフェの飾り文字は縮尺を保ち、操作と説明の文字だけを大きくする。 */
 .cafe-balance small,

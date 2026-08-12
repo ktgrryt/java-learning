@@ -9,6 +9,7 @@
  *   - Enter で前の行のインデントを引き継ぐ。`{` の後ろなら1段深くする
  *   - `{` `(` `[` を自動で閉じる。自分で閉じ記号を打ったときは重複させず通り抜ける
  *   - 引用符は入力・削除とも1文字ずつ扱う（勝手に2個入ったように見せない）
+ *   - 書きかけの語から補完候補を出す（complete.js）。Tab で選んだ候補を入れる
  */
 (function (global) {
   'use strict';
@@ -21,7 +22,6 @@
   function Editor(host) {
     this.host = host;
     this.onSubmit = null;
-    this.onRun = null;
     this._isComposing = false;
     this._build();
   }
@@ -42,8 +42,14 @@
     this.code = this.host.querySelector('.editor-highlight code');
     this.input = this.host.querySelector('.editor-input');
 
+    // コード補完。complete.js が読み込まれていなければ、無しで動く
+    this.complete = global.JQComplete ? new global.JQComplete.Completer(this) : null;
+
     var self = this;
-    this.input.addEventListener('input', function () { self._refresh(); });
+    this.input.addEventListener('input', function () {
+      self._refresh();
+      if (self.complete && !self._isComposing) { self.complete.onInput(); }
+    });
     this.input.addEventListener('scroll', function () { self._syncScroll(); });
     this.input.addEventListener('keydown', function (e) { self._onKeyDown(e); });
     // 日本語IMEの変換確定Enterを、自動改行やショートカットとして扱わない。
@@ -51,6 +57,7 @@
     // compositionstart/end の状態も別に保持する。
     this.input.addEventListener('compositionstart', function () {
       self._isComposing = true;
+      if (self.complete) { self.complete.close(); }   // 変換中に候補を重ねない
     });
     this.input.addEventListener('compositionend', function () {
       self._isComposing = false;
@@ -63,6 +70,7 @@
   };
 
   Editor.prototype.setValue = function (text) {
+    if (this.complete) { this.complete.close(); }
     this.input.value = text == null ? '' : text;
     this._refresh();
     this.input.scrollTop = 0;
@@ -121,6 +129,19 @@
     this._refresh();
   };
 
+  /**
+   * 範囲を書き換える。補完（complete.js）が選ばれた候補を差し込むのに使う。
+   * caretOffset は、入れた文字列の先頭から数えたカーソルの位置。
+   */
+  Editor.prototype.replaceRange = function (from, to, text, caretOffset) {
+    var el = this.input;
+    // execCommand は focus が当たっていないと何もしないので、先に戻す
+    if (document.activeElement !== el) { el.focus(); }
+    el.selectionStart = from;
+    el.selectionEnd = to;
+    this._insert(text, caretOffset === undefined ? text.length : caretOffset);
+  };
+
   Editor.prototype._onKeyDown = function (e) {
     var el = this.input;
     var mod = e.metaKey || e.ctrlKey;
@@ -132,14 +153,18 @@
       return;
     }
 
+    // ---- 補完の操作 --------------------------------------------------------
+    // 候補が出ているときだけ ↑↓ Tab Esc を横取りする。
+    // 出ていなければ false が返るので、この下のTabやEnterの処理がそのまま働く。
+    if (this.complete && this.complete.handleKeyDown(e)) {
+      return;
+    }
+
     // ---- ショートカット ----------------------------------------------------
+    // 実行＝採点なので、⌘/Ctrl + Enter の1つだけ。Shiftの有無では区別しない
     if (mod && e.key === 'Enter') {
       e.preventDefault();
-      if (e.shiftKey) {
-        if (this.onRun) { this.onRun(); }
-      } else if (this.onSubmit) {
-        this.onSubmit();
-      }
+      if (this.onSubmit) { this.onSubmit(); }
       return;
     }
     if (mod && (e.key === 's' || e.key === 'S')) {

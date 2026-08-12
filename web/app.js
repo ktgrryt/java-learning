@@ -8,6 +8,8 @@
  * 画面はURLのハッシュで切り替える。
  *   #menu（または空） … 学習ホーム（章メニュー）
  *   #cafe              … Java Café（設備から段階的に経営要素を解放）
+ *   #review            … 復習モード（クリア済みの問題を解き直す）
+ *   #review/3-2/1      … その問題を1問だけ復習する
  *   #3-2 のようなID    … そのレッスン
  * レッスンの順番にロックはかけていない。どこからでも自由に開ける。
  */
@@ -24,13 +26,23 @@
   var chapterIndex = {};   // 章ID -> 章
   var lessonList = [];     // 全レッスンを出題順に並べたもの
   var currentId = null;    // いま開いているレッスンID（ホーム／カフェ表示中は null）
-  var currentView = 'menu'; // menu / cafe / lesson
+  var currentView = 'menu'; // menu / cafe / lesson / review / reviewTask
   var editors = {};        // 問題ID -> エディタ（1レッスンに複数問あるので複数持つ）
   var saveTimers = {};     // 問題ID -> 自動保存のタイマー
   var busyTask = null;     // 実行・採点中の問題ID（同時に走らせない）
   var sideExpanded = {};   // サイドバーで開いている章のID（既定は全部たたむ）
+  var sideScrolledFor = null; // サイドバーのスクロールを合わせた単元のID（同じ単元なら動かさない）
   var activePartId = null; // メニューで表示中の大区分（Java基礎編 / Web・Jakarta EE編など）
   var selectedChapterByPart = {}; // ホームの編ごとに、最後に見ていた章を覚える
+
+  // 復習モード。セッションは画面の中だけで持つ（再読込したら1問復習に戻る）
+  var reviewSession = null; // { queue: [{lessonId, taskId}], index, cleared, clearedKeys }
+  var reviewTaskId = null;  // 復習で開いている問題ID（レッスンIDは currentId）
+  var reviewFilter = 'all'; // 復習の絞り込み（all / weak / bookmark）
+  var reviewSummary = null; // 直前に終えたセッションの結果。復習ホームの先頭に1回だけ出す
+  var REVIEW_SESSION_SIZE = 10;
+  var REVIEW_LIST_LIMIT = 50; // 一覧に並べる上限。残りは件数だけ知らせる
+
   var activeCafeSection = 'equipment'; // equipment / network / items
   var cafePassiveTimer = null;
   var cafePassiveSessionId = null;
@@ -274,7 +286,7 @@
       }
     });
 
-    // ★・通過ケース数・ヒント開示数は問題ごとに持っている
+    // ★・通過ケース数・ヒント開示数・復習の苦手度は問題ごとに持っている
     var taskUpdates = {};
     (delta.tasks || []).forEach(function (t) { taskUpdates[t.lessonId + '#' + t.taskId] = t; });
     allLessons().forEach(function (l) {
@@ -285,6 +297,8 @@
           t.passedCount = u.passedCount;
           t.hintsRevealed = u.hintsRevealed;
           t.solutionUnlocked = u.solutionUnlocked;
+          t.bookmarked = u.bookmarked;
+          t.reviewWeight = u.reviewWeight;
         }
       });
     });
@@ -305,8 +319,11 @@
   function cafeState() {
     return state.progress.cafe || {
       cash: 0, cups: 0, cupPrice: 500, bonusPercent: 0, salesBonusPercent: 0,
-      streakBonusPercent: 0, extraCups: 0, chapterBonusPercent: 0,
+      dailyFirstBonusPercent: 0, dailyFirstBonusReady: true, streakDays: 0,
+      extraCups: 0, chapterBonusPercent: 0,
       quizTipPercent: 0, clearedChapters: 0, brandMultiplierBasisPoints: 10000,
+      reviewBrandBasisPoints: 0, reviewedTasks: 0, reviewedTaskPercent: 0,
+      equipmentDiscountPercent: 0,
       storeCount: 1, maxStores: 512, nextStoreGain: 1, nextStoreCount: 2,
       storeLimit: 1, nextStoreUnlockStars: 4,
       expansionCost: null, lifetimeCash: 0, ownedItems: [], items: [],
@@ -389,6 +406,7 @@
 
   function renderSidebar() {
     var nav = document.getElementById('sidebar');
+    var keepScrollTop = nav.scrollTop;
     nav.innerHTML = '';
 
     var lastPartId = null;
@@ -465,6 +483,33 @@
 
       nav.appendChild(section);
     });
+
+    // 作り直すとスクロールは先頭に戻ってしまう。章をたたんだだけなら見ていた位置に
+    // 戻し、開いている単元が変わったとき（最初の描画や別レッスンへ移ったとき）だけ
+    // その単元まで動かす。
+    nav.scrollTop = keepScrollTop;
+    if (currentId !== sideScrolledFor) { scrollSidebarToCurrent(nav); }
+  }
+
+  /**
+   * いま開いている単元が見える位置までサイドバーをスクロールする。
+   * サイドバーを閉じている間（display:none）は寸法が測れないので何もせず、
+   * ☰ で開いたときにやり直す。
+   */
+  function scrollSidebarToCurrent(nav) {
+    nav = nav || document.getElementById('sidebar');
+    if (!nav || !nav.clientHeight) { return; }   // 閉じている＝測れない
+    sideScrolledFor = currentId;
+    var target = nav.querySelector('.lesson-current');
+    // 章をたたんでいると単元は見えていないので、そのときは章の見出しに寄せる。
+    if (!target || !target.offsetParent) { target = nav.querySelector('.ch-current'); }
+    if (!target) { return; }
+    // 真ん中あたりに置く。前後の単元も一緒に見えるので現在地が分かりやすく、
+    // 貼り付いた編の見出しの裏に隠れることもない。
+    var box = target.getBoundingClientRect();
+    var offset = (box.top - nav.getBoundingClientRect().top)
+      - Math.max(0, (nav.clientHeight - box.height) / 2);
+    nav.scrollTop += offset;
   }
 
   /**
@@ -515,6 +560,10 @@
     if (goBtn) {
       goBtn.addEventListener('click', function () { selectLesson(goBtn.dataset.target); });
     }
+    var reviewBtn = document.getElementById('reviewBtn');
+    if (reviewBtn && !reviewBtn.disabled) {
+      reviewBtn.addEventListener('click', goReview);
+    }
     document.getElementById('resetBtn').addEventListener('click', resetProgress);
     main.scrollTop = 0;
   }
@@ -540,12 +589,621 @@
       '      <div class="hero-next"><div class="cta-lead">' + esc(lead) + '</div>' +
       (lesson ? '      <div class="cta-target"><span class="cta-id">' + esc(displayLessonId(lesson)) + '</span>'
         + esc(lesson.title) + '</div>' : '') + '</div>' +
-      '      <button class="primary-btn big" id="continueBtn" data-target="' + esc(target) + '">' +
-             esc(label) +
-      '      </button>' +
+      '      <div class="hero-buttons">' +
+      '        <button class="primary-btn big" id="continueBtn" data-target="' + esc(target) + '">' +
+               esc(label) +
+      '        </button>' +
+               reviewHeroButtonHtml(stars) +
+      '      </div>' +
       '    </div>' +
       '  </div>' +
       '</section>';
+  }
+
+  /**
+   * 「続ける」の下に置く復習の入口。
+   * まだ1問もクリアしていないうちは解き直せるものが無いので、押せないまま理由を出す。
+   */
+  function reviewHeroButtonHtml(stars) {
+    if (!stars) {
+      return '<button class="ghost-btn big review-cta" id="reviewBtn" disabled' +
+        ' title="問題を1問クリアすると復習できます">🔁 復習する' +
+        '<small>クリア後に使えます</small></button>';
+    }
+    var weak = reviewCandidates().filter(function (entry) { return entry.weight > 0; }).length;
+    return '<button class="ghost-btn big review-cta" id="reviewBtn">🔁 復習する' +
+      '<small>' + (weak ? '苦手 ' + weak + '問' : '間違えた問題はありません') + '</small></button>';
+  }
+
+  // ------------------------------------------------------------ 復習モード
+
+  /*
+   * 復習モードは「クリア済みの問題をもう一度解く」場所。
+   *
+   * 出題は抽選で決める。間違えた回数（苦手度 = task.reviewWeight）が多い問題ほど
+   * 当たりやすくし、復習で正解するとサーバ側で苦手度が下がるので、次からは出にくくなる。
+   * 出題は<b>忘却曲線の期限順</b>で決める。問題ごとに「次に確認したい日」をサーバが持ち
+   * （最後に復習した日 + レベルごとの間隔）、期限が過ぎたものから順に出す。
+   * 一度正解すると間隔が伸びるので、しばらく出てこない。
+   *
+   * 期限が来たものが10問に足りない日は、期限が近い順で「早めの復習」として補う。
+   * 0問の画面を見せると復習の習慣が途切れるので、いつでも始められる形にしてある。
+   *
+   * 苦手度と期限はサーバが持つ（web側で数えると再読込でズレる）。ここでは
+   * サーバから来た値を読んで、並べ替えと表示に使うだけ。
+   */
+
+  /** 復習できる問題（クリア済みのもの）を、出題順の元になる配列にして返す。 */
+  function reviewCandidates() {
+    var list = [];
+    allLessons().forEach(function (lesson) {
+      lesson.tasks.forEach(function (task) {
+        if (!task.cleared) { return; }
+        var dueDays = task.reviewDueDays == null ? 0 : Number(task.reviewDueDays);
+        list.push({
+          lesson: lesson,
+          task: task,
+          weight: Number(task.reviewWeight || 0),
+          bookmarked: !!task.bookmarked,
+          level: Number(task.reviewLevel || 0),
+          dueDays: dueDays,
+          overdue: dueDays <= 0
+        });
+      });
+    });
+    return list;
+  }
+
+  function reviewMatchesFilter(entry, filter) {
+    if (filter === 'weak') { return entry.weight > 0; }
+    if (filter === 'bookmark') { return entry.bookmarked; }
+    return true;
+  }
+
+  function filteredReviewCandidates(filter) {
+    return reviewCandidates().filter(function (entry) {
+      return reviewMatchesFilter(entry, filter);
+    });
+  }
+
+  function reviewFilterLabel(filter) {
+    if (filter === 'weak') { return '苦手な問題'; }
+    if (filter === 'bookmark') { return 'ブックマークした問題'; }
+    return 'クリア済みの問題';
+  }
+
+  /**
+   * 苦手度は4単位で1点。失敗1回は1単位しか増えないので、表示は点に直して見せる。
+   *
+   * 「実行」＝「採点」にしたぶん、書いている途中の失敗も全部届く。1回で1点上げると
+   * 試行錯誤しただけで振り切れてしまうため、サーバ側で細かい目盛りにしてある。
+   */
+  var REVIEW_WEIGHT_SCALE = 4;
+
+  function reviewWeightPoints(weight) {
+    return Number(weight || 0) / REVIEW_WEIGHT_SCALE;
+  }
+
+  function reviewWeightLevel(weight) {
+    var points = reviewWeightPoints(weight);
+    if (points >= 5) { return 3; }
+    if (points >= 3) { return 2; }
+    if (points >= 1) { return 1; }
+    return 0;
+  }
+
+  /** 苦手度の見せ方。数字だけでは何回で危ないのか伝わらないので、短い言葉にする。 */
+  function reviewWeightText(weight) {
+    var points = reviewWeightPoints(weight);
+    if (points >= 5) { return '🔥 よく間違えた'; }
+    if (points >= 3) { return '🔥 苦手'; }
+    if (points >= 1) { return 'もう一度'; }
+    return '安定';
+  }
+
+  /** 期限の見せ方。「いつ確認したいのか」が一目で分かる短い言葉にする。 */
+  function reviewDueText(entry) {
+    if (entry.dueDays <= -1) { return '⏰ ' + (-entry.dueDays) + '日 過ぎている'; }
+    if (entry.dueDays === 0) { return '⏰ 今日が期限'; }
+    if (entry.dueDays === 1) { return '明日が期限'; }
+    return 'あと' + entry.dueDays + '日';
+  }
+
+  /**
+   * 出題の並び順。期限を過ぎたものが先、その中では過ぎている日数が多い順。
+   *
+   * 同じ日数なら、苦手なもの・ブックマークしたものを先に出す。抽選をやめたのは、
+   * 「そろそろ確認したい問題」を運任せにすると、期限切れが後回しになるため。
+   */
+  function compareReviewEntries(a, b) {
+    if (a.overdue !== b.overdue) { return a.overdue ? -1 : 1; }
+    if (a.dueDays !== b.dueDays) { return a.dueDays - b.dueDays; }
+    if (b.weight !== a.weight) { return b.weight - a.weight; }
+    return (b.bookmarked ? 1 : 0) - (a.bookmarked ? 1 : 0);
+  }
+
+  /**
+   * 今回の出題を決める。期限が過ぎたものを先に、足りなければ期限が近い順で補う。
+   *
+   * 1セッションを {@code REVIEW_SESSION_SIZE} 問で切るのは、終わりが見えないと
+   * 復習を始めにくいため。
+   */
+  function buildReviewQueue(filter) {
+    return filteredReviewCandidates(filter)
+      .sort(compareReviewEntries)
+      .slice(0, REVIEW_SESSION_SIZE)
+      .map(function (entry) {
+        return { lessonId: entry.lesson.id, taskId: entry.task.id };
+      });
+  }
+
+  function setReviewFilter(filter) {
+    reviewFilter = filter;
+    try { localStorage.setItem('jq-review-filter', filter); } catch (e) { /* 使えなくても困らない */ }
+    renderReview();
+  }
+
+  function startReviewSession(filter) {
+    var queue = buildReviewQueue(filter);
+    if (!queue.length) {
+      toast('この絞り込みには復習できる問題がありません');
+      return;
+    }
+    reviewSummary = null;
+    reviewSession = { queue: queue, index: 0, cleared: 0, clearedKeys: {} };
+    selectReviewTask(queue[0].lessonId, queue[0].taskId);
+  }
+
+  /** 次の問題へ。最後まで来ていたらセッションを終えて復習ホームへ戻す。 */
+  function advanceReviewSession() {
+    if (!reviewSession) {
+      goReview();
+      return;
+    }
+    reviewSession.index++;
+    if (reviewSession.index >= reviewSession.queue.length) {
+      reviewSummary = { total: reviewSession.queue.length, cleared: reviewSession.cleared };
+      reviewSession = null;
+      goReview();
+      return;
+    }
+    var next = reviewSession.queue[reviewSession.index];
+    selectReviewTask(next.lessonId, next.taskId);
+  }
+
+  function endReviewSession() {
+    reviewSession = null;
+    reviewSummary = null;
+    goReview();
+  }
+
+  // ------------------------------------------------------- 復習ホームの描画
+
+  function renderReview() {
+    var candidates = reviewCandidates();
+    var counts = {
+      all: candidates.length,
+      weak: candidates.filter(function (entry) { return entry.weight > 0; }).length,
+      bookmark: candidates.filter(function (entry) { return entry.bookmarked; }).length
+    };
+    var overdue = candidates.filter(function (entry) { return entry.overdue; }).length;
+    // 絞り込んだ先が空になっていたら「すべて」へ戻す（0問の画面を見せないため）
+    if (reviewFilter === 'weak' && !counts.weak) { reviewFilter = 'all'; }
+    if (reviewFilter === 'bookmark' && !counts.bookmark) { reviewFilter = 'all'; }
+    var filter = reviewFilter;
+
+    var main = document.getElementById('content');
+    var head =
+      '  <header class="screen-heading">' +
+      '    <div><span class="screen-eyebrow">REVIEW</span>' +
+      '    <h1>🔁 復習する</h1>' +
+      '    <p>一度クリアした問題を解き直します。そろそろ確認したい問題から出ます。</p></div>' +
+      '    <button class="ghost-btn screen-back" id="backToLearningBtn">📚 章を選ぶ</button>' +
+      '  </header>';
+
+    if (!counts.all) {
+      main.innerHTML =
+        '<div class="menu review-page">' + head +
+        '  <section class="menu-section review-empty">' +
+        '    <span class="review-empty-icon">📚</span>' +
+        '    <div><strong>復習できる問題はまだありません</strong>' +
+        '    <p>問題を1問クリアすると、ここで解き直せるようになります。</p></div>' +
+        '    <button class="primary-btn" id="reviewEmptyBtn">章を選ぶ</button>' +
+        '  </section>' +
+        '</div>';
+      document.getElementById('backToLearningBtn').addEventListener('click', goHome);
+      document.getElementById('reviewEmptyBtn').addEventListener('click', goHome);
+      main.scrollTop = 0;
+      return;
+    }
+
+    var pool = filteredReviewCandidates(filter).slice().sort(compareReviewEntries);
+    var sessionSize = Math.min(REVIEW_SESSION_SIZE, pool.length);
+    var sessionOverdue = pool.slice(0, sessionSize)
+      .filter(function (entry) { return entry.overdue; }).length;
+    var hidden = Math.max(0, pool.length - REVIEW_LIST_LIMIT);
+    var shown = pool.slice(0, REVIEW_LIST_LIMIT);
+
+    main.innerHTML =
+      '<div class="menu review-page">' + head +
+      reviewSummaryHtml() +
+      '  <section class="menu-hero learning-hero review-hero">' +
+      '    <div class="hero-milestone" aria-label="期限が来た問題は' + overdue + '問">' +
+      '      <span>⏰</span><b>' + overdue + '</b><small>問 期限が来た</small>' +
+      '    </div>' +
+      '    <div class="hero-body">' +
+      '      <span class="screen-eyebrow">SPACED REVIEW</span>' +
+      '      <h1 class="hero-title">解き直して定着させる</h1>' +
+      '      <p class="hero-sub">忘却曲線で「そろそろ確認したい問題」から出ます · '
+        + '正解すると次に出るまでの間隔が伸びます</p>' +
+             reviewCafeNoteHtml() +
+             reviewFilterTabsHtml(counts, filter) +
+      '      <div class="hero-action">' +
+      '        <div class="hero-next"><div class="cta-lead">今回の出題</div>' +
+      '        <div class="cta-target">' + reviewQueueBreakdown(sessionSize, sessionOverdue)
+                 + '</div></div>' +
+      '        <button class="primary-btn big" id="reviewStartBtn">▶ 復習を始める</button>' +
+      '      </div>' +
+      '    </div>' +
+      '  </section>' +
+      '  <section class="menu-section review-list-section">' +
+      '    <header class="section-heading">' +
+      '      <div><span class="screen-eyebrow">PICK ONE</span>' +
+      '      <h2 class="menu-h2">1問だけ選んで復習する</h2></div>' +
+      '      <p class="menu-note">期限が近い順に並んでいます。'
+        + 'しおりのボタンで印を付けると、上で絞り込めます。</p>' +
+      '    </header>' +
+      '    <ul class="review-list">' + shown.map(reviewRowHtml).join('') + '</ul>' +
+      (hidden
+        ? '    <p class="menu-note review-list-more">ほか ' + hidden
+          + '問。「復習を始める」なら一覧に出ていない問題からも出題します。</p>'
+        : '') +
+      '  </section>' +
+      '</div>';
+
+    document.getElementById('backToLearningBtn').addEventListener('click', goHome);
+    document.getElementById('reviewStartBtn').addEventListener('click', function () {
+      startReviewSession(filter);
+    });
+    bindReviewFilters(main);
+    Array.prototype.forEach.call(main.getElementsByClassName('review-row-main'), function (button) {
+      button.addEventListener('click', function () {
+        selectReviewTask(button.dataset.lesson, button.dataset.task);
+      });
+    });
+    bindBookmarkButtons(main);
+    // 結果の知らせは1回だけ。開き直すたびに前回の成績が出ると、今の状態が読みにくい
+    reviewSummary = null;
+    main.scrollTop = 0;
+  }
+
+  /**
+   * 復習がカフェへ何を渡すのかを、復習ホームに1行で出す。
+   *
+   * 復習はコインを直接くれない（クリア済みの問題は何度でも解けるので、
+   * 払うと無限に稼げてしまう）。代わりに渡しているのは倍率と自動売上の枠なので、
+   * それが見えないと「復習はカフェに無関係」と読まれてしまう。
+   */
+  function reviewCafeNoteHtml() {
+    var cafe = cafeState();
+    var reviewed = Number(cafe.reviewedTasks || 0);
+    var brand = Number(cafe.reviewBrandBasisPoints || 0);
+    var detail = reviewed
+      ? '復習で仕上げた ' + numberText(reviewed) + '問がブランド倍率を +'
+        + multiplierText(brand) + ' 押し上げています'
+      : '復習で正解した問題はブランド倍率を育てます（1問につき1回）';
+    return '      <p class="hero-sub review-cafe-note">☕ ' + esc(detail)
+      + '・自動売上の枠も戻ります</p>';
+  }
+
+  /**
+   * 「今回の出題」の内訳。期限切れと、それを埋める早めの復習を分けて出す。
+   *
+   * 期限が来ていないものまで同じ顔で出すと「なぜこれが出たのか」が分からなくなるので、
+   * 補充ぶんはそう見えるようにしておく。
+   */
+  function reviewQueueBreakdown(sessionSize, sessionOverdue) {
+    if (!sessionSize) { return '復習できる問題がありません'; }
+    var early = sessionSize - sessionOverdue;
+    if (!early) { return '⏰ 期限切れ ' + sessionOverdue + '問'; }
+    if (!sessionOverdue) { return '早めの復習 ' + early + '問（期限前）'; }
+    return '⏰ 期限切れ ' + sessionOverdue + '問 ＋ 早めの復習 ' + early + '問';
+  }
+
+  function reviewSummaryHtml() {
+    if (!reviewSummary) { return ''; }
+    var perfect = reviewSummary.cleared === reviewSummary.total;
+    return '<section class="menu-section review-summary">' +
+      '<span class="review-summary-icon">' + (perfect ? '🎉' : '📝') + '</span>' +
+      '<div><strong>復習おつかれさまでした</strong>' +
+      '<p>' + reviewSummary.total + '問のうち ' + reviewSummary.cleared + '問に正解しました。' +
+      (perfect ? '全問正解です！' : '通らなかった問題は、次の復習で出やすくなります。') +
+      '</p></div></section>';
+  }
+
+  function reviewFilterTabsHtml(counts, filter) {
+    var tabs = [
+      { id: 'all', icon: '🔁', label: 'すべて', count: counts.all },
+      { id: 'weak', icon: '🔥', label: '苦手', count: counts.weak },
+      { id: 'bookmark', icon: bookmarkIconSvg(true), label: 'ブックマーク', count: counts.bookmark }
+    ];
+    return '<div class="review-filters" role="tablist" aria-label="復習の絞り込み">' +
+      tabs.map(function (tab) {
+        var active = tab.id === filter;
+        return '<button type="button" class="review-filter' + (active ? ' active' : '') + '"' +
+          ' role="tab" aria-selected="' + active + '" tabindex="' + (active ? '0' : '-1') + '"' +
+          ' data-filter="' + tab.id + '"' + (tab.count ? '' : ' disabled') + '>' +
+          '<span class="review-filter-icon">' + tab.icon + '</span>' +
+          '<span class="review-filter-copy"><strong>' + esc(tab.label) + '</strong>' +
+          '<small>' + tab.count + '問</small></span></button>';
+      }).join('') + '</div>';
+  }
+
+  /** 絞り込みタブ。カフェのタブと同じく ←→ でも移動できるようにする。 */
+  function bindReviewFilters(host) {
+    var tabs = Array.prototype.slice.call(host.getElementsByClassName('review-filter'));
+    tabs.forEach(function (button, index) {
+      button.addEventListener('click', function () { setReviewFilter(button.dataset.filter); });
+      button.addEventListener('keydown', function (event) {
+        if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') { return; }
+        event.preventDefault();
+        var direction = event.key === 'ArrowRight' ? 1 : -1;
+        for (var step = 1; step <= tabs.length; step++) {
+          var next = tabs[(index + direction * step + tabs.length * step) % tabs.length];
+          if (next && !next.disabled) {
+            setReviewFilter(next.dataset.filter);
+            var moved = document.querySelector('.review-filter[data-filter="' + next.dataset.filter + '"]');
+            if (moved) { moved.focus(); }
+            return;
+          }
+        }
+      });
+    });
+  }
+
+  function reviewRowHtml(entry) {
+    var chapter = chapterOf(entry.lesson.id);
+    var lesson = entry.lesson;
+    return '<li class="review-row">' +
+      '<button type="button" class="review-row-main" data-lesson="' + esc(lesson.id) + '"' +
+      ' data-task="' + esc(entry.task.id) + '">' +
+      '<span class="review-row-id">' + esc(displayLessonId(lesson)) + '</span>' +
+      '<span class="review-row-copy"><strong>' + esc(lesson.title) + '</strong>' +
+      '<small>' + (chapter ? '第' + displayChapterNumber(chapter) + '章 · ' : '') +
+      esc(entry.task.label) + (lesson.taskCount > 1 ? ' · 問題' + esc(entry.task.id) : '') +
+      '</small></span>' +
+      '<span class="review-due' + (entry.overdue ? ' overdue' : '') + '">' +
+      esc(reviewDueText(entry)) + '</span>' +
+      '<span class="review-weight" data-level="' + reviewWeightLevel(entry.weight) + '">' +
+      esc(reviewWeightText(entry.weight)) + '</span>' +
+      '</button>' +
+      bookmarkButtonHtml(lesson.id, entry.task) +
+      '</li>';
+  }
+
+  // --------------------------------------------------- 復習で1問を解き直す
+
+  /**
+   * 復習で開く1問。
+   *
+   * 通常のレッスン画面と違い、その問題だけを出す（解説は畳んでおく）。
+   * 復習で見たいのは「いま解けるか」なので、解説とサンプルを毎回抜けてくるより
+   * 1問に絞ったほうが短く回せる。問題のかたまり自体は
+   * {@link buildTaskBlock} をそのまま使う（エディタ・ヒント・採点の作りを分けないため）。
+   */
+  function renderReviewTask() {
+    var lesson = findLesson(currentId);
+    var task = lesson && findTask(lesson, reviewTaskId);
+    var chapter = chapterOf(currentId);
+    var main = document.getElementById('content');
+    if (!task) {
+      main.innerHTML = '<div class="loading">問題が見つかりません</div>';
+      return;
+    }
+
+    editors = {};
+    main.innerHTML =
+      '<article class="lesson-view review-view">' +
+      reviewBarHtml() +
+      '  <div class="lesson-head">' +
+      '    <div class="crumb">' +
+      '      <button class="crumb-home" id="crumbHome">メニュー</button>' +
+      '      <span class="crumb-sep">›</span>' +
+      '      <button class="crumb-home" id="crumbReview">🔁 復習</button>' +
+      '      <span class="crumb-sep">›</span>' +
+             esc(chapter.emoji) + ' 第' + displayChapterNumber(chapter) + '章 ' + esc(chapter.title) +
+      '    </div>' +
+      '    <h1 class="lesson-h1">' +
+      '      <span class="lesson-h1-id">' + esc(displayLessonId(lesson)) + '</span>' + esc(lesson.title) +
+      '    </h1>' +
+      '  </div>' +
+      '  <details class="card review-explain">' +
+      '    <summary>📖 このレッスンの解説をもう一度読む</summary>' +
+      '    <div class="review-explain-body">' + renderMarkdown(lesson.explanation) + '</div>' +
+      '  </details>' +
+      '  <section class="tasks" id="tasks"></section>' +
+      '  <nav class="lesson-next" id="reviewFooter" aria-label="復習の進み方"></nav>' +
+      '</article>';
+
+    var tasksHost = document.getElementById('tasks');
+    tasksHost.appendChild(buildTaskBlock(lesson, task, taskIndexOf(lesson, task), { review: true }));
+    // 挿してから呼ぶ（開示済みヒントと模範解答ボタンは id で要素を引く）
+    renderRevealedHints(lesson, task);
+
+    document.getElementById('crumbHome').addEventListener('click', goHome);
+    document.getElementById('crumbReview').addEventListener('click', endReviewSession);
+    bindReviewBar();
+    renderReviewFooter(false);
+    main.scrollTop = 0;
+  }
+
+  function taskIndexOf(lesson, task) {
+    var index = 0;
+    lesson.tasks.forEach(function (candidate, i) {
+      if (candidate.id === task.id) { index = i; }
+    });
+    return index;
+  }
+
+  /** 復習中だと分かる帯。何問目か・どこで抜けられるかを常に見せる。 */
+  function reviewBarHtml() {
+    return '<div class="review-bar">' +
+      '<span class="review-bar-title">🔁 復習モード</span>' +
+      '<span class="review-bar-progress">' + (reviewSession
+        ? (reviewSession.index + 1) + ' / ' + reviewSession.queue.length + '問'
+        : '1問だけ復習中') + '</span>' +
+      '<span class="review-bar-note">ひな形から解き直します。前に書いた解答は残っています</span>' +
+      '<span class="spacer"></span>' +
+      (reviewSession
+        ? '<button class="ghost-btn small" id="reviewSkipBtn">この問題を飛ばす</button>'
+        : '') +
+      '<button class="ghost-btn small" id="reviewExitBtn">' +
+      (reviewSession ? '復習を終える' : '復習メニューへ') + '</button>' +
+      '</div>';
+  }
+
+  function bindReviewBar() {
+    var skip = document.getElementById('reviewSkipBtn');
+    if (skip) { skip.addEventListener('click', advanceReviewSession); }
+    document.getElementById('reviewExitBtn').addEventListener('click', endReviewSession);
+  }
+
+  /**
+   * 問題の下に置く、次へ進む導線。
+   *
+   * @param justCleared いま提出が通ったところなら true（言葉を変えるだけ）
+   */
+  function renderReviewFooter(justCleared) {
+    var host = document.getElementById('reviewFooter');
+    if (!host) { return; }
+
+    if (!reviewSession) {
+      host.innerHTML =
+        '<div class="lesson-next-copy"><small>' + (justCleared ? '復習クリア' : '復習中') + '</small>' +
+        '<b>' + (justCleared ? 'お見事！ 出題頻度が下がりました' : '解き直せたら提出しましょう') + '</b></div>' +
+        '<button class="primary-btn lesson-next-btn" id="reviewFooterBtn">復習メニューへ →</button>';
+      document.getElementById('reviewFooterBtn').addEventListener('click', endReviewSession);
+      return;
+    }
+
+    var remaining = reviewSession.queue.length - reviewSession.index - 1;
+    host.innerHTML =
+      '<div class="lesson-next-copy"><small>' + (justCleared ? '復習クリア' : '復習中') + '</small>' +
+      '<b>' + (remaining > 0 ? 'あと' + remaining + '問' : 'これが最後の1問') + '</b></div>' +
+      '<button class="primary-btn lesson-next-btn" id="reviewFooterBtn">' +
+      (remaining > 0 ? '次の問題へ →' : '復習を終える →') + '</button>';
+    document.getElementById('reviewFooterBtn').addEventListener('click', advanceReviewSession);
+  }
+
+  /**
+   * 復習で通ったとき。
+   *
+   * ★はもう付いているので、代わりに「出題頻度が下がった」ことを見せる
+   * （何が起きたのか分からないと、復習した意味が伝わらない）。
+   */
+  function onReviewCleared(taskId) {
+    var lesson = findLesson(currentId);
+    var task = lesson && findTask(lesson, taskId);
+    var weight = Number(task && task.reviewWeight || 0);
+    if (reviewSession) {
+      var key = currentId + '#' + taskId;
+      if (!reviewSession.clearedKeys[key]) {
+        reviewSession.clearedKeys[key] = true;
+        reviewSession.cleared++;
+      }
+    }
+    refreshReviewWeightBadge(taskId);
+    renderReviewFooter(true);
+    toast('🔁 復習クリア！　' + (weight > 0 ? '出題頻度が下がりました' : 'この問題はもう安定しています'));
+  }
+
+  /** 問題ヘッダの苦手度バッジを、いまの state に合わせる（採点結果は消さない）。 */
+  function refreshReviewWeightBadge(taskId) {
+    var badge = document.getElementById('reviewWeight-' + taskId);
+    var lesson = findLesson(currentId);
+    var task = lesson && findTask(lesson, taskId);
+    if (!badge || !task) { return; }
+    var weight = Number(task.reviewWeight || 0);
+    badge.setAttribute('data-level', String(reviewWeightLevel(weight)));
+    badge.textContent = reviewWeightText(weight);
+  }
+
+  // ----------------------------------------------------------- ブックマーク
+
+  /**
+   * ブックマークのしおり。塗りが「付いている」、線だけが「付いていない」。
+   *
+   * 絵文字（🔖）を使わないのは、絵文字は色が固定で、付いていない状態を灰色にしても
+   * 「消えている」ように見えず、小さく置くとしおりだと読み取れないため。
+   * SVGなら今の文字色（装備中はアクセント色、未設定は淡色）がそのまま乗る。
+   */
+  function bookmarkIconSvg(filled) {
+    if (filled) {
+      return '<svg class="bookmark-icon" width="13" height="15" viewBox="0 0 13 15"' +
+        ' fill="currentColor" aria-hidden="true">' +
+        '<path d="M2 1h9a1 1 0 0 1 1 1v11.3a.6.6 0 0 1-.95.5L6.5 10.6 1.95 13.8' +
+        'A.6.6 0 0 1 1 13.3V2a1 1 0 0 1 1-1z"/></svg>';
+    }
+    return '<svg class="bookmark-icon" width="13" height="15" viewBox="0 0 13 15"' +
+      ' fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true">' +
+      '<path d="M2.2 1.7h8.6a.5.5 0 0 1 .5.5v10.9a.5.5 0 0 1-.79.4L6.5 10.2l-4.01 3.3' +
+      'a.5.5 0 0 1-.79-.4V2.2a.5.5 0 0 1 .5-.5z"/></svg>';
+  }
+
+  /** 問題ヘッダに置く、ブックマークの付け外しボタン。 */
+  function bookmarkButtonHtml(lessonId, task) {
+    var on = !!task.bookmarked;
+    return '<button type="button" class="bookmark-btn' + (on ? ' on' : '') + '"' +
+      ' data-lesson="' + esc(lessonId) + '" data-task="' + esc(task.id) + '"' +
+      ' aria-pressed="' + on + '" title="' + bookmarkTitle(on) + '">' +
+      '<span class="bookmark-mark">' + bookmarkIconSvg(on) + '</span>' +
+      '<span class="bookmark-label">ブックマーク</span></button>';
+  }
+
+  function bookmarkTitle(on) {
+    return on ? 'ブックマークを外す' : 'ブックマークに入れて、あとで重点的に復習する';
+  }
+
+  function bindBookmarkButtons(host) {
+    Array.prototype.forEach.call(host.getElementsByClassName('bookmark-btn'), function (button) {
+      button.addEventListener('click', function (event) {
+        // 一覧では行そのものが「その問題を復習する」ボタンなので、そちらへ渡さない
+        event.stopPropagation();
+        toggleBookmark(button.dataset.lesson, button.dataset.task, button);
+      });
+    });
+  }
+
+  function toggleBookmark(lessonId, taskId, button) {
+    if (button) { button.disabled = true; }
+    api('bookmark', { lessonId: lessonId, taskId: taskId })
+      .then(function (res) {
+        var lesson = findLesson(res.lessonId);
+        var task = lesson && findTask(lesson, res.taskId);
+        if (task) { task.bookmarked = res.bookmarked; }
+        // 復習ホームでは件数と並びが変わるので描き直す。問題を解いている画面では
+        // ボタンの見た目だけ変える（描き直すとエディタと採点結果が消える）
+        if (currentView === 'review') {
+          renderReview();
+        } else if (button) {
+          applyBookmarkButton(button, res.bookmarked);
+        }
+        toast(res.bookmarked
+          ? '★ ブックマークに入れました'
+          : '☆ ブックマークを外しました');
+      })
+      .catch(toastError)
+      .then(function () {
+        if (button) { button.disabled = false; }
+      });
+  }
+
+  function applyBookmarkButton(button, bookmarked) {
+    button.classList.toggle('on', bookmarked);
+    button.setAttribute('aria-pressed', String(bookmarked));
+    button.title = bookmarkTitle(bookmarked);
+    var mark = button.querySelector('.bookmark-mark');
+    if (mark) { mark.innerHTML = bookmarkIconSvg(bookmarked); }
   }
 
   // ---------------------------------------------------------- カフェ描画
@@ -789,7 +1447,9 @@
     var cafe = cafeState();
     var storeCount = cafe.storeCount || 1;
     var expansionDiscount = (cafe.items || []).some(function (item) {
-      return item.owned && item.effectType === 'expansion_discount';
+      return item.owned && (item.effects || []).some(function (e) {
+        return e.type === 'expansion_discount';
+      });
     });
     var maximum = storeCount >= (cafe.maxStores || 512);
     var progressLocked = !maximum && cafe.expansionCost == null;
@@ -811,13 +1471,19 @@
       '<div class="cafe-expansion-content">' +
       '<div class="cafe-expansion-copy">' +
       '<p class="menu-note">全店舗に設備効果が乗るため、出店するほど1回の学習報酬が大きくなります。'
-        + '出店枠は★で段階的に解放され、ブランド倍率は完成した章の問題数に応じて育ちます。</p>' +
+        + '出店枠は★で段階的に解放され、ブランド倍率は完成した章の問題数と、'
+        + '復習で仕上げた問題数に応じて育ちます。'
+        + 'ブランド倍率はこれからの報酬に掛かるので、復習は早いほど得です。</p>' +
       '<div class="cafe-expansion-stats">' +
       '<span><small>現在</small><b>' + numberText(storeCount) + '店舗</b></span>' +
       '<span><small>店舗倍率</small><b>×' + numberText(storeCount) + '</b></span>' +
       '<span><small>現在の出店上限</small><b>' + numberText(cafe.storeLimit || 1) + '店舗</b></span>' +
       '<span><small>ブランド倍率</small><b>×' + multiplierText(cafe.brandMultiplierBasisPoints) + '</b></span>' +
-      (expansionDiscount ? '<span class="discount-active"><small>地図の効果</small><b>出店費 25%OFF</b></span>' : '') +
+      ((cafe.reviewBrandBasisPoints || 0) > 0
+        ? '<span><small>うち復習ぶん</small><b>+' + multiplierText(cafe.reviewBrandBasisPoints)
+          + '<em>（' + numberText(cafe.reviewedTasks || 0) + '問）</em></b></span>'
+        : '') +
+      (expansionDiscount ? '<span class="discount-active"><small>工具箱の効果</small><b>出店費 25%OFF</b></span>' : '') +
       (canExpand ? '<span><small>出店後</small><b>' + numberText(cafe.nextStoreCount) + '店舗</b></span>' : '') +
       '</div>' +
       '<button class="primary-btn cafe-expand-btn" id="cafeExpandBtn"'
@@ -923,11 +1589,13 @@
   var EQUIPMENT_HELP = {
     sales: {
       name: '注文売上',
-      body: '問題を初めてクリアして★を取ったとき、章をすべてクリアしたときにもらうコインが増えます。'
+      body: 'コインが入るすべての場面（問題・章・確認クイズのチップ・自動売上）の単価が増えます。'
+        + '全体に掛かる倍率はこの系統だけが持ちます。'
     },
     cups: {
       name: '毎注文',
-      body: '1回の学習で提供する杯数が増えます。杯数が増えるほど、そのときの売上も増えます。'
+      body: '1回の学習で提供する杯数が増えます。杯数はすべての報酬の土台なので、'
+        + '問題・章・クイズ・自動売上のすべてが一緒に増えます。序盤ほど伸びが大きい系統です。'
     },
     chapter: {
       name: '章ボーナス',
@@ -938,8 +1606,10 @@
       body: '確認クイズに初めて正解したときの追加コインが増えます。★の判定には影響しません。'
     },
     streak: {
-      name: '連続効果',
-      body: '連続して学習した日数に応じて注文売上が増えます。効果は7日分が上限です。'
+      name: '今日の1杯目',
+      body: 'その日いちばん最初に★を取った1問だけ、報酬が大きく増えます。'
+        + '倍率は連続して学習した日数ぶん積み上がり、7日分が上限です（皆勤の日めくりで10日）。'
+        + '1日1回なので、毎日開くほど得になります。'
     },
     automation: {
       name: '自動売上',
@@ -975,7 +1645,7 @@
     var current = automation.filter(function (item) { return item.equipped; })[0] || null;
     var next = automation.filter(function (item) { return item.available; })[0] || null;
     var currentTier = current ? current.tier : 0;
-    var affordable = next && next.starReady && cafe.cash >= next.cost;
+    var affordable = next && cafe.cash >= next.cost;
     var currentHtml = current
       ? '<span class="equipment-item-icon">' + esc(current.emoji) + '</span><div><small>現在装備 · Rank&nbsp;'
         + current.tier + '</small><b>' + esc(current.name) + '</b><em>'
@@ -989,8 +1659,7 @@
     var nextHtml = next
       ? '<span class="equipment-item-icon">' + esc(next.emoji) + '</span><div><small>次の上位設備 · Rank&nbsp;'
         + next.tier + '</small><b>' + esc(next.name) + '</b><em>'
-        + perMinuteText('約 +' + cafeNumberText(nextEstimate), 'コイン')
-        + ' ·&nbsp;★' + next.requiredStars + '</em></div>'
+        + perMinuteText('約 +' + cafeNumberText(nextEstimate), 'コイン') + '</em></div>'
       : '<span class="equipment-item-icon max">★</span><div><small>アップグレード完了</small>'
         + '<b>最高ランク</b><em>' + perMinuteText('学習1回分の5%', '') + '</em></div>';
     var button = next
@@ -999,11 +1668,9 @@
         + (next.discounted ? '<s>' + cafeNumberText(next.baseCost) + '</s> ' : '')
         + cafeNumberText(next.cost) + 'コイン</button>'
       : '<button class="cafe-buy cafe-automation-buy" disabled>MAX</button>';
-    var shortage = next && !next.starReady
-      ? '<small class="equipment-shortage">★' + next.requiredStars + 'で解放</small>'
-      : (next && !affordable
-        ? '<small class="equipment-shortage">あと ' + cafeNumberText(next.cost - cafe.cash) + 'コイン</small>'
-        : '');
+    var shortage = next && !affordable
+      ? '<small class="equipment-shortage">あと ' + cafeNumberText(next.cost - cafe.cash) + 'コイン</small>'
+      : '';
 
     return '<article class="equipment-path effect-automation">' +
       equipmentHeadHtml('automation', '自動営業', currentTier) +
@@ -1036,7 +1703,7 @@
       if (type === 'cups') { return '毎注文 +' + numberText(value) + '杯'; }
       if (type === 'chapter') { return '章ボーナス +' + numberText(value) + '%'; }
       if (type === 'tips') { return '正解チップ +' + numberText(value) + '%'; }
-      if (type === 'streak') { return '連続1日ごと +' + numberText(value) + '%'; }
+      if (type === 'streak') { return '連続1日ごと 今日の1杯目 +' + numberText(value) + '%'; }
       return '注文売上 +' + numberText(value) + '%';
     }
 
@@ -1056,16 +1723,19 @@
       '<span>毎注文 +' + (cafe.extraCups || 0) + '杯</span>' +
       '<span>章ボーナス +' + (cafe.chapterBonusPercent || 0) + '%</span>' +
       '<span>正解チップ +' + (cafe.quizTipPercent || 0) + '%</span>' +
-      '<span>連続効果 +' + (cafe.streakBonusPercent || 0) + '%</span>' +
+      '<span>今日の1杯目 +' + (cafe.dailyFirstBonusPercent || 0) + '%'
+        + ((cafe.dailyFirstBonusPercent || 0) > 0
+          ? (cafe.dailyFirstBonusReady ? '（未受取）' : '（本日受取済み）') : '') + '</span>' +
       '<span>' + perMinuteText('自動 +' + cafeNumberText(cafe.passiveCashPerMinute), '') + '</span>' +
       '</div></header>' +
-      '<p class="menu-note cafe-section-note">売上は、問題を初めてクリアして★を取ったときに入ります。'
+      '<p class="menu-note cafe-section-note">売上は、問題を初めてクリアして★を取ったとき、'
+        + '章をすべてクリアしたとき、確認クイズに初めて正解したとき、そして自動売上で入ります。'
         + '上位設備を買うと、同じ系統の設備と効果が上位性能へ置き換わります。'
-        + ' 各設備は★に応じて段階解放されます。'
+        + ' ★による解放条件はありません。コインが足りればどの系統からでも伸ばせます。'
+        + '上のRankほど価格の上がり方が急なので、1系統を深く買うか浅く広く買うかはお好みです。'
         + 'それぞれの設備が何を増やすのかは、カードの「?」にカーソルを当てると出ます。'
-        + ((cafe.items || []).some(function (item) {
-          return item.owned && item.effectType === 'equipment_discount';
-        }) ? ' マイスター工具箱の20%OFFを適用中です。' : '') + '</p>' +
+        + ((cafe.equipmentDiscountPercent || 0) > 0
+          ? ' 設備費は現在 ' + cafe.equipmentDiscountPercent + '%OFF です。' : '') + '</p>' +
       '<div class="equipment-paths">' + trackOrder.map(function (type) {
         var items = upgrades.filter(function (u) { return u.effectType === type; })
           .sort(function (a, b) { return a.tier - b.tier; });
@@ -1078,8 +1748,7 @@
         items.forEach(function (u) {
           if (!next && u.tier === currentTier + 1) { next = u; }
         });
-        var starReady = next && next.starReady;
-        var affordable = next && starReady && cafe.cash >= next.cost;
+        var affordable = next && cafe.cash >= next.cost;
         var currentHtml = current
           ? '<span class="equipment-item-icon">' + esc(current.emoji) + '</span><div><small>現在装備 · Rank&nbsp;'
             + current.tier + '</small><b>' + esc(current.name) + '</b><em>'
@@ -1089,7 +1758,7 @@
         var nextHtml = next
           ? '<span class="equipment-item-icon">' + esc(next.emoji) + '</span><div><small>次の上位設備 · Rank&nbsp;'
             + next.tier + '</small><b>' + esc(next.name) + '</b><em>'
-            + esc(effectText(type, next.effectValue)) + ' ·&nbsp;★' + next.requiredStars + '</em></div>'
+            + esc(effectText(type, next.effectValue)) + '</em></div>'
           : '<span class="equipment-item-icon max">★</span><div><small>アップグレード完了</small>'
             + '<b>最高ランク</b><em>この系統は完成しました</em></div>';
         var button = next
@@ -1098,11 +1767,9 @@
             + (next.discounted ? '<s>' + cafeNumberText(next.baseCost) + '</s> ' : '')
             + cafeNumberText(next.cost) + 'コイン</button>'
           : '<button class="cafe-buy equipment-upgrade-btn" disabled>MAX</button>';
-        var shortage = next && !starReady
-          ? '<small class="equipment-shortage">★' + next.requiredStars + 'で解放</small>'
-          : (next && !affordable
-            ? '<small class="equipment-shortage">あと ' + cafeNumberText(next.cost - cafe.cash) + 'コイン</small>'
-            : '');
+        var shortage = next && !affordable
+          ? '<small class="equipment-shortage">あと ' + cafeNumberText(next.cost - cafe.cash) + 'コイン</small>'
+          : '';
 
         return '<article class="equipment-path effect-' + esc(type) + '">' +
           equipmentHeadHtml(type, effectLabel(type), currentTier) +
@@ -1263,7 +1930,7 @@
       { icon: '★', value: state.progress.starCount, unit: '個', label: '獲得したスター' },
       { icon: '🔥', value: state.progress.streak, unit: '日', label: '連続で学習した日数' },
       { icon: '✅', value: casesPassed, unit: '件', label: '通過したテストケース' },
-      { icon: '✍️', value: attempts, unit: '回', label: '提出した回数' }
+      { icon: '✍️', value: attempts, unit: '回', label: '実行した回数' }
     ];
     if (state.quizTotal) {
       tiles.push({
@@ -1425,7 +2092,8 @@
       ['📖', '解説を読む', '具体例つきで、1つの話題に絞って書いてあります。'],
       ['▶', 'サンプルを動かす', '解説中のコードは「▶ サンプルを実行」でその場で動きます。まず動かすのが理解の近道です。'],
       ['⌨️', '自分で書く', 'ひな形から書き始められます。行番号・色付け・自動インデントつきです。'],
-      ['✓', '提出して採点', '全ケースを通ればクリアです。詰まったときはヒントも使えます。']
+      ['▶', '実行して採点', '実行すると、そのまま全ケースで採点します。'
+        + '通ればクリア、通らなければどのケースで落ちたかが出ます。詰まったときはヒントも使えます。']
     ];
 
     return '' +
@@ -1527,9 +2195,14 @@
    * 1レッスンに複数問あるので、DOMのidは問題ごとに接尾辞を付けて衝突させない。
    * エディタも問題ごとに別インスタンスにする（textarea が別なので、書きかけの
    * コードも採点結果も混ざらない）。
+   *
+   * @param options {review:true} なら復習モード。保存済みの解答ではなくひな形から始め、
+   *                苦手度のバッジを見出しに出す（保存を止めるのは {@link scheduleSave}）
    */
-  function buildTaskBlock(lesson, task, index) {
+  function buildTaskBlock(lesson, task, index, options) {
     var n = task.id;
+    var review = !!(options && options.review);
+    var weight = Number(task.reviewWeight || 0);
 
     var block = document.createElement('section');
     block.className = 'task-block';
@@ -1541,6 +2214,11 @@
       '  <span class="task-head-status" id="taskStatus-' + n + '">' +
            (task.cleared ? '★ クリア済み' : '') +
       '  </span>' +
+      (review
+        ? '  <span class="review-weight" id="reviewWeight-' + n + '" data-level="'
+          + reviewWeightLevel(weight) + '">' + esc(reviewWeightText(weight)) + '</span>'
+        : '') +
+         bookmarkButtonHtml(lesson.id, task) +
       '</div>' +
 
       '<div class="task-block-body">' +
@@ -1558,12 +2236,12 @@
       '    </div>' +
       '    <div id="editorHost-' + n + '"></div>' +
       '    <div class="actions">' +
-      '      <button class="run-btn" id="runBtn-' + n + '">▶ 実行してみる</button>' +
-      '      <button class="primary-btn" id="submitBtn-' + n + '">✓ 提出して採点</button>' +
+      '      <button class="primary-btn" id="submitBtn-' + n + '">▶ 実行して採点</button>' +
       '      <span class="spacer"></span>' +
              renderHintButton(task) +
       '    </div>' +
-      '    <div class="shortcut-note">⌘/Ctrl + Enter で提出　·　⌘/Ctrl + Shift + Enter で実行</div>' +
+      '    <div class="shortcut-note">Tab で補完（候補は ↑↓ で選ぶ）　·　' +
+      '⌘/Ctrl + Enter で実行</div>' +
       '  </div>' +
 
       '  <div class="hints" id="hints-' + n + '"></div>' +
@@ -1572,15 +2250,14 @@
       '</div>';
 
     var editor = new window.JQEditor(block.querySelector('#editorHost-' + n));
-    editor.setValue(task.savedCode != null && task.savedCode !== ''
+    // 復習は解き直しなので、通した解答が最初から入っていては意味がない。ひな形から始める
+    editor.setValue(!review && task.savedCode != null && task.savedCode !== ''
       ? task.savedCode
       : task.starterCode);
     editor.onSubmit = function () { submit(n); };
-    editor.onRun = function () { runOnce(n); };
     editor.input.addEventListener('input', function () { scheduleSave(n); });
     editors[n] = editor;
 
-    block.querySelector('#runBtn-' + n).addEventListener('click', function () { runOnce(n); });
     block.querySelector('#submitBtn-' + n).addEventListener('click', function () { submit(n); });
     block.querySelector('[data-role="restore"]').addEventListener('click', function () {
       if (window.confirm('書いたコードを消して、最初のひな形に戻します。よろしいですか？')) {
@@ -1592,6 +2269,7 @@
 
     var hintBtn = block.querySelector('.hint-btn');
     if (hintBtn) { hintBtn.addEventListener('click', function () { revealNextHint(n); }); }
+    bindBookmarkButtons(block);
 
     // 開示済みヒントの描画は、このかたまりを document に挿してから
     // （renderRevealedHints は id で引くので、繋ぐ前だと見つからない）
@@ -1811,6 +2489,10 @@
   // -------------------------------------------------------------- アクション
 
   function scheduleSave(taskId) {
+    // 復習中は保存しない。ひな形から解き直している途中の中身で、すでに通した解答を
+    // 上書きしてしまわないため（提出のときもサーバ側で保存しないようにしている）。
+    // ここで止めれば、自動保存・ひな形に戻す・模範解答を入れる、のどれからでも守れる。
+    if (isReviewing()) { return; }
     clearTimeout(saveTimers[taskId]);
     var id = currentId;
     var code = editors[taskId].getValue();
@@ -1821,49 +2503,29 @@
     }, 800);
   }
 
-  /** 実行・採点は1問ずつ。走っている問題のボタンだけを止める。 */
+  /** 実行（採点）は1問ずつ。走っている問題のボタンだけを止める。 */
   function setBusy(taskId, on, label) {
     busyTask = on ? taskId : null;
-    var runBtn = document.getElementById('runBtn-' + taskId);
     var submitBtn = document.getElementById('submitBtn-' + taskId);
-    if (runBtn) { runBtn.disabled = on; }
     if (submitBtn) {
       submitBtn.disabled = on;
-      submitBtn.textContent = on ? (label || '実行中…') : '✓ 提出して採点';
+      submitBtn.textContent = on ? (label || '実行中…') : '▶ 実行して採点';
     }
-  }
-
-  function runOnce(taskId) {
-    if (busyTask) { return; }
-    var lesson = findLesson(currentId);
-    var task = findTask(lesson, taskId);
-    var stdin = task.visibleCases.length ? task.visibleCases[0].stdin : '';
-    var result = document.getElementById('result-' + taskId);
-    setBusy(taskId, true);
-    result.className = 'result';
-    result.innerHTML = '<div class="card card-result"><div class="spinner">実行中…</div></div>';
-
-    api('run', { lessonId: currentId, taskId: taskId, code: editors[taskId].getValue(), stdin: stdin })
-      .then(function (res) {
-        var note = stdin
-          ? '<div class="out-note">最初のテストケースの入力（<code>' + esc(stdin)
-            + '</code>）を与えて動かしました。採点はしていません。</div>'
-          : '<div class="out-note">採点はしていません。まず動かして確かめるためのボタンです。</div>';
-        result.innerHTML = '<div class="card card-result">'
-          + '<h2 class="card-h"><span class="card-h-icon">▶</span>実行結果</h2>'
-          + note + renderRunOutput(res) + '</div>';
-      })
-      .catch(function (e) { showError(e, taskId); })
-      .then(function () { setBusy(taskId, false); });
   }
 
   function submit(taskId) {
     if (busyTask) { return; }
+    var review = isReviewing();
     var result = document.getElementById('result-' + taskId);
     setBusy(taskId, true, '採点中…');
     result.innerHTML = '<div class="card card-result"><div class="spinner">採点中…</div></div>';
 
-    api('submit', { lessonId: currentId, taskId: taskId, code: editors[taskId].getValue() })
+    api('submit', {
+      lessonId: currentId,
+      taskId: taskId,
+      code: editors[taskId].getValue(),
+      review: review
+    })
       .then(function (res) {
         var wasCurrent = currentId;
         applyDelta(res.delta);
@@ -1875,7 +2537,11 @@
         if (res.allPass) {
           // 正解した直後にも、問題ブロック末尾から模範解答を確認できるようにする。
           maybeShowSolutionButton(wasCurrent, taskId);
-          celebrate(res, wasCurrent, taskId);
+          if (review) {
+            onReviewCleared(taskId);
+          } else {
+            celebrate(res, wasCurrent, taskId);
+          }
         }
       })
       .catch(function (e) { showError(e, taskId); })
@@ -2206,17 +2872,44 @@
 
   // ------------------------------------------------------------------ 画面遷移
 
-  /** URLのハッシュから、いま表示すべき画面を決める。知らないIDなら学習ホームに落とす。 */
+  /**
+   * URLのハッシュから、いま表示すべき画面を決める。知らないIDなら学習ホームに落とす。
+   *
+   * 復習の1問（#review/3-2/1）は、クリア済みの問題だけ受け付ける。手で書いた
+   * URLで未クリアの問題が復習として開くと、ひな形で始まって保存もされない画面に
+   * なってしまうため、その場合は復習ホームへ落とす。
+   */
   function routeFromHash() {
     var hash = location.hash.replace(/^#/, '');
-    if (hash === 'cafe') { return { view: 'cafe', id: null }; }
-    if (hash && findLesson(hash)) { return { view: 'lesson', id: hash }; }
-    return { view: 'menu', id: null };
+    if (hash === 'cafe') { return { view: 'cafe', id: null, taskId: null }; }
+    if (hash === 'review') { return { view: 'review', id: null, taskId: null }; }
+    if (hash.indexOf('review/') === 0) {
+      var parts = hash.substring('review/'.length).split('/');
+      var lesson = findLesson(parts[0]);
+      var task = lesson && parts[1] ? findTask(lesson, parts[1]) : null;
+      if (task && task.cleared) {
+        return { view: 'reviewTask', id: parts[0], taskId: parts[1] };
+      }
+      return { view: 'review', id: null, taskId: null };
+    }
+    if (hash && findLesson(hash)) { return { view: 'lesson', id: hash, taskId: null }; }
+    return { view: 'menu', id: null, taskId: null };
+  }
+
+  /** 復習で1問を解いている画面か。保存を止めるかどうかの判断にも使う。 */
+  function isReviewing() {
+    return currentView === 'reviewTask';
   }
 
   /** 現在の画面状態に合わせて描く。 */
   function render() {
-    var isHub = currentView !== 'lesson';
+    // 復習セッション（今回の10問）は、問題を解いている画面の間だけ生きている。
+    // ホームやレッスンへ移ったら捨てる。ブラウザの戻るも必ずここを通るので、
+    // 捨てる場所を1つにしておくと「無関係な問題で 3 / 10問 と出る」ような
+    // 取り残しが起きない。
+    if (currentView !== 'reviewTask') { reviewSession = null; }
+
+    var isHub = currentView !== 'lesson' && currentView !== 'reviewTask';
     document.body.classList.toggle('view-menu', isHub);
     document.body.classList.toggle('view-cafe', currentView === 'cafe');
     renderHeader();
@@ -2226,6 +2919,10 @@
       renderMenu();
     } else if (currentView === 'cafe') {
       renderCafe();
+    } else if (currentView === 'review') {
+      renderReview();
+    } else if (currentView === 'reviewTask') {
+      renderReviewTask();
     } else {
       renderLesson();
     }
@@ -2235,6 +2932,7 @@
   function selectLesson(id) {
     if (!findLesson(id)) { return; }
     currentId = id;
+    reviewTaskId = null;
     currentView = 'lesson';
     try { localStorage.setItem('jq-last-lesson', id); } catch (e) { /* 使えなくても困らない */ }
     if (location.hash.replace(/^#/, '') !== id) { location.hash = id; }
@@ -2243,6 +2941,7 @@
 
   function goHome() {
     currentId = null;
+    reviewTaskId = null;
     currentView = 'menu';
     if (location.hash !== '#menu') { location.hash = 'menu'; }
     render();
@@ -2250,12 +2949,46 @@
 
   function goCafe() {
     currentId = null;
+    reviewTaskId = null;
     currentView = 'cafe';
     if (location.hash !== '#cafe') { location.hash = 'cafe'; }
     render();
   }
 
+  /** 復習ホームへ。今回のセッションは {@code render} が畳む。 */
+  function goReview() {
+    currentId = null;
+    reviewTaskId = null;
+    currentView = 'review';
+    if (location.hash !== '#review') { location.hash = 'review'; }
+    render();
+  }
+
+  /**
+   * 復習で1問を開く。
+   *
+   * 「続ける」の行き先（jq-last-lesson）は書き換えない。復習で昔の章を開いたせいで、
+   * 次に学習ホームへ戻ったときの続きがそこへ移ってしまわないようにする。
+   */
+  function selectReviewTask(lessonId, taskId) {
+    var lesson = findLesson(lessonId);
+    if (!lesson || !findTask(lesson, taskId)) { return; }
+    currentId = lessonId;
+    reviewTaskId = taskId;
+    currentView = 'reviewTask';
+    var hash = 'review/' + lessonId + '/' + taskId;
+    if (location.hash.replace(/^#/, '') !== hash) { location.hash = hash; }
+    render();
+  }
+
   function boot() {
+    try {
+      var savedFilter = localStorage.getItem('jq-review-filter');
+      // 知らない値が入っていると、どのタブも選ばれていない画面になる
+      if (savedFilter === 'weak' || savedFilter === 'bookmark' || savedFilter === 'all') {
+        reviewFilter = savedFilter;
+      }
+    } catch (e) { /* 使えなくても困らない */ }
     api('state')
       .then(function (data) {
         setState(data);
@@ -2263,6 +2996,7 @@
         var route = routeFromHash();
         currentView = route.view;
         currentId = route.id;
+        reviewTaskId = route.taskId;
         render();
       })
       .catch(function (e) {
@@ -2294,15 +3028,20 @@
     var next = !isSidebarHidden();
     try { localStorage.setItem(SIDEBAR_HIDE_KEY, next ? '1' : '0'); } catch (e) { /* 使えなくても困らない */ }
     applySidebarVisibility();
+    // 開いた瞬間に初めて寸法が測れるようになる。閉じている間の描画ではスクロール
+    // できていないので、ここで現在地まで寄せる。
+    if (!next) { scrollSidebarToCurrent(); }
   });
   applySidebarVisibility();
 
   function resetProgress() {
-    if (!window.confirm('★・書いたコード・カフェのコイン・店舗・設備・アイテムがすべて消えます。本当にリセットしますか？')) { return; }
+    if (!window.confirm('★・書いたコード・復習の記録・ブックマーク・カフェのコイン・店舗・設備・アイテムがすべて消えます。本当にリセットしますか？')) { return; }
     api('reset', {})
       .then(function (data) {
         setState(data);
         sideExpanded = {};
+        reviewSession = null;
+        reviewSummary = null;
         try { localStorage.removeItem('jq-last-lesson'); } catch (e) { /* 同上 */ }
         goHome();
         toast('進捗をリセットしました');
@@ -2312,10 +3051,15 @@
 
   window.addEventListener('hashchange', function () {
     var route = routeFromHash();
-    if (route.view === currentView && route.id === currentId) { return; }
+    if (route.view === currentView && route.id === currentId
+        && route.taskId === reviewTaskId) {
+      return;
+    }
     currentView = route.view;
     currentId = route.id;
-    if (currentId) {
+    reviewTaskId = route.taskId;
+    // 「続ける」の行き先は通常のレッスンを開いたときだけ動かす（復習では動かさない）
+    if (currentId && currentView === 'lesson') {
       try { localStorage.setItem('jq-last-lesson', currentId); } catch (e) { /* 同上 */ }
     }
     render();

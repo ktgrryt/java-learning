@@ -45,6 +45,7 @@ import java.util.function.Supplier;
  *   <li>{@code POST /api/save}     … 書きかけのコードを保存</li>
  *   <li>{@code POST /api/hint}     … ヒントを1つ開示</li>
  *   <li>{@code POST /api/solution} … 模範解答（全ヒント開示後、またはクリア後）</li>
+ *   <li>{@code POST /api/bookmark} … 問題のブックマークを付け外し（復習モードで絞り込む）</li>
  *   <li>{@code POST /api/cafe/purchase} … カフェ設備を購入</li>
  *   <li>{@code POST /api/cafe/automation/purchase} … 自動営業設備を購入</li>
  *   <li>{@code POST /api/cafe/passive/*} … 画面表示中の自動売上を開始・精算・停止</li>
@@ -120,6 +121,7 @@ public final class ApiHandler implements HttpHandler {
                 case "/api/hint" -> sendJson(exchange, 200, doHint(body));
                 case "/api/quiz" -> sendJson(exchange, 200, doQuiz(body));
                 case "/api/solution" -> sendJson(exchange, 200, doSolution(body));
+                case "/api/bookmark" -> sendJson(exchange, 200, doBookmark(body));
                 case "/api/cafe/purchase" -> sendJson(exchange, 200, doCafePurchase(body));
                 case "/api/cafe/automation/purchase" ->
                         sendJson(exchange, 200, doCafeAutomationPurchase(body));
@@ -189,6 +191,8 @@ public final class ApiHandler implements HttpHandler {
                     tJson.put("revealedHints", revealedHints(id, task));
                     tJson.put("passedCount", progress.bestPassed(key));
                     tJson.put("solutionUnlocked", solutionUnlocked(id, task, cleared));
+                    tJson.put("bookmarked", progress.isBookmarked(key));
+                    putReviewState(tJson, key, cleared.contains(key));
                 }
             }
             chapters.add(chJson);
@@ -260,6 +264,8 @@ public final class ApiHandler implements HttpHandler {
                     tm.put("passedCount", progress.bestPassed(key));
                     tm.put("hintsRevealed", progress.hintsRevealed(key));
                     tm.put("solutionUnlocked", solutionUnlocked(lesson.id(), task, cleared));
+                    tm.put("bookmarked", progress.isBookmarked(key));
+                    putReviewState(tm, key, cleared.contains(key));
                     tasks.add(tm);
                 }
                 quizCorrect += correctQuizCount(lesson);
@@ -371,7 +377,13 @@ public final class ApiHandler implements HttpHandler {
         return result;
     }
 
-    /** 全テストケースで採点する。全部通ったら★を付ける（★は問題ごと）。 */
+    /**
+     * 全テストケースで採点する。全部通ったら★を付ける（★は問題ごと）。
+     *
+     * {@code review} が付いた提出（復習モード）では、書いたコードを保存しない。
+     * 復習はひな形から解き直すので、途中の中身を保存すると、すでに通した解答が
+     * 上書きされてしまう。採点・苦手度・達成条件の扱いは通常の提出と同じ。
+     */
     private Object doSubmit(Map<String, Object> body) {
         Curriculum c = curriculum.get();
         String lessonId = requireString(body, "lessonId");
@@ -383,7 +395,9 @@ public final class ApiHandler implements HttpHandler {
                 .orElseThrow(() -> new BadRequest("知らない問題です: " + lessonId + "#" + taskId));
         String key = Lesson.taskKey(lessonId, taskId);
 
-        progress.saveCode(key, code);
+        if (body.get("review") != Boolean.TRUE) {
+            progress.saveCode(key, code);
+        }
         int attempts = progress.recordAttempt(key);
 
         Map<String, Object> result = new LinkedHashMap<>();
@@ -580,12 +594,9 @@ public final class ApiHandler implements HttpHandler {
         ProgressStore.CafeLearningProgress cafeLearning =
                 cafeLearningProgress(c, progress.clearedIds());
         ProgressStore.PassiveSalesResult passive = switch (action) {
-            case "start" -> progress.startCafePassiveSales(
-                    sessionId, cafeLearning.masteredChapterTasks());
-            case "collect" -> progress.collectCafePassiveSales(
-                    sessionId, cafeLearning.masteredChapterTasks());
-            case "stop" -> progress.stopCafePassiveSales(
-                    sessionId, cafeLearning.masteredChapterTasks());
+            case "start" -> progress.startCafePassiveSales(sessionId, cafeLearning);
+            case "collect" -> progress.collectCafePassiveSales(sessionId, cafeLearning);
+            case "stop" -> progress.stopCafePassiveSales(sessionId, cafeLearning);
             default -> throw new IllegalArgumentException("unknown passive action: " + action);
         };
 
@@ -681,6 +692,23 @@ public final class ApiHandler implements HttpHandler {
         return Map.of("delta", Map.of("progress", progress.toClientJson(cafeLearning)));
     }
 
+    /**
+     * 復習の状態（苦手度と次の期限）を問題のJSONへ入れる。
+     *
+     * 期限はクリア済みの問題だけに意味があるので、未クリアでは載せない
+     * （画面は「クリア済みのうち期限が来たもの」から出題を決める）。
+     */
+    private void putReviewState(Map<String, Object> target, String key, boolean cleared) {
+        target.put("reviewWeight", progress.reviewWeight(key));
+        if (!cleared) {
+            return;
+        }
+        ProgressStore.ReviewDue due = progress.reviewDue(key);
+        target.put("reviewLevel", due.level());
+        target.put("reviewDue", due.dueDate());
+        target.put("reviewDueDays", due.daysUntilDue());
+    }
+
     /** 制覇した章数と、その章に含まれる問題数。短い章だけの先取りを有利にしない。 */
     private ProgressStore.CafeLearningProgress cafeLearningProgress(
             Curriculum c, Set<String> cleared) {
@@ -722,6 +750,25 @@ public final class ApiHandler implements HttpHandler {
         m.put("hintsRevealed", revealed);
         m.put("hintCount", task.hints().size());
         m.put("solutionUnlocked", solutionUnlocked(lessonId, task, progress.clearedIds()));
+        return m;
+    }
+
+    /**
+     * 問題のブックマークを付け外しする。
+     *
+     * 進捗の差分（{@link #delta(String)}）は返さない。ブックマークは1問だけの切り替えなので、
+     * 全問題ぶんの差分を送り返す必要がない（画面側は手元のその1件を直す）。
+     */
+    private Object doBookmark(Map<String, Object> body) {
+        String lessonId = requireString(body, "lessonId");
+        String taskId = taskId(body);
+        requireTask(lessonId, taskId);   // 知らないIDで progress.json を汚さない
+        boolean bookmarked = progress.toggleBookmark(Lesson.taskKey(lessonId, taskId));
+
+        Map<String, Object> m = new LinkedHashMap<>();
+        m.put("lessonId", lessonId);
+        m.put("taskId", taskId);
+        m.put("bookmarked", bookmarked);
         return m;
     }
 
