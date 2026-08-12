@@ -16,4 +16,8 @@ class GreetingResourceTest {
     @Test void rejectsBlankName() {
         given().queryParam("name", "").when().get("/api/greeting").then().statusCode(400);
     }
+
+    @Test void rejectsTooLongName() {
+        given().queryParam("name", "a".repeat(21)).when().get("/api/greeting").then().statusCode(400);
+    }
 }

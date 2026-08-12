@@ -45,26 +45,27 @@ import java.util.concurrent.TimeUnit;
  */
 public final class ProgressStore {
 
-    // 15: 教材が全547問へ増えたぶん、終盤の出店費を上げて投資率を戻した
-    private static final int CAFE_ECONOMY_VERSION = 15;
+    // 17: 終盤の任意投資と、学習の待ち時間を支える5問分の自動売上上限を追加した
+    private static final int CAFE_ECONOMY_VERSION = 17;
     private static final int CUP_PRICE = 500;
     private static final int MAX_CAFE_STORES = 512;
     private static final long FIRST_EXPANSION_COST = 2_500L;
     /**
      * 5店舗以降の出店費（規模の三乗に掛ける係数）。終盤の主なコイン消費先。
      *
-     * <p><b>問題数を増やしたら、この値を見直して {@code tools/simulate-cafe.sh} を通すこと。</b>
+     * <p><b>問題数を増やしたら {@code tools/simulate-cafe.sh} を通すこと。</b>
      * 生涯売上はブランド倍率（下の定数）が設備効果へ掛かるぶん、問題数に対して
      * 加速して伸びる。一方で購入費の合計は問題数と無関係なので、教材を増やすだけで
      * 投資率（購入費 ÷ 生涯売上）が下がり、目標の25〜45%を割る。
-     * 売上側を削ると学習の報酬感が変わるため、終盤の消費先であるここで吸収している。</p>
+     * 現在は20問ごとの任意改装が追加分を吸収する。必須の店舗網の進行そのものに
+     * 不具合があるときだけ、この係数を調整する。</p>
      *
      * <p>実測: 全509問で8,500だと22.9%、全516問で15,000だと27.7%、
-     * 全532問で25,000だと25.92%、全547問で25,000だと18.49%まで落ちた。
-     * 38,000へ上げて終盤の消費先で吸収した。</p>
+     * 全532問で25,000だと25.92%、全547問で38,000だと25.12%だった。
+     * 全574問では38,000だと18.26%まで落ち、57,000へ上げて25.35%に戻した。</p>
      */
-    private static final long EXPANSION_CUBIC_COST = 38_000L;
-    /** 完成した章の問題1問あたりのブランド成長。全547問で約x10.30になる。 */
+    private static final long EXPANSION_CUBIC_COST = 57_000L;
+    /** 完成した章の問題1問あたりのブランド成長。全574問で約x10.76になる。 */
     private static final int BRAND_GROWTH_BASIS_POINTS_PER_TASK = 170;
     private static final int LUCKY_COIN_CHANCE_PERCENT = 12;
     private static final int TASK_COMBO_INTERVAL = 5;
@@ -74,8 +75,16 @@ public final class ProgressStore {
     private static final int RETRY_BONUS_ATTEMPTS = 5;
     /** 連続学習ボーナスの既定の上限日数。皆勤の日めくりだけがこれを広げる。 */
     private static final int STREAK_BONUS_CAP_DAYS = 7;
-    /** 自動売上は、次に★を取るまで現在の問題報酬の50%まで。待つ方が得になるのを防ぐ。 */
-    private static final int PASSIVE_CASH_CAP_BASIS_POINTS = 5_000;
+    /**
+     * 自動売上は、次に★を取るまで現在の問題報酬5問分まで。
+     * 最上位設備でも上限まで100分かかり、オフライン中は増えない。
+     */
+    private static final int PASSIVE_CASH_CAP_BASIS_POINTS = 50_000;
+    /** 終盤の任意投資は★520から20問ごとに1段階ずつ解放する。 */
+    private static final int ENDGAME_INVESTMENT_START_STARS = 500;
+    private static final int ENDGAME_INVESTMENT_STAR_INTERVAL = 20;
+    /** 収益効果のない任意投資。1段階ごとに価格を2倍にし、追加章のコイン余りを受け止める。 */
+    private static final long ENDGAME_INVESTMENT_BASE_COST = 250_000_000_000L;
     /** 通常設備Rank 1〜12の基準★。5系統へ0〜8の差を付け、一斉解放を避ける。 */
     private static final int[] EQUIPMENT_REQUIRED_STARS =
             {0, 1, 14, 36, 65, 101, 144, 194, 251, 320, 386, 452, 497};
@@ -153,6 +162,8 @@ public final class ProgressStore {
     private long cafePassiveCashSinceTask;
     /** 現在営業している店舗数。出店するたび、全店ぶんの注文を同時に受ける。 */
     private int cafeStores = 1;
+    /** ★520以降の任意の改装・社会貢献プロジェクトを完了した段階。 */
+    private int cafeInvestmentLevel;
     /** 購入済み設備ID。 */
     private final Set<String> cafeUpgrades = new LinkedHashSet<>();
     /** 購入済みの自動営業設備ID。最上位の1台だけが稼働する。 */
@@ -210,6 +221,22 @@ public final class ProgressStore {
             int addedStores,
             int storeCount,
             long cost) {
+    }
+
+    /** 売上倍率を増やさず、称号と終盤のコイン使途を増やす任意投資。 */
+    public record CafeInvestment(
+            int level,
+            String name,
+            String emoji,
+            String description,
+            int requiredStars,
+            long cost) {
+    }
+
+    public record InvestmentPurchaseResult(
+            boolean purchased,
+            String error,
+            CafeInvestment investment) {
     }
 
     /**
@@ -496,7 +523,8 @@ public final class ProgressStore {
      * アプリ画面を表示している間だけ動く自動営業設備。
      *
      * 率は「次の問題を初クリアしたときの売上」に対する1分あたりの割合。
-     * 最上位でも5%/分、かつ次の★まで0.5問分が上限なので、問題を解く方が常に大きい。
+     * 最上位でも5%/分、かつ次の★まで5問分が上限。
+     * 上限までは最短で100分かかり、オフライン中は稼働しない。
      */
     private static final List<CafeAutomation> CAFE_AUTOMATION = List.of(
             new CafeAutomation("warming_pot", "保温ポット", "🫖",
@@ -647,6 +675,12 @@ public final class ProgressStore {
         cafe.put("nextStoreGain", nextStoreGain);
         cafe.put("nextStoreCount", canExpandNetwork ? cafeStores + nextStoreGain : null);
         cafe.put("expansionCost", canExpandNetwork ? nextCafeExpansionCost() : null);
+        cafe.put("investmentLevel", cafeInvestmentLevel);
+        cafe.put("investmentAvailableLevel", currentCafeInvestmentAvailableLevel());
+        CafeInvestment nextInvestment = nextCafeInvestment();
+        cafe.put("endgameInvestment", cafeInvestmentVisible() && nextInvestment != null
+                ? cafeInvestmentToClientJson(nextInvestment)
+                : null);
         cafe.put("ownedUpgrades", new ArrayList<>(cafeUpgrades));
         cafe.put("ownedAutomation", new ArrayList<>(cafeAutomationUpgrades));
         cafe.put("ownedItems", new ArrayList<>(cafeItems));
@@ -978,6 +1012,33 @@ public final class ProgressStore {
         resetCafePassiveClock();
         saveSoon();
         return new ExpansionResult(true, null, previousStores, addedStores, cafeStores, cost);
+    }
+
+    /**
+     * 終盤の任意プロジェクトを1段階完了する。
+     *
+     * <p>報酬倍率は増やさない。学習コンテンツが増えたときに、
+     * 20問ごとに新しい使い道を自動で用意するための長期的なコイン消費先。</p>
+     */
+    public synchronized InvestmentPurchaseResult purchaseCafeInvestment() {
+        CafeInvestment investment = nextCafeInvestment();
+        if (investment == null) {
+            return new InvestmentPurchaseResult(false, "改装プロジェクトは上限です", null);
+        }
+        if (cleared.size() < investment.requiredStars()) {
+            return new InvestmentPurchaseResult(false,
+                    "次の改装プロジェクトには★" + investment.requiredStars() + "が必要です",
+                    investment);
+        }
+        if (cafeCash < investment.cost()) {
+            return new InvestmentPurchaseResult(false,
+                    "改装プロジェクトに必要なコインが足りません", investment);
+        }
+        cafeCash -= investment.cost();
+        cafeInvestmentLevel = investment.level();
+        resetCafePassiveClock();
+        saveSoon();
+        return new InvestmentPurchaseResult(true, null, investment);
     }
 
     private CafeAward addCafeReward(String trigger, long cash, long cups) {
@@ -1357,6 +1418,81 @@ public final class ProgressStore {
         return limit;
     }
 
+    /** 現在の★数で購入できる任意投資の最高段階。 */
+    private int currentCafeInvestmentAvailableLevel() {
+        int starsPastStart = cleared.size() - ENDGAME_INVESTMENT_START_STARS;
+        return starsPastStart <= 0 ? 0 : starsPastStart / ENDGAME_INVESTMENT_STAR_INTERVAL;
+    }
+
+    private boolean cafeInvestmentVisible() {
+        return cafeInvestmentLevel > 0
+                || cleared.size() >= ENDGAME_INVESTMENT_START_STARS
+                        + ENDGAME_INVESTMENT_STAR_INTERVAL;
+    }
+
+    private CafeInvestment nextCafeInvestment() {
+        int level = cafeInvestmentLevel + 1;
+        int requiredStars = ENDGAME_INVESTMENT_START_STARS
+                + level * ENDGAME_INVESTMENT_STAR_INTERVAL;
+        return new CafeInvestment(
+                level,
+                cafeInvestmentName(level),
+                cafeInvestmentEmoji(level),
+                cafeInvestmentDescription(level),
+                requiredStars,
+                cafeInvestmentCost(level));
+    }
+
+    private static long cafeInvestmentCost(int level) {
+        long cost = ENDGAME_INVESTMENT_BASE_COST;
+        for (int i = 1; i < level; i++) {
+            cost = saturatedMultiply(cost, 2L);
+        }
+        return cost;
+    }
+
+    private static String cafeInvestmentName(int level) {
+        return switch (level) {
+            case 1 -> "フレームワーク認定ラウンジ";
+            case 2 -> "運用管制センター";
+            case 3 -> "Java Café記念館";
+            default -> "Javaコミュニティ基金 第" + (level - 3) + "期";
+        };
+    }
+
+    private static String cafeInvestmentEmoji(int level) {
+        return switch (level) {
+            case 1 -> "🏛️";
+            case 2 -> "🛰️";
+            case 3 -> "🏛️";
+            default -> "🌱";
+        };
+    }
+
+    private static String cafeInvestmentDescription(int level) {
+        return switch (level) {
+            case 1 -> "3製品の学びを称える認定ラウンジを開設します。";
+            case 2 -> "世界の店舗を見守る運用・可観測性の拠点を作ります。";
+            case 3 -> "積み重ねたJava学習を後世へ残す記念館を開設します。";
+            default -> "次の学習者を支えるコミュニティ活動へ投資します。";
+        };
+    }
+
+    private Map<String, Object> cafeInvestmentToClientJson(CafeInvestment investment) {
+        Map<String, Object> value = new LinkedHashMap<>();
+        value.put("level", investment.level());
+        value.put("name", investment.name());
+        value.put("emoji", investment.emoji());
+        value.put("description", investment.description());
+        value.put("requiredStars", investment.requiredStars());
+        value.put("cost", investment.cost());
+        value.put("available", cleared.size() >= investment.requiredStars());
+        value.put("completedLevel", cafeInvestmentLevel);
+        value.put("availableLevel", currentCafeInvestmentAvailableLevel());
+        value.put("rewardEffect", false);
+        return value;
+    }
+
     private Integer nextCafeStoreUnlockStars() {
         for (int i = 0; i < STORE_LIMITS.length; i++) {
             if (STORE_LIMITS[i] > cafeStores && cleared.size() < STORE_UNLOCK_STARS[i]) {
@@ -1593,6 +1729,7 @@ public final class ProgressStore {
         cafeTaskRewardCount = 0;
         cafePassiveCashSinceTask = 0;
         cafeStores = 1;
+        cafeInvestmentLevel = 0;
         cafeUpgrades.clear();
         cafeAutomationUpgrades.clear();
         cafeItems.clear();
@@ -1685,6 +1822,8 @@ public final class ProgressStore {
                 cafePassiveCashSinceTask = longOf(cafe, "passiveCashSinceTask", 0);
                 cafeStores = Math.min(MAX_CAFE_STORES,
                         Math.max(1, MiniJson.intOf(cafe, "storeCount", 1)));
+                cafeInvestmentLevel = Math.min(1_000,
+                        Math.max(0, MiniJson.intOf(cafe, "investmentLevel", 0)));
                 int economyVersion = MiniJson.intOf(cafe, "economyVersion", 1);
                 if (economyVersion < 2) {
                     // 初版は1杯ほぼ10円だったため、平均500円の新レートへ換算する。
@@ -1868,6 +2007,7 @@ public final class ProgressStore {
         cafe.put("taskRewardCount", cafeTaskRewardCount);
         cafe.put("passiveCashSinceTask", cafePassiveCashSinceTask);
         cafe.put("storeCount", cafeStores);
+        cafe.put("investmentLevel", cafeInvestmentLevel);
         cafe.put("ownedUpgrades", new ArrayList<>(cafeUpgrades));
         cafe.put("ownedAutomation", new ArrayList<>(cafeAutomationUpgrades));
         cafe.put("ownedItems", new ArrayList<>(cafeItems));

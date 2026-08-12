@@ -1,0 +1,667 @@
+{
+  "id": "ch61",
+  "title": "Open Liberty実践入門",
+  "subtitle": "Jakarta EEとMicroProfile、Feature Manager、Zero Migrationを理解して標準APIの業務アプリを動かす",
+  "emoji": "🗽",
+  "lessons": [
+    {
+      "id": "61-1",
+      "title": "Open Libertyとアプリケーションサーバーの役割",
+      "explanation": "Open Libertyは、Jakarta EEとMicroProfileの仕様に沿ったアプリケーションを動かすための軽量なアプリケーションサーバーです。ここでいうサーバーは物理マシンの意味ではなく、HTTP受付、DI、トランザクション、セキュリティなど、業務アプリが共通して必要とする実行機能を提供するランタイムです。アプリはJakarta RESTなどの標準APIを使い、Open Libertyがその処理を実装します。\n\n最初に、この章で使う4つの言葉を区別します。\n\n- 仕様: 「このAPIはどう書き、どう動くべきか」という共通ルールです。Jakarta EEやMicroProfileが定めます。\n- 実装: 仕様どおりに実際の処理を行うソフトウェアです。Open Libertyがこの役割を担います。\n- ランタイム／アプリケーションサーバー: アプリを起動し、HTTP、DI、トランザクションなどを提供する実行環境です。\n- WAR（Web Application Archive）: コンパイル済みクラスや設定をまとめたWebアプリの配布ファイルです。Open Libertyへ配置して実行します。\n\nアプリのJARにWebサーバーを組み込む構成もありますが、Open Libertyではランタイムの構成とアプリの成果物を分けて扱います。典型的なMavenプロジェクトは次の役割に分かれます。\n\n```text\npom.xml                         依存関係とLiberty Maven Plugin\nsrc/main/java                   Jakarta EE / MicroProfileのコード\nsrc/main/liberty/config/\n  server.xml                    有効にする機能、HTTPポートなど\ntarget/*.war                    配布するアプリケーション\n```\n\n`server.xml`はOpen Libertyランタイムの設定です。アプリコードを書き換えずに、ポート、Feature、データソースなどの環境構成を変えられます。`mvn liberty:dev`を実行すると、サーバーを起動したままコードや設定の変更を検出して再コンパイル・再配置できます。Enterキーでテストを実行でき、`-DhotTests`を付ければ変更時の自動テストも可能です。最初の手順は次の通りです。\n\n```bash\nmvn liberty:dev\ncurl 'http://localhost:9080/api/greeting?name=Java'\n# Ctrl+Cで終了\nmvn test\nmvn package\n```\n\nWARは「古い形式だから必ず避けるもの」ではありません。アプリとランタイム構成を分離し、組織で標準化したサーバー運用に載せやすい成果物です。コンテナではOpen Libertyのイメージへ`server.xml`とWARを組み込めます。まずは`labs/frameworks/open-liberty`の最小アプリで、コード、server.xml、実行コマンドの関係を確認してください。",
+      "samples": [
+        {
+          "caption": "考え方を標準Javaで確かめる",
+          "code": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Map<String, String> commands = Map.of(\n                \"develop\", \"mvn liberty:dev\",\n                \"test\", \"mvn test\",\n                \"package\", \"mvn package\"\n        );\n        System.out.println(commands.get(\"develop\"));\n    }\n}",
+          "expected": "mvn liberty:dev"
+        }
+      ],
+      "task": "開発作業に合うコマンドを選ぶ\n\n1行目に目的が与えられます。`EDIT_AND_RUN`なら`mvn liberty:dev | 変更を検出して再配置`、`RUN_ONLY`なら`mvn liberty:run | 手動で停止するまで実行`、`TEST`なら`mvn test | テストを実行`、`PACKAGE`なら`mvn package | WARを作成`、それ以外なら`CHECK_POM | 未知の目的`を出力してください。",
+      "starterCode": "import java.util.*;\n\npublic class Main {\n    static String commandFor(String goal) {\n        // TODO: 目的に合うコマンドと成果を返す\n        return \"\";\n    }\n\n    public static void main(String[] args) {\n        String goal = new Scanner(System.in).nextLine();\n        System.out.println(commandFor(goal));\n    }\n}",
+      "visibleCases": [
+        {
+          "label": "表示ケース1",
+          "stdin": "EDIT_AND_RUN\n",
+          "expected": "mvn liberty:dev | 変更を検出して再配置"
+        },
+        {
+          "label": "表示ケース2",
+          "stdin": "PACKAGE\n",
+          "expected": "mvn package | WARを作成"
+        }
+      ],
+      "hiddenCases": [
+        {
+          "label": "隠しケース1",
+          "stdin": "RUN_ONLY\n",
+          "expected": "mvn liberty:run | 手動で停止するまで実行"
+        },
+        {
+          "label": "隠しケース2",
+          "stdin": "TEST\n",
+          "expected": "mvn test | テストを実行"
+        },
+        {
+          "label": "隠しケース3",
+          "stdin": "DEPLOY\n",
+          "expected": "CHECK_POM | 未知の目的"
+        }
+      ],
+      "hints": [
+        "`commandFor`を`switch`式にし、目的ごとに「コマンド | 何が起きるか」をそのまま返します。",
+        "未知の目的にも必ず値を返せるよう、`default`を`CHECK_POM | 未知の目的`にします。"
+      ],
+      "solution": "import java.util.*;\n\npublic class Main {\n    static String commandFor(String goal) {\n        return switch (goal) {\n            case \"EDIT_AND_RUN\" -> \"mvn liberty:dev | 変更を検出して再配置\";\n            case \"RUN_ONLY\" -> \"mvn liberty:run | 手動で停止するまで実行\";\n            case \"TEST\" -> \"mvn test | テストを実行\";\n            case \"PACKAGE\" -> \"mvn package | WARを作成\";\n            default -> \"CHECK_POM | 未知の目的\";\n        };\n    }\n\n    public static void main(String[] args) {\n        String goal = new Scanner(System.in).nextLine();\n        System.out.println(commandFor(goal));\n    }\n}",
+      "sourceChecks": [
+        {
+          "pattern": "static\\s+String\\s+commandFor",
+          "message": "コマンド選択をcommandForメソッドへ分けてください。"
+        },
+        {
+          "pattern": "switch\\s*\\(",
+          "message": "目的ごとのコマンドをswitchで明示してください。"
+        }
+      ],
+      "kind": "practice",
+      "extraTasks": [],
+      "quiz": [
+        {
+          "question": "Open Libertyがアプリケーションへ提供するものはどれですか？",
+          "choices": [
+            "HTTP、DI、トランザクションなどJakarta EE/MicroProfile APIの実行機能",
+            "物理サーバー本体",
+            "業務要件そのもの",
+            "Javaの文法"
+          ],
+          "answer": 0,
+          "explanation": "アプリケーションサーバーは、標準APIを実際に動かす共通の実行機能を提供するランタイムです。"
+        },
+        {
+          "question": "`server.xml`の主な役割はどれですか？",
+          "choices": [
+            "有効なFeature、ポート、接続先などランタイム構成を定義する",
+            "Javaの単体テストを書く",
+            "ブラウザーのCSSを作る",
+            "SQLだけを保存する"
+          ],
+          "answer": 0,
+          "explanation": "アプリコードとランタイム構成を分け、環境に応じた設定を管理できます。"
+        }
+      ]
+    },
+    {
+      "id": "61-2",
+      "title": "Feature Managerで必要な機能を有効にする",
+      "explanation": "Open Libertyを初めて使うとき最も重要なのがFeature Managerです。Featureは、Jakarta REST、CDI、Persistence、MicroProfile Healthなど、サーバーが提供する機能の単位です。Feature Managerは`server.xml`の中で「このアプリを動かすために、どの機能をランタイムへ読み込むか」を宣言する場所です。依存ライブラリをMavenへ追加するだけでは、サーバー側の実装機能が有効になるとは限りません。\n\n```xml\n<featureManager>\n    <feature>restfulWS-4.0</feature>\n    <feature>cdi-4.1</feature>\n    <feature>validation-3.1</feature>\n    <feature>jsonb-3.0</feature>\n    <feature>mpHealth-4.0</feature>\n</featureManager>\n```\n\nこの例では、REST受付、DI、入力検証、JSON変換、ヘルスチェックだけを有効にします。必要な機能が明確で、起動時に余計な機能を読み込まず、設定レビューでも用途を説明しやすい構成です。Jakarta EE 11では仕様名の変更に合わせ、入力検証のFeature IDが`validation-3.1`になった点にも注意してください。Persistenceを使うなら`persistence-3.2`、MicroProfile Configを使うなら`mpConfig-3.1`のように追加します。Feature間の依存関係はOpen Libertyが解決します。\n\n多数のJakarta EE機能をまとめて使う場合は`jakartaee-11.0`というplatform featureを1個有効にできます。最近の構成では、`<platform>jakartaee-11.0</platform>`を宣言し、`<feature>restfulWS</feature>`のようなversionless featureを組み合わせる方法もあります。platformが各Featureの版を決めるので、同じプラットフォーム内で版をそろえやすくなります。一方、個別のversioned featureは「このAPI版を使い続ける」という意図が設定に直接残ります。チームで方式を統一してください。\n\n「必要な分だけ有効にすると何がうれしいか」は、(1)サーバーの役割が設定から読める、(2)不要な機能と攻撃面を減らせる、(3)API版を意識して更新できる、という3点です。なおJakarta EE 11全体を使うこと自体が悪いわけではありません。複数機能を広く使う業務アプリならplatform featureの方が保守しやすい場合もあります。最小化を目的化せず、利用機能と運用方針に合う単位を選びます。",
+      "samples": [
+        {
+          "caption": "考え方を標準Javaで確かめる",
+          "code": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Map<String, String> features = Map.of(\n                \"rest\", \"restfulWS-4.0\",\n                \"di\", \"cdi-4.1\",\n                \"json\", \"jsonb-3.0\",\n                \"health\", \"mpHealth-4.0\"\n        );\n        List.of(\"rest\", \"di\", \"json\").stream().map(features::get).forEach(System.out::println);\n    }\n}",
+          "expected": "restfulWS-4.0\ncdi-4.1\njsonb-3.0"
+        }
+      ],
+      "task": "要件からversioned featureを構成する\n\n空白区切りの要件`rest`、`di`、`validation`、`json`、`db`、`health`、`config`を入力順に読み、重複を除いてそれぞれ`restfulWS-4.0`、`cdi-4.1`、`validation-3.1`、`jsonb-3.0`、`persistence-3.2`、`mpHealth-4.0`、`mpConfig-3.1`へ変換します。`<feature>名前</feature>`をカンマ区切りで出力し、未知の要件は`<feature>REVIEW:<語></feature>`としてください。",
+      "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        String line = new Scanner(System.in).nextLine().trim();\n        Map<String, String> features = Map.of(\n                \"rest\", \"restfulWS-4.0\", \"di\", \"cdi-4.1\",\n                \"validation\", \"validation-3.1\", \"json\", \"jsonb-3.0\",\n                \"db\", \"persistence-3.2\", \"health\", \"mpHealth-4.0\",\n                \"config\", \"mpConfig-3.1\"\n        );\n        Set<String> selected = new LinkedHashSet<>();\n        // TODO: 要件をfeature要素へ変換する\n    }\n}",
+      "visibleCases": [
+        {
+          "label": "表示ケース1",
+          "stdin": "rest di json\n",
+          "expected": "<feature>restfulWS-4.0</feature>,<feature>cdi-4.1</feature>,<feature>jsonb-3.0</feature>"
+        },
+        {
+          "label": "表示ケース2",
+          "stdin": "health config health\n",
+          "expected": "<feature>mpHealth-4.0</feature>,<feature>mpConfig-3.1</feature>"
+        }
+      ],
+      "hiddenCases": [
+        {
+          "label": "隠しケース1",
+          "stdin": "validation db\n",
+          "expected": "<feature>validation-3.1</feature>,<feature>persistence-3.2</feature>"
+        },
+        {
+          "label": "隠しケース2",
+          "stdin": "rest mail\n",
+          "expected": "<feature>restfulWS-4.0</feature>,<feature>REVIEW:mail</feature>"
+        },
+        {
+          "label": "隠しケース3",
+          "stdin": "config json di\n",
+          "expected": "<feature>mpConfig-3.1</feature>,<feature>jsonb-3.0</feature>,<feature>cdi-4.1</feature>"
+        }
+      ],
+      "hints": [
+        "各要件をMapでFeature IDへ変換し、`<feature>`と`</feature>`で囲んでから集合へ追加します。",
+        "`LinkedHashSet`なら入力順を保って重複を除けます。未知の語は`REVIEW:`を付けて設定レビューへ残します。"
+      ],
+      "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        String line = new Scanner(System.in).nextLine().trim();\n        Map<String, String> features = Map.of(\n                \"rest\", \"restfulWS-4.0\", \"di\", \"cdi-4.1\",\n                \"validation\", \"validation-3.1\", \"json\", \"jsonb-3.0\",\n                \"db\", \"persistence-3.2\", \"health\", \"mpHealth-4.0\",\n                \"config\", \"mpConfig-3.1\"\n        );\n        Set<String> selected = new LinkedHashSet<>();\n        if (!line.isEmpty()) {\n            for (String requirement : line.split(\"\\\\s+\")) {\n                String feature = features.getOrDefault(requirement, \"REVIEW:\" + requirement);\n                selected.add(\"<feature>\" + feature + \"</feature>\");\n            }\n        }\n        System.out.println(String.join(\",\", selected));\n    }\n}",
+      "sourceChecks": [
+        {
+          "pattern": "LinkedHashSet",
+          "message": "入力順を保って重複Featureを除いてください。"
+        },
+        {
+          "pattern": "getOrDefault",
+          "message": "未知の要件をREVIEWとして残してください。"
+        }
+      ],
+      "kind": "practice",
+      "extraTasks": [],
+      "quiz": [
+        {
+          "question": "Feature Managerは何をする設定ですか？",
+          "choices": [
+            "Open Libertyが読み込むJakarta EE/MicroProfile機能を宣言する",
+            "従業員を管理する",
+            "Javaの変数名を変更する",
+            "DBデータを自動削除する"
+          ],
+          "answer": 0,
+          "explanation": "アプリが必要とするサーバー機能を`server.xml`で選ぶ仕組みです。"
+        },
+        {
+          "question": "必要なFeatureだけを選ぶ実務上の利点として適切なものはどれですか？",
+          "choices": [
+            "ランタイムの役割とAPI版が設定から分かり、不要な機能を減らせる",
+            "業務テストが不要になる",
+            "すべての更新が無条件で安全になる",
+            "Javaを使わなくてよくなる"
+          ],
+          "answer": 0,
+          "explanation": "機能と版が明示されます。ただしアプリのテストや更新確認は引き続き必要です。"
+        }
+      ]
+    },
+    {
+      "id": "61-3",
+      "title": "Jakarta REST・CDI・ValidationでAPIを作る",
+      "explanation": "Open Libertyのアプリコードは、特定ベンダー専用APIよりJakarta EEの標準APIを中心に書けます。Jakarta RESTはHTTP API、CDI（Contexts and Dependency Injection）は部品の生成とDI、Jakarta Validationは入力検証、JSON-BはJavaオブジェクトとJSONの変換を担当します。実装を標準APIの境界に保つと、別のJakarta EE実装へ移す場合の変更範囲を抑えやすくなります。\n\n```java\n@Path(\"/greeting\")\n@Produces(MediaType.APPLICATION_JSON)\npublic class GreetingResource {\n    @Inject\n    GreetingService service;\n\n    @GET\n    public GreetingResponse greet(@QueryParam(\"name\") @NotBlank String name) {\n        return new GreetingResponse(service.message(name));\n    }\n}\n```\n\n`@Path`はURL、`@GET`はHTTPメソッド、`@Produces`はレスポンス形式です。`@Inject`によりCDIがGreetingServiceを渡します。Serviceには`@ApplicationScoped`を付けるとアプリ内で共有されます。共有されるため、利用者ごとの入力をフィールドへ保存してはいけません。\n\nJakarta Validationを有効にすると、`@NotBlank`などの制約違反をHTTP境界で検出できます。業務上の「在庫が足りない」のような規則はValidationだけへ押し込まずServiceで判定します。役割は、ResourceがHTTPを受ける、Serviceが業務ルールを実行する、RepositoryがDBを操作する、DTO（Data Transfer Object）がHTTPの入力・出力データを運ぶ、と分けます。この分担にすると変更理由が混ざりにくく、HTTPを起動しないServiceの単体テストも書きやすくなります。Open Libertyでは、これらのコードが使うランタイム機能をFeature Managerで有効にする点も忘れないでください。\n\nアプリのベースパスは`@ApplicationPath(\"/api\")`を付けた`Application`サブクラスで定義できます。この場合、上のResourceは`/api/greeting`になります。404、400、409などのエラーJSONを統一するには`ExceptionMapper`を使います。例外詳細を利用者へそのまま公開しない原則も同じです。",
+      "samples": [
+        {
+          "caption": "考え方を標準Javaで確かめる",
+          "code": "import java.util.*;\n\npublic class Main {\n    record GreetingResponse(String message) {}\n    static class GreetingService {\n        GreetingResponse greet(String name) {\n            return new GreetingResponse(\"Hello, \" + name.trim());\n        }\n    }\n    public static void main(String[] args) {\n        String name = new Scanner(System.in).nextLine();\n        System.out.println(name.isBlank() ? \"400\" : new GreetingService().greet(name).message());\n    }\n}",
+          "stdin": "Java\n",
+          "expected": "Hello, Java"
+        }
+      ],
+      "task": "ResourceとServiceの責務を分ける\n\n1行目にbase path、2行目にresource path、3行目にnameが与えられます。base pathとresource pathは前後の`/`を整理して1本のパスにし、nameが空白なら`400 <path> NAME_REQUIRED`、それ以外ならServiceを呼び`200 <path> Hello, <trim済みname>`を出力してください。例：`/api/`と`/greeting`は`/api/greeting`です。",
+      "starterCode": "import java.util.*;\n\npublic class Main {\n    static class GreetingService {\n        String message(String name) {\n            return \"Hello, \" + name.trim();\n        }\n    }\n\n    static String joinPath(String base, String resource) {\n        // TODO: slashを1個にそろえる\n        return \"\";\n    }\n\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        String base = sc.nextLine();\n        String resource = sc.nextLine();\n        String name = sc.nextLine();\n        // TODO: 検証後にServiceを呼ぶ\n    }\n}",
+      "visibleCases": [
+        {
+          "label": "表示ケース1",
+          "stdin": "/api/\n/greeting\nJava\n",
+          "expected": "200 /api/greeting Hello, Java"
+        },
+        {
+          "label": "表示ケース2",
+          "stdin": "/api\ngreeting\n   \n",
+          "expected": "400 /api/greeting NAME_REQUIRED"
+        }
+      ],
+      "hiddenCases": [
+        {
+          "label": "隠しケース1",
+          "stdin": "/v1/\n/orders\nLiberty\n",
+          "expected": "200 /v1/orders Hello, Liberty"
+        },
+        {
+          "label": "隠しケース2",
+          "stdin": "/api\n/greeting\n  Jakarta  \n",
+          "expected": "200 /api/greeting Hello, Jakarta"
+        },
+        {
+          "label": "隠しケース3",
+          "stdin": "/root/\nitem\nX\n",
+          "expected": "200 /root/item Hello, X"
+        }
+      ],
+      "hints": [
+        "`joinPath`ではbase末尾とresource先頭の`/`を除いてから、中央へ1個だけ`/`を置きます。",
+        "完成したpathは入力エラー時にも使います。`name.isBlank()`を先に判定し、正常時だけServiceを呼びましょう。"
+      ],
+      "solution": "import java.util.*;\n\npublic class Main {\n    static class GreetingService {\n        String message(String name) {\n            return \"Hello, \" + name.trim();\n        }\n    }\n\n    static String joinPath(String base, String resource) {\n        String left = base.endsWith(\"/\") ? base.substring(0, base.length() - 1) : base;\n        String right = resource.startsWith(\"/\") ? resource.substring(1) : resource;\n        return left + \"/\" + right;\n    }\n\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        String base = sc.nextLine();\n        String resource = sc.nextLine();\n        String name = sc.nextLine();\n        String path = joinPath(base, resource);\n        if (name.isBlank()) {\n            System.out.println(\"400 \" + path + \" NAME_REQUIRED\");\n        } else {\n            GreetingService service = new GreetingService();\n            System.out.println(\"200 \" + path + \" \" + service.message(name));\n        }\n    }\n}",
+      "sourceChecks": [
+        {
+          "pattern": "static\\s+String\\s+joinPath",
+          "message": "パス結合をjoinPathメソッドへ分けてください。"
+        },
+        {
+          "pattern": "service\\.message",
+          "message": "正常時の業務処理をGreetingServiceへ委譲してください。"
+        }
+      ],
+      "kind": "practice",
+      "extraTasks": [],
+      "quiz": [
+        {
+          "question": "Jakarta RESTの`@Path`が表すものはどれですか？",
+          "choices": [
+            "HTTPリソースのURLパス",
+            "DBのパスワード",
+            "Javaの継承元",
+            "JVMのメモリ量"
+          ],
+          "answer": 0,
+          "explanation": "クラスやメソッドをURLパスへ対応付けます。"
+        },
+        {
+          "question": "CDIの`@ApplicationScoped`なServiceで避けるべきことはどれですか？",
+          "choices": [
+            "リクエストごとの可変な入力をフィールドへ保存する",
+            "コンストラクタや注入で依存先を受け取る",
+            "業務処理をメソッドに分ける",
+            "単体テストを書く"
+          ],
+          "answer": 0,
+          "explanation": "共有インスタンスに利用者固有の状態を置くと、同時アクセスで値が混ざります。"
+        }
+      ]
+    },
+    {
+      "id": "61-4",
+      "title": "MicroProfileで設定と運用機能をそろえる",
+      "explanation": "MicroProfileは、マイクロサービスやクラウド運用で共通して必要になるAPI仕様の集合です。Open Libertyでは必要なMicroProfile Featureを有効にして使います。Jakarta EEがWeb、DI、永続化など業務アプリの土台を広く扱うのに対し、MicroProfileは外部設定、ヘルス、耐障害性、API文書、メトリクスなどを補います。\n\n- MicroProfile Config: 環境変数や設定ファイルから値を読みます。`@ConfigProperty`で型付きに注入できます。秘密情報をソースへ埋め込まないためにも使います。\n- MicroProfile Health: Liveness、Readiness、Startupを公開します。`@Readiness`を付けたHealthCheckで、依存先を含めて受付可能か表せます。\n- MicroProfile Fault Tolerance: Timeout（一定時間で処理を打ち切る）、Retry（一時失敗を再試行する）、Circuit Breaker（失敗が続く依存先への呼び出しを一時停止する）、Bulkhead（同時実行数を分離・制限して障害の波及を抑える）などを宣言します。Retryの前には、同じ処理を繰り返しても結果が壊れない冪等性があるか、総待ち時間が許容内かを確認します。\n- MicroProfile OpenAPI: API仕様を生成・補足し、利用者と契約を共有します。\n\n```java\n@Readiness\n@ApplicationScoped\npublic class DatabaseReadiness implements HealthCheck {\n    public HealthCheckResponse call() {\n        return database.ping()\n            ? HealthCheckResponse.up(\"database\")\n            : HealthCheckResponse.down(\"database\");\n    }\n}\n```\n\nHealthは監視のための情報で、例外を握りつぶす機能ではありません。ReadinessがDOWNなら新規通信から外し、LivenessがDOWNならプロセス再起動の候補になります。DBの一時障害をLivenessへ含めると再起動ループになり得るため、目的を分けます。\n\n標準APIを使う利点は、アプリコードと運用規約を特定実装だけに閉じにくいことです。ただし、設定キー、監視基盤への連携、実際の障害回復手順はチームで設計する必要があります。Featureを有効にしただけで可用性が完成するわけではありません。",
+      "samples": [
+        {
+          "caption": "考え方を標準Javaで確かめる",
+          "code": "import java.util.*;\n\npublic class Main {\n    record Health(String name, boolean up) {}\n    public static void main(String[] args) {\n        Health database = new Health(\"database\", true);\n        System.out.println(database.name() + \"=\" + (database.up() ? \"UP\" : \"DOWN\"));\n    }\n}",
+          "expected": "database=UP"
+        }
+      ],
+      "task": "運用要件に合うMicroProfile機能を選ぶ\n\n1行目に要件が与えられます。`EXTERNAL_CONFIG`なら`mpConfig-3.1 | @ConfigProperty`、`READINESS`なら`mpHealth-4.0 | @Readiness`、`TIMEOUT_RETRY`なら`mpFaultTolerance | 冪等性を確認`、`API_DOCUMENT`なら`mpOpenAPI | API契約を共有`、それ以外なら`REVIEW | 要件を具体化`を出力してください。",
+      "starterCode": "import java.util.*;\n\npublic class Main {\n    static String select(String requirement) {\n        // TODO: 機能と使う目的を返す\n        return \"\";\n    }\n\n    public static void main(String[] args) {\n        System.out.println(select(new Scanner(System.in).nextLine()));\n    }\n}",
+      "visibleCases": [
+        {
+          "label": "表示ケース1",
+          "stdin": "EXTERNAL_CONFIG\n",
+          "expected": "mpConfig-3.1 | @ConfigProperty"
+        },
+        {
+          "label": "表示ケース2",
+          "stdin": "READINESS\n",
+          "expected": "mpHealth-4.0 | @Readiness"
+        }
+      ],
+      "hiddenCases": [
+        {
+          "label": "隠しケース1",
+          "stdin": "TIMEOUT_RETRY\n",
+          "expected": "mpFaultTolerance | 冪等性を確認"
+        },
+        {
+          "label": "隠しケース2",
+          "stdin": "API_DOCUMENT\n",
+          "expected": "mpOpenAPI | API契約を共有"
+        },
+        {
+          "label": "隠しケース3",
+          "stdin": "CACHE\n",
+          "expected": "REVIEW | 要件を具体化"
+        }
+      ],
+      "hints": [
+        "要件からFeatureとアノテーション、または運用上の注意を1組で返す`switch`式にします。",
+        "`TIMEOUT_RETRY`では機能名だけでなく、再実行しても安全かを示す`冪等性を確認`まで出力に含めます。"
+      ],
+      "solution": "import java.util.*;\n\npublic class Main {\n    static String select(String requirement) {\n        return switch (requirement) {\n            case \"EXTERNAL_CONFIG\" -> \"mpConfig-3.1 | @ConfigProperty\";\n            case \"READINESS\" -> \"mpHealth-4.0 | @Readiness\";\n            case \"TIMEOUT_RETRY\" -> \"mpFaultTolerance | 冪等性を確認\";\n            case \"API_DOCUMENT\" -> \"mpOpenAPI | API契約を共有\";\n            default -> \"REVIEW | 要件を具体化\";\n        };\n    }\n\n    public static void main(String[] args) {\n        System.out.println(select(new Scanner(System.in).nextLine()));\n    }\n}",
+      "sourceChecks": [
+        {
+          "pattern": "static\\s+String\\s+select",
+          "message": "機能選択をselectメソッドへ分けてください。"
+        },
+        {
+          "pattern": "switch\\s*\\(",
+          "message": "要件ごとの選択をswitchで実装してください。"
+        }
+      ],
+      "kind": "drill",
+      "extraTasks": [],
+      "quiz": [
+        {
+          "question": "MicroProfile Configを使う目的として適切なものはどれですか？",
+          "choices": [
+            "環境で変わる設定をコードから分離して読み込む",
+            "Javaの型をなくす",
+            "DB更新を必ず成功させる",
+            "HTTPを無効にする"
+          ],
+          "answer": 0,
+          "explanation": "接続先や機能フラグなどを環境から渡し、コードの再ビルドを避けやすくします。"
+        },
+        {
+          "question": "Retryを設定する前に確認すべきことはどれですか？",
+          "choices": [
+            "同じ処理を再実行しても二重登録などで壊れないか",
+            "変数名が短いか",
+            "CSSがあるか",
+            "WARの名前が必ずappか"
+          ],
+          "answer": 0,
+          "explanation": "副作用のある処理は再試行で重複する可能性があるため、冪等性と回数・待ち時間を設計します。"
+        }
+      ]
+    },
+    {
+      "id": "61-5",
+      "title": "Zero Migrationを正しい範囲で使う",
+      "explanation": "Open LibertyのZero Migration Architectureは、ランタイム本体を新しくしても、アプリが指定するversioned featureを維持することで、そのFeatureのAPIと動作をできるだけ保つ設計です。目的は、セキュリティ修正やバグ修正を含む新しいOpen Libertyランタイムへ継続的に上げやすくすることです。\n\n```text\n変更前: Open Liberty旧版 + restfulWS-4.0\n変更後: Open Liberty新版 + restfulWS-4.0\n                              ↑ Feature版は同じ\n```\n\nこのランタイム更新と、`restfulWS-4.0`から将来の新しいFeature版へ変えるAPI仕様更新は別です。後者では仕様差に合わせたコード・設定変更が必要になる可能性があります。「Zero Migrationだからテスト不要」「すべての変更が無条件で互換」という意味ではありません。\n\n互換性の中心は、Open Libertyが文書化して提供する構成とFeatureです。Java自体の版を変える、アプリが直接使うサードパーティライブラリを変える、文書化されていない内部動作へ依存する、セキュリティ上どうしても挙動修正が必要になる、といった場合は別の影響があり得ます。ランタイム更新でも回帰テストと段階リリースは行います。\n\n実務では次の2本を分けて計画します。\n\n1. 定期的なランタイム更新: Feature版は維持し、脆弱性修正を早く取り込む。自動テスト、起動確認、主要APIのスモークテストを行う。\n2. 計画的な仕様更新: Feature版やJakarta EE platform版を上げ、仕様差、非推奨API、コード、設定を調査して移行する。\n\n100個のサービスでランタイム更新のたびに全コード移行が必要になる状況を避け、ランタイム保守とAPI仕様移行を別の速度で進められることが、Zero Migrationの実務的な価値です。",
+      "samples": [
+        {
+          "caption": "考え方を標準Javaで確かめる",
+          "code": "import java.util.*;\n\npublic class Main {\n    static String impact(boolean runtimeChanged, boolean featureChanged) {\n        if (featureChanged) return \"SPEC_MIGRATION\";\n        if (runtimeChanged) return \"ZERO_MIGRATION_SCOPE\";\n        return \"NO_CHANGE\";\n    }\n    public static void main(String[] args) {\n        System.out.println(impact(true, false));\n    }\n}",
+          "expected": "ZERO_MIGRATION_SCOPE"
+        }
+      ],
+      "task": "更新の種類と必要作業を分類する\n\n1行目に変更種別が与えられます。`RUNTIME_ONLY`は`ZERO_MIGRATION_SCOPE | regression test`、`FEATURE_VERSION`は`SPEC_MIGRATION | guide and code test`、`JAVA_VERSION`は`JAVA_MIGRATION | compatibility test`、`THIRD_PARTY`は`LIBRARY_MIGRATION | release notes`、`UNDOCUMENTED`は`UNSUPPORTED_DEPENDENCY | remove reliance`、それ以外は`REVIEW | classify change`を出力してください。",
+      "starterCode": "import java.util.*;\n\npublic class Main {\n    static String classify(String change) {\n        // TODO: Zero Migrationの範囲と別の移行を区別する\n        return \"\";\n    }\n\n    public static void main(String[] args) {\n        System.out.println(classify(new Scanner(System.in).nextLine()));\n    }\n}",
+      "visibleCases": [
+        {
+          "label": "表示ケース1",
+          "stdin": "RUNTIME_ONLY\n",
+          "expected": "ZERO_MIGRATION_SCOPE | regression test"
+        },
+        {
+          "label": "表示ケース2",
+          "stdin": "FEATURE_VERSION\n",
+          "expected": "SPEC_MIGRATION | guide and code test"
+        }
+      ],
+      "hiddenCases": [
+        {
+          "label": "隠しケース1",
+          "stdin": "JAVA_VERSION\n",
+          "expected": "JAVA_MIGRATION | compatibility test"
+        },
+        {
+          "label": "隠しケース2",
+          "stdin": "THIRD_PARTY\n",
+          "expected": "LIBRARY_MIGRATION | release notes"
+        },
+        {
+          "label": "隠しケース3",
+          "stdin": "UNDOCUMENTED\n",
+          "expected": "UNSUPPORTED_DEPENDENCY | remove reliance"
+        }
+      ],
+      "hints": [
+        "Zero Migrationの対象はFeature版を変えない`RUNTIME_ONLY`です。仕様版やJava版の変更とは分けてください。",
+        "`switch`式の各分岐で「分類 | 次に行う確認」を返し、未知の変更は`REVIEW`へ回します。"
+      ],
+      "solution": "import java.util.*;\n\npublic class Main {\n    static String classify(String change) {\n        return switch (change) {\n            case \"RUNTIME_ONLY\" -> \"ZERO_MIGRATION_SCOPE | regression test\";\n            case \"FEATURE_VERSION\" -> \"SPEC_MIGRATION | guide and code test\";\n            case \"JAVA_VERSION\" -> \"JAVA_MIGRATION | compatibility test\";\n            case \"THIRD_PARTY\" -> \"LIBRARY_MIGRATION | release notes\";\n            case \"UNDOCUMENTED\" -> \"UNSUPPORTED_DEPENDENCY | remove reliance\";\n            default -> \"REVIEW | classify change\";\n        };\n    }\n\n    public static void main(String[] args) {\n        System.out.println(classify(new Scanner(System.in).nextLine()));\n    }\n}",
+      "sourceChecks": [
+        {
+          "pattern": "static\\s+String\\s+classify",
+          "message": "変更分類をclassifyメソッドへ分けてください。"
+        },
+        {
+          "pattern": "switch\\s*\\(\\s*change\\s*\\)",
+          "message": "ランタイムだけの更新を明示的に扱ってください。"
+        }
+      ],
+      "kind": "drill",
+      "extraTasks": [],
+      "quiz": [
+        {
+          "question": "Zero Migrationが主に対象とする更新はどれですか？",
+          "choices": [
+            "指定Feature版を維持したOpen Libertyランタイム更新",
+            "あらゆるJavaコードの自動書き換え",
+            "DBスキーマの無条件変更",
+            "全サードパーティ製品の更新"
+          ],
+          "answer": 0,
+          "explanation": "ランタイムとFeature/API仕様の更新を分離できることが中心です。"
+        },
+        {
+          "question": "Zero Migrationを利用する場合にも必要なものはどれですか？",
+          "choices": [
+            "回帰テストと段階的なリリース確認",
+            "テストの全面廃止",
+            "Feature版の無計画な変更",
+            "文書化されていない内部動作への依存"
+          ],
+          "answer": 0,
+          "explanation": "影響を抑える設計であって、アプリ固有の動作確認を不要にする保証ではありません。"
+        }
+      ]
+    },
+    {
+      "id": "61-6",
+      "title": "テスト・運用・InstantOnを使い分ける",
+      "explanation": "Open Libertyでも、純粋なServiceのJUnit、Resourceの境界テスト、実サーバーを起動する結合テストを分けます。`liberty:dev`では変更を反映しながらテストでき、MavenのFailsafe Pluginを組み合わせれば、サーバー起動後にHTTP経由の統合テストを実行できます。本番と同じFeature、設定、Java版で確認することが大切です。\n\n運用ではMicroProfile Health、構造化ログ、メトリクス、トレースを監視基盤へ接続します。`server.xml`や環境変数は成果物と同様にレビューし、Featureの変更、ポート、TLS、データソース、秘密情報の渡し方を管理します。コンテナではランタイムイメージの更新とアプリWARの更新を分けて追跡できます。\n\nInstantOnはOpen Liberty固有の起動高速化手段です。CRIU（実行中プロセスの状態を保存・復元するLinuxの仕組み）を使い、JVMとアプリを途中まで起動したcheckpointをイメージへ保存します。コンテナ起動時は通常の初期化を最初から繰り返さずrestoreするため、ミリ秒単位の起動を狙えます。アプリをOS向けのネイティブ実行ファイルへ事前コンパイルする方式とは異なり、JVM/JITの実行特性を保ったまま高速起動を狙う方法です。\n\nただしInstantOnは通常起動のスイッチではありません。Linux、CRIU、対応JDK、コンテナ権限、対応Featureなどの条件を確認する必要があります。checkpoint時に秘密情報や外部接続を固定しないよう、初期化をcheckpoint前とrestore後のどちらで行うかも設計します。まず通常のJVM起動を正しく運用し、起動時間が要件上の問題になったときに測定して採用してください。\n\n起動の速さだけで製品を選ばず、長時間稼働時の性能、メモリ、ビルド・運用の複雑さ、プラットフォーム制約を合わせて比較します。",
+      "samples": [
+        {
+          "caption": "考え方を標準Javaで確かめる",
+          "code": "import java.util.*;\n\npublic class Main {\n    static boolean instantOnReady(boolean linux, boolean criu, boolean supportedJdk, boolean supportedFeatures) {\n        return linux && criu && supportedJdk && supportedFeatures;\n    }\n    public static void main(String[] args) {\n        System.out.println(instantOnReady(true, true, true, true) ? \"INSTANTON\" : \"REGULAR_JVM\");\n    }\n}",
+          "expected": "INSTANTON"
+        }
+      ],
+      "task": "InstantOnの採用条件を確認する\n\n5行に、高速起動が要件か、Linuxか、CRIU利用可か、対応JDKか、利用Featureが対応済みか、を表す`true`/`false`が与えられます。高速起動が要件でなければ`REGULAR_JVM:measure first`です。要件があり残りがすべてtrueなら`INSTANTON:checkpoint and restore`、それ以外はfalseの条件を`LINUX,CRIU,JDK,FEATURE`順に集めて`REGULAR_JVM:missing=<項目>`と出力してください。",
+      "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        boolean required = Boolean.parseBoolean(sc.nextLine());\n        boolean linux = Boolean.parseBoolean(sc.nextLine());\n        boolean criu = Boolean.parseBoolean(sc.nextLine());\n        boolean jdk = Boolean.parseBoolean(sc.nextLine());\n        boolean feature = Boolean.parseBoolean(sc.nextLine());\n        // TODO: 要件と対応条件を確認する\n    }\n}",
+      "visibleCases": [
+        {
+          "label": "表示ケース1",
+          "stdin": "true\ntrue\ntrue\ntrue\ntrue\n",
+          "expected": "INSTANTON:checkpoint and restore"
+        },
+        {
+          "label": "表示ケース2",
+          "stdin": "false\ntrue\ntrue\ntrue\ntrue\n",
+          "expected": "REGULAR_JVM:measure first"
+        }
+      ],
+      "hiddenCases": [
+        {
+          "label": "隠しケース1",
+          "stdin": "true\nfalse\nfalse\ntrue\ntrue\n",
+          "expected": "REGULAR_JVM:missing=LINUX,CRIU"
+        },
+        {
+          "label": "隠しケース2",
+          "stdin": "true\ntrue\ntrue\nfalse\nfalse\n",
+          "expected": "REGULAR_JVM:missing=JDK,FEATURE"
+        },
+        {
+          "label": "隠しケース3",
+          "stdin": "true\ntrue\nfalse\ntrue\ntrue\n",
+          "expected": "REGULAR_JVM:missing=CRIU"
+        }
+      ],
+      "hints": [
+        "高速起動が要件でなければ、他の4条件を見る前に`REGULAR_JVM:measure first`を返します。",
+        "要件がある場合はfalseの条件だけを`LINUX`、`CRIU`、`JDK`、`FEATURE`の順で集め、空ならInstantOnを選びます。"
+      ],
+      "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        boolean required = Boolean.parseBoolean(sc.nextLine());\n        boolean linux = Boolean.parseBoolean(sc.nextLine());\n        boolean criu = Boolean.parseBoolean(sc.nextLine());\n        boolean jdk = Boolean.parseBoolean(sc.nextLine());\n        boolean feature = Boolean.parseBoolean(sc.nextLine());\n        if (!required) {\n            System.out.println(\"REGULAR_JVM:measure first\");\n            return;\n        }\n        List<String> missing = new ArrayList<>();\n        if (!linux) missing.add(\"LINUX\");\n        if (!criu) missing.add(\"CRIU\");\n        if (!jdk) missing.add(\"JDK\");\n        if (!feature) missing.add(\"FEATURE\");\n        System.out.println(missing.isEmpty()\n                ? \"INSTANTON:checkpoint and restore\"\n                : \"REGULAR_JVM:missing=\" + String.join(\",\", missing));\n    }\n}",
+      "sourceChecks": [
+        {
+          "pattern": "List<String>\\s+missing",
+          "message": "満たさない条件をListへ集めてください。"
+        },
+        {
+          "pattern": "if\\s*\\(\\s*!required",
+          "message": "高速起動が要件でない場合を先に判定してください。"
+        }
+      ],
+      "kind": "applied",
+      "extraTasks": [],
+      "quiz": [
+        {
+          "question": "InstantOnがNative Imageと異なる点はどれですか？",
+          "choices": [
+            "JVMプロセスをcheckpoint/restoreしてJVM実行の利点を保つ",
+            "JavaソースをJavaScriptへ変換する",
+            "常にOSを不要にする",
+            "すべての環境で条件なしに動く"
+          ],
+          "answer": 0,
+          "explanation": "CRIUを利用した復元方式であり、ネイティブ実行ファイルへの事前コンパイルとは別の方法です。"
+        },
+        {
+          "question": "InstantOn導入前に確認することはどれですか？",
+          "choices": [
+            "起動時間が本当に要件上の問題かと、OS・CRIU・JDK・Featureの対応",
+            "クラス名の長さだけ",
+            "WARを削除できるかだけ",
+            "テストをなくせるか"
+          ],
+          "answer": 0,
+          "explanation": "効果を測定し、技術条件とcheckpoint前後の初期化を確認して採用します。"
+        }
+      ]
+    },
+    {
+      "id": "61-7",
+      "title": "章末演習：長期運用できるLibertyアプリを設計する",
+      "explanation": "Open Libertyを使える状態とは、Jakarta RESTのコードを書けるだけでなく、必要なサーバーFeatureを説明し、ランタイム更新と仕様更新を分け、Healthとテストを運用へ組み込める状態です。\n\n演習後は`labs/frameworks/open-liberty/README.md`に沿って実アプリを起動し、`server.xml`のFeatureとJavaコードのアノテーションを1個ずつ対応付けてください。次に`mpConfig`で挨拶prefixを外部化し、ReadinessをDOWNへ変えたときの監視レスポンスを確認すると、設定・アプリ・運用の関係を実感できます。",
+      "samples": [],
+      "task": "アプリコードから必要Featureを見積もる\n\n空白区切りの利用API`PATH`、`INJECT`、`VALIDATE`、`JSON`、`ENTITY`、`READINESS`、`CONFIG`を読み、入力順を保ち重複を除いて`PATH=restfulWS-4.0`、`INJECT=cdi-4.1`、`VALIDATE=validation-3.1`、`JSON=jsonb-3.0`、`ENTITY=persistence-3.2`、`READINESS=mpHealth-4.0`、`CONFIG=mpConfig-3.1`へ変換し、カンマ区切りで出力してください。未知のAPIは`<語>=REVIEW`です。",
+      "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        String line = new Scanner(System.in).nextLine().trim();\n        Map<String, String> mapping = Map.of(\n                \"PATH\", \"restfulWS-4.0\", \"INJECT\", \"cdi-4.1\",\n                \"VALIDATE\", \"validation-3.1\", \"JSON\", \"jsonb-3.0\",\n                \"ENTITY\", \"persistence-3.2\", \"READINESS\", \"mpHealth-4.0\",\n                \"CONFIG\", \"mpConfig-3.1\"\n        );\n        // TODO: APIからFeature一覧を作る\n    }\n}",
+      "visibleCases": [
+        {
+          "label": "表示ケース1",
+          "stdin": "PATH INJECT JSON\n",
+          "expected": "PATH=restfulWS-4.0,INJECT=cdi-4.1,JSON=jsonb-3.0"
+        },
+        {
+          "label": "表示ケース2",
+          "stdin": "READINESS CONFIG READINESS\n",
+          "expected": "READINESS=mpHealth-4.0,CONFIG=mpConfig-3.1"
+        }
+      ],
+      "hiddenCases": [
+        {
+          "label": "隠しケース1",
+          "stdin": "ENTITY PATH\n",
+          "expected": "ENTITY=persistence-3.2,PATH=restfulWS-4.0"
+        },
+        {
+          "label": "隠しケース2",
+          "stdin": "CACHE CONFIG\n",
+          "expected": "CACHE=REVIEW,CONFIG=mpConfig-3.1"
+        },
+        {
+          "label": "隠しケース3",
+          "stdin": "VALIDATE JSON\n",
+          "expected": "VALIDATE=validation-3.1,JSON=jsonb-3.0"
+        }
+      ],
+      "hints": [
+        "API名をMapでFeature IDへ変換し、`API=Feature`の形で`LinkedHashSet`へ追加します。",
+        "未知のAPIも捨てずに`API=REVIEW`として残すと、server.xmlへ追加する前の確認漏れを防げます。"
+      ],
+      "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        String line = new Scanner(System.in).nextLine().trim();\n        Map<String, String> mapping = Map.of(\n                \"PATH\", \"restfulWS-4.0\", \"INJECT\", \"cdi-4.1\",\n                \"VALIDATE\", \"validation-3.1\", \"JSON\", \"jsonb-3.0\",\n                \"ENTITY\", \"persistence-3.2\", \"READINESS\", \"mpHealth-4.0\",\n                \"CONFIG\", \"mpConfig-3.1\"\n        );\n        Set<String> result = new LinkedHashSet<>();\n        if (!line.isEmpty()) {\n            for (String api : line.split(\"\\\\s+\")) {\n                result.add(api + \"=\" + mapping.getOrDefault(api, \"REVIEW\"));\n            }\n        }\n        System.out.println(String.join(\",\", result));\n    }\n}",
+      "sourceChecks": [
+        {
+          "pattern": "LinkedHashSet",
+          "message": "利用順を保った重複除去を行ってください。"
+        },
+        {
+          "pattern": "getOrDefault",
+          "message": "未知のAPIをREVIEWとして残してください。"
+        }
+      ],
+      "kind": "applied",
+      "extraTasks": [
+        {
+          "task": "ランタイム更新と仕様更新の計画を分ける\n\n1行目にランタイム変更有無、2行目にFeature版変更有無、3行目にJava版変更有無、4行目にテスト成功有無が`true`/`false`で与えられます。テストがfalseなら`BLOCKED:TEST`です。Feature版またはJava版が変わるなら`PLANNED_MIGRATION:FEATURE,JAVA`から該当項目を順に出します。どちらも変わらずランタイムだけ変わるなら`ZERO_MIGRATION_UPDATE`、何も変わらなければ`NO_UPDATE`です。",
+          "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        boolean runtime = Boolean.parseBoolean(sc.nextLine());\n        boolean feature = Boolean.parseBoolean(sc.nextLine());\n        boolean javaVersion = Boolean.parseBoolean(sc.nextLine());\n        boolean tests = Boolean.parseBoolean(sc.nextLine());\n        // TODO: 更新の種類を判定する\n    }\n}",
+          "visibleCases": [
+            {
+              "label": "表示ケース1",
+              "stdin": "true\nfalse\nfalse\ntrue\n",
+              "expected": "ZERO_MIGRATION_UPDATE"
+            },
+            {
+              "label": "表示ケース2",
+              "stdin": "true\ntrue\nfalse\ntrue\n",
+              "expected": "PLANNED_MIGRATION:FEATURE"
+            }
+          ],
+          "hiddenCases": [
+            {
+              "label": "隠しケース1",
+              "stdin": "true\ntrue\ntrue\ntrue\n",
+              "expected": "PLANNED_MIGRATION:FEATURE,JAVA"
+            },
+            {
+              "label": "隠しケース2",
+              "stdin": "false\nfalse\nfalse\ntrue\n",
+              "expected": "NO_UPDATE"
+            },
+            {
+              "label": "隠しケース3",
+              "stdin": "true\nfalse\nfalse\nfalse\n",
+              "expected": "BLOCKED:TEST"
+            }
+          ],
+          "hints": [
+            "最初にテスト結果を確認し、falseなら他の条件より優先して`BLOCKED:TEST`を返します。",
+            "次にFeature版とJava版の変更を一覧化します。両方なければ、runtimeの有無でZero Migration更新と更新なしを分けます。"
+          ],
+          "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        boolean runtime = Boolean.parseBoolean(sc.nextLine());\n        boolean feature = Boolean.parseBoolean(sc.nextLine());\n        boolean javaVersion = Boolean.parseBoolean(sc.nextLine());\n        boolean tests = Boolean.parseBoolean(sc.nextLine());\n        if (!tests) {\n            System.out.println(\"BLOCKED:TEST\");\n            return;\n        }\n        List<String> migration = new ArrayList<>();\n        if (feature) migration.add(\"FEATURE\");\n        if (javaVersion) migration.add(\"JAVA\");\n        if (!migration.isEmpty()) {\n            System.out.println(\"PLANNED_MIGRATION:\" + String.join(\",\", migration));\n        } else if (runtime) {\n            System.out.println(\"ZERO_MIGRATION_UPDATE\");\n        } else {\n            System.out.println(\"NO_UPDATE\");\n        }\n    }\n}",
+          "sourceChecks": [
+            {
+              "pattern": "if\\s*\\(\\s*!tests",
+              "message": "テスト失敗を最優先で停止してください。"
+            },
+            {
+              "pattern": "List<String>\\s+migration",
+              "message": "仕様移行項目をListへ集めてください。"
+            }
+          ],
+          "kind": "applied"
+        },
+        {
+          "task": "LivenessとReadinessを判定する\n\n1行目にプロセス内部が正常か、2行目にDBが利用可能か、3行目に外部APIが利用可能かが`true`/`false`で与えられます。内部異常なら`LIVENESS=DOWN READINESS=DOWN ACTION=RESTART`です。内部正常で依存先のどちらかが異常なら`LIVENESS=UP READINESS=DOWN ACTION=REMOVE_TRAFFIC`、すべて正常なら`LIVENESS=UP READINESS=UP ACTION=SERVE`を出力してください。",
+          "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        boolean internal = Boolean.parseBoolean(sc.nextLine());\n        boolean database = Boolean.parseBoolean(sc.nextLine());\n        boolean externalApi = Boolean.parseBoolean(sc.nextLine());\n        // TODO: 再起動と通信除外を区別する\n    }\n}",
+          "visibleCases": [
+            {
+              "label": "表示ケース1",
+              "stdin": "true\ntrue\ntrue\n",
+              "expected": "LIVENESS=UP READINESS=UP ACTION=SERVE"
+            },
+            {
+              "label": "表示ケース2",
+              "stdin": "true\nfalse\ntrue\n",
+              "expected": "LIVENESS=UP READINESS=DOWN ACTION=REMOVE_TRAFFIC"
+            }
+          ],
+          "hiddenCases": [
+            {
+              "label": "隠しケース1",
+              "stdin": "false\ntrue\ntrue\n",
+              "expected": "LIVENESS=DOWN READINESS=DOWN ACTION=RESTART"
+            },
+            {
+              "label": "隠しケース2",
+              "stdin": "true\ntrue\nfalse\n",
+              "expected": "LIVENESS=UP READINESS=DOWN ACTION=REMOVE_TRAFFIC"
+            },
+            {
+              "label": "隠しケース3",
+              "stdin": "true\nfalse\nfalse\n",
+              "expected": "LIVENESS=UP READINESS=DOWN ACTION=REMOVE_TRAFFIC"
+            }
+          ],
+          "hints": [
+            "内部異常はプロセス自身の問題なので最初に判定し、LivenessとReadinessを両方DOWNにします。",
+            "内部が正常ならDBと外部APIをまとめて確認し、依存先障害では再起動せず`REMOVE_TRAFFIC`を選びます。"
+          ],
+          "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        boolean internal = Boolean.parseBoolean(sc.nextLine());\n        boolean database = Boolean.parseBoolean(sc.nextLine());\n        boolean externalApi = Boolean.parseBoolean(sc.nextLine());\n        if (!internal) {\n            System.out.println(\"LIVENESS=DOWN READINESS=DOWN ACTION=RESTART\");\n        } else if (!database || !externalApi) {\n            System.out.println(\"LIVENESS=UP READINESS=DOWN ACTION=REMOVE_TRAFFIC\");\n        } else {\n            System.out.println(\"LIVENESS=UP READINESS=UP ACTION=SERVE\");\n        }\n    }\n}",
+          "sourceChecks": [
+            {
+              "pattern": "if\\s*\\(\\s*!internal",
+              "message": "内部異常を先に判定してください。"
+            },
+            {
+              "pattern": "!database\\s*\\|\\|\\s*!externalApi",
+              "message": "依存先のいずれかが異常ならReadinessをDOWNにしてください。"
+            }
+          ],
+          "kind": "applied"
+        }
+      ],
+      "quiz": []
+    }
+  ]
+}

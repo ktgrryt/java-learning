@@ -1,0 +1,666 @@
+{
+  "id": "ch62",
+  "title": "Quarkus実践入門",
+  "subtitle": "ビルド時最適化を理解し、Dev Services・継続テスト・JVM/Native配備を使い分ける",
+  "emoji": "⚡",
+  "lessons": [
+    {
+      "id": "62-1",
+      "title": "Quarkusは何を軽く速くするのか",
+      "explanation": "Quarkusは、JavaをコンテナやKubernetesで軽量・高速に動かすことを強く意識したフレームワーク兼ランタイムです。特徴は、実行時に毎回行いがちなクラス探索、DIの解析、メタデータ作成などを、できるだけビルド時へ移すことです。これにより、起動時間、メモリ使用量、クラス読み込みを減らしやすくします。JVMでも動き、必要ならNative Imageも作れます。\n\n最初に、Quarkusの説明でよく使う言葉を整理します。\n\n- クラウドネイティブ: コンテナ化、自動配備、監視、負荷に応じた増減を前提にアプリを作り運用する考え方です。\n- ビルド時: ソースコードから配布物を作る段階です。実行時は、完成した配布物を起動してリクエストを処理する段階です。\n- Extension: RESTやDBなどのライブラリを、Quarkusの設定・ビルド処理・開発モードへ接続する追加部品です。\n- JVMモード／Native Image: JVM上でJavaとして動かす方法と、必要な処理を事前コンパイルしたOS向け実行ファイルとして動かす方法です。\n\nQuarkusでは、用途別のExtensionを追加します。Extensionは単なる依存ライブラリの集合ではなく、ライブラリをQuarkusのビルド時処理や設定、開発モードへ統合する部品です。REST APIなら`quarkus-rest-jackson`、入力検証なら`quarkus-hibernate-validator`、Healthなら`quarkus-smallrye-health`のように選びます。必要なExtensionだけを追加すると、アプリの用途を構成から読み取りやすくなります。Quarkusでは、各Extensionがビルド時最適化へ統合される点が特に重要です。\n\n典型的なMavenプロジェクトは次のように動かします。\n\n```bash\nmvn quarkus:dev\n# コードを変更するとLive Reload\ncurl 'http://localhost:8080/api/greeting?name=Java'\nmvn test\nmvn package\njava -jar target/quarkus-app/quarkus-run.jar\n```\n\nこの教材ラボはMaven Wrapperを同梱していないため`mvn`を使います。実務プロジェクトに`mvnw`がある場合は、`mvn`を`./mvnw`へ読み替えると、プロジェクト指定のMaven版で実行できます。\n\n`quarkus:dev`はLive Reload、開発UI、継続テスト、Dev Servicesなどをまとめた開発モードです。本番用の起動方法ではありません。配布時は`package`で`target/quarkus-app`一式を作り、`quarkus-run.jar`だけでなく同ディレクトリのライブラリと一緒に配置します。依存ライブラリを1個のJARへまとめるUber JARも明示的に選べますが、まずは標準の`quarkus-app`構成を使えば十分です。\n\nまずは`labs/frameworks/quarkus`をJVMモードで動かしてください。Native Imageは最小APIが正しく動き、起動時間やメモリが本当に課題だと測定できた後に進みます。「Quarkusだから必ずNative」ではありません。短い開発フィードバックとJVM運用だけでもQuarkusの利点を利用できます。",
+      "samples": [
+        {
+          "caption": "考え方を標準Javaで確かめる",
+          "code": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Map<String, String> extensions = Map.of(\n                \"rest\", \"quarkus-rest-jackson\",\n                \"validation\", \"quarkus-hibernate-validator\",\n                \"health\", \"quarkus-smallrye-health\"\n        );\n        List.of(\"rest\", \"validation\", \"health\").stream().map(extensions::get).forEach(System.out::println);\n    }\n}",
+          "expected": "quarkus-rest-jackson\nquarkus-hibernate-validator\nquarkus-smallrye-health"
+        }
+      ],
+      "task": "要件からQuarkus Extensionを選ぶ\n\n空白区切りの要件`rest`、`validation`、`health`、`jdbc`、`kafka`を入力順に読み、重複を除いて`quarkus-rest-jackson`、`quarkus-hibernate-validator`、`quarkus-smallrye-health`、`quarkus-jdbc-postgresql`、`quarkus-messaging-kafka`へ変換し、カンマ区切りで出力してください。未知の要件は`REVIEW:<語>`です。",
+      "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        String line = new Scanner(System.in).nextLine().trim();\n        Map<String, String> extensions = Map.of(\n                \"rest\", \"quarkus-rest-jackson\",\n                \"validation\", \"quarkus-hibernate-validator\",\n                \"health\", \"quarkus-smallrye-health\",\n                \"jdbc\", \"quarkus-jdbc-postgresql\",\n                \"kafka\", \"quarkus-messaging-kafka\"\n        );\n        // TODO: 入力順を保ってExtensionを選ぶ\n    }\n}",
+      "visibleCases": [
+        {
+          "label": "表示ケース1",
+          "stdin": "rest validation health\n",
+          "expected": "quarkus-rest-jackson,quarkus-hibernate-validator,quarkus-smallrye-health"
+        },
+        {
+          "label": "表示ケース2",
+          "stdin": "jdbc rest jdbc\n",
+          "expected": "quarkus-jdbc-postgresql,quarkus-rest-jackson"
+        }
+      ],
+      "hiddenCases": [
+        {
+          "label": "隠しケース1",
+          "stdin": "kafka\n",
+          "expected": "quarkus-messaging-kafka"
+        },
+        {
+          "label": "隠しケース2",
+          "stdin": "rest cache\n",
+          "expected": "quarkus-rest-jackson,REVIEW:cache"
+        },
+        {
+          "label": "隠しケース3",
+          "stdin": "health jdbc kafka\n",
+          "expected": "quarkus-smallrye-health,quarkus-jdbc-postgresql,quarkus-messaging-kafka"
+        }
+      ],
+      "hints": [
+        "要件とExtension名のMapを使い、各入力を`getOrDefault`で変換します。",
+        "`LinkedHashSet`へ変換結果を入れると入力順の維持と重複除去ができます。未知の語には`REVIEW:`を付けます。"
+      ],
+      "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        String line = new Scanner(System.in).nextLine().trim();\n        Map<String, String> extensions = Map.of(\n                \"rest\", \"quarkus-rest-jackson\",\n                \"validation\", \"quarkus-hibernate-validator\",\n                \"health\", \"quarkus-smallrye-health\",\n                \"jdbc\", \"quarkus-jdbc-postgresql\",\n                \"kafka\", \"quarkus-messaging-kafka\"\n        );\n        Set<String> selected = new LinkedHashSet<>();\n        if (!line.isEmpty()) {\n            for (String requirement : line.split(\"\\\\s+\")) {\n                selected.add(extensions.getOrDefault(requirement, \"REVIEW:\" + requirement));\n            }\n        }\n        System.out.println(String.join(\",\", selected));\n    }\n}",
+      "sourceChecks": [
+        {
+          "pattern": "LinkedHashSet",
+          "message": "入力順を保った重複除去を行ってください。"
+        },
+        {
+          "pattern": "getOrDefault",
+          "message": "未知の要件をREVIEWとして残してください。"
+        }
+      ],
+      "kind": "practice",
+      "extraTasks": [],
+      "quiz": [
+        {
+          "question": "Quarkus Extensionの説明として適切なものはどれですか？",
+          "choices": [
+            "ライブラリをQuarkusのビルド時処理・設定・開発機能へ統合する部品",
+            "Javaの予約語",
+            "本番DBそのもの",
+            "すべて同じ機能を持つ依存関係"
+          ],
+          "answer": 0,
+          "explanation": "Extensionはライブラリの追加に加え、Quarkusがビルド時に最適化できるよう統合します。"
+        },
+        {
+          "question": "Quarkusアプリは必ずNative Imageにする必要がありますか？",
+          "choices": [
+            "いいえ。JVMモードも正式な実行方法で、要件と測定結果で選ぶ",
+            "はい。JVMでは起動できない",
+            "はい。テスト時も必須",
+            "いいえ。Javaを使わないから"
+          ],
+          "answer": 0,
+          "explanation": "JVMとNativeの両方を選べます。ビルド時間、起動、メモリ、機能制約を比較します。"
+        }
+      ]
+    },
+    {
+      "id": "62-2",
+      "title": "Build-time Optimizationと設定の時点を理解する",
+      "explanation": "一般的なフレームワークは起動時に、クラス探索、DI対象の発見、アノテーション解析、Proxy生成、設定解析を行います。QuarkusはExtensionの知識を使い、これらの多くをaugmentation（拡張・構築処理）としてビルド時に済ませます。実行用アプリには、解析済みメタデータや生成したバイトコードなど、起動に必要な形を残します。これが高速起動と省メモリを狙える中心的な仕組みです。\n\nこの設計を使うと、設定値にも「ビルド時に構造を決めるもの」と「起動・実行時に変えられるもの」があります。例えば、どのDB製品向けExtensionを組み込むかのような構造的設定はビルド時、DBの接続URL、HTTPポート、ログレベルのような環境値は実行時、という区別です。\n\n```properties\n# 実行環境で変える値\nquarkus.http.port=8080\nquarkus.datasource.jdbc.url=jdbc:postgresql://db/app\napp.greeting.prefix=Hello\n```\n\nビルド時設定を本番起動時に変更しても、すでに作られたアプリ構造へ反映されず、警告や無視になる場合があります。コンテナイメージを環境間で共通化したいなら、環境差は実行時設定へ寄せます。構造を変える設定は再ビルドします。必要に応じてre-augmentationという再構築手段もありますが、まず設定項目のドキュメントにあるBuild time、Run timeの区分を確認してください。\n\nビルド時最適化は「コードを全部消す」ことでも「常に実行速度が最速になる保証」でもありません。起動処理とメモリを減らしやすくする設計です。長時間処理の性能はJIT、GC、I/O、SQLなど別の要因を含むため、代表的な負荷で測定します。動的にクラスを探す独自処理やReflectionを多用するライブラリは、特にNative Imageで追加設定が必要になることがあります。",
+      "samples": [
+        {
+          "caption": "考え方を標準Javaで確かめる",
+          "code": "import java.util.*;\n\npublic class Main {\n    static String phase(String key) {\n        return switch (key) {\n            case \"EXTENSION\", \"DB_KIND\" -> \"BUILD_TIME\";\n            default -> \"RUN_TIME\";\n        };\n    }\n    public static void main(String[] args) {\n        System.out.println(phase(\"HTTP_PORT\"));\n    }\n}",
+          "expected": "RUN_TIME"
+        }
+      ],
+      "task": "設定をビルド時と実行時に分類する\n\n空白区切りの設定名`EXTENSION`、`DB_KIND`、`HTTP_PORT`、`DB_URL`、`LOG_LEVEL`、`GREETING_PREFIX`を読み、入力順を保ち重複を除いて、前2つは`=BUILD_TIME`、残りは`=RUN_TIME`を付けます。未知の設定は`=CHECK_DOCUMENTATION`としてカンマ区切りで出力してください。",
+      "starterCode": "import java.util.*;\n\npublic class Main {\n    static String phase(String key) {\n        // TODO: 設定が効く時点を返す\n        return \"\";\n    }\n\n    public static void main(String[] args) {\n        String line = new Scanner(System.in).nextLine().trim();\n        Set<String> result = new LinkedHashSet<>();\n        // TODO: 分類結果を入力順で出力する\n    }\n}",
+      "visibleCases": [
+        {
+          "label": "表示ケース1",
+          "stdin": "EXTENSION HTTP_PORT DB_URL\n",
+          "expected": "EXTENSION=BUILD_TIME,HTTP_PORT=RUN_TIME,DB_URL=RUN_TIME"
+        },
+        {
+          "label": "表示ケース2",
+          "stdin": "DB_KIND LOG_LEVEL DB_KIND\n",
+          "expected": "DB_KIND=BUILD_TIME,LOG_LEVEL=RUN_TIME"
+        }
+      ],
+      "hiddenCases": [
+        {
+          "label": "隠しケース1",
+          "stdin": "GREETING_PREFIX\n",
+          "expected": "GREETING_PREFIX=RUN_TIME"
+        },
+        {
+          "label": "隠しケース2",
+          "stdin": "CACHE_MODE HTTP_PORT\n",
+          "expected": "CACHE_MODE=CHECK_DOCUMENTATION,HTTP_PORT=RUN_TIME"
+        },
+        {
+          "label": "隠しケース3",
+          "stdin": "DB_URL EXTENSION\n",
+          "expected": "DB_URL=RUN_TIME,EXTENSION=BUILD_TIME"
+        }
+      ],
+      "hints": [
+        "`phase`では`EXTENSION`と`DB_KIND`だけを`BUILD_TIME`、既知の残り4項目を`RUN_TIME`へ分類します。",
+        "未知の語を実行時設定と決めつけず`CHECK_DOCUMENTATION`にし、`key + \"=\" + phase(key)`を集合へ追加します。"
+      ],
+      "solution": "import java.util.*;\n\npublic class Main {\n    static String phase(String key) {\n        return switch (key) {\n            case \"EXTENSION\", \"DB_KIND\" -> \"BUILD_TIME\";\n            case \"HTTP_PORT\", \"DB_URL\", \"LOG_LEVEL\", \"GREETING_PREFIX\" -> \"RUN_TIME\";\n            default -> \"CHECK_DOCUMENTATION\";\n        };\n    }\n\n    public static void main(String[] args) {\n        String line = new Scanner(System.in).nextLine().trim();\n        Set<String> result = new LinkedHashSet<>();\n        if (!line.isEmpty()) {\n            for (String key : line.split(\"\\\\s+\")) result.add(key + \"=\" + phase(key));\n        }\n        System.out.println(String.join(\",\", result));\n    }\n}",
+      "sourceChecks": [
+        {
+          "pattern": "static\\s+String\\s+phase",
+          "message": "設定時点の判定をphaseメソッドへ分けてください。"
+        },
+        {
+          "pattern": "default\\s*->",
+          "message": "未知の設定はドキュメント確認へ回してください。"
+        }
+      ],
+      "kind": "practice",
+      "extraTasks": [],
+      "quiz": [
+        {
+          "question": "Quarkusがビルド時へ移す処理の例はどれですか？",
+          "choices": [
+            "DI対象やアノテーションの解析、メタデータ・バイトコード生成",
+            "利用者が送る毎回のHTTP本文",
+            "本番で発生するDB障害",
+            "日々変わる注文データ"
+          ],
+          "answer": 0,
+          "explanation": "アプリ構造に関する解析を事前に済ませ、起動時の仕事を減らします。"
+        },
+        {
+          "question": "ビルド時設定を配布後に変更したい場合の基本対応はどれですか？",
+          "choices": [
+            "変更を含めて再ビルドし、実行時設定との区分を見直す",
+            "無条件に環境変数だけ変えれば反映される",
+            "テストを削除する",
+            "HTTPを止める"
+          ],
+          "answer": 0,
+          "explanation": "すでにアプリ構造へ固定された値は、実行時上書きでは変わらない場合があります。"
+        }
+      ]
+    },
+    {
+      "id": "62-3",
+      "title": "Quarkus REST・CDI・ConfigでAPIを作る",
+      "explanation": "Quarkusの標準的なREST APIは、Jakarta RESTに基づくQuarkus RESTとCDI（部品の生成とDIを行う標準仕様）で作れます。`@Path`はURL、`@GET`はHTTP GET、`@Inject`は必要な部品の受け取りを表します。これらはJakartaの標準APIなので、別の対応ランタイムでも知識を再利用しやすくなります。Quarkus独自の最適化と開発機能は、Extensionが裏側で統合します。\n\n```java\n@Path(\"/api/greeting\")\n@Produces(MediaType.APPLICATION_JSON)\npublic class GreetingResource {\n    @Inject GreetingService service;\n\n    @GET\n    public GreetingResponse greet(@QueryParam(\"name\") @NotBlank String name) {\n        return new GreetingResponse(service.message(name));\n    }\n}\n```\n\nServiceには`@ApplicationScoped`を付け、Resourceから業務ルールを委譲します。CDI Beanは共有されるため、リクエストごとの値をフィールドへ保存しません。入力DTOにはValidationを付け、Entityをそのまま外部契約にしないようにします。DBアクセスにはPanacheなどQuarkus固有の便利APIもありますが、最初にトランザクション、遅延読み込み、N+1、SQLを理解してから採用します。\n\n外部設定はMicroProfile Config互換の仕組みで読みます。\n\n```java\n@ConfigProperty(name = \"app.greeting.prefix\", defaultValue = \"Hello\")\nString prefix;\n```\n\n`application.properties`では、`%dev.`、`%test.`、`%prod.`のようなprofile別設定も書けます。本番の秘密情報はファイルへコミットせずSecretなどから渡します。Quarkusの設定にはビルド時固定と実行時変更可能の区別があるため、各設定項目の表示を確認してください。\n\n想定内の例外は`ExceptionMapper`でHTTPステータスと安全なエラーDTOへ変換します。Quarkusが高速でも、Controller/ResourceとServiceの責務、入力検証、トランザクション境界、エラー契約という業務APIの基本は変わりません。",
+      "samples": [
+        {
+          "caption": "考え方を標準Javaで確かめる",
+          "code": "import java.util.*;\n\npublic class Main {\n    static class GreetingService {\n        String message(String prefix, String name) {\n            return prefix + \", \" + name.trim();\n        }\n    }\n    public static void main(String[] args) {\n        System.out.println(new GreetingService().message(\"Hello\", \"Quarkus\"));\n    }\n}",
+          "expected": "Hello, Quarkus"
+        }
+      ],
+      "task": "profile設定を使ってResourceからServiceを呼ぶ\n\n1行目にprofile（`dev`、`test`、`prod`）、2行目にprofile固有prefix（`-`は未設定）、3行目に共通prefix（`-`は未設定）、4行目にnameが与えられます。nameが空白なら`400 NAME_REQUIRED`です。それ以外はprofile固有、共通、`Hello`の順でprefixを選び、Serviceを呼んで`200 [<profile>] <prefix>, <trim済みname>`を出力してください。",
+      "starterCode": "import java.util.*;\n\npublic class Main {\n    static class GreetingService {\n        String message(String prefix, String name) {\n            return prefix + \", \" + name.trim();\n        }\n    }\n\n    static String resolve(String profileValue, String commonValue) {\n        // TODO: profile固有、共通、既定値の順で選ぶ\n        return \"Hello\";\n    }\n\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        String profile = sc.nextLine();\n        String profileValue = sc.nextLine();\n        String commonValue = sc.nextLine();\n        String name = sc.nextLine();\n        // TODO: 入力検証後にServiceを呼ぶ\n    }\n}",
+      "visibleCases": [
+        {
+          "label": "表示ケース1",
+          "stdin": "dev\nHi-dev\nHello\nJava\n",
+          "expected": "200 [dev] Hi-dev, Java"
+        },
+        {
+          "label": "表示ケース2",
+          "stdin": "test\n-\nHello-test\n   \n",
+          "expected": "400 NAME_REQUIRED"
+        }
+      ],
+      "hiddenCases": [
+        {
+          "label": "隠しケース1",
+          "stdin": "prod\n-\n-\nQuarkus\n",
+          "expected": "200 [prod] Hello, Quarkus"
+        },
+        {
+          "label": "隠しケース2",
+          "stdin": "prod\n-\nWelcome\n  Cloud  \n",
+          "expected": "200 [prod] Welcome, Cloud"
+        },
+        {
+          "label": "隠しケース3",
+          "stdin": "test\nTest\nCommon\nJUnit\n",
+          "expected": "200 [test] Test, JUnit"
+        }
+      ],
+      "hints": [
+        "`resolve`ではprofile固有値、共通値、`Hello`の順で、`-`でない最初の値を返します。",
+        "nameの空白判定を先に行い、正常時だけServiceへprefixとnameを渡して、profileを含む200レスポンスを組み立てます。"
+      ],
+      "solution": "import java.util.*;\n\npublic class Main {\n    static class GreetingService {\n        String message(String prefix, String name) {\n            return prefix + \", \" + name.trim();\n        }\n    }\n\n    static String resolve(String profileValue, String commonValue) {\n        if (!profileValue.equals(\"-\")) return profileValue;\n        if (!commonValue.equals(\"-\")) return commonValue;\n        return \"Hello\";\n    }\n\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        String profile = sc.nextLine();\n        String profileValue = sc.nextLine();\n        String commonValue = sc.nextLine();\n        String name = sc.nextLine();\n        if (name.isBlank()) {\n            System.out.println(\"400 NAME_REQUIRED\");\n        } else {\n            GreetingService service = new GreetingService();\n            String message = service.message(resolve(profileValue, commonValue), name);\n            System.out.println(\"200 [\" + profile + \"] \" + message);\n        }\n    }\n}",
+      "sourceChecks": [
+        {
+          "pattern": "static\\s+String\\s+resolve",
+          "message": "設定解決をresolveメソッドへ分けてください。"
+        },
+        {
+          "pattern": "service\\.message",
+          "message": "メッセージ作成をGreetingServiceへ委譲してください。"
+        }
+      ],
+      "kind": "practice",
+      "extraTasks": [],
+      "quiz": [
+        {
+          "question": "Quarkus RESTでJakarta RESTの知識を再利用できる理由はどれですか？",
+          "choices": [
+            "`@Path`や`@GET`など標準APIに基づいている",
+            "HTTPを使わない",
+            "すべてSpring APIだから",
+            "Javaコードを実行しないから"
+          ],
+          "answer": 0,
+          "explanation": "Quarkus固有の最適化を使いながら、RESTとDIではJakarta標準APIを中心に書けます。"
+        },
+        {
+          "question": "profile別設定を使うときの注意として適切なものはどれですか？",
+          "choices": [
+            "本番の秘密情報はGitへ書かず、ビルド時/実行時設定の区分も確認する",
+            "dev設定を無条件で本番に使う",
+            "設定の優先順位を考えない",
+            "DTOを必ずEntityと同じにする"
+          ],
+          "answer": 0,
+          "explanation": "環境差を安全に外部化し、どの時点で反映される設定かを把握します。"
+        }
+      ]
+    },
+    {
+      "id": "62-4",
+      "title": "Dev ServicesとContinuous Testingで素早く確認する",
+      "explanation": "QuarkusのDev Servicesは、開発・テストで必要な外部サービスを設定から判断し、自動で用意する仕組みです。例えばPostgreSQL Extensionがあり、dev/test用の接続URLを設定していない場合、Testcontainersを通じてPostgreSQLコンテナを起動し、アプリへ接続情報を渡せます。KafkaやKeycloakなど対応サービスもあります。\n\n```text\nquarkus:dev\n  ↓ DB設定がない + PostgreSQL Extension\nDev Services\n  ↓ Docker / Podman\nPostgreSQLコンテナ起動・自動接続\n```\n\nこれにより、開発者全員が手作業でDB作成、ポート設定、ユーザー作成を繰り返す負担を減らせます。ただし、多くのDev ServicesにはDockerまたはPodmanが必要です。本番でサービスを自動作成する仕組みではなく、prodでは接続先、認証情報、可用性、バックアップを明示的に構成します。共有devサービスの再利用や固定ポートなども、チームの並列開発を壊さないように決めます。\n\nContinuous Testingは、dev modeまたはcontinuous test modeで、変更に関係するテストを繰り返し実行して短いフィードバックを得る機能です。環境によって初期状態は停止中なので、開発画面やキー操作で開始・停止・失敗テストだけの再実行などを制御します。Live Reloadはコードを反映する機能、Continuous Testingはテストで正しさを確認する機能で、目的が異なります。\n\n`@QuarkusTest`はQuarkusアプリをテスト用に起動し、REST AssuredなどでHTTP APIを確認できます。純粋なServiceは通常のJUnitで高速に検証します。Native配布を選ぶ場合は、JVMテストだけでなくNative実行ファイルを対象にしたテストもリリース工程へ入れます。Dev Servicesが便利でも、テストデータの独立性と後片付け、不安定な待ち時間を避ける原則は変わりません。",
+      "samples": [
+        {
+          "caption": "考え方を標準Javaで確かめる",
+          "code": "import java.util.*;\n\npublic class Main {\n    static String database(String profile, boolean configured, boolean containerAvailable) {\n        if (profile.equals(\"prod\")) return configured ? \"EXPLICIT\" : \"MISSING_PROD_CONFIG\";\n        if (configured) return \"EXPLICIT\";\n        return containerAvailable ? \"DEV_SERVICES\" : \"CONTAINER_REQUIRED\";\n    }\n    public static void main(String[] args) {\n        System.out.println(database(\"dev\", false, true));\n    }\n}",
+          "expected": "DEV_SERVICES"
+        }
+      ],
+      "task": "Dev Servicesを使える状況か判定する\n\n1行目にprofile（`dev`、`test`、`prod`）、2行目に接続設定済みか、3行目にDocker/Podman利用可かが与えられます。prodでは設定済みなら`EXPLICIT_PROD_SERVICE`、未設定なら`BLOCKED:MISSING_PROD_CONFIG`です。dev/testで設定済みなら`EXPLICIT_DEV_SERVICE`、未設定かつコンテナ利用可なら`DEV_SERVICES:START`、利用不可なら`BLOCKED:CONTAINER_RUNTIME`を出力してください。",
+      "starterCode": "import java.util.*;\n\npublic class Main {\n    static String decide(String profile, boolean configured, boolean containerAvailable) {\n        // TODO: prodとdev/testを分けて判定する\n        return \"\";\n    }\n\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        String profile = sc.nextLine();\n        boolean configured = Boolean.parseBoolean(sc.nextLine());\n        boolean containerAvailable = Boolean.parseBoolean(sc.nextLine());\n        System.out.println(decide(profile, configured, containerAvailable));\n    }\n}",
+      "visibleCases": [
+        {
+          "label": "表示ケース1",
+          "stdin": "dev\nfalse\ntrue\n",
+          "expected": "DEV_SERVICES:START"
+        },
+        {
+          "label": "表示ケース2",
+          "stdin": "prod\nfalse\ntrue\n",
+          "expected": "BLOCKED:MISSING_PROD_CONFIG"
+        }
+      ],
+      "hiddenCases": [
+        {
+          "label": "隠しケース1",
+          "stdin": "test\ntrue\nfalse\n",
+          "expected": "EXPLICIT_DEV_SERVICE"
+        },
+        {
+          "label": "隠しケース2",
+          "stdin": "dev\nfalse\nfalse\n",
+          "expected": "BLOCKED:CONTAINER_RUNTIME"
+        },
+        {
+          "label": "隠しケース3",
+          "stdin": "prod\ntrue\nfalse\n",
+          "expected": "EXPLICIT_PROD_SERVICE"
+        }
+      ],
+      "hints": [
+        "最初に`prod`かどうかを分けます。本番ではコンテナ利用可否を見ず、明示設定の有無だけを判定します。",
+        "dev/testでは、明示設定があればそれを優先し、なければコンテナ利用可否でDev Servicesを起動できるか決めます。"
+      ],
+      "solution": "import java.util.*;\n\npublic class Main {\n    static String decide(String profile, boolean configured, boolean containerAvailable) {\n        if (profile.equals(\"prod\")) {\n            return configured ? \"EXPLICIT_PROD_SERVICE\" : \"BLOCKED:MISSING_PROD_CONFIG\";\n        }\n        if (configured) return \"EXPLICIT_DEV_SERVICE\";\n        return containerAvailable ? \"DEV_SERVICES:START\" : \"BLOCKED:CONTAINER_RUNTIME\";\n    }\n\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        String profile = sc.nextLine();\n        boolean configured = Boolean.parseBoolean(sc.nextLine());\n        boolean containerAvailable = Boolean.parseBoolean(sc.nextLine());\n        System.out.println(decide(profile, configured, containerAvailable));\n    }\n}",
+      "sourceChecks": [
+        {
+          "pattern": "static\\s+String\\s+decide",
+          "message": "環境判定をdecideメソッドへ分けてください。"
+        },
+        {
+          "pattern": "if\\s*\\(\\s*profile\\.equals",
+          "message": "本番ではDev Servicesに頼らず明示設定を要求してください。"
+        }
+      ],
+      "kind": "drill",
+      "extraTasks": [],
+      "quiz": [
+        {
+          "question": "Dev Servicesの主な利用場所はどこですか？",
+          "choices": [
+            "dev/test環境で、未設定の対応サービスを開発用に用意するとき",
+            "本番DBの無条件自動作成",
+            "Javaのコンパイルをしないとき",
+            "OSを削除するとき"
+          ],
+          "answer": 0,
+          "explanation": "ローカル開発・テストの準備を減らす機能です。本番接続は別途明示します。"
+        },
+        {
+          "question": "Live ReloadとContinuous Testingの違いはどれですか？",
+          "choices": [
+            "前者は変更反映、後者は変更後の正しさをテストする",
+            "どちらも本番DBを削除する",
+            "前者だけがJavaを使う",
+            "違いはない"
+          ],
+          "answer": 0,
+          "explanation": "素早く動かすことと、正しいことを確認することを組み合わせてフィードバックを短くします。"
+        }
+      ]
+    },
+    {
+      "id": "62-5",
+      "title": "JVM・Native Imageと運用監視を選ぶ",
+      "explanation": "QuarkusはJVMモードとNative Imageの2つを主要な配備方法として扱います。JVMモードはビルドが速く、JIT（実行中に頻繁に通るコードを最適化する仕組み）による長時間稼働時の性能、Javaライブラリとの高い互換性、調査ツールの豊富さがあります。Native Imageはアプリと必要なランタイム要素をOS向け実行ファイルへ事前コンパイルし、特に起動時間と初期メモリを小さくしやすい方法です。リクエスト時だけ起動するServerless、利用がなければ実行数を0にするscale to zero、多数のコンテナを急速に増減する環境で効果が出やすくなります。\n\n```bash\n# GraalVMをローカルへ入れず、コンテナでNative build\nmvn package -Dnative -Dquarkus.native.container-build=true\n```\n\nNative buildはJVM buildより時間とメモリを使います。Reflection（名前からクラスやメソッドを実行時に探す処理）、classpath resource（JAR内などに同梱した設定・テンプレート）、JNI（JavaからOS固有のネイティブコードを呼ぶ仕組み）や実行時のクラス生成は、追加登録や対応Extensionが必要な場合があります。Quarkus Extensionが多くを処理しますが、独自の動的処理はNativeテストで確認します。JVMとNativeで同じ性能特性になるとは限らないため、起動、常駐メモリ、ピーク性能、ビルド時間、障害調査を実測します。\n\n運用監視にはSmallRye HealthなどMicroProfile互換機能を使えます。代表的なパスは`/q/health/live`、`/q/health/ready`、`/q/health/started`です。アプリの業務APIと管理APIを同じ公開範囲へ置かず、必要なら管理インターフェースを分け、認証やネットワークポリシーで守ります。メトリクス、OpenTelemetry、構造化ログもExtensionとして追加できます。\n\n「Nativeだから常に費用が下がる」「起動が速いから障害に強い」とは限りません。DB接続数やキャッシュ、リクエスト量が支配的な場合もあります。まずJVM版を基準にし、業務シナリオで測り、運用チームがビルドと障害調査を維持できる場合にNativeを採用します。",
+      "samples": [
+        {
+          "caption": "考え方を標準Javaで確かめる",
+          "code": "import java.util.*;\n\npublic class Main {\n    static String target(boolean coldStartCritical, boolean memoryCritical, boolean dynamicLibrarySupported) {\n        return coldStartCritical && memoryCritical && dynamicLibrarySupported ? \"NATIVE\" : \"JVM\";\n    }\n    public static void main(String[] args) {\n        System.out.println(target(true, true, true));\n    }\n}",
+          "expected": "NATIVE"
+        }
+      ],
+      "task": "JVMとNative Imageの採用を判断する\n\n5行に、cold startが重要か、初期メモリが重要か、全利用ライブラリのNative対応確認済みか、Nativeテスト成功か、長時間JIT性能が重要か、を表す`true`/`false`が与えられます。JIT性能が重要なら`JVM:JIT workload`です。それ以外で最初の4条件がすべてtrueなら`NATIVE:measured candidate`、未達なら`JVM:missing=<COLD_START,MEMORY,LIBRARY,NATIVE_TESTからfalse項目>`を順に出してください。",
+      "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        boolean coldStart = Boolean.parseBoolean(sc.nextLine());\n        boolean memory = Boolean.parseBoolean(sc.nextLine());\n        boolean library = Boolean.parseBoolean(sc.nextLine());\n        boolean nativeTest = Boolean.parseBoolean(sc.nextLine());\n        boolean jit = Boolean.parseBoolean(sc.nextLine());\n        // TODO: 測定条件と互換性から配備方法を選ぶ\n    }\n}",
+      "visibleCases": [
+        {
+          "label": "表示ケース1",
+          "stdin": "true\ntrue\ntrue\ntrue\nfalse\n",
+          "expected": "NATIVE:measured candidate"
+        },
+        {
+          "label": "表示ケース2",
+          "stdin": "true\ntrue\ntrue\ntrue\ntrue\n",
+          "expected": "JVM:JIT workload"
+        }
+      ],
+      "hiddenCases": [
+        {
+          "label": "隠しケース1",
+          "stdin": "false\ntrue\ntrue\ntrue\nfalse\n",
+          "expected": "JVM:missing=COLD_START"
+        },
+        {
+          "label": "隠しケース2",
+          "stdin": "true\ntrue\nfalse\nfalse\nfalse\n",
+          "expected": "JVM:missing=LIBRARY,NATIVE_TEST"
+        },
+        {
+          "label": "隠しケース3",
+          "stdin": "false\nfalse\nfalse\nfalse\nfalse\n",
+          "expected": "JVM:missing=COLD_START,MEMORY,LIBRARY,NATIVE_TEST"
+        }
+      ],
+      "hints": [
+        "長時間JIT性能が重要なら、他の条件より先に`JVM:JIT workload`を返します。",
+        "JIT優先でなければ、Native採用に必要な4条件のfalse項目を順に集めます。空のときだけNative候補です。"
+      ],
+      "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        boolean coldStart = Boolean.parseBoolean(sc.nextLine());\n        boolean memory = Boolean.parseBoolean(sc.nextLine());\n        boolean library = Boolean.parseBoolean(sc.nextLine());\n        boolean nativeTest = Boolean.parseBoolean(sc.nextLine());\n        boolean jit = Boolean.parseBoolean(sc.nextLine());\n        if (jit) {\n            System.out.println(\"JVM:JIT workload\");\n            return;\n        }\n        List<String> missing = new ArrayList<>();\n        if (!coldStart) missing.add(\"COLD_START\");\n        if (!memory) missing.add(\"MEMORY\");\n        if (!library) missing.add(\"LIBRARY\");\n        if (!nativeTest) missing.add(\"NATIVE_TEST\");\n        System.out.println(missing.isEmpty()\n                ? \"NATIVE:measured candidate\"\n                : \"JVM:missing=\" + String.join(\",\", missing));\n    }\n}",
+      "sourceChecks": [
+        {
+          "pattern": "if\\s*\\(\\s*jit",
+          "message": "JIT性能が重要な処理を先に判定してください。"
+        },
+        {
+          "pattern": "List<String>\\s+missing",
+          "message": "Native採用の未達条件をListへ集めてください。"
+        }
+      ],
+      "kind": "applied",
+      "extraTasks": [],
+      "quiz": [
+        {
+          "question": "Native Imageが特に有利になりやすい場面はどれですか？",
+          "choices": [
+            "cold startと初期メモリが重要なServerlessや急速なPod拡縮",
+            "動的機能を無制限に使いたい場面",
+            "ビルド時間だけを最短にしたい場面",
+            "必ず長時間JIT性能が最優先の場面"
+          ],
+          "answer": 0,
+          "explanation": "一方、ビルド時間、動的機能、長時間性能、調査性も含めてJVMと比較します。"
+        },
+        {
+          "question": "ReadinessがDOWNのときの基本動作はどれですか？",
+          "choices": [
+            "新しい通信の宛先から外し、回復を待つ",
+            "必ず全データを削除する",
+            "ソースを再コンパイルする",
+            "利用者へ秘密設定を返す"
+          ],
+          "answer": 0,
+          "explanation": "プロセス再起動の判定であるLivenessとは目的を分けます。"
+        }
+      ]
+    },
+    {
+      "id": "62-6",
+      "title": "Update ToolとSpring互換レイヤーを正しく使う",
+      "explanation": "Quarkusは継続的に更新され、Feature releaseやmajor updateでは依存関係、設定、APIの変更が必要になる場合があります。ランタイムだけを更新すればアプリ変更を原則不要にする、という互換保証はありません。その代わり、Quarkus CLIやMaven Pluginのupdate機能がOpenRewrite recipe（定義済みの変換ルール）を使い、依存関係、ソースコード、設定の一部を自動変換します。\n\n```bash\nquarkus update\n# または公式手順にあるMaven Pluginのupdate goal\ngit diff\nmvn test\n```\n\nUpdate Toolは移行の全作業を保証しません。必ず対象版のMigration Guideを読み、実行前にGitで復元可能にし、実行後のdiffをレビューし、JVM/Nativeの採用形態でテストします。自動変更の意味を理解せず、そのまま本番へ出してはいけません。\n\n既存Spring開発者向けに、QuarkusにはSpring DI、Spring Web、Spring Data、Spring Securityなど一部APIの互換Extensionがあります。`@RestController`、`@GetMapping`など使い慣れた書き方の一部をQuarkusのビルドモデル上で利用できます。これは完全なSpring FrameworkやSpring BootをQuarkus内で動かす仕組みではありません。Spring ApplicationContext、すべての拡張点、全Starter、動的なBean操作がそのまま使えるわけではなく、対応範囲を公式ガイドで確認します。\n\n移行には2つの道があります。短期間で移す必要がある既存アプリは、対応するSpring互換Extensionを使って段階的にJakarta REST/CDIへ寄せられます。新規アプリや変更余力がある場合は、最初からQuarkus REST、CDI、MicroProfile ConfigなどネイティブなAPIを選ぶと、対応範囲の誤解が少なくなります。\n\n製品選定では「Springアノテーションが少し動く」だけで完全互換と判断せず、利用中のSpring機能を一覧化し、対応・書き換え・廃止を小さな検証アプリで分類してください。ここでいうspike（スパイク）とは、対応可否やリスクを短期間の小さな試作で確かめる調査作業です。移行コストはアノテーション数より、トランザクション、Security、Data、運用、独自Extensionの差で決まります。",
+      "samples": [
+        {
+          "caption": "考え方を標準Javaで確かめる",
+          "code": "import java.util.*;\n\npublic class Main {\n    static String migration(String api) {\n        return switch (api) {\n            case \"SPRING_WEB\" -> \"CHECK_COMPATIBILITY_EXTENSION\";\n            case \"JAKARTA_REST\" -> \"QUARKUS_NATIVE_API\";\n            default -> \"SPIKE_REQUIRED\";\n        };\n    }\n    public static void main(String[] args) {\n        System.out.println(migration(\"SPRING_WEB\"));\n    }\n}",
+          "expected": "CHECK_COMPATIBILITY_EXTENSION"
+        }
+      ],
+      "task": "Spring資産の移行方針を分類する\n\n1行目にAPI種別、2行目に対応Extensionを公式ガイドで確認済みか（`true`/`false`）が与えられます。`JAKARTA_REST`または`CDI`なら`NATIVE_QUARKUS_API`です。`SPRING_DI`、`SPRING_WEB`、`SPRING_DATA`、`SPRING_SECURITY`で確認済みなら`COMPATIBILITY_EXTENSION:TEST_SUBSET`、未確認なら`SPIKE:CHECK_SUPPORTED_SUBSET`です。それ以外は`REWRITE_REQUIRED:UNSUPPORTED_API`を出力してください。",
+      "starterCode": "import java.util.*;\n\npublic class Main {\n    static String route(String api, boolean confirmed) {\n        // TODO: 標準API、互換Extension、未対応を区別する\n        return \"\";\n    }\n\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        String api = sc.nextLine();\n        boolean confirmed = Boolean.parseBoolean(sc.nextLine());\n        System.out.println(route(api, confirmed));\n    }\n}",
+      "visibleCases": [
+        {
+          "label": "表示ケース1",
+          "stdin": "JAKARTA_REST\nfalse\n",
+          "expected": "NATIVE_QUARKUS_API"
+        },
+        {
+          "label": "表示ケース2",
+          "stdin": "SPRING_WEB\ntrue\n",
+          "expected": "COMPATIBILITY_EXTENSION:TEST_SUBSET"
+        }
+      ],
+      "hiddenCases": [
+        {
+          "label": "隠しケース1",
+          "stdin": "SPRING_DATA\nfalse\n",
+          "expected": "SPIKE:CHECK_SUPPORTED_SUBSET"
+        },
+        {
+          "label": "隠しケース2",
+          "stdin": "CDI\ntrue\n",
+          "expected": "NATIVE_QUARKUS_API"
+        },
+        {
+          "label": "隠しケース3",
+          "stdin": "SPRING_INTEGRATION_CUSTOM\ntrue\n",
+          "expected": "REWRITE_REQUIRED:UNSUPPORTED_API"
+        }
+      ],
+      "hints": [
+        "最初にJakarta REST/CDIを判定し、Quarkusで直接使う標準APIとして分類します。",
+        "Spring APIは対応Extensionの確認結果で分岐します。対応表にないAPIを無理に互換扱いせず、書き換え対象にします。"
+      ],
+      "solution": "import java.util.*;\n\npublic class Main {\n    static String route(String api, boolean confirmed) {\n        if (api.equals(\"JAKARTA_REST\") || api.equals(\"CDI\")) return \"NATIVE_QUARKUS_API\";\n        Set<String> springApis = Set.of(\"SPRING_DI\", \"SPRING_WEB\", \"SPRING_DATA\", \"SPRING_SECURITY\");\n        if (springApis.contains(api)) {\n            return confirmed ? \"COMPATIBILITY_EXTENSION:TEST_SUBSET\" : \"SPIKE:CHECK_SUPPORTED_SUBSET\";\n        }\n        return \"REWRITE_REQUIRED:UNSUPPORTED_API\";\n    }\n\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        String api = sc.nextLine();\n        boolean confirmed = Boolean.parseBoolean(sc.nextLine());\n        System.out.println(route(api, confirmed));\n    }\n}",
+      "sourceChecks": [
+        {
+          "pattern": "Set\\.of\\(",
+          "message": "確認対象のSpring API群をSetで表してください。"
+        },
+        {
+          "pattern": "springApis\\.contains",
+          "message": "APIが互換確認対象かをSetで判定してください。"
+        }
+      ],
+      "kind": "drill",
+      "extraTasks": [],
+      "quiz": [
+        {
+          "question": "Quarkus Update Tool実行後に必要な作業はどれですか？",
+          "choices": [
+            "Migration Guide、diff、テストを確認する",
+            "自動変換を無条件で本番へ出す",
+            "Git履歴を削除する",
+            "テストを停止する"
+          ],
+          "answer": 0,
+          "explanation": "自動化は移行の一部です。未対応変更とアプリ固有動作を人とテストで確認します。"
+        },
+        {
+          "question": "Spring互換Extensionについて正しい説明はどれですか？",
+          "choices": [
+            "Spring APIの一部をQuarkus上で扱うもので、完全なSpring Framework互換ではない",
+            "Spring Bootの全Starterが必ず動く",
+            "対応範囲の確認は不要",
+            "Jakarta APIを使えなくする"
+          ],
+          "answer": 0,
+          "explanation": "公式ガイドで対象APIを確認し、不足部分は書き換えまたは小さな検証を行います。"
+        }
+      ]
+    },
+    {
+      "id": "62-7",
+      "title": "章末演習：Quarkusの開発と配備を設計する",
+      "explanation": "Quarkusを使える状態とは、REST APIを起動できるだけでなく、Extensionがビルド時最適化へどう関わるか、どの設定を実行時に変えられるか、Dev Servicesが本番構成ではないこと、JVM/Nativeのどちらをなぜ選ぶかを説明できる状態です。\n\n演習後は`labs/frameworks/quarkus/README.md`に沿ってdev mode、継続テスト、Health、JVMパッケージを確認してください。DockerまたはPodmanがある場合はDev Services演習を行い、Native buildは任意の発展課題として測定結果をJVM版と比較します。",
+      "samples": [],
+      "task": "開発要件からExtensionと確認方法を組み立てる\n\n空白区切りの要件`api`、`db`、`health`、`validation`、`native`を読み、入力順を保ち重複を除いて、`api=rest-jackson/@QuarkusTest`、`db=jdbc-postgresql/DevServices`、`health=smallrye-health|/q/health`、`validation=hibernate-validator/boundary-test`、`native=native-build/native-test`へ変換し、カンマ区切りで出力してください。未知の要件は`<語>=SPIKE`です。",
+      "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        String line = new Scanner(System.in).nextLine().trim();\n        Map<String, String> plan = Map.of(\n                \"api\", \"api=rest-jackson/@QuarkusTest\",\n                \"db\", \"db=jdbc-postgresql/DevServices\",\n                \"health\", \"health=smallrye-health|/q/health\",\n                \"validation\", \"validation=hibernate-validator/boundary-test\",\n                \"native\", \"native=native-build/native-test\"\n        );\n        // TODO: 要件を実装・確認計画へ変換する\n    }\n}",
+      "visibleCases": [
+        {
+          "label": "表示ケース1",
+          "stdin": "api db health\n",
+          "expected": "api=rest-jackson/@QuarkusTest,db=jdbc-postgresql/DevServices,health=smallrye-health|/q/health"
+        },
+        {
+          "label": "表示ケース2",
+          "stdin": "validation api validation\n",
+          "expected": "validation=hibernate-validator/boundary-test,api=rest-jackson/@QuarkusTest"
+        }
+      ],
+      "hiddenCases": [
+        {
+          "label": "隠しケース1",
+          "stdin": "native health\n",
+          "expected": "native=native-build/native-test,health=smallrye-health|/q/health"
+        },
+        {
+          "label": "隠しケース2",
+          "stdin": "cache api\n",
+          "expected": "cache=SPIKE,api=rest-jackson/@QuarkusTest"
+        },
+        {
+          "label": "隠しケース3",
+          "stdin": "db native validation\n",
+          "expected": "db=jdbc-postgresql/DevServices,native=native-build/native-test,validation=hibernate-validator/boundary-test"
+        }
+      ],
+      "hints": [
+        "Mapの値にはExtensionと確認方法がセット済みです。変換後の値を`LinkedHashSet`へ入れます。",
+        "未知の要件は捨てずに`要件=SPIKE`とし、小さな検証が必要な項目として計画へ残します。"
+      ],
+      "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        String line = new Scanner(System.in).nextLine().trim();\n        Map<String, String> plan = Map.of(\n                \"api\", \"api=rest-jackson/@QuarkusTest\",\n                \"db\", \"db=jdbc-postgresql/DevServices\",\n                \"health\", \"health=smallrye-health|/q/health\",\n                \"validation\", \"validation=hibernate-validator/boundary-test\",\n                \"native\", \"native=native-build/native-test\"\n        );\n        Set<String> result = new LinkedHashSet<>();\n        if (!line.isEmpty()) {\n            for (String requirement : line.split(\"\\\\s+\")) {\n                result.add(plan.getOrDefault(requirement, requirement + \"=SPIKE\"));\n            }\n        }\n        System.out.println(String.join(\",\", result));\n    }\n}",
+      "sourceChecks": [
+        {
+          "pattern": "LinkedHashSet",
+          "message": "入力順を保った重複除去を行ってください。"
+        },
+        {
+          "pattern": "getOrDefault",
+          "message": "未知の要件はSPIKEへ回してください。"
+        }
+      ],
+      "kind": "applied",
+      "extraTasks": [
+        {
+          "task": "開発・本番のサービス準備を分離する\n\n1行目にprofile、2行目にDB設定済みか、3行目にコンテナ利用可か、4行目にテスト成功かが与えられます。テスト失敗なら`BLOCKED:TEST`です。prodはDB設定済みなら`PROD:EXPLICIT_DB`、未設定なら`BLOCKED:PROD_DB`です。dev/testは設定済みなら`DEV:EXPLICIT_DB`、未設定かつコンテナ利用可なら`DEV:DEV_SERVICES`、それ以外は`BLOCKED:DEV_CONTAINER`です。",
+          "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        String profile = sc.nextLine();\n        boolean databaseConfigured = Boolean.parseBoolean(sc.nextLine());\n        boolean containerAvailable = Boolean.parseBoolean(sc.nextLine());\n        boolean tests = Boolean.parseBoolean(sc.nextLine());\n        // TODO: テストと環境を順に確認する\n    }\n}",
+          "visibleCases": [
+            {
+              "label": "表示ケース1",
+              "stdin": "dev\nfalse\ntrue\ntrue\n",
+              "expected": "DEV:DEV_SERVICES"
+            },
+            {
+              "label": "表示ケース2",
+              "stdin": "prod\ntrue\nfalse\ntrue\n",
+              "expected": "PROD:EXPLICIT_DB"
+            }
+          ],
+          "hiddenCases": [
+            {
+              "label": "隠しケース1",
+              "stdin": "prod\nfalse\ntrue\ntrue\n",
+              "expected": "BLOCKED:PROD_DB"
+            },
+            {
+              "label": "隠しケース2",
+              "stdin": "test\ntrue\nfalse\ntrue\n",
+              "expected": "DEV:EXPLICIT_DB"
+            },
+            {
+              "label": "隠しケース3",
+              "stdin": "dev\nfalse\ntrue\nfalse\n",
+              "expected": "BLOCKED:TEST"
+            }
+          ],
+          "hints": [
+            "最初にテスト結果を確認し、失敗なら環境に関係なく`BLOCKED:TEST`を返します。",
+            "次にprodとdev/testを分けます。本番は明示DB設定を必須にし、Dev Servicesは開発・テストだけで候補にします。"
+          ],
+          "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        String profile = sc.nextLine();\n        boolean databaseConfigured = Boolean.parseBoolean(sc.nextLine());\n        boolean containerAvailable = Boolean.parseBoolean(sc.nextLine());\n        boolean tests = Boolean.parseBoolean(sc.nextLine());\n        if (!tests) {\n            System.out.println(\"BLOCKED:TEST\");\n        } else if (profile.equals(\"prod\")) {\n            System.out.println(databaseConfigured ? \"PROD:EXPLICIT_DB\" : \"BLOCKED:PROD_DB\");\n        } else if (databaseConfigured) {\n            System.out.println(\"DEV:EXPLICIT_DB\");\n        } else {\n            System.out.println(containerAvailable ? \"DEV:DEV_SERVICES\" : \"BLOCKED:DEV_CONTAINER\");\n        }\n    }\n}",
+          "sourceChecks": [
+            {
+              "pattern": "if\\s*\\(\\s*!tests",
+              "message": "テスト失敗を最優先で停止してください。"
+            },
+            {
+              "pattern": "profile\\.equals\\(",
+              "message": "本番とdev/testのサービス準備を分けてください。"
+            }
+          ],
+          "kind": "applied"
+        },
+        {
+          "task": "Quarkus更新のリリースゲートを作る\n\n5行に、Update Tool実行済み、Migration Guide確認済み、diffレビュー済み、JVMテスト成功、Native採用時のNativeテスト成功、を表す`true`/`false`が与えられ、6行目にNative採用有無が与えられます。未完了を`UPDATE,GUIDE,DIFF,JVM_TEST,NATIVE_TEST`順に集め、なければ`READY`、あれば`BLOCKED:<項目>`と出力してください。Nativeを採用しない場合はNative testの値を判定しません。",
+          "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        boolean update = Boolean.parseBoolean(sc.nextLine());\n        boolean guide = Boolean.parseBoolean(sc.nextLine());\n        boolean diff = Boolean.parseBoolean(sc.nextLine());\n        boolean jvmTest = Boolean.parseBoolean(sc.nextLine());\n        boolean nativeTest = Boolean.parseBoolean(sc.nextLine());\n        boolean nativeDeployment = Boolean.parseBoolean(sc.nextLine());\n        List<String> missing = new ArrayList<>();\n        // TODO: 更新リリースの未完了項目を集める\n    }\n}",
+          "visibleCases": [
+            {
+              "label": "表示ケース1",
+              "stdin": "true\ntrue\ntrue\ntrue\nfalse\nfalse\n",
+              "expected": "READY"
+            },
+            {
+              "label": "表示ケース2",
+              "stdin": "true\ntrue\ntrue\ntrue\nfalse\ntrue\n",
+              "expected": "BLOCKED:NATIVE_TEST"
+            }
+          ],
+          "hiddenCases": [
+            {
+              "label": "隠しケース1",
+              "stdin": "false\nfalse\nfalse\nfalse\nfalse\nfalse\n",
+              "expected": "BLOCKED:UPDATE,GUIDE,DIFF,JVM_TEST"
+            },
+            {
+              "label": "隠しケース2",
+              "stdin": "true\nfalse\ntrue\ntrue\ntrue\ntrue\n",
+              "expected": "BLOCKED:GUIDE"
+            },
+            {
+              "label": "隠しケース3",
+              "stdin": "true\ntrue\nfalse\nfalse\ntrue\ntrue\n",
+              "expected": "BLOCKED:DIFF,JVM_TEST"
+            }
+          ],
+          "hints": [
+            "各false項目を`UPDATE`、`GUIDE`、`DIFF`、`JVM_TEST`の順で`missing`へ追加します。",
+            "`NATIVE_TEST`を追加するのはNative採用時かつNativeテスト失敗時だけです。最後に空なら`READY`と判定します。"
+          ],
+          "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        boolean update = Boolean.parseBoolean(sc.nextLine());\n        boolean guide = Boolean.parseBoolean(sc.nextLine());\n        boolean diff = Boolean.parseBoolean(sc.nextLine());\n        boolean jvmTest = Boolean.parseBoolean(sc.nextLine());\n        boolean nativeTest = Boolean.parseBoolean(sc.nextLine());\n        boolean nativeDeployment = Boolean.parseBoolean(sc.nextLine());\n        List<String> missing = new ArrayList<>();\n        if (!update) missing.add(\"UPDATE\");\n        if (!guide) missing.add(\"GUIDE\");\n        if (!diff) missing.add(\"DIFF\");\n        if (!jvmTest) missing.add(\"JVM_TEST\");\n        if (nativeDeployment && !nativeTest) missing.add(\"NATIVE_TEST\");\n        System.out.println(missing.isEmpty() ? \"READY\" : \"BLOCKED:\" + String.join(\",\", missing));\n    }\n}",
+          "sourceChecks": [
+            {
+              "pattern": "List<String>\\s+missing",
+              "message": "未完了項目をListへ集めてください。"
+            },
+            {
+              "pattern": "nativeDeployment\\s*&&\\s*!nativeTest",
+              "message": "Native採用時だけNativeテストを必須にしてください。"
+            }
+          ],
+          "kind": "applied"
+        }
+      ],
+      "quiz": []
+    }
+  ]
+}

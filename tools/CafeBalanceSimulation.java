@@ -20,7 +20,8 @@ import java.util.Set;
 public final class CafeBalanceSimulation {
 
     private static final Set<Integer> MILESTONES = Set.of(
-            1, 20, 50, 100, 170, 240, 310, 370, 420, 460, 480, 493, 500, 503, 507);
+            1, 20, 50, 100, 170, 240, 310, 370, 420, 460, 480, 493, 500, 503, 507,
+            520, 540, 560, 574);
 
     private record Candidate(String kind, String id, long cost) {
     }
@@ -36,7 +37,8 @@ public final class CafeBalanceSimulation {
             Curriculum curriculum = new ContentLoader(project.resolve("content")).load();
             ProgressStore progress = new ProgressStore(progressFile);
 
-            System.out.println("star\tchapters\tcash\tlifetime\tnextTask\tstores\tupgrades\tauto\titems");
+            System.out.println(
+                    "star\tchapters\tcash\tlifetime\tnextTask\tstores\tupgrades\tauto\titems\tinvestment");
             for (Chapter chapter : curriculum.chapters()) {
                 for (Lesson lesson : chapter.lessons()) {
                     for (Task task : lesson.tasks()) {
@@ -116,6 +118,10 @@ public final class CafeBalanceSimulation {
             if (cafe.get("expansionCost") instanceof Number n && n.longValue() <= cash) {
                 candidates.add(new Candidate("expansion", "", n.longValue()));
             }
+            Map<String, Object> investment = map(cafe.get("endgameInvestment"));
+            if (bool(investment.get("available")) && number(investment.get("cost")) <= cash) {
+                candidates.add(new Candidate("investment", "", number(investment.get("cost"))));
+            }
             Candidate next = candidates.stream().min(Comparator.comparingLong(Candidate::cost)).orElse(null);
             if (next == null) {
                 return;
@@ -125,6 +131,7 @@ public final class CafeBalanceSimulation {
                 case "automation" -> progress.purchaseCafeAutomation(next.id());
                 case "item" -> progress.purchaseCafeItem(next.id());
                 case "expansion" -> progress.expandCafeNetwork();
+                case "investment" -> progress.purchaseCafeInvestment();
                 default -> throw new IllegalStateException(next.kind());
             }
         }
@@ -145,12 +152,12 @@ public final class CafeBalanceSimulation {
     private static void printRow(
             ProgressStore progress, ProgressStore.CafeLearningProgress learning) {
         Map<String, Object> cafe = cafe(progress, learning);
-        System.out.printf("%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d%n",
+        System.out.printf("%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d%n",
                 progress.clearedIds().size(), learning.clearedChapters(),
                 number(cafe.get("cash")), number(cafe.get("lifetimeCash")),
                 number(cafe.get("nextOrderCash")), number(cafe.get("storeCount")),
                 list(cafe.get("ownedUpgrades")).size(), list(cafe.get("ownedAutomation")).size(),
-                list(cafe.get("ownedItems")).size());
+                list(cafe.get("ownedItems")).size(), number(cafe.get("investmentLevel")));
     }
 
     private static void verifyFinalBalance(
@@ -171,6 +178,9 @@ public final class CafeBalanceSimulation {
         // 全問を同じ日に一発クリアするこの試算では原理的に達成できない。
         require(list(cafe.get("ownedItems")).size() == 19,
                 "この試算で達成できるスペシャルアイテム19個を全購入できません");
+        int expectedInvestments = Math.max(0, (curriculum.totalTaskCount() - 500) / 20);
+        require(number(cafe.get("investmentLevel")) == expectedInvestments,
+                "学習20問ごとの終盤任意投資を全て完了できません");
         require(spendPercent >= 25.0 && spendPercent <= 45.0,
                 "全購入時の投資率が目標25〜45%を外れています: " + spendPercent + "%");
 
@@ -179,8 +189,8 @@ public final class CafeBalanceSimulation {
         long passiveCap = number(cafe.get("passiveCashCap"));
         require(passivePerMinute <= taskCash / 20L,
                 "自動売上が学習1回分の5%/分を超えています");
-        require(passiveCap <= taskCash / 2L,
-                "次の★までの自動売上が学習1回分の50%を超えています");
+        require(passiveCap <= taskCash * 5L,
+                "次の★までの自動売上が学習5回分を超えています");
     }
 
     private static void require(boolean condition, String message) {
@@ -199,6 +209,11 @@ public final class CafeBalanceSimulation {
     @SuppressWarnings("unchecked")
     private static List<Map<String, Object>> list(Object value) {
         return value instanceof List<?> list ? (List<Map<String, Object>>) (List<?>) list : List.of();
+    }
+
+    @SuppressWarnings("unchecked")
+    private static Map<String, Object> map(Object value) {
+        return value instanceof Map<?, ?> map ? (Map<String, Object>) map : Map.of();
     }
 
     private static long number(Object value) {

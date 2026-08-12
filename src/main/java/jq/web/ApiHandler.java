@@ -51,6 +51,7 @@ import java.util.function.Supplier;
  *   <li>{@code POST /api/cafe/item/purchase} … スペシャルアイテムを購入</li>
  *   <li>{@code POST /api/cafe/items/seen} … 解放済みアイテムの通知を既読にする</li>
  *   <li>{@code POST /api/cafe/expand} … カフェの店舗網を拡大</li>
+ *   <li>{@code POST /api/cafe/investment/purchase} … 終盤の任意改装へ投資</li>
  *   <li>{@code POST /api/reset}    … 進捗を全消去</li>
  * </ul>
  */
@@ -128,6 +129,8 @@ public final class ApiHandler implements HttpHandler {
                 case "/api/cafe/item/purchase" -> sendJson(exchange, 200, doCafeItemPurchase(body));
                 case "/api/cafe/items/seen" -> sendJson(exchange, 200, doCafeItemsSeen());
                 case "/api/cafe/expand" -> sendJson(exchange, 200, doCafeExpand());
+                case "/api/cafe/investment/purchase" ->
+                        sendJson(exchange, 200, doCafeInvestmentPurchase());
                 case "/api/reset" -> {
                     progress.resetAll();
                     sendJson(exchange, 200, state());
@@ -608,6 +611,28 @@ public final class ApiHandler implements HttpHandler {
 
         Map<String, Object> m = new LinkedHashMap<>();
         m.put("expansion", result);
+        m.put("delta", Map.of("progress", progress.toClientJson(cafeLearning)));
+        return m;
+    }
+
+    private Object doCafeInvestmentPurchase() {
+        Curriculum c = curriculum.get();
+        ProgressStore.CafeLearningProgress cafeLearning =
+                cafeLearningProgress(c, progress.clearedIds());
+        ProgressStore.InvestmentPurchaseResult purchase = progress.purchaseCafeInvestment();
+        if (!purchase.purchased()) {
+            throw new BadRequest(purchase.error());
+        }
+
+        ProgressStore.CafeInvestment investment = purchase.investment();
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("level", investment.level());
+        result.put("name", investment.name());
+        result.put("emoji", investment.emoji());
+        result.put("cost", investment.cost());
+
+        Map<String, Object> m = new LinkedHashMap<>();
+        m.put("investment", result);
         m.put("delta", Map.of("progress", progress.toClientJson(cafeLearning)));
         return m;
     }

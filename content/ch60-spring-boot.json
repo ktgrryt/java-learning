@@ -1,0 +1,667 @@
+{
+  "id": "ch60",
+  "title": "Spring Boot実践入門",
+  "subtitle": "Starterと自動構成を理解し、REST APIの開発・テスト・運用・更新を自分で進める",
+  "emoji": "🌱",
+  "lessons": [
+    {
+      "id": "60-1",
+      "title": "Spring Bootは何を楽にするのか",
+      "explanation": "Spring Bootは、Spring Frameworkを使ったアプリケーションを少ない準備で起動するための仕組みです。最初に区別したいのは、Spring FrameworkがDI（必要な部品を外から渡す仕組み）やWeb処理などの土台で、Spring Bootが依存関係・初期設定・起動方法をまとめる役割だという点です。\n\nこの章で繰り返し使う言葉を先に整理します。\n\n- Bean（ビーン）: Springが生成し、他の部品との接続や寿命を管理するJavaオブジェクトです。ControllerやServiceが代表例です。\n- クラスパス: 実行中のJavaから参照できるクラスやJARの一覧です。Spring Bootはここに何のライブラリがあるかを自動構成の判断材料にします。\n- Starter: 目的に必要な依存ライブラリをひとまとめにした入口です。Starter自身が画面やDB処理を行うわけではありません。\n\nSpring Bootでは、まずStarterという用途別の依存関係セットを選びます。例えば`spring-boot-starter-web`はSpring MVC、JSON変換、組み込みWebサーバーなど、Web APIに必要な部品をまとめて追加します。個々のライブラリと互換バージョンを初心者が一つずつ調べなくてよいことが利点です。ただし、Starterは機能そのものではなく、関連ライブラリを安全な組み合わせで集める入口です。\n\n`@SpringBootApplication`を付けたクラスから起動すると、Spring Bootはクラスパス上の依存関係と設定を見て、必要になりそうな構成を自動で用意します。これがAuto Configuration（自動構成）です。Web StarterがあればWebアプリ用の構成を行い、Tomcatなどの組み込みサーバーも同じJARの中から起動できます。そのため、別にアプリケーションサーバーへWARを配る手順がなくても、`java -jar app.jar`で自己完結して動かせます。\n\n最小プロジェクトでは、`pom.xml`にStarterとSpring Boot Maven Pluginを置き、次のクラスを作ります。`main`メソッドはSpringの部品を集め、組み込みサーバーを起動する入口です。\n\n```java\n@SpringBootApplication\npublic class Application {\n    public static void main(String[] args) {\n        SpringApplication.run(Application.class, args);\n    }\n}\n```\n\nこの教材の`labs/frameworks/spring-boot`は、開発中は`mvn spring-boot:run`、テストは`mvn test`、配布用JARは`mvn package`で作れます。Maven Wrapper（`mvnw`）が置かれた実務プロジェクトでは、同じgoalを`./mvnw spring-boot:run`のように実行します。最初はWeb、Validation、Actuatorだけのように、目的を説明できるStarterだけを追加してください。依存関係を増やすほど、自動構成の候補、更新対象、攻撃面も増えるからです。",
+      "samples": [
+        {
+          "caption": "考え方を標準Javaで確かめる",
+          "code": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Map<String, String> starters = Map.of(\n                \"web\", \"spring-boot-starter-web\",\n                \"validation\", \"spring-boot-starter-validation\",\n                \"operations\", \"spring-boot-starter-actuator\"\n        );\n        List<String> requirements = List.of(\"web\", \"validation\", \"operations\");\n        requirements.stream().map(starters::get).forEach(System.out::println);\n    }\n}",
+          "expected": "spring-boot-starter-web\nspring-boot-starter-validation\nspring-boot-starter-actuator"
+        }
+      ],
+      "task": "要件からStarterを選ぶ\n\n1行に空白区切りで`web`、`validation`、`data`、`security`、`batch`、`operations`のいずれかが与えられます。入力順を保ち、重複を除いて、対応するStarter名をカンマ区切りで出力してください。対応は順に`spring-boot-starter-web`、`spring-boot-starter-validation`、`spring-boot-starter-data-jpa`、`spring-boot-starter-security`、`spring-boot-starter-batch`、`spring-boot-starter-actuator`です。未知の語は`UNKNOWN:<語>`として出力します。",
+      "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        String[] requirements = sc.nextLine().trim().split(\"\\\\s+\");\n        Map<String, String> starters = Map.of(\n                \"web\", \"spring-boot-starter-web\",\n                \"validation\", \"spring-boot-starter-validation\",\n                \"data\", \"spring-boot-starter-data-jpa\",\n                \"security\", \"spring-boot-starter-security\",\n                \"batch\", \"spring-boot-starter-batch\",\n                \"operations\", \"spring-boot-starter-actuator\"\n        );\n        Set<String> selected = new LinkedHashSet<>();\n        // TODO: 入力順を保ってStarterを選ぶ\n    }\n}",
+      "visibleCases": [
+        {
+          "label": "表示ケース1",
+          "stdin": "web validation operations\n",
+          "expected": "spring-boot-starter-web,spring-boot-starter-validation,spring-boot-starter-actuator"
+        },
+        {
+          "label": "表示ケース2",
+          "stdin": "web data web\n",
+          "expected": "spring-boot-starter-web,spring-boot-starter-data-jpa"
+        }
+      ],
+      "hiddenCases": [
+        {
+          "label": "隠しケース1",
+          "stdin": "security batch\n",
+          "expected": "spring-boot-starter-security,spring-boot-starter-batch"
+        },
+        {
+          "label": "隠しケース2",
+          "stdin": "operations\n",
+          "expected": "spring-boot-starter-actuator"
+        },
+        {
+          "label": "隠しケース3",
+          "stdin": "web mail\n",
+          "expected": "spring-boot-starter-web,UNKNOWN:mail"
+        }
+      ],
+      "hints": [
+        "`Map`には要件名とStarter名の対応が用意されています。まず各入力を`starters.getOrDefault`で変換します。",
+        "入力順を残したまま重複を除くには`LinkedHashSet`を使い、最後に`String.join(\",\", selected)`で連結できます。"
+      ],
+      "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        String line = sc.nextLine().trim();\n        String[] requirements = line.isEmpty() ? new String[0] : line.split(\"\\\\s+\");\n        Map<String, String> starters = Map.of(\n                \"web\", \"spring-boot-starter-web\",\n                \"validation\", \"spring-boot-starter-validation\",\n                \"data\", \"spring-boot-starter-data-jpa\",\n                \"security\", \"spring-boot-starter-security\",\n                \"batch\", \"spring-boot-starter-batch\",\n                \"operations\", \"spring-boot-starter-actuator\"\n        );\n        Set<String> selected = new LinkedHashSet<>();\n        for (String requirement : requirements) {\n            selected.add(starters.getOrDefault(requirement, \"UNKNOWN:\" + requirement));\n        }\n        System.out.println(String.join(\",\", selected));\n    }\n}",
+      "sourceChecks": [
+        {
+          "pattern": "LinkedHashSet",
+          "message": "入力順を保った重複除去にはLinkedHashSetを使いましょう。"
+        },
+        {
+          "pattern": "getOrDefault|containsKey",
+          "message": "未知の要件を分岐またはMapの既定値で処理してください。"
+        }
+      ],
+      "kind": "practice",
+      "extraTasks": [],
+      "quiz": [
+        {
+          "question": "Starterを使う主な利点はどれですか？",
+          "choices": [
+            "用途に必要な依存関係を互換性のある組み合わせで追加しやすい",
+            "Javaの文法エラーをすべて自動修正する",
+            "本番DBを自動作成する",
+            "どのStarterも同じ機能を持つ"
+          ],
+          "answer": 0,
+          "explanation": "Starterは用途別の依存関係セットです。アプリ固有の設計や本番環境の用意まで自動化するものではありません。"
+        },
+        {
+          "question": "組み込みサーバーの説明として正しいものはどれですか？",
+          "choices": [
+            "Webサーバーをアプリの依存関係として含め、JARから一緒に起動できる",
+            "OSなしでJavaが動く",
+            "必ず外部のTomcatへWARを配る",
+            "HTTPを使わなくなる"
+          ],
+          "answer": 0,
+          "explanation": "Spring BootはTomcatなどを組み込み、自己完結したHTTPアプリとして起動できます。"
+        }
+      ]
+    },
+    {
+      "id": "60-2",
+      "title": "Controller・Service・入力検証を分ける",
+      "explanation": "REST APIでは、HTTPを受け取る処理と業務ルールを同じメソッドへ詰め込まないことが重要です。ControllerはURL、HTTPメソッド、入力、HTTPステータスを扱います。Serviceは「注文できるか」「表示名をどう作るか」といった業務ルールを扱います。DBアクセスが必要なら、さらにRepositoryへ分けます。こうするとHTTPを起動しないServiceの単体テストと、Webの接続だけを見るControllerテストを分けられます。\n\n```java\n@RestController\n@RequestMapping(\"/api/greetings\")\nclass GreetingController {\n    private final GreetingService service;\n\n    GreetingController(GreetingService service) {\n        this.service = service;\n    }\n\n    @GetMapping\n    GreetingResponse greet(@RequestParam @NotBlank String name) {\n        return new GreetingResponse(service.message(name));\n    }\n}\n```\n\n`@RestController`は戻り値をJSONなどのHTTPレスポンスへ変換するControllerです。`@GetMapping`はGETリクエストとの対応、`@RequestParam`はクエリ文字列、`@NotBlank`は空文字を拒否する入力検証です。DTO（Data Transfer Object）は、HTTPで受け取る値や返す値を運ぶための専用クラスです。入力用・出力用のDTOをEntity（DBへ保存する形）と分けると、DB設計の変更がそのままAPI変更になるのを防ぎやすくなります。\n\nServiceはコンストラクタで注入します。フィールドへ直接`@Autowired`を付ける方法より、必要な依存関係が明確で、通常のJavaコードとしてテストしやすくなります。また、ControllerやServiceは通常1個だけ共有されるBeanです。リクエストごとの名前や合計金額をフィールドへ保存すると、同時アクセスで値が混ざります。リクエスト固有の値はローカル変数として扱ってください。\n\n入力不正は400、対象なしは404、作成成功は201など、HTTPの意味に合わせて返します。想定される業務例外は`@RestControllerAdvice`へ集めると、全Controllerで同じエラーJSONを返せます。例外の詳細やスタックトレースを利用者へそのまま返してはいけません。",
+      "samples": [
+        {
+          "caption": "考え方を標準Javaで確かめる",
+          "code": "import java.util.*;\n\npublic class Main {\n    record GreetingResponse(String message) {}\n\n    static class GreetingService {\n        GreetingResponse greet(String name) {\n            return new GreetingResponse(\"Hello, \" + name.trim());\n        }\n    }\n\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        String name = sc.nextLine();\n        if (name.isBlank()) {\n            System.out.println(\"400 name is required\");\n            return;\n        }\n        System.out.println(\"200 \" + new GreetingService().greet(name).message());\n    }\n}",
+          "stdin": "Java\n",
+          "expected": "200 Hello, Java"
+        }
+      ],
+      "task": "小さなREST APIの境界を実装する\n\n1行目にHTTPメソッド、2行目にパス、3行目に名前が与えられます。パスが`/api/greetings`以外なら`404 NOT_FOUND`、パスが正しくてもGET以外なら`405 METHOD_NOT_ALLOWED`、名前が空白だけなら`400 NAME_REQUIRED`を出力してください。すべて正しければ`GreetingService`へ処理を渡し、`200 Hello, <前後空白を除いた名前>`を出力します。判定はパス、メソッド、入力の順です。",
+      "starterCode": "import java.util.*;\n\npublic class Main {\n    static class GreetingService {\n        String message(String name) {\n            return \"Hello, \" + name.trim();\n        }\n    }\n\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        String method = sc.nextLine();\n        String path = sc.nextLine();\n        String name = sc.nextLine();\n        // TODO: HTTP境界の検査後にServiceを呼ぶ\n    }\n}",
+      "visibleCases": [
+        {
+          "label": "表示ケース1",
+          "stdin": "GET\n/api/greetings\nJava\n",
+          "expected": "200 Hello, Java"
+        },
+        {
+          "label": "表示ケース2",
+          "stdin": "GET\n/api/greetings\n   \n",
+          "expected": "400 NAME_REQUIRED"
+        }
+      ],
+      "hiddenCases": [
+        {
+          "label": "隠しケース1",
+          "stdin": "POST\n/api/greetings\nJava\n",
+          "expected": "405 METHOD_NOT_ALLOWED"
+        },
+        {
+          "label": "隠しケース2",
+          "stdin": "GET\n/api/unknown\nJava\n",
+          "expected": "404 NOT_FOUND"
+        },
+        {
+          "label": "隠しケース3",
+          "stdin": "GET\n/api/greetings\n  Spring  \n",
+          "expected": "200 Hello, Spring"
+        }
+      ],
+      "hints": [
+        "早期returnを使い、パス、HTTPメソッド、`name.isBlank()`の順で不正なケースを終了させます。",
+        "3つの境界検査を通過したときだけ`GreetingService`を作り、Serviceが返した文字列の前に`200 `を付けます。"
+      ],
+      "solution": "import java.util.*;\n\npublic class Main {\n    static class GreetingService {\n        String message(String name) {\n            return \"Hello, \" + name.trim();\n        }\n    }\n\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        String method = sc.nextLine();\n        String path = sc.nextLine();\n        String name = sc.nextLine();\n        if (!path.equals(\"/api/greetings\")) {\n            System.out.println(\"404 NOT_FOUND\");\n        } else if (!method.equals(\"GET\")) {\n            System.out.println(\"405 METHOD_NOT_ALLOWED\");\n        } else if (name.isBlank()) {\n            System.out.println(\"400 NAME_REQUIRED\");\n        } else {\n            GreetingService service = new GreetingService();\n            System.out.println(\"200 \" + service.message(name));\n        }\n    }\n}",
+      "sourceChecks": [
+        {
+          "pattern": "class\\s+GreetingService",
+          "message": "業務処理を表すGreetingServiceを残してください。"
+        },
+        {
+          "pattern": "service\\.message",
+          "message": "正常時のメッセージ作成はServiceへ委譲してください。"
+        }
+      ],
+      "kind": "practice",
+      "extraTasks": [],
+      "quiz": [
+        {
+          "question": "ControllerとServiceを分ける理由として最も適切なものはどれですか？",
+          "choices": [
+            "HTTP処理と業務ルールの責務を分け、別々にテストしやすくする",
+            "クラス数を必ず1個にする",
+            "入力検証を不要にする",
+            "DB接続を自動で高速化する"
+          ],
+          "answer": 0,
+          "explanation": "ControllerはHTTP境界、Serviceは業務ルールを担当させると変更理由とテスト範囲が明確になります。"
+        },
+        {
+          "question": "通常共有されるControllerのフィールドにリクエストごとの値を保存すると危険なのはなぜですか？",
+          "choices": [
+            "同時アクセスした利用者の値が混ざる可能性がある",
+            "JSONが常にXMLになる",
+            "GETがPOSTに変わる",
+            "コンパイルできないから"
+          ],
+          "answer": 0,
+          "explanation": "共有Beanに可変なリクエスト状態を持たせず、ローカル変数や引数で扱います。"
+        }
+      ]
+    },
+    {
+      "id": "60-3",
+      "title": "Auto Configurationと外部設定を制御する",
+      "explanation": "Auto Configurationは魔法ではありません。主に「特定のクラスが依存関係にあるか」「特定の設定値があるか」「利用者が同種のBeanをまだ定義していないか」といった条件を確認し、条件を満たした構成だけを登録します。例えばDataSource用ライブラリと接続設定があれば候補を作り、自分でDataSourceのBeanを定義すれば自動構成が後退（back off）する、という設計です。\n\n自動構成が期待どおりでないときは、推測で設定を増やさず、起動ログとCondition Evaluation Reportを確認します。`--debug`で起動すると、どの自動構成が有効・無効になり、どの条件が理由だったかを調べられます。自動構成クラスは通常のアプリコードで直接呼び出すものではありません。\n\n環境ごとに変わる値はソースコードへ埋め込まず、`application.properties`または`application.yml`へ置きます。さらに本番では環境変数やコマンドライン引数などで上書きできます。`@ConfigurationProperties`は`app.greeting.prefix`のような自作設定を型付きのクラスへまとめ、検証しやすくする方法です。1個だけ参照する場合は`@Value`も使えますが、関連する設定が増えたら`@ConfigurationProperties`の方が見通しが良くなります。\n\n```properties\napp.greeting.prefix=Hello\nserver.port=8080\n```\n\n```java\n@ConfigurationProperties(\"app.greeting\")\npublic record GreetingProperties(@NotBlank String prefix) {}\n```\n\n優先順位を把握していないと、ファイルを直したのに環境変数の値が勝ち続けることがあります。また、パスワードやAPIキーをGit管理される設定ファイルへ書いてはいけません。秘密情報はSecret管理機構などから実行時に渡し、ログにも出さないでください。",
+      "samples": [
+        {
+          "caption": "考え方を標準Javaで確かめる",
+          "code": "import java.util.*;\n\npublic class Main {\n    static String choose(String environment, String file, String defaultValue) {\n        if (!environment.equals(\"-\")) return environment;\n        if (!file.equals(\"-\")) return file;\n        return defaultValue;\n    }\n\n    public static void main(String[] args) {\n        System.out.println(choose(\"Bonjour\", \"Hello\", \"Hi\"));\n    }\n}",
+          "expected": "Bonjour"
+        }
+      ],
+      "task": "設定の優先順位と自動構成の後退を再現する\n\n1行目に環境変数の値、2行目に設定ファイルの値、3行目に既定値、4行目に利用者定義Beanの有無（`true`または`false`）が与えられます。値`-`は未設定です。環境変数、設定ファイル、既定値の順で最初の設定値を選び、`<値> USER_BEAN`または`<値> AUTO_CONFIGURED`と出力してください。利用者定義Beanが`true`なら`USER_BEAN`です。",
+      "starterCode": "import java.util.*;\n\npublic class Main {\n    static String resolve(String environment, String file, String defaultValue) {\n        // TODO: 優先順位に従って値を返す\n        return defaultValue;\n    }\n\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        String environment = sc.nextLine();\n        String file = sc.nextLine();\n        String defaultValue = sc.nextLine();\n        boolean userBean = Boolean.parseBoolean(sc.nextLine());\n        // TODO: 設定値と構成元を出力する\n    }\n}",
+      "visibleCases": [
+        {
+          "label": "表示ケース1",
+          "stdin": "Bonjour\nHello\nHi\nfalse\n",
+          "expected": "Bonjour AUTO_CONFIGURED"
+        },
+        {
+          "label": "表示ケース2",
+          "stdin": "-\nHello\nHi\ntrue\n",
+          "expected": "Hello USER_BEAN"
+        }
+      ],
+      "hiddenCases": [
+        {
+          "label": "隠しケース1",
+          "stdin": "-\n-\nHi\nfalse\n",
+          "expected": "Hi AUTO_CONFIGURED"
+        },
+        {
+          "label": "隠しケース2",
+          "stdin": "ENV\nFILE\nDEFAULT\ntrue\n",
+          "expected": "ENV USER_BEAN"
+        },
+        {
+          "label": "隠しケース3",
+          "stdin": "-\nFILE\nDEFAULT\nfalse\n",
+          "expected": "FILE AUTO_CONFIGURED"
+        }
+      ],
+      "hints": [
+        "`resolve`では`-`でない環境変数を最初に返し、次に設定ファイル、最後に既定値を返します。",
+        "設定値の選択と構成元の判定は別です。`userBean`がtrueなら`USER_BEAN`、falseなら`AUTO_CONFIGURED`です。"
+      ],
+      "solution": "import java.util.*;\n\npublic class Main {\n    static String resolve(String environment, String file, String defaultValue) {\n        if (!environment.equals(\"-\")) return environment;\n        if (!file.equals(\"-\")) return file;\n        return defaultValue;\n    }\n\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        String environment = sc.nextLine();\n        String file = sc.nextLine();\n        String defaultValue = sc.nextLine();\n        boolean userBean = Boolean.parseBoolean(sc.nextLine());\n        String source = userBean ? \"USER_BEAN\" : \"AUTO_CONFIGURED\";\n        System.out.println(resolve(environment, file, defaultValue) + \" \" + source);\n    }\n}",
+      "sourceChecks": [
+        {
+          "pattern": "static\\s+String\\s+resolve",
+          "message": "設定解決をresolveメソッドへ分けてください。"
+        },
+        {
+          "pattern": "userBean\\s*\\?",
+          "message": "利用者定義Beanの有無で構成元を選んでください。"
+        }
+      ],
+      "kind": "drill",
+      "extraTasks": [],
+      "quiz": [
+        {
+          "question": "自分で同種のBeanを定義したとき、自動構成が登録をやめる設計を何と捉えればよいですか？",
+          "choices": [
+            "利用者の明示的な構成を優先するback off",
+            "必ず起動失敗になる仕組み",
+            "Beanを二重に実行する仕組み",
+            "Javaの継承"
+          ],
+          "answer": 0,
+          "explanation": "Spring Bootの自動構成は利用者の定義を検出すると後退するよう設計されたものが多くあります。"
+        },
+        {
+          "question": "関連する独自設定が増えた場合に`@ConfigurationProperties`が適する理由はどれですか？",
+          "choices": [
+            "設定を型付きのまとまりとして読み、検証しやすい",
+            "秘密情報を自動で公開する",
+            "すべての環境で同じ値に固定する",
+            "HTTPサーバーを削除する"
+          ],
+          "answer": 0,
+          "explanation": "設定名、型、検証規則を1か所にまとめられるため、設定の意図と不足を把握しやすくなります。"
+        }
+      ]
+    },
+    {
+      "id": "60-4",
+      "title": "Spring Ecosystemを目的に合わせて選ぶ",
+      "explanation": "Spring Bootの強みは、Webだけでなく業務アプリでよく使う機能を同じ考え方で組み合わせられることです。ただし「Springだから全部入れる」のではなく、解決する課題に応じて選びます。\n\n- Spring Data JPA: Repositoryを通じたDBアクセスを支援する。SQLやトランザクションの理解は引き続き必要です。\n- Spring Security: 認証（誰かを確認）と認可（何を許すか）を担当する。Starterを追加しただけで業務権限設計が完成するわけではありません。\n- Spring Batch: 大量データを一定件数ずつ読み、加工し、書き込むバッチを構成する。再実行や途中再開の設計と組み合わせます。\n- Spring for Apache Kafkaなど: メッセージ送受信を支援する。少なくとも1回配信を前提に、重複しても壊れない処理が必要です。\n- Spring Cloud: 分散システム向け機能の集合です。単一アプリに必要とは限りません。\n\nDB更新のまとまりはServiceの業務操作を境界に`@Transactional`を付けるのが基本です。Controller全体や1件ずつの細かな呼び出しへ無計画に付けると、トランザクションが長くなったり、途中だけ確定したりします。外部API呼び出しはDBトランザクションで巻き戻せない点にも注意してください。\n\nエコシステムが広いことは、組織でWeb、DB、認証、バッチ、メッセージングを一つの技術体系に寄せやすい利点です。同時に、各モジュールの目的を理解せずStarterだけ増やすと、自動構成に振り回されます。要件、責務、障害時の挙動を先に言葉にして選定してください。",
+      "samples": [
+        {
+          "caption": "考え方を標準Javaで確かめる",
+          "code": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Map<String, String> modules = Map.of(\n                \"CRUD\", \"Spring Data JPA\",\n                \"AUTH\", \"Spring Security\",\n                \"NIGHTLY\", \"Spring Batch\",\n                \"EVENT\", \"Spring Kafka\"\n        );\n        System.out.println(modules.get(\"NIGHTLY\"));\n    }\n}",
+          "expected": "Spring Batch"
+        }
+      ],
+      "task": "業務要件に合うSpringモジュールを選ぶ\n\n1行目に要件が与えられます。`REST_API`なら`Spring MVC | HTTP境界`、`DB_CRUD`なら`Spring Data JPA | Serviceの業務操作をトランザクション境界にする`、`LOGIN`なら`Spring Security | 認証と認可を分ける`、`NIGHTLY_IMPORT`なら`Spring Batch | 一定件数ごとの処理と再実行を設計する`、`KAFKA_CONSUMER`なら`Spring Kafka | 重複処理に耐える`を出力してください。それ以外は`NO_MODULE | 要件を具体化する`です。",
+      "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        String requirement = new Scanner(System.in).nextLine();\n        // TODO: 要件に対応するモジュールと設計上の注意を出力する\n    }\n}",
+      "visibleCases": [
+        {
+          "label": "表示ケース1",
+          "stdin": "DB_CRUD\n",
+          "expected": "Spring Data JPA | Serviceの業務操作をトランザクション境界にする"
+        },
+        {
+          "label": "表示ケース2",
+          "stdin": "NIGHTLY_IMPORT\n",
+          "expected": "Spring Batch | 一定件数ごとの処理と再実行を設計する"
+        }
+      ],
+      "hiddenCases": [
+        {
+          "label": "隠しケース1",
+          "stdin": "LOGIN\n",
+          "expected": "Spring Security | 認証と認可を分ける"
+        },
+        {
+          "label": "隠しケース2",
+          "stdin": "KAFKA_CONSUMER\n",
+          "expected": "Spring Kafka | 重複処理に耐える"
+        },
+        {
+          "label": "隠しケース3",
+          "stdin": "SEARCH\n",
+          "expected": "NO_MODULE | 要件を具体化する"
+        }
+      ],
+      "hints": [
+        "要件は1つなので、`switch`式で要件ごとの「モジュール | 設計上の注意」を返すと整理できます。",
+        "未知の要件を例外にせず、`default`で`NO_MODULE | 要件を具体化する`へ分類します。"
+      ],
+      "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        String requirement = new Scanner(System.in).nextLine();\n        String result = switch (requirement) {\n            case \"REST_API\" -> \"Spring MVC | HTTP境界\";\n            case \"DB_CRUD\" -> \"Spring Data JPA | Serviceの業務操作をトランザクション境界にする\";\n            case \"LOGIN\" -> \"Spring Security | 認証と認可を分ける\";\n            case \"NIGHTLY_IMPORT\" -> \"Spring Batch | 一定件数ごとの処理と再実行を設計する\";\n            case \"KAFKA_CONSUMER\" -> \"Spring Kafka | 重複処理に耐える\";\n            default -> \"NO_MODULE | 要件を具体化する\";\n        };\n        System.out.println(result);\n    }\n}",
+      "sourceChecks": [
+        {
+          "pattern": "switch\\s*\\(",
+          "message": "要件ごとの選択をswitchで明示してください。"
+        },
+        {
+          "pattern": "default\\s*->",
+          "message": "未知の要件も安全に扱ってください。"
+        }
+      ],
+      "kind": "drill",
+      "extraTasks": [],
+      "quiz": [
+        {
+          "question": "Spring Securityを追加した直後にも設計が必要なものはどれですか？",
+          "choices": [
+            "利用者と役割に応じて何を許可するかという認可規則",
+            "Javaの予約語",
+            "JARの拡張子",
+            "HTTPの存在そのもの"
+          ],
+          "answer": 0,
+          "explanation": "ライブラリは仕組みを提供しますが、業務上の権限はアプリ側で定義し、テストする必要があります。"
+        },
+        {
+          "question": "トランザクション境界を置く基本的な単位はどれですか？",
+          "choices": [
+            "整合性を一緒に保ちたいServiceの業務操作",
+            "すべての画面をまとめた数時間",
+            "ログ1行ごと",
+            "CSSファイルごと"
+          ],
+          "answer": 0,
+          "explanation": "注文確定など、一緒に成功または失敗させたい業務操作を境界にします。"
+        }
+      ]
+    },
+    {
+      "id": "60-5",
+      "title": "目的ごとにテスト範囲を選ぶ",
+      "explanation": "Spring Bootのテストは、大きいテストだけで全部を確認するより、失敗原因を絞れる小さなテストと本番に近い結合テストを組み合わせます。\n\n- 通常のJUnit: Serviceなどの純粋な業務ロジックを、Springを起動せず高速に確認します。依存先は小さなstubやfakeを自作しても構いません。Mockitoは置き換えが多いときの選択肢であり、最初から必須ではありません。\n- `@WebMvcTest`: Controller、JSON変換、入力検証などWeb層だけを読みます。`MockMvc`は実サーバーを起動せずHTTP境界を確認します。Serviceはfakeなどをテスト用Beanとして渡します。\n- `@DataJpaTest`: EntityやRepositoryとDBアクセスを中心に確認します。実DB固有のSQLや制約があるなら、対象DBをTestcontainers（DockerまたはPodmanのコンテナでテスト用DBなどを起動・停止するライブラリ）で起動する結合テストも必要です。\n- `@SpringBootTest`: アプリ全体の構成やBeanの接続を確認します。起動が重いので、すべての細かな分岐をここだけで調べないようにします。\n\nテストは正常系だけでなく、空入力、境界値、対象なし、権限不足、DB障害などを確認します。時刻はClock、乱数は生成器、外部通信はfakeやテスト用サーバーとして差し替え、待ち時間や実行順に依存する不安定なテストを避けます。テストデータは各テストが自分で準備し、自分で後片付けすることで並列実行にも耐えられます。",
+      "samples": [
+        {
+          "caption": "考え方を標準Javaで確かめる",
+          "code": "import java.util.*;\n\npublic class Main {\n    static String scope(String target) {\n        return switch (target) {\n            case \"logic\" -> \"JUnit\";\n            case \"controller\" -> \"WebMvcTest\";\n            case \"repository\" -> \"DataJpaTest\";\n            default -> \"SpringBootTest\";\n        };\n    }\n\n    public static void main(String[] args) {\n        System.out.println(scope(\"controller\"));\n    }\n}",
+          "expected": "WebMvcTest"
+        }
+      ],
+      "task": "最小のテスト範囲を選ぶ\n\n1行目に確認対象、2行目に本物の外部依存が必要か（`true`/`false`）が与えられます。対象`SERVICE_RULE`は`JUnit`、`JSON_VALIDATION`は`@WebMvcTest`、`JPA_MAPPING`は`@DataJpaTest`、`FULL_WIRING`は`@SpringBootTest`です。外部依存が`true`なら末尾へ` + Testcontainers`、falseなら` + fake`を付けて出力してください。",
+      "starterCode": "import java.util.*;\n\npublic class Main {\n    static String scope(String target) {\n        // TODO: 対象に合う最小のテスト範囲を返す\n        return \"\";\n    }\n\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        String target = sc.nextLine();\n        boolean realExternal = Boolean.parseBoolean(sc.nextLine());\n        // TODO: テスト範囲と依存先の用意方法を出力する\n    }\n}",
+      "visibleCases": [
+        {
+          "label": "表示ケース1",
+          "stdin": "JSON_VALIDATION\nfalse\n",
+          "expected": "@WebMvcTest + fake"
+        },
+        {
+          "label": "表示ケース2",
+          "stdin": "JPA_MAPPING\ntrue\n",
+          "expected": "@DataJpaTest + Testcontainers"
+        }
+      ],
+      "hiddenCases": [
+        {
+          "label": "隠しケース1",
+          "stdin": "SERVICE_RULE\nfalse\n",
+          "expected": "JUnit + fake"
+        },
+        {
+          "label": "隠しケース2",
+          "stdin": "FULL_WIRING\ntrue\n",
+          "expected": "@SpringBootTest + Testcontainers"
+        },
+        {
+          "label": "隠しケース3",
+          "stdin": "OTHER\nfalse\n",
+          "expected": "UNKNOWN + fake"
+        }
+      ],
+      "hints": [
+        "`scope`では確認対象だけを見て、JUnit、Web、JPA、全体構成のどこまで起動するかを返します。",
+        "外部依存の用意方法はその後に付けます。`realExternal ? \" + Testcontainers\" : \" + fake\"`と分けて考えましょう。"
+      ],
+      "solution": "import java.util.*;\n\npublic class Main {\n    static String scope(String target) {\n        return switch (target) {\n            case \"SERVICE_RULE\" -> \"JUnit\";\n            case \"JSON_VALIDATION\" -> \"@WebMvcTest\";\n            case \"JPA_MAPPING\" -> \"@DataJpaTest\";\n            case \"FULL_WIRING\" -> \"@SpringBootTest\";\n            default -> \"UNKNOWN\";\n        };\n    }\n\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        String target = sc.nextLine();\n        boolean realExternal = Boolean.parseBoolean(sc.nextLine());\n        String dependency = realExternal ? \"Testcontainers\" : \"fake\";\n        System.out.println(scope(target) + \" + \" + dependency);\n    }\n}",
+      "sourceChecks": [
+        {
+          "pattern": "static\\s+String\\s+scope",
+          "message": "テスト範囲の選択をscopeメソッドへ分けてください。"
+        },
+        {
+          "pattern": "realExternal\\s*\\?",
+          "message": "外部依存の要否でTestcontainersとfakeを選んでください。"
+        }
+      ],
+      "kind": "drill",
+      "extraTasks": [],
+      "quiz": [
+        {
+          "question": "`@WebMvcTest`の主な対象はどれですか？",
+          "choices": [
+            "Controller、JSON変換、入力検証などWeb層",
+            "本番DBのバックアップ",
+            "OSのカーネル",
+            "すべての外部サービス"
+          ],
+          "answer": 0,
+          "explanation": "Web層を絞って読み込むテストです。業務ロジックの細部や実DBは別のテストで確認します。"
+        },
+        {
+          "question": "Mockitoを学ぶ前にも理解しておきたい考え方はどれですか？",
+          "choices": [
+            "依存先を単純なstubやfakeへ置き換える目的",
+            "すべてを静的メソッドにする方法",
+            "テストを実行順に依存させる方法",
+            "待ち時間を固定する方法"
+          ],
+          "answer": 0,
+          "explanation": "何をどの理由で置き換えるかを理解すれば、手書きfakeとMockitoを状況で選べます。"
+        }
+      ]
+    },
+    {
+      "id": "60-6",
+      "title": "Actuatorで運用し、安全に更新する",
+      "explanation": "本番アプリは、HTTP 200を返すだけでなく「プロセスが生きているか」「依存先を含めてリクエストを受けられるか」「どの程度遅いか」を運用者へ伝える必要があります。Spring Boot Actuatorは、このための管理エンドポイントを提供します。\n\n`/actuator/health`はヘルス状態、`/actuator/metrics`は測定値、`/actuator/loggers`はログレベル、`/actuator/info`はアプリ情報などを扱います。KubernetesではLivenessを「プロセスを再起動すべきか」、Readinessを「新しい通信を受けてよいか」に分けます。DBの一時障害をLiveness失敗にするとPodが一斉再起動して状況を悪化させるため、意味を分けることが重要です。\n\nActuatorを追加しても、すべてのエンドポイントがHTTP公開されるわけではありません。公開範囲を明示し、healthの詳細、env、configprops、loggersなど機密情報や動作変更につながるものは、管理ネットワークと認証・認可で守ります。インターネットへ一括公開してはいけません。\n\nSpring Bootの更新では、依存ライブラリ、既定値、設定プロパティ、APIが変わる場合があります。ランタイムだけを更新すればアプリ変更が原則不要になる、という保証はないため、更新時は移行作業の可能性があります。更新前にRelease NotesとMigration Guideを読み、依存ライブラリの版はBOM（Bill of Materials。互換性を考慮したバージョン対応表）に任せ、テストと起動確認を行います。`spring-boot-properties-migrator`は古い設定名の検出や一時的な移行に役立ちますが、警告を修正した後は依存関係から外します。AOT（Ahead-of-Time。起動前のビルド時に解析や生成を進める方式）やNative Imageも選べますが、起動時間・メモリとビルド時間・動的機能の制約を測定して選ぶ追加手段です。\n\n安全なリリース判定には、設定移行、全テスト、ヘルス確認、管理エンドポイントの公開制御、ロールバック手順を含めます。",
+      "samples": [
+        {
+          "caption": "考え方を標準Javaで確かめる",
+          "code": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Set<String> publicEndpoints = Set.of(\"health\", \"info\");\n        for (String endpoint : List.of(\"health\", \"metrics\", \"env\")) {\n            System.out.println(endpoint + \"=\" + (publicEndpoints.contains(endpoint) ? \"PUBLIC\" : \"PROTECTED\"));\n        }\n    }\n}",
+          "expected": "health=PUBLIC\nmetrics=PROTECTED\nenv=PROTECTED"
+        }
+      ],
+      "task": "更新リリースの安全ゲートを作る\n\n4行に、Migration Guide確認済み、全テスト成功、公開管理エンドポイントがhealthとinfoだけ、Properties Migratorを修正後に削除済み、を表す`true`/`false`が順に与えられます。すべてtrueなら`READY`、そうでなければ未完了項目を入力順に`GUIDE,TEST,EXPOSURE,MIGRATOR`からカンマ区切りで`BLOCKED:<項目>`として出力してください。",
+      "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        boolean guide = Boolean.parseBoolean(sc.nextLine());\n        boolean tests = Boolean.parseBoolean(sc.nextLine());\n        boolean exposure = Boolean.parseBoolean(sc.nextLine());\n        boolean migratorRemoved = Boolean.parseBoolean(sc.nextLine());\n        List<String> missing = new ArrayList<>();\n        // TODO: 未完了項目を集めて判定する\n    }\n}",
+      "visibleCases": [
+        {
+          "label": "表示ケース1",
+          "stdin": "true\ntrue\ntrue\ntrue\n",
+          "expected": "READY"
+        },
+        {
+          "label": "表示ケース2",
+          "stdin": "true\nfalse\ntrue\nfalse\n",
+          "expected": "BLOCKED:TEST,MIGRATOR"
+        }
+      ],
+      "hiddenCases": [
+        {
+          "label": "隠しケース1",
+          "stdin": "false\nfalse\nfalse\nfalse\n",
+          "expected": "BLOCKED:GUIDE,TEST,EXPOSURE,MIGRATOR"
+        },
+        {
+          "label": "隠しケース2",
+          "stdin": "false\ntrue\ntrue\ntrue\n",
+          "expected": "BLOCKED:GUIDE"
+        },
+        {
+          "label": "隠しケース3",
+          "stdin": "true\ntrue\nfalse\ntrue\n",
+          "expected": "BLOCKED:EXPOSURE"
+        }
+      ],
+      "hints": [
+        "falseの項目だけを`GUIDE`、`TEST`、`EXPOSURE`、`MIGRATOR`の順で`missing`へ追加します。",
+        "`missing.isEmpty()`なら`READY`、それ以外は`BLOCKED:`と`String.join(\",\", missing)`を組み合わせます。"
+      ],
+      "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        boolean guide = Boolean.parseBoolean(sc.nextLine());\n        boolean tests = Boolean.parseBoolean(sc.nextLine());\n        boolean exposure = Boolean.parseBoolean(sc.nextLine());\n        boolean migratorRemoved = Boolean.parseBoolean(sc.nextLine());\n        List<String> missing = new ArrayList<>();\n        if (!guide) missing.add(\"GUIDE\");\n        if (!tests) missing.add(\"TEST\");\n        if (!exposure) missing.add(\"EXPOSURE\");\n        if (!migratorRemoved) missing.add(\"MIGRATOR\");\n        System.out.println(missing.isEmpty() ? \"READY\" : \"BLOCKED:\" + String.join(\",\", missing));\n    }\n}",
+      "sourceChecks": [
+        {
+          "pattern": "List<String>\\s+missing",
+          "message": "複数の未完了理由をListに集めてください。"
+        },
+        {
+          "pattern": "missing\\.isEmpty",
+          "message": "未完了項目がない場合だけREADYにしてください。"
+        }
+      ],
+      "kind": "applied",
+      "extraTasks": [],
+      "quiz": [
+        {
+          "question": "Readinessの役割として適切なものはどれですか？",
+          "choices": [
+            "新しいリクエストを受けてよい状態かを示す",
+            "Javaコードをコンパイルする",
+            "利用者のパスワードを返す",
+            "必ずプロセスを再起動する"
+          ],
+          "answer": 0,
+          "explanation": "Readiness失敗中は通信先から外し、回復を待てます。Livenessとは目的が異なります。"
+        },
+        {
+          "question": "Spring Boot更新時のProperties Migratorの扱いとして適切なものはどれですか？",
+          "choices": [
+            "古い設定を検出・修正する間だけ使い、移行後に外す",
+            "永続的な互換保証として必ず残す",
+            "テストの代わりにする",
+            "管理エンドポイントを全公開するために使う"
+          ],
+          "answer": 0,
+          "explanation": "移行支援用の一時的な依存関係です。警告を修正し、不要になったら外します。"
+        }
+      ]
+    },
+    {
+      "id": "60-7",
+      "title": "章末演習：Spring Bootの開発から運用まで",
+      "explanation": "ここまでの内容を、要件整理、HTTP境界、運用公開の3つに分けて仕上げます。実務では、Starterを選べるだけでは不十分です。なぜその依存関係が必要か、入力不正をどこで止めるか、どのテストが何を保証するか、管理情報を誰に公開するかまで説明できる状態を目指してください。\n\n演習後は`labs/frameworks/spring-boot/README.md`の手順で実アプリを起動し、API、入力エラー、health、テスト、パッケージングを確認します。次に挨拶の設定値を変え、Controllerへ業務ルールを増やさずServiceへ追加する練習をすると、独力で小さな機能を改修する流れを体験できます。",
+      "samples": [],
+      "task": "要件から依存関係とテストを組み立てる\n\n空白区切りの要件`api`、`db`、`auth`、`ops`を読みます。入力順を保ち重複を除き、`api=web/@WebMvcTest`、`db=data-jpa/@DataJpaTest`、`auth=security/authorization-test`、`ops=actuator/health-check`へ変換してカンマ区切りで出力してください。未知の要件は`<語>=review`です。",
+      "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        String line = new Scanner(System.in).nextLine().trim();\n        Map<String, String> plan = Map.of(\n                \"api\", \"api=web/@WebMvcTest\",\n                \"db\", \"db=data-jpa/@DataJpaTest\",\n                \"auth\", \"auth=security/authorization-test\",\n                \"ops\", \"ops=actuator/health-check\"\n        );\n        // TODO: 重複を除き、計画を出力する\n    }\n}",
+      "visibleCases": [
+        {
+          "label": "表示ケース1",
+          "stdin": "api db ops\n",
+          "expected": "api=web/@WebMvcTest,db=data-jpa/@DataJpaTest,ops=actuator/health-check"
+        },
+        {
+          "label": "表示ケース2",
+          "stdin": "api auth api\n",
+          "expected": "api=web/@WebMvcTest,auth=security/authorization-test"
+        }
+      ],
+      "hiddenCases": [
+        {
+          "label": "隠しケース1",
+          "stdin": "db\n",
+          "expected": "db=data-jpa/@DataJpaTest"
+        },
+        {
+          "label": "隠しケース2",
+          "stdin": "ops mail\n",
+          "expected": "ops=actuator/health-check,mail=review"
+        },
+        {
+          "label": "隠しケース3",
+          "stdin": "auth ops db\n",
+          "expected": "auth=security/authorization-test,ops=actuator/health-check,db=data-jpa/@DataJpaTest"
+        }
+      ],
+      "hints": [
+        "空行でなければ空白で分割し、`LinkedHashSet<String>`へ変換後の計画を追加すると入力順と重複除去を両立できます。",
+        "未知の語は`plan.getOrDefault(word, word + \"=review\")`で、要件名を残した確認項目へ変換します。"
+      ],
+      "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        String line = new Scanner(System.in).nextLine().trim();\n        Map<String, String> plan = Map.of(\n                \"api\", \"api=web/@WebMvcTest\",\n                \"db\", \"db=data-jpa/@DataJpaTest\",\n                \"auth\", \"auth=security/authorization-test\",\n                \"ops\", \"ops=actuator/health-check\"\n        );\n        Set<String> result = new LinkedHashSet<>();\n        if (!line.isEmpty()) {\n            for (String item : line.split(\"\\\\s+\")) {\n                result.add(plan.getOrDefault(item, item + \"=review\"));\n            }\n        }\n        System.out.println(String.join(\",\", result));\n    }\n}",
+      "sourceChecks": [
+        {
+          "pattern": "LinkedHashSet",
+          "message": "入力順を保った重複除去を行ってください。"
+        },
+        {
+          "pattern": "getOrDefault",
+          "message": "未知の要件にもreview計画を返してください。"
+        }
+      ],
+      "kind": "applied",
+      "extraTasks": [
+        {
+          "task": "設定付きAPIレスポンスを判定する\n\n1行目に環境変数prefix、2行目にファイルprefix（`-`は未設定）、3行目にname、4行目にService利用可否が与えられます。Serviceがfalseなら`503 SERVICE_UNAVAILABLE`を最優先で返します。利用可能でnameが空白なら`400 NAME_REQUIRED`、それ以外は環境変数、ファイル、`Hello`の優先順でprefixを選び、`200 <prefix>, <trim済みname>`を出力してください。",
+          "starterCode": "import java.util.*;\n\npublic class Main {\n    static String prefix(String environment, String file) {\n        // TODO\n        return \"Hello\";\n    }\n\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        String environment = sc.nextLine();\n        String file = sc.nextLine();\n        String name = sc.nextLine();\n        boolean available = Boolean.parseBoolean(sc.nextLine());\n        // TODO: 障害、入力、正常の順で判定する\n    }\n}",
+          "visibleCases": [
+            {
+              "label": "表示ケース1",
+              "stdin": "Bonjour\nHello\nJava\ntrue\n",
+              "expected": "200 Bonjour, Java"
+            },
+            {
+              "label": "表示ケース2",
+              "stdin": "-\nHi\n   \ntrue\n",
+              "expected": "400 NAME_REQUIRED"
+            }
+          ],
+          "hiddenCases": [
+            {
+              "label": "隠しケース1",
+              "stdin": "-\n-\nSpring\ntrue\n",
+              "expected": "200 Hello, Spring"
+            },
+            {
+              "label": "隠しケース2",
+              "stdin": "Hola\n-\nJava\nfalse\n",
+              "expected": "503 SERVICE_UNAVAILABLE"
+            },
+            {
+              "label": "隠しケース3",
+              "stdin": "-\nWelcome\n  Boot  \ntrue\n",
+              "expected": "200 Welcome, Boot"
+            }
+          ],
+          "hints": [
+            "判定順が重要です。まず`available`、次に`name.isBlank()`を確認し、どちらも問題ない場合だけprefixを解決します。",
+            "`prefix`では環境変数、ファイル、`Hello`の順に`-`でない値を選び、名前には`trim()`を使います。"
+          ],
+          "solution": "import java.util.*;\n\npublic class Main {\n    static String prefix(String environment, String file) {\n        if (!environment.equals(\"-\")) return environment;\n        if (!file.equals(\"-\")) return file;\n        return \"Hello\";\n    }\n\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        String environment = sc.nextLine();\n        String file = sc.nextLine();\n        String name = sc.nextLine();\n        boolean available = Boolean.parseBoolean(sc.nextLine());\n        if (!available) {\n            System.out.println(\"503 SERVICE_UNAVAILABLE\");\n        } else if (name.isBlank()) {\n            System.out.println(\"400 NAME_REQUIRED\");\n        } else {\n            System.out.println(\"200 \" + prefix(environment, file) + \", \" + name.trim());\n        }\n    }\n}",
+          "sourceChecks": [
+            {
+              "pattern": "static\\s+String\\s+prefix",
+              "message": "設定解決をprefixメソッドへ分けてください。"
+            },
+            {
+              "pattern": "if\\s*\\(\\s*!available",
+              "message": "Service障害を最優先で判定してください。"
+            }
+          ],
+          "kind": "applied"
+        },
+        {
+          "task": "管理エンドポイントの公開方針を実装する\n\n1行目に環境`public`または`internal`、2行目にendpoint（`health`、`info`、`metrics`、`loggers`、`env`）が与えられます。public環境ではhealthとinfoだけ`ALLOW`、その他は`DENY`です。internal環境ではhealth、info、metricsは`ALLOW`、loggersは`ADMIN_ONLY`、envは常に`DENY`です。`<endpoint>:<判定>`を出力してください。",
+          "starterCode": "import java.util.*;\n\npublic class Main {\n    static String policy(String environment, String endpoint) {\n        // TODO: 最小公開の原則で判定する\n        return \"DENY\";\n    }\n\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        String environment = sc.nextLine();\n        String endpoint = sc.nextLine();\n        System.out.println(endpoint + \":\" + policy(environment, endpoint));\n    }\n}",
+          "visibleCases": [
+            {
+              "label": "表示ケース1",
+              "stdin": "public\nhealth\n",
+              "expected": "health:ALLOW"
+            },
+            {
+              "label": "表示ケース2",
+              "stdin": "public\nmetrics\n",
+              "expected": "metrics:DENY"
+            }
+          ],
+          "hiddenCases": [
+            {
+              "label": "隠しケース1",
+              "stdin": "internal\nmetrics\n",
+              "expected": "metrics:ALLOW"
+            },
+            {
+              "label": "隠しケース2",
+              "stdin": "internal\nloggers\n",
+              "expected": "loggers:ADMIN_ONLY"
+            },
+            {
+              "label": "隠しケース3",
+              "stdin": "internal\nenv\n",
+              "expected": "env:DENY"
+            }
+          ],
+          "hints": [
+            "`env`は環境に関係なく`DENY`なので最初に判定すると、後の分岐が単純になります。",
+            "`public`と`internal`を分け、各環境で許可するendpointを`Set.of(...)`にすると最小公開の規則を読み取りやすくできます。"
+          ],
+          "solution": "import java.util.*;\n\npublic class Main {\n    static String policy(String environment, String endpoint) {\n        if (endpoint.equals(\"env\")) return \"DENY\";\n        if (environment.equals(\"public\")) {\n            return endpoint.equals(\"health\") || endpoint.equals(\"info\") ? \"ALLOW\" : \"DENY\";\n        }\n        return switch (endpoint) {\n            case \"health\", \"info\", \"metrics\" -> \"ALLOW\";\n            case \"loggers\" -> \"ADMIN_ONLY\";\n            default -> \"DENY\";\n        };\n    }\n\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        String environment = sc.nextLine();\n        String endpoint = sc.nextLine();\n        System.out.println(endpoint + \":\" + policy(environment, endpoint));\n    }\n}",
+          "sourceChecks": [
+            {
+              "pattern": "static\\s+String\\s+policy",
+              "message": "公開規則をpolicyメソッドへ分けてください。"
+            },
+            {
+              "pattern": "if\\s*\\(\\s*endpoint\\.equals",
+              "message": "envを環境にかかわらず拒否してください。"
+            }
+          ],
+          "kind": "applied"
+        }
+      ],
+      "quiz": []
+    }
+  ]
+}

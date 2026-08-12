@@ -310,6 +310,7 @@
       storeCount: 1, maxStores: 512, nextStoreGain: 1, nextStoreCount: 2,
       storeLimit: 1, nextStoreUnlockStars: 4,
       expansionCost: null, lifetimeCash: 0, ownedItems: [], items: [],
+      investmentLevel: 0, investmentAvailableLevel: 0, endgameInvestment: null,
       unseenItemCount: 0,
       ownedUpgrades: [], upgrades: [], ownedAutomation: [], automation: [],
       passiveCashPerMinute: 0, passiveRateBasisPoints: 0,
@@ -568,6 +569,8 @@
     document.getElementById('backToLearningBtn').addEventListener('click', goHome);
     var expandBtn = document.getElementById('cafeExpandBtn');
     if (expandBtn) { expandBtn.addEventListener('click', expandCafeNetwork); }
+    var investmentBtn = document.getElementById('cafeInvestmentBtn');
+    if (investmentBtn) { investmentBtn.addEventListener('click', purchaseCafeInvestment); }
     Array.prototype.forEach.call(document.getElementsByClassName('cafe-item-buy'), function (btn) {
       btn.addEventListener('click', function () { purchaseCafeItem(btn.dataset.id); });
     });
@@ -723,7 +726,9 @@
         + cafeNumberText(cafe.passiveCashRemaining) + 'コイン'
       : '表示中の自動売上';
     var finalLevelMessage = Number(cafe.storeCount || 1) >= Number(cafe.maxStores || 512)
-      ? 'Java学習と店舗ネットワークを制覇しました'
+      ? ((cafe.investmentLevel || 0) > 0
+        ? '終盤改装 PROJECT Lv.' + numberText(cafe.investmentLevel) + 'を完了'
+        : 'Java学習と店舗ネットワークを制覇しました')
       : '店構えは最高ランクです。次は店舗網を広げましょう';
     var orderMetricLabel = stars >= Number(state.totalTasks || 0) ? '最高注文' : '次の注文';
 
@@ -768,6 +773,8 @@
         ? '      <span>ブランド ×' + multiplierText(cafe.brandMultiplierBasisPoints) + '</span>'
         : '') +
       '      <span>★ ' + numberText(stars) + '</span>' +
+      ((cafe.investmentLevel || 0) > 0
+        ? '      <span>🏛️ 終盤改装 Lv.' + numberText(cafe.investmentLevel) + '</span>' : '') +
       '    </div>' +
       '    <div class="cafe-level-progress"><i style="width:' + levelPct + '%"></i></div>' +
       '    <p class="cafe-next-level">' + (level.next
@@ -836,6 +843,35 @@
       '<small>' + (progressLocked ? '問題を解くと次の地域へ出店できます' : '1 → 2 → 3 → 5 → 8… と出店規模も加速') + '</small>' +
       '</div>' +
       '</div>' +
+      '</div>' + renderCafeInvestment() + '</section>';
+  }
+
+  /** ★520以降、20問ごとに追加される収益効果のない任意投資。 */
+  function renderCafeInvestment() {
+    var cafe = cafeState();
+    var investment = cafe.endgameInvestment;
+    if (!investment) { return ''; }
+
+    var available = !!investment.available;
+    var affordable = available && cafe.cash >= investment.cost;
+    var buttonText = available
+      ? (cafeNumberText(investment.cost) + 'コインで投資')
+      : ('★' + numberText(investment.requiredStars) + 'で解放');
+    var status = (investment.completedLevel || 0) > 0
+      ? 'PROJECT Lv.' + numberText(investment.completedLevel) + '完了'
+      : '★520から開始';
+
+    return '<section class="cafe-endgame-investment">' +
+      '<div class="cafe-investment-icon">' + esc(investment.emoji) + '</div>' +
+      '<div class="cafe-investment-copy"><span class="screen-eyebrow">OPTIONAL LEGACY PROJECT</span>' +
+      '<h3>' + esc(investment.name) + '</h3><p>' + esc(investment.description) + '</p>' +
+      '<small>売上倍率には影響しない任意投資です。今後は20問追加されるたびに次の段階が解放されます。</small></div>' +
+      '<div class="cafe-investment-action"><b>' + status + '</b>' +
+      '<button class="primary-btn" id="cafeInvestmentBtn"' + (!affordable ? ' disabled' : '') + '>'
+        + esc(buttonText) + '</button>' +
+      (available && !affordable
+        ? '<small>あと ' + cafeNumberText(investment.cost - cafe.cash) + 'コイン</small>'
+        : (!available ? '<small>あと ★' + numberText(investment.requiredStars - state.progress.starCount) + '</small>' : '')) +
       '</div></section>';
   }
 
@@ -908,7 +944,7 @@
     automation: {
       name: '自動売上',
       body: 'アプリを表示している間だけ、ゆっくり売上を作ります。オフラインでは増えません。'
-        + '次の★を取るまでの自動売上は最大0.5問分なので、問題を解く方が必ず大きく稼げます。'
+        + '次の★を取るまでの自動売上は最大5問分です。最上位設備でも上限まで100分かかります。'
     }
   };
 
@@ -1125,6 +1161,17 @@
         renderCafe(true);
         toast('🏪 +' + numberText(res.expansion.addedStores) + '店舗オープン！ 全'
           + numberText(res.expansion.storeCount) + '店舗になりました');
+      })
+      .catch(toastError);
+  }
+
+  function purchaseCafeInvestment() {
+    api('cafe/investment/purchase', {})
+      .then(function (res) {
+        applyDelta(res.delta);
+        renderHeader();
+        renderCafe(true);
+        toast(res.investment.emoji + ' 「' + res.investment.name + '」へ投資しました');
       })
       .catch(toastError);
   }
