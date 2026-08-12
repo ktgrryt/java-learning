@@ -27,6 +27,7 @@ import java.util.concurrent.TimeUnit;
  * 学習の進捗を progress.json に保存する。
  *
  * 保持するもの:
+ *  - 初回オンボーディングを完了したか
  *  - クリア済みの問題（クリア日、使ったヒント数、提出回数）
  *  - 問題ごとに最後に書いたコード（再訪時に復元する）
  *  - 確認クイズで選んだ選択肢（正解かどうかは保存せず、出題側と突き合わせて毎回求める）
@@ -195,6 +196,9 @@ public final class ProgressStore {
 
     /** {@link #SAVE_DELAY_MS} 後の書き出しを予約済みか。二重に予約しないための印。 */
     private boolean saveScheduled;
+
+    /** 初回オンボーディングを最後まで完了したか。 */
+    private boolean onboardingCompleted;
 
     /** 遅延書き出し用。1本のデーモンスレッドなので、書き出しが交錯しない。 */
     private final ScheduledExecutorService saver = Executors.newSingleThreadScheduledExecutor(r -> {
@@ -759,6 +763,20 @@ public final class ProgressStore {
         return bookmarks.contains(taskKey);
     }
 
+    /**
+     * 初回オンボーディングを表示すべきか。
+     *
+     * <p>フラグ導入前から使っている人には完了フラグが無い。その場合も、下書き・提出・
+     * クリアなどの学習進捗が1つでもあれば初回利用者ではないと判断し、通常画面を出す。</p>
+     */
+    public synchronized boolean isOnboardingRequired() {
+        return !onboardingCompleted && !hasLearningProgress();
+    }
+
+    public synchronized boolean isOnboardingCompleted() {
+        return onboardingCompleted;
+    }
+
     /** 今日を含む連続学習日数。今日も昨日も学習していなければ 0。 */
     public synchronized int streak() {
         if (clearDates.isEmpty()) {
@@ -791,6 +809,8 @@ public final class ProgressStore {
      */
     public synchronized Object toClientJson(CafeLearningProgress learning) {
         Map<String, Object> m = new LinkedHashMap<>();
+        m.put("onboardingRequired", isOnboardingRequired());
+        m.put("onboardingCompleted", onboardingCompleted);
         m.put("starCount", cleared.size());
         m.put("streak", streak());
         m.put("attempts", new LinkedHashMap<>(attempts));
@@ -2117,6 +2137,15 @@ public final class ProgressStore {
         saveSoon();
     }
 
+    /** オンボーディング完了を記録する。何度呼ばれても状態は変わらない。 */
+    public synchronized void completeOnboarding() {
+        if (onboardingCompleted) {
+            return;
+        }
+        onboardingCompleted = true;
+        saveSoon();
+    }
+
     /**
      * 保持している状態を全て初期値へ戻す。
      *
@@ -2129,6 +2158,7 @@ public final class ProgressStore {
      * 消す場所はこの1つに寄せる。</p>
      */
     private void clearAllState() {
+        onboardingCompleted = false;
         cleared.clear();
         codes.clear();
         hintsRevealed.clear();
@@ -2195,6 +2225,8 @@ public final class ProgressStore {
             }
             Map<String, Object> root = MiniJson.parseObject(text);
             boolean hasCafeState = root.get("cafe") instanceof Map;
+            onboardingCompleted = root.get("onboardingCompleted") instanceof Boolean completed
+                    && completed;
 
             MiniJson.obj(root, "cleared").forEach((id, v) -> {
                 Map<String, Object> c = MiniJson.asObj(v);
@@ -2357,6 +2389,8 @@ public final class ProgressStore {
                 cafeLifetimeCash = cafeCash;
                 cafeTaskRewardCount = cleared.size();
             }
+            // フラグ導入前のセーブでも学習履歴があれば既存利用者として扱う。
+            onboardingCompleted = onboardingCompleted || hasLearningProgress();
             // すでに条件を満たしている人（連続学習や粘った問題の履歴がある人）へ、
             // 起動した時点でアイテムを解放する。
             refreshCafeAchievements();
@@ -2484,6 +2518,7 @@ public final class ProgressStore {
     /** 保存用（streak / starCount のような派生値は保存しない）。 */
     private Object toJsonRaw() {
         Map<String, Object> m = new LinkedHashMap<>();
+        m.put("onboardingCompleted", onboardingCompleted);
         Map<String, Object> clearedJson = new LinkedHashMap<>();
         cleared.forEach((id, c) -> {
             Map<String, Object> cm = new LinkedHashMap<>();
@@ -2539,6 +2574,20 @@ public final class ProgressStore {
         cafe.put("rewardedChapters", new ArrayList<>(rewardedChapters));
         m.put("cafe", cafe);
         return m;
+    }
+
+    /** カフェの状態を除く、学習そのものの保存データが存在するか。 */
+    private boolean hasLearningProgress() {
+        return !cleared.isEmpty()
+                || !codes.isEmpty()
+                || !hintsRevealed.isEmpty()
+                || !attempts.isEmpty()
+                || !bestPassed.isEmpty()
+                || !quizChoices.isEmpty()
+                || !clearDates.isEmpty()
+                || !reviewWeight.isEmpty()
+                || !bookmarks.isEmpty()
+                || !reviewPlans.isEmpty();
     }
 
     private static long longOf(Map<String, Object> map, String key, long fallback) {

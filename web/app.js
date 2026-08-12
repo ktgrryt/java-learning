@@ -26,7 +26,7 @@
   var chapterIndex = {};   // 章ID -> 章
   var lessonList = [];     // 全レッスンを出題順に並べたもの
   var currentId = null;    // いま開いているレッスンID（ホーム／カフェ表示中は null）
-  var currentView = 'menu'; // menu / cafe / lesson / review / reviewTask
+  var currentView = 'menu'; // onboarding / menu / cafe / lesson / review / reviewTask
   var editors = {};        // 問題ID -> エディタ（1レッスンに複数問あるので複数持つ）
   var saveTimers = {};     // 問題ID -> 自動保存のタイマー
   var busyTask = null;     // 実行・採点中の問題ID（同時に走らせない）
@@ -410,6 +410,7 @@
     nav.innerHTML = '';
 
     var lastPartId = null;
+    var partSection = null;
     state.chapters.forEach(function (ch) {
       var part = partOfChapter(ch);
       if (part && part.id !== lastPartId) {
@@ -419,13 +420,17 @@
         var progress = partProgress(part);
         var partStatus = progress.cleared === progress.total && progress.total > 0
           ? '✓' : (progress.cleared > 0 ? '学習中' : '');
+        partSection = document.createElement('section');
+        partSection.className = 'side-part' + (currentPart ? ' current' : '');
         var partHead = document.createElement('div');
         partHead.className = 'side-part-head' + (currentPart ? ' current' : '');
+        if (currentPart) { partHead.setAttribute('aria-current', 'true'); }
         partHead.innerHTML =
           '<span class="side-part-emoji">' + esc(part.emoji) + '</span>' +
           '<span class="side-part-title">' + esc(part.title) + '</span>' +
           '<span class="side-part-count">' + partStatus + '</span>';
-        nav.appendChild(partHead);
+        partSection.appendChild(partHead);
+        nav.appendChild(partSection);
         lastPartId = part.id;
       }
       var isCurrentChapter = ch.lessons.some(function (l) { return l.id === currentId; });
@@ -481,7 +486,9 @@
         renderSidebar();
       });
 
-      nav.appendChild(section);
+      // 編ごとに囲うことで、sticky な編見出しがその編の末尾で止まり、
+      // 次の編の見出しに自然に押し出されるようにする。
+      (partSection || nav).appendChild(section);
     });
 
     // 作り直すとスクロールは先頭に戻ってしまう。章をたたんだだけなら見ていた位置に
@@ -499,7 +506,10 @@
   function scrollSidebarToCurrent(nav) {
     nav = nav || document.getElementById('sidebar');
     if (!nav || !nav.clientHeight) { return; }   // 閉じている＝測れない
-    sideScrolledFor = currentId;
+    if (!currentId) {
+      sideScrolledFor = null;
+      return;
+    }
     var target = nav.querySelector('.lesson-current');
     // 章をたたんでいると単元は見えていないので、そのときは章の見出しに寄せる。
     if (!target || !target.offsetParent) { target = nav.querySelector('.ch-current'); }
@@ -510,6 +520,9 @@
     var offset = (box.top - nav.getBoundingClientRect().top)
       - Math.max(0, (nav.clientHeight - box.height) / 2);
     nav.scrollTop += offset;
+    // 非表示中や描画途中で対象が見つからなかった場合は完了扱いにしない。
+    // 実際に移動できたここで記録すれば、サイドバーを開いた時に再試行できる。
+    sideScrolledFor = currentId;
   }
 
   /**
@@ -526,6 +539,70 @@
   }
 
   // -------------------------------------------------------- 学習ホーム描画
+
+  /**
+   * 学習進捗がまだ無い端末でだけ表示する初回案内。
+   * 完了判定は localStorage ではなく progress.json に置き、他の進捗と一緒に扱う。
+   */
+  function renderOnboarding() {
+    var main = document.getElementById('content');
+    main.innerHTML =
+      '<div class="onboarding-page">' +
+      '  <section class="onboarding-welcome" aria-labelledby="onboardingTitle">' +
+      '    <div class="onboarding-mark" aria-hidden="true"><span>☕</span><i>&lt;/&gt;</i></div>' +
+      '    <span class="screen-eyebrow">WELCOME TO JAVA CAFÉ</span>' +
+      '    <h1 id="onboardingTitle">Javaを、書きながら身につけよう。</h1>' +
+      '    <p class="onboarding-lead">解説を読んだら、その場でコードを書いて実行。' +
+      '小さな成功を積み重ねながら、基礎から実務まで自分のペースで進められます。</p>' +
+      '    <div class="onboarding-counts" aria-label="教材の内容">' +
+      '      <span><b>' + state.totalLessons + '</b> レッスン</span>' +
+      '      <span><b>' + state.totalTasks + '</b> 問題</span>' +
+      '      <span><b>0</b> 円・登録不要</span>' +
+      '    </div>' +
+      '    <ol class="onboarding-features">' +
+      '      <li><span class="onboarding-feature-no">1</span><div><b>解説とサンプルで理解</b>' +
+      '<p>話題を一つずつ学び、サンプルコードはその場で実行できます。</p></div></li>' +
+      '      <li><span class="onboarding-feature-no">2</span><div><b>自分で書いて採点</b>' +
+      '<p>ひな形から始めて、結果やヒントを見ながら何度でも試せます。</p></div></li>' +
+      '      <li><span class="onboarding-feature-no">3</span><div><b>進捗を自動保存</b>' +
+      '<p>コードとクリア状況はこの端末に保存され、続きから再開できます。</p></div></li>' +
+      '    </ol>' +
+      '    <div class="onboarding-actions">' +
+      '      <button class="primary-btn big onboarding-start" id="onboardingStart" type="button">' +
+      'Java Caféをはじめる <span>→</span></button>' +
+      '      <p id="onboardingError" class="onboarding-error" role="alert"></p>' +
+      '      <small>完了すると、次回から学習ホームが開きます。</small>' +
+      '    </div>' +
+      '  </section>' +
+      '</div>';
+
+    document.getElementById('onboardingStart').addEventListener('click', completeOnboarding);
+    main.scrollTop = 0;
+  }
+
+  function completeOnboarding() {
+    var button = document.getElementById('onboardingStart');
+    var error = document.getElementById('onboardingError');
+    if (!button || button.disabled) { return; }
+    button.disabled = true;
+    button.textContent = '保存しています…';
+    error.textContent = '';
+
+    api('onboarding/complete', {})
+      .then(function (res) {
+        applyDelta(res.delta);
+        currentId = null;
+        reviewTaskId = null;
+        currentView = 'menu';
+        if (location.hash !== '#menu') { location.hash = 'menu'; }
+        render();
+      })
+      .catch(function (e) {
+        button.disabled = false;
+        button.innerHTML = 'Java Caféをはじめる <span>→</span>';
+        error.textContent = '保存できませんでした: ' + e.message;
+      });
+  }
 
   function renderMenu() {
     var total = state.totalTasks;
@@ -2880,6 +2957,9 @@
    * なってしまうため、その場合は復習ホームへ落とす。
    */
   function routeFromHash() {
+    if (state && state.progress && state.progress.onboardingRequired) {
+      return { view: 'onboarding', id: null, taskId: null };
+    }
     var hash = location.hash.replace(/^#/, '');
     if (hash === 'cafe') { return { view: 'cafe', id: null, taskId: null }; }
     if (hash === 'review') { return { view: 'review', id: null, taskId: null }; }
@@ -2907,15 +2987,29 @@
     // ホームやレッスンへ移ったら捨てる。ブラウザの戻るも必ずここを通るので、
     // 捨てる場所を1つにしておくと「無関係な問題で 3 / 10問 と出る」ような
     // 取り残しが起きない。
+    var onboarding = !!(state && state.progress && state.progress.onboardingRequired);
+    if (onboarding) {
+      currentView = 'onboarding';
+      currentId = null;
+      reviewTaskId = null;
+    }
     if (currentView !== 'reviewTask') { reviewSession = null; }
 
     var isHub = currentView !== 'lesson' && currentView !== 'reviewTask';
     document.body.classList.toggle('view-menu', isHub);
     document.body.classList.toggle('view-cafe', currentView === 'cafe');
+    document.body.classList.toggle('view-onboarding', onboarding);
     renderHeader();
-    // サイドバーはメニュー画面でも描いておく（☰で開けるように）。
-    renderSidebar();
-    if (currentView === 'menu') {
+    // 初回案内中はほかの画面へ移れないよう、サイドバーも組み立てない。
+    if (onboarding) {
+      document.getElementById('sidebar').innerHTML = '';
+    } else {
+      // サイドバーはメニュー画面でも描いておく（☰で開けるように）。
+      renderSidebar();
+    }
+    if (currentView === 'onboarding') {
+      renderOnboarding();
+    } else if (currentView === 'menu') {
       renderMenu();
     } else if (currentView === 'cafe') {
       renderCafe();

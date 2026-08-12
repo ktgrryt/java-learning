@@ -46,6 +46,7 @@ import java.util.function.Supplier;
  *   <li>{@code POST /api/hint}     … ヒントを1つ開示</li>
  *   <li>{@code POST /api/solution} … 模範解答（全ヒント開示後、またはクリア後）</li>
  *   <li>{@code POST /api/bookmark} … 問題のブックマークを付け外し（復習モードで絞り込む）</li>
+ *   <li>{@code POST /api/onboarding/complete} … 初回案内の完了を保存</li>
  *   <li>{@code POST /api/cafe/purchase} … カフェ設備を購入</li>
  *   <li>{@code POST /api/cafe/automation/purchase} … 自動営業設備を購入</li>
  *   <li>{@code POST /api/cafe/passive/*} … 画面表示中の自動売上を開始・精算・停止</li>
@@ -122,6 +123,8 @@ public final class ApiHandler implements HttpHandler {
                 case "/api/quiz" -> sendJson(exchange, 200, doQuiz(body));
                 case "/api/solution" -> sendJson(exchange, 200, doSolution(body));
                 case "/api/bookmark" -> sendJson(exchange, 200, doBookmark(body));
+                case "/api/onboarding/complete" ->
+                        sendJson(exchange, 200, doOnboardingComplete());
                 case "/api/cafe/purchase" -> sendJson(exchange, 200, doCafePurchase(body));
                 case "/api/cafe/automation/purchase" ->
                         sendJson(exchange, 200, doCafeAutomationPurchase(body));
@@ -493,6 +496,16 @@ public final class ApiHandler implements HttpHandler {
         requireTask(lessonId, taskId);
         progress.saveCode(Lesson.taskKey(lessonId, taskId), requireCode(body));
         return Map.of("ok", true);
+    }
+
+    /** 初回案内の完了を、応答を返す前にセーブデータへ書き出す。 */
+    private Object doOnboardingComplete() {
+        progress.completeOnboarding();
+        progress.flushNow();
+        Curriculum c = curriculum.get();
+        Set<String> cleared = progress.clearedIds();
+        return Map.of("delta", Map.of(
+                "progress", progress.toClientJson(cafeLearningProgress(c, cleared))));
     }
 
     /**

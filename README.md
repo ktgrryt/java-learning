@@ -859,6 +859,8 @@ Web・Jakarta EE編の画面では `1-1` のように編内番号へ変換して
 ./tools/check-achievements.sh     # 初回達成・復習での再達成・完走時救済を含むアイテム条件を検査
 ./tools/check-review-economy.sh   # 今日の1杯目と、復習が渡す倍率・枠の上限を検査
 ./tools/check-review-schedule.sh  # 忘却曲線の期限と、苦手度の目盛り（0.25点刻み）を検査
+./tools/check-onboarding.sh       # 初回案内の判定・完了保存・旧セーブ互換を検査
+node tools/check-cafe-scene.js    # カフェSVGの内装差分・再描画条件・出力を検査
 ```
 
 `check-review-schedule.sh` は復習の出題を決める土台を検査します ―「初クリアの翌日が最初の

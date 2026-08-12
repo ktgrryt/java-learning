@@ -269,10 +269,14 @@
     if (structure >= 6) { flags.lounge = true; flags.patio = true; }
 
     // 内装レベルで増える分。旧CSSの cafe-furnish-* / cafe-interior-* と同じ段。
+    flags.counterDetail = interior >= 1;
     flags.planter = interior >= 2;
     flags.wallLamp = interior >= 3;
     flags.pendant = interior >= 4;
     if (interior >= 5) { flags.festoon = true; }
+    flags.windowPlanters = interior >= 6;
+    flags.facadeGlow = interior >= 7;
+    flags.prestigeRoof = interior >= 8;
     flags.roofMark = structure >= 7;
 
     return flags;
@@ -280,7 +284,9 @@
 
   /** 装備状況を1本の文字列にする。これが同じなら絵は描き直さない。 */
   function signature(view) {
-    return [view.level, view.structure, view.interior, view.storeCount || 1]
+    // 店舗数は別のネットワーク図にだけ使い、店舗シーン自体には影響しない。
+    // ここへ含めると出店のたびに同じSVGを作り直し、アニメーションが先頭へ戻る。
+    return [view.level, view.structure, view.interior]
       .concat((view.equippedIds || []).slice().sort()).join('|');
   }
 
@@ -410,8 +416,8 @@
     // 明るい空では花火は目立たないので、昼のランクでは薄くしておく
     if (flags.fireworks || level >= 11) {
       out += '<g opacity="' + (era.lights ? 1 : 0.5) + '">'
-        + firework(388, 128, '#ffe6a4', 1) + firework(452, 168, '#ff9dd2', 0.72)
-        + firework(330, 158, '#8fd8ef', 0.58) + '</g>';
+        + firework(388, 128, '#ffe6a4', 1, 0) + firework(452, 168, '#ff9dd2', 0.72, -0.9)
+        + firework(330, 158, '#8fd8ef', 0.58, -1.7) + '</g>';
     }
     return out;
   }
@@ -423,7 +429,7 @@
       + '</g>';
   }
 
-  function firework(x, y, color, scale) {
+  function firework(x, y, color, scale, delay) {
     var rays = '';
     for (var i = 0; i < 12; i++) {
       var a = (Math.PI * 2 / 12) * i;
@@ -432,9 +438,12 @@
       rays += '<line x1="' + round(Math.cos(a) * inner) + '" y1="' + round(Math.sin(a) * inner)
         + '" x2="' + round(Math.cos(a) * outer) + '" y2="' + round(Math.sin(a) * outer) + '"/>';
     }
-    return '<g class="cs-spark" transform="translate(' + x + ',' + y + ') scale(' + scale + ')" '
-      + 'stroke="' + color + '" stroke-width="1.7" stroke-linecap="round" opacity="0.9">'
-      + rays + '<circle r="2.4" fill="' + color + '" stroke="none"/></g>';
+    // 座標用のtransformとアニメーション用のtransformを別のgへ分ける。
+    // 同じ要素へ置くとCSS animationがSVG属性を上書きし、花火が原点へ飛んでしまう。
+    return '<g transform="translate(' + x + ',' + y + ') scale(' + scale + ')">'
+      + '<g class="cs-spark" style="animation-delay:' + delay + 's" stroke="' + color
+      + '" stroke-width="1.7" stroke-linecap="round" opacity="0.9">'
+      + rays + '<circle r="2.4" fill="' + color + '" stroke="none"/></g></g>';
   }
 
   /* 遠景のビル。[左端x, 高さ, 幅] を接地線 WALK から立ち上げる。 */
@@ -604,6 +613,7 @@
 
     // 天板の上のもの
     out += cupMark(mid - 34, deck - 4, 20, era.awningAlt, era.trim, '#ffffff');
+    if (flags.counterDetail) { out += counterCanisters(era, mid - 8, deck); }
     if (flags.machine) { out += machine(era, mid + 2, deck, 0.85, flags.machinePro); }
 
     // 小さな立て看板
@@ -664,10 +674,11 @@
       + '<rect x="' + x0 + '" y="' + st.top + '" width="' + w + '" height="4" fill="#000" opacity="0.18"/>';
 
     if (flags.chimney) { out += chimney(era, x0 + 34, roofTop); }
+    if (flags.prestigeRoof && structure >= 6) { out += roofGarden(era, st, roofTop); }
     if (flags.roofMark) { out += roofEmblem(era, MIDX, roofTop); }
 
     // 上階の窓
-    if (st.upper) { out += upperFloor(era, st, w); }
+    if (st.upper) { out += upperFloor(era, st, w, flags); }
 
     // 看板
     out += signBoard(era, st, flags, structure);
@@ -687,6 +698,9 @@
     var front = frontage(era, st, flags, structure);
     out += front.markup;
 
+    // 内装7では外壁にも細い間接照明が入り、完成形へ近づいたことを遠目でも分かるようにする。
+    if (flags.facadeGlow) { out += facadeLighting(era, st); }
+
     // 土台
     out += '<rect x="' + x0 + '" y="' + PLINTH + '" width="' + w + '" height="' + (WALK - PLINTH)
       + '" fill="' + era.trim + '"/>'
@@ -697,7 +711,7 @@
   }
 
   /** 上階の窓。幅に応じて3〜5枚に割る。 */
-  function upperFloor(era, st, w) {
+  function upperFloor(era, st, w, flags) {
     var y0 = st.upper[0];
     var height = st.upper[1] - st.upper[0];
     var count = clamp(Math.round(w / 62), 3, 5);
@@ -723,6 +737,15 @@
         // 窓台
         + '<rect x="' + round(x - 3) + '" y="' + (y0 + height) + '" width="' + round(pane + 6)
         + '" height="3" fill="' + era.roof + '"/>';
+      if (flags.windowPlanters) {
+        var boxY = y0 + height - 6;
+        out += '<rect x="' + round(x + 2) + '" y="' + boxY + '" width="' + round(pane - 4)
+          + '" height="6" rx="1" fill="' + era.roof + '"/>'
+          + '<g fill="' + era.tree + '">'
+          + '<circle cx="' + round(x + pane * 0.27) + '" cy="' + (boxY - 1) + '" r="3.2"/>'
+          + '<circle cx="' + round(x + pane * 0.5) + '" cy="' + (boxY - 2) + '" r="3.8"/>'
+          + '<circle cx="' + round(x + pane * 0.73) + '" cy="' + (boxY - 1) + '" r="3.2"/></g>';
+      }
     }
     return out;
   }
@@ -763,10 +786,11 @@
 
     // 音符（朝のプレイリスト）
     if (flags.music) {
-      out += '<g class="cs-music" transform="translate(' + (st.x1 - 26) + ',' + (y0 + 5) + ')" fill="'
+      // 外側のgは配置、内側のgはアニメーション専用。CSS transformで配置を失わないよう分ける。
+      out += '<g transform="translate(' + (st.x1 - 26) + ',' + (y0 + 5) + ')"><g class="cs-music" fill="'
         + (era.neon || era.glow) + '">'
         + '<ellipse cx="-3.4" cy="0" rx="3.4" ry="2.6" transform="rotate(-18 -3.4 0)"/>'
-        + '<path d="M-0.4 -0.8 L-0.4 -11 L5 -13 L5 -10 L1.6 -8.6 L1.6 -0.8 Z"/></g>';
+        + '<path d="M-0.4 -0.8 L-0.4 -11 L5 -13 L5 -10 L1.6 -8.6 L1.6 -0.8 Z"/></g></g>';
     }
     return out;
   }
@@ -889,6 +913,7 @@
     // 同じあたりに置くと重なって何の設備か分からなくなるので、両端に振り分けている。
     var hasCase = flags.showcase && width >= 92;
 
+    if (flags.counterDetail && !hasCase) { inner += counterCanisters(era, x + 16, counterY); }
     inner += flags.robot
       ? robot(mid, counterY + 5, 46, era)
       : person(mid, counterY + 5, 46, 'barista', era);
@@ -1039,6 +1064,45 @@
       + '<ellipse cy="6" rx="8" ry="2.4" fill="' + era.glow + '"/>'
       + '<circle cy="8.4" r="2.6" fill="' + era.glow + '"/>'
       + '</g>';
+  }
+
+  /** 内装1で増える豆と茶葉のキャニスター。小さくても輪郭が潰れない2個組にする。 */
+  function counterCanisters(era, x, counterY) {
+    return '<g transform="translate(' + round(x) + ',' + round(counterY) + ')">'
+      + '<rect x="-9" y="-13" width="7" height="13" rx="1.5" fill="' + era.awningAlt + '"/>'
+      + '<rect x="1" y="-17" width="8" height="17" rx="1.5" fill="' + era.glassHi + '"/>'
+      + '<rect x="-10" y="-15" width="9" height="3" rx="1" fill="' + era.roof + '"/>'
+      + '<rect x="0" y="-19" width="10" height="3" rx="1" fill="' + era.roof + '"/>'
+      + '<circle cx="-5.5" cy="-6.5" r="1.5" fill="' + era.awning + '" opacity="0.75"/>'
+      + '<path d="M3 -8 Q5 -12 7 -8 Q5 -5 3 -8Z" fill="' + era.tree + '" opacity="0.85"/>'
+      + '</g>';
+  }
+
+  /** 内装8の屋上庭園。記章・煙突と重ならない左右2か所だけへ低く置く。 */
+  function roofGarden(era, st, roofTop) {
+    var planter = function (x) {
+      return '<g transform="translate(' + round(x) + ',' + round(roofTop + 1) + ')">'
+        + '<rect x="-15" y="-7" width="30" height="8" rx="2" fill="' + era.roof + '"/>'
+        + '<rect x="-17" y="-9" width="34" height="3" rx="1.5" fill="' + era.roofHi + '"/>'
+        + '<g fill="' + era.tree + '">'
+        + '<ellipse cx="-9" cy="-12" rx="7" ry="6"/><ellipse cy="-15" rx="8" ry="7"/>'
+        + '<ellipse cx="9" cy="-12" rx="7" ry="6"/></g>'
+        + '<g fill="' + era.treeLo + '" opacity="0.65">'
+        + '<ellipse cx="-5" cy="-9" rx="5" ry="3"/><ellipse cx="6" cy="-9" rx="5" ry="3"/></g>'
+        + '</g>';
+    };
+    return planter(st.x0 + 78) + planter(st.x1 - 78);
+  }
+
+  /** 内装7の外壁間接照明。太いにじみの上へ細い線を重ね、昼夜どちらでも輪郭を残す。 */
+  function facadeLighting(era, st) {
+    var color = era.neon || era.glow;
+    var path = 'M' + (st.x0 + 4) + ' ' + (st.top + 5) + ' V' + (PLINTH - 2)
+      + ' M' + (st.x1 - 4) + ' ' + (st.top + 5) + ' V' + (PLINTH - 2)
+      + ' M' + (st.x0 + 9) + ' ' + (st.top + 5) + ' H' + (st.x1 - 9);
+    return '<g fill="none" stroke="' + color + '" stroke-linecap="round">'
+      + '<path d="' + path + '" stroke-width="8" opacity="0.13"/>'
+      + '<path d="' + path + '" stroke-width="1.8" opacity="0.72"/></g>';
   }
 
   function chimney(era, x, top) {
