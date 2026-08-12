@@ -155,6 +155,8 @@ public final class ApiHandler implements HttpHandler {
     private Object state() {
         Curriculum c = curriculum.get();
         Set<String> cleared = progress.clearedIds();
+        progress.ensureCafeCompletionCatchUp(
+                currentCurriculumClearedTaskCount(c, cleared), c.totalTaskCount());
 
         List<Object> chapters = new ArrayList<>();
         for (Chapter ch : c.chapters()) {
@@ -228,6 +230,8 @@ public final class ApiHandler implements HttpHandler {
     private Object delta(String lessonId) {
         Curriculum c = curriculum.get();
         Set<String> cleared = progress.clearedIds();
+        progress.ensureCafeCompletionCatchUp(
+                currentCurriculumClearedTaskCount(c, cleared), c.totalTaskCount());
 
         List<Object> chapters = new ArrayList<>();
         List<Object> lessons = new ArrayList<>();
@@ -393,6 +397,7 @@ public final class ApiHandler implements HttpHandler {
             if (!compiled.success()) {
                 result.put("allPass", false);
                 result.put("cases", List.of());
+                progress.recordMasterySubmission(key, false);
                 result.put("delta", delta(lessonId));
                 return result;
             }
@@ -416,6 +421,7 @@ public final class ApiHandler implements HttpHandler {
             result.put("passedCount", passed);
             result.put("allPass", allPass);
             progress.recordPassed(key, passed);
+            progress.recordMasterySubmission(key, allPass);
 
             if (allPass) {
                 Set<String> before = progress.clearedIds();
@@ -687,6 +693,16 @@ public final class ApiHandler implements HttpHandler {
             }
         }
         return new ProgressStore.CafeLearningProgress(chapterCount, masteredChapterTasks);
+    }
+
+    /** 削除済み教材の古い進捗キーを数えず、現在の教材だけのクリア数を返す。 */
+    private static int currentCurriculumClearedTaskCount(
+            Curriculum c, Set<String> cleared) {
+        int count = 0;
+        for (Chapter chapter : c.chapters()) {
+            count += c.clearedCount(chapter, cleared);
+        }
+        return count;
     }
 
     private Object doHint(Map<String, Object> body) {

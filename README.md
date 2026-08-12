@@ -16,7 +16,7 @@
 **4択の確認クイズ** は全373問で、**章あたり4〜15問**です。全レッスンにあるわけではありません。
 296レッスンのうち**145レッスン**に1〜6問（多くは2問か4問）まとめて置いてあり、残りのレッスンには0問です。
 基礎編やWeb編では章の最後の通常レッスンに寄せ、後半の章では各レッスンへ分散させています。
-章末演習はほとんどが0問ですが、Javaコア実践編の5章だけは章末演習にも4問ずつ置いています。「このコードはコンパイルできるか」
+章末演習はほとんどが0問ですが、Java実践・開発基盤編の5章だけは章末演習にも4問ずつ置いています。「このコードはコンパイルできるか」
 のように、コードを書く形では出題できない知識を試すためのものです（★ の判定には影響しません）。
 
 **どのレッスンにもいつでも飛べます。** 順番のロックはかけていないので、気になる章から始めても、
@@ -42,15 +42,15 @@
 ├──────────────────────────────────────────────┤
 │  章を選ぶ                                    │
 │  ┌──────────────────┬──────────────────┐     │
-│  │☕ Java基礎編    │🧭 Javaコア実践編│     │
-│  │  第1〜21章  ▲    │  第1〜10章        │     │
+│  │☕ Java基礎編    │🧭 Java実践・基盤編│     │
+│  │  第1〜21章  ▲    │  第1〜11章        │     │
 │  └──────────────────┴──────────────────┘     │
 │  ┌──────────────────┬──────────────────┐     │
-│  │🏢 Web・Jakarta編│🚀 Framework編  │     │
-│  │  第1〜10章        │  第1〜2章         │     │
+│  │🛠️ JVM・性能編   │🏢 Web・Jakarta編│     │
+│  │  第1〜4章         │  第1〜10章        │     │
 │  └──────────────────┴──────────────────┘     │
 │  ┌──────────────────┬──────────────────┐     │
-│  │🛠️ JVM・性能編   │🛡️ 本番運用編    │     │
+│  │🚀 業務FW編      │🛡️ 本番運用編    │     │
 │  │  第1〜4章         │  第1〜4章         │     │
 │  └──────────────────┴──────────────────┘     │
 │  ┌──────────────────┐                         │
@@ -109,10 +109,16 @@
 
 アイテムの解放のされ方は2通りです。**学習の節目**（★の数と累計コイン）で見つかるものと、
 **特別な達成条件**で見つかるものがあります。後者は「ヒントなしで10問連続クリア」「同じ日に15問クリア」
-「7日連続で学習」「確認クイズを20問連続で初回正解」「1つの章をヒントなしで全問クリア」のように、
+「7日連続で学習」「確認クイズを異なる20問連続正解」「1つの章をヒントなしで全問クリア」のように、
 ★の数ではなく**学ぶ過程そのもの**が条件です。手に入れたカードには達成条件が表示されます。
 いちど達成すれば、あとで連続が途切れても解放は取り消されません。
 粘って解いた問題を活かすものもあるので、一発で解けなくても損にはなりません。
+
+初回の条件を逃しても取り返せます。クリア済みの異なる問題を10問連続で正解する、同じ日に異なる15問を
+復習する、章の全問へもう一度正解する、確認クイズの異なる20問へ連続正解する、といった復習でも対応する
+アイテムが解放されます。同じ1問・クイズの連打では数は増えず、復習では★や通常の学習報酬も再付与しません。
+また、カフェを育てず全問を終えた場合は、★条件を満たしている節目型アイテムの未所持分を完走記念品として
+自動で受け取ります。新しい章や節目型アイテムが追加された場合も、その時点の全章を終えれば再評価されます。
 
 #### 店構えの絵
 
@@ -264,12 +270,16 @@ tools/launch.sh --status   # 動いているか調べる
 
 ## カリキュラム（全56章 / 296レッスン / 574問）
 
-メニューではカリキュラムを **Java基礎編**（第1〜21章）、**Javaコア実践編**（第1〜10章）、
-**Web・Jakarta EE編**（第1〜10章）、**フレームワーク・チーム開発編**（第1〜2章）、
-**JVM・並行処理・性能編**（第1〜4章）、**本番運用・セキュリティ編**（第1〜4章）、
+メニューではカリキュラムを **Java基礎編**（第1〜21章）、**Java実践・開発基盤編**（第1〜11章）、
+**JVM・並行処理・性能編**（第1〜4章）、**Web・Jakarta EE編**（第1〜10章）、
+**業務フレームワーク編**（第1〜4章）、**本番運用・セキュリティ編**（第1〜4章）、
 **業務アプリ総合演習編**（第1〜2章）に
 大きく分けています。編を選ぶと、その編に含まれる章カードだけが表示されます。サイドバーと
 レッスン上部のパンくずにも編名が出るため、いまどの編を学んでいるか迷いません。
+
+初めて全体を学ぶ場合の推奨順は、**基礎 → Java実践・開発基盤 → JVM → Web・Jakarta EE →
+業務フレームワーク → 本番運用・セキュリティ → 総合演習**です。製品固有の書き方へ入る前に、
+標準API、実行基盤、Web標準を順に理解できる並びにしています。
 
 **全56章すべてに、通常レッスンとは別の3問構成の章末演習を収録しています。**
 章の知識を組み合わせる「基本 → 組み合わせ → 実践」の3問で、新しい文法は登場しません。
@@ -324,23 +334,40 @@ tools/launch.sh --status   # 動いているか調べる
 | 20 ファイル入出力 | `Path` と `Files`、UTF-8などの文字コード、全件を載せない行処理、ディレクトリ、パストラバーサル対策、一時ファイルからの安全な置換 | 6 | 14 |
 | 21 総仕上げ | `import static` とモジュールの概要、総合演習3問（在庫・単語集計・成績処理） | 5 | 11 |
 
-**Javaコア実践編 第1〜10章：プラットフォームから外部システムまで**
+**Java実践・開発基盤編 第1〜11章：Javaの仕組みからチーム開発まで**
 
 | 章 | 内容 | レッスン | 問 |
 |---|---|---|---|
 | 1 Javaの成り立ちとプラットフォーム | OakからJava、設計目標、JDK/JRE/JVM、SE/EE/ME、JCP/JSR/OpenJDK/JEP、章末演習3問 | 5 | 7 |
-| 2 Stream APIとOptional | filter/map、集約、Optional、Collectors、プリミティブStream、並列処理の境界 | 5 | 11 |
-| 3 ジェネリクスとコレクション設計 | 型パラメータ、境界、wildcard/PECS、型消去、Queue/Deque、SequencedCollection、ネストしたクラス | 6 | 13 |
-| 4 正確な数値とテキスト処理 | BigDecimal、BigInteger、オーバーフロー、正規表現、Locale、ResourceBundle | 5 | 11 |
-| 5 Java 21の型パターン | sealed class、pattern switch、record patterns、annotation、reflection | 5 | 11 |
-| 6 実務の日付・時刻 | Instant、Offset/ZonedDateTime、夏時間、Clockによるテスト | 4 | 9 |
-| 7 テストとビルド | JUnitのパラメータ化テスト、準備と後片付け、flaky test対策、stub・fakeと任意のMockito、Maven、JAR、JPMS | 7 | 12 |
-| 8 SQLとデータベース | 制約と正規化、JOIN/集約、インデックスと実行計画、分離レベル、migration、章末演習3問 | 5 | 7 |
-| 9 JSONとHTTPクライアント | JSON/JSON-B/JSON-P、HttpClient、timeout、再試行、API契約、章末演習3問 | 5 | 7 |
-| 10 JDKの選定・互換性・標準ツール | release/LTS、`--release`、jshell/javap/jdeps/jlink/jpackage、previewと移行、章末演習3問 | 5 | 7 |
+| 2 JDKの選定・互換性・標準ツール | release/LTS、`--release`、jshell/javap/jdeps/jlink/jpackage、previewと移行、章末演習3問 | 5 | 7 |
+| 3 Stream APIとOptional | filter/map、集約、Optional、Collectors、プリミティブStream、並列処理の境界 | 5 | 11 |
+| 4 ジェネリクスとコレクション設計 | 型パラメータ、境界、wildcard/PECS、型消去、Queue/Deque、SequencedCollection、ネストしたクラス | 6 | 13 |
+| 5 正確な数値とテキスト処理 | BigDecimal、BigInteger、オーバーフロー、正規表現、Locale、ResourceBundle | 5 | 11 |
+| 6 Java 21の型パターン | sealed class、pattern switch、record patterns、annotation、reflection | 5 | 11 |
+| 7 実務の日付・時刻 | Instant、Offset/ZonedDateTime、夏時間、Clockによるテスト | 4 | 9 |
+| 8 テストとビルド | JUnitのパラメータ化テスト、準備と後片付け、flaky test対策、stub・fakeと任意のMockito、Maven、JAR、JPMS | 7 | 12 |
+| 9 SQLとデータベース | 制約と正規化、JOIN/集約、インデックスと実行計画、分離レベル、migration、章末演習3問 | 5 | 7 |
+| 10 JSONとHTTPクライアント | JSON/JSON-B/JSON-P、HttpClient、timeout、再試行、API契約、章末演習3問 | 5 | 7 |
+| 11 チーム開発・ビルド・品質管理 | Git/review、Maven/Gradle、テスト戦略、実DB、debug/計算量/静的解析、CI/CD・SBOM、章末演習3問 | 6 | 8 |
 
 外部ツールが必要な題材は、アプリ内の自動採点問題で考え方を確認したあと、`labs/` で
-JUnit/Maven、JPMS/JAR、SQL、ローカルHTTP、PBKDF2、JFR・thread dumpを実測できます。
+JUnit/Maven、JPMS/JAR、SQL、ローカルHTTP、Git/CI、PBKDF2を実測できます。
+
+最初の2章でJavaのプラットフォームと手元のJDKを対応づけ、標準API、テスト、外部システムへ進みます。
+最後のチーム開発章は、それまでに作ったコードをレビュー・CI・供給網管理へ載せる、この編の仕上げです。
+
+**JVM・並行処理・性能編 第1〜4章：Javaを安全・高速に動かす**
+
+| 章 | 内容 | レッスン | 問 |
+|---|---|---|---|
+| 1 JVMの実行とメモリ管理 | bytecode、JVM、class loader、module、JIT、heap/stack、到達可能性、GC、上限付きcache、章末演習3問 | 3 | 7 |
+| 2 スレッドとスレッドセーフ | 原子性/可視性/順序性、happens-before、`synchronized`、atomic、並行collection、章末演習3問 | 3 | 7 |
+| 3 タスク実行・非同期処理・I/O | `ExecutorService`/`Future`、`CompletableFuture`、Virtual Threads、charset、Path/Files、ByteBuffer、章末演習3問 | 4 | 9 |
+| 4 性能測定とJVM計測ラボ | percentile、JMH、thread dumpとdeadlock、JFR/JMC、GC log、改善cycle、章末演習3問 | 5 | 8 |
+
+JVM・並行処理・性能編では、JVMの内部動作、並行処理、I/O、性能診断を一つの軸で扱います。
+並行処理とI/Oを同じ章に置いているのは、**待たされる相手がほとんどI/Oだから**です。
+JDK 21のVirtual Threads、thread dump、JFR、GC logも実際にcompile・実行して学びます。
 
 **Web・Jakarta EE編 第1〜4章：業務Webアプリの土台**
 
@@ -378,41 +405,27 @@ Servlet/CDI/Persistence/REST/Validation/JUnitの演習には、JDKだけで採�
 採点できます。`MiniJUnit` の実行順は教材の出力を安定させるためメソッド名順に固定してあります。本物のJUnitの
 既定順序は再現可能ですが意図的に分かりにくいため、テスト同士は順番に依存させません。
 
-**フレームワーク・チーム開発編 第1〜5章：比較して、各製品を実際に使う**
+**業務フレームワーク編 第1〜4章：比較して、各製品を実際に使う**
 
 | 章 | 内容 | レッスン | 問 |
 |---|---|---|---|
-| 1 チーム開発・ビルド・品質管理 | Git/review、Maven/Gradle、テスト戦略、実DB、debug/計算量/静的解析、CI/CD・SBOM、章末演習3問 | 6 | 8 |
-| 2 3製品の設計思想と選定 | 共通設計と選定軸、Spring Boot、Open Liberty、Quarkus、章末演習3問 | 6 | 8 |
-| 3 Spring Boot実践入門 | Starter・自動構成、REST、外部設定、Spring Ecosystem、テスト、Actuator・更新、章末演習3問 | 7 | 9 |
-| 4 Open Liberty実践入門 | アプリケーションサーバー、Feature Manager、Jakarta REST/CDI、MicroProfile、Zero Migration、InstantOn、章末演習3問 | 7 | 9 |
-| 5 Quarkus実践入門 | Extension・ビルド時最適化、Quarkus REST/CDI、Dev Services・継続テスト、JVM/Native、更新・Spring互換、章末演習3問 | 7 | 9 |
+| 1 3製品の設計思想と選定 | 共通設計と選定軸、Spring Boot、Open Liberty、Quarkus、章末演習3問 | 6 | 8 |
+| 2 Spring Boot実践入門 | Starter・自動構成、REST、外部設定、Spring Ecosystem、テスト、Actuator・更新、章末演習3問 | 7 | 9 |
+| 3 Open Liberty実践入門 | アプリケーションサーバー、Feature Manager、Jakarta REST/CDI、MicroProfile、Zero Migration、InstantOn、章末演習3問 | 7 | 9 |
+| 4 Quarkus実践入門 | Extension・ビルド時最適化、Quarkus REST/CDI、Dev Services・継続テスト、JVM/Native、更新・Spring互換、章末演習3問 | 7 | 9 |
 
-第2章は3製品を同じ要件で比較する入口です。第3〜5章では製品ごとに用語から始め、
+第1章は3製品を同じ要件で比較する入口です。第2〜4章では製品ごとに用語から始め、
 最小APIの開発、外部設定、テスト、health、パッケージング、更新判断までを独立して学びます。
 Spring Bootを前提にはせず、Open LibertyとQuarkusを同列の選択肢として扱います。
 `labs/frameworks` には同じgreeting API・validation・health checkを3通りで実装し、各製品の
 READMEに沿って開発モード、設定変更、テスト、成果物、運用endpointを手元で確認できます。
 
-**JVM・並行処理・性能編 第1〜4章：Javaを安全・高速に動かす**
-
-| 章 | 内容 | レッスン | 問 |
-|---|---|---|---|
-| 1 JVMの実行とメモリ管理 | bytecode、JVM、class loader、module、JIT、heap/stack、到達可能性、GC、上限付きcache、章末演習3問 | 3 | 7 |
-| 2 スレッドとスレッドセーフ | 原子性/可視性/順序性、happens-before、`synchronized`、atomic、並行collection、章末演習3問 | 3 | 7 |
-| 3 タスク実行・非同期処理・I/O | `ExecutorService`/`Future`、`CompletableFuture`、Virtual Threads、charset、Path/Files、ByteBuffer、章末演習3問 | 4 | 9 |
-| 4 性能測定とJVM計測ラボ | percentile、JMH、thread dumpとdeadlock、JFR/JMC、GC log、改善cycle、章末演習3問 | 5 | 8 |
-
-JVM・並行処理・性能編では、JVMの内部動作、並行処理、I/O、性能診断を一つの軸で扱います。
-並行処理とI/Oを同じ章に置いているのは、**待たされる相手がほとんどI/Oだから**です。
-JDK 21のVirtual Threads、thread dump、JFR、GC logも実際にcompile・実行して学びます。
-
 **本番運用・セキュリティ編 第1〜4章：安全に届けて動かし続ける**
 
 | 章 | 内容 | レッスン | 問 |
 |---|---|---|---|
-| 1 本番で壊れにくい処理と可観測性 | timeout、再試行、backoff、過負荷制御、Graceful Shutdown、構造化log、metrics、trace、SLOとalert、章末演習3問 | 3 | 7 |
-| 2 実DB・migration・非同期連携 | 本番同等DB、段階migration、cache、messaging/outbox、定期バッチ、chunk・checkpoint・冪等性・途中再開・二重起動防止 | 7 | 12 |
+| 1 実DB・migration・非同期連携 | 本番同等DB、段階migration、cache、messaging/outbox、定期バッチ、chunk・checkpoint・冪等性・途中再開・二重起動防止 | 7 | 12 |
+| 2 本番で壊れにくい処理と可観測性 | timeout、再試行、backoff、過負荷制御、Graceful Shutdown、構造化log、metrics、trace、SLOとalert、章末演習3問 | 3 | 7 |
 | 3 設定・コンテナ・可観測性 | 外部設定とsecret、JVM資源、health/graceful rollout、log/metrics/trace/SLO、章末演習3問 | 5 | 7 |
 | 4 本番セキュリティとAPI契約 | TLS、OAuth 2.0/OIDC/JWT、object認可、OpenAPI/versioning、供給網security、章末演習3問 | 5 | 7 |
 
@@ -648,10 +661,27 @@ JDK配布物、migration/outbox、CI/container、TLS/OIDC/OpenAPIを実測でき
 1. `content/ch57-xxx.json` を作る（既存のファイルを写すのが早いです。番号は既存と重ならないものにします）
 2. `content/manifest.json` で、所属させたい編の `chapters` にファイル名を足す
 
+追加前に「この章を終えると何ができるか」と「直接必要な前提章」を1行ずつ書き、**最後の前提章より後、
+その知識を初めて使う章より前**へ置きます。所属は次の基準で決めます。
+
+| 編 | 置く内容 |
+|---|---|
+| Java基礎 | どの進路でも使う文法、オブジェクト指向、基本ライブラリ |
+| Java実践・開発基盤 | 標準API、JDKツール、テスト、DB・HTTPの基礎、チームへ渡す開発作法 |
+| JVM・並行処理・性能 | 実行時の仕組み、並行性、I/O、計測と性能改善 |
+| Web・Jakarta EE | HTTPとJakarta標準による業務Webアプリ設計 |
+| 業務フレームワーク | Spring Boot、Open Liberty、Quarkusなど製品固有の開発・運用 |
+| 本番運用・セキュリティ | 実DB・非同期連携、障害耐性、配備、監視、認証・認可とAPI契約 |
+| 業務アプリ総合演習 | 前の編で学んだ知識を組み合わせる改修・調査。主要な新概念は増やさない |
+
+比較章は製品別の章より先に、複数編で使う概念は最初の利用箇所より前の共通編に置きます。
+1章の主目的が「AとB」の2文に分かれるなら章を分け、逆に単独では成果物や判断につながらない小項目は
+近い章のレッスンへまとめます。
+
 画面上の章番号は、各編の `chapters` の並び順で **1から** 自動的に振られます。
 既存の進捗を壊さないため、ファイル名とレッスンID（`21-1` など）は保存用IDとしてそのまま使い、
 Web・Jakarta EE編の画面では `1-1` のように編内番号へ変換して表示します。
-新しい編を作る場合は、`id` `title` `subtitle` `emoji` `chapters` を持つ要素を `parts` に追加します。
+新しい編を作る場合は、`id` `title` `subtitle` `prerequisite` `emoji` `chapters` を持つ要素を `parts` に追加します。
 
 ### 追加したらコードを整形する
 
@@ -697,7 +727,7 @@ Web・Jakarta EE編の画面では `1-1` のように編内番号へ変換して
 
 ```bash
 ./tools/simulate-cafe.sh        # 全574問を通したときの経済（投資率・買い切れるか）を試算
-./tools/check-achievements.sh   # 達成条件で解放されるアイテムが、条件どおりに現れるか
+./tools/check-achievements.sh   # 初回達成・復習での再達成・完走時救済を含むアイテム条件を検査
 ```
 
 `simulate-cafe.sh` は本番と同じ `ProgressStore` で全問クリアを再現し、設備・自動営業・アイテム・

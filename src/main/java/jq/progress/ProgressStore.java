@@ -45,8 +45,8 @@ import java.util.concurrent.TimeUnit;
  */
 public final class ProgressStore {
 
-    // 17: 終盤の任意投資と、学習の待ち時間を支える5問分の自動売上上限を追加した
-    private static final int CAFE_ECONOMY_VERSION = 17;
+    // 18: 復習達成と、全問完走時に未回収の節目アイテムを贈る救済を追加した
+    private static final int CAFE_ECONOMY_VERSION = 18;
     private static final int CUP_PRICE = 500;
     private static final int MAX_CAFE_STORES = 512;
     private static final long FIRST_EXPANSION_COST = 2_500L;
@@ -176,6 +176,16 @@ public final class ProgressStore {
     private final Set<String> cafeAchievements = new LinkedHashSet<>();
     /** 確認クイズを初回から連続で正解している数。間違えると0へ戻る。 */
     private int cafeQuizFirstStreak;
+    /** 復習で連続正解した、重複しない問題。失敗すると空に戻る。 */
+    private final Set<String> cafeMasteryTaskRun = new LinkedHashSet<>();
+    /** 復習で再正解した問題。章をもう一度仕上げたかの判定に使う。 */
+    private final Set<String> cafeMasteryTasks = new LinkedHashSet<>();
+    /** 復習問題を最後に正解した日。日が変わったら当日分を空にする。 */
+    private String cafeMasteryDay = "";
+    /** {@link #cafeMasteryDay} に復習で正解した、重複しない問題。 */
+    private final Set<String> cafeMasteryDayTasks = new LinkedHashSet<>();
+    /** 初回答・復習を問わず、現在連続正解中の重複しない確認クイズ。 */
+    private final Set<String> cafeQuizMasteryRun = new LinkedHashSet<>();
     /** 初回正解ボーナスを受け取ったクイズ。答え直しによる重複獲得を防ぐ。 */
     private final Set<String> rewardedQuizzes = new LinkedHashSet<>();
     /** 章制覇ボーナスを受け取った章。同時提出でも重複獲得させない。 */
@@ -509,15 +519,15 @@ public final class ProgressStore {
 
     /** 達成型アイテムの解放条件。画面のカードにそのまま出す。 */
     private static final Map<String, String> ACHIEVEMENT_NOTES = Map.ofEntries(
-            Map.entry("flawless_10", "ヒントなし・1回の提出で10問連続クリア"),
-            Map.entry("same_day_15", "同じ日に15問クリア"),
+            Map.entry("flawless_10", "初回にヒントなし・1回提出で10問連続クリア、または復習で異なる10問に連続正解"),
+            Map.entry("same_day_15", "同じ日に異なる15問を初クリアまたは復習で正解"),
             Map.entry("streak_7", "7日連続で学習"),
-            Map.entry("quiz_streak_20", "確認クイズを20問連続で初回正解"),
-            Map.entry("chapter_no_hint", "1つの章をヒントなしで全問クリア"),
-            Map.entry("chapter_one_day", "1つの章を同じ日に全問クリア"),
-            Map.entry("persistent_clear", "10回以上提出した問題をクリア"),
+            Map.entry("quiz_streak_20", "確認クイズの異なる20問に連続正解（初回答・復習どちらでも可）"),
+            Map.entry("chapter_no_hint", "1つの章をヒントなしで初制覇、または復習で全問に再正解"),
+            Map.entry("chapter_one_day", "1つの章を同じ日に初制覇、または同じ日に全問復習"),
+            Map.entry("persistent_clear", "クリア済みの1問へ累計10回以上提出"),
             Map.entry("store_5", "店舗を5店まで広げる"),
-            Map.entry("quiz_total_50", "確認クイズに累計50問初回正解"));
+            Map.entry("quiz_total_50", "確認クイズの異なる50問に正解（答え直し可）"));
 
     /**
      * アプリ画面を表示している間だけ動く自動営業設備。
@@ -1179,6 +1189,69 @@ public final class ProgressStore {
     }
 
     /**
+     * 全問を終えてからカフェを開いた人にも、節目型アイテムの未所持分を贈る。
+     *
+     * <p>問題・章の売上は初回だけなので、設備を買わずに完走すると、その後は生涯売上を
+     * 大きく増やせず後半アイテムが事実上取得不能になる。完走時だけ、現在の★条件を
+     * 満たす達成型以外のアイテムを記念品として所持済みにする。通常どおり育てた人は
+     * すでに所持しているため変化せず、何度呼んでも重複しない。</p>
+     *
+     * @return 今回贈ったアイテム数。追加がなければ0
+     */
+    public synchronized int ensureCafeCompletionCatchUp(
+            int currentCurriculumClearedTasks, int totalTaskCount) {
+        if (totalTaskCount <= 0 || currentCurriculumClearedTasks < totalTaskCount) {
+            return 0;
+        }
+        int added = 0;
+        for (CafeItem item : CAFE_ITEMS) {
+            if (!item.byAchievement()
+                    && currentCurriculumClearedTasks >= item.unlockStars()
+                    && cafeItems.add(item.id())) {
+                added++;
+            }
+        }
+        if (added > 0) {
+            saveSoon();
+        }
+        return added;
+    }
+
+    /**
+     * クリア済み問題の再提出結果を、取り逃したアイテムの復習チャレンジへ記録する。
+     * 同じ問題の連打では数を増やさず、失敗した提出は10問連続の記録だけを切る。
+     * ★と通常報酬は呼び出し側の初回判定で引き続き付与しない。
+     */
+    public synchronized void recordMasterySubmission(String taskKey, boolean passed) {
+        if (!cleared.containsKey(taskKey)) {
+            // 復習の合間に未クリア問題で失敗した場合も「連続正解」ではなくなる。
+            if (!passed && !cafeMasteryTaskRun.isEmpty()) {
+                cafeMasteryTaskRun.clear();
+                saveSoon();
+            }
+            return;
+        }
+        if (!passed) {
+            if (!cafeMasteryTaskRun.isEmpty()) {
+                cafeMasteryTaskRun.clear();
+                saveSoon();
+            }
+            return;
+        }
+
+        String today = LocalDate.now().toString();
+        if (!today.equals(cafeMasteryDay)) {
+            cafeMasteryDay = today;
+            cafeMasteryDayTasks.clear();
+        }
+        cafeMasteryTaskRun.add(taskKey);
+        cafeMasteryTasks.add(taskKey);
+        cafeMasteryDayTasks.add(taskKey);
+        refreshCafeAchievements();
+        saveSoon();
+    }
+
+    /**
      * 達成条件を見直して、満たしたものを記録する。
      *
      * いちど達成したら外さない。連続記録のように後で崩れるものもあるため、
@@ -1189,14 +1262,15 @@ public final class ProgressStore {
         int bestFlawlessRun = 0;
         boolean persistent = false;
         Map<String, Integer> clearsPerDay = new LinkedHashMap<>();
-        for (Cleared c : cleared.values()) {
+        for (Map.Entry<String, Cleared> entry : cleared.entrySet()) {
+            Cleared c = entry.getValue();
             if (c.hintsUsed() == 0 && c.attempts() <= 1) {
                 flawlessRun++;
                 bestFlawlessRun = Math.max(bestFlawlessRun, flawlessRun);
             } else {
                 flawlessRun = 0;
             }
-            if (c.attempts() >= 10) {
+            if (Math.max(c.attempts(), attempts.getOrDefault(entry.getKey(), 0)) >= 10) {
                 persistent = true;
             }
             clearsPerDay.merge(c.clearedAt(), 1, Integer::sum);
@@ -1205,10 +1279,21 @@ public final class ProgressStore {
         for (int count : clearsPerDay.values()) {
             busiestDay = Math.max(busiestDay, count);
         }
-        boolean changed = award("flawless_10", bestFlawlessRun >= 10);
+        if (LocalDate.now().toString().equals(cafeMasteryDay)) {
+            Set<String> todayTasks = new LinkedHashSet<>(cafeMasteryDayTasks);
+            for (Map.Entry<String, Cleared> entry : cleared.entrySet()) {
+                if (cafeMasteryDay.equals(entry.getValue().clearedAt())) {
+                    todayTasks.add(entry.getKey());
+                }
+            }
+            busiestDay = Math.max(busiestDay, todayTasks.size());
+        }
+        boolean changed = award("flawless_10",
+                bestFlawlessRun >= 10 || cafeMasteryTaskRun.size() >= 10);
         changed |= award("same_day_15", busiestDay >= 15);
         changed |= award("streak_7", longestClearStreak() >= 7);
-        changed |= award("quiz_streak_20", cafeQuizFirstStreak >= 20);
+        changed |= award("quiz_streak_20",
+                cafeQuizFirstStreak >= 20 || cafeQuizMasteryRun.size() >= 20);
         changed |= award("quiz_total_50", rewardedQuizzes.size() >= 50);
         changed |= award("persistent_clear", persistent);
         changed |= award("store_5", cafeStores >= 5);
@@ -1242,8 +1327,11 @@ public final class ProgressStore {
                 sameDay = false;
             }
         }
-        boolean changed = award("chapter_no_hint", hintFree);
-        changed |= award("chapter_one_day", sameDay);
+        boolean masteredInReview = cafeMasteryTasks.containsAll(chapterTaskKeys);
+        boolean masteredToday = LocalDate.now().toString().equals(cafeMasteryDay)
+                && cafeMasteryDayTasks.containsAll(chapterTaskKeys);
+        boolean changed = award("chapter_no_hint", hintFree || masteredInReview);
+        changed |= award("chapter_one_day", sameDay || masteredToday);
         if (changed) {
             saveSoon();
         }
@@ -1637,6 +1725,8 @@ public final class ProgressStore {
 
     public synchronized int recordAttempt(String taskKey) {
         int n = attempts.merge(taskKey, 1, Integer::sum);
+        // 初クリア時の回数だけでなく、クリア後に粘って復習した回数も達成条件に含める。
+        refreshCafeAchievements();
         saveSoon();
         return n;
     }
@@ -1684,13 +1774,18 @@ public final class ProgressStore {
     /**
      * クイズの回答を記録する（答え直したら上書きする）。
      *
-     * 連続正解は「そのクイズに初めて答えたとき」だけ数える。答え直しで
-     * 連続記録を作り直せないようにするため。
+     * 初回答の連続記録は従来どおり残す。取り逃した場合は、答え直しを含む
+     * 重複しない20問の連続正解でも復習達成できる。同じクイズの連打では増えない。
      */
     public synchronized void recordQuiz(String lessonId, int index, int choice, boolean correct) {
         String key = quizKey(lessonId, index);
         if (!quizChoices.containsKey(key)) {
             cafeQuizFirstStreak = correct ? cafeQuizFirstStreak + 1 : 0;
+        }
+        if (correct) {
+            cafeQuizMasteryRun.add(key);
+        } else {
+            cafeQuizMasteryRun.clear();
         }
         quizChoices.put(key, choice);
         refreshCafeAchievements();
@@ -1736,6 +1831,11 @@ public final class ProgressStore {
         cafeSeenItems.clear();
         cafeAchievements.clear();
         cafeQuizFirstStreak = 0;
+        cafeMasteryTaskRun.clear();
+        cafeMasteryTasks.clear();
+        cafeMasteryDay = "";
+        cafeMasteryDayTasks.clear();
+        cafeQuizMasteryRun.clear();
         rewardedQuizzes.clear();
         rewardedChapters.clear();
         cafePassiveSessionId = null;
@@ -1855,6 +1955,27 @@ public final class ProgressStore {
                     }
                 }
                 cafeQuizFirstStreak = MiniJson.intOf(cafe, "quizFirstStreak", 0);
+                for (Object o : MiniJson.list(cafe, "masteryTaskRun")) {
+                    if (o instanceof String s) {
+                        cafeMasteryTaskRun.add(migrateKey(s));
+                    }
+                }
+                for (Object o : MiniJson.list(cafe, "masteryTasks")) {
+                    if (o instanceof String s) {
+                        cafeMasteryTasks.add(migrateKey(s));
+                    }
+                }
+                cafeMasteryDay = MiniJson.str(cafe, "masteryDay", "");
+                for (Object o : MiniJson.list(cafe, "masteryDayTasks")) {
+                    if (o instanceof String s) {
+                        cafeMasteryDayTasks.add(migrateKey(s));
+                    }
+                }
+                for (Object o : MiniJson.list(cafe, "quizMasteryRun")) {
+                    if (o instanceof String s) {
+                        cafeQuizMasteryRun.add(s);
+                    }
+                }
                 for (Object o : MiniJson.list(cafe, "rewardedQuizzes")) {
                     if (o instanceof String s) {
                         rewardedQuizzes.add(s);
@@ -2014,6 +2135,11 @@ public final class ProgressStore {
         cafe.put("seenItems", new ArrayList<>(cafeSeenItems));
         cafe.put("achievements", new ArrayList<>(cafeAchievements));
         cafe.put("quizFirstStreak", cafeQuizFirstStreak);
+        cafe.put("masteryTaskRun", new ArrayList<>(cafeMasteryTaskRun));
+        cafe.put("masteryTasks", new ArrayList<>(cafeMasteryTasks));
+        cafe.put("masteryDay", cafeMasteryDay);
+        cafe.put("masteryDayTasks", new ArrayList<>(cafeMasteryDayTasks));
+        cafe.put("quizMasteryRun", new ArrayList<>(cafeQuizMasteryRun));
         cafe.put("rewardedQuizzes", new ArrayList<>(rewardedQuizzes));
         cafe.put("rewardedChapters", new ArrayList<>(rewardedChapters));
         m.put("cafe", cafe);
