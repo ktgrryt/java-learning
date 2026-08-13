@@ -7,6 +7,7 @@ import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.LinkOption;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -29,6 +30,21 @@ public final class ContentLoader {
 
     /** libs に書ける名前。ディレクトリ区切りやドットを許さないので、content/lib の外へは出られない。 */
     private static final Pattern LIB_NAME = Pattern.compile("[A-Za-z0-9_-]+");
+    private static final Pattern SAFE_PROJECT_PATH = Pattern.compile("[A-Za-z0-9._/-]+");
+    private static final java.util.Set<String> PREFLIGHT_TOOLS = java.util.Set.of(
+            "java", "javac", "maven", "gradle", "docker");
+    private static final java.util.Set<String> RUNTIME_CAPABILITIES = java.util.Set.of(
+            "server", "db", "http", "jfr", "container");
+    private static final java.util.Set<String> RUNTIME_TOOLS = java.util.Set.of(
+            "java", "javac", "jcmd", "jfr", "mvn", "gradle", "docker");
+    private static final Pattern RUNTIME_IMAGE = Pattern.compile("[A-Za-z0-9._/@:-]+");
+    private static final List<String> PROJECT_GENERATED_DIRS = List.of(
+            ".git", ".gradle", ".idea", ".liberty", ".quarkus",
+            "build", "target", "out", "runtime", "node_modules");
+    private static final List<String> PROJECT_TEXT_NAMES = List.of("Dockerfile", "pom.xml");
+    private static final List<String> PROJECT_TEXT_EXTENSIONS = List.of(
+            ".java", ".xml", ".properties", ".sql", ".md", ".txt", ".json",
+            ".yaml", ".yml", ".gradle", ".kts", ".sh", ".options");
 
     private final Path contentDir;
 
@@ -129,6 +145,13 @@ public final class ContentLoader {
     private Lesson parseLesson(Map<String, Object> raw, String chapterId, List<String> chapterLibs,
                                Map<String, List<SourceFile>> libCache) {
         String id = MiniJson.requireStr(raw, "id");
+        // typeは1問目のartifact/project種別として既に使われているため、
+        // レッスン自体の種類はlessonTypeへ分ける。
+        String lessonType = MiniJson.str(raw, "lessonType", "lesson");
+        if (!lessonType.equals("lesson") && !lessonType.equals("preflight")) {
+            throw new IllegalStateException("レッスン " + id + " のtypeはlesson / preflightにしてください");
+        }
+        PreflightSpec preflight = lessonType.equals("preflight") ? parsePreflight(raw, id) : null;
 
         List<Sample> samples = new ArrayList<>();
         for (Object o : MiniJson.list(raw, "samples")) {
@@ -146,9 +169,58 @@ public final class ContentLoader {
                 MiniJson.requireStr(raw, "title"),
                 MiniJson.str(raw, "explanation", ""),
                 List.copyOf(samples),
-                parseTasks(raw, id),
+                preflight == null ? parseTasks(raw, id) : List.of(),
                 parseQuizzes(raw, id),
-                resolveLibs(chapterLibs, stringList(raw, "libs"), id, libCache));
+                resolveLibs(chapterLibs, stringList(raw, "libs"), id, libCache),
+                preflight);
+    }
+
+    private PreflightSpec parsePreflight(Map<String, Object> raw, String lessonId) {
+        if (raw.containsKey("task") || !MiniJson.list(raw, "extraTasks").isEmpty()
+                || !MiniJson.list(raw, "quiz").isEmpty() || !MiniJson.list(raw, "samples").isEmpty()) {
+            throw new IllegalStateException("事前確認 " + lessonId + " には問題・クイズ・サンプルを置けません");
+        }
+        Object value = raw.get("preflight");
+        if (!(value instanceof Map<?, ?>)) {
+            throw new IllegalStateException("事前確認 " + lessonId + " のpreflight設定がありません");
+        }
+        Map<String, Object> spec = MiniJson.asObj(value);
+        List<PreflightCheck> checks = new ArrayList<>();
+        java.util.Set<String> ids = new java.util.HashSet<>();
+        for (Object entry : MiniJson.list(spec, "checks")) {
+            Map<String, Object> check = MiniJson.asObj(entry);
+            String id = MiniJson.requireStr(check, "id");
+            if (!ids.add(id) || !id.matches("[a-z0-9-]+")) {
+                throw new IllegalStateException("事前確認 " + lessonId + " のcheck idが不正です: " + id);
+            }
+            String type = MiniJson.requireStr(check, "type");
+            boolean required = check.get("required") != Boolean.FALSE;
+            String tool = MiniJson.str(check, "tool", "");
+            String minimumVersion = MiniJson.str(check, "minimumVersion", "");
+            int port = MiniJson.intOf(check, "port", 0);
+            if (type.equals("tool")) {
+                if (!PREFLIGHT_TOOLS.contains(tool) || port != 0) {
+                    throw new IllegalStateException("事前確認 " + lessonId + " のtool設定が不正です: " + tool);
+                }
+                if (!minimumVersion.isEmpty() && !minimumVersion.matches("[0-9]+(?:\\.[0-9]+){0,2}")) {
+                    throw new IllegalStateException("事前確認 " + lessonId + " のminimumVersionが不正です");
+                }
+            } else if (type.equals("port")) {
+                if (!tool.isEmpty() || !minimumVersion.isEmpty() || port < 1024 || port > 65535) {
+                    throw new IllegalStateException("事前確認 " + lessonId + " のport設定が不正です: " + port);
+                }
+            } else {
+                throw new IllegalStateException("事前確認 " + lessonId + " のcheck typeはtool / portにしてください");
+            }
+            checks.add(new PreflightCheck(
+                    id, type, MiniJson.requireStr(check, "label"), required, tool,
+                    minimumVersion, port, MiniJson.requireStr(check, "help")));
+        }
+        if (checks.isEmpty() || checks.size() > 10) {
+            throw new IllegalStateException("事前確認 " + lessonId + " のcheck数が不正です: " + checks.size());
+        }
+        return new PreflightSpec(
+                MiniJson.str(spec, "buttonLabel", "環境を確認する"), List.copyOf(checks));
     }
 
     /**
@@ -250,11 +322,22 @@ public final class ContentLoader {
         String id = String.valueOf(number);
         String where = "レッスン " + lessonId + " の問題" + number;
 
+        String type = MiniJson.str(raw, "type", "single-file");
+        if (!type.equals("single-file") && !type.equals("artifact") && !type.equals("project")
+                && !type.equals("runtime-lab")) {
+            throw new IllegalStateException(where + " の type は single-file / artifact / project / runtime-lab "
+                    + "のいずれかにしてください: " + type);
+        }
+
         List<TestCase> cases = new ArrayList<>();
         collectCases(cases, MiniJson.list(raw, "visibleCases"), false);
         collectCases(cases, MiniJson.list(raw, "hiddenCases"), true);
-        if (cases.isEmpty()) {
+        if (type.equals("single-file") && cases.isEmpty()) {
             throw new IllegalStateException(where + " にテストケースがありません");
+        }
+        if (!type.equals("single-file") && !cases.isEmpty()) {
+            throw new IllegalStateException(where + " の " + type + " 問題には "
+                    + "visibleCases / hiddenCases を使えません");
         }
 
         List<String> hints = new ArrayList<>();
@@ -273,22 +356,344 @@ public final class ContentLoader {
                     MiniJson.intOf(check, "maximum", -1),
                     MiniJson.requireStr(check, "message")));
         }
+        if (!type.equals("single-file") && !sourceChecks.isEmpty()) {
+            throw new IllegalStateException(where + " の " + type + " 問題には sourceChecks を使えません");
+        }
+
+        ArtifactSpec artifact = type.equals("artifact") ? parseArtifact(raw, where) : null;
+        ProjectSpec project = type.equals("project") ? parseProject(raw, where) : null;
+        RuntimeLabSpec runtimeLab = type.equals("runtime-lab") ? parseRuntimeLab(raw, where) : null;
 
         String kind = MiniJson.str(raw, "kind", defaultKind);
         if (!kind.equals("practice") && !kind.equals("drill") && !kind.equals("applied")) {
             throw new IllegalStateException(where + " の kind は practice / drill / applied "
                     + "のいずれかにしてください: " + kind);
         }
+        boolean required = raw.get("required") != Boolean.FALSE;
+        if (!required && !kind.equals("applied")) {
+            throw new IllegalStateException(where + " の任意問題はkindをappliedにしてください");
+        }
 
         return new Task(
                 id,
                 kind,
+                required,
+                type,
                 MiniJson.str(raw, "task", ""),
-                MiniJson.str(raw, "starterCode", defaultStarter()),
+                type.equals("artifact") ? MiniJson.requireStr(raw, "starterContent")
+                        : (type.equals("project") || type.equals("runtime-lab")
+                        ? "" : MiniJson.str(raw, "starterCode", defaultStarter())),
                 List.copyOf(cases),
                 List.copyOf(hints),
                 MiniJson.str(raw, "solution", ""),
-                List.copyOf(sourceChecks));
+                List.copyOf(sourceChecks),
+                artifact,
+                project,
+                runtimeLab);
+    }
+
+    private RuntimeLabSpec parseRuntimeLab(Map<String, Object> raw, String where) {
+        Object value = raw.get("runtimeLab");
+        if (!(value instanceof Map<?, ?>)) {
+            throw new IllegalStateException(where + " の runtimeLab 設定がありません");
+        }
+        Map<String, Object> spec = MiniJson.asObj(value);
+
+        // ファイル隔離、solution非公開、固定script検証はprojectと同じ境界を再利用する。
+        Map<String, Object> projectRaw = new LinkedHashMap<>(raw);
+        projectRaw.put("project", spec);
+        ProjectSpec workspace = parseProject(projectRaw, where + " runtime-lab");
+        if (!workspace.command().get(0).startsWith("./")) {
+            throw new IllegalStateException(where
+                    + " の runtime-lab.command は終了処理を持つ ./配下の固定scriptにしてください");
+        }
+
+        List<String> capabilities = stringList(spec, "capabilities");
+        if (capabilities.isEmpty() || capabilities.size() > RUNTIME_CAPABILITIES.size()
+                || capabilities.stream().anyMatch(capability -> !RUNTIME_CAPABILITIES.contains(capability))
+                || new java.util.HashSet<>(capabilities).size() != capabilities.size()) {
+            throw new IllegalStateException(where + " の runtimeLab.capabilities が不正です");
+        }
+
+        List<String> requiredTools = stringList(spec, "requiredTools");
+        if (requiredTools.isEmpty() || requiredTools.size() > RUNTIME_TOOLS.size()
+                || requiredTools.stream().anyMatch(tool -> !RUNTIME_TOOLS.contains(tool))
+                || new java.util.HashSet<>(requiredTools).size() != requiredTools.size()) {
+            throw new IllegalStateException(where + " の runtimeLab.requiredTools が不正です");
+        }
+
+        List<String> requiredImages = stringList(spec, "requiredImages");
+        if (!requiredTools.contains("docker") && !requiredImages.isEmpty()) {
+            throw new IllegalStateException(where + " の requiredImages にはrequiredToolsのdockerが必要です");
+        }
+        if (requiredImages.size() > 5 || requiredImages.stream().anyMatch(image ->
+                image.length() > 200 || !RUNTIME_IMAGE.matcher(image).matches())) {
+            throw new IllegalStateException(where + " の runtimeLab.requiredImages が不正です");
+        }
+
+        List<RuntimeCheck> checks = new ArrayList<>();
+        java.util.Set<String> checkIds = new java.util.HashSet<>();
+        for (Object entry : MiniJson.list(spec, "checks")) {
+            Map<String, Object> check = MiniJson.asObj(entry);
+            String id = MiniJson.requireStr(check, "id");
+            if (!id.matches("[a-z0-9-]+") || !checkIds.add(id)) {
+                throw new IllegalStateException(where + " のruntime check idが不正です: " + id);
+            }
+            checks.add(new RuntimeCheck(id, MiniJson.requireStr(check, "label")));
+        }
+        if (checks.isEmpty() || checks.size() > 20) {
+            throw new IllegalStateException(where + " の runtimeLab.checks 数が不正です: " + checks.size());
+        }
+        return new RuntimeLabSpec(workspace, List.copyOf(capabilities), List.copyOf(requiredTools),
+                List.copyOf(requiredImages), List.copyOf(checks));
+    }
+
+    private ProjectSpec parseProject(Map<String, Object> raw, String where) {
+        Object value = raw.get("project");
+        if (!(value instanceof Map<?, ?>)) {
+            throw new IllegalStateException(where + " の project 設定がありません");
+        }
+        Map<String, Object> spec = MiniJson.asObj(value);
+        String source = MiniJson.requireStr(spec, "source");
+        if (!source.startsWith("labs/") || !safeRelativePath(source)) {
+            throw new IllegalStateException(where + " の project.source は labs/ 以下の安全な相対パスにしてください");
+        }
+
+        Path sourceDir;
+        Path labsDir;
+        try {
+            Path repository = contentDir.toRealPath().getParent();
+            labsDir = repository.resolve("labs").toRealPath();
+            sourceDir = repository.resolve(source).toRealPath();
+        } catch (IOException e) {
+            throw new UncheckedIOException(where + " のproject sourceを読めません: " + source, e);
+        }
+        if (!sourceDir.startsWith(labsDir) || !Files.isDirectory(sourceDir)) {
+            throw new IllegalStateException(where + " の project.source がlabs外またはディレクトリではありません: " + source);
+        }
+
+        List<String> excluded = new ArrayList<>(PROJECT_GENERATED_DIRS);
+        for (String entry : stringList(spec, "exclude")) {
+            if (!safeRelativePath(entry)) {
+                throw new IllegalStateException(where + " の project.exclude に使えないパスがあります: " + entry);
+            }
+            excluded.add(entry);
+        }
+
+        Map<String, String> solutionByPath = new LinkedHashMap<>();
+        for (Object entry : MiniJson.list(spec, "editableFiles")) {
+            Map<String, Object> file = MiniJson.asObj(entry);
+            String path = MiniJson.requireStr(file, "path");
+            String solutionPath = MiniJson.requireStr(file, "solutionPath");
+            validateProjectFile(sourceDir, path, where);
+            validateProjectFile(sourceDir, solutionPath, where);
+            if (path.equals(solutionPath)) {
+                throw new IllegalStateException(where + " の編集対象と模範解答は別ファイルにしてください: " + path);
+            }
+            if (solutionByPath.put(path, solutionPath) != null) {
+                throw new IllegalStateException(where + " のeditableFilesが重複しています: " + path);
+            }
+        }
+        if (solutionByPath.isEmpty()) {
+            throw new IllegalStateException(where + " の project.editableFiles が空です");
+        }
+
+        List<ProjectFile> files = discoverProjectFiles(sourceDir, excluded, solutionByPath, where);
+        for (String editable : solutionByPath.keySet()) {
+            if (files.stream().noneMatch(file -> file.path().equals(editable))) {
+                throw new IllegalStateException(where + " の編集対象が表示対象から除外されています: " + editable);
+            }
+        }
+
+        List<String> command = stringList(spec, "command");
+        if (command.isEmpty()) {
+            throw new IllegalStateException(where + " の project.command が空です");
+        }
+        validateProjectCommand(sourceDir, command, solutionByPath.keySet(), where);
+        int timeoutSeconds = MiniJson.intOf(spec, "timeoutSeconds", 30);
+        int maximumTimeout = raw.get("required") == Boolean.FALSE ? 600 : 60;
+        if (timeoutSeconds < 1 || timeoutSeconds > maximumTimeout) {
+            throw new IllegalStateException(where + " の timeoutSeconds は1〜"
+                    + maximumTimeout + "にしてください");
+        }
+        return new ProjectSpec(
+                MiniJson.str(spec, "name", sourceDir.getFileName().toString()),
+                sourceDir,
+                List.copyOf(excluded),
+                List.copyOf(files),
+                List.copyOf(command),
+                timeoutSeconds,
+                MiniJson.requireStr(spec, "verification"));
+    }
+
+    private List<ProjectFile> discoverProjectFiles(Path sourceDir, List<String> excluded,
+                                                    Map<String, String> solutionByPath, String where) {
+        List<ProjectFile> files = new ArrayList<>();
+        java.util.Set<String> solutionPaths = new java.util.HashSet<>(solutionByPath.values());
+        int totalCharacters = 0;
+        int editableCharacters = 0;
+        int solutionCharacters = 0;
+        try (Stream<Path> paths = Files.walk(sourceDir)) {
+            for (Path path : paths
+                    .filter(candidate -> Files.isRegularFile(candidate, LinkOption.NOFOLLOW_LINKS))
+                    .filter(candidate -> !Files.isSymbolicLink(candidate))
+                    .sorted().toList()) {
+                String relative = sourceDir.relativize(path).toString().replace('\\', '/');
+                // solutionPathはexcludeの記述忘れがあってもブラウザへ公開しない。
+                if (solutionPaths.contains(relative)
+                        || isProjectExcluded(relative, excluded) || !isProjectTextFile(path)) continue;
+                String solutionPath = solutionByPath.get(relative);
+                String starterContent = read(path);
+                if (starterContent.length() > ProjectRunnerLimits.FILE_LIMIT_CHARS) {
+                    throw new IllegalStateException(where + " のproject fileが長すぎます: " + relative);
+                }
+                totalCharacters += starterContent.length();
+                if (totalCharacters > ProjectRunnerLimits.TOTAL_VISIBLE_LIMIT_CHARS) {
+                    throw new IllegalStateException(where + " の表示対象project filesが長すぎます");
+                }
+                String solutionContent = solutionPath == null ? null : read(sourceDir.resolve(solutionPath));
+                if (solutionPath != null) {
+                    if (solutionContent.length() > ProjectRunnerLimits.FILE_LIMIT_CHARS) {
+                        throw new IllegalStateException(where + " のproject solutionが長すぎます: " + solutionPath);
+                    }
+                    editableCharacters += starterContent.length();
+                    solutionCharacters += solutionContent.length();
+                    if (editableCharacters > ProjectRunnerLimits.TOTAL_SUBMISSION_LIMIT_CHARS
+                            || solutionCharacters > ProjectRunnerLimits.TOTAL_SUBMISSION_LIMIT_CHARS) {
+                        throw new IllegalStateException(where + " の編集対象project filesが長すぎます");
+                    }
+                }
+                files.add(new ProjectFile(
+                        relative,
+                        projectLanguage(path),
+                        starterContent,
+                        solutionPath != null,
+                        solutionContent));
+            }
+        } catch (IOException e) {
+            throw new UncheckedIOException(where + " のproject filesを読めません", e);
+        }
+        if (files.isEmpty() || files.size() > 100) {
+            throw new IllegalStateException(where + " の表示対象ファイル数が不正です: " + files.size());
+        }
+        return files;
+    }
+
+    /** runnerと同じ制限値をcontent packageから独立して適用する。 */
+    private static final class ProjectRunnerLimits {
+        private static final int FILE_LIMIT_CHARS = 80_000;
+        private static final int TOTAL_SUBMISSION_LIMIT_CHARS = 300_000;
+        private static final int TOTAL_VISIBLE_LIMIT_CHARS = 500_000;
+    }
+
+    private static void validateProjectCommand(Path sourceDir, List<String> command,
+                                               java.util.Set<String> editable, String where) {
+        String executable = command.get(0);
+        if (executable.equals("mvn") || executable.equals("gradle")) return;
+        if (!executable.startsWith("./") || !safeRelativePath(executable.substring(2))) {
+            throw new IllegalStateException(where + " のcommandは mvn / gradle / ./配下の固定scriptだけ使えます");
+        }
+        String script = executable.substring(2);
+        validateProjectFile(sourceDir, script, where);
+        if (editable.contains(script)) {
+            throw new IllegalStateException(where + " の検証scriptを編集対象にはできません: " + script);
+        }
+    }
+
+    private static void validateProjectFile(Path sourceDir, String relative, String where) {
+        if (!safeRelativePath(relative)) {
+            throw new IllegalStateException(where + " のproject file pathが不正です: " + relative);
+        }
+        Path resolved = sourceDir.resolve(relative).normalize();
+        if (!resolved.startsWith(sourceDir) || !Files.isRegularFile(resolved, LinkOption.NOFOLLOW_LINKS)) {
+            throw new IllegalStateException(where + " のproject fileがありません: " + relative);
+        }
+    }
+
+    private static boolean safeRelativePath(String path) {
+        if (path.isBlank() || path.startsWith("/") || path.contains("\\")
+                || !SAFE_PROJECT_PATH.matcher(path).matches()) return false;
+        return !List.of(path.split("/", -1)).contains("..") && !path.contains("//");
+    }
+
+    private static boolean isProjectExcluded(String relative, List<String> excluded) {
+        for (String entry : excluded) {
+            if (relative.equals(entry) || relative.startsWith(entry + "/")
+                    || relative.contains("/" + entry + "/")) return true;
+        }
+        return false;
+    }
+
+    private static boolean isProjectTextFile(Path path) {
+        String name = path.getFileName().toString();
+        if (PROJECT_TEXT_NAMES.contains(name)) return true;
+        return PROJECT_TEXT_EXTENSIONS.stream().anyMatch(name::endsWith);
+    }
+
+    private static String projectLanguage(Path path) {
+        String name = path.getFileName().toString();
+        if (name.endsWith(".java")) return "java";
+        if (name.endsWith(".xml") || name.equals("pom.xml")) return "xml";
+        if (name.endsWith(".properties")) return "properties";
+        if (name.endsWith(".sql")) return "sql";
+        if (name.endsWith(".json")) return "json";
+        if (name.endsWith(".yaml") || name.endsWith(".yml")) return "yaml";
+        if (name.equals("Dockerfile")) return "dockerfile";
+        if (name.endsWith(".md")) return "markdown";
+        if (name.endsWith(".sh")) return "shell";
+        return "text";
+    }
+
+    private ArtifactSpec parseArtifact(Map<String, Object> raw, String where) {
+        Object value = raw.get("artifact");
+        if (!(value instanceof Map<?, ?>)) {
+            throw new IllegalStateException(where + " の artifact 設定がありません");
+        }
+        Map<String, Object> spec = MiniJson.asObj(value);
+        String path = MiniJson.requireStr(spec, "path");
+        if (path.isBlank() || path.startsWith("/") || path.startsWith("\\")
+                || path.contains("\\") || List.of(path.split("/", -1)).contains("..")) {
+            throw new IllegalStateException(where + " の artifact.path は安全な相対パスにしてください: " + path);
+        }
+
+        String format = MiniJson.requireStr(spec, "format");
+        if (!List.of("xml", "json", "properties", "text", "sql", "dockerfile", "yaml")
+                .contains(format)) {
+            throw new IllegalStateException(where + " の artifact.format は xml / json / properties / "
+                    + "text / sql / dockerfile / yaml のいずれかにしてください: " + format);
+        }
+
+        List<ArtifactCheck> checks = new ArrayList<>();
+        for (Object entry : MiniJson.list(spec, "checks")) {
+            Map<String, Object> check = MiniJson.asObj(entry);
+            String checkType = MiniJson.requireStr(check, "type");
+            if (!List.of("xpath", "regex", "property", "jsonPointer").contains(checkType)) {
+                throw new IllegalStateException(where + " の artifact.checks[].type が不正です: " + checkType);
+            }
+            if (checkType.equals("xpath") && !format.equals("xml")) {
+                throw new IllegalStateException(where + " の xpath 検査は XML だけで使えます");
+            }
+            if (checkType.equals("property") && !format.equals("properties")) {
+                throw new IllegalStateException(where + " の property 検査は properties だけで使えます");
+            }
+            if (checkType.equals("jsonPointer") && !format.equals("json")) {
+                throw new IllegalStateException(where + " の jsonPointer 検査は JSON だけで使えます");
+            }
+            Object expected = check.get("expected");
+            if ((checkType.equals("property") || checkType.equals("jsonPointer"))
+                    && !check.containsKey("expected")) {
+                throw new IllegalStateException(where + " の " + checkType + " 検査には expected が必要です");
+            }
+            checks.add(new ArtifactCheck(
+                    checkType,
+                    MiniJson.requireStr(check, "expression"),
+                    expected,
+                    MiniJson.requireStr(check, "message")));
+        }
+        if (checks.isEmpty()) {
+            throw new IllegalStateException(where + " の artifact.checks が空です");
+        }
+        return new ArtifactSpec(path, format, List.copyOf(checks));
     }
 
     /**

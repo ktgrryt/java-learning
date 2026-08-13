@@ -84,6 +84,9 @@ def collect(data):
         for task_id, task in tasks:
             if not task.get('task'):
                 continue
+            # artifact の solution は XML や Dockerfile であり、Java整形器へ渡してはいけない。
+            if task.get('type') in ('artifact', 'project', 'runtime-lab'):
+                continue
             for key in ('starterCode', 'solution'):
                 if is_compact(task.get(key)):
                     yield (lambda v, o=task, k=key: o.__setitem__(k, v),

@@ -5,6 +5,24 @@
   "emoji": "🗄️",
   "lessons": [
     {
+      "id": "54-0",
+      "lessonType": "preflight",
+      "title": "事前確認：実PostgreSQL labを動かす準備",
+      "explanation": "## 実DBを使う範囲を先に確認する\n\nこの章の`runtime-lab`はDocker上で一時的なPostgreSQL 16を起動し、migrationと制約を本物のDBで確認します。Docker daemonが必須です。提出時に`postgres:16-alpine` imageがローカルに無ければ、自動で大きなdownloadを始めず、先に実行する`docker pull`コマンドを表示します。\n\n```bash\ndocker pull postgres:16-alpine\ndocker image inspect postgres:16-alpine\n```\n\nlabは動的なlocalhostポートと一意なcontainer名を使い、成功・失敗・timeoutのいずれでもcontainerを削除します。ただしDocker自体の強制終了などで残った場合は、表示された`jq-`で始まるcontainerを確認してから削除してください。この事前確認は★対象外です。",
+      "preflight": {
+        "buttonLabel": "実DB labの準備を確認する",
+        "checks": [
+          {
+            "id": "docker-db",
+            "type": "tool",
+            "tool": "docker",
+            "label": "PostgreSQL用Docker daemon",
+            "help": "Docker Desktop等を起動してください。次にdocker pull postgres:16-alpineで演習用imageを準備します。"
+          }
+        ]
+      }
+    },
+    {
       "id": "54-1",
       "title": "本番同等DBで検証する",
       "explanation": "## はじめて学ぶ人へ\n\n第46章では、テーブル、制約、インデックスなどDBの基本を学びました。この章では一歩進み、**開発環境では通ったのに本番だけ失敗する**状況をどう減らすかを考えます。中心は、①本番に近いDBで試す、②変更を安全な段階に分ける、③キャッシュの古さを管理する、④メッセージの重複を前提にする、の4点です。専門用語は、それが防ぐ事故と一緒に確認していきます。\n\n## SQLだけでなく挙動を合わせる\n\nリポジトリの単体テストに加えて、本番と同じ系統でバージョンも近いDBをコンテナで起動し、スキーマ移行を先頭から適用してから結合テストを行います。型、照合順序、タイムゾーン、制約、インデックス、ロック、分離レベル、実行計画は、DB製品によって違います。テストごとにロールバックする方式は速い一方で、コミット時に初めて評価される遅延制約や、PostgreSQLの `NOTIFY` のように、コミットして初めて外部へ届く通知を確認できません。用途に応じて、実際にコミットしてからデータを削除する方式と使い分けます。\n\nコネクションプールには上限、取得のタイムアウト、接続の検証方法を設定します。プールを増やせば速くなるとは限りません。DBの最大接続数とクエリの所要時間から、全インスタンス分の接続予算を決めます。N+1問題や無制限な全件取得は、SQLログ・メトリクス・実行計画で検出します。\n\n### 何が違うのかを具体で見る\n\n「SQLが通る」ことと「同じ挙動になる」ことは別です。よく食い違うのはこのあたりです。\n\n| 観点 | 食い違いの例 |\n|---|---|\n| 文字列比較 | 照合順序（collation）によって大文字小文字の区別が変わる |\n| NULLの並び | `ORDER BY` でNULLが先か後か（PostgreSQLは既定で、昇順なら後・降順なら前） |\n| 自動採番 | `IDENTITY` / `SERIAL` / シーケンスの挙動と、ロールバック時の欠番 |\n| 型の丸め | `DECIMAL` と浮動小数の扱い、日時の精度 |\n| 実行計画 | 同じSQLでもインデックスを使うかが製品と件数で変わる |\n\nだから「開発はH2、本番はPostgreSQL」だと、**テストが通るのに本番で落ちる**、あるいは\n逆に本番だけ遅いという形で出ます。結合テストは本番と同じ製品・同じメジャーバージョンで\n動かすのが原則です。\n\n### ロールバック方式で見逃すもの\n\n各テストの最後にロールバックする方式は速い一方、**コミットしないと現れない挙動** を\n見逃します。\n\n- コミット時に評価される制約（遅延制約）\n- コミットするまで配送されない通知\n- コミット後の状態を別トランザクションから読んだときの挙動\n\n通常のDBトリガーは、文の実行中または文の終わりに動きます。制約トリガーはトランザクションの終わりまで遅延できることがありますが、**コミットが完了したあとに通常のトリガーが起動する**という意味ではありません。\n\n> ⚠️ 間違えやすい点 … ロールバック方式は「テストの後片付けが速い」だけで、\n> 本番と同じ経路を通ったわけではありません。コミットを伴う経路が要るテストは、\n> 後片付け方式（truncate や毎回作り直し）に分けて用意します。\n> どちらか一方に統一しようとすると、必ずどちらかが検証できなくなります。",
@@ -100,6 +118,37 @@
         "switch式で3段階を対応付けます。"
       ],
       "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] a) {\n        String phase = new Scanner(System.in).next();\n        System.out.println(switch (phase) {\n            case \"expand\" -> \"ADD_COMPATIBLE\";\n            case \"migrate\" -> \"BACKFILL_AND_SWITCH\";\n            case \"contract\" -> \"REMOVE_OLD\";\n            default -> \"UNKNOWN\";\n        });\n    }\n}\n",
+      "extraTasks": [
+        {
+          "kind": "applied",
+          "type": "runtime-lab",
+          "task": "【実DB演習】`labs/integration-data`のV2 migrationを、旧applicationのINSERTと両立するexpand変更へ直してください。提出すると一時的なPostgreSQL 16 containerを起動し、V1→編集したV2→V3を適用します。その後、statusを指定しない旧INSERT、emailの一意制約、outbox用indexを実DBで確認し、最後にcontainerを削除します。",
+          "runtimeLab": {
+            "name": "PostgreSQL migration lab",
+            "source": "labs/integration-data",
+            "exclude": ["reference"],
+            "command": ["./run-runtime-lab.sh"],
+            "timeoutSeconds": 60,
+            "verification": "実PostgreSQLへmigrationを適用し、後方互換性とDB制約を確認する",
+            "capabilities": ["db", "container"],
+            "requiredTools": ["docker"],
+            "requiredImages": ["postgres:16-alpine"],
+            "checks": [
+              {"id": "db-migrations", "label": "空のPostgreSQLへV1〜V3を適用する"},
+              {"id": "db-backward-insert", "label": "旧application形式のINSERTを維持する"},
+              {"id": "db-unique", "label": "emailの重複をDB制約で拒否する"},
+              {"id": "db-outbox-index", "label": "outbox未送信検索用indexを確認する"}
+            ],
+            "editableFiles": [
+              {"path": "exercise/V2__add_customer_status.sql", "solutionPath": "reference/V2__add_customer_status.sql"}
+            ]
+          },
+          "hints": [
+            "旧applicationはstatus列をINSERTしません。NOT NULLだけを追加すると、そのINSERTが失敗します。",
+            "`DEFAULT 'ACTIVE'`を付ければ、列を知らない旧版と新しいスキーマを一時的に共存させられます。"
+          ]
+        }
+      ],
       "quiz": [
         {
           "question": "ローリングデプロイ中に列をすぐ削除すると危険な理由は？",

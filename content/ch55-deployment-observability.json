@@ -5,6 +5,40 @@
   "emoji": "🚢",
   "lessons": [
     {
+      "id": "55-0",
+      "lessonType": "preflight",
+      "title": "事前確認：container labを動かす準備",
+      "explanation": "## imageをbuildして動かす環境を確認する\n\n`labs/delivery`の`runtime-lab`では、Dockerfileの静的な形だけでなく、実際にimageをbuildし、non-root、read-only filesystem、memory・CPU制限付きで起動してreadinessへHTTP要求を送ります。JDK 21とDocker daemonが必要です。\n\n```bash\ndocker pull eclipse-temurin:21-jdk\ndocker pull eclipse-temurin:21-jre\n```\n\n提出時はこの2つのbase imageがローカルにあるかを確認し、不足していても自動downloadはしません。実行ごとに一意なimage/container名と動的なlocalhostポートを使い、終了時に削除します。この事前確認は★対象外です。",
+      "preflight": {
+        "buttonLabel": "container labの準備を確認する",
+        "checks": [
+          {
+            "id": "java-container-probe",
+            "type": "tool",
+            "tool": "java",
+            "label": "JDK 21のHTTP probe実行環境",
+            "minimumVersion": "21",
+            "help": "JDK 21以降をインストールし、JAVA_HOMEとPATHをそろえてください。"
+          },
+          {
+            "id": "javac-container-probe",
+            "type": "tool",
+            "tool": "javac",
+            "label": "JDK 21のコンパイラ",
+            "minimumVersion": "21",
+            "help": "JREではなくJDK 21以降をインストールしてください。"
+          },
+          {
+            "id": "docker-container",
+            "type": "tool",
+            "tool": "docker",
+            "label": "container build用Docker daemon",
+            "help": "Docker Desktop等を起動し、Temurin 21のJDK/JRE imageをpullしてください。"
+          }
+        ]
+      }
+    },
+    {
       "id": "55-1",
       "title": "設定と機密情報を外から与える",
       "explanation": "## なぜ設定をコードの外へ出すのか\n\n同じアプリでも、開発環境と本番環境ではDBの接続先、待ち時間、利用できる機能が違います。これらをソースコードへ直接書くと、環境ごとに別のJARやコンテナイメージを作ることになり、「テストしたもの」と「本番で動くもの」が別物になります。\n\nそこで、プログラム本体と環境ごとの値を分けます。\n\n| プログラムに含める | 外から与える |\n|---|---|\n| 業務ルール、設定項目の型と許容範囲 | DB接続先、タイムアウト、機能フラグ |\n| 安全な既定値 | パスワード、トークン、秘密鍵 |\n\n環境変数、設定ファイル、設定配信サービスなどから値を受け取れば、同じ成果物を開発・検証・本番へ順番に運べます。\n\n### 起動時にまとめて検査する\n\n設定を実際に使う瞬間まで検査しないと、最初の利用者が来てから「DBパスワードがない」「待ち時間が負数」と判明します。起動時に必須値、型、範囲を確認し、不正ならトラフィックを受ける前に停止します。これを**fail fast（早く失敗する）**と呼びます。\n\n```java\nString raw = System.getenv(\"TIMEOUT_MS\");\nif (raw == null) throw new IllegalStateException(\"TIMEOUT_MS is required\");\nint timeout = Integer.parseInt(raw);\nif (timeout < 1 || timeout > 30_000) {\n    throw new IllegalStateException(\"TIMEOUT_MS is out of range\");\n}\n```\n\n既定値は開発を楽にしますが、本番で必ず設定すべき値に安全でない既定値を置くと、設定忘れを隠します。たとえば接続先の既定値は置けても、本番のパスワードに既定値を置いてはいけません。\n\n### secretは通常設定と分ける\n\nパスワードや秘密鍵のように、知られると権限を奪われる値を**secret（機密情報）**と呼びます。ソース、Git、コンテナイメージ、通常ログへ入れず、秘密管理サービスから必要な実行主体だけが受け取ります。\n\nsecretは永久に同じ値を使わず、新しい値へ交換する**rotation（ローテーション）**を行います。交換中に新旧の値が一時的に共存できるようにすると、アプリを止めずに切り替えられます。\n\nこのレッスンの問題では、必須設定と範囲をすべて満たした場合だけ起動を許可します。目的は入力判定ではなく、不完全なインスタンスを本番へ参加させないことです。",
@@ -410,6 +444,35 @@
               "minimum": 1,
               "message": "桁を揃えた表示は `String.format` を使ってください。"
             }
+          ]
+        },
+        {
+          "kind": "applied",
+          "type": "runtime-lab",
+          "task": "【実container演習】`labs/delivery`の`exercise/Dockerfile`を、non-rootで動く最終imageへ直してください。提出すると編集したDockerfileを実際にbuildし、read-only filesystem、256MiB memory、1 CPUの制限でcontainerを起動します。動的なlocalhostポートからreadinessを確認した後、containerと演習用imageを削除します。",
+          "runtimeLab": {
+            "name": "container readiness lab",
+            "source": "labs/delivery",
+            "exclude": ["reference"],
+            "command": ["./run-runtime-lab.sh"],
+            "timeoutSeconds": 60,
+            "verification": "non-root imageを制限付きで起動し、実HTTP readinessを確認する",
+            "capabilities": ["server", "http", "container"],
+            "requiredTools": ["java", "javac", "docker"],
+            "requiredImages": ["eclipse-temurin:21-jdk", "eclipse-temurin:21-jre"],
+            "checks": [
+              {"id": "container-build", "label": "編集したDockerfileからimageをbuildする"},
+              {"id": "container-nonroot", "label": "最終imageをnon-rootユーザーで実行する"},
+              {"id": "container-readonly", "label": "資源制限とread-only filesystemで起動する"},
+              {"id": "container-readiness", "label": "実containerのreadinessがHTTP 200を返す"}
+            ],
+            "editableFiles": [
+              {"path": "exercise/Dockerfile", "solutionPath": "reference/Dockerfile"}
+            ]
+          },
+          "hints": [
+            "最終stageで`RUN useradd --system --uid 10001 appuser`のように専用ユーザーを作ります。",
+            "`USER 10001`をENTRYPOINTより前に置くと、実行時の既定ユーザーがrootではなくなります。"
           ]
         }
       ]

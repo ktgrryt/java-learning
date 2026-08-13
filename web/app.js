@@ -220,7 +220,7 @@
   function allTasks() {
     var list = [];
     allLessons().forEach(function (l) {
-      l.tasks.forEach(function (t) { list.push(t); });
+      l.tasks.forEach(function (t) { if (t.required !== false) list.push(t); });
     });
     return list;
   }
@@ -498,6 +498,7 @@
       if (!open) { ul.hidden = true; }
       ch.lessons.forEach(function (l) {
         var li = document.createElement('li');
+        var isPreflight = l.type === 'preflight';
         // 開いている単元は塗り（lesson-current）。開いていないが最後にいた単元は、
         // 「いまここを見ている」と誤解しないよう控えめな目印（lesson-focus）にする。
         li.className = 'lesson'
@@ -505,7 +506,7 @@
           + (l.id === currentId ? ' lesson-current'
             : (l.id === focusId ? ' lesson-focus' : ''));
         li.innerHTML =
-          '<span class="lesson-mark">' + (l.cleared ? '★' : '○') + '</span>' +
+          '<span class="lesson-mark">' + (isPreflight ? '⚙' : (l.cleared ? '★' : '○')) + '</span>' +
           '<span class="lesson-id">' + esc(displayLessonId(l)) + '</span>' +
           '<span class="lesson-title">' + esc(l.title) + '</span>' +
           lessonTaskProgress(l);
@@ -564,11 +565,13 @@
    * 複数問あるレッスンも分母は見せず、途中なら現在の状態だけを示す。
    */
   function lessonTaskProgress(lesson) {
+    if (lesson.type === 'preflight') { return '<span class="lesson-frac">準備</span>'; }
     if (lesson.taskCount < 2 || lesson.cleared) { return ''; }
     return lesson.clearedCount ? '<span class="lesson-frac">学習中</span>' : '';
   }
 
   function lessonTooltip(lesson) {
+    if (lesson.type === 'preflight') { return '環境の事前確認（★対象外）: ' + lesson.title; }
     if (lesson.cleared) { return 'クリア済み: ' + lesson.title; }
     return lesson.clearedCount ? lesson.title + '（学習中）' : lesson.title;
   }
@@ -867,7 +870,7 @@
     var list = [];
     allLessons().forEach(function (lesson) {
       lesson.tasks.forEach(function (task) {
-        if (!task.cleared) { return; }
+        if (!task.cleared || task.required === false) { return; }
         var dueDays = task.reviewDueDays == null ? 0 : Number(task.reviewDueDays);
         list.push({
           lesson: lesson,
@@ -2161,7 +2164,7 @@
     var tiles = [
       { icon: '★', value: state.progress.starCount, unit: '個', label: '獲得したスター' },
       { icon: '🔥', value: state.progress.streak, unit: '日', label: '連続で学習した日数' },
-      { icon: '✅', value: casesPassed, unit: '件', label: '通過したテストケース' },
+      { icon: '✅', value: casesPassed, unit: '件', label: '通過したテスト・構成検証' },
       { icon: '✍️', value: attempts, unit: '回', label: '実行した回数' }
     ];
     if (state.quizTotal) {
@@ -2276,7 +2279,12 @@
       }
     }
 
-    var nextLessonInChapter = selectedChapter.lessons.find(function (lesson) { return !lesson.cleared; })
+    var uncheckedPreflight = selectedChapter.cleared ? null : selectedChapter.lessons.find(function (lesson) {
+      return lesson.type === 'preflight' && !preflightRecentlyReady(lesson.id);
+    });
+    var nextLessonInChapter = uncheckedPreflight || selectedChapter.lessons.find(function (lesson) {
+      return lesson.type !== 'preflight' && !lesson.cleared;
+    }) || selectedChapter.lessons.find(function (lesson) { return lesson.type !== 'preflight'; })
       || selectedChapter.lessons[0];
     var selectedStatus = selectedChapter.cleared ? 'クリア済み'
       : (selectedChapter.clearedCount ? '学習中' : '');
@@ -2299,10 +2307,12 @@
         + esc(nextLessonInChapter.id) + '">▶ ' + chapterAction + '</button>' : '') +
       '<ul class="chapter-lesson-list">' + selectedChapter.lessons.map(function (lesson) {
         var done = lesson.clearedCount || 0;
-        var lessonStatus = lesson.cleared ? 'クリア済み' : (done ? '学習中' : '');
+        var isPreflight = lesson.type === 'preflight';
+        var lessonStatus = isPreflight ? '環境チェック · ★対象外'
+          : (lesson.cleared ? 'クリア済み' : (done ? '学習中' : ''));
         return '<li><button type="button" class="chapter-lesson-row' + (lesson.cleared ? ' cleared' : '')
           + '" data-lesson="' + esc(lesson.id) + '">' +
-          '<span class="chapter-lesson-status">' + (lesson.cleared ? '✓' : displayLessonId(lesson)) + '</span>' +
+          '<span class="chapter-lesson-status">' + (isPreflight ? '⚙' : (lesson.cleared ? '✓' : displayLessonId(lesson))) + '</span>' +
           '<span class="chapter-lesson-copy"><strong>' + esc(lesson.title) + '</strong>' +
           (lessonStatus ? '<small>' + lessonStatus + '</small>' : '') + '</span>' +
           '<span class="chapter-lesson-arrow">→</span></button></li>';
@@ -2351,12 +2361,15 @@
 
       '  <section class="samples" id="samples"></section>' +
 
+      '  <section class="preflight" id="preflight"></section>' +
+
       '  <section class="tasks" id="tasks"></section>' +
       '  <section class="quiz" id="quiz"></section>' +
       '  <nav class="lesson-next" id="lessonNext" aria-label="次のレッスン"></nav>' +
       '</article>';
 
     renderSamples(lesson);
+    renderPreflight(lesson);
 
     var tasksHost = document.getElementById('tasks');
     lesson.tasks.forEach(function (task, index) {
@@ -2371,6 +2384,80 @@
     renderQuiz(lesson);
     renderLessonNext(lesson);
     main.scrollTop = 0;
+  }
+
+  var PREFLIGHT_READY_MAX_AGE = 7 * 24 * 60 * 60 * 1000;
+
+  function preflightStorageKey(lessonId) { return 'jq-preflight-ready-' + lessonId; }
+
+  function preflightRecentlyReady(lessonId) {
+    try {
+      var checkedAt = Number(localStorage.getItem(preflightStorageKey(lessonId)) || 0);
+      return checkedAt > 0 && Date.now() - checkedAt < PREFLIGHT_READY_MAX_AGE;
+    } catch (e) { return false; }
+  }
+
+  function rememberPreflight(lessonId, ready) {
+    try {
+      if (ready) localStorage.setItem(preflightStorageKey(lessonId), String(Date.now()));
+      else localStorage.removeItem(preflightStorageKey(lessonId));
+    } catch (e) { /* 保存できなくても確認そのものは続けられる */ }
+  }
+
+  function renderPreflight(lesson) {
+    var host = document.getElementById('preflight');
+    if (!host || lesson.type !== 'preflight') { return; }
+    var spec = lesson.preflight;
+    host.innerHTML = '<div class="card card-preflight">' +
+      '<div class="preflight-head"><div><span class="screen-eyebrow">ENVIRONMENT CHECK</span>' +
+      '<h2 class="card-h"><span class="card-h-icon">⚙️</span>ローカル環境を実測する</h2></div>' +
+      '<span class="preflight-unscored">★対象外</span></div>' +
+      '<p class="preflight-lead">必須項目がそろっているか確認します。インストールや設定変更は自動では行いません。</p>' +
+      '<ul class="preflight-list">' + spec.checks.map(function (check) {
+        return '<li class="preflight-check is-pending" data-check="' + esc(check.id) + '">' +
+          '<span class="preflight-mark">○</span><div><strong>' + esc(check.label) + '</strong>' +
+          '<span class="preflight-requirement">' + (check.required ? '必須' : '任意') +
+          (check.minimumVersion ? ' · ' + esc(check.minimumVersion) + '以上' : '') + '</span>' +
+          '<p>未確認</p></div></li>';
+      }).join('') + '</ul>' +
+      '<div class="preflight-actions"><button class="primary-btn" id="preflightRun">' +
+      esc(spec.buttonLabel) + '</button><span id="preflightSummary" aria-live="polite"></span></div>' +
+      '</div>';
+
+    document.getElementById('preflightRun').addEventListener('click', function () {
+      runPreflight(lesson);
+    });
+  }
+
+  function runPreflight(lesson) {
+    var button = document.getElementById('preflightRun');
+    var summary = document.getElementById('preflightSummary');
+    if (!button || button.disabled) { return; }
+    button.disabled = true;
+    button.textContent = '確認中…';
+    summary.textContent = 'ツールとポートを確認しています';
+    api('preflight', { lessonId: lesson.id }).then(function (res) {
+      res.checks.forEach(function (check) {
+        var row = document.querySelector('.preflight-check[data-check="' + check.id + '"]');
+        if (!row) { return; }
+        row.className = 'preflight-check ' + (check.pass ? 'is-pass' : (check.required ? 'is-fail' : 'is-optional'));
+        row.querySelector('.preflight-mark').textContent = check.pass ? '✓' : (check.required ? '!' : '△');
+        row.querySelector('p').innerHTML = '<strong>' + esc(check.summary) + '</strong>' +
+          (check.detail ? '<span>' + esc(check.detail) + '</span>' : '') +
+          (!check.pass ? '<span class="preflight-help">対処: ' + esc(check.help) + '</span>' : '');
+      });
+      rememberPreflight(lesson.id, res.ready);
+      summary.className = res.ready ? 'is-ready' : 'is-not-ready';
+      summary.textContent = res.ready
+        ? '✓ 必須項目は準備できています'
+        : '必須項目を直してから、もう一度確認してください';
+    }).catch(function (error) {
+      summary.className = 'is-not-ready';
+      summary.textContent = error.message || String(error);
+    }).then(function () {
+      button.disabled = false;
+      button.textContent = lesson.preflight.buttonLabel;
+    });
   }
 
   /** レッスン全体の末尾に置く、次のページへの導線。 */
@@ -2411,16 +2498,30 @@
     var n = task.id;
     var review = !!(options && options.review);
     var weight = Number(task.reviewWeight || 0);
+    var artifact = task.type === 'artifact';
+    var project = task.type === 'project';
+    var runtimeLab = task.type === 'runtime-lab';
+    var multiFile = project || runtimeLab;
+    var workspace = runtimeLab ? task.runtimeLab : task.project;
+    var editTitle = runtimeLab ? '実行環境を使うlabを編集'
+      : (project ? 'プロジェクトを編集' : (artifact ? 'ファイルを編集' : 'コードを書く'));
+    var submitLabel = runtimeLab ? '▶ runtime labを実行'
+      : (project ? '▶ テストを実行' : (artifact ? '✓ 構成を検証' : '▶ 実行して採点'));
+    var shortcut = multiFile
+      ? 'ファイルを切り替えて編集　·　⌘/Ctrl + Enter で実行'
+      : artifact
+      ? 'Tab で字下げ　·　⌘/Ctrl + Enter で検証'
+      : 'Tab で補完（候補は ↑↓ で選ぶ）　·　⌘/Ctrl + Enter で実行';
 
     var block = document.createElement('section');
-    block.className = 'task-block';
+    block.className = 'task-block' + (task.required === false ? ' task-block-optional' : '');
     block.id = 'task-' + n;
     block.innerHTML =
       '<div class="task-block-head">' +
-      '  <span class="task-no">問題' + (index + 1) + '</span>' +
+      '  <span class="task-no">' + (task.required === false ? '任意' : '問題' + (index + 1)) + '</span>' +
       '  <span class="task-kind task-kind-' + esc(task.kind) + '">' + esc(task.label) + '</span>' +
       '  <span class="task-head-status" id="taskStatus-' + n + '">' +
-           (task.cleared ? '★ クリア済み' : '') +
+           (task.cleared ? (task.required === false ? '✓ 発展課題完了' : '★ クリア済み') : '') +
       '  </span>' +
       (review
         ? '  <span class="review-weight" id="reviewWeight-' + n + '" data-level="'
@@ -2437,19 +2538,21 @@
 
       '  <div class="card card-code">' +
       '    <div class="code-head">' +
-      '      <h2 class="card-h"><span class="card-h-icon">⌨️</span>コードを書く</h2>' +
+      '      <h2 class="card-h"><span class="card-h-icon">⌨️</span>' + editTitle + '</h2>' +
       '      <div class="code-head-actions">' +
       '        <button class="ghost-btn" data-role="restore" title="最初のひな形に戻す">ひな形に戻す</button>' +
       '      </div>' +
       '    </div>' +
+          (artifact ? renderArtifactFileHead(task.artifact) : '') +
+          (project ? renderProjectHead(task.project) : '') +
+          (runtimeLab ? renderRuntimeLabHead(task.runtimeLab) : '') +
       '    <div id="editorHost-' + n + '"></div>' +
       '    <div class="actions">' +
-      '      <button class="primary-btn" id="submitBtn-' + n + '">▶ 実行して採点</button>' +
+      '      <button class="primary-btn" id="submitBtn-' + n + '">' + submitLabel + '</button>' +
       '      <span class="spacer"></span>' +
              renderHintButton(task) +
       '    </div>' +
-      '    <div class="shortcut-note">Tab で補完（候補は ↑↓ で選ぶ）　·　' +
-      '⌘/Ctrl + Enter で実行</div>' +
+      '    <div class="shortcut-note">' + shortcut + '</div>' +
       '  </div>' +
 
       '  <div class="hints" id="hints-' + n + '"></div>' +
@@ -2457,19 +2560,31 @@
       '  <div class="solution-area" id="solution-' + n + '"></div>' +
       '</div>';
 
-    var editor = new window.JQEditor(block.querySelector('#editorHost-' + n));
-    // 復習は解き直しなので、通した解答が最初から入っていては意味がない。ひな形から始める
-    editor.setValue(!review && task.savedCode != null && task.savedCode !== ''
-      ? task.savedCode
-      : task.starterCode);
-    editor.onSubmit = function () { submit(n); };
-    editor.input.addEventListener('input', function () { scheduleSave(n); });
+    var editor;
+    if (multiFile) {
+      editor = new ProjectEditor(block.querySelector('#editorHost-' + n), workspace);
+      if (!review && task.savedFiles) { editor.setFiles(task.savedFiles); }
+      editor.onSubmit = function () { submit(n); };
+      editor.onChange(function () { scheduleSave(n); });
+    } else {
+      editor = new window.JQEditor(block.querySelector('#editorHost-' + n), {
+        language: artifact ? task.artifact.format : 'java',
+        ariaLabel: artifact ? task.artifact.path + 'を編集する欄' : 'コードを書く欄'
+      });
+      // 復習は解き直しなので、通した解答が最初から入っていては意味がない。ひな形から始める
+      editor.setValue(!review && task.savedCode != null && task.savedCode !== ''
+        ? task.savedCode
+        : task.starterCode);
+      editor.onSubmit = function () { submit(n); };
+      editor.input.addEventListener('input', function () { scheduleSave(n); });
+    }
     editors[n] = editor;
 
     block.querySelector('#submitBtn-' + n).addEventListener('click', function () { submit(n); });
     block.querySelector('[data-role="restore"]').addEventListener('click', function () {
-      if (window.confirm('書いたコードを消して、最初のひな形に戻します。よろしいですか？')) {
-        editor.setValue(task.starterCode);
+      if (window.confirm((multiFile ? '編集した複数ファイル' : (artifact ? '編集した内容' : '書いたコード'))
+          + 'を消して、最初のひな形に戻します。よろしいですか？')) {
+        if (multiFile) { editor.restore(); } else { editor.setValue(task.starterCode); }
         editor.focus();
         scheduleSave(n);
       }
@@ -2483,6 +2598,135 @@
     // （renderRevealedHints は id で引くので、繋ぐ前だと見つからない）
     return block;
   }
+
+  function renderArtifactFileHead(artifact) {
+    return '<div class="artifact-file-head">' +
+      '<span class="artifact-file-icon">📄</span>' +
+      '<code>' + esc(artifact.path) + '</code>' +
+      '<span class="artifact-format">' + esc(artifact.format.toUpperCase()) + '</span>' +
+      '</div>';
+  }
+
+  function renderProjectHead(project) {
+    return '<div class="project-head">' +
+      '<span>📦 ' + esc(project.name) + '</span>' +
+      '<code>' + esc(project.command) + '</code>' +
+      '<span>' + project.editableFileCount + '編集 / ' + project.fileCount + '表示</span>' +
+      '</div>';
+  }
+
+  function renderRuntimeLabHead(lab) {
+    var capabilities = (lab.capabilities || []).map(function (name) {
+      return '<span class="runtime-capability">' + esc(name) + '</span>';
+    }).join('');
+    return '<div class="runtime-lab-head">' +
+      '<div><strong>🧪 ' + esc(lab.name) + '</strong>' + capabilities + '</div>' +
+      '<code>' + esc(lab.command) + '</code>' +
+      '<span>' + lab.editableFileCount + '編集 / ' + lab.fileCount + '表示</span>' +
+      '</div>';
+  }
+
+  /** project問題用のファイルナビゲータと、ファイルごとの軽量エディタ。 */
+  function ProjectEditor(host, project) {
+    this.host = host;
+    this.project = project;
+    this.fileEditors = {};
+    this.changeHandlers = [];
+    this.onSubmit = null;
+    this.activePath = null;
+    this._build();
+  }
+
+  ProjectEditor.prototype._build = function () {
+    var self = this;
+    this.host.classList.add('project-editor');
+    this.host.innerHTML = '<div class="project-file-list" role="tablist" aria-label="プロジェクトのファイル"></div>' +
+      '<div class="project-file-work"></div>';
+    var list = this.host.querySelector('.project-file-list');
+    var work = this.host.querySelector('.project-file-work');
+
+    this.project.files.forEach(function (file, index) {
+      var button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'project-file-tab';
+      button.setAttribute('role', 'tab');
+      button.setAttribute('data-path', file.path);
+      button.innerHTML = '<span class="project-file-name">' + esc(file.path.split('/').pop()) + '</span>' +
+        '<span class="project-file-path">' + esc(file.path) + '</span>' +
+        '<span class="project-file-mode">' + (file.editable ? '編集' : '参照') + '</span>';
+      button.addEventListener('click', function () { self.show(file.path); });
+      list.appendChild(button);
+
+      var pane = document.createElement('div');
+      pane.className = 'project-file-pane';
+      pane.setAttribute('data-path', file.path);
+      pane.hidden = true;
+      pane.innerHTML = '<div class="project-file-bar"><code>' + esc(file.path) + '</code>' +
+        '<span>' + (file.editable ? '編集できます' : '参照専用') + '</span></div>' +
+        '<div class="project-file-editor-host"></div>';
+      work.appendChild(pane);
+
+      var editor = new window.JQEditor(pane.querySelector('.project-file-editor-host'), {
+        language: file.language,
+        ariaLabel: file.path + (file.editable ? 'を編集する欄' : 'の内容')
+      });
+      editor.setValue(file.content);
+      editor.input.readOnly = !file.editable;
+      if (!file.editable) { editor.host.classList.add('is-readonly'); }
+      editor.onSubmit = function () { if (self.onSubmit) { self.onSubmit(); } };
+      if (file.editable) {
+        editor.input.addEventListener('input', function () {
+          self.changeHandlers.forEach(function (handler) { handler(); });
+        });
+      }
+      self.fileEditors[file.path] = editor;
+      if (index === 0) self.activePath = file.path;
+    });
+
+    var firstEditable = this.project.files.find(function (file) { return file.editable; });
+    this.show(firstEditable ? firstEditable.path : this.activePath);
+  };
+
+  ProjectEditor.prototype.show = function (path) {
+    this.activePath = path;
+    Array.prototype.forEach.call(this.host.querySelectorAll('.project-file-tab'), function (tab) {
+      var active = tab.getAttribute('data-path') === path;
+      tab.classList.toggle('is-active', active);
+      tab.setAttribute('aria-selected', active ? 'true' : 'false');
+    });
+    Array.prototype.forEach.call(this.host.querySelectorAll('.project-file-pane'), function (pane) {
+      pane.hidden = pane.getAttribute('data-path') !== path;
+    });
+  };
+
+  ProjectEditor.prototype.getFiles = function () {
+    var result = {};
+    var self = this;
+    this.project.files.forEach(function (file) {
+      if (file.editable) result[file.path] = self.fileEditors[file.path].getValue();
+    });
+    return result;
+  };
+
+  ProjectEditor.prototype.setFiles = function (files) {
+    var self = this;
+    this.project.files.forEach(function (file) {
+      if (file.editable && Object.prototype.hasOwnProperty.call(files, file.path)) {
+        self.fileEditors[file.path].setValue(files[file.path]);
+      }
+    });
+  };
+
+  ProjectEditor.prototype.restore = function () {
+    var initial = {};
+    this.project.files.forEach(function (file) { if (file.editable) initial[file.path] = file.content; });
+    this.setFiles(initial);
+  };
+
+  ProjectEditor.prototype.onChange = function (handler) { this.changeHandlers.push(handler); };
+  ProjectEditor.prototype.focus = function () {
+    if (this.fileEditors[this.activePath]) this.fileEditors[this.activePath].focus();
+  };
 
   // ------------------------------------------------------- 確認クイズ（4択）
 
@@ -2583,6 +2827,40 @@
 
   /** 問題文の下に置く「どんな入出力が試されるか」の表。 */
   function renderCasePreview(task) {
+    if (task.type === 'runtime-lab') {
+      var lab = task.runtimeLab;
+      var runtimeChecks = (lab.checks || []).map(function (check) {
+        return '<li>' + esc(check.label) + '</li>';
+      }).join('');
+      var requirements = (lab.requiredTools || []).map(function (tool) {
+        return '<code>' + esc(tool) + '</code>';
+      }).join('、');
+      if ((lab.requiredImages || []).length) {
+        requirements += '、Docker image ' + lab.requiredImages.map(function (image) {
+          return '<code>' + esc(image) + '</code>';
+        }).join('、');
+      }
+      return '<div class="cases runtime-verification">' +
+        '<div class="cases-title">実環境で検証すること（全' + lab.checkCount + '件）</div>' +
+        '<ul>' + runtimeChecks + '</ul>' +
+        '<p class="case-hidden-note">必要環境: ' + requirements + '。提出すると動的なlocalhostポートを使い、' +
+        '<code>' + esc(lab.command) + '</code>で起動・観測・停止まで実行します。元のlabは変更しません。</p></div>';
+    }
+    if (task.type === 'project') {
+      return '<div class="cases project-verification">' +
+        '<div class="cases-title">完了条件</div>' +
+        '<ul><li>' + esc(task.project.verification) + '</li></ul>' +
+        '<p class="case-hidden-note">提出すると、一時コピーしたプロジェクトで <code>' +
+        esc(task.project.command) + '</code> を実行します。元のlabは変更しません。</p></div>';
+    }
+    if (task.type === 'artifact') {
+      var requirements = (task.artifact.requirements || []).map(function (message) {
+        return '<li>' + esc(message) + '</li>';
+      }).join('');
+      return '<div class="cases artifact-requirements">' +
+        '<div class="cases-title">検証すること（全' + task.artifact.checkCount + '件）</div>' +
+        '<ul>' + requirements + '</ul></div>';
+    }
     if (!task.visibleCases.length && !task.hiddenCaseCount) { return ''; }
 
     var usesStdin = task.visibleCases.some(function (c) { return c.stdin !== ''; });
@@ -2706,9 +2984,20 @@
     if (isReviewing()) { return; }
     clearTimeout(saveTimers[taskId]);
     var id = currentId;
-    var code = editors[taskId].getValue();
+    var lesson = findLesson(id);
+    var task = lesson && findTask(lesson, taskId);
+    var multiFile = task && (task.type === 'project' || task.type === 'runtime-lab');
+    var value = multiFile
+      ? { files: editors[taskId].getFiles() }
+      : { code: editors[taskId].getValue() };
+    // 同じ画面セッション内で別レッスンへ移って戻っても、サーバ再取得前のstateが
+    // 古いひな形を描かないよう手元の状態も更新する。
+    if (multiFile) { task.savedFiles = value.files; }
+    else if (task) { task.savedCode = value.code; }
     saveTimers[taskId] = setTimeout(function () {
-      api('save', { lessonId: id, taskId: taskId, code: code }).catch(function () {
+      var payload = { lessonId: id, taskId: taskId };
+      Object.keys(value).forEach(function (key) { payload[key] = value[key]; });
+      api('save', payload).catch(function () {
         // 保存に失敗しても学習は続けられるので黙って見送る（次の入力で再試行される）
       });
     }, 800);
@@ -2720,7 +3009,12 @@
     var submitBtn = document.getElementById('submitBtn-' + taskId);
     if (submitBtn) {
       submitBtn.disabled = on;
-      submitBtn.textContent = on ? (label || '実行中…') : '▶ 実行して採点';
+      var lesson = findLesson(currentId);
+      var task = lesson && findTask(lesson, taskId);
+      var idleLabel = task && task.type === 'runtime-lab' ? '▶ runtime labを実行'
+        : (task && task.type === 'project' ? '▶ テストを実行'
+        : (task && task.type === 'artifact' ? '✓ 構成を検証' : '▶ 実行して採点'));
+      submitBtn.textContent = on ? (label || '実行中…') : idleLabel;
     }
   }
 
@@ -2731,12 +3025,20 @@
     setBusy(taskId, true, '採点中…');
     result.innerHTML = '<div class="card card-result"><div class="spinner">採点中…</div></div>';
 
-    api('submit', {
+    var lesson = findLesson(currentId);
+    var task = lesson && findTask(lesson, taskId);
+    var payload = {
       lessonId: currentId,
       taskId: taskId,
-      code: editors[taskId].getValue(),
       review: review
-    })
+    };
+    if (task && (task.type === 'project' || task.type === 'runtime-lab')) {
+      payload.files = editors[taskId].getFiles();
+    } else {
+      payload.code = editors[taskId].getValue();
+    }
+
+    api('submit', payload)
       .then(function (res) {
         var wasCurrent = currentId;
         var cafeBefore = cafeLevelSnapshot();
@@ -2795,12 +3097,86 @@
     var task = lesson && findTask(lesson, taskId);
     var status = document.getElementById('taskStatus-' + taskId);
     if (!task || !status) { return; }
-    status.textContent = task.cleared ? '★ クリア済み' : '';
+    status.textContent = task.cleared
+      ? (task.required === false ? '✓ 発展課題完了' : '★ クリア済み') : '';
   }
 
   function renderJudgement(res, taskId) {
     var result = document.getElementById('result-' + taskId);
     var html = '<div class="card card-result ' + (res.allPass ? 'ok' : 'ng') + '">';
+
+    if (res.runtimeLab) {
+      if (!res.available || !res.started) {
+        html += '<h2 class="card-h"><span class="card-h-icon">🧰</span>runtime labを開始できませんでした</h2>' +
+          '<p class="result-lead">コードの不正解ではありません。必要なローカル環境を準備してから再実行してください。</p>' +
+          '<div class="hint-box">' + esc(res.error || '実行環境を起動できませんでした。') + '</div>';
+        result.innerHTML = html + '</div>';
+        return;
+      }
+      html += '<h2 class="card-h"><span class="card-h-icon">' + (res.allPass ? '🎉' : '🔬') + '</span>' +
+        (res.allPass ? 'クリア！実環境の検証に合格' :
+          (res.timedOut ? '制限時間を超えたため、labを停止しました' :
+            '実環境の結果: ' + res.passedCount + ' / ' + res.checks.length + ' 通過')) + '</h2>' +
+        '<p class="result-lead">終了コード: ' + res.exitCode + '　·　' + res.durationMs + 'ms</p>' +
+        '<ul class="case-results runtime-check-results">';
+      (res.checks || []).forEach(function (check) {
+        html += '<li class="case-result ' + (check.pass ? 'pass' : 'fail') + '">' +
+          '<div class="case-result-head"><span class="case-mark">' + (check.pass ? '✅' : '❌') + '</span>' +
+          '<span class="case-label">' + esc(check.message) + '</span></div></li>';
+      });
+      html += '</ul><div class="out-label">runtime lab出力</div><pre class="out-pre project-output">' +
+        (res.output ? esc(res.output) : '<em>（出力はありません）</em>') + '</pre>';
+      if (res.truncated) html += '<div class="out-note">出力が長いため、途中で表示を打ち切りました。</div>';
+      result.innerHTML = html + '</div>';
+      return;
+    }
+
+    if (res.project) {
+      if (!res.started) {
+        html += '<h2 class="card-h"><span class="card-h-icon">🛠</span>テストを開始できませんでした</h2>' +
+          '<div class="hint-box">' + esc(res.error || '検証コマンドを起動できませんでした。') + '</div>';
+        result.innerHTML = html + '</div>';
+        return;
+      }
+      html += '<h2 class="card-h"><span class="card-h-icon">' + (res.allPass ? '🎉' : '🔍') + '</span>' +
+        (res.allPass ? 'クリア！プロジェクトのテストに合格' :
+          (res.timedOut ? '制限時間を超えたため停止しました' : 'テストが失敗しました')) + '</h2>' +
+        '<p class="result-lead">終了コード: ' + res.exitCode + '　·　' + res.durationMs + 'ms</p>';
+      if (!res.allPass) {
+        html += '<p class="result-lead">最初の失敗から読み、変更したファイルと受け入れ条件を対応させましょう。</p>';
+      }
+      html += '<div class="out-label">ビルド・テスト出力</div>' +
+        '<pre class="out-pre project-output">' +
+        (res.output ? esc(res.output) : '<em>（出力はありません）</em>') + '</pre>';
+      if (res.truncated) html += '<div class="out-note">出力が長いため、途中で表示を打ち切りました。</div>';
+      result.innerHTML = html + '</div>';
+      return;
+    }
+
+    if (res.artifact) {
+      if (!res.syntaxValid) {
+        html += '<h2 class="card-h"><span class="card-h-icon">🛠</span>ファイルを読み取れませんでした</h2>'
+          + '<p class="result-lead">まず形式上の誤りを直しましょう。内容の検証は、その後に行います。</p>'
+          + '<div class="hint-box">' + esc(res.syntaxError) + '</div>';
+        result.innerHTML = html + '</div>';
+        return;
+      }
+      html += '<h2 class="card-h"><span class="card-h-icon">' + (res.allPass ? '🎉' : '🔍') + '</span>'
+        + (res.allPass ? 'クリア！構成はすべて有効です'
+          : '結果: ' + res.passedCount + ' / ' + res.checks.length + ' 通過') + '</h2>';
+      if (!res.allPass) {
+        html += '<p class="result-lead">通らなかった項目を確認し、設定の要素・値・置き場所を見直しましょう。</p>';
+      }
+      html += '<ul class="case-results artifact-check-results">';
+      res.checks.forEach(function (check) {
+        html += '<li class="case-result ' + (check.pass ? 'pass' : 'fail') + '">' +
+          '<div class="case-result-head"><span class="case-mark">' + (check.pass ? '✅' : '❌') + '</span>' +
+          '<span class="case-label">' + esc(check.message) + '</span></div></li>';
+      });
+      html += '</ul>';
+      result.innerHTML = html + '</div>';
+      return;
+    }
 
     if (!res.compiled) {
       html += '<h2 class="card-h"><span class="card-h-icon">🛠</span>コンパイルできませんでした</h2>'
@@ -2859,7 +3235,9 @@
     });
     html += '</ul>';
 
-    if (res.allPass && !res.next) {
+    if (res.allPass && res.optionalComplete) {
+      html += '<div class="all-done">任意の発展課題を完了しました。章クリアや★の分母には影響しません。</div>';
+    } else if (res.allPass && !res.next) {
       html += '<div class="all-done">これで全問完了です。おつかれさまでした！</div>';
     }
 
@@ -2990,14 +3368,32 @@
     row.querySelector('[data-role="solution"]').addEventListener('click', function () {
       api('solution', { lessonId: lessonId, taskId: taskId })
         .then(function (res) {
+          var solutionBody;
+          if (task.type === 'project' || task.type === 'runtime-lab') {
+            solutionBody = Object.keys(res.files || {}).map(function (path) {
+              var workspace = task.type === 'runtime-lab' ? task.runtimeLab : task.project;
+              var file = workspace.files.find(function (item) { return item.path === path; });
+              var highlighted = file && file.language === 'java'
+                ? hlJava(res.files[path]) : esc(res.files[path]);
+              return '<div class="project-solution-file"><code>' + esc(path) + '</code></div>' +
+                '<pre class="code"><code>' + highlighted + '</code></pre>';
+            }).join('');
+          } else {
+            solutionBody = '<pre class="code"><code>' +
+              (task.type === 'artifact' ? esc(res.solution) : hlJava(res.solution)) + '</code></pre>';
+          }
           row.innerHTML = '<div class="card card-solution">'
             + '<div class="solution-head">📖 模範解答'
             + '<button class="ghost-btn small" data-role="copy">エディタに入れる</button></div>'
-            + '<pre class="code"><code>' + hlJava(res.solution) + '</code></pre>'
+            + solutionBody
             + '<p class="solution-note">写すだけでなく、1行ずつ「なぜそう書くのか」を'
             + '声に出して説明できるか試してみましょう。</p></div>';
           row.querySelector('[data-role="copy"]').addEventListener('click', function () {
-            editors[taskId].setValue(res.solution);
+            if (task.type === 'project' || task.type === 'runtime-lab') {
+              editors[taskId].setFiles(res.files || {});
+            } else {
+              editors[taskId].setValue(res.solution);
+            }
             editors[taskId].focus();
             scheduleSave(taskId);
           });

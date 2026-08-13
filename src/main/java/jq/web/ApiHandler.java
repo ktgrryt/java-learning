@@ -13,12 +13,16 @@ import jq.content.Task;
 import jq.content.TestCase;
 import jq.format.JavaSnippetFormatter;
 import jq.judge.CaseResult;
+import jq.judge.ArtifactValidator;
 import jq.judge.Judge;
 import jq.judge.SourceChecker;
 import jq.json.MiniJson;
 import jq.progress.ProgressStore;
 import jq.runner.Diagnostic;
 import jq.runner.JavaRunner;
+import jq.runner.PreflightRunner;
+import jq.runner.ProjectRunner;
+import jq.runner.RuntimeLabRunner;
 import jq.runner.RunResult;
 
 import java.io.IOException;
@@ -45,6 +49,7 @@ import java.util.function.Supplier;
  *   <li>{@code POST /api/save}     … 書きかけのコードを保存</li>
  *   <li>{@code POST /api/hint}     … ヒントを1つ開示</li>
  *   <li>{@code POST /api/solution} … 模範解答（全ヒント開示後、またはクリア後）</li>
+ *   <li>{@code POST /api/preflight} … 外部ツールと開発用ポートの事前確認</li>
  *   <li>{@code POST /api/bookmark} … 問題のブックマークを付け外し（復習モードで絞り込む）</li>
  *   <li>{@code POST /api/onboarding/complete} … 初回案内の完了を保存</li>
  *   <li>{@code POST /api/cafe/purchase} … カフェ設備を購入</li>
@@ -59,7 +64,7 @@ import java.util.function.Supplier;
  */
 public final class ApiHandler implements HttpHandler {
 
-    private static final int MAX_BODY_BYTES = 200_000;
+    private static final int MAX_BODY_BYTES = 500_000;
 
     /**
      * 同時に走らせるコード実行の数。
@@ -78,6 +83,9 @@ public final class ApiHandler implements HttpHandler {
     private final ContentLoader loader;
     private final ProgressStore progress;
     private final JavaRunner runner = new JavaRunner();
+    private final ProjectRunner projectRunner = new ProjectRunner();
+    private final RuntimeLabRunner runtimeLabRunner = new RuntimeLabRunner();
+    private final PreflightRunner preflightRunner = new PreflightRunner();
     private final AtomicReference<Curriculum> curriculum = new AtomicReference<>();
     /** 先に待った人から順に通す（fair）。混んでいるときに特定の提出だけ待たされ続けないように。 */
     private final Semaphore runSlots = new Semaphore(MAX_CONCURRENT_RUNS, true);
@@ -118,6 +126,8 @@ public final class ApiHandler implements HttpHandler {
                 // この2つだけが子プロセスを起こす。他の口を待たせないよう数を絞る
                 case "/api/run" -> sendJson(exchange, 200, inRunSlot(() -> doRun(body)));
                 case "/api/submit" -> sendJson(exchange, 200, inRunSlot(() -> doSubmit(body)));
+                case "/api/preflight" -> sendJson(exchange, 200,
+                        inRunSlot(() -> doPreflight(body)));
                 case "/api/save" -> sendJson(exchange, 200, doSave(body));
                 case "/api/hint" -> sendJson(exchange, 200, doHint(body));
                 case "/api/quiz" -> sendJson(exchange, 200, doQuiz(body));
@@ -156,6 +166,19 @@ public final class ApiHandler implements HttpHandler {
 
     // -------------------------------------------------------------- handlers
 
+    private Object doPreflight(Map<String, Object> body) {
+        String lessonId = requireString(body, "lessonId");
+        Lesson lesson = curriculum.get().lesson(lessonId)
+                .orElseThrow(() -> new BadRequest("知らないレッスンです: " + lessonId));
+        if (!lesson.isPreflight()) {
+            throw new BadRequest("事前確認レッスンではありません: " + lessonId);
+        }
+        Map<String, Object> result = new LinkedHashMap<>(
+                preflightRunner.run(lesson.preflight()).toJson());
+        result.put("lessonId", lessonId);
+        return result;
+    }
+
     /** カリキュラム全体と進捗をまとめて返す。画面はこれ1本で描ける。 */
     private Object state() {
         Curriculum c = curriculum.get();
@@ -189,7 +212,11 @@ public final class ApiHandler implements HttpHandler {
                     Task task = lesson.tasks().get(i);
                     String key = Lesson.taskKey(id, task.id());
                     tJson.put("cleared", cleared.contains(key));
-                    tJson.put("savedCode", progress.savedCode(key));
+                    if (task.isMultiFile()) {
+                        tJson.put("savedFiles", savedProjectFiles(task, progress.savedCode(key)));
+                    } else {
+                        tJson.put("savedCode", progress.savedCode(key));
+                    }
                     tJson.put("hintsRevealed", progress.hintsRevealed(key));
                     tJson.put("revealedHints", revealedHints(id, task));
                     tJson.put("passedCount", progress.bestPassed(key));
@@ -391,15 +418,16 @@ public final class ApiHandler implements HttpHandler {
         Curriculum c = curriculum.get();
         String lessonId = requireString(body, "lessonId");
         String taskId = taskId(body);
-        String code = requireCode(body);
         Lesson lesson = c.lesson(lessonId)
                 .orElseThrow(() -> new BadRequest("知らないレッスンです: " + lessonId));
         Task task = lesson.task(taskId)
                 .orElseThrow(() -> new BadRequest("知らない問題です: " + lessonId + "#" + taskId));
         String key = Lesson.taskKey(lessonId, taskId);
+        String code = task.isMultiFile() ? "" : requireCode(body);
+        Map<String, String> projectFiles = task.isMultiFile() ? requireProjectFiles(body, task) : Map.of();
 
         if (body.get("review") != Boolean.TRUE) {
-            progress.saveCode(key, code);
+            progress.saveCode(key, task.isMultiFile() ? MiniJson.write(projectFiles) : code);
         }
         int attempts = progress.recordAttempt(key);
 
@@ -407,6 +435,50 @@ public final class ApiHandler implements HttpHandler {
         result.put("lessonId", lessonId);
         result.put("taskId", taskId);
         result.put("attempts", attempts);
+
+        if (task.isProject()) {
+            ProjectRunner.Result projectResult = projectRunner.run(task.project(), projectFiles);
+            result.putAll(projectResult.toJson());
+            progress.recordPassed(key, projectResult.allPass() ? 1 : 0);
+            progress.recordMasterySubmission(key, projectResult.allPass());
+            if (projectResult.allPass()) {
+                addClearRewards(result, c, lesson, task, lessonId, taskId, key);
+            }
+            result.put("delta", delta(lessonId));
+            return result;
+        }
+
+        if (task.isRuntimeLab()) {
+            RuntimeLabRunner.Result runtimeResult = runtimeLabRunner.run(task.runtimeLab(), projectFiles);
+            result.putAll(runtimeResult.toJson());
+            if (runtimeResult.available() && runtimeResult.started()) {
+                progress.recordPassed(key, (int) runtimeResult.checks().stream()
+                        .filter(RuntimeLabRunner.CheckResult::pass).count());
+                progress.recordMasterySubmission(key, runtimeResult.allPass());
+                if (runtimeResult.allPass()) {
+                    addClearRewards(result, c, lesson, task, lessonId, taskId, key);
+                }
+            }
+            result.put("delta", delta(lessonId));
+            return result;
+        }
+
+        if (task.isArtifact()) {
+            ArtifactValidator.Result validation = ArtifactValidator.validate(task.artifact(), code);
+            result.put("artifact", true);
+            result.put("syntaxValid", validation.syntaxValid());
+            result.put("syntaxError", validation.syntaxError());
+            result.put("checks", validation.checksJson());
+            result.put("passedCount", validation.passedCount());
+            result.put("allPass", validation.allPass());
+            progress.recordPassed(key, validation.passedCount());
+            progress.recordMasterySubmission(key, validation.allPass());
+            if (validation.allPass()) {
+                addClearRewards(result, c, lesson, task, lessonId, taskId, key);
+            }
+            result.put("delta", delta(lessonId));
+            return result;
+        }
 
         try (JavaRunner.Compiled compiled = runner.compile(code, lesson.libSources())) {
             result.put("compiled", compiled.success());
@@ -440,52 +512,63 @@ public final class ApiHandler implements HttpHandler {
             progress.recordPassed(key, passed);
             progress.recordMasterySubmission(key, allPass);
 
-            if (allPass) {
-                Set<String> before = progress.clearedIds();
-                // レッスンが引けている以上、その章も必ず引ける（Curriculum が両方を
-                // 同時に索引する）。以前はここだけ null を許す書き方が混ざっていて、
-                // 「null になり得る」と読めてしまっていた。前提をここで1回明示する。
-                Chapter chapter = Objects.requireNonNull(
-                        c.chapterOf(lessonId), "章が引けません: " + lessonId);
-                boolean chapterWasCleared = c.isChapterCleared(chapter, before);
-                boolean lessonWasCleared = c.isLessonCleared(lesson, before);
-
-                boolean firstTime = progress.markCleared(key);
-                Set<String> after = progress.clearedIds();
-                ProgressStore.CafeLearningProgress cafeLearningAfter =
-                        cafeLearningProgress(c, after);
-
-                boolean chapterCompletedNow = firstTime
-                        && !chapterWasCleared
-                        && c.isChapterCleared(chapter, after);
-                ProgressStore.CafeAward cafeAward = ProgressStore.CafeAward.NONE;
-                if (firstTime) {
-                    cafeAward = progress.rewardTask(cafeLearningAfter, key);
-                }
-                if (c.isChapterCleared(chapter, after)) {
-                    progress.noteChapterAchievements(chapterTaskKeys(chapter));
-                }
-                boolean chapterCleared = false;
-                if (chapterCompletedNow) {
-                    ProgressStore.CafeAward chapterAward = progress.rewardChapter(
-                            chapter.id(), cafeLearningAfter, c.taskCount(chapter));
-                    chapterCleared = chapterAward.cash() > 0 || chapterAward.cups() > 0;
-                    cafeAward = cafeAward.plus(chapterAward);
-                }
-
-                result.put("newStar", firstTime);
-                result.put("lessonCleared", !lessonWasCleared && c.isLessonCleared(lesson, after));
-                result.put("chapterCleared", chapterCleared);
-                result.put("chapterTitle", chapter.title());
-                result.put("chapterNumber", chapter.partNumber());
-                result.put("cafeAward", cafeAwardJson(cafeAward));
-                Curriculum.TaskRef next = c.nextTask(lessonId, taskId);
-                result.put("next", next == null ? null : next.toJson());
-                result.put("allChaptersCleared", after.size() == c.totalTaskCount());
-            }
+            if (allPass) addClearRewards(result, c, lesson, task, lessonId, taskId, key);
         }
         result.put("delta", delta(lessonId));
         return result;
+    }
+
+    /** 問題形式に依存しない、初回クリア報酬と次問題の情報を応答へ加える。 */
+    private void addClearRewards(Map<String, Object> result, Curriculum c, Lesson lesson, Task task,
+                                 String lessonId, String taskId, String key) {
+        Set<String> before = progress.clearedIds();
+        Chapter chapter = Objects.requireNonNull(
+                c.chapterOf(lessonId), "章が引けません: " + lessonId);
+        boolean chapterWasCleared = c.isChapterCleared(chapter, before);
+        boolean lessonWasCleared = c.isLessonCleared(lesson, before);
+
+        boolean firstTime = progress.markCleared(key);
+        Set<String> after = progress.clearedIds();
+        if (task.isOptional()) {
+            result.put("newStar", false);
+            result.put("optionalComplete", firstTime);
+            result.put("lessonCleared", false);
+            result.put("chapterCleared", false);
+            result.put("chapterTitle", chapter.title());
+            result.put("chapterNumber", chapter.partNumber());
+            result.put("cafeAward", cafeAwardJson(ProgressStore.CafeAward.NONE));
+            result.put("next", null);
+            result.put("allChaptersCleared",
+                    currentCurriculumClearedTaskCount(c, after) == c.totalTaskCount());
+            return;
+        }
+        ProgressStore.CafeLearningProgress cafeLearningAfter = cafeLearningProgress(c, after);
+        boolean chapterCompletedNow = firstTime && !chapterWasCleared
+                && c.isChapterCleared(chapter, after);
+        ProgressStore.CafeAward cafeAward = firstTime
+                ? progress.rewardTask(cafeLearningAfter, key)
+                : ProgressStore.CafeAward.NONE;
+        if (c.isChapterCleared(chapter, after)) {
+            progress.noteChapterAchievements(chapterTaskKeys(chapter));
+        }
+        boolean chapterCleared = false;
+        if (chapterCompletedNow) {
+            ProgressStore.CafeAward chapterAward = progress.rewardChapter(
+                    chapter.id(), cafeLearningAfter, c.taskCount(chapter));
+            chapterCleared = chapterAward.cash() > 0 || chapterAward.cups() > 0;
+            cafeAward = cafeAward.plus(chapterAward);
+        }
+
+        result.put("newStar", firstTime);
+        result.put("lessonCleared", !lessonWasCleared && c.isLessonCleared(lesson, after));
+        result.put("chapterCleared", chapterCleared);
+        result.put("chapterTitle", chapter.title());
+        result.put("chapterNumber", chapter.partNumber());
+        result.put("cafeAward", cafeAwardJson(cafeAward));
+        Curriculum.TaskRef next = c.nextTask(lessonId, taskId);
+        result.put("next", next == null ? null : next.toJson());
+        result.put("allChaptersCleared",
+                currentCurriculumClearedTaskCount(c, after) == c.totalTaskCount());
     }
 
     private Object doSave(Map<String, Object> body) {
@@ -493,8 +576,13 @@ public final class ApiHandler implements HttpHandler {
         String taskId = taskId(body);
         // 知らないレッスンIDでも保存できると、progress.json に無関係なキーをいくらでも
         // 積める（消す手立ては画面に無い）。実在する問題の下書きだけを受け付ける
-        requireTask(lessonId, taskId);
-        progress.saveCode(Lesson.taskKey(lessonId, taskId), requireCode(body));
+        Task task = requireTask(lessonId, taskId);
+        if (task.isMultiFile()) {
+            progress.saveCode(Lesson.taskKey(lessonId, taskId),
+                    MiniJson.write(requireProjectFiles(body, task)));
+        } else {
+            progress.saveCode(Lesson.taskKey(lessonId, taskId), requireCode(body));
+        }
         return Map.of("ok", true);
     }
 
@@ -795,13 +883,20 @@ public final class ApiHandler implements HttpHandler {
         Map<String, Object> m = new LinkedHashMap<>();
         m.put("lessonId", lessonId);
         m.put("taskId", taskId);
-        m.put("solution", JavaSnippetFormatter.formatIfCompact(task.solution()));
+        if (task.isMultiFile()) {
+            m.put("files", task.isProject()
+                    ? task.project().solutionFilesJson() : task.runtimeLab().solutionFilesJson());
+        } else {
+            m.put("solution", task.isArtifact()
+                    ? task.solution()
+                    : JavaSnippetFormatter.formatIfCompact(task.solution()));
+        }
         return m;
     }
 
     /** 模範解答は「クリア済み」か「ヒントを全部見た」場合に開放する（問題ごと）。 */
     private boolean solutionUnlocked(String lessonId, Task task, Set<String> cleared) {
-        if (task.solution().isEmpty()) {
+        if (!task.hasSolution()) {
             return false;
         }
         String key = Lesson.taskKey(lessonId, task.id());
@@ -898,6 +993,57 @@ public final class ApiHandler implements HttpHandler {
                     + " 文字、送られたのは " + code.length() + " 文字）。");
         }
         return code;
+    }
+
+    /** project/runtime-lab問題の編集対象だけを、教材で宣言された順序にそろえて受け取る。 */
+    private static Map<String, String> requireProjectFiles(Map<String, Object> body, Task task) {
+        Object value = body.get("files");
+        if (!(value instanceof Map<?, ?>)) {
+            throw new BadRequest("\"files\" が必要です");
+        }
+        Map<String, Object> raw = MiniJson.asObj(value);
+        List<String> expected = task.workspace().editableFiles().stream()
+                .map(jq.content.ProjectFile::path).toList();
+        if (!raw.keySet().equals(new java.util.LinkedHashSet<>(expected))) {
+            throw new BadRequest("編集対象ファイルが一致しません。画面を再読み込みしてください。");
+        }
+        Map<String, String> files = new LinkedHashMap<>();
+        int total = 0;
+        for (String path : expected) {
+            Object content = raw.get(path);
+            if (!(content instanceof String text)) {
+                throw new BadRequest(path + " の内容が文字列ではありません");
+            }
+            if (text.length() > ProjectRunner.FILE_LIMIT_CHARS) {
+                throw new BadRequest(path + " が長すぎます（上限 "
+                        + ProjectRunner.FILE_LIMIT_CHARS + "文字）");
+            }
+            total += text.length();
+            files.put(path, text);
+        }
+        if (total > ProjectRunner.TOTAL_LIMIT_CHARS) {
+            throw new BadRequest("project全体が長すぎます（上限 "
+                    + ProjectRunner.TOTAL_LIMIT_CHARS + "文字）");
+        }
+        return files;
+    }
+
+    /** 保存済みJSONが壊れていても、教材側の初期ファイルへ戻れるよう安全な分だけ読む。 */
+    private static Map<String, Object> savedProjectFiles(Task task, String saved) {
+        if (saved == null || saved.isBlank()) return Map.of();
+        try {
+            Map<String, Object> raw = MiniJson.parseObject(saved);
+            Map<String, Object> result = new LinkedHashMap<>();
+            for (jq.content.ProjectFile file : task.workspace().editableFiles()) {
+                Object content = raw.get(file.path());
+                if (content instanceof String text && text.length() <= ProjectRunner.FILE_LIMIT_CHARS) {
+                    result.put(file.path(), text);
+                }
+            }
+            return result;
+        } catch (RuntimeException ignored) {
+            return Map.of();
+        }
     }
 
     private static String requireString(Map<String, Object> body, String key) {

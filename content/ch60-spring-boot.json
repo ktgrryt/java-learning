@@ -5,6 +5,40 @@
   "emoji": "🌱",
   "lessons": [
     {
+      "id": "60-0",
+      "lessonType": "preflight",
+      "title": "事前確認：Spring Boot labを起動する準備",
+      "explanation": "## Spring Bootのコードを書く前に確認する\n\n`labs/frameworks/spring-boot`はJDK 21、Maven 3.9以上、localhostの8080番ポートを使います。ここではツールの版とポートの空きを実測します。確認には★が付かず、失敗しても他のレッスンは開けます。\n\n```bash\ncd labs/frameworks/spring-boot\nmvn spring-boot:run\n# 別のターミナルで確認\ncurl 'http://localhost:8080/api/greeting?name=Java'\n```\n\n初回起動では依存関係を取得するため、ネットワーク環境によって時間がかかります。8080番が使用中なら、先に動いている開発サーバーを停止するか、`server.port`を明示してlabと確認URLを同じ番号へ変更します。環境のエラーを解消してから、ControllerやServiceのコードを直します。",
+      "preflight": {
+        "buttonLabel": "Spring Bootの準備を確認する",
+        "checks": [
+          {
+            "id": "java-runtime",
+            "type": "tool",
+            "tool": "java",
+            "label": "JDK 21の実行環境",
+            "minimumVersion": "21",
+            "help": "JDK 21以降をインストールし、JAVA_HOMEとPATHをそろえてください。"
+          },
+          {
+            "id": "maven",
+            "type": "tool",
+            "tool": "maven",
+            "label": "Apache Maven",
+            "minimumVersion": "3.9",
+            "help": "Maven 3.9以降をインストールし、mvnをPATHへ追加してからアプリを再起動してください。"
+          },
+          {
+            "id": "http-port",
+            "type": "port",
+            "port": 8080,
+            "label": "Spring BootのHTTPポート",
+            "help": "localhost:8080を使用しているプロセスを停止するか、labのserver.portを変更してください。"
+          }
+        ]
+      }
+    },
+    {
       "id": "60-1",
       "title": "Spring Bootは何を楽にするのか",
       "explanation": "Spring Bootは、Spring Frameworkを使ったアプリケーションを少ない準備で起動するための仕組みです。最初に区別したいのは、Spring FrameworkがDI（必要な部品を外から渡す仕組み）やWeb処理などの土台で、Spring Bootが依存関係・初期設定・起動方法をまとめる役割だという点です。\n\nこの章で繰り返し使う言葉を先に整理します。\n\n- Bean（ビーン）: Springが生成し、他の部品との接続や寿命を管理するJavaオブジェクトです。ControllerやServiceが代表例です。\n- クラスパス: 実行中のJavaから参照できるクラスやJARの一覧です。Spring Bootはここに何のライブラリがあるかを自動構成の判断材料にします。\n- Starter: 目的に必要な依存ライブラリをひとまとめにした入口です。Starter自身が画面やDB処理を行うわけではありません。\n\nSpring Bootでは、まずStarterという用途別の依存関係セットを選びます。例えば`spring-boot-starter-web`はSpring MVC、JSON変換、組み込みWebサーバーなど、Web APIに必要な部品をまとめて追加します。個々のライブラリと互換バージョンを初心者が一つずつ調べなくてよいことが利点です。ただし、Starterは機能そのものではなく、関連ライブラリを安全な組み合わせで集める入口です。\n\n`@SpringBootApplication`を付けたクラスから起動すると、Spring Bootはクラスパス上の依存関係と設定を見て、必要になりそうな構成を自動で用意します。これがAuto Configuration（自動構成）です。Web StarterがあればWebアプリ用の構成を行い、Tomcatなどの組み込みサーバーも同じJARの中から起動できます。そのため、別にアプリケーションサーバーへWARを配る手順がなくても、`java -jar app.jar`で自己完結して動かせます。\n\n最小プロジェクトでは、`pom.xml`にStarterとSpring Boot Maven Pluginを置き、次のクラスを作ります。`main`メソッドはSpringの部品を集め、組み込みサーバーを起動する入口です。\n\n```java\n@SpringBootApplication\npublic class Application {\n    public static void main(String[] args) {\n        SpringApplication.run(Application.class, args);\n    }\n}\n```\n\nこの教材の`labs/frameworks/spring-boot`は、開発中は`mvn spring-boot:run`、テストは`mvn test`、配布用JARは`mvn package`で作れます。Maven Wrapper（`mvnw`）が置かれた実務プロジェクトでは、同じgoalを`./mvnw spring-boot:run`のように実行します。最初はWeb、Validation、Actuatorだけのように、目的を説明できるStarterだけを追加してください。依存関係を増やすほど、自動構成の候補、更新対象、攻撃面も増えるからです。",
@@ -399,7 +433,34 @@
         }
       ],
       "kind": "drill",
-      "extraTasks": [],
+      "extraTasks": [
+        {
+          "kind": "applied",
+          "type": "project",
+          "task": "【複数ファイル演習】Spring Bootの挨拶APIを完成させてください。`pom.xml`でWeb、Validation、Actuator、テストに必要なStarterを選び、ControllerはServiceをコンストラクタ注入して、空白と21文字以上のnameをHTTP 400にします。ServiceはSpringのBeanにして外部設定からprefixを受け取り、名前の前後空白を除いてください。\n\n`GreetingControllerTest`は`@SpringBootTest`ではなく`@WebMvcTest`と`MockMvc`を使い、正常、空白、長すぎる入力を検証します。`GreetingServiceTest`はSpringを起動しないJUnitテストのまま完成させます。編集できる6ファイルを一時Mavenプロジェクトへ反映し、参照専用の要件テストを含む`mvn test`がすべて通れば合格です。",
+          "project": {
+            "name": "spring-boot-controller-service-testing",
+            "source": "labs/frameworks/spring-boot/project-exercise",
+            "exclude": ["reference"],
+            "command": ["mvn", "test"],
+            "timeoutSeconds": 60,
+            "verification": "Starter、constructor injection、Validation、外部設定、@WebMvcTest、Service単体テストをmvn testで確認する",
+            "editableFiles": [
+              {"path": "pom.xml", "solutionPath": "reference/pom.xml"},
+              {"path": "src/main/java/example/greeting/GreetingController.java", "solutionPath": "reference/src/main/java/example/greeting/GreetingController.java"},
+              {"path": "src/main/java/example/greeting/GreetingService.java", "solutionPath": "reference/src/main/java/example/greeting/GreetingService.java"},
+              {"path": "src/main/resources/application.properties", "solutionPath": "reference/src/main/resources/application.properties"},
+              {"path": "src/test/java/example/greeting/GreetingControllerTest.java", "solutionPath": "reference/src/test/java/example/greeting/GreetingControllerTest.java"},
+              {"path": "src/test/java/example/greeting/GreetingServiceTest.java", "solutionPath": "reference/src/test/java/example/greeting/GreetingServiceTest.java"}
+            ]
+          },
+          "hints": [
+            "`pom.xml`には`spring-boot-starter-validation`、`spring-boot-starter-actuator`、test scopeの`spring-boot-starter-webmvc-test`が必要です。Spring Boot parentが各versionを管理するため個別versionは書きません。",
+            "Controllerの`final GreetingService`はコンストラクタ引数で受け取ります。`@RequestParam`へ`@NotBlank`と`@Size(max = 20)`を付け、ServiceへHTTPの責務を持ち込まないでください。",
+            "`@WebMvcTest(GreetingController.class)`へServiceを`@Import`し、MockMvcでstatusとJSONを検証します。Serviceの文字列組み立ては普通のJUnitから直接newして確認できます。"
+          ]
+        }
+      ],
       "quiz": [
         {
           "question": "`@WebMvcTest`の主な対象はどれですか？",
@@ -483,7 +544,41 @@
         }
       ],
       "kind": "applied",
-      "extraTasks": [],
+      "extraTasks": [
+        {
+          "kind": "applied",
+          "type": "runtime-lab",
+          "task": "【実起動演習】`application.properties`を修正し、ActuatorのhealthだけをHTTP公開してliveness/readiness probeを有効にしてください。提出すると、最初に`mvn test`を実行し、成功したJARをランナーが確保した動的localhostポートで実際に起動します。正常API、空のnameが400になること、`/actuator/health`がUPになることをHTTPで検証し、最後にサーバープロセスが停止したことまで確認します。",
+          "runtimeLab": {
+            "name": "spring-boot-live-http-health",
+            "source": "labs/frameworks/spring-boot/runtime-exercise",
+            "exclude": ["reference"],
+            "command": ["./run-runtime-lab.sh"],
+            "timeoutSeconds": 60,
+            "verification": "mvn testの成功後、動的ポートで実JARを起動し、API・Validation・Actuator health・停止を確認する",
+            "capabilities": ["server", "http"],
+            "requiredTools": ["java", "javac", "mvn"],
+            "requiredImages": [],
+            "checks": [
+              {"id": "spring-tests", "label": "mvn testが成功する"},
+              {"id": "spring-api", "label": "実サーバーの正常APIがHTTP 200とJSONを返す"},
+              {"id": "spring-validation", "label": "入力不正を実HTTP境界で400にする"},
+              {"id": "spring-health", "label": "Actuator healthがHTTP 200とUPを返す"},
+              {"id": "spring-stop", "label": "検証後にSpring Bootプロセスを停止する"}
+            ],
+            "editableFiles": [
+              {
+                "path": "src/main/resources/application.properties",
+                "solutionPath": "reference/src/main/resources/application.properties"
+              }
+            ]
+          },
+          "hints": [
+            "管理endpointの公開は`management.endpoints.web.exposure.include=health`とし、`*`を公開しないでください。",
+            "Kubernetes向けのprobe groupは`management.endpoint.health.probes.enabled=true`で有効にできます。ポート番号は採点側が起動引数で渡すため、設定ファイルへ固定しません。"
+          ]
+        }
+      ],
       "quiz": [
         {
           "question": "Readinessの役割として適切なものはどれですか？",

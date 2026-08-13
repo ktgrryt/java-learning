@@ -38,12 +38,12 @@ public final class CafeBalanceSimulation {
 
     /** 171回目でラッキーコインを引く、再現可能な通常試算用シード。 */
     private static final long STANDARD_LUCKY_UNLOCK_SEED = 77_777L;
-    /** 574回の初回正解では引かない、最も不運な場合の境界試算用シード。 */
+    /** 583回の初回正解では引かない、最も不運な場合の境界試算用シード。 */
     private static final long UNLUCKY_UNLOCK_SEED = 47L;
 
     private static final Set<Integer> MILESTONES = Set.of(
             1, 20, 50, 100, 170, 240, 310, 370, 420, 460, 480, 493, 500, 503, 507,
-            520, 540, 560, 574);
+            520, 540, 560, 574, 578, 580, 581, 583);
 
     /** 初回クリア1問あたりのブランド成長。復習ぶんがこれを超えないことを確かめる。 */
     private static final long FIRST_CLEAR_BRAND_BASIS_POINTS_PER_TASK = 170;
@@ -127,7 +127,7 @@ public final class CafeBalanceSimulation {
         require(number(plain.cafe().get("equipmentDiscountPercent")) == 20,
                 "マイスター工具箱の設備費20%OFFが効いていません");
 
-        // 1%抽選なので、全574問を解いても外れ続ける可能性は約0.3%ある。
+        // 1%抽選なので、全583問を解いても外れ続ける可能性は約0.3%ある。
         // その場合でも必須設備・店舗・終盤投資を買えて、投資率が破綻しないことを見る。
         Outcome unlucky = simulate(
                 curriculum, "unlucky", false, 0, false, UNLUCKY_UNLOCK_SEED);
@@ -226,10 +226,12 @@ public final class CafeBalanceSimulation {
             for (Chapter chapter : curriculum.chapters()) {
                 for (Lesson lesson : chapter.lessons()) {
                     for (Task task : lesson.tasks()) {
+                        // 任意発展問題は章クリア・★・カフェ経済の分母に含めない。
+                        if (!task.required()) continue;
                         String key = Lesson.taskKey(lesson.id(), task.id());
                         // 粘りのドリッパーは「1問へ累計10回提出」で解放される。最初の1問だけ
                         // 粘った形にしておく（無傷の連続はここで1回切れるだけで、
-                        // 574問あれば25問連続はその後いくらでも成立する）
+                        // 583問あれば25問連続はその後いくらでも成立する）
                         if (firstTask) {
                             for (int i = 0; i < 10; i++) {
                                 progress.recordAttempt(key);

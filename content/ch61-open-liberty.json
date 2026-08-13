@@ -5,6 +5,47 @@
   "emoji": "🗽",
   "lessons": [
     {
+      "id": "61-0",
+      "lessonType": "preflight",
+      "title": "事前確認：Open Liberty labを起動する準備",
+      "explanation": "## Libertyの設定を学ぶ前に起動条件をそろえる\n\n`labs/frameworks/open-liberty`はJDK 21、Maven 3.9以上、HTTPの9080番とHTTPSの9443番ポートを使います。ここで確認するのはOpen Libertyの知識ではなく、labを動かせるローカル環境です。★や章のクリア条件には影響しません。\n\n```bash\ncd labs/frameworks/open-liberty\nmvn liberty:dev\n# 別のターミナルで確認\ncurl 'http://localhost:9080/api/greeting?name=Java'\n```\n\n初回はLibertyランタイムと依存関係を取得します。ポートが使用中の場合、Javaコードを変更しても解決しません。既存のサーバーを停止するか、`src/main/liberty/config/server.xml`の`httpEndpoint`と確認URLを一緒に変更します。",
+      "preflight": {
+        "buttonLabel": "Libertyの準備を確認する",
+        "checks": [
+          {
+            "id": "java-runtime",
+            "type": "tool",
+            "tool": "java",
+            "label": "JDK 21の実行環境",
+            "minimumVersion": "21",
+            "help": "JDK 21以降をインストールし、JAVA_HOMEとPATHをそろえてください。"
+          },
+          {
+            "id": "maven",
+            "type": "tool",
+            "tool": "maven",
+            "label": "Apache Maven",
+            "minimumVersion": "3.9",
+            "help": "Maven 3.9以降をインストールし、mvnをPATHへ追加してからアプリを再起動してください。"
+          },
+          {
+            "id": "http-port",
+            "type": "port",
+            "port": 9080,
+            "label": "LibertyのHTTPポート",
+            "help": "localhost:9080を使うプロセスを停止するか、server.xmlのhttpPortを変更してください。"
+          },
+          {
+            "id": "https-port",
+            "type": "port",
+            "port": 9443,
+            "label": "LibertyのHTTPSポート",
+            "help": "localhost:9443を使うプロセスを停止するか、server.xmlのhttpsPortを変更してください。"
+          }
+        ]
+      }
+    },
+    {
       "id": "61-1",
       "title": "Open Libertyとアプリケーションサーバーの役割",
       "explanation": "Open Libertyは、Jakarta EEとMicroProfileの仕様に沿ったアプリケーションを動かすための軽量なアプリケーションサーバーです。ここでいうサーバーは物理マシンの意味ではなく、HTTP受付、DI、トランザクション、セキュリティなど、業務アプリが共通して必要とする実行機能を提供するランタイムです。アプリはJakarta RESTなどの標準APIを使い、Open Libertyがその処理を実装します。\n\n最初に、この章で使う4つの言葉を区別します。\n\n- 仕様: 「このAPIはどう書き、どう動くべきか」という共通ルールです。Jakarta EEやMicroProfileが定めます。\n- 実装: 仕様どおりに実際の処理を行うソフトウェアです。Open Libertyがこの役割を担います。\n- ランタイム／アプリケーションサーバー: アプリを起動し、HTTP、DI、トランザクションなどを提供する実行環境です。\n- WAR（Web Application Archive）: コンパイル済みクラスや設定をまとめたWebアプリの配布ファイルです。Open Libertyへ配置して実行します。\n\nアプリのJARにWebサーバーを組み込む構成もありますが、Open Libertyではランタイムの構成とアプリの成果物を分けて扱います。典型的なMavenプロジェクトは次の役割に分かれます。\n\n```text\npom.xml                         依存関係とLiberty Maven Plugin\nsrc/main/java                   Jakarta EE / MicroProfileのコード\nsrc/main/liberty/config/\n  server.xml                    有効にする機能、HTTPポートなど\ntarget/*.war                    配布するアプリケーション\n```\n\n`server.xml`はOpen Libertyランタイムの設定です。アプリコードを書き換えずに、ポート、Feature、データソースなどの環境構成を変えられます。`mvn liberty:dev`を実行すると、サーバーを起動したままコードや設定の変更を検出して再コンパイル・再配置できます。Enterキーでテストを実行でき、`-DhotTests`を付ければ変更時の自動テストも可能です。最初の手順は次の通りです。\n\n```bash\nmvn liberty:dev\ncurl 'http://localhost:9080/api/greeting?name=Java'\n# Ctrl+Cで終了\nmvn test\nmvn package\n```\n\nWARは「古い形式だから必ず避けるもの」ではありません。アプリとランタイム構成を分離し、組織で標準化したサーバー運用に載せやすい成果物です。コンテナではOpen Libertyのイメージへ`server.xml`とWARを組み込めます。まずは`labs/frameworks/open-liberty`の最小アプリで、コード、server.xml、実行コマンドの関係を確認してください。",
@@ -99,52 +140,55 @@
           "expected": "restfulWS-4.0\ncdi-4.1\njsonb-3.0"
         }
       ],
-      "task": "要件からversioned featureを構成する\n\n空白区切りの要件`rest`、`di`、`validation`、`json`、`db`、`health`、`config`を入力順に読み、重複を除いてそれぞれ`restfulWS-4.0`、`cdi-4.1`、`validation-3.1`、`jsonb-3.0`、`persistence-3.2`、`mpHealth-4.0`、`mpConfig-3.1`へ変換します。`<feature>名前</feature>`をカンマ区切りで出力し、未知の要件は`<feature>REVIEW:<語></feature>`としてください。",
-      "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        String line = new Scanner(System.in).nextLine().trim();\n        Map<String, String> features = Map.of(\n                \"rest\", \"restfulWS-4.0\", \"di\", \"cdi-4.1\",\n                \"validation\", \"validation-3.1\", \"json\", \"jsonb-3.0\",\n                \"db\", \"persistence-3.2\", \"health\", \"mpHealth-4.0\",\n                \"config\", \"mpConfig-3.1\"\n        );\n        Set<String> selected = new LinkedHashSet<>();\n        // TODO: 要件をfeature要素へ変換する\n    }\n}",
-      "visibleCases": [
-        {
-          "label": "表示ケース1",
-          "stdin": "rest di json\n",
-          "expected": "<feature>restfulWS-4.0</feature>,<feature>cdi-4.1</feature>,<feature>jsonb-3.0</feature>"
-        },
-        {
-          "label": "表示ケース2",
-          "stdin": "health config health\n",
-          "expected": "<feature>mpHealth-4.0</feature>,<feature>mpConfig-3.1</feature>"
-        }
-      ],
-      "hiddenCases": [
-        {
-          "label": "隠しケース1",
-          "stdin": "validation db\n",
-          "expected": "<feature>validation-3.1</feature>,<feature>persistence-3.2</feature>"
-        },
-        {
-          "label": "隠しケース2",
-          "stdin": "rest mail\n",
-          "expected": "<feature>restfulWS-4.0</feature>,<feature>REVIEW:mail</feature>"
-        },
-        {
-          "label": "隠しケース3",
-          "stdin": "config json di\n",
-          "expected": "<feature>mpConfig-3.1</feature>,<feature>jsonb-3.0</feature>,<feature>cdi-4.1</feature>"
-        }
-      ],
+      "type": "artifact",
+      "task": "Open LibertyでREST APIとヘルスチェックを動かす`server.xml`を完成させる\n\n`<featureManager>`の中に、Jakarta REST、CDI、Validation、JSON-B、MicroProfile Healthの5機能を1回ずつ追加してください。さらに、外部からHTTPで接続できるよう、`defaultHttpEndpoint`のHTTPポートを`9080`、HTTPSポートを`9443`に設定してください。\n\nXMLでは開始タグと終了タグの組が必要です。要素の順序や字下げは採点に影響しません。要件を満たす別の設定を追加しても構いません。",
+      "starterContent": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<server>\n    <featureManager>\n        <!-- TODO: 必要な5つのfeatureを追加する -->\n    </featureManager>\n\n    <!-- TODO: defaultHttpEndpointを追加する -->\n</server>\n",
+      "artifact": {
+        "path": "src/main/liberty/config/server.xml",
+        "format": "xml",
+        "checks": [
+          {
+            "type": "xpath",
+            "expression": "name(/*) = 'server' and count(/server/featureManager) >= 1",
+            "message": "ルート要素をserverにし、その直下にfeatureManagerを置く"
+          },
+          {
+            "type": "xpath",
+            "expression": "count(/server/featureManager/feature[normalize-space(.) = 'restfulWS-4.0']) = 1",
+            "message": "Jakarta RESTのrestfulWS-4.0を1回だけ有効にする"
+          },
+          {
+            "type": "xpath",
+            "expression": "count(/server/featureManager/feature[normalize-space(.) = 'cdi-4.1']) = 1",
+            "message": "CDIのcdi-4.1を1回だけ有効にする"
+          },
+          {
+            "type": "xpath",
+            "expression": "count(/server/featureManager/feature[normalize-space(.) = 'validation-3.1']) = 1",
+            "message": "Jakarta Validationのvalidation-3.1を1回だけ有効にする"
+          },
+          {
+            "type": "xpath",
+            "expression": "count(/server/featureManager/feature[normalize-space(.) = 'jsonb-3.0']) = 1",
+            "message": "JSON-Bのjsonb-3.0を1回だけ有効にする"
+          },
+          {
+            "type": "xpath",
+            "expression": "count(/server/featureManager/feature[normalize-space(.) = 'mpHealth-4.0']) = 1",
+            "message": "MicroProfile HealthのmpHealth-4.0を1回だけ有効にする"
+          },
+          {
+            "type": "xpath",
+            "expression": "count(/server/httpEndpoint[@id = 'defaultHttpEndpoint' and @httpPort = '9080' and @httpsPort = '9443']) = 1",
+            "message": "defaultHttpEndpointのHTTPを9080、HTTPSを9443に設定する"
+          }
+        ]
+      },
       "hints": [
-        "各要件をMapでFeature IDへ変換し、`<feature>`と`</feature>`で囲んでから集合へ追加します。",
-        "`LinkedHashSet`なら入力順を保って重複を除けます。未知の語は`REVIEW:`を付けて設定レビューへ残します。"
+        "各機能は`<feature>restfulWS-4.0</feature>`のように、`featureManager`の開始タグと終了タグの間へ1行ずつ書きます。",
+        "HTTP設定は`<httpEndpoint id=\"defaultHttpEndpoint\" httpPort=\"9080\" httpsPort=\"9443\"/>`です。`featureManager`の外、かつ`server`の内側へ置きます。"
       ],
-      "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        String line = new Scanner(System.in).nextLine().trim();\n        Map<String, String> features = Map.of(\n                \"rest\", \"restfulWS-4.0\", \"di\", \"cdi-4.1\",\n                \"validation\", \"validation-3.1\", \"json\", \"jsonb-3.0\",\n                \"db\", \"persistence-3.2\", \"health\", \"mpHealth-4.0\",\n                \"config\", \"mpConfig-3.1\"\n        );\n        Set<String> selected = new LinkedHashSet<>();\n        if (!line.isEmpty()) {\n            for (String requirement : line.split(\"\\\\s+\")) {\n                String feature = features.getOrDefault(requirement, \"REVIEW:\" + requirement);\n                selected.add(\"<feature>\" + feature + \"</feature>\");\n            }\n        }\n        System.out.println(String.join(\",\", selected));\n    }\n}",
-      "sourceChecks": [
-        {
-          "pattern": "LinkedHashSet",
-          "message": "入力順を保って重複Featureを除いてください。"
-        },
-        {
-          "pattern": "getOrDefault",
-          "message": "未知の要件をREVIEWとして残してください。"
-        }
-      ],
+      "solution": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<server>\n    <featureManager>\n        <feature>restfulWS-4.0</feature>\n        <feature>cdi-4.1</feature>\n        <feature>validation-3.1</feature>\n        <feature>jsonb-3.0</feature>\n        <feature>mpHealth-4.0</feature>\n    </featureManager>\n\n    <httpEndpoint id=\"defaultHttpEndpoint\"\n                  httpPort=\"9080\"\n                  httpsPort=\"9443\"/>\n</server>\n",
       "kind": "practice",
       "extraTasks": [],
       "quiz": [
@@ -483,7 +527,42 @@
         }
       ],
       "kind": "applied",
-      "extraTasks": [],
+      "extraTasks": [
+        {
+          "kind": "applied",
+          "type": "runtime-lab",
+          "task": "【実起動演習】Open Libertyの挨拶APIを完成させてください。`server.xml`でJakarta ValidationとMicroProfile Healthを有効にし、`GreetingResource`では空白と21文字以上のnameをJakarta Validationで拒否します。`GreetingReadiness`はリクエストを受けられる状態をUPとして返してください。\n\n提出すると`mvn test package`で実WARを作り、固定したOpen Liberty 26.0.0.8へ配備します。採点側が確保した動的localhostポートで起動し、CWWKF0012IのFeature起動ログ、Jakarta RESTのJSON、入力不正400、MicroProfile Readinessを実測します。最後にLibertyとHTTP listenerが停止したことまで確認します。初回はランタイムとFeatureの取得に時間がかかることがあります。",
+          "runtimeLab": {
+            "name": "open-liberty-war-feature-http-health",
+            "source": "labs/frameworks/open-liberty/runtime-exercise",
+            "exclude": ["reference", "target"],
+            "command": ["./run-runtime-lab.sh"],
+            "timeoutSeconds": 60,
+            "verification": "JUnit後に実WARをbuild・配備し、Feature起動ログ、REST、Validation、Readiness、停止を確認する",
+            "capabilities": ["server", "http"],
+            "requiredTools": ["java", "javac", "mvn"],
+            "requiredImages": [],
+            "checks": [
+              {"id": "liberty-war", "label": "mvn test後にResourceを含むWARをbuildする"},
+              {"id": "liberty-features", "label": "起動ログで必要なJakarta EE/MicroProfile Featureを確認する"},
+              {"id": "liberty-rest", "label": "実LibertyのJakarta REST APIがHTTP 200とJSONを返す"},
+              {"id": "liberty-validation", "label": "Jakarta Validationが入力不正をHTTP 400にする"},
+              {"id": "liberty-health", "label": "MicroProfile Readinessがgreeting=UPを返す"},
+              {"id": "liberty-stop", "label": "検証後にLiberty processとHTTP listenerを停止する"}
+            ],
+            "editableFiles": [
+              {"path": "src/main/liberty/config/server.xml", "solutionPath": "reference/src/main/liberty/config/server.xml"},
+              {"path": "src/main/java/example/greeting/GreetingResource.java", "solutionPath": "reference/src/main/java/example/greeting/GreetingResource.java"},
+              {"path": "src/main/java/example/greeting/GreetingReadiness.java", "solutionPath": "reference/src/main/java/example/greeting/GreetingReadiness.java"}
+            ]
+          },
+          "hints": [
+            "`server.xml`のFeature Managerへ`validation-3.1`と`mpHealth-4.0`を追加します。ポートは`${env.JQ_LAB_PORT}`のままにし、固定値へ戻さないでください。",
+            "Resourceの`name`引数へ`@NotBlank`と`@Size(max = 20)`を付けます。必要なimportは`jakarta.validation.constraints`です。",
+            "Readinessは`HealthCheckResponse.up(\"greeting\")`を返します。HTTP検査だけでなく、起動ログのFeature一覧と停止後のlistenerも採点されます。"
+          ]
+        }
+      ],
       "quiz": [
         {
           "question": "InstantOnがNative Imageと異なる点はどれですか？",

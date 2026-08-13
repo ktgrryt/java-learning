@@ -11,14 +11,15 @@
 アプリ内の問題に加えて `labs/` の実測手順で学びます。
 書いたコードを提出すると隠しテストを含む全ケースで自動採点され、全部通ると ★ が付きます。
 
-**★ は問題ごと（全574問）に付きます。** 通常レッスンの2問目は、解説が教えているのに1問目では手を動かさない
+**★ は必須問題ごと（全583問）に付きます。** このほかに章クリアへ影響しない任意発展問題が1問あります。通常レッスンの2問目は、解説が教えているのに1問目では手を動かさない
 論点をピンポイントで問う **応用問題**です（`5-2` なら、1問目の「合計をためる」に対して
 解説にだけ出てくる「掛け算をためる＝階乗」を書きます）。
 読む量と書く量がだいたい 1:1 になるよう、「解説で教えたことには必ず対応するアウトプットがある」
 状態を目安に作ってあります。クリアした問題は見出し1行に畳まれるので、ページは伸びません。
 
 **4択の確認クイズ** は全373問で、**章あたり4〜15問**です。全レッスンにあるわけではありません。
-296レッスンのうち**145レッスン**に1〜6問（多くは2問か4問）まとめて置いてあり、残りのレッスンには0問です。
+304レッスンのうち**145レッスン**に1〜6問（多くは2問か4問）まとめて置いてあり、残りのレッスンには0問です。
+このうち6レッスンは、★対象外の環境事前確認です。
 基礎編やWeb編では章の最後の通常レッスンに寄せ、後半の章では各レッスンへ分散させています。
 章末演習はほとんどが0問ですが、Java実践・開発基盤編の5章だけは章末演習にも4問ずつ置いています。「このコードはコンパイルできるか」
 のように、コードを書く形では出題できない知識を試すためのものです（★ の判定には影響しません）。
@@ -153,7 +154,7 @@ Rank5は約1.27倍）、Rank6以降と出店費は据え置いてあります。
 ブランド倍率は**復習でも育ちます**。復習で正解した問題1問につき1回だけ加算し、初回クリア1問より
 小さい重みにしてあるので、新しい問題を解くより復習した方が儲かることはありません。倍率は
 これからの報酬に掛かるため、**早く復習した方が得**です。加えて、復習で正解すると自動売上の枠が
-戻ります。全574問を終えると★が増えなくなり、それまでは★のたびに戻っていた枠が尽きてしまうため、
+戻ります。必須583問を終えると★が増えなくなり、それまでは★のたびに戻っていた枠が尽きてしまうため、
 完走後は復習が自動営業設備を動かし続ける入口になります。復習でコインを直接もらうことはありません
 （クリア済みの問題は何度でも解き直せるので、支払うと無限に稼げてしまう）。
 
@@ -186,7 +187,7 @@ Rank5は約1.27倍）、Rank6以降と出店費は据え置いてあります。
 
 ラッキーコインの価格は、幸運の数字を並べた**77,777コイン**です。
 
-下2つが**取得の重いアイテム**です。全574問の3分の1以上を復習するか、ヒントなし・1回の提出で
+下2つが**取得の重いアイテム**です。必須583問の3分の1以上を復習するか、ヒントなし・1回の提出で
 25問続けないと姿を見せません。残り10個は学習を進めれば自然に手に入ります。
 
 解放のされ方は2通りで、10種は**特別な達成条件または正解時の抽選**（★の数ではなく学ぶ過程そのもの）、2種は
@@ -427,7 +428,7 @@ tools/launch.sh --status   # 動いているか調べる
 ただし模範解答は写して終わりにせず、**1行ずつ「なぜそう書くのか」を自分の言葉で説明できるか**
 試してみるのがおすすめです。
 
-## カリキュラム（全56章 / 296レッスン / 574問）
+## カリキュラム（全56章 / 304レッスン / 必須583問 + 任意発展1問）
 
 メニューではカリキュラムを **Java基礎編**（第1〜21章）、**Java実践・開発基盤編**（第1〜11章）、
 **JVM・並行処理・性能編**（第1〜4章）、**Web・Jakarta EE編**（第1〜10章）、
@@ -570,8 +571,8 @@ Servlet/CDI/Persistence/REST/Validation/JUnitの演習には、JDKだけで採�
 |---|---|---|---|
 | 1 3製品の設計思想と選定 | 共通設計と選定軸、Spring Boot、Open Liberty、Quarkus、章末演習3問 | 6 | 8 |
 | 2 Spring Boot実践入門 | Starter・自動構成、REST、外部設定、Spring Ecosystem、テスト、Actuator・更新、章末演習3問 | 7 | 9 |
-| 3 Open Liberty実践入門 | アプリケーションサーバー、Feature Manager、Jakarta REST/CDI、MicroProfile、Zero Migration、InstantOn、章末演習3問 | 7 | 9 |
-| 4 Quarkus実践入門 | Extension・ビルド時最適化、Quarkus REST/CDI、Dev Services・継続テスト、JVM/Native、更新・Spring互換、章末演習3問 | 7 | 9 |
+| 3 Open Liberty実践入門 | アプリケーションサーバー、Feature Manager、Jakarta REST/CDI、MicroProfile、Zero Migration、InstantOn、章末演習3問 | 7 | 10 |
+| 4 Quarkus実践入門 | Extension・Config・@QuarkusTest、JVM実起動、Dev Services、更新・Spring互換、任意Native Image実測、章末演習3問 | 7 | 11 + 任意1 |
 
 第1章は3製品を同じ要件で比較する入口です。第2〜4章では製品ごとに用語から始め、
 最小APIの開発、外部設定、テスト、health、パッケージング、更新判断までを独立して学びます。
@@ -609,7 +610,7 @@ JDK配布物、migration/outbox、CI/container、TLS/OIDC/OpenAPIを実測でき
 `labs/business-app-capstone`では知識を複数ファイルの改修と引き継ぎへ、
 `labs/logging-investigation`では安全な記録と障害報告へつなげます。
 
-テストケースは全2838件で、そのうち **1797件が隠しテスト**です。
+必須問題と任意発展を合わせたテストケース・構成検査・project/runtime実テストは全2868件で、そのうち **1787件が隠しテスト**です。
 `0`、負の数、境界値（「80点ちょうど」「残高とちょうど同じ額の出金」「教材環境での `Integer.valueOf` の `127` と `128`」
 「1月31日の1か月後」など）が仕込まれているので、たまたま通るコードではクリアできません。
 
@@ -705,6 +706,207 @@ JDK配布物、migration/outbox、CI/container、TLS/OIDC/OpenAPIを実測でき
 | `sourceChecks` | 指定構文の軽量検査（省略可）。コメント・文字列を除いたソースへ`pattern`を適用し、`minimum`回以上かつ任意の`maximum`回以下かを確認する |
 | `extraTasks` | **2問目以降**（省略可）。`task` `starterCode` `visibleCases` `hiddenCases` `hints` `solution` を1問目と同じ形で書きます |
 | `quiz` | 選択式クイズ（省略可）。`answer` は **0から数えた正解の番号**。`choices` は2つ以上 |
+
+問題の `type` は省略時が `single-file`（従来のJava問題）です。Javaソースではなく設定ファイルなどを
+直接編集させる場合は、次の `artifact` 問題にします。
+
+### 事前確認レッスンを書く
+
+Maven、Gradle、Docker、開発用ポートなど、教材本題とは別の環境条件を最初に実測するレッスンです。
+レッスンの `lessonType` を `preflight` にし、通常の `task`、`samples`、`quiz` は置きません。事前確認は
+★、問題数、章クリア条件、カフェ報酬に含まれません。
+
+```json
+{
+  "id": "60-0",
+  "lessonType": "preflight",
+  "title": "事前確認：Spring Boot labを起動する準備",
+  "explanation": "必要な理由、確認コマンド、初回取得について説明します。",
+  "preflight": {
+    "buttonLabel": "Spring Bootの準備を確認する",
+    "checks": [
+      {
+        "id": "maven",
+        "type": "tool",
+        "tool": "maven",
+        "label": "Apache Maven",
+        "minimumVersion": "3.9",
+        "help": "Mavenをインストールし、mvnをPATHへ追加してください。"
+      },
+      {
+        "id": "http-port",
+        "type": "port",
+        "port": 8080,
+        "label": "HTTPポート",
+        "help": "8080番を使うプロセスを停止するか、labの設定を変更してください。"
+      }
+    ]
+  }
+}
+```
+
+`tool` は任意コマンドではなく、`java` / `javac` / `maven` / `gradle` / `docker` の固定検査だけを
+指定できます。`port` はlocalhostへ一時的にbindできるかを調べます。`required: false` にした項目は
+失敗しても準備完了を妨げません。例えばQuarkusのJVM演習に対するNative build用Dockerが該当します。
+インストールやプロセス停止は自動実行せず、学習者自身が`help`を読んで対処してから再確認します。
+
+環境は後から変わり得るため、結果自体は進捗や★として保存しません。必須項目がそろった時刻だけを
+ブラウザへ7日間記録し、章の「始める」ボタンで事前確認を何度も強制しないようにしています。
+
+### artifact問題を書く
+
+XML、JSON、properties、SQL、Dockerfile、OpenAPI、CI YAMLなど、実務で扱うファイルそのものを
+編集・検証する問題です。文字列をJavaで組み立てる代用問題にせず、学習目標と提出物を一致させられます。
+
+```json
+{
+  "type": "artifact",
+  "task": "server.xmlにREST機能とHTTPポートを設定してください。",
+  "starterContent": "<server>\n    <featureManager>\n    </featureManager>\n</server>\n",
+  "artifact": {
+    "path": "src/main/liberty/config/server.xml",
+    "format": "xml",
+    "checks": [
+      {
+        "type": "xpath",
+        "expression": "count(/server/featureManager/feature[normalize-space(.) = 'restfulWS-4.0']) = 1",
+        "message": "restfulWS-4.0を1回だけ有効にする"
+      }
+    ]
+  },
+  "hints": ["featureManagerの内側にfeature要素を書きます。"],
+  "solution": "<server>\n    <featureManager>\n        <feature>restfulWS-4.0</feature>\n    </featureManager>\n</server>\n"
+}
+```
+
+artifact問題では `starterCode`、`visibleCases`、`hiddenCases`、`sourceChecks` の代わりに、
+`starterContent` と `artifact` を使います。`path` は画面に表示する安全な相対パス、`format` は
+`xml` / `json` / `properties` / `text` / `sql` / `dockerfile` / `yaml` のいずれかです。
+
+| 検査type | 対象 | `expression` | `expected` |
+|---|---|---|---|
+| `xpath` | XML | booleanとして評価するXPath | 不要 |
+| `jsonPointer` | JSON | `/openapi` のようなJSON Pointer | 必須（文字列・数値・真偽値・null） |
+| `property` | properties | プロパティキー | 必須（文字列として比較） |
+| `regex` | 全形式 | ファイル全体へ適用するJava正規表現 | 不要 |
+
+XMLは整形式かを先に解析し、DOCTYPE・外部エンティティ・外部DTDを拒否します。JSONとpropertiesも
+形式を解析してから個別条件を検査します。SQL、Dockerfile、YAMLは現時点では外部パーサーを
+同梱していないため、`regex`による教材固有の条件だけを検査します。「構文全体が正しい」ことまで
+保証する問題にはせず、`project` / `runtime-lab` で実ツールを動かす検証へつなげてください。
+
+`message` は提出前の「検証すること」と不合格時の案内に表示されます。答えそのものを隠す用途にはせず、
+受け入れ条件を具体的に書きます。要素の順序や字下げなど本題でない差はXPath等で許容し、正しい別解を
+弾かないようにしてください。模範解答とひな形は `verify-solutions.sh` が実際に検証します。
+
+### project問題を書く
+
+既存の `labs/` を画面へ接続し、Java、SQL、Markdownなど複数ファイルを一つの変更として扱う問題です。
+学習者が「編集」と表示されたファイルだけを変更し、テスト・要件・入力データなどの参照専用ファイルを
+読みながら、lab自身の検証コマンドを通します。提出のたびにlabを一時ディレクトリへコピーするため、
+元の `labs/` は変更されません。
+
+```json
+{
+  "type": "project",
+  "task": "既存注文アプリのキャンセル機能を完成させてください。",
+  "project": {
+    "name": "business-app-capstone",
+    "source": "labs/business-app-capstone",
+    "exclude": ["reference"],
+    "command": ["./run-tests.sh"],
+    "timeoutSeconds": 30,
+    "verification": "受け入れ条件を確認する11テストがすべて成功する",
+    "editableFiles": [
+      {
+        "path": "app/src/main/java/cafe/orders/OrderService.java",
+        "solutionPath": "reference/src/main/java/cafe/orders/OrderService.java"
+      },
+      {
+        "path": "app/db/migration/V2__add_order_cancellation.sql",
+        "solutionPath": "reference/db/migration/V2__add_order_cancellation.sql"
+      }
+    ]
+  },
+  "hints": ["最初にrequirements.mdとテストを読みます。"]
+}
+```
+
+| キー | 説明 |
+|---|---|
+| `source` | リポジトリの `labs/` 以下にある既存lab。絶対パスや `..` は不可 |
+| `exclude` | 画面表示と一時コピーの両方から除外する相対パス。模範解答ディレクトリも指定する |
+| `editableFiles` | 学習者が変更できるファイルと、サーバーだけが読む対応する模範解答 |
+| `command` | `mvn`、`gradle`、またはlab内の固定script。学習者は変更できない |
+| `timeoutSeconds` | 必須問題は1〜60秒、`required: false`の任意発展問題は1〜600秒。省略時は30秒 |
+| `verification` | 提出前に見せる受け入れ条件。コマンドの内部実装ではなく、何を確認するかを書く |
+
+編集対象以外のテキストファイルも参照専用タブとして表示します。`solutionPath` は、`exclude` の記述を
+忘れても画面には公開されません。シンボリックリンクと `.git`、`target`、`build`、`.gradle`、
+`.liberty` などの生成物は読み込み・コピーしません。提出できるのは定義済みの編集対象だけで、
+1ファイル8万文字、合計30万文字が上限です。検証出力は6万byteで打ち切り、timeout時はプロセスを停止します。
+
+`mvn` / `gradle` を使うproject問題は、実行環境に対応するコマンドと依存関係が必要です。server、DB、
+HTTP、JFR、containerを実際に起動し、その生存期間やポートを管理する演習は `project` に詰め込まず、
+次の `runtime-lab` として扱います。`spring-boot`、`business-app-capstone`、`logging-investigation`はproject問題、
+`spring-boot`、`open-liberty`、`quarkus`、`http-client`、`diagnostics`、`integration-data`、`delivery`はruntime-labへ接続しています。
+
+### runtime-lab問題を書く
+
+`runtime-lab`は複数ファイルを編集したあと、server・DB・HTTP・JFR・containerなどを実際に起動し、
+観測してから停止する問題です。ファイル隔離と模範解答の扱いはprojectと共通ですが、実行条件と
+構造化された検査結果を追加で宣言します。
+
+```json
+{
+  "type": "runtime-lab",
+  "task": "ローカルserverへHTTP要求を送り、timeoutを確認してください。",
+  "runtimeLab": {
+    "name": "local HTTP boundary lab",
+    "source": "labs/http-client",
+    "exclude": ["reference"],
+    "command": ["./run-runtime-lab.sh"],
+    "timeoutSeconds": 15,
+    "verification": "HTTP 200・404・request timeoutを区別する",
+    "capabilities": ["server", "http"],
+    "requiredTools": ["java", "javac"],
+    "requiredImages": [],
+    "checks": [
+      {"id": "http-success", "label": "HTTP 200とJSONを受信する"},
+      {"id": "http-timeout", "label": "遅い応答をtimeoutとして扱う"}
+    ],
+    "editableFiles": [
+      {"path": "exercise/ApiClient.java", "solutionPath": "reference/ApiClient.java"}
+    ]
+  },
+  "hints": ["接続timeoutとrequest timeoutを分けます。"]
+}
+```
+
+`capabilities`は`server` / `db` / `http` / `jfr` / `container`、`requiredTools`は
+`java` / `javac` / `jcmd` / `jfr` / `mvn` / `gradle` / `docker`の固定値だけを使えます。
+Docker問題では`requiredImages`も宣言します。imageが無ければ自動pullせず、学習者へ準備コマンドを
+表示します。外部環境不足はコードの不正解や復習成績として記録しません。
+
+実行scriptは編集対象にせず、必ず成功・失敗・TERM・INTでserver/containerを片付ける`trap`を持たせます。
+ランナーが作る`JQ_LAB_PORT`と`JQ_LAB_RUN_ID`を使い、固定ポートや固定container名を共有しません。
+各検査は次のtab区切りprotocolで1回だけ報告します。JSONから任意commandを組み立てたり、学習者が
+編集できるscriptを実行したりしないでください。
+
+```text
+JQ_CHECK<TAB>PASS<TAB>http-success<TAB>HTTP 200とJSONを受信しました
+JQ_CHECK<TAB>FAIL<TAB>http-timeout<TAB>request timeoutが長すぎます
+```
+
+timeout時は最初にTERMを送り、cleanupの猶予後に残った子プロセスを強制停止します。DockerなどJVMの
+子プロセス外に資源を作る場合も、固定scriptのtrapで必ず削除します。実行環境を使う章には`xx-0`の
+事前確認を置き、必要ツールと、手動でpullするimageや初回download量を先に説明してください。
+
+Native Imageのように環境負荷が高く、すべての学習者へ必須にすべきでない発展演習は、taskへ
+`"required": false`と`"kind": "applied"`を指定します。採点・下書き保存・模範解答は通常問題と同じですが、
+章クリア、★、カフェ報酬、復習出題、全問題完走の分母には入りません。任意問題だけtimeoutを最大600秒まで
+設定できます。単に難しいという理由では任意にせず、特別なOS・container・大きなdownload・長いbuildなど、
+本筋の到達を妨げる環境条件がある場合に限ります。
 
 `quiz` の `answer` と `explanation` はブラウザへ渡されません。答え合わせは `/api/quiz` が行うので、
 **画面のソースを見ても正解は分かりません**。`answer` が選択肢の範囲外だと起動時にエラーになります。
@@ -812,8 +1014,10 @@ JDK配布物、migration/outbox、CI/container、TLS/OIDC/OpenAPIを実測でき
 残ったものを2問目で問います（残りが無ければ、サンプルを1か所変えるだけの `drill` にします）。
 数を増やすこと自体が目的にならないように、この基準に合わない問題は足さない方がよいです。
 
-`starterCode` は **それ単体でコンパイルできる** ようにしてください（学習者が書く部分はコメントで
-示します）。「学習者がこれから書くクラス」を参照するひな形は、`verify-solutions.sh` で落ちます。
+`single-file` の `starterCode` は **それ単体でコンパイルできる** ようにしてください（学習者が書く
+部分はコメントで示します）。「学習者がこれから書くクラス」を参照するひな形は、
+`verify-solutions.sh` で落ちます。`artifact` の `starterContent` は対象形式として解析できる状態にします。
+`project` はひな形の検証コマンドが起動でき、模範解答の全ファイルを入れると成功する状態にします。
 
 ### 章を1つ足す
 
@@ -844,7 +1048,7 @@ Web・Jakarta EE編の画面では `1-1` のように編内番号へ変換して
 
 ### 追加したらコードを整形する
 
-`samples` `starterCode` `solution` は「読んで覚える見本」なので、1行に詰め込まれた状態で
+`samples` と `single-file` 問題の `starterCode` `solution` は「読んで覚える見本」なので、1行に詰め込まれた状態で
 残しません。JSONに書くときは1行で書いてしまってもよく、あとから次で整えられます。
 
 ```bash
@@ -869,25 +1073,33 @@ Web・Jakarta EE編の画面では `1-1` のように編内番号へ変換して
 ./tools/verify-solutions.sh
 ```
 
-全574問について次を確認します。
+必須583問と任意発展1問について次を確認します。
 
-- `starterCode` がコンパイルできるか（ひな形が壊れていないか）
+- `single-file` の `starterCode` がコンパイルでき、`artifact` の `starterContent` を解析できるか
+- `project` のひな形で検証コマンドが起動し、模範解答ファイルで全テストが通るか
+- `runtime-lab` が利用可能な環境では実server等を起動し、環境不足なら実装不正解と分けて案内するか
 - `samples` のコードが実行でき、`expected` がある場合は出力も一致するか
-- `solution` が **全テストケースを通るか**
+- `solution` が **全テストケース、artifactの構成検査、project/runtimeの実テストを通るか**
 - `solution` が `sourceChecks` の指定構文を満たすか
 - ヒントを全部開くと `solution` が取れるようになるか
 - 確認クイズの **正解がちょうど1つ** あり、解説が書かれているか（全選択肢を実際に投げて確かめます）
 
-最後に「レッスン296件 / 問題574問（練習問題271問 / ドリル63問 / 応用240問） /
-テストケース2838件（うち隠し1797件） / 確認クイズ373問」のように集計が出ます。
-2838件のテストケースを実際にコンパイル・実行するので、数分かかります。
+最後に「レッスン304件 / 問題583問（練習問題271問 / ドリル63問 / 応用249問） + 任意発展1問 /
+テストケース2868件（うち隠し1787件） / 確認クイズ373問」のように集計が出ます。
+2868件のテストケース・構成検査・project/runtime実テストを実行するので、数分かかります。任意Native課題は
+Dockerまたは必要imageがなければ環境不足として省略します。
 
-カフェと復習に4つの回帰チェックがあります。
+カフェ・復習・artifact・project・runtime-lab・事前確認には次の回帰チェックがあります。
 
 ```bash
-./tools/simulate-cafe.sh          # 全574問を通したときの経済（投資率・買い切れるか）を試算
+./tools/simulate-cafe.sh          # 必須583問を通したときの経済（投資率・買い切れるか）を試算
 ./tools/check-achievements.sh     # 初回達成・復習での再達成・完走時救済を含むアイテム条件を検査
 ./tools/check-review-economy.sh   # 今日の1杯目と、復習が渡す倍率・枠の上限を検査
+./tools/check-artifact-validator.sh # artifactの形式別検査と危険なXMLの拒否を確認
+./tools/check-project-runner.sh    # projectの隔離実行・失敗・timeoutを確認
+./tools/check-runtime-lab-runner.sh # runtimeの動的port・構造化検査・cleanupを確認
+./tools/check-preflight-runner.sh  # tool版・必須/任意・空きポート判定を確認
+./tools/check-optional-task.sh     # required:falseが章クリア・★の分母へ入らないことを確認
 ./tools/check-review-schedule.sh  # 忘却曲線の期限と、苦手度の目盛り（0.25点刻み）を検査
 ./tools/check-onboarding.sh       # 初回案内の判定・完了保存・旧セーブ互換を検査
 node tools/check-cafe-scene.js    # カフェSVGの内装差分・再描画条件・出力を検査
@@ -955,7 +1167,11 @@ Rank1〜5の価格を触ったら走らせてください。
 | 574問 | 57,000 | 38.44% / 19.07%（アイテム21種→12種・1枚1効果） |
 | 574問 | 57,000 | 44.68% / 20.99%（ラッキーコインを5%の大当たりへ変更） |
 | 574問 | 57,000 | 41.21% / 19.37%（解放を正解ごとの1%抽選へ変更） |
-| 574問 | 57,000 | 41.23% / 19.37%（Rank1〜5を値上げして序盤を緩めた・現在） |
+| 574問 | 57,000 | 41.23% / 19.37%（Rank1〜5を値上げして序盤を緩めた） |
+| 578問 | 57,000 | 40.89% / 18.87%（runtime-lab 4問追加） |
+| 580問 | 57,000 | 41.86% / 19.23%（Spring Boot project/runtime追加） |
+| 581問 | 57,000 | 42.70% / 19.54%（Open Liberty runtime追加） |
+| 583問 | 57,000 | 41.94% / 19.30%（Quarkus project/JVM runtime追加・現在） |
 
 アイテムを21種から12種へ整理した際、同じ軸で重複していた6アイテムを復習専用の効果へ差し替えたとき、
 消した倍率（クイズ×2×2・章+50%+50%・4問ごと×2・7問ごと×2）をそのまま失うと
@@ -1011,10 +1227,10 @@ Rank1〜5を約4.2倍の傾きへ引き直して、1章クリアで3個・2章�
 必須の店舗・設備価格は変えずに44.68%へ戻しました。
 
 さらに解放条件を「★6 + 累計1万」から**初回・復習問題への正解ごとに1%抽選**へ変えました。
-期待上は100回の正解で当たりますが、574回すべて外れる確率も約0.31%あります。その最も不運な場合にも
+期待上は100回の正解で当たりますが、583回すべて外れる確率も約0.28%あります。その最も不運な場合にも
 投資率が45%を超えないよう、収益に影響しない終盤改装の基準額だけを1,750億から450億へ下げています。
 必須の店舗・設備価格は変えていません。再現可能な通常試算はplain 41.21%、reviewer 19.37%、
-574回すべて外れる試算は44.92%で、いずれも目標範囲内です。
+583回すべて外れる試算も目標範囲内です。
 
 > 検査は一時サーバ（ポート8765）を自分で立てて、終わったら必ず片付けます。中断（`Ctrl+C`）でも
 > 片付きます。このサーバはポートをずらさない設定で起動するので、8765が埋まっていれば
@@ -1041,7 +1257,7 @@ Rank1〜5を約4.2倍の傾きへ引き直して、1章クリアで3個・2章�
 ├── src/main/java/jq/          サーバ（JDK標準ライブラリのみ）
 │   ├── App.java               HTTPサーバの起動
 │   ├── content/               content/*.json の読み込みとクリア判定
-│   ├── runner/                コンパイルと実行、エラーの日本語化
+│   ├── runner/                Javaのコンパイル・project・runtime-labの隔離実行
 │   ├── judge/                 出力の突き合わせと差分
 │   ├── format/                詰め込まれた教材コードの整形
 │   ├── progress/              進捗の保存
@@ -1052,7 +1268,10 @@ Rank1〜5を約4.2倍の傾きへ引き直して、1章クリアで3個・2章�
 │   ├── launch.sh              バックグラウンド起動（アプリのアイコンから呼ばれる）
 │   ├── make-app.sh            「Java Café.app」を作る（macOS）
 │   ├── format-content-code.sh 教材コードの整形（1行に詰め込まれたものを直す）
-│   └── verify-solutions.sh    コンテンツの回帰チェック
+│   ├── verify-solutions.sh    コンテンツの回帰チェック
+│   ├── check-project-runner.sh project実行境界の回帰チェック
+│   ├── check-runtime-lab-runner.sh runtime実行境界の回帰チェック
+│   └── check-preflight-runner.sh 環境事前確認の回帰チェック
 ├── labs/                      実ツールを使う独立ラボ
 │   ├── testing-maven/         Maven + JUnit
 │   ├── modules/               JPMS + modular JAR

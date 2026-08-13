@@ -258,6 +258,36 @@
         "正常なら `Optional.of(dto.name() + \":\" + dto.age())`。"
       ],
       "solution": "import java.util.*;\n\nrecord UserDto(String name, int age) { }\n\npublic class Main {\n    static Optional<String> map(UserDto dto) {\n        if (dto.name().equals(\"null\") || dto.age() < 0 || dto.age() > 150) return Optional.empty();\n        return Optional.of(dto.name() + \":\" + dto.age());\n    }\n\n    public static void main(String[] a) {\n        Scanner s = new Scanner(System.in);\n        int n = s.nextInt();\n        for (int i = 1; i <= n; i++) {\n            var dto = new UserDto(s.next(), s.nextInt());\n            var value = map(dto);\n            System.out.println(value.orElse(\"INVALID \" + i));\n        }\n    }\n}\n",
+      "extraTasks": [
+        {
+          "kind": "applied",
+          "type": "runtime-lab",
+          "task": "【実機演習】`labs/http-client`のローカルHTTPサーバーとクライアントを実際に動かします。`exercise/ApiClient.java`のrequest timeoutを直し、成功、404、遅い応答の3種類を区別してください。提出すると空きポートでサーバーを起動し、実際のHTTP要求を送り、検証後はサーバープロセスを停止します。",
+          "runtimeLab": {
+            "name": "local HTTP boundary lab",
+            "source": "labs/http-client",
+            "exclude": ["reference"],
+            "command": ["./run-runtime-lab.sh"],
+            "timeoutSeconds": 15,
+            "verification": "実サーバーへのHTTP 200・404・request timeoutをクライアントが区別する",
+            "capabilities": ["server", "http"],
+            "requiredTools": ["java", "javac"],
+            "requiredImages": [],
+            "checks": [
+              {"id": "http-success", "label": "HTTP 200と期待したJSONを受信する"},
+              {"id": "http-not-found", "label": "HTTP 404のJSONエラーを扱う"},
+              {"id": "http-timeout", "label": "遅い応答をrequest timeoutとして扱う"}
+            ],
+            "editableFiles": [
+              {"path": "exercise/ApiClient.java", "solutionPath": "reference/ApiClient.java"}
+            ]
+          },
+          "hints": [
+            "接続timeoutではなく、`HttpRequest.Builder.timeout`が応答全体を待つ上限です。",
+            "サーバーの遅延は2秒です。`Duration.ofMillis(500)`なら、遅い応答だけがtimeoutになります。"
+          ]
+        }
+      ],
       "quiz": [
         {
           "question": "通信DTOとドメインモデルを分ける利点は？",

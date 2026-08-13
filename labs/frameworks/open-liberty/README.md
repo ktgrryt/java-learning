@@ -105,6 +105,22 @@ Resource、Validation、JSON、Feature構成まで確認します。`liberty:dev
 JUnitから設定値を直接渡すための、この小さなラボ用の入口です。最初は「本番ではCDIが生成し、単体テストでは
 普通のJavaオブジェクトとして生成できる」と理解すれば十分です。
 
+### Java Café の採点付き演習
+
+`61-2`では`server.xml`を直接編集し、XML構造とFeature構成を検査します。`61-6`の
+runtime-labでは、別の一時作業領域で次の流れを自動実行します。
+
+1. `mvn test package`で実クラスを含む`greeting.war`を作成する。
+2. 固定したOpen LibertyランタイムへWARを配備し、採点側が確保した動的portで起動する。
+3. `CWWKF0012I`ログからREST、CDI、Validation、JSON-B、MicroProfile Health/Configの
+   6 Featureが起動したことを確認する。
+4. 正常REST、空白・21文字のValidation 400、readinessの`UP`をHTTPで確認する。
+5. 検証後にserverとHTTP listenerが停止したことを確認する。
+
+学習者が編集するのは`server.xml`、`GreetingResource.java`、`GreetingReadiness.java`です。
+採点script、REST application、Service、設定、probeは固定されているため、一般Javaの文字列処理だけでは
+合格できません。初回実行はランタイムと依存関係の取得に時間がかかります。
+
 ## 5. WARを作り、Zero Migrationの境界を確認する
 
 ```bash

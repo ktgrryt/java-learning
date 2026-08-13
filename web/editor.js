@@ -19,8 +19,10 @@
   var PAIRS = { '(': ')', '{': '}', '[': ']' };
   var CLOSERS = { ')': true, '}': true, ']': true };
 
-  function Editor(host) {
+  function Editor(host, options) {
     this.host = host;
+    this.language = options && options.language ? options.language : 'java';
+    this.ariaLabel = options && options.ariaLabel ? options.ariaLabel : 'コードを書く欄';
     this.onSubmit = null;
     this._isComposing = false;
     this._build();
@@ -33,7 +35,7 @@
       '<div class="editor-scroll">' +
       '  <pre class="editor-highlight" aria-hidden="true"><code></code></pre>' +
       '  <textarea class="editor-input" spellcheck="false" autocapitalize="off"' +
-      '            autocomplete="off" wrap="off" aria-label="コードを書く欄"></textarea>' +
+      '            autocomplete="off" wrap="off" aria-label="' + this.ariaLabel + '"></textarea>' +
       '</div>';
 
     this.gutter = this.host.querySelector('.editor-gutter');
@@ -43,7 +45,8 @@
     this.input = this.host.querySelector('.editor-input');
 
     // コード補完。complete.js が読み込まれていなければ、無しで動く
-    this.complete = global.JQComplete ? new global.JQComplete.Completer(this) : null;
+    this.complete = this.language === 'java' && global.JQComplete
+      ? new global.JQComplete.Completer(this) : null;
 
     var self = this;
     this.input.addEventListener('input', function () {
@@ -85,7 +88,10 @@
   Editor.prototype._refresh = function () {
     var text = this.input.value;
     // 末尾が改行だと <pre> の最終行が潰れるので、見えない1文字を足して高さを保つ
-    this.code.innerHTML = global.JQHighlight.java(text + '\n');
+    var highlighter = this.language === 'java'
+      ? global.JQHighlight.java
+      : global.JQHighlight.plain;
+    this.code.innerHTML = highlighter(text + '\n');
 
     var lineCount = text.split('\n').length;
     if (this._lineCount !== lineCount) {

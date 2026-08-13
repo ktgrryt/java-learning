@@ -454,64 +454,42 @@
         }
       ],
       "kind": "applied",
-      "task": "【基本】入力は`exists ownerId status actorId reason`です。`exists`は0/1、`status`は`NEW` / `PAID` / `CANCELLED`、`reason`は行の残り全体です。次の順に最初の結果を`HTTPステータス コード`で表示してください。\n\n1. 理由を`strip()`した結果が空または100文字超 → `400 invalid_reason`\n2. 注文なし → `404 order_not_found`\n3. 所有者と操作した人が異なる → `403 forbidden`\n4. `PAID` → `409 order_not_cancellable`\n5. `CANCELLED` → `204 no_change`\n6. `NEW` → `204 cancelled`",
-      "starterCode": "import java.util.*;\n\npublic class Main {\n    static String decide(boolean exists, long ownerId, String status,\n                         long actorId, String reason) {\n        // TODO: 受け入れ条件の順番で判定する\n        return \"500 TODO\";\n    }\n\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        boolean exists = s.nextInt() == 1;\n        long ownerId = s.nextLong();\n        String status = s.next();\n        long actorId = s.nextLong();\n        String reason = s.hasNextLine() ? s.nextLine().strip() : \"\";\n        System.out.println(decide(exists, ownerId, status, actorId, reason));\n    }\n}\n",
-      "visibleCases": [
-        {
-          "label": "キャンセル成功",
-          "stdin": "1 7 NEW 7 顧客都合",
-          "expected": "204 cancelled"
-        },
-        {
-          "label": "空理由を先に拒否",
-          "stdin": "0 7 NEW 7    ",
-          "expected": "400 invalid_reason"
-        }
-      ],
-      "hiddenCases": [
-        {
-          "label": "注文なし",
-          "stdin": "0 7 NEW 7 顧客都合",
-          "expected": "404 order_not_found"
-        },
-        {
-          "label": "他人の注文",
-          "stdin": "1 7 NEW 8 顧客都合",
-          "expected": "403 forbidden"
-        },
-        {
-          "label": "支払い済み",
-          "stdin": "1 7 PAID 7 顧客都合",
-          "expected": "409 order_not_cancellable"
-        },
-        {
-          "label": "キャンセル済み",
-          "stdin": "1 7 CANCELLED 7 顧客都合",
-          "expected": "204 no_change"
-        },
-        {
-          "label": "理由が101文字",
-          "stdin": "1 7 NEW 7 aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-          "expected": "400 invalid_reason"
-        }
-      ],
+      "type": "project",
+      "task": "`labs/business-app-capstone`の既存注文アプリへ、注文キャンセル機能を完成させてください。\n\n最初に`requirements.md`と参照専用の`OrderApplicationTest.java`を読みます。次に、画面で「編集」と表示される5ファイルだけを変更してください。Controller、Service、入力検証、DBマイグレーション、PR記録を同じ受け入れ条件へそろえます。テストファイルや検証スクリプトは変更できません。\n\n最初のテスト失敗は、既存実装と要件の差を示す材料です。失敗を上から一つずつ直し、すでに動いている経路を壊さず`tests=11 passed=11 failed=0`を目指してください。",
+      "project": {
+        "name": "business-app-capstone",
+        "source": "labs/business-app-capstone",
+        "exclude": ["reference"],
+        "command": ["./run-tests.sh"],
+        "timeoutSeconds": 30,
+        "verification": "注文キャンセルの受け入れ条件、DB移行、PR記録を含む11テストがすべて成功する",
+        "editableFiles": [
+          {
+            "path": "app/src/main/java/cafe/orders/CancelOrderRequest.java",
+            "solutionPath": "reference/src/main/java/cafe/orders/CancelOrderRequest.java"
+          },
+          {
+            "path": "app/src/main/java/cafe/orders/OrderService.java",
+            "solutionPath": "reference/src/main/java/cafe/orders/OrderService.java"
+          },
+          {
+            "path": "app/src/main/java/cafe/orders/OrderController.java",
+            "solutionPath": "reference/src/main/java/cafe/orders/OrderController.java"
+          },
+          {
+            "path": "app/db/migration/V2__add_order_cancellation.sql",
+            "solutionPath": "reference/db/migration/V2__add_order_cancellation.sql"
+          },
+          {
+            "path": "app/PR.md",
+            "solutionPath": "reference/PR.md"
+          }
+        ]
+      },
       "hints": [
-        "`decide`の最初で`reason.strip()`した値を作ります。",
-        "入力不正、存在、所有者の順にifで早期returnします。",
-        "最後の状態判定はswitch式にすると、PAID・CANCELLED・NEWの対応が並びます。"
-      ],
-      "solution": "import java.util.*;\n\npublic class Main {\n    static String decide(boolean exists, long ownerId, String status,\n                         long actorId, String reason) {\n        String normalized = reason == null ? \"\" : reason.strip();\n        if (normalized.isBlank() || normalized.length() > 100) return \"400 invalid_reason\";\n        if (!exists) return \"404 order_not_found\";\n        if (ownerId != actorId) return \"403 forbidden\";\n        return switch (status) {\n            case \"PAID\" -> \"409 order_not_cancellable\";\n            case \"CANCELLED\" -> \"204 no_change\";\n            default -> \"204 cancelled\";\n        };\n    }\n\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        boolean exists = s.nextInt() == 1;\n        long ownerId = s.nextLong();\n        String status = s.next();\n        long actorId = s.nextLong();\n        String reason = s.hasNextLine() ? s.nextLine().strip() : \"\";\n        System.out.println(decide(exists, ownerId, status, actorId, reason));\n    }\n}\n",
-      "sourceChecks": [
-        {
-          "pattern": "\\.isBlank\\s*\\(",
-          "minimum": 1,
-          "message": "空白だけの理由も入力不正として判定してください。"
-        },
-        {
-          "pattern": "\\bswitch\\s*\\(",
-          "minimum": 1,
-          "message": "注文状態ごとの結果はswitchで明示してください。"
-        }
+        "`requirements.md`と`OrderApplicationTest.java`を並べて読み、入力不正・存在・所有者・状態・再送の順を確認します。",
+        "`CancelOrderRequest`は入力の形、`OrderService`は業務判断と整合性、`OrderController`はHTTP相当の変換を担当します。",
+        "SQLは既存行と旧アプリが動くexpand段階にし、PRには変更理由・検証コマンド・配備順・安全に戻せる範囲を具体的に残します。"
       ],
       "extraTasks": [
         {

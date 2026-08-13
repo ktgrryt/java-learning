@@ -16,6 +16,7 @@ import java.util.Optional;
  *
  * @param libSources このレッスンのコードと一緒にコンパイルする同梱ライブラリ（{@code libs} キー）。
  *                   Jakarta EE の章で使う。ブラウザへは渡さない（{@link #toPublicJson()} 参照）
+ * @param preflight  外部ツールの事前確認。通常レッスンではnull
  */
 public record Lesson(
         String id,
@@ -25,7 +26,12 @@ public record Lesson(
         List<Sample> samples,
         List<Task> tasks,
         List<Quiz> quizzes,
-        List<SourceFile> libSources) {
+        List<SourceFile> libSources,
+        PreflightSpec preflight) {
+
+    public boolean isPreflight() {
+        return preflight != null;
+    }
 
     /** 問題キー（進捗の保存単位）。 */
     public static String taskKey(String lessonId, String taskId) {
@@ -41,11 +47,11 @@ public record Lesson(
         return Optional.empty();
     }
 
-    /** このレッスンの全問題のキー。 */
+    /** このレッスンで章クリアに必要な問題のキー。任意発展問題は含めない。 */
     public List<String> taskKeys() {
         List<String> keys = new ArrayList<>(tasks.size());
         for (Task t : tasks) {
-            keys.add(taskKey(id, t.id()));
+            if (t.required()) keys.add(taskKey(id, t.id()));
         }
         return keys;
     }
@@ -63,6 +69,8 @@ public record Lesson(
         m.put("chapterId", chapterId);
         m.put("title", title);
         m.put("explanation", explanation);
+        m.put("type", isPreflight() ? "preflight" : "lesson");
+        if (isPreflight()) m.put("preflight", preflight.toPublicJson());
 
         List<Object> sampleList = new ArrayList<>();
         for (Sample s : samples) {
@@ -82,7 +90,8 @@ public record Lesson(
             taskList.add(t.toPublicJson());
         }
         m.put("tasks", taskList);
-        m.put("taskCount", tasks.size());
+        m.put("taskCount", tasks.stream().filter(Task::required).count());
+        m.put("optionalTaskCount", tasks.stream().filter(Task::isOptional).count());
 
         List<Object> quizList = new ArrayList<>();
         for (Quiz q : quizzes) {
