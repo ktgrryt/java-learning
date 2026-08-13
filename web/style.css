@@ -413,7 +413,15 @@ body.sidebar-hidden .content { margin-left: 0; }
 .side-part-count { flex: none; font-family: var(--mono); font-size: 10.5px; color: var(--text-faint); }
 
 .ch { margin-bottom: 6px; padding: 8px 8px 10px; border-radius: var(--radius); }
+
+/* 全部終えた章は、印を足すのではなく面で示す。
+   色は --ok（合格・達成の色。ここに出ていた ✅ と同じ系統）を薄く敷く。
+   済みの★に使っている --accent は「現在地」「次にやる所」の強調と競合するので使わない。
+   現在地（--bg-elev-2 の面）と重なる章があるため、組み合わせも明示しておく
+   （どちらが勝つかが記述順で決まってしまわないように）。 */
+.ch-cleared { background: color-mix(in srgb, var(--ok) 14%, transparent); }
 .ch-current { background: var(--bg-elev-2); }
+.ch-current.ch-cleared { background: color-mix(in srgb, var(--ok) 22%, var(--bg-elev-2)); }
 
 /* 章の見出しは開閉ボタン。既定ではレッスン一覧をたたんでいる */
 .ch-head {
@@ -444,13 +452,12 @@ body.sidebar-hidden .content { margin-left: 0; }
   line-height: 1.4;
 }
 .ch-status { flex: none; line-height: 1.5; }
-/* 分母を見せず、全部終われば ✅、途中なら「学習中」とだけ示す。 */
+/* 分母は見せない。途中の章だけ「学習中」と示し、終わった章は面の色で示す。 */
 .ch-count {
   font-family: var(--mono);
   font-size: 11px;
   color: var(--text-faint);
 }
-.ch-done { font-size: 12px; }
 .ch-caret { flex: none; font-size: 8px; line-height: 2.2; color: var(--text-faint); }
 .ch-head:hover .ch-caret { color: var(--text-dim); }
 
@@ -496,6 +503,19 @@ body.sidebar-hidden .content { margin-left: 0; }
   font-weight: 700;
 }
 .lesson-current .lesson-mark { color: var(--on-accent); }
+
+/* ホームやカフェを見ている間、最後にいた単元に付ける目印。
+   開いている単元（.lesson-current の塗り）と同じ見せ方にすると
+   「いまここを開いている」と読めてしまうので、塗らずに左の線と薄い地で示す。 */
+.lesson-focus {
+  background: color-mix(in srgb, var(--accent) 11%, transparent);
+  box-shadow: inset 2px 0 var(--accent);
+  color: var(--text);
+  font-weight: 700;
+}
+/* 目印の行も他と同じように押せることを示す（.lesson:hover より後に来るため、
+   ここで指定しないとホバーしても見た目が変わらない）。 */
+.lesson-focus:hover { background: color-mix(in srgb, var(--accent) 20%, transparent); }
 
 .lesson-mark { flex: none; width: 13px; font-size: 11px; }
 .lesson-id { flex: none; font-family: var(--mono); font-size: 11px; opacity: 0.7; }
@@ -946,7 +966,9 @@ body.view-onboarding .content { margin-left: 0; }
   gap: 8px;
 }
 .cafe-key-metrics.equipment-only { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-.cafe-key-metrics span {
+/* 直下の span だけを枠にする。子孫まで拾うと、中の「コイン / 分」のような
+   単位表記（.per-minute-unit）にも枠が付いて、枠の中に枠が出てしまう。 */
+.cafe-key-metrics > span {
   min-width: 0;
   padding: 9px 10px;
   border: 1px solid var(--border-soft);
@@ -968,6 +990,13 @@ body.view-onboarding .content { margin-left: 0; }
   background: rgba(90, 169, 230, 0.07);
 }
 .cafe-passive-metric b { color: var(--info); }
+/* 上限で止まっている間は、動いているときの青をやめて淡くする。
+   青のままだと、増えていないのに動いているように見える。 */
+.cafe-key-metrics .cafe-passive-metric.capped {
+  border-color: var(--border-soft);
+  background: rgba(0, 0, 0, 0.07);
+}
+.cafe-passive-metric.capped b { color: var(--text-faint); }
 .cafe-meta-row {
   display: flex;
   gap: 6px 14px;
@@ -1243,7 +1272,8 @@ body.view-onboarding .content { margin-left: 0; }
 
 /* 見出しの隣に入らないときは1行を使い切って並べ直す（末尾に1個だけ残さない）。 */
 .cafe-effects { display: flex; flex: 1 1 auto; justify-content: flex-end; gap: 6px; flex-wrap: wrap; }
-.cafe-effects span {
+/* 直下の span だけを丸札にする（.cafe-key-metrics と同じ理由）。 */
+.cafe-effects > span {
   flex: none;
   white-space: nowrap;
   padding: 4px 9px;

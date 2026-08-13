@@ -264,6 +264,22 @@
   }
 
   /**
+   * サイドバーで目印を付け、そこまでスクロールする単元のID。
+   *
+   * レッスンや復習を開いている間はそれ自身。ホームやカフェを見ている間は、
+   * 最後に開いた単元を指し続ける（そこまでスクロールした状態を保つ）。
+   * 「続ける」の行き先（resumeTarget）とは分けている。あちらはクリア済みなら
+   * 次の単元へ進めるが、ここは最後にいた場所そのものを指したいため。
+   */
+  function sidebarFocusId() {
+    if (currentId) { return currentId; }
+    var saved = null;
+    try { saved = localStorage.getItem('jq-last-lesson'); } catch (e) { /* 使えなくても困らない */ }
+    if (saved && findLesson(saved)) { return saved; }
+    return resumeTarget();   // この端末で一度も開いていないときの寄せ先
+  }
+
+  /**
    * 提出・クイズ回答の応答に入っている差分を、手元の state に上書きする。
    *
    * サーバはカリキュラム全体（解説やサンプル込みで約500KB）を返さず、
@@ -418,13 +434,16 @@
     var keepScrollTop = nav.scrollTop;
     nav.innerHTML = '';
 
+    // 開いている単元が無いとき（ホーム・カフェ）も、最後にいた単元を指し続ける。
+    var focusId = sidebarFocusId();
+
     var lastPartId = null;
     var partSection = null;
     state.chapters.forEach(function (ch) {
       var part = partOfChapter(ch);
       if (part && part.id !== lastPartId) {
         var currentPart = chaptersOfPart(part).some(function (partChapter) {
-          return partChapter.lessons.some(function (l) { return l.id === currentId; });
+          return partChapter.lessons.some(function (l) { return l.id === focusId; });
         });
         var progress = partProgress(part);
         var partStatus = progress.cleared === progress.total && progress.total > 0
@@ -442,10 +461,10 @@
         nav.appendChild(partSection);
         lastPartId = part.id;
       }
-      var isCurrentChapter = ch.lessons.some(function (l) { return l.id === currentId; });
+      var isCurrentChapter = ch.lessons.some(function (l) { return l.id === focusId; });
 
       // 章は既定でたたんでおく。ただし自分で開閉していない章のうち、
-      // いま開いているレッスンの章だけは現在地が分かるように開いておく。
+      // 目印を付ける単元の章だけは現在地が分かるように開いておく。
       if (sideExpanded[ch.id] === undefined && isCurrentChapter) {
         sideExpanded[ch.id] = true;
       }
@@ -456,9 +475,12 @@
         + (ch.cleared ? ' ch-cleared' : '')
         + (isCurrentChapter ? ' ch-current' : '');
 
-      var status = ch.cleared
-        ? '<span class="ch-done">✅</span>'
-        : (ch.clearedCount ? '<span class="ch-count">学習中</span>' : '');
+      // 全部終わった章に印は出さない。面の色（.ch-cleared の背景）で示す。
+      // 空の <span> を置くと flex の gap がそのぶん余って見出しの右が間延びするので、
+      // 見せる中身があるときだけ入れる。
+      var status = !ch.cleared && ch.clearedCount
+        ? '  <span class="ch-status"><span class="ch-count">学習中</span></span>'
+        : '';
 
       section.innerHTML =
         '<button type="button" class="ch-head" aria-expanded="' + open + '">' +
@@ -467,7 +489,7 @@
         '    <span class="ch-title">第' + displayChapterNumber(ch) + '章　' + esc(ch.title) + '</span>' +
         '    <span class="ch-sub">' + esc(ch.subtitle) + '</span>' +
         '  </span>' +
-        '  <span class="ch-status">' + status + '</span>' +
+        status +
         '  <span class="ch-caret">' + (open ? '▲' : '▼') + '</span>' +
         '</button>';
 
@@ -476,9 +498,12 @@
       if (!open) { ul.hidden = true; }
       ch.lessons.forEach(function (l) {
         var li = document.createElement('li');
+        // 開いている単元は塗り（lesson-current）。開いていないが最後にいた単元は、
+        // 「いまここを見ている」と誤解しないよう控えめな目印（lesson-focus）にする。
         li.className = 'lesson'
           + (l.cleared ? ' lesson-cleared' : '')
-          + (l.id === currentId ? ' lesson-current' : '');
+          + (l.id === currentId ? ' lesson-current'
+            : (l.id === focusId ? ' lesson-focus' : ''));
         li.innerHTML =
           '<span class="lesson-mark">' + (l.cleared ? '★' : '○') + '</span>' +
           '<span class="lesson-id">' + esc(displayLessonId(l)) + '</span>' +
@@ -504,22 +529,23 @@
     // 戻し、開いている単元が変わったとき（最初の描画や別レッスンへ移ったとき）だけ
     // その単元まで動かす。
     nav.scrollTop = keepScrollTop;
-    if (currentId !== sideScrolledFor) { scrollSidebarToCurrent(nav); }
+    if (focusId !== sideScrolledFor) { scrollSidebarToFocus(nav); }
   }
 
   /**
-   * いま開いている単元が見える位置までサイドバーをスクロールする。
+   * 目印を付けた単元が見える位置までサイドバーをスクロールする。
    * サイドバーを閉じている間（display:none）は寸法が測れないので何もせず、
    * ☰ で開いたときにやり直す。
    */
-  function scrollSidebarToCurrent(nav) {
+  function scrollSidebarToFocus(nav) {
     nav = nav || document.getElementById('sidebar');
     if (!nav || !nav.clientHeight) { return; }   // 閉じている＝測れない
-    if (!currentId) {
+    var focusId = sidebarFocusId();
+    if (!focusId) {
       sideScrolledFor = null;
       return;
     }
-    var target = nav.querySelector('.lesson-current');
+    var target = nav.querySelector('.lesson-current') || nav.querySelector('.lesson-focus');
     // 章をたたんでいると単元は見えていないので、そのときは章の見出しに寄せる。
     if (!target || !target.offsetParent) { target = nav.querySelector('.ch-current'); }
     if (!target) { return; }
@@ -531,7 +557,7 @@
     nav.scrollTop += offset;
     // 非表示中や描画途中で対象が見つからなかった場合は完了扱いにしない。
     // 実際に移動できたここで記録すれば、サイドバーを開いた時に再試行できる。
-    sideScrolledFor = currentId;
+    sideScrolledFor = focusId;
   }
 
   /**
@@ -1582,10 +1608,12 @@
     var nextOrderCash = cafe.nextOrderCash == null
       ? Math.floor(orderCups * cafe.cupPrice * (100 + cafe.bonusPercent) / 100)
       : cafe.nextOrderCash;
-    var passiveLabel = cafe.passiveCashPerMinute > 0
-      ? '表示中の自動売上 · 次の★まで残り '
-        + cafeNumberText(cafe.passiveCashRemaining) + 'コイン'
-      : '表示中の自動売上';
+    // 残り枠の数字は出さない。見えていると「提出を遅らせて枠を使い切るほうが得」に
+    // 見えてしまい、学習を止める動機になる（枠は★を取ると満タンに戻るので、
+    // 実際に待ったほうが多く取れてしまう）。止まったことだけは値側で知らせる。
+    var passiveCapped = cafe.passiveCashPerMinute > 0
+      && !(cafe.passiveCashRemaining > 0);
+    var passiveLabel = '表示中の自動売上';
     var finalLevelMessage = Number(cafe.storeCount || 1) >= Number(cafe.maxStores || 512)
       ? ((cafe.investmentLevel || 0) > 0
         ? '終盤改装 PROJECT Lv.' + numberText(cafe.investmentLevel) + 'を完了'
@@ -1623,10 +1651,14 @@
         : '') +
       '      <span><small>' + orderMetricLabel + '</small><b>' + numberText(orderCups) + '杯 · 約'
                + cafeNumberText(nextOrderCash) + 'コイン</b></span>' +
-      '      <span class="cafe-passive-metric"><small>' + passiveLabel + '</small><b id="cafePassiveLive">'
-               + (cafe.passiveCashPerMinute > 0
-                 ? perMinuteText('⏱️ +' + cafeNumberText(cafe.passiveCashPerMinute), 'コイン')
-                 : '⏱️ 未導入') + '</b></span>' +
+      '      <span class="cafe-passive-metric' + (passiveCapped ? ' capped' : '') + '">'
+               + '<small>' + passiveLabel + '</small><b id="cafePassiveLive">'
+               + (cafe.passiveCashPerMinute <= 0
+                 ? '⏱️ 未導入'
+                 : passiveCapped
+                   ? '⏱️ 上限に達しました'
+                   : perMinuteText('⏱️ +' + cafeNumberText(cafe.passiveCashPerMinute), 'コイン'))
+               + '</b></span>' +
       '    </div>' +
       '    <div class="cafe-meta-row">' +
       '      <span>☕ 累計 ' + numberText(cafe.cups) + '杯</span>' +
@@ -2080,6 +2112,8 @@
         }
         applyDelta(res.delta);
         renderHeader();
+        // 収入が出たときだけ描き直せば足りる。枠を使い切るのは必ず「最後の1コインを
+        // 受け取った回」なので、その回の描き直しで「上限に達しました」に変わる。
         if (res.passive.cash > 0 && currentView === 'cafe') {
           renderCafe(true);
           var live = document.getElementById('cafePassiveLive');
@@ -3369,6 +3403,25 @@
     render();
   }
 
+  /**
+   * ハッシュから読んだ現在地を画面の状態に反映する。
+   *
+   * 通常のレッスンを開いたときだけ「最後にいた単元」を控える。これは
+   * 「続ける」の行き先と、サイドバーの目印（sidebarFocusId）の両方が見る。
+   * 復習では動かさない（昔の章を復習しただけで、どちらも巻き戻らないように）。
+   *
+   * 起動時とハッシュ変更の2箇所から呼ぶ。以前は片方でしか控えていなかったため、
+   * レッスンのURLを直接開いてホームへ戻ると最後にいた単元を見失っていた。
+   */
+  function applyRoute(route) {
+    currentView = route.view;
+    currentId = route.id;
+    reviewTaskId = route.taskId;
+    if (currentId && currentView === 'lesson') {
+      try { localStorage.setItem('jq-last-lesson', currentId); } catch (e) { /* 使えなくても困らない */ }
+    }
+  }
+
   function boot() {
     try {
       var savedFilter = localStorage.getItem('jq-review-filter');
@@ -3381,10 +3434,7 @@
       .then(function (data) {
         setState(data);
         // ハッシュ付きで開いたときだけそのレッスンへ。それ以外はメインメニューから始める
-        var route = routeFromHash();
-        currentView = route.view;
-        currentId = route.id;
-        reviewTaskId = route.taskId;
+        applyRoute(routeFromHash());
         render();
       })
       .catch(function (e) {
@@ -3417,8 +3467,8 @@
     try { localStorage.setItem(SIDEBAR_HIDE_KEY, next ? '1' : '0'); } catch (e) { /* 使えなくても困らない */ }
     applySidebarVisibility();
     // 開いた瞬間に初めて寸法が測れるようになる。閉じている間の描画ではスクロール
-    // できていないので、ここで現在地まで寄せる。
-    if (!next) { scrollSidebarToCurrent(); }
+    // できていないので、ここで目印の単元まで寄せる。
+    if (!next) { scrollSidebarToFocus(); }
   });
   applySidebarVisibility();
 
@@ -3549,13 +3599,7 @@
         && route.taskId === reviewTaskId) {
       return;
     }
-    currentView = route.view;
-    currentId = route.id;
-    reviewTaskId = route.taskId;
-    // 「続ける」の行き先は通常のレッスンを開いたときだけ動かす（復習では動かさない）
-    if (currentId && currentView === 'lesson') {
-      try { localStorage.setItem('jq-last-lesson', currentId); } catch (e) { /* 同上 */ }
-    }
+    applyRoute(route);
     render();
   });
   window.addEventListener('resize', function () {
