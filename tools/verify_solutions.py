@@ -9,8 +9,8 @@ verify-solutions.sh から呼ばれる（直接実行する場合は第1引数�
 
 チェックしているのは次の5点。
   1. content/*.json が読み込めること
-  2. 各問題の starterCode がコンパイルできること（ひな形が壊れていないか）
-  3. 各問題の solution が全テストケースを通ること
+  2. single-fileのひな形、artifact、project、runtime-labを実行できること
+  3. 各問題の solution が全テストケース・構成検査・project/runtime実テストを通ること
   4. 各サンプルコードが実行でき、expected があれば出力も一致すること
   5. 確認クイズに正解がちょうど1つあり、解説が書かれていること
 """
@@ -71,12 +71,33 @@ def verify_task(lid, task, problems, warnings):
     tid = task["id"]
     where = f"問題{tid}"
 
-    # ── ひな形がコンパイルできるか ────────────────────────────────
-    # libLessonId は同梱ライブラリを引き当てるためだけのもの（保存はされない）
-    starter = post("run", {"code": task["starterCode"], "libLessonId": lid})
-    if not starter.get("compiled"):
-        problems.append(f"{where}のひな形がコンパイルできない")
-        show_diagnostics(starter.get("diagnostics", []))
+    if task.get("type") in ("project", "runtime-lab"):
+        workspace_key = "runtimeLab" if task.get("type") == "runtime-lab" else "project"
+        starter_files = {
+            f["path"]: f["content"] for f in task[workspace_key]["files"] if f["editable"]
+        }
+        starter = post("submit", {
+            "lessonId": lid, "taskId": tid,
+            "files": starter_files, "review": True
+        })
+        if task.get("type") == "runtime-lab" and not starter.get("available", True):
+            warnings.append(f"{lid}#{tid}: runtime環境なしのため実行を省略: {starter.get('error', '')}")
+        elif not starter.get("started"):
+            problems.append(f"{where}のproject検証を開始できない: {starter.get('error')}")
+    elif task.get("type") == "artifact":
+        starter = post("submit", {
+            "lessonId": lid, "taskId": tid,
+            "code": task["starterCode"], "review": True
+        })
+        if not starter.get("syntaxValid"):
+            problems.append(f"{where}のひな形を{task['artifact']['format']}として読めない")
+            print(f"      {RED}{starter.get('syntaxError', '')}{RESET}")
+    else:
+        # libLessonId は同梱ライブラリを引き当てるためだけのもの（保存はされない）
+        starter = post("run", {"code": task["starterCode"], "libLessonId": lid})
+        if not starter.get("compiled"):
+            problems.append(f"{where}のひな形がコンパイルできない")
+            show_diagnostics(starter.get("diagnostics", []))
 
     if not task["task"].strip():
         problems.append(f"{where}の問題文が空")
@@ -92,11 +113,47 @@ def verify_task(lid, task, problems, warnings):
     for i in range(task["hintCount"]):
         post("hint", {"lessonId": lid, "taskId": tid, "index": i})
     got = post("solution", {"lessonId": lid, "taskId": tid})
-    if "solution" not in got:
+    expected_key = "files" if task.get("type") in ("project", "runtime-lab") else "solution"
+    if expected_key not in got:
         problems.append(f"{where}の模範解答を取得できない: {got.get('error')}")
         return 0, 0
 
-    res = post("submit", {"lessonId": lid, "taskId": tid, "code": got["solution"]})
+    payload = {"lessonId": lid, "taskId": tid}
+    if task.get("type") in ("project", "runtime-lab"):
+        payload["files"] = got["files"]
+    else:
+        payload["code"] = got["solution"]
+    res = post("submit", payload)
+    if task.get("type") in ("project", "runtime-lab"):
+        if task.get("type") == "runtime-lab" and not res.get("available", True):
+            return 0, task.get("totalCaseCount", 0)
+        if not res.get("started"):
+            problems.append(f"{where}の模範解答でproject検証を開始できない: {res.get('error')}")
+            return 0, 1
+        if not res.get("allPass"):
+            problems.append(f"{where}の模範解答でprojectテストが失敗した")
+            output = res.get("output", "").splitlines()
+            for line in output[-10:]:
+                print(f"      {RED}{line}{RESET}")
+            return 0, 1
+        if task.get("type") == "runtime-lab":
+            return res.get("passedCount", 0), len(res.get("checks", []))
+        return 1, 1
+
+    if task.get("type") == "artifact":
+        total = len(res.get("checks", []))
+        passed = res.get("passedCount", 0)
+        if not res.get("syntaxValid"):
+            problems.append(f"{where}の模範解答を{task['artifact']['format']}として読めない")
+            print(f"      {RED}{res.get('syntaxError', '')}{RESET}")
+            return 0, total
+        if not res.get("allPass"):
+            problems.append(f"{where}の模範解答が {total - passed}件の構成検査で落ちた")
+            for check in res.get("checks", []):
+                if not check["pass"]:
+                    print(f"      {RED}✗ {check['message']}{RESET}")
+        return passed, total
+
     if not res.get("compiled"):
         problems.append(f"{where}の模範解答がコンパイルできない")
         show_diagnostics(res.get("diagnostics", []))
@@ -137,8 +194,11 @@ def main():
                 if any(wanted(l["id"]) for l in ch["lessons"])]
     lessons = [(ch, l) for ch in chapters for l in ch["lessons"] if wanted(l["id"])]
     tasks = [t for _, l in lessons for t in l["tasks"]]
+    required_tasks = [t for t in tasks if t.get("required", True)]
+    optional_tasks = [t for t in tasks if not t.get("required", True)]
     scope = f"（{' '.join(ONLY)} に絞って検査）" if ONLY else ""
-    print(f"問題 {len(tasks)}件 / レッスン {len(lessons)}件 / 章 {len(chapters)}件 "
+    optional_note = f" + 任意発展 {len(optional_tasks)}件" if optional_tasks else ""
+    print(f"問題 {len(required_tasks)}件{optional_note} / レッスン {len(lessons)}件 / 章 {len(chapters)}件 "
           f"を検査します{scope}\n")
     if not lessons:
         print(f"{RED}指定に一致するレッスンがありません: {' '.join(ONLY)}{RESET}")
@@ -155,6 +215,19 @@ def main():
             if not wanted(lid):
                 continue
             problems = []
+
+            # 事前確認は実行結果が端末ごとに違うため、ready自体は合否にしない。
+            # 定義した全項目が安全な専用APIで実測され、結果が返ることだけを確認する。
+            if lesson.get("type") == "preflight":
+                preflight = post("preflight", {"lessonId": lid})
+                expected_checks = lesson.get("preflight", {}).get("checks", [])
+                if not preflight.get("preflight"):
+                    problems.append(f"事前確認APIを実行できない: {preflight.get('error')}")
+                elif len(preflight.get("checks", [])) != len(expected_checks):
+                    problems.append("事前確認の定義数と実行結果数が一致しない")
+                elif any("pass" not in check or "required" not in check
+                         for check in preflight.get("checks", [])):
+                    problems.append("事前確認の実行結果に必須項目が無い")
 
             # ── サンプルコードが実行できるか ──────────────────────────
             for i, sample in enumerate(lesson["samples"]):
@@ -213,10 +286,15 @@ def main():
                         problems.append(f"クイズ{qi + 1}に解説が無い")
 
             mark = f"{GREEN}✅{RESET}" if not problems else f"{RED}❌{RESET}"
-            cases = f"{passed}/{total}ケース" if total else "ケース無し"
+            is_preflight = lesson.get("type") == "preflight"
+            cases = (f"事前確認{len(lesson['preflight']['checks'])}項目"
+                     if is_preflight else (f"{passed}/{total}ケース" if total else "ケース無し"))
             hidden_n = sum(t["hiddenCaseCount"] for t in lesson["tasks"])
             hidden = f" (隠し{hidden_n})" if hidden_n else ""
-            task_note = f" / {len(lesson['tasks'])}問"
+            required_n = sum(1 for t in lesson["tasks"] if t.get("required", True))
+            optional_n = len(lesson["tasks"]) - required_n
+            optional_note = f" + 任意{optional_n}問" if optional_n else ""
+            task_note = " / ★対象外" if is_preflight else f" / {required_n}問{optional_note}"
             quiz_n = len(lesson.get("quizzes", []))
             quiz_note = f" / クイズ{quiz_n}問" if quiz_n else ""
             print(f"   {mark} {lid:4} {lesson['title'][:26]:28} "
@@ -243,11 +321,14 @@ def main():
     case_total = sum(t["totalCaseCount"] for t in tasks)
     quiz_total = sum(len(l.get("quizzes", [])) for _, l in lessons)
     kinds = {}
-    for t in tasks:
+    for t in required_tasks:
         kinds[t["label"]] = kinds.get(t["label"], 0) + 1
     breakdown = " / ".join(f"{k}{v}問" for k, v in kinds.items())
+    optional_summary = f" + 任意発展{len(optional_tasks)}問" if optional_tasks else ""
+    problem_summary = (f"問題{len(required_tasks)}問（{breakdown}）{optional_summary}" if breakdown
+                       else "問題0問（事前確認のみ）")
     print(f"{GREEN}すべて合格{RESET}  "
-          f"レッスン{len(lessons)}件 / 問題{len(tasks)}問（{breakdown}）"
+          f"レッスン{len(lessons)}件 / {problem_summary}"
           f" / テストケース{case_total}件（うち隠し{hidden_total}件）"
           f" / 確認クイズ{quiz_total}問")
     return 0

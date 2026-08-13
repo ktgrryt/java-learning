@@ -61,7 +61,7 @@ public final class Curriculum {
     public int totalTaskCount() {
         int n = 0;
         for (Lesson l : lessonsById.values()) {
-            n += l.tasks().size();
+            n += (int) l.tasks().stream().filter(Task::required).count();
         }
         return n;
     }
@@ -77,7 +77,7 @@ public final class Curriculum {
         for (Chapter c : chapters) {
             for (Lesson l : c.lessons()) {
                 for (Task t : l.tasks()) {
-                    order.add(new TaskRef(l.id(), t.id()));
+                    if (t.required()) order.add(new TaskRef(l.id(), t.id()));
                 }
             }
         }
@@ -92,7 +92,7 @@ public final class Curriculum {
     public int taskCount(Chapter chapter) {
         int n = 0;
         for (Lesson l : chapter.lessons()) {
-            n += l.tasks().size();
+            n += (int) l.tasks().stream().filter(Task::required).count();
         }
         return n;
     }
@@ -119,7 +119,9 @@ public final class Curriculum {
 
     /** レッスンの★（全問クリアで付く）。 */
     public boolean isLessonCleared(Lesson lesson, Set<String> clearedKeys) {
-        return clearedCount(lesson, clearedKeys) == lesson.tasks().size();
+        // 事前確認は採点問題ではなく、環境は後から変わり得る。★の対象にはしない。
+        List<String> requiredKeys = lesson.taskKeys();
+        return !requiredKeys.isEmpty() && clearedCount(lesson, clearedKeys) == requiredKeys.size();
     }
 
     public boolean isChapterCleared(Chapter chapter, Set<String> clearedKeys) {

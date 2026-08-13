@@ -5,6 +5,55 @@
   "emoji": "🧩",
   "lessons": [
     {
+      "id": "53-0",
+      "lessonType": "preflight",
+      "title": "事前確認：3製品の比較labを動かす準備",
+      "explanation": "## 比較条件をそろえる前に、共通の実行条件を確認する\n\n`labs/frameworks`でSpring Boot、Open Liberty、Quarkusを比較するには、JDK 21とMaven 3.9以上が必要です。Spring BootとQuarkusは既定で8080番、Open Libertyは9080番を使います。3製品を同時に起動する場合はSpring BootかQuarkusのポートを変更し、どの製品へ送った要求か分かるよう記録します。\n\nDockerはQuarkusのNative Imageをcontainer buildするときだけ使う任意項目です。まず3製品をJVMで起動し、同じAPI契約と測定条件をそろえます。初回の依存取得は3製品合計で大きくなるため、ネットワークとディスクの余裕も確認してください。この事前確認は★対象外です。",
+      "preflight": {
+        "buttonLabel": "比較labの準備を確認する",
+        "checks": [
+          {
+            "id": "java-runtime",
+            "type": "tool",
+            "tool": "java",
+            "label": "JDK 21の実行環境",
+            "minimumVersion": "21",
+            "help": "JDK 21以降をインストールし、JAVA_HOMEとPATHをそろえてください。"
+          },
+          {
+            "id": "maven",
+            "type": "tool",
+            "tool": "maven",
+            "label": "Apache Maven",
+            "minimumVersion": "3.9",
+            "help": "Maven 3.9以降をインストールし、mvnをPATHへ追加してからアプリを再起動してください。"
+          },
+          {
+            "id": "embedded-http-port",
+            "type": "port",
+            "port": 8080,
+            "label": "Spring Boot / Quarkusの既定ポート",
+            "help": "localhost:8080を空けるか、一方の製品のHTTPポートを変更してください。"
+          },
+          {
+            "id": "liberty-http-port",
+            "type": "port",
+            "port": 9080,
+            "label": "Open Libertyの既定ポート",
+            "help": "localhost:9080を空けるか、Open Libertyのserver.xmlを変更してください。"
+          },
+          {
+            "id": "docker-native",
+            "type": "tool",
+            "tool": "docker",
+            "label": "Docker daemon（Native比較用）",
+            "required": false,
+            "help": "Native Imageも比較するときだけDockerを起動してください。JVM比較には不要です。"
+          }
+        ]
+      }
+    },
+    {
       "id": "53-1",
       "title": "フレームワークを選ぶ軸",
       "explanation": "## フレームワークは何を代わりにしてくれるのか\n\nWebアプリを標準Javaだけで一から作ると、HTTPを受ける処理、JSON変換、オブジェクトの組み立て、設定の読み込み、テスト、本番監視まで自分でつなぐ必要があります。**フレームワーク**は、こうした共通処理とアプリの組み立て方を提供し、開発者が業務ルールへ集中できるようにする土台です。\n\nこの章では、代表的な3つを比べます。\n\n- **Spring Boot** — Springの部品を、規約と自動設定で素早く組み立てる\n- **Open Liberty** — Jakarta EEやMicroProfileという標準仕様を実行するサーバー\n- **Quarkus** — 起動時に行う処理をビルド時へ移し、速い起動や小さいメモリ使用量を狙う\n\n名前だけで優劣は決まりません。たとえば、起動が少し速くても、社内の認証基盤が使えない、障害時に調べられる人がいない、必要なライブラリが動かないなら適切な選択ではありません。\n\n### 比較で使う言葉\n\n- **標準への準拠** — Jakarta EEなど、製品をまたいで共通するAPIに沿っているか\n- **既存資産** — すでにあるコード、ライブラリ、運用手順、チームの経験\n- **スループット** — 一定時間に処理できる件数\n- **p95 / p99** — 遅い側から5%・1%に入る応答時間。平均では隠れる遅い利用者を見る\n- **RSS** — OSから見たプロセス全体のおおよそのメモリ使用量\n- **ADR** — 候補、比較条件、選んだ理由を残す設計判断の記録\n\n性能の数字は、JDK、依存、CPU・メモリ上限、入力、ウォームアップ時間で変わります。同じ小さなAPIを候補ごとに作り、同じ条件で測ります。ただし測る前に、必須条件を満たさない候補を除外します。\n\n### 選ぶ順番\n\n1. 必要なAPI、JDK、セキュリティ、サポート条件を満たすか\n2. 既存コードと社内運用を無理なく移せるか\n3. 開発・テスト・障害調査をチームで続けられるか\n4. 本番に近い条件で起動時間、メモリ、応答時間、処理件数を測る\n5. 選んだ理由と見直す条件をADRへ残す\n\nこのレッスンの点数計算は比較方法の小さなモデルです。実際には、どれか一つでも必須条件を満たさない候補を、合計点だけで選ばないようにします。\n\nこの章は**選定の入口**です。続く「Spring Boot実践入門」「Open Liberty実践入門」「Quarkus実践入門」では、各製品を独立して起動・設定・テスト・運用するところまで学びます。比較だけで製品を分かったつもりにせず、候補の実践章と`labs/frameworks`を少なくとも1つ完了してから選定してください。",

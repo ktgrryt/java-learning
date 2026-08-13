@@ -5,6 +5,48 @@
   "emoji": "⚡",
   "lessons": [
     {
+      "id": "62-0",
+      "lessonType": "preflight",
+      "title": "事前確認：Quarkus labを起動する準備",
+      "explanation": "## JVMモードと任意のNative buildを分けて確認する\n\n`labs/frameworks/quarkus`をJVMモードで動かすには、JDK 21、Maven 3.9以上、localhostの8080番ポートが必要です。DockerはNative Imageをcontainer buildする場合だけ必要で、この章のJVM演習には必須ではありません。任意項目が失敗しても「準備完了」になります。\n\n```bash\ncd labs/frameworks/quarkus\nmvn quarkus:dev\n# 別のターミナルで確認\ncurl 'http://localhost:8080/api/greeting?name=Java'\n```\n\n初回はExtensionなどの依存関係を取得します。8080番が使用中なら既存サーバーを停止するか、`quarkus.http.port`を変更します。Native Imageへ進むのは、まずJVMモードでテストと動作確認を終え、起動時間やメモリの要件がある場合です。",
+      "preflight": {
+        "buttonLabel": "Quarkusの準備を確認する",
+        "checks": [
+          {
+            "id": "java-runtime",
+            "type": "tool",
+            "tool": "java",
+            "label": "JDK 21の実行環境",
+            "minimumVersion": "21",
+            "help": "JDK 21以降をインストールし、JAVA_HOMEとPATHをそろえてください。"
+          },
+          {
+            "id": "maven",
+            "type": "tool",
+            "tool": "maven",
+            "label": "Apache Maven",
+            "minimumVersion": "3.9",
+            "help": "Maven 3.9以降をインストールし、mvnをPATHへ追加してからアプリを再起動してください。"
+          },
+          {
+            "id": "http-port",
+            "type": "port",
+            "port": 8080,
+            "label": "QuarkusのHTTPポート",
+            "help": "localhost:8080を使うプロセスを停止するか、quarkus.http.portを変更してください。"
+          },
+          {
+            "id": "docker-native",
+            "type": "tool",
+            "tool": "docker",
+            "label": "Docker daemon（Native build用）",
+            "required": false,
+            "help": "Native Imageをcontainer buildするときだけDocker Desktop等を起動してください。JVM演習には不要です。"
+          }
+        ]
+      }
+    },
+    {
       "id": "62-1",
       "title": "Quarkusは何を軽く速くするのか",
       "explanation": "Quarkusは、JavaをコンテナやKubernetesで軽量・高速に動かすことを強く意識したフレームワーク兼ランタイムです。特徴は、実行時に毎回行いがちなクラス探索、DIの解析、メタデータ作成などを、できるだけビルド時へ移すことです。これにより、起動時間、メモリ使用量、クラス読み込みを減らしやすくします。JVMでも動き、必要ならNative Imageも作れます。\n\n最初に、Quarkusの説明でよく使う言葉を整理します。\n\n- クラウドネイティブ: コンテナ化、自動配備、監視、負荷に応じた増減を前提にアプリを作り運用する考え方です。\n- ビルド時: ソースコードから配布物を作る段階です。実行時は、完成した配布物を起動してリクエストを処理する段階です。\n- Extension: RESTやDBなどのライブラリを、Quarkusの設定・ビルド処理・開発モードへ接続する追加部品です。\n- JVMモード／Native Image: JVM上でJavaとして動かす方法と、必要な処理を事前コンパイルしたOS向け実行ファイルとして動かす方法です。\n\nQuarkusでは、用途別のExtensionを追加します。Extensionは単なる依存ライブラリの集合ではなく、ライブラリをQuarkusのビルド時処理や設定、開発モードへ統合する部品です。REST APIなら`quarkus-rest-jackson`、入力検証なら`quarkus-hibernate-validator`、Healthなら`quarkus-smallrye-health`のように選びます。必要なExtensionだけを追加すると、アプリの用途を構成から読み取りやすくなります。Quarkusでは、各Extensionがビルド時最適化へ統合される点が特に重要です。\n\n典型的なMavenプロジェクトは次のように動かします。\n\n```bash\nmvn quarkus:dev\n# コードを変更するとLive Reload\ncurl 'http://localhost:8080/api/greeting?name=Java'\nmvn test\nmvn package\njava -jar target/quarkus-app/quarkus-run.jar\n```\n\nこの教材ラボはMaven Wrapperを同梱していないため`mvn`を使います。実務プロジェクトに`mvnw`がある場合は、`mvn`を`./mvnw`へ読み替えると、プロジェクト指定のMaven版で実行できます。\n\n`quarkus:dev`はLive Reload、開発UI、継続テスト、Dev Servicesなどをまとめた開発モードです。本番用の起動方法ではありません。配布時は`package`で`target/quarkus-app`一式を作り、`quarkus-run.jar`だけでなく同ディレクトリのライブラリと一緒に配置します。依存ライブラリを1個のJARへまとめるUber JARも明示的に選べますが、まずは標準の`quarkus-app`構成を使えば十分です。\n\nまずは`labs/frameworks/quarkus`をJVMモードで動かしてください。Native Imageは最小APIが正しく動き、起動時間やメモリが本当に課題だと測定できた後に進みます。「Quarkusだから必ずNative」ではありません。短い開発フィードバックとJVM運用だけでもQuarkusの利点を利用できます。",
@@ -230,7 +272,32 @@
         }
       ],
       "kind": "practice",
-      "extraTasks": [],
+      "extraTasks": [
+        {
+          "kind": "applied",
+          "type": "project",
+          "task": "【複数ファイル演習】Quarkusの挨拶API projectを完成させてください。`pom.xml`へREST Jackson、Hibernate Validator、SmallRye HealthのExtensionを追加し、`GreetingService`へ`app.greeting.prefix`を`ConfigProperty`で注入します。`application.properties`ではprefixを`Welcome`に設定してください。`GreetingResourceTest`を`@QuarkusTest`にし、REST Assuredで正常API、Validation、readinessをHTTP境界から確認します。\n\n提出すると`mvn test`を実行します。学習者が編集できない受け入れテストも、設定値を使ったJSON、空白・21文字のHTTP 400、`/q/health/ready`の`UP`と`greeting` checkを検証します。テストを空にしたり、一般Javaだけを書いたりしても合格できません。",
+          "project": {
+            "name": "quarkus-extension-config-quarkus-test",
+            "source": "labs/frameworks/quarkus/project-exercise",
+            "exclude": ["reference", "target"],
+            "command": ["mvn", "-q", "test"],
+            "timeoutSeconds": 60,
+            "verification": "Extension、Config、@QuarkusTestを使い、実Quarkus HTTP境界の受け入れテストをすべて通す",
+            "editableFiles": [
+              {"path": "pom.xml", "solutionPath": "reference/pom.xml"},
+              {"path": "src/main/java/example/greeting/GreetingService.java", "solutionPath": "reference/src/main/java/example/greeting/GreetingService.java"},
+              {"path": "src/main/resources/application.properties", "solutionPath": "reference/src/main/resources/application.properties"},
+              {"path": "src/test/java/example/greeting/GreetingResourceTest.java", "solutionPath": "reference/src/test/java/example/greeting/GreetingResourceTest.java"}
+            ]
+          },
+          "hints": [
+            "`pom.xml`へ`quarkus-rest-jackson`、`quarkus-hibernate-validator`、`quarkus-smallrye-health`を追加します。versionはBOMが管理するため各dependencyへ書きません。",
+            "`GreetingService`のconstructor引数へ`@ConfigProperty(name = \"app.greeting.prefix\")`を付け、`application.properties`へ`app.greeting.prefix=Welcome`を書きます。",
+            "`GreetingResourceTest`へ`@QuarkusTest`を付け、`/api/greeting`と`/q/health/ready`をREST Assuredで呼びます。正常時はmessageが`Welcome, Java`になることも確認します。"
+          ]
+        }
+      ],
       "quiz": [
         {
           "question": "Quarkus RESTでJakarta RESTの知識を再利用できる理由はどれですか？",
@@ -398,7 +465,77 @@
         }
       ],
       "kind": "applied",
-      "extraTasks": [],
+      "extraTasks": [
+        {
+          "kind": "applied",
+          "type": "runtime-lab",
+          "task": "【JVM実起動演習】Quarkusの挨拶APIを完成させてください。`GreetingResource`へ`@NotBlank`と`@Size(max = 20)`を追加し、`GreetingReadiness`は受付可能状態を`UP`で返します。`application.properties`へ`app.greeting.prefix=Hello`を設定してください。\n\n提出すると`mvn package`で`target/quarkus-app`一式を作り、採点側が確保した動的localhost portで`quarkus-run.jar`をJVM起動します。正常JSON、空白・21文字のHTTP 400、SmallRye Health readinessを実HTTPで確認し、最後にprocessとlistenerを停止します。Native ImageやDockerはこの必須演習では使いません。",
+          "runtimeLab": {
+            "name": "quarkus-jvm-package-http-health",
+            "source": "labs/frameworks/quarkus/runtime-exercise",
+            "exclude": ["reference", "target"],
+            "command": ["./run-runtime-lab.sh"],
+            "timeoutSeconds": 60,
+            "verification": "JUnit後にJVM配布物をbuild・起動し、REST、Validation、SmallRye Health、停止を確認する",
+            "capabilities": ["server", "http"],
+            "requiredTools": ["java", "javac", "mvn"],
+            "requiredImages": [],
+            "checks": [
+              {"id": "quarkus-tests", "label": "mvn package内のJUnitを通す"},
+              {"id": "quarkus-jvm-package", "label": "quarkus-run.jarと依存libを含むJVM配布物を作る"},
+              {"id": "quarkus-api", "label": "JVMモードのQuarkus RESTがHTTP 200とJSONを返す"},
+              {"id": "quarkus-validation", "label": "入力不正を実HTTP境界で400にする"},
+              {"id": "quarkus-health", "label": "SmallRye Health readinessがgreeting=UPを返す"},
+              {"id": "quarkus-stop", "label": "検証後にJVM processとHTTP listenerを停止する"}
+            ],
+            "editableFiles": [
+              {"path": "src/main/java/example/greeting/GreetingResource.java", "solutionPath": "reference/src/main/java/example/greeting/GreetingResource.java"},
+              {"path": "src/main/java/example/greeting/GreetingReadiness.java", "solutionPath": "reference/src/main/java/example/greeting/GreetingReadiness.java"},
+              {"path": "src/main/resources/application.properties", "solutionPath": "reference/src/main/resources/application.properties"}
+            ]
+          },
+          "hints": [
+            "`GreetingResource`のname引数へ`@NotBlank`と`@Size(max = 20)`を付けます。import元は`jakarta.validation.constraints`です。",
+            "`GreetingReadiness.call()`は`HealthCheckResponse.up(\"greeting\")`を返します。",
+            "`application.properties`へ`app.greeting.prefix=Hello`を書きます。HTTP portは採点側が起動引数で渡すため固定しません。"
+          ]
+        },
+        {
+          "kind": "applied",
+          "required": false,
+          "type": "runtime-lab",
+          "task": "【任意・Native Image発展】JVM演習を終え、cold startまたは初期メモリを実測する必要がある場合だけ進めます。`application.properties`のprefixを`Native`にし、`GreetingReadiness`を`UP`へ直してください。\n\n提出するとQuarkus公式のUBI 9 Mandrel builder imageでLinux Native executableをcontainer buildし、UBI 9 micro imageへ格納して起動します。Native REST、readiness、停止を検証し、build秒数も出力します。Docker daemonと2つのimageが必要で、章クリア・★・カフェ報酬には影響しません。初回は数分と十分なCPU・メモリ・空き容量が必要です。",
+          "runtimeLab": {
+            "name": "quarkus-native-container-optional",
+            "source": "labs/frameworks/quarkus/native-exercise",
+            "exclude": ["reference", "target"],
+            "command": ["./run-native-lab.sh"],
+            "timeoutSeconds": 600,
+            "verification": "Native executableをcontainer buildし、実containerのREST、Health、cleanupを確認する",
+            "capabilities": ["container", "server", "http"],
+            "requiredTools": ["java", "javac", "mvn", "docker"],
+            "requiredImages": [
+              "quay.io/quarkus/ubi9-quarkus-mandrel-builder-image:jdk-21",
+              "quay.io/quarkus/ubi9-quarkus-micro-image:2.0"
+            ],
+            "checks": [
+              {"id": "quarkus-native-build", "label": "Mandrel containerでNative executableをbuildする"},
+              {"id": "quarkus-native-api", "label": "Native containerのRESTが期待したJSONを返す"},
+              {"id": "quarkus-native-health", "label": "Native containerのreadinessがUPを返す"},
+              {"id": "quarkus-native-stop", "label": "検証後にNative containerとlistenerを停止する"}
+            ],
+            "editableFiles": [
+              {"path": "src/main/java/example/greeting/GreetingReadiness.java", "solutionPath": "reference/src/main/java/example/greeting/GreetingReadiness.java"},
+              {"path": "src/main/resources/application.properties", "solutionPath": "reference/src/main/resources/application.properties"}
+            ]
+          },
+          "hints": [
+            "先に`docker pull quay.io/quarkus/ubi9-quarkus-mandrel-builder-image:jdk-21`と`docker pull quay.io/quarkus/ubi9-quarkus-micro-image:2.0`を実行します。採点はimageを自動pullしません。",
+            "設定は`app.greeting.prefix=Native`、readinessは`HealthCheckResponse.up(\"native-greeting\")`です。",
+            "Nativeを採用する結論ありきにせず、JVM版とbuild時間、起動時間、RSS、定常性能、障害調査性を同条件で比較してください。"
+          ]
+        }
+      ],
       "quiz": [
         {
           "question": "Native Imageが特に有利になりやすい場面はどれですか？",

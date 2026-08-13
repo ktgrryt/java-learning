@@ -5,6 +5,41 @@
   "emoji": "🧪",
   "lessons": [
     {
+      "id": "45-0",
+      "lessonType": "preflight",
+      "title": "事前確認：Mavenプロジェクトを動かす準備",
+      "explanation": "## 本題の前に、環境とコードの問題を分ける\n\nこの章から、1ファイルだけでなくMavenプロジェクトを実際にテストします。環境不足をJavaコードの誤りと取り違えないよう、先にJDKとMavenを確認します。この確認には★が付かず、章のクリア条件にも含まれません。\n\nこの教材のlabは **JDK 21以上とMaven 3.9以上** を使います。Gradleは実務で広く使われますが、現在の対象labはMaven構成なのでインストール必須ではありません。実務プロジェクトに`mvnw`や`gradlew`があれば、通常はそのWrapperを優先します。\n\n```bash\njava --version\njavac --version\nmvn --version\n```\n\n`java`だけでなく`javac`も必要です。`mvn --version`には、Maven自身の版とMavenが使用するJavaの場所が表示されます。両方が別のJDKを指している場合は、`JAVA_HOME`と`PATH`を同じJDK 21へそろえます。\n\nこの画面の確認はツールの存在と版だけを調べ、依存ライブラリはダウンロードしません。`labs/testing-maven`で最初に`mvn test`を実行するときは、Maven Centralへ接続できる環境が必要です。会社のproxyや社内repositoryを使う場合は、組織の`settings.xml`に従ってください。",
+      "preflight": {
+        "buttonLabel": "JDKとMavenを確認する",
+        "checks": [
+          {
+            "id": "java-runtime",
+            "type": "tool",
+            "tool": "java",
+            "label": "Java実行環境",
+            "minimumVersion": "21",
+            "help": "JDK 21以降をインストールし、JAVA_HOMEとPATHを同じJDKへ向けてください。"
+          },
+          {
+            "id": "java-compiler",
+            "type": "tool",
+            "tool": "javac",
+            "label": "Javaコンパイラ",
+            "minimumVersion": "21",
+            "help": "JREではなくJDKが必要です。javac --versionを新しいターミナルで確認してください。"
+          },
+          {
+            "id": "maven",
+            "type": "tool",
+            "tool": "maven",
+            "label": "Apache Maven",
+            "minimumVersion": "3.9",
+            "help": "Maven 3.9以降をインストールし、mvnをPATHへ追加してください。変更後はアプリを再起動します。"
+          }
+        ]
+      }
+    },
+    {
       "id": "45-1",
       "title": "テストしやすいコード",
       "explanation": "## 入力と出力を小さくする\n\n自動テストでは、同じ入力なら同じ結果を返す小さなメソッドが扱いやすくなります。時刻、乱数、ファイル、通信を処理の内部で直接取得すると結果が環境に依存します。値や役割を引数で受け取り、計算と入出力を分けます。\n\n```java\nstatic int fee(int price, int rate) {\n    if (price < 0 || rate < 0) throw new IllegalArgumentException();\n    return Math.multiplyExact(price, rate) / 100;\n}\n```\n\nテストケースは正常値だけでなく、境界値（0、上限の前後）、同値分割、例外も選びます。実装の行をなぞるのではなく、利用者から見える振る舞いを検証します。\n\n### 「いま」と「外の世界」を引数にする\n\nテストしにくいコードは、たいてい **自分で外の世界を取りに行っています**。\n\n```java\n// テストしにくい\nstatic int fee(int price) {\n    int rate = LocalDate.now().getDayOfWeek() == DayOfWeek.SUNDAY ? 20 : 10;\n    return price * (100 - rate) / 100;\n}\n```\n\n`now()` を中で呼んでいるので、**実行した日によって結果が変わります**。日曜の挙動を\n確かめるには日曜まで待つしかありません。\n\n外から渡す形にすると、いつでも試せます。\n\n```java\nstatic int fee(int price, DayOfWeek day) {      // 判断の材料を引数にする\n    int rate = day == DayOfWeek.SUNDAY ? 20 : 10;\n    return price * (100 - rate) / 100;\n}\n```\n\n同じことが、乱数（`Math.random()`）、環境変数、ファイル、HTTP呼び出しにも当てはまります。\n\n| 中で取りに行くもの | 外から渡す形 |\n|---|---|\n| `LocalDate.now()` | `Clock` か、日付そのものを引数に |\n| `Math.random()` | `Random` を受け取る（種を固定できる） |\n| `System.getenv` | 設定オブジェクトを引数に |\n| DB・HTTP | インターフェースにして差し替える（第21章） |\n\n> ⚠️ 間違えやすい点 … `static` な可変フィールドに状態を持つと、テストの実行順で\n> 結果が変わります（前のテストが残した値を次が見る）。順番に依存するテストは、\n> 単体では通るのに全部走らせると落ちる、という最も追いにくい形になります。",

@@ -82,6 +82,19 @@ dev modeのターミナルで表示される操作案内から継続テストを
 実行されます。通常は`r`で再開できます。Live Reloadは変更反映、Continuous Testingは正しさの確認です。
 テストデータは各テストが準備・後片付けし、実行順や固定sleepに依存させません。
 
+### Java Caféの採点付き演習
+
+`62-3`のproject問題では、`pom.xml`、Service、properties、`@QuarkusTest`を編集し、REST Jackson、
+Hibernate Validator、SmallRye HealthのExtension、MicroProfile Config、実HTTP境界を`mvn test`で確認します。
+学習者が変更できない受け入れテストも正常JSON、Validation 400、readinessを確認します。
+
+`62-5`の必須runtime-labでは`mvn package`で`target/quarkus-app`一式を作り、採点側の動的portで
+`quarkus-run.jar`をJVM起動します。REST、Validation、Health、停止まで実測し、Dockerは使いません。
+
+Native Imageのcontainer buildは同じ`62-5`内の**任意発展問題**です。章クリアや★の分母には含まれず、
+Docker daemonと公式UBI 9 builder/micro imageがある場合だけ実行します。Linux executableをbuildして
+runtime containerへ格納し、Native REST、Health、cleanupを確認します。
+
 ## 5. Dev Servicesを試す（Docker/Podmanがある場合）
 
 この最小ラボは外部DBを必要としないため、通常はコンテナを起動しません。仕組みを試す場合は作業用branchで
@@ -121,6 +134,10 @@ mvn package -Dnative -Dquarkus.native.container-build=true
 Native Imageはcold startと初期メモリを小さくしやすい一方、build時間、動的Reflection、resource、
 利用ライブラリ、障害調査に追加確認が必要です。Nativeを本番採用するならNative実行ファイルを対象にした
 テストも追加し、JVM版と起動、RSS、定常性能、build時間を同じ条件で比較します。
+
+採点付き任意演習の詳細と手動pullするimageは
+[`native-exercise/README.md`](native-exercise/README.md)を参照してください。Quarkus 3.19以降の既定builderは
+UBI 9系なので、最終runtime imageもUBI 9互換にそろえます。
 
 ## 8. 安全に更新する
 

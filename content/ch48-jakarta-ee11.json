@@ -5,6 +5,40 @@
   "emoji": "🏙️",
   "lessons": [
     {
+      "id": "48-0",
+      "lessonType": "preflight",
+      "title": "事前確認：Jakarta EE 11 labのビルド準備",
+      "explanation": "## APIのコンパイルと、実装サーバーでの実行を分ける\n\n`labs/jakarta-ee11`のWARを作るにはJDK 21とMaven 3.9以上が必要です。WARを実際に動かすには、これとは別にJakarta EE 11 Platformへ対応したOpen Liberty、WildFly、Payaraなどのサーバーが必要です。Tomcatだけでは、このlabが使うJakarta REST、CDI、Validation等の実装はそろいません。\n\n```bash\ncd labs/jakarta-ee11\nmvn clean package\n# target/jakarta-ee11-lab.warを対応サーバーへ配置\n```\n\nこの画面はJDK、Maven、例で使う8080番ポートを自動確認します。採用サーバーのJakarta EE 11対応状況とデプロイ方法は製品ごとに異なるため、サーバーの公式文書で手動確認してください。サーバーがまだ無くてもWARの作成までは確認できます。自動確認には★が付かず、章のクリア条件にも含まれません。",
+      "preflight": {
+        "buttonLabel": "Jakarta EE labの準備を確認する",
+        "checks": [
+          {
+            "id": "java-runtime",
+            "type": "tool",
+            "tool": "java",
+            "label": "JDK 21の実行環境",
+            "minimumVersion": "21",
+            "help": "JDK 21以降をインストールし、JAVA_HOMEとPATHをそろえてください。"
+          },
+          {
+            "id": "maven",
+            "type": "tool",
+            "tool": "maven",
+            "label": "Apache Maven",
+            "minimumVersion": "3.9",
+            "help": "Maven 3.9以降をインストールし、mvnをPATHへ追加してからアプリを再起動してください。"
+          },
+          {
+            "id": "http-port",
+            "type": "port",
+            "port": 8080,
+            "label": "例で使うHTTPポート",
+            "help": "localhost:8080を使用中のプロセスを停止するか、サーバーと確認URLのポートを変更してください。"
+          }
+        ]
+      }
+    },
+    {
       "id": "48-1",
       "title": "Platform・Web Profile・Core Profile",
       "explanation": "## プロファイルは、アプリの用途ごとに「必要な仕様の範囲」をそろえる\n\nJakarta EEは1つの巨大なライブラリではなく、REST、依存性注入、永続化、トランザクションなど、サーバーアプリに必要な標準仕様をまとめたものです。しかし、すべてのアプリが全機能を必要とするわけではありません。そこで、用途に合う仕様の組み合わせを **プロファイル** として定義します。\n\n- **Core Profile**: 軽量なサービスの土台となる最小構成。REST、依存性注入、JSON処理などを中心にする\n- **Web Profile**: Webアプリ向け。Coreの範囲に加え、Servlet、Persistence、トランザクションなどWeb開発でよく使う仕様を含む\n- **Platform**: Jakarta EE全体。Web Profileより広く、メッセージングなどを含む完全な仕様集合\n\nプロファイルが嬉しいのは、開発者とサーバー実装の間で「この種類のアプリに必要なAPIは一式そろう」という共通の約束を持てることです。個々のAPIを毎回ばらばらに確認する負担を減らし、対応する別実装へ移すときも必要機能を比較しやすくなります。\n\nただし、Core Profileを選んだだけで、必ず起動が速くなったり配布サイズが小さくなったりするわけではありません。プロファイルは **仕様の範囲** です。実際の起動時間やサイズは、利用するサーバー実装、機能の有効化方法、依存関係、コンテナイメージを測って判断します。\n\nMavenの `jakarta.jakartaee-api` のような依存関係は、主にコンパイル時にAPIの型を提供します。実行時の処理本体はJakarta EE対応サーバーが提供するため、一般に依存範囲を `provided` とし、アプリへ同じAPIを重ねて同梱しないようにします。\n\nJakarta EE 11はJava SE 17以上を対象とします。利用前に、コンパイルするJavaの版、サーバーが対応するJakarta EEの版、実行環境のJavaの版をそろえて確認します。今回の演習では、JavaとJakarta EEの版から、まず組み合わせを調査対象として分類します。最終的な対応可否は採用サーバーの公式文書でも確認してください。",

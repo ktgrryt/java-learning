@@ -399,49 +399,38 @@
         }
       ],
       "kind": "applied",
-      "task": "【基本】注文キャンセルの安全な構造化ログを作ります。入力は`event requestId orderId result authorization customerReason durationMs`です。`authorization`と`customerReason`は受け取っても絶対に出力せず、`event=... requestId=... orderId=... result=... durationMs=...`の順で1行だけ表示してください。文字列連結で出力項目を明示してください。",
-      "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        String event = s.next();\n        String requestId = s.next();\n        long orderId = s.nextLong();\n        String result = s.next();\n        String authorization = s.next();\n        String customerReason = s.next();\n        long durationMs = s.nextLong();\n        // TODO: 調査に必要な許可項目だけを安定した順で表示する\n    }\n}\n",
-      "visibleCases": [
-        {
-          "label": "成功イベント",
-          "stdin": "order_cancelled r-10 420 OK Bearer-secret moved-home 31",
-          "expected": "event=order_cancelled requestId=r-10 orderId=420 result=OK durationMs=31"
-        },
-        {
-          "label": "失敗イベント",
-          "stdin": "order_cancel_failed r-20 99 DB_TIMEOUT token-abc private-note 1532",
-          "expected": "event=order_cancel_failed requestId=r-20 orderId=99 result=DB_TIMEOUT durationMs=1532"
-        }
-      ],
-      "hiddenCases": [
-        {
-          "label": "値が変わっても項目順は固定",
-          "stdin": "order_rejected req-x 1 FORBIDDEN top-secret address-data 0",
-          "expected": "event=order_rejected requestId=req-x orderId=1 result=FORBIDDEN durationMs=0"
-        },
-        {
-          "label": "大きいIDと時間",
-          "stdin": "order_loaded trace-9 999999 OK credential reason 120000",
-          "expected": "event=order_loaded requestId=trace-9 orderId=999999 result=OK durationMs=120000"
-        }
-      ],
+      "type": "project",
+      "task": "`labs/logging-investigation`のログ解析プロジェクトを完成させ、注文キャンセル障害の報告を作成してください。\n\n参照専用の`incident/orders.log`と`deployments.txt`から、対象要求の時系列、最初の異常、その前の最新配備を調べます。Authorizationや顧客の自由入力は、マスクして残すのではなく許可リストから除外してください。最後に`REPORT.md`を、事実・仮説・検証・緩和策・恒久対策へ分けて記述します。\n\n編集できるのは解析器3ファイルと報告書だけです。テストや入力ログは変更できません。最初は失敗する11テストを、調査根拠を保ったまますべて通してください。",
+      "project": {
+        "name": "logging-investigation",
+        "source": "labs/logging-investigation",
+        "exclude": ["reference"],
+        "command": ["./run-tests.sh"],
+        "timeoutSeconds": 30,
+        "verification": "ログ解析・秘密情報除外・時系列調査・REPORT.mdを確認する11テストがすべて成功する",
+        "editableFiles": [
+          {
+            "path": "app/src/main/java/cafe/logging/LogParser.java",
+            "solutionPath": "reference/src/main/java/cafe/logging/LogParser.java"
+          },
+          {
+            "path": "app/src/main/java/cafe/logging/LogSanitizer.java",
+            "solutionPath": "reference/src/main/java/cafe/logging/LogSanitizer.java"
+          },
+          {
+            "path": "app/src/main/java/cafe/logging/IncidentAnalyzer.java",
+            "solutionPath": "reference/src/main/java/cafe/logging/IncidentAnalyzer.java"
+          },
+          {
+            "path": "app/REPORT.md",
+            "solutionPath": "reference/REPORT.md"
+          }
+        ]
+      },
       "hints": [
-        "表示するのはevent、requestId、orderId、result、durationMsだけです。",
-        "authorizationとcustomerReasonはマスクして残すのではなく、この要件では出力自体をしません。"
-      ],
-      "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        String event = s.next();\n        String requestId = s.next();\n        long orderId = s.nextLong();\n        String result = s.next();\n        String authorization = s.next();\n        String customerReason = s.next();\n        long durationMs = s.nextLong();\n        System.out.println(\"event=\" + event\n                + \" requestId=\" + requestId\n                + \" orderId=\" + orderId\n                + \" result=\" + result\n                + \" durationMs=\" + durationMs);\n    }\n}\n",
-      "sourceChecks": [
-        {
-          "pattern": "System\\s*\\.\\s*out\\s*\\.\\s*println\\s*\\(",
-          "minimum": 1,
-          "message": "許可された5項目を1行で表示してください。"
-        },
-        {
-          "pattern": "authorization\\s*\\+|\\+\\s*authorization|customerReason\\s*\\+|\\+\\s*customerReason",
-          "minimum": 0,
-          "maximum": 0,
-          "message": "Authorizationと自由入力のキャンセル理由をログへ連結しないでください。"
-        }
+        "`LogParser`では`|`の基本5項目と、後続の`key=value`を分け、入力順をsequenceへ保存します。",
+        "`LogSanitizer`は許可した基本項目と追加項目だけを安定した順で返し、AuthorizationとcustomerReasonは出力しません。",
+        "`REPORT.md`では時刻が近い配備を原因と断定せず、事実、仮説、それを反証できる検証方法を別々に書きます。"
       ],
       "extraTasks": [
         {
