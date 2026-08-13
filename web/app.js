@@ -3422,6 +3422,112 @@
   });
   applySidebarVisibility();
 
+  // ── 画面の明るさ（ライト / ダーク / システム） ───────────────────
+  // 設定の読み書きと data-theme の管理は theme.js に置いてある。ここは見た目だけ。
+  // 押すたびに順番に回す形にはしていない。3択だと目的の設定まで最大2回押すことになり、
+  // 次に何が来るかも読めないので、3つ並べて選ばせる。
+  var THEME_LABELS = {
+    light:  { icon: '☀',  label: 'ライト' },
+    dark:   { icon: '🌙', label: 'ダーク' },
+    system: { icon: '💻', label: 'システム' }
+  };
+
+  function setupThemeMenu() {
+    var theme = window.JQTheme;
+    var btn = document.getElementById('themeToggle');
+    var pop = document.getElementById('themePop');
+    if (!theme || !btn || !pop) { return; }
+
+    /** ボタンには「今どれを選んでいるか」を出す。'システム' のときに
+        解決後の☀/🌙を出すと、メニューの ✓ と食い違って混乱する。 */
+    function paintButton() {
+      var pref = theme.get();
+      var meta = THEME_LABELS[pref] || THEME_LABELS.system;
+      btn.textContent = meta.icon;
+      btn.title = '画面の明るさ: ' + meta.label;
+      btn.setAttribute('aria-label', btn.title + '（変更する）');
+    }
+
+    function paintOptions() {
+      var pref = theme.get();
+      pop.innerHTML = theme.CHOICES.map(function (key) {
+        var meta = THEME_LABELS[key];
+        return '<button class="theme-opt" type="button" role="menuitemradio"'
+          + ' data-theme-choice="' + key + '"'
+          + ' aria-checked="' + (key === pref ? 'true' : 'false') + '">'
+          + '<span class="theme-opt-icon" aria-hidden="true">' + meta.icon + '</span>'
+          + '<span class="theme-opt-label">' + esc(meta.label) + '</span>'
+          + '<span class="theme-opt-check" aria-hidden="true">✓</span>'
+          + '</button>';
+      }).join('');
+    }
+
+    function isOpen() { return !pop.hidden; }
+
+    function open() {
+      paintOptions();
+      pop.hidden = false;
+      btn.setAttribute('aria-expanded', 'true');
+      // body直下に置いてあるので、ボタンの位置は自分で測って合わせる。
+      // 右端をボタンの右端にそろえ、画面外に出ないよう最低8pxは残す。
+      var r = btn.getBoundingClientRect();
+      pop.style.top = Math.round(r.bottom + 8) + 'px';
+      pop.style.left = 'auto';
+      pop.style.right = Math.max(8, Math.round(window.innerWidth - r.right)) + 'px';
+      var first = pop.querySelector('.theme-opt[aria-checked="true"]') || pop.querySelector('.theme-opt');
+      if (first) { first.focus(); }
+    }
+
+    function close(focusBack) {
+      if (!isOpen()) { return; }
+      pop.hidden = true;
+      btn.setAttribute('aria-expanded', 'false');
+      if (focusBack) { btn.focus(); }
+    }
+
+    btn.addEventListener('click', function (e) {
+      e.stopPropagation();   // 直後の document クリックで閉じてしまわないように
+      if (isOpen()) { close(false); } else { open(); }
+    });
+
+    pop.addEventListener('click', function (e) {
+      var opt = e.target.closest ? e.target.closest('.theme-opt') : null;
+      if (!opt) { return; }
+      theme.set(opt.dataset.themeChoice);
+      close(true);
+    });
+
+    // 開いている間の外側クリックと Esc で閉じる。矢印キーで3択を行き来する。
+    document.addEventListener('click', function (e) {
+      if (isOpen() && !pop.contains(e.target) && e.target !== btn) { close(false); }
+    });
+    document.addEventListener('keydown', function (e) {
+      if (!isOpen()) { return; }
+      if (e.key === 'Escape') { e.preventDefault(); close(true); return; }
+      if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') { return; }
+      e.preventDefault();
+      var opts = Array.prototype.slice.call(pop.querySelectorAll('.theme-opt'));
+      var at = opts.indexOf(document.activeElement);
+      var step = e.key === 'ArrowDown' ? 1 : -1;
+      var to = opts[(at + step + opts.length) % opts.length];
+      if (to) { to.focus(); }
+    });
+
+    // 画面を動かすと測った位置がずれるので、開いたままにしない。
+    window.addEventListener('resize', function () { close(false); });
+
+    // 設定が変わったとき、および「システム」追従でOS側が変わったとき。
+    theme.onChange(function () {
+      paintButton();
+      if (isOpen()) { paintOptions(); }
+      // 店内の絵は装備が同じなら描き直さないので、明るさだけ変えても手が入らない。
+      // 中の色はCSS変数を見ていないため、ここでは触らなくてよい（暖色の絵のまま）。
+    });
+
+    paintButton();
+  }
+  setupThemeMenu();
+
   function resetProgress() {
     if (!window.confirm('★・書いたコード・復習の記録・ブックマーク・カフェのコイン・店舗・設備・アイテムがすべて消えます。本当にリセットしますか？')) { return; }
     api('reset', {})

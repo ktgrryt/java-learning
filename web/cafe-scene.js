@@ -189,11 +189,14 @@
   /* ── 建物の骨格 ──────────────────────────────────────────────────────
      x0/x1 は正面幅、top は屋根の上端。段の指定はすべて [上, 下] の y。
      upper（上階）と cornice（軒飾り）は無い階では null。
-     どのランクも接地線 WALK と土台 plinth を共有するので、育っても足元がぶれない。 */
+     どのランクも接地線 WALK と土台 plinth を共有するので、育っても足元がぶれない。
+
+     ガラス面（glassTop 〜 PLINTH）は 50 以上取る。ここが狭いと、中のバリスタ・棚・
+     マシンが窓枠に切られて何が置いてあるか分からなくなる（ランク2がそうなっていた）。 */
   var STRUCTURES = [
     null,
     { kind: 'cart', x0: 218, x1: 344 },
-    { kind: 'shop', x0: 214, x1: 346, top: 216, sign: [220, 238], awning: null, glassTop: 244, upper: null, cornice: null },
+    { kind: 'shop', x0: 214, x1: 346, top: 202, sign: [206, 224], awning: null, glassTop: 230, upper: null, cornice: null },
     { kind: 'shop', x0: 200, x1: 360, top: 190, sign: [194, 210], awning: [212, 230], glassTop: 234, upper: null, cornice: null },
     { kind: 'shop', x0: 186, x1: 374, top: 174, sign: [178, 198], awning: [200, 224], glassTop: 228, upper: null, cornice: null },
     { kind: 'shop', x0: 174, x1: 386, top: 138, sign: [176, 198], awning: [200, 224], glassTop: 228, upper: [142, 172], cornice: null },
@@ -683,23 +686,26 @@
     // 看板
     out += signBoard(era, st, flags, structure);
 
+    // 内装7の外壁間接照明。日除けより先に描く。あとで描くと、壁付けのはずの光の帯が
+    // 日除けの布の手前を縦に横切ってしまう。
+    if (flags.facadeGlow) { out += facadeLighting(era, st); }
+
     // 日除け
     if (st.awning) {
       out += awning(era, x0 - 8, x1 + 8, st.awning[0], st.awning[1], 'cs-shop-awn');
     }
 
-    // 壁付けの灯り
+    // 壁付けの灯り。付け柱の上、看板の左右に残る壁の帯へ収める。
+    //   x … 看板（x0+16 から）と上階の窓（x0+17 から）のどちらにも触らない位置
+    //   y … 看板の少し上。ただし屋根より下（低いランクでは看板が屋根に接しているため）
     if (flags.wallLamp) {
-      var lampY = st.sign[0] - 8;
-      out += wallLamp(era, x0 + 24, lampY) + wallLamp(era, x1 - 24, lampY);
+      var lampY = Math.max(st.sign[0] - 8, st.top + 12);
+      out += wallLamp(era, x0 + 8, lampY) + wallLamp(era, x1 - 8, lampY);
     }
 
     // 1階のガラス面と入口
     var front = frontage(era, st, flags, structure);
     out += front.markup;
-
-    // 内装7では外壁にも細い間接照明が入り、完成形へ近づいたことを遠目でも分かるようにする。
-    if (flags.facadeGlow) { out += facadeLighting(era, st); }
 
     // 土台
     out += '<rect x="' + x0 + '" y="' + PLINTH + '" width="' + w + '" height="' + (WALK - PLINTH)
@@ -756,7 +762,6 @@
     var height = st.sign[1] - st.sign[0];
     var x0 = st.x0 + 16;
     var width = st.x1 - 16 - x0;
-    var mid = st.x0 + (st.x1 - st.x0) / 2;
     var big = height >= 20;
 
     var out = '<rect x="' + x0 + '" y="' + y0 + '" width="' + width + '" height="' + height
@@ -773,13 +778,27 @@
         + '" stroke-width="3" opacity="0.28"/>';
     }
 
+    // 記章は看板の左端へ寄せ、文字は「記章の右、音符があればその左」に残った幅へ収める。
+    // 板の中央に固定すると、幅の狭い低ランクの看板でカップが JAVA の頭に重なり、
+    // 音符とも食い合う。残り幅から字送りと大きさを決めて、必ず収まるようにする。
+    var markSize = big ? 17 : 14;
+    var markX = x0 + 14;
+    var textLeft = markX + markSize * 0.62 + 4;
+    var textRight = x0 + width - (flags.music ? 22 : 6);
+    var room = textRight - textLeft;
+    // 等幅なので1文字の送りは 0.602em。JAVA CAFÉ の9文字が収まる寸法を選ぶ
+    var fontSize = Math.min(big ? 13 : 11, room / 9 / 0.602);
+    var tracking = Math.max(0, Math.min(big ? 1.6 : 0.8, room / 9 - fontSize * 0.602));
+    var textX = round((textLeft + textRight) / 2);
     var textY = y0 + height / 2 + (big ? -1 : 4);
-    out += cupMark(x0 + 20, y0 + height / 2 + 4, big ? 17 : 14, era.awningAlt, '#241b18', null)
-      + '<text x="' + round(mid + 10) + '" y="' + round(textY)
+    // 記章は受け皿ぶん下に長いので、その差を戻して看板の高さの中央へ収める
+    out += cupMark(markX, y0 + height / 2 - markSize * 0.115, markSize, era.awningAlt, '#241b18', null)
+      + '<text x="' + textX + '" y="' + round(textY)
       + '" text-anchor="middle" fill="#f4d89d" font-family="' + FONT
-      + '" font-size="' + (big ? 13 : 11) + '" font-weight="700" letter-spacing="1.6">JAVA CAFÉ</text>';
+      + '" font-size="' + round(fontSize) + '" font-weight="700" letter-spacing="'
+      + round(tracking) + '">JAVA CAFÉ</text>';
     if (big) {
-      out += '<text x="' + round(mid + 10) + '" y="' + round(y0 + height - 5)
+      out += '<text x="' + textX + '" y="' + round(y0 + height - 5)
         + '" text-anchor="middle" fill="#d9b97e" font-family="' + FONT
         + '" font-size="5.5" letter-spacing="1.4">COFFEE &amp; CODE</text>';
     }
@@ -846,10 +865,15 @@
     if (lounge) {
       out += loungeWindow(era, gx0 + mainWidth + 7, gy0, paneWidth - mainWidth - 7, height, flags, structure);
     }
-    out += door(era, doorX0, gy0, doorWidth, height, flags);
+    out += door(era, doorX0, gy0, doorWidth, flags);
 
     return { markup: out, doorX0: doorX0, doorX1: gx1 };
   }
+
+  /* 窓の中桟（横棒）の位置と太さ。窓の中に置くものはこの下へ収める。
+     中桟が頭や胴を横切ると、人が棒に刺さっているように見えてしまう。 */
+  var RAIL = 13;
+  var RAIL_W = 3;
 
   /** 窓わく・映り込み・室内灯の共通部分。中身は inner に描いてもらう。 */
   function glassPane(era, x, y, width, height, id, inner) {
@@ -872,8 +896,8 @@
       + '</g></g>'
       + '<rect x="' + x + '" y="' + y + '" width="' + width + '" height="' + height
       + '" rx="2" fill="none" stroke="' + era.trim + '" stroke-width="5"/>'
-      + '<line x1="' + x + '" y1="' + (y + 13) + '" x2="' + (x + width) + '" y2="' + (y + 13)
-      + '" stroke="' + era.trim + '" stroke-width="3"/>';
+      + '<line x1="' + x + '" y1="' + (y + RAIL) + '" x2="' + (x + width) + '" y2="' + (y + RAIL)
+      + '" stroke="' + era.trim + '" stroke-width="' + RAIL_W + '"/>';
   }
 
   /** カウンターのある主役の窓。設備はここに増えていく。 */
@@ -881,6 +905,8 @@
     var floor = y + height;
     var counterY = floor - 17;
     var mid = x + width / 2;
+    // 中桟の下端。窓の中に置くものはここより下から始める
+    var railY = y + RAIL + RAIL_W / 2;
     var inner = '';
 
     // 奥の壁と床
@@ -892,9 +918,10 @@
       inner += pendant(era, mid - width * 0.24, y + 13) + pendant(era, mid + width * 0.24, y + 13);
     }
 
-    // 棚とカップ
+    // 棚とカップ。カップは棚板の上に載るので、棚板はカウンター天板より上へ置く。
+    // 固定値だけだと背の低いランクで棚がカウンターの陰に入り、買っても何も増えない。
     if (flags.shelf) {
-      var shelfY = y + 30;
+      var shelfY = Math.min(y + 30, counterY - 6);
       var shelfX0 = x + 10;
       var shelfX1 = x + width - 10;
       inner += '<rect x="' + shelfX0 + '" y="' + shelfY + '" width="' + (shelfX1 - shelfX0)
@@ -909,15 +936,25 @@
       }
     }
 
-    // カウンターの上は左からショーケース → バリスタ → マシンの順に並べる。
-    // 同じあたりに置くと重なって何の設備か分からなくなるので、両端に振り分けている。
+    // カウンターの上は左からショーケース → バリスタ → マシンの順に、幅を分け合って並べる。
+    // 同じあたりに置くと重なって何の設備か分からなくなる。
+    // ショーケースは窓の幅に合わせて詰め、まずバリスタの居場所を空ける。
     var hasCase = flags.showcase && width >= 92;
+    var caseX = x + 6;
+    var caseW = hasCase ? clamp(width - 62, 30, 44) : 0;
+    // バリスタはショーケースの右。ケースが無ければ窓の中央
+    var figX = hasCase ? caseX + caseW + 12 : mid;
 
     if (flags.counterDetail && !hasCase) { inner += counterCanisters(era, x + 16, counterY); }
+    if (hasCase) { inner += showcase(era, caseX, counterY, caseW); }
+    // 立ち位置は「頭が中桟より下に収まる」ところまで下げる。足元をカウンター天板の
+    // すぐ下に置くと、背の低いランクでは頭が窓枠の外へ出て切り落とされてしまう。
+    // 下げた分はカウンターの陰に隠れるだけなので、見えるのは頭と肩になる。
+    var HEAD = 47;        // 高さ46で描いた人の、足元から頭のてっぺんまで
+    var ROBOT_HEAD = 53;  // ロボットはアンテナのぶんだけ高い
     inner += flags.robot
-      ? robot(mid, counterY + 5, 46, era)
-      : person(mid, counterY + 5, 46, 'barista', era);
-    if (hasCase) { inner += showcase(era, x + 10, counterY); }
+      ? robot(figX, Math.max(counterY + 5, railY + ROBOT_HEAD), 46, era)
+      : person(figX, Math.max(counterY + 5, railY + HEAD), 46, 'barista', era);
     if (flags.machine) {
       // 狭い窓では等倍だとマシンだけが目立ってしまうので、窓幅に合わせて縮める
       var scale = Math.min(1, width / 92);
@@ -989,7 +1026,7 @@
   }
 
   /** 入口。灯りのあるランクでは、光が歩道へこぼれる。 */
-  function door(era, x, y, width, height, flags) {
+  function door(era, x, y, width, flags) {
     var mid = x + width / 2;
     var out = '';
 
@@ -1020,14 +1057,15 @@
       // 下部の蹴込み板
       + '<rect x="' + (x + 4) + '" y="' + (WALK - kick) + '" width="' + (width - 8) + '" height="' + (kick - 4)
       + '" fill="' + era.roof + '"/>'
-      // OPEN の札
-      + '<rect x="' + round(mid - 17) + '" y="' + plateY + '" width="34" height="13" rx="2" fill="#241b18"/>'
+      // OPEN の札。取っ手と同じ高さに並ぶので、扉の幅を横に分け合う。
+      // 札を扉幅いっぱいに広げると、取っ手が札の上に乗って OPEN の字が切れてしまう。
+      + '<rect x="' + round(mid - 12) + '" y="' + plateY + '" width="24" height="13" rx="2" fill="#241b18"/>'
       + '<text x="' + round(mid) + '" y="' + (plateY + 9) + '" text-anchor="middle" fill="'
       + (era.neon || '#f6e9bd') + '" font-family="' + FONT
-      + '" font-size="7.5" font-weight="700" letter-spacing="1">OPEN</text>'
-      // 取っ手
-      + '<rect x="' + round(mid + width * 0.28) + '" y="' + round(y + height * 0.52) + '" width="3" height="14" rx="1.5" fill="'
-      + (era.neon || '#f1cb70') + '"/>';
+      + '" font-size="7.5" font-weight="700" letter-spacing="0.6">OPEN</text>'
+      // 取っ手。扉の右わくの内側へ寄せて、札とぶつからない位置に置く
+      + '<rect x="' + round(mid + width / 2 - 7) + '" y="' + round(plateY - 1)
+      + '" width="3" height="14" rx="1.5" fill="' + (era.neon || '#f1cb70') + '"/>';
 
     if (flags.welcomeMat) {
       out += '<g transform="translate(' + round(mid) + ',' + (WALK + 9) + ')">'
@@ -1150,27 +1188,57 @@
       + '</g>';
   }
 
-  function showcase(era, x, counterY) {
+  /** ショーケース。幅は窓に合わせて変わるので、中の焼き菓子も幅で割って置く。 */
+  function showcase(era, x, counterY, width) {
+    var w = width || 44;
     return '<g transform="translate(' + round(x) + ',' + round(counterY) + ')">'
-      + '<rect y="-24" width="44" height="24" rx="2" fill="' + era.glassHi + '" opacity="0.45"/>'
-      + '<rect y="-24" width="44" height="24" rx="2" fill="none" stroke="' + era.trim + '" stroke-width="2"/>'
-      + '<line y1="-13" x2="44" y2="-13" stroke="' + era.trim + '" stroke-width="1.4"/>'
+      + '<rect y="-24" width="' + round(w) + '" height="24" rx="2" fill="' + era.glassHi + '" opacity="0.45"/>'
+      + '<rect y="-24" width="' + round(w) + '" height="24" rx="2" fill="none" stroke="' + era.trim
+      + '" stroke-width="2"/>'
+      + '<line y1="-13" x2="' + round(w) + '" y2="-13" stroke="' + era.trim + '" stroke-width="1.4"/>'
       + '<g fill="#c67b50">'
-      + '<circle cx="10" cy="-17" r="3.2"/><circle cx="22" cy="-17" r="3.2"/><circle cx="34" cy="-17" r="3.2"/>'
-      + '<circle cx="12" cy="-6" r="3.2"/><circle cx="26" cy="-6" r="3.2"/></g>'
+      + '<circle cx="' + round(w * 0.23) + '" cy="-17" r="3.2"/>'
+      + '<circle cx="' + round(w * 0.5) + '" cy="-17" r="3.2"/>'
+      + '<circle cx="' + round(w * 0.77) + '" cy="-17" r="3.2"/>'
+      + '<circle cx="' + round(w * 0.27) + '" cy="-6" r="3.2"/>'
+      + '<circle cx="' + round(w * 0.6) + '" cy="-6" r="3.2"/></g>'
       + '</g>';
   }
 
   /* ---------------------------------------------------------------- 路上の小物 */
 
-  /** 歩道と車道に置くもの。建物より手前に描く。 */
+  /**
+   * 歩道と車道に置くもの。建物より手前に描く。
+   *
+   * 歩道は狭いので、置く場所は先に区画で決める。重ねてしまうと、椅子が植木に
+   * 突き刺さったり、車の陰から植木の縁だけが浮いて見えたりして一気に安っぽくなる。
+   * 場所を取り合ったときは、買って手に入れた設備（席・ロープ・配達）を優先し、
+   * 内装で自動的に増える植木を譲る側にしている。
+   */
   function streetLayer(era, st, flags, structure, doorX0, doorX1) {
     var out = '';
 
-    if (flags.planter) {
-      out += planter(era, st.x0 + 16, WALK + 4) + planter(era, doorX1 + 14, WALK + 4);
+    // 席の区画。植木があるときは植木の右へ寄せるが、それで幅が足りなくなるランクでは
+    // 席を元の位置に戻し、代わりに左の植木を置かない。
+    var seatX0 = null;
+    var seatX1 = Math.min(st.x0 + 96, doorX0 - 46);
+    if (flags.patio) {
+      seatX0 = st.x0 + (flags.planter ? 40 : 12);
+      if (seatX1 - seatX0 < 44) { seatX0 = st.x0 + 12; }
+      if (seatX1 - seatX0 < 44) { seatX0 = null; }
     }
-    if (flags.patio) { out += patio(era, st, doorX0); }
+
+    if (flags.planter) {
+      // 左の植木は、席が右へ寄れたときだけ置く
+      if (seatX0 === null || seatX0 >= st.x0 + 40) {
+        out += planter(era, st.x0 + 16, WALK + 4);
+      }
+      // 入口の右はロープの柱と配達の車が使う区画。どちらかがあるなら置かない
+      if (!flags.vipRope && !flags.delivery) {
+        out += planter(era, doorX1 + 14, WALK + 4);
+      }
+    }
+    if (seatX0 !== null) { out += patio(era, seatX0, seatX1); }
     if (flags.menuBoard) { out += menuBoard(era, doorX0 - 30, WALK + 8); }
     if (flags.vipRope) { out += vipRope(era, doorX0 - 6, doorX1 + 6, WALK + 4); }
     if (flags.delivery) { out += deliveryVan(era); }
@@ -1193,12 +1261,9 @@
   /**
    * テラス席。真横から見た絵なので、日傘を立てると必ず看板やガラス面を覆ってしまう。
    * そのため日傘は使わず、低い手すりで席の範囲を示す方式に統一している。
-   * 右端は立て看板の手前で止め、小物同士が重ならないようにしてある。
+   * 区画（x0〜x1）は streetLayer が歩道の空きから決める。
    */
-  function patio(era, st, doorX0) {
-    var x0 = st.x0 + 12;
-    var x1 = Math.min(st.x0 + 96, doorX0 - 46);
-    if (x1 - x0 < 44) { return ''; }
+  function patio(era, x0, x1) {
     var mid = (x0 + x1) / 2;
 
     // 手すり

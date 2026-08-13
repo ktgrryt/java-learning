@@ -1,11 +1,20 @@
 /* ============================================================================
    Java Café — 見た目
    長時間読み書きする画面なので、落ち着いた暗い背景 + コーヒー色のアクセント。
-   OSの設定が明るいテーマなら自動で明るい配色に切り替わる。
+
+   配色は2枚だけ持つ。どちらを出すかは <html data-theme="light|dark"> で決まり、
+   これは theme.js が起動時に必ず書き込む（「システムに合わせる」を選んでいるときは
+   OSの設定を読んで light / dark のどちらかに解決してから書き込む）。
+   つまりCSS側は prefers-color-scheme を見ない。3択の分岐はJS側の1箇所だけにして、
+   ここには「明るい配色」と「暗い配色」の2枚しか置かない。
    ========================================================================= */
 
 :root {
-  /* 暗い配色（既定） */
+  /* ブラウザが描く部品（スクロールバー・入力欄の枠・カーソル）にも配色を伝える。
+     これを書かないと、暗い画面の中で textarea のスクロールバーだけが白い帯になる。 */
+  color-scheme: dark;
+
+  /* 暗い配色（既定）。data-theme が付く前の一瞬もこれが出る。 */
   --bg:            #14161a;
   --bg-elev:       #1b1e24;
   --bg-elev-2:     #22262e;
@@ -25,6 +34,26 @@
   --ng-bg:         #2a1a1c;
   --info:          #63a4ff;
   --lock:          #4b5261;
+
+  /* アクセント色で塗った上に乗る文字（主ボタン・現在のレッスン・クリア済みの札）。
+     明暗どちらのアクセント（#e8a33d / #b5761a）に対してもこの焦げ茶が一番読める。
+     白のほうが明るくて映えそうに見えるが、ライトのアクセントは白との差が
+     3.8:1 しかなく本文の基準（4.5:1）に届かない。焦げ茶なら両方で 4.9:1 以上出る。 */
+  --on-accent:     #1a1205;
+
+  /* カフェの飾りの色。設備の系統（チップ=紫 / 連続日数=朱）と、
+     新発見のしるしを区別するためだけに使う。意味は持たせていない。 */
+  --fx-tips:       #d79ce8;
+  --fx-streak:     #f07c72;
+  --fx-new:        #f05f68;
+  --fx-new-text:   #f27b83;
+  --fx-caption:    #e9c98d;
+
+  /* 店の絵を描く前に見えている下地。
+     絵の空の色は店のランク（昼→夕→夜）で決まり、テーマとは無関係に変わるので、
+     ここで絵に寄せることはできない。代わりに今のテーマの面の色に合わせて、
+     絵が出るまでの一瞬をUIの一部として見せる。 */
+  --scene-void:    #1a1d22;
 
   /* コードの色 */
   --tok-keyword:   #d98bd0;
@@ -53,37 +82,48 @@
   --ed-gutter-w: 50px;   /* 行番号3桁ぶん + 余白 */
 }
 
-@media (prefers-color-scheme: light) {
-  :root {
-    --bg:          #f6f5f2;
-    --bg-elev:     #ffffff;
-    --bg-elev-2:   #f0efec;
-    --bg-code:     #f8f8f6;
-    --border:      #dcd8d0;
-    --border-soft: #e8e5df;
+/* 明るい配色。上書きするのは色だけで、寸法や書体は :root のものを使い続ける。 */
+:root[data-theme="light"] {
+  color-scheme: light;
 
-    --text:        #1f2328;
-    --text-dim:    #5c636e;
-    --text-faint:  #8b929c;
+  --bg:          #f6f5f2;
+  --bg-elev:     #ffffff;
+  --bg-elev-2:   #f0efec;
+  --bg-code:     #f8f8f6;
+  --border:      #dcd8d0;
+  --border-soft: #e8e5df;
 
-    --accent:      #b5761a;
-    --accent-dim:  #8a5a13;
-    --ok:          #1f8a4c;
-    --ok-bg:       #eaf7ee;
-    --ng:          #c0392b;
-    --ng-bg:       #fdecea;
-    --info:        #2a6fc4;
-    --lock:        #b3b8c0;
+  --text:        #1f2328;
+  --text-dim:    #5c636e;
+  --text-faint:  #8b929c;
 
-    --tok-keyword: #a4278f;
-    --tok-type:    #0f6f8c;
-    --tok-string:  #4a7a1f;
-    --tok-number:  #b35c00;
-    --tok-comment: #8b929c;
-    --tok-fn:      #8a6d00;
-    --tok-literal: #a4278f;
-    --tok-annot:   #5c636e;
-  }
+  --accent:      #b5761a;
+  --accent-dim:  #8a5a13;
+  --ok:          #1f8a4c;
+  --ok-bg:       #eaf7ee;
+  --ng:          #c0392b;
+  --ng-bg:       #fdecea;
+  --info:        #2a6fc4;
+  --lock:        #b3b8c0;
+
+  /* 暗い側の飾り色は、白地では淡すぎて字が読めない。色の系統だけ引き継いで濃くする。
+     --fx-caption はここで上書きしない。あれが乗る店舗網の枠だけは
+     テーマに関係なく暗いままなので（.cafe-network の背景は固定）、
+     ライトに合わせて濃くすると暗い枠の中で読めなくなる。 */
+  --fx-tips:     #8b3fa8;
+  --fx-streak:   #c8442f;
+  --fx-new:      #c92b3d;
+  --fx-new-text: #b02636;
+  --scene-void:  #e8e5df;
+
+  --tok-keyword: #a4278f;
+  --tok-type:    #0f6f8c;
+  --tok-string:  #4a7a1f;
+  --tok-number:  #b35c00;
+  --tok-comment: #8b929c;
+  --tok-fn:      #8a6d00;
+  --tok-literal: #a4278f;
+  --tok-annot:   #5c636e;
 }
 
 * { box-sizing: border-box; }
@@ -167,7 +207,7 @@ button:disabled { cursor: default; opacity: 0.5; }
   height: 8px;
   border: 2px solid var(--bg);
   border-radius: 50%;
-  background: #f05f68;
+  background: var(--fx-new);
   box-shadow: 0 0 0 2px rgba(240, 95, 104, 0.15), 0 0 10px rgba(240, 95, 104, 0.55);
 }
 
@@ -201,7 +241,7 @@ body.view-cafe .stat:not(.stat-cafe) { display: none; }
   border: none;
   border-radius: var(--radius);
   background: var(--accent);
-  color: #1a1205;
+  color: var(--on-accent);
   font-weight: 700;
   transition: filter 0.15s, transform 0.08s;
 }
@@ -281,6 +321,60 @@ body.view-menu .menu-toggle { display: none; }
   transition: color 0.15s, border-color 0.15s, background 0.15s;
 }
 .menu-toggle:hover { color: var(--text); border-color: var(--text-dim); }
+
+/* ── 画面の明るさ（ライト / ダーク / システム） ─────────────────────── */
+
+/* ☰ と同じ見た目にそろえる。ヘッダの端にある小さなボタンは、この形で統一する。 */
+.theme-toggle {
+  flex: none;
+  width: 34px; height: 34px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-dim);
+  font-size: 15px; line-height: 1;
+  transition: color 0.15s, border-color 0.15s, background 0.15s;
+}
+.theme-toggle:hover { color: var(--text); border-color: var(--text-dim); }
+.theme-toggle[aria-expanded="true"] { border-color: var(--accent); }
+
+/* ★やコインを隠している学習ホームでは、右端に寄せる相手がいなくなる。
+   （.stats の margin-left:auto が消えるため）ここで自分を右端まで押し出す。 */
+body.view-menu:not(.view-cafe) .theme-toggle { margin-left: auto; }
+
+.theme-pop {
+  position: fixed;
+  min-width: 168px;
+  padding: 5px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg-elev);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.4);
+  z-index: 130;          /* 通知(120)より前。真下に重なる位置に出るため */
+}
+.theme-pop[hidden] { display: none; }
+
+.theme-opt {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  padding: 7px 9px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--text-dim);
+  font-size: 13px;
+  text-align: left;
+  transition: color 0.12s, background 0.12s;
+}
+.theme-opt:hover { background: var(--bg-elev-2); color: var(--text); }
+.theme-opt-icon { flex: none; width: 16px; text-align: center; }
+.theme-opt-label { flex: 1; min-width: 0; }
+/* 選択中の印。場所を常に取っておき、選び直しても行の幅が動かないようにする。 */
+.theme-opt-check { flex: none; width: 12px; text-align: center; opacity: 0; }
+.theme-opt[aria-checked="true"] { color: var(--text); font-weight: 700; }
+.theme-opt[aria-checked="true"] .theme-opt-check { opacity: 1; color: var(--accent); }
 
 body.sidebar-hidden .sidebar { display: none; }
 body.sidebar-hidden .content { margin-left: 0; }
@@ -398,10 +492,10 @@ body.sidebar-hidden .content { margin-left: 0; }
 
 .lesson-current {
   background: var(--accent) !important;
-  color: #1a1205 !important;
+  color: var(--on-accent) !important;
   font-weight: 700;
 }
-.lesson-current .lesson-mark { color: #1a1205; }
+.lesson-current .lesson-mark { color: var(--on-accent); }
 
 .lesson-mark { flex: none; width: 13px; font-size: 11px; }
 .lesson-id { flex: none; font-family: var(--mono); font-size: 11px; opacity: 0.7; }
@@ -417,7 +511,7 @@ body.sidebar-hidden .content { margin-left: 0; }
   background: var(--bg-elev-2);
   color: var(--text-dim);
 }
-.lesson-current .lesson-frac { background: rgba(0, 0, 0, 0.16); color: #1a1205; }
+.lesson-current .lesson-frac { background: rgba(0, 0, 0, 0.16); color: var(--on-accent); }
 
 /* ════════════════════════════════════════════════════════════════════
    初回オンボーディング
@@ -708,7 +802,7 @@ body.view-onboarding .content { margin-left: 0; }
   min-height: 320px;
   overflow: hidden;
   border-right: 1px solid var(--border-soft);
-  background: #1a1d22;   /* 読み込み中に器が透けないように */
+  background: var(--scene-void);   /* 読み込み中に器が透けないように */
 }
 .cafe-scene {
   position: absolute;
@@ -994,7 +1088,7 @@ body.view-onboarding .content { margin-left: 0; }
 }
 .cafe-network-caption b {
   display: block;
-  color: #e9c98d;
+  color: var(--fx-caption);
   font: 700 11px var(--mono);
   letter-spacing: 0.12em;
 }
@@ -1048,7 +1142,7 @@ body.view-onboarding .content { margin-left: 0; }
   padding: 5px 9px;
   border: 1px solid rgba(215, 156, 232, 0.3);
   border-radius: 999px;
-  color: #d79ce8;
+  color: var(--fx-tips);
   font-size: 10px;
   font-weight: 700;
   white-space: nowrap;
@@ -1072,9 +1166,9 @@ body.view-onboarding .content { margin-left: 0; }
 }
 .cafe-item-card.newly-discovered {
   border-color: rgba(240, 95, 104, 0.58);
-  box-shadow: inset 3px 0 #f05f68, 0 0 18px rgba(240, 95, 104, 0.08);
+  box-shadow: inset 3px 0 var(--fx-new), 0 0 18px rgba(240, 95, 104, 0.08);
 }
-.cafe-item-card.newly-discovered .cafe-item-body > span { color: #f27b83; }
+.cafe-item-card.newly-discovered .cafe-item-body > span { color: var(--fx-new-text); }
 .cafe-item-card.mystery {
   border-style: dashed;
   border-color: var(--border);
@@ -1102,7 +1196,7 @@ body.view-onboarding .content { margin-left: 0; }
 }
 .cafe-item-body { min-width: 0; }
 .cafe-item-body > span {
-  color: #d79ce8;
+  color: var(--fx-tips);
   font: 700 8.5px var(--mono);
   letter-spacing: 0.08em;
 }
@@ -1121,7 +1215,7 @@ body.view-onboarding .content { margin-left: 0; }
   padding: 3px 6px;
   border-radius: 6px;
   background: rgba(215, 156, 232, 0.12);
-  color: #d79ce8;
+  color: var(--fx-tips);
   font-weight: 700;
 }
 .cafe-item-card.owned .cafe-item-body p.cafe-item-unlock {
@@ -1177,8 +1271,8 @@ body.view-onboarding .content { margin-left: 0; }
 .equipment-path.effect-sales { border-top-color: var(--accent-dim); }
 .equipment-path.effect-cups { border-top-color: var(--info); }
 .equipment-path.effect-chapter { border-top-color: var(--ok); }
-.equipment-path.effect-tips { border-top-color: #d79ce8; }
-.equipment-path.effect-streak { border-top-color: #f07c72; }
+.equipment-path.effect-tips { border-top-color: var(--fx-tips); }
+.equipment-path.effect-streak { border-top-color: var(--fx-streak); }
 .equipment-path > header {
   display: flex;
   /* 「?」の説明はこの見出しを基準に、カードの幅ぴったりで開く */
@@ -1382,8 +1476,8 @@ body.view-onboarding .content { margin-left: 0; }
 .upgrade-card.effect-sales:not(.locked) { border-top-color: var(--accent-dim); }
 .upgrade-card.effect-cups:not(.locked) { border-top-color: var(--info); }
 .upgrade-card.effect-chapter:not(.locked) { border-top-color: var(--ok); }
-.upgrade-card.effect-tips:not(.locked) { border-top-color: #d79ce8; }
-.upgrade-card.effect-streak:not(.locked) { border-top-color: #f07c72; }
+.upgrade-card.effect-tips:not(.locked) { border-top-color: var(--fx-tips); }
+.upgrade-card.effect-streak:not(.locked) { border-top-color: var(--fx-streak); }
 .upgrade-icon {
   display: grid;
   place-items: center;
@@ -1840,7 +1934,7 @@ kbd {
   border-radius: 999px;
   white-space: nowrap;
 }
-.badge-clear { background: var(--accent); color: #1a1205; }
+.badge-clear { background: var(--accent); color: var(--on-accent); }
 .badge-hidden { background: var(--bg-elev-2); color: var(--text-dim); }
 
 /* ── カード ─────────────────────────────────────────────────────────── */
