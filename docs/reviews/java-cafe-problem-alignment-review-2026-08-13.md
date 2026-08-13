@@ -1,8 +1,8 @@
 # Java Café 問題・学習目標整合性レビュー
 
 - 初回レビュー日: 2026-08-13
-- 現状反映日: 2026-08-13（Quarkus project / JVM runtime / optional Native接続後）
-- 対象: 7編・56章・304 lessons・必須583 tasks + 任意発展1 task
+- 現状反映日: 2026-08-13（SQL基礎PostgreSQL runtime-lab接続後）
+- 対象: 7編・56章・304 lessons・必須584 tasks + 任意発展1 task
 - 観点: 「問題に正解できること」が、lessonの本題を理解・実践できることを意味するか
 - 方針: 現在のJSON、採点条件、問題engine、labs、自動検証結果を読み取りで再確認
 
@@ -15,12 +15,13 @@
 | `single-file` | 571問 | Java文法、標準API、algorithm、純粋domain rule |
 | `artifact` | 1問 | Open Libertyの`server.xml`を直接編集・構造検査 |
 | `project` | 4問 | Spring Boot/Quarkus API、business app改修、logging障害調査を複数ファイルで実施 |
-| `runtime-lab` | 必須7問 + 任意1問 | Spring Boot、Open Liberty、Quarkus JVM/Native、HTTP server、JFR、PostgreSQL、containerを実際に起動・観測・停止 |
+| `runtime-lab` | 必須8問 + 任意1問 | Spring Boot、Open Liberty、Quarkus JVM/Native、HTTP server、JFR、PostgreSQL、containerを実際に起動・観測・停止 |
 | `preflight` | 8単元 | JDK、Maven、Docker、port等を★対象外で事前確認 |
 
 現在接続されている非single-file問題は次のとおりである。
 
 - `37-3`: 実行中JVMからJFRを記録し、`jfr summary`でイベントを確認
+- `46-5`: PostgreSQL 16でDDL制約、LEFT JOIN・GROUP BY・HAVING、複合index、`EXPLAIN ANALYZE`を確認
 - `47-4`: localhostのHTTP serverを起動し、200・404・request timeoutを確認
 - `54-2`: PostgreSQL 16 containerへmigrationを適用し、後方互換INSERT・UNIQUE・indexを確認
 - `55-5`: Docker imageをbuildし、non-root・read-only・資源制限・readinessを確認
@@ -35,11 +36,11 @@
 - `62-5`任意発展: Mandrel container buildとUBI 9 runtime containerでNative REST/Healthを実測（章クリア・★対象外）
 
 実行基盤は元labを一時copyへ隔離し、固定script、動的localhost port、一意なrun ID、timeout、
-process tree停止、構造化check結果を扱う。Docker imageは自動pullせず、外部環境不足を学習者の
-不正解として記録しない。全教材回帰検証はSpring Boot、Open Liberty、Quarkusのproject/runtimeを含む304 lessons・必須583 tasks＋任意発展1 task・2868 cases・373 quizzesで合格した。Docker daemon停止のため、任意のQuarkus Native Image、既存PostgreSQL、container runtime-labの3問は環境不足として実行を省略した。
+process tree停止、構造化check結果を扱う。container imageは自動pullせず、外部環境不足を学習者の
+不正解として記録しない。SQL基礎はDocker/Podmanのうち接続可能で必要imageがあるruntimeを選択する。全教材回帰検証はSpring Boot、Open Liberty、Quarkusのproject/runtimeを含む304 lessons・必須584 tasks＋任意発展1 task・2875 cases・373 quizzesで合格した。SQL基礎はPodman 6.1上のPostgreSQL 16で追加の限定回帰を行い、7 runtime checksを含む24/24 casesに合格した。Docker専用の任意Quarkus Native Image、既存PostgreSQL、container runtime-labの3問はDocker daemon停止のため環境不足として実行を省略した。
 
-ただし、これは初回レビューの問題を全面解消したことを意味しない。必須583問中571問は依然として
-`single-file`であり、Jakarta EE 11、SQL基礎、JDK tool、CI/securityの
+ただし、これは初回レビューの問題を全面解消したことを意味しない。必須584問中571問は依然として
+`single-file`であり、Jakarta EE 11、JDK tool、CI/securityの
 主要な実物課題は未接続である。以下では、解消済み・部分解消・未解消を区別して評価する。
 
 ## 1. 結論
@@ -55,13 +56,13 @@ process tree停止、構造化check結果を扱う。Docker imageは自動pull�
 | C 関連するが不足 | 本題の一部は扱うが、暗記・単純判定・一般Java処理が中心で、実務能力の確認には不足する |
 | D 再設計推奨 | 主問題へ合格しても、章題・lesson題の能力をほぼ証明できない |
 
-初回は章単位でA 32章、B 11章、C 5章、D 8章だった。現在は保守的にA 32章、B 16章、C 4章、D 4章と評価する。性能測定章は実JFR labの追加でD→B、Spring Boot章はprojectとruntime-lab追加でD→B、Open Liberty章はXML artifactとruntime-lab追加でD→B、Quarkus章はprojectとJVM runtime-lab追加でD→B、deployment章は実container lab追加でC→Bへ改善した。Dは説明文が悪いという意味ではなく、主に評価方法の問題である。
+初回は章単位でA 32章、B 11章、C 5章、D 8章だった。現在は保守的にA 32章、B 17章、C 4章、D 3章と評価する。性能測定章は実JFR labの追加でD→B、SQL基礎章は実PostgreSQL labの追加でD→B、Spring Boot章はprojectとruntime-lab追加でD→B、Open Liberty章はXML artifactとruntime-lab追加でD→B、Quarkus章はprojectとJVM runtime-lab追加でD→B、deployment章は実container lab追加でC→Bへ改善した。Dは説明文が悪いという意味ではなく、主に評価方法の問題である。
 
 現在の重要な判断は次の4点である。
 
-1. **4種類の問題基盤は実装済みだが、必須教材移行は12問に留まる。** engine不足という構造的blockerは解消したため、今後は各章の到達目標に合わせて既存single-file問題を置換・補完する段階である。
+1. **4種類の問題基盤は実装済みだが、必須教材移行は13問に留まる。** engine不足という構造的blockerは解消したため、今後は各章の到達目標に合わせて既存single-file問題を置換・補完する段階である。
 2. **Spring Boot、Open Liberty、Quarkusは実製品を自動採点する段階へ進んだ。** QuarkusはExtension、Config、`@QuarkusTest`、JVM package、REST、Validation、Healthまで接続し、Native buildは任意発展へ分離した。Libertyの更新運用やQuarkusのDev Services/update比較等はまだPractice completeに達していない。
-3. **性能、HTTP、実DB、container、capstone、loggingでは実物課題が星・合格・進捗へ接続された。** 一方、SQL基礎、JDK tool、Jakarta EE 11、CI/CD、TLS/OpenAPI/SBOM等は疑似問題だけでも章を修了できる。
+3. **性能、HTTP、SQL基礎、実DB、container、capstone、loggingでは実物課題が星・合格・進捗へ接続された。** 一方、JDK tool、Jakarta EE 11、CI/CD、TLS/OpenAPI/SBOM等は疑似問題だけでも章を修了できる。
 4. **専門概念と無関係なsource checkはなお残る。** artifact/runtimeの受け入れ条件へ置き換えた箇所は改善したが、framework章の一般Java構文検査を段階的に減らす必要がある。
 
 Criticalな技術誤りではない。問題engineの構造問題は大きく改善したが、「初心者が全発展章で実務レベルに達したと判断できる教材」という目標に対しては、未移行章がHighの課題として残る。
@@ -86,7 +87,7 @@ Criticalな技術誤りではない。問題engineの構造問題は大きく改
 - 重要度: High
 - 分類: 構成 / 問題の不備 / 学習目標
 - 対象: 主に第22章以降のtool、DB、framework、運用、security章
-- 状態: **部分解消**。`artifact`、`project`、`runtime-lab`が実装され、server設定、複数file、process、network、DB、JFR、containerを直接採点できる。問題はengineではなく、必須583問中571問がまだsingle-fileである点へ移った。
+- 状態: **部分解消**。`artifact`、`project`、`runtime-lab`が実装され、server設定、複数file、process、network、DB、JFR、containerを直接採点できる。問題はengineではなく、必須584問中571問がまだsingle-fileである点へ移った。
 - 代表例:
   - JDK toolを使うlessonで、目的語を`jshell`/`jdeps`等の名前へ変換する。
   - SQL lessonで、JavaのMapを使ってJOIN相当の集計を行う。
@@ -103,7 +104,7 @@ Criticalな技術誤りではない。問題engineの構造問題は大きく改
 - 分類: 構成 / 学習目標
 - 対象: `labs/`全体と進捗管理
 - 状態: **部分解消**。diagnostics、HTTP、実DB、container、Spring Boot、business app、loggingのlabsは正式問題となり、成功時に通常の問題と同じく星・進捗へ記録される。
-- 未解消例: `labs/testing-maven`、`labs/jdk-tools`、`labs/sql`、`labs/jakarta-ee11`はまだ章の必須実践へ接続されていない。Open LibertyとQuarkusは通常起動の主要経路を接続済みだが、Liberty更新運用・InstantOn、Quarkus Dev Services・updateは未接続である。
+- 未解消例: `labs/testing-maven`、`labs/jdk-tools`、`labs/jakarta-ee11`はまだ章の必須実践へ接続されていない。`labs/sql`はDDL・JOIN・集約・index・EXPLAINまで必須接続済みである。Open LibertyとQuarkusは通常起動の主要経路を接続済みだが、Liberty更新運用・InstantOn、Quarkus Dev Services・updateは未接続である。
 - 初心者への影響: 学習者は自然に「章をクリアした＝製品を使える」と解釈する。実際にはcommandを一度も実行していない可能性がある。
 - 修正案: 現在の星接続を広げつつ、各章の進捗を「概念」「coding」「practice」の3層で表示する。製品名を冠する章ではPractice completeを章の実務修了badgeへ必須化する。
 - 修正理由: 簡略問題自体は導入として有用だが、それを最終評価にしないことで価値を保てる。
@@ -128,9 +129,9 @@ Criticalな技術誤りではない。問題engineの構造問題は大きく改
 - 修正案: 各lessonを「説明できる」「実装できる」「壊れた状態を直せる」「判断理由を説明できる」のrubricで評価する。
 - 修正理由: 実務レベルはAPI暗記ではなく、実装・診断・判断を組み合わせた能力である。
 
-## 4. 最優先で再設計する4章と、改善した4章
+## 4. 最優先で再設計する3章と、改善した5章
 
-初回D評価8章のうち、性能測定は実JFR runtime-labによりB、Spring Bootはproject＋runtime-labによりB、Open Libertyは`server.xml` artifact＋runtime-labによりB、Quarkusはproject＋JVM runtime-labによりBへ改善した。残るD評価4章は、実行基盤不足ではなく教材接続の問題として扱う。
+初回D評価8章のうち、性能測定は実JFR runtime-labによりB、SQL基礎はPostgreSQL runtime-labによりB、Spring Bootはproject＋runtime-labによりB、Open Libertyは`server.xml` artifact＋runtime-labによりB、Quarkusはproject＋JVM runtime-labによりBへ改善した。残るD評価3章は、実行基盤不足ではなく教材接続の問題として扱う。
 
 ### D-01 `ch50-java-history-platform.json` Javaの成り立ちとプラットフォーム
 
@@ -145,20 +146,17 @@ Criticalな技術誤りではない。問題engineの構造問題は大きく改
   - JEP/JSR/OpenJDK/TCKはprefix判定ではなく、記事の主張を読み「提案・仕様・実装・適合検査」のどの証拠か判断させる。
   - 歴史年表はquizまたは任意読み物へ下げる。
 
-### D-02 `ch46-sql-database.json` SQLとリレーショナルデータベース
+### 改善-05 `ch46-sql-database.json` SQLとリレーショナルデータベース
 
-- 状態: **未解消（D）**。`54-2`には実PostgreSQL migrationが追加されたが、SQL基礎章`46-1`〜`46-5`自体は7 tasksすべてsingle-fileのままである。
+- 状態: **D→Bへ改善**。`46-5`へ必須のPostgreSQL runtime-labを接続し、SQL基礎章は7 single-file tasks＋1 runtime-labとなった。
 
-- 対象lesson: 46-1〜46-5
-- 現在の問題: Javaでconstraint、JOIN、実行計画の閾値、lock順を模擬する。
-- 確認結果: 7 tasks中、実際のSQL文、JDBC、DB processを用いるtaskは0件。
-- ずれ: 「SQLを学ぶ」章でSQLを書かずに合格できる。特に46-2はMap集計でLEFT JOIN相当を作るため、SQLのjoin条件、NULL、GROUP BY、HAVINGを実践できない。46-3もEXPLAINを読まず`rowsRead/rowsReturned`の整数を比較する。
-- 改善:
-  - schemaへPRIMARY KEY、FOREIGN KEY、NOT NULL、CHECKを追加し、失敗testを通す。
-  - SELECT/LEFT JOIN/GROUP BY/HAVINGを直接記述して期待結果と比較する。
-  - PostgreSQL/H2のEXPLAIN出力からscan/index、推定行数、実測行数を読ませる。
-  - migrationを適用し、旧・新app双方の契約testを通す。
-- 実務修了条件: `labs/integration-data`のmigration接続は完了。次は`labs/sql`でDDL、JOIN、集約、EXPLAINを直接採点する。
+- 実装済み:
+  - `schema.sql`へPRIMARY KEY、FOREIGN KEY、NOT NULL、UNIQUE、金額・statusのCHECKを直接記述し、不正INSERTが実DBで拒否されることを確認する。
+  - `paid_totals.sql`でLEFT JOINのON句へPAID条件を置き、注文のないSoraも0で残す。`high_value_customers.sql`ではGROUP BY後の合計をHAVINGで絞る。
+  - 2万件の固定計測データへ`(status, created_at)`複合indexを作り、`EXPLAIN (ANALYZE, FORMAT JSON)`にindex名と実測行数が出ることを確認する。
+  - 固定seed、参照解、7つの構造化check、60秒timeout、一意なcontainer名・動的port・trap cleanupを既存runtime protocolへ接続した。Docker/Podmanの両方を利用でき、必要imageがある方を選択する。
+- 検証結果: Podman 6.1上の実PostgreSQL 16で第46章限定回帰を実行し、8 tasks・46 cases、SQL runtime単体では7 checksを含む24/24 casesに合格した。starterの意図した失敗、参照解、実index plan、container cleanupまで確認した。全教材回帰も584 tasks・2875 casesで合格した。
+- 残る問題: 46-1〜46-4の主問題はJava模型のままであり、2接続を使う分離レベル・deadlock再現やmigration履歴はSQL基礎章には未接続である。migrationの実DB検証は`54-2`で扱う。
 
 ### D-03 `ch52-team-delivery.json` チーム開発・ビルド・品質管理
 
@@ -357,7 +355,7 @@ Criticalな技術誤りではない。問題engineの構造問題は大きく改
 | 27 型pattern/metadata | A | sealed、pattern、reflectionを直接使用 |
 | 28 実務date/time | A | Instant/Zone/DST/Clockを直接使用 |
 | 29 test/build | B | JUnit部分は良いがMaven部分が疑似問題 |
-| 30 SQL/RDB | D | SQLを書かずJavaでDB概念を模擬 |
+| 30 SQL/RDB | B | Java模型に加え、PostgreSQLでDDL制約・LEFT JOIN・HAVING・複合index・EXPLAIN ANALYZEを直接検証 |
 | 31 JSON/HTTP | B | HttpClientに加えlocal serverへの実通信・200/404/timeoutをruntime-labで確認。JSON libraryは未導入 |
 | 32 team delivery | D | Git/build/CIを使わず数値・boolean判定 |
 
@@ -465,15 +463,15 @@ Concept/Coding/Practiceを別々に表示・判定するmodelはまだない。
 
 1. **部分完了:** preflightを「準備・★対象外」として分離表示した。Practice completeの別表示は未実装。
 2. **部分完了:** Spring Boot、Open Liberty、Quarkusはproject/artifact/runtime問題を通常進捗へ接続した。Native Imageは任意発展として通常進捗から分離した。
-3. **部分完了:** 37-3、47-4、54-2、55-5、60-5、60-6、61-2、61-6へ実物問題を追加した。50-1、51-3、46-2、37-2、62-1等は未置換。
+3. **部分完了:** 37-3、46-5、47-4、54-2、55-5、60-5、60-6、61-2、61-6へ実物問題を追加した。50-1、51-3、46-2単体、37-2、62-1等は未置換。
 4. **未完了:** domainと無関係なsource checkを削除し、artifact/runtime acceptance criteriaへ移す。
 
 ### Phase 2: 既存labsを正式な問題へ昇格
 
 1. **部分完了:** `labs/diagnostics`、`labs/http-client`、`labs/integration-data`、`labs/delivery`、`labs/frameworks/spring-boot`、`labs/business-app-capstone`、`labs/logging-investigation`を自動採点へ接続した。
-2. **部分完了:** Open LibertyとQuarkus runtimeは正式問題へ接続した。`labs/testing-maven`、`labs/jdk-tools`、`labs/sql`、`labs/jakarta-ee11`は未接続である。
+2. **部分完了:** Open Liberty、Quarkus、`labs/sql` runtimeは正式問題へ接続した。`labs/testing-maven`、`labs/jdk-tools`、`labs/jakarta-ee11`は未接続である。
 3. **部分完了:** 接続済みlabにはstarter、reference solution、固定acceptance script、timeout、clean-upを用意した。今後も同じprotocolを使う。
-4. **環境上の注意:** 現在の検証環境ではHTTP/JFRは実行合格。Docker daemonが停止しているためPostgreSQL/containerは環境不足診断まで確認し、実container実行は要確認である。
+4. **環境上の注意:** 現在の検証環境ではHTTP/JFRとSQL基礎のPodman実行が合格。既存のDocker専用PostgreSQL/container課題は環境不足診断まで確認し、実container実行は要確認である。
 
 ### Phase 3: 実務capstoneを増やす
 
@@ -486,7 +484,7 @@ Concept/Coding/Practiceを別々に表示・判定するmodelはまだない。
 
 現状は、Java言語と標準APIを学ぶ教材として非常に強い。さらに、artifact・project・runtime-lab・preflightの導入により、実務教材をsingle-fileへ押し込める技術的制約は解消した。HTTP、JFR、実DB migration、container、既存application改修、logging障害調査、Liberty XML設定と実runtimeでは、説明と評価の整合性が実際に改善している。
 
-一方、必須の非single-file問題は583問中12問であり、Jakarta EE 11、SQL基礎、JDK tool、CI/CD、TLS/OpenAPI/SBOM等は説明の品質に評価がまだ追いついていない。Spring Bootもproject/runtimeの主要経路は実物化したが、自動構成診断、型付き設定、DB/security、version updateまでは到達していない。Open Libertyも通常起動経路は実物化したが、Config上書き、更新運用、InstantOnまでは到達していない。Quarkusも主要経路は実物化したが、Dev Services、build-time設定差、updateまでは到達していない。問題文が専門用語を使っていても、解法が一般的な`switch`、Map、List、整数計算だけなら、その専門技能を測ったことにはならない。
+一方、必須の非single-file問題は584問中13問であり、Jakarta EE 11、JDK tool、CI/CD、TLS/OpenAPI/SBOM等は説明の品質に評価がまだ追いついていない。SQL基礎は実DBへ接続したが、分離レベルやdeadlockの再現までは到達していない。Spring Bootもproject/runtimeの主要経路は実物化したが、自動構成診断、型付き設定、DB/security、version updateまでは到達していない。Open Libertyも通常起動経路は実物化したが、Config上書き、更新運用、InstantOnまでは到達していない。Quarkusも主要経路は実物化したが、Dev Services、build-time設定差、updateまでは到達していない。問題文が専門用語を使っていても、解法が一般的な`switch`、Map、List、整数計算だけなら、その専門技能を測ったことにはならない。
 
 したがって、次の最優先事項は新しいengine開発ではない。既にある4 typeとruntime protocolを使い、
 未接続labsを正式課題へ昇格させ、Concept/Coding/Practiceの修了状態を分けることである。現在の丁寧な説明と豊富なJava kataを保ちながら、初心者を「知っている」から「動かせる・壊れたとき直せる」実務レベルへ導く現実的な道筋は、初回レビュー時より明確になった。

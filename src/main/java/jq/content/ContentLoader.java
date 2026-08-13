@@ -36,7 +36,8 @@ public final class ContentLoader {
     private static final java.util.Set<String> RUNTIME_CAPABILITIES = java.util.Set.of(
             "server", "db", "http", "jfr", "container");
     private static final java.util.Set<String> RUNTIME_TOOLS = java.util.Set.of(
-            "java", "javac", "jcmd", "jfr", "mvn", "gradle", "docker");
+            "java", "javac", "jcmd", "jfr", "mvn", "gradle", "docker",
+            "docker-or-podman");
     private static final Pattern RUNTIME_IMAGE = Pattern.compile("[A-Za-z0-9._/@:-]+");
     private static final List<String> PROJECT_GENERATED_DIRS = List.of(
             ".git", ".gradle", ".idea", ".liberty", ".quarkus",
@@ -423,8 +424,10 @@ public final class ContentLoader {
         }
 
         List<String> requiredImages = stringList(spec, "requiredImages");
-        if (!requiredTools.contains("docker") && !requiredImages.isEmpty()) {
-            throw new IllegalStateException(where + " の requiredImages にはrequiredToolsのdockerが必要です");
+        if (!requiredTools.contains("docker") && !requiredTools.contains("docker-or-podman")
+                && !requiredImages.isEmpty()) {
+            throw new IllegalStateException(where
+                    + " の requiredImages にはdockerまたはdocker-or-podmanが必要です");
         }
         if (requiredImages.size() > 5 || requiredImages.stream().anyMatch(image ->
                 image.length() > 200 || !RUNTIME_IMAGE.matcher(image).matches())) {

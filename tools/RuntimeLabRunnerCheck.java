@@ -67,6 +67,15 @@ public final class RuntimeLabRunnerCheck {
             require(!missing.available() && !missing.started() && !missing.error().isBlank(),
                     "環境不足を実装不正解と分離できません: " + missing);
 
+            RuntimeLabSpec alternative = new RuntimeLabSpec(normal.workspace(), List.of("container"),
+                    List.of("docker-or-podman"),
+                    List.of("jq-runtime-image-that-must-not-exist:never"), checks);
+            RuntimeLabRunner.Result alternativeMissing = runner.run(alternative,
+                    Map.of("exercise/value.txt", "completed\n"));
+            require(!alternativeMissing.available() && !alternativeMissing.started()
+                            && !alternativeMissing.error().isBlank(),
+                    "Docker/Podman代替要件の環境不足を分離できません: " + alternativeMissing);
+
             System.out.println("runtime lab runner: すべて合格");
         } finally {
             deleteRecursively(source);

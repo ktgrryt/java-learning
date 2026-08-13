@@ -1,11 +1,25 @@
 # SQLラボ
 
-`schema.sql` はH2 2.xとPostgreSQLで試しやすい標準寄りのSQLです。制約・JOIN・実行計画を
-実際のDBで確かめます。
+第46章の必須`runtime-lab`です。画面から提出すると、一時的なPostgreSQL 16 containerへ
+学習者が編集したDDLとSQLを適用し、制約・JOIN・集約・HAVING・実行計画を直接検証します。
+実行ごとに一意なcontainer名と動的なlocalhost portを使い、終了時にcontainerを削除します。
 
 ## 必要なもの
 
-次のどちらかを用意します。**この教材はDBを同梱・自動起動しません。**
+自動採点にはDockerまたはPodmanと、選んだruntime側へ事前に取得したimageが必要です。
+両方が使える場合は、必要imageがある方を自動選択します。採点中にimageを自動取得しません。
+
+```bash
+# Dockerを使う場合
+docker pull postgres:16-alpine
+docker image inspect postgres:16-alpine
+
+# Podmanを使う場合
+podman pull postgres:16-alpine
+podman image inspect postgres:16-alpine
+```
+
+手元でSQLだけを試す場合は、次のどちらかを利用できます。
 
 - **H2 2.x**（手軽。JARひとつで動きます）
   ```bash
@@ -18,14 +32,12 @@
   psql sqllab -f schema.sql
   ```
 
-> この環境にはH2もPostgreSQLも無いため、以下の出力は `schema.sql` の内容から
-> 導いたものです（実行して採取したものではありません）。
-
 **本番DBへは適用しないでください。**
 
 ## 成功したらこう出る
 
-`schema.sql` の末尾のSELECTは、顧客ごとの「PAIDの合計」を返します。
+`schema.sql` の末尾のSELECTは、顧客ごとの「PAIDの合計」を返します。自動採点版では
+`exercise/paid_totals.sql`を編集し、同じ結果を実DBから得ます。
 `Sora` には注文が無いので、`LEFT JOIN` と `COALESCE` により0で残ります。
 
 | name | paid_total |

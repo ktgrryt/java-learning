@@ -30,10 +30,10 @@ public final class RuntimeLabRunner {
     private final ProjectRunner projectRunner = new ProjectRunner();
 
     public Result run(RuntimeLabSpec spec, Map<String, String> submittedFiles) {
-        List<String> missing = missingRequirements(spec);
-        if (!missing.isEmpty()) {
+        RequirementCheck requirements = checkRequirements(spec);
+        if (!requirements.missing().isEmpty()) {
             return new Result(false, false, false, false, -1, "", false,
-                    String.join("\n", missing), 0, pendingChecks(spec));
+                    String.join("\n", requirements.missing()), 0, pendingChecks(spec));
         }
 
         int port;
@@ -44,11 +44,12 @@ public final class RuntimeLabRunner {
                     "localhostの空きポートを確保できません: " + e.getMessage(), 0,
                     pendingChecks(spec));
         }
-        Map<String, String> environment = Map.of(
-                "JQ_LAB_PORT", String.valueOf(port),
-                "JQ_LAB_RUN_ID", "jq-" + UUID.randomUUID().toString().replace("-", ""),
-                // appを起動したJDKと同じjava/javac/jcmd/jfrを固定scriptから使う。
-                "PATH", jdkBin() + java.io.File.pathSeparator + System.getenv().getOrDefault("PATH", ""));
+        Map<String, String> environment = new HashMap<>(requirements.environment());
+        environment.put("JQ_LAB_PORT", String.valueOf(port));
+        environment.put("JQ_LAB_RUN_ID", "jq-" + UUID.randomUUID().toString().replace("-", ""));
+        // appを起動したJDKと同じjava/javac/jcmd/jfrを固定scriptから使う。
+        environment.put("PATH", jdkBin() + java.io.File.pathSeparator
+                + System.getenv().getOrDefault("PATH", ""));
         ProjectRunner.Result execution = projectRunner.run(
                 spec.workspace(), submittedFiles, environment);
         List<CheckResult> checks = parseChecks(spec, execution.output());
@@ -59,9 +60,11 @@ public final class RuntimeLabRunner {
                 execution.durationMs(), checks);
     }
 
-    private static List<String> missingRequirements(RuntimeLabSpec spec) {
+    private static RequirementCheck checkRequirements(RuntimeLabSpec spec) {
         List<String> missing = new ArrayList<>();
+        boolean acceptsPodman = spec.requiredTools().contains("docker-or-podman");
         for (String tool : spec.requiredTools()) {
+            if (tool.equals("docker-or-podman")) continue;
             List<String> command = switch (tool) {
                 case "java", "javac" -> List.of(jdkTool(tool), "--version");
                 case "jcmd" -> List.of(jdkTool(tool), "-h");
@@ -72,14 +75,56 @@ public final class RuntimeLabRunner {
             };
             if (!commandWorks(command)) missing.add(toolHelp(tool));
         }
-        if (!missing.isEmpty()) return missing;
-        for (String image : spec.requiredImages()) {
-            if (!commandWorks(List.of("docker", "image", "inspect", image))) {
-                missing.add("Docker image `" + image + "` がありません。先に `docker pull "
-                        + image + "` を実行してください。");
+        if (!missing.isEmpty()) return new RequirementCheck(List.copyOf(missing), Map.of());
+
+        List<String> candidates = new ArrayList<>();
+        if (acceptsPodman) {
+            for (String runtime : List.of("docker", "podman")) {
+                if (containerRuntimeWorks(runtime)) candidates.add(runtime);
+            }
+            if (candidates.isEmpty()) {
+                missing.add(toolHelp("docker-or-podman"));
+                return new RequirementCheck(List.copyOf(missing), Map.of());
+            }
+        } else if (spec.requiredTools().contains("docker")) {
+            candidates.add("docker");
+        }
+
+        String selectedRuntime = null;
+        for (String candidate : candidates) {
+            boolean hasAllImages = spec.requiredImages().stream()
+                    .allMatch(image -> commandWorks(List.of(candidate, "image", "inspect", image)));
+            if (hasAllImages) {
+                selectedRuntime = candidate;
+                break;
             }
         }
-        return missing;
+        if (!candidates.isEmpty() && selectedRuntime == null) {
+            StringBuilder message = new StringBuilder("必要なcontainer imageがありません。");
+            for (String image : spec.requiredImages()) {
+                if (acceptsPodman) {
+                    message.append(" Dockerなら `docker pull ").append(image)
+                            .append("`、Podmanなら `podman pull ").append(image).append("`。");
+                } else {
+                    message.append(" 先に `docker pull ").append(image).append("`を実行してください。");
+                }
+            }
+            missing.add(message.toString());
+            return new RequirementCheck(List.copyOf(missing), Map.of());
+        }
+        Map<String, String> environment = selectedRuntime == null
+                ? Map.of() : Map.of("JQ_CONTAINER_RUNTIME", selectedRuntime);
+        return new RequirementCheck(List.of(), environment);
+    }
+
+    private static boolean containerRuntimeWorks(String runtime) {
+        return switch (runtime) {
+            case "docker" -> commandWorks(
+                    List.of("docker", "version", "--format", "{{.Server.Version}}"));
+            case "podman" -> commandWorks(
+                    List.of("podman", "info", "--format", "{{.Host.OS}}"));
+            default -> false;
+        };
     }
 
     private static String jdkBin() {
@@ -116,8 +161,13 @@ public final class RuntimeLabRunner {
             case "mvn" -> "Mavenを起動できません。Maven 3.9以降をインストールしてください。";
             case "gradle" -> "Gradleを起動できません。GradleまたはWrapperを準備してください。";
             case "docker" -> "Docker daemonへ接続できません。Docker Desktop等を起動してください。";
+            case "docker-or-podman" -> "Docker daemonまたはPodmanへ接続できません。"
+                    + "Docker Desktop、Podman machine、またはrootless Podmanを起動してください。";
             default -> tool + "を起動できません。";
         };
+    }
+
+    private record RequirementCheck(List<String> missing, Map<String, String> environment) {
     }
 
     private static int reserveLocalPort() throws IOException {

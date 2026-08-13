@@ -2833,10 +2833,12 @@
         return '<li>' + esc(check.label) + '</li>';
       }).join('');
       var requirements = (lab.requiredTools || []).map(function (tool) {
-        return '<code>' + esc(tool) + '</code>';
+        return tool === 'docker-or-podman'
+          ? '<code>Docker</code> または <code>Podman</code>'
+          : '<code>' + esc(tool) + '</code>';
       }).join('、');
       if ((lab.requiredImages || []).length) {
-        requirements += '、Docker image ' + lab.requiredImages.map(function (image) {
+        requirements += '、container image ' + lab.requiredImages.map(function (image) {
           return '<code>' + esc(image) + '</code>';
         }).join('、');
       }
