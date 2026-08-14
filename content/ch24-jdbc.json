@@ -8,6 +8,48 @@
   ],
   "lessons": [
     {
+      "id": "24-0",
+      "lessonType": "preflight",
+      "title": "事前確認：実DBでJDBC labを動かす準備",
+      "explanation": "## 実DBを使う範囲を先に確認する\n\nこの章の`runtime-lab`はcontainer上で一時的なPostgreSQL 16を起動し、PreparedStatementの効き方・接続の後始末・トランザクションを本物のDBで確認します。DockerまたはPodmanのどちらかが必須で、接続できて必要imageがある方を採点側が選びます。提出時に`postgres:16-alpine` imageがローカルに無ければ、自動で大きなdownloadを始めず、先に実行するpullコマンドを表示します。\n\n```bash\ndocker pull postgres:16-alpine\ndocker image inspect postgres:16-alpine\n```\n\nJDBCドライバはMavenで取得します（`mvn dependency:copy-dependencies`）。buildもtestもMavenには任せず、取り出したjarを使って`javac`と`java`を直接動かします。初回はドライバのdownloadに時間がかかることがあります。\n\nlabは動的なlocalhostポートと一意なcontainer名を使い、成功・失敗・timeoutのいずれでもcontainerを削除します。ただしDocker自体の強制終了などで残った場合は、表示された`jq-`で始まるcontainerを確認してから削除してください。この事前確認は★対象外です。",
+      "preflight": {
+        "buttonLabel": "実DB labの準備を確認する",
+        "checks": [
+          {
+            "id": "java-runtime",
+            "type": "tool",
+            "tool": "java",
+            "label": "Java実行環境",
+            "minimumVersion": "21",
+            "help": "JDK 21以降をインストールし、JAVA_HOMEとPATHを同じJDKへ向けてください。"
+          },
+          {
+            "id": "java-compiler",
+            "type": "tool",
+            "tool": "javac",
+            "label": "Javaコンパイラ",
+            "minimumVersion": "21",
+            "help": "JREではなくJDKが必要です。javac --versionを新しいターミナルで確認してください。"
+          },
+          {
+            "id": "maven",
+            "type": "tool",
+            "tool": "maven",
+            "label": "Apache Maven",
+            "minimumVersion": "3.9",
+            "help": "JDBCドライバの取得にMavenを使います。Maven 3.9以降をインストールし、mvnをPATHへ追加してください。変更後はアプリを再起動します。"
+          },
+          {
+            "id": "docker-db",
+            "type": "tool",
+            "tool": "docker-or-podman",
+            "label": "PostgreSQL用container runtime",
+            "help": "DockerまたはPodmanのどちらかを起動してください。次にdocker pull postgres:16-alpine（Podmanならpodman pull postgres:16-alpine）で演習用imageを準備します。"
+          }
+        ]
+      }
+    },
+    {
       "id": "24-1",
       "title": "Connection・PreparedStatement・ResultSet",
       "explanation": "## はじめて学ぶ人へ\n\nJDBCは、Javaからデータベースへ注文を出すための標準的な窓口です。3つの主要オブジェクトは、レストランのやり取りに置き換えると役割が見えます。\n\n- `Connection`: 店との通話回線\n- `PreparedStatement`: 値を記入できる注文票\n- `ResultSet`: 店から返った結果一覧を順に読む冊子\n\n```text\n接続する → SQLを準備する → 値を設定する → 実行する → 結果を1行ずつ読む → 閉じる\n```\n\n`ResultSet` は最初、1行目の手前にいるため、`while (rs.next())` で行へ進んでから列を読みます。接続や結果を閉じ忘れると資源が枯渇するので、`try-with-resources` に閉じる作業を任せるのが基本です。\n\n## JDBCの3段階\n\n`Connection` がDB接続、`PreparedStatement` がSQLと値、`ResultSet` が検索結果です。すべて閉じる必要があるのでtry-with-resourcesを使います。\n\n```java\nString sql = \"SELECT id, name, balance FROM users WHERE id = ?\";\ntry (Connection con = dataSource.getConnection();\n     PreparedStatement ps = con.prepareStatement(sql)) {\n    ps.setInt(1, id);\n    try (ResultSet rs = ps.executeQuery()) {\n        if (rs.next()) {\n            return new User(rs.getInt(\"id\"), rs.getString(\"name\"));\n        }\n    }\n}\n```\n\n```svg 3つの役割と、`ResultSet` のカーソルが「1行目の手前」から始まること\n<svg viewBox=\"0 0 720 246\">\n  <rect class=\"fig-box\" x=\"14\" y=\"40\" width=\"210\" height=\"64\" rx=\"6\"/>\n  <text class=\"fig-t fig-mono fig-small\" x=\"119\" y=\"62\" text-anchor=\"middle\">Connection</text>\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"119\" y=\"84\" text-anchor=\"middle\">DBへの通話回線</text>\n  <rect class=\"fig-box\" x=\"250\" y=\"40\" width=\"210\" height=\"64\" rx=\"6\"/>\n  <text class=\"fig-t fig-mono fig-small\" x=\"355\" y=\"62\" text-anchor=\"middle\">PreparedStatement</text>\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"355\" y=\"84\" text-anchor=\"middle\">SQLと値（? に bind する）</text>\n  <rect class=\"fig-box\" x=\"486\" y=\"40\" width=\"220\" height=\"64\" rx=\"6\"/>\n  <text class=\"fig-t fig-mono fig-small\" x=\"596\" y=\"62\" text-anchor=\"middle\">ResultSet</text>\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"596\" y=\"84\" text-anchor=\"middle\">結果を1行ずつ読む</text>\n  <line class=\"fig-line\" x1=\"228\" y1=\"72\" x2=\"246\" y2=\"72\" marker-end=\"arrow\"/>\n  <line class=\"fig-line\" x1=\"464\" y1=\"72\" x2=\"482\" y2=\"72\" marker-end=\"arrow\"/>\n\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"14\" y=\"140\">カーソルは最初、1行目の「手前」にいる</text>\n  <rect class=\"fig-box-dim\" x=\"60\" y=\"156\" width=\"110\" height=\"36\" rx=\"6\"/>\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"115\" y=\"174\" text-anchor=\"middle\">手前</text>\n  <rect class=\"fig-box\" x=\"190\" y=\"156\" width=\"140\" height=\"36\" rx=\"6\"/>\n  <text class=\"fig-t fig-small\" x=\"260\" y=\"174\" text-anchor=\"middle\">1行目</text>\n  <rect class=\"fig-box\" x=\"340\" y=\"156\" width=\"140\" height=\"36\" rx=\"6\"/>\n  <text class=\"fig-t fig-small\" x=\"410\" y=\"174\" text-anchor=\"middle\">2行目</text>\n  <rect class=\"fig-box-dim\" x=\"490\" y=\"156\" width=\"110\" height=\"36\" rx=\"6\"/>\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"545\" y=\"174\" text-anchor=\"middle\">終わり</text>\n  <line class=\"fig-line-accent\" x1=\"174\" y1=\"174\" x2=\"186\" y2=\"174\" marker-end=\"arrow-accent\"/>\n  <line class=\"fig-line-accent\" x1=\"334\" y1=\"174\" x2=\"336\" y2=\"174\" marker-end=\"arrow-accent\"/>\n  <line class=\"fig-line-accent\" x1=\"484\" y1=\"174\" x2=\"486\" y2=\"174\" marker-end=\"arrow-accent\"/>\n  <text class=\"fig-t fig-mono fig-small fig-t-accent\" x=\"330\" y=\"140\" text-anchor=\"middle\">next()</text>\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"706\" y=\"174\" text-anchor=\"end\">1件でも next() が必要</text>\n\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"14\" y=\"228\">3つとも閉じる必要があるので try-with-resources に任せる。閉じ忘れは資源の枯渇になる</text>\n</svg>\n```\n\n`ResultSet` のカーソルは最初、1行目の手前です。単一件でも `next()` が必要です。一覧は `while (rs.next())`。列名はSQLのaliasを含め正確に合わせます。教材のMiniJdbcは外部DBなしでこの型と流れを再現します。",
@@ -460,6 +502,69 @@
               "minimum": 1,
               "message": "成功したときだけ `commit()` してください。"
             }
+          ]
+        },
+        {
+          "kind": "applied",
+          "type": "runtime-lab",
+          "task": "【実行演習】`labs/jdbc/resource-exercise`で、**実PostgreSQL**へ接続するDAOを直します。\n\n採点はcontainerでPostgreSQL 16を起動し、`db/schema.sql`で`customer`表を作り直してから4つの場面を流します。`exercise/CustomerDao.java`はいま値を文字列に埋め込み、開いた接続を閉じず、複数件の登録を1件ずつ確定しています。手元のテストデータでは動いて見えます。\n\n(1)登録した1件を読み戻せること。**これはいまも通っています。**直す対象ではなく、他を直すときに壊さないための見張りです（プレースホルダへ移すときに問い合わせを壊しやすい）。\n(2)表示名として`x'); DROP TABLE customer; --`を渡します。値を文字列に埋め込んでいると、`INSERT`のあとに`DROP TABLE`が続く1本の命令になり、**表が実際に消えます**。プレースホルダで渡して、この文字列がそのまま保存されるようにしてください。\n(3)DAOを60回呼んでも、接続の枠を使い切らないこと。このlabのPostgreSQLは`max_connections=10`で動いています。閉じていれば同時に1〜2本しか使いませんが、漏らしていれば途中で`too many clients already`になります（「いま何本開いているか」を数える方法では測れません。参照が切れた接続はGCで回収されるので、数える時点には消えていることがあります）。\n(4)`insertAll`の途中で主キー違反が起きたとき、**1件も**残らないこと。\n\nクラス名・コンストラクタ・メソッドの形は採点の足場が呼ぶので変えないでください。",
+          "runtimeLab": {
+            "name": "jdbc resource and injection lab",
+            "source": "labs/jdbc/resource-exercise",
+            "exclude": [
+              "reference"
+            ],
+            "command": [
+              "./run-runtime-lab.sh"
+            ],
+            "timeoutSeconds": 60,
+            "verification": "実PostgreSQLで、値がSQLとして解釈されず、接続の枠を使い切らず、途中で失敗したまとめ登録が1件も残らない",
+            "capabilities": [
+              "db",
+              "container"
+            ],
+            "requiredTools": [
+              "java",
+              "javac",
+              "mvn",
+              "docker-or-podman"
+            ],
+            "requiredImages": [
+              "postgres:16-alpine"
+            ],
+            "checks": [
+              {
+                "id": "jdbc-crud",
+                "label": "（見張り）登録した1件を読み戻せる"
+              },
+              {
+                "id": "jdbc-injection",
+                "label": "値に混ぜたSQLが実行されない"
+              },
+              {
+                "id": "jdbc-no-leak",
+                "label": "接続を閉じている（枠を使い切らない）"
+              },
+              {
+                "id": "jdbc-rollback",
+                "label": "途中で失敗したまとめ登録が1件も残らない"
+              }
+            ],
+            "editableFiles": [
+              {
+                "path": "exercise/CustomerDao.java",
+                "solutionPath": "reference/CustomerDao.java"
+              }
+            ]
+          },
+          "hints": [
+            "`connection.prepareStatement(\"INSERT INTO customer(email, display_name) VALUES (?, ?)\")`のように、値は`?`で渡して`setString`で埋めます。自分でエスケープを書くのは、抜けたときに気づけないので解決になりません。",
+            "`Connection`・`PreparedStatement`・`ResultSet`はすべてtry-with-resourcesで閉じます。途中で例外が出ても閉じられるのが要点で、`close()`を最後の行に書くだけでは足りません。",
+            "`insertAll`は1つの接続で`setAutoCommit(false)`にし、全件入れてから`commit()`します。失敗したら`rollback()`です。1件ずつ`insert`を呼ぶと、1件ずつ確定してしまいます。"
+          ],
+          "rubric": [
+            "implement",
+            "test"
           ]
         }
       ]

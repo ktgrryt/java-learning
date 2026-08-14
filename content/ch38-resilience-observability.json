@@ -450,6 +450,65 @@
             "最遅の更新は「まだ1件も無いとき」「より大きいとき」「同じ時間で名前が辞書順に先のとき」の3つです。`slowest==null` を先に見ておけば、1件目で `null` を比較してしまうことがありません。"
           ],
           "solution": "import java.util.*;\n\npublic class Main {\n    static long percentile(long[] sorted, int percent) {\n        int rank = (percent * sorted.length + 99) / 100;\n        return sorted[rank - 1];\n    }\n\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        long sloMs = s.nextLong();\n        int n = s.nextInt();\n        Map<String, List<String>> paths = new TreeMap<>();\n        Map<String, Long> totals = new TreeMap<>();\n        long[] durations = new long[n];\n        String slowest = null;\n        long slowestMs = - 1;\n        for (int i = 0; i < n; i++) {\n            String traceId = s.next(), service = s.next();\n            long ms = s.nextLong();\n            paths.computeIfAbsent(traceId, k -> new ArrayList<>()).add(service);\n            totals.merge(traceId, ms, Long::sum);\n            durations[i] = ms;\n            if (slowest == null || ms > slowestMs || (ms == slowestMs && service.compareTo(slowest) < 0)) {\n                slowestMs = ms;\n                slowest = service;\n            }\n        }\n        for (Map.Entry<String, List<String>> e : paths.entrySet()) System.out.println(e.getKey() + \" \" + String.join(\" -> \", e.getValue()) + \" total=\" + totals.get(e.getKey()));\n        long p95 = 0;\n        if (n > 0) {\n            long[] sorted = Arrays.copyOf(durations, n);\n            Arrays.sort(sorted);\n            p95 = percentile(sorted, 95);\n        }\n        System.out.println(\"p95=\" + p95);\n        System.out.println(p95 <= sloMs ? \"SLO_MET\" : \"SLO_VIOLATED\");\n        System.out.println(\"slowest=\" + (slowest == null ? \"NONE 0\" : slowest + \" \" + slowestMs));\n    }\n}\n"
+        },
+        {
+          "kind": "applied",
+          "type": "runtime-lab",
+          "task": "【実行演習】`labs/resilience/retry-exercise`で、落ちたり遅れたりする実APIへの呼び方を直します。\n\n採点側が`FlakyServer`をlocalhostの動的ポートで起動します。相手は3種類の振る舞いをします。`/transient`は最初の2回が503で3回目から200、`/permanent`はいつでも400、`/slow`は4秒待ってから200です。\n\n`exercise/OrderClient.java`はいま1回送って本文をそのまま返すだけです。次の4つを満たしてください。\n\n(1)`/transient`は一時的な失敗として再試行し、取得に成功すること。(2)`/permanent`の400は再試行せずその場でやめること。(3)`/slow`は1回500ms・全体1500msで打ち切り、4秒待たないこと。(4)1件の取得につき1行、`event=fetch cid=<相関ID> path=<パス> outcome=<ok|failed> attempts=<試行回数> ms=<所要ミリ秒>`の形でログを残すこと。\n\n**試行回数は自己申告では採点しません。**受信回数は`FlakyServer`が数えていて、`/transient`は3回・`/permanent`は1回でなければ落ちます。ログの`attempts`もこの実測と突き合わせます。実際と食い違うログは、障害調査で役に立たないからです。\n\n定数（`REQUEST_TIMEOUT_MILLIS`・`DEADLINE_MILLIS`・`MAX_ATTEMPTS`）とメソッドの形は採点の足場が使うので変えないでください。",
+          "runtimeLab": {
+            "name": "retry and deadline lab",
+            "source": "labs/resilience/retry-exercise",
+            "exclude": [
+              "reference"
+            ],
+            "command": [
+              "./run-runtime-lab.sh"
+            ],
+            "timeoutSeconds": 60,
+            "verification": "実サーバへ当てて、一時的な失敗の再試行・恒久的な失敗の中止・締め切りでの打ち切り・実測と一致するログを確認する",
+            "capabilities": [
+              "server",
+              "http"
+            ],
+            "requiredTools": [
+              "java",
+              "javac"
+            ],
+            "requiredImages": [],
+            "checks": [
+              {
+                "id": "retry-transient",
+                "label": "一時的な失敗を再試行して成功する（受信3回）"
+              },
+              {
+                "id": "retry-permanent",
+                "label": "恒久的な失敗は再試行しない（受信1回）"
+              },
+              {
+                "id": "retry-deadline",
+                "label": "遅い相手を締め切りで打ち切る"
+              },
+              {
+                "id": "observability-log",
+                "label": "相関IDと試行回数が実測と一致する1行を残す"
+              }
+            ],
+            "editableFiles": [
+              {
+                "path": "exercise/OrderClient.java",
+                "solutionPath": "reference/OrderClient.java"
+              }
+            ]
+          },
+          "hints": [
+            "`response.statusCode()`を見て3通りに分けます。2xxは成功、4xxはその場でやめる、5xxと例外（応答なし・打ち切り）は再試行です。ひな形は本文だけを見ていてステータスを見ていません。",
+            "1回ぶんの制限時間は`HttpRequest.newBuilder(...).timeout(Duration.ofMillis(REQUEST_TIMEOUT_MILLIS))`です。全体の締め切りは開始時刻を覚えて自分で見ます。",
+            "再試行の前に少し待ち、待ち時間を倍にしていきます。「次の待ち時間を足すと締め切りを超える」ときは、待たずにあきらめます。ログは成功でも失敗でも1行だけ残します。"
+          ],
+          "rubric": [
+            "implement",
+            "diagnose"
+          ]
         }
       ]
     }

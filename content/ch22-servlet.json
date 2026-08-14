@@ -9,6 +9,41 @@
   ],
   "lessons": [
     {
+      "id": "22-0",
+      "lessonType": "preflight",
+      "title": "事前確認：実サーバーでServlet labを動かす準備",
+      "explanation": "## 実サーバーへ配備して確かめます\n\nこの章の`runtime-lab`はあなたが書いたServletを実サーバーへ配備し、同時要求・ステータスコード・応答の文字コードを確かめます。`mvn package`でWARを作り、**Open Liberty 26.0.0.8**を採点側が確保した動的ポートで起動して、HTTPで実測します。使うFeatureは`servlet-6.1`の1つだけ（起動は1秒ほど）です。\n\nLibertyの本体はMavenが取得します（`~/.m2`へ約120MB）。**初回だけ**時間がかかり、2回目以降はキャッシュから起動します。containerは使いません。\n\nlabは成功・失敗・timeoutのいずれでもサーバーを停止します。提出のたびに一時ディレクトリで動くので、`labs/`の中身は書き換わりません。この事前確認は★対象外です。",
+      "preflight": {
+        "buttonLabel": "Servlet labの準備を確認する",
+        "checks": [
+          {
+            "id": "java-runtime",
+            "type": "tool",
+            "tool": "java",
+            "label": "Java実行環境",
+            "minimumVersion": "21",
+            "help": "JDK 21以降をインストールし、JAVA_HOMEとPATHを同じJDKへ向けてください。"
+          },
+          {
+            "id": "java-compiler",
+            "type": "tool",
+            "tool": "javac",
+            "label": "Javaコンパイラ",
+            "minimumVersion": "21",
+            "help": "JREではなくJDKが必要です。javac --versionを新しいターミナルで確認してください。"
+          },
+          {
+            "id": "maven",
+            "type": "tool",
+            "tool": "maven",
+            "label": "Apache Maven",
+            "minimumVersion": "3.9",
+            "help": "Maven 3.9以降をインストールし、mvnをPATHへ追加してください。変更後はアプリを再起動します。"
+          }
+        ]
+      }
+    },
+    {
       "id": "22-1",
       "title": "サーブレットのはじめの一歩",
       "explanation": "## Webアプリは「聞かれたら答える」だけ\n\nここからは Web アプリを作る話に入ります。難しそうに見えますが、やっていることは単純です。\n\n```\nブラウザ  ──①リクエスト──▶  サーバ\n          ◀─②レスポンス───\n```\n\n**① リクエスト** は「どのやり方で、どこに」の2つが本体です。\n\n```\nGET /hello\n↑    ↑\nメソッド パス\n```\n\n**② レスポンス** は「うまくいったか（ステータスコード）」と「中身（本文）」です。\n\n```\n200 OK          ← ステータスコード\nHello, Java!    ← 本文\n```\n\nHTTP は **1回のやりとりで完結する**（ステートレス）という性質があります。\n「さっき誰が来たか」をサーバは覚えていません。この性質が第23章の話につながります。\n\n## サーブレット＝1つのURLに対する処理\n\nJakarta EE では、この「聞かれたら答える」処理を **サーブレット** というクラスで書きます。\n形は決まっていて、覚えることは3つだけです。\n\n```java\n@WebServlet(\"/hello\")                                  // ① どのURLに応えるか\npublic class HelloServlet extends HttpServlet {        // ② HttpServlet を継承する\n\n    @Override\n    protected void doGet(HttpServletRequest req, HttpServletResponse res)\n            throws ServletException, IOException {     // ③ GET が来たら doGet が呼ばれる\n        res.getWriter().println(\"Hello, Java!\");\n    }\n}\n```\n\n- `@WebServlet(\"/hello\")` … このクラスが `/hello` の担当だと宣言する\n- `extends HttpServlet` … サーブレットの親クラス\n- `doGet(...)` … GET リクエストが来たときに呼ばれるメソッド\n\n`res.getWriter()` で本文を書く先（`PrintWriter`）が取れます。あとは今までどおり\n`println` するだけです。\n\n### 誰が `doGet` を呼ぶのか\n\n自分では呼びません。**アプリサーバ（コンテナ）** が呼びます。\nTomcat や WildFly といったアプリサーバが、リクエストを受け取り、パスを見て、\n担当のサーブレットの `doGet` を呼び出します。\n\nつまりサーブレットは「呼ばれる側」です。`main` から始まる今までのプログラムとは\n呼ばれ方が逆になります。これを **IoC（制御の反転）** と呼びます。\n\n## この教材での動かし方\n\n本物のアプリサーバはネットワークのポートを開いて待ち受けます。この教材では\nそこまではやらず、**`MiniWeb` という学習用の疑似コンテナ** を同梱しています。\n\n```java\npublic static void main(String[] args) {\n    MiniWeb.app()\n           .register(HelloServlet.class)   // このサーブレットを登録する\n           .serve();                       // 標準入力のリクエストを処理する\n}\n```\n\n`serve()` は **標準入力の1行を1リクエストとして** 扱います。\n\n```\n入力:  GET /hello\n出力:  200 OK\n      Hello, Java!\n```\n\n複数行入れれば、その分だけ順番に処理されます。だから「いろいろな入力で試す」ができます。\n\n### 📚 同梱APIリファレンス（この章で使えるもの）\n\n| クラス / メソッド | 意味 |\n|---|---|\n| `@WebServlet(\"/path\")` | 担当するURLの宣言 |\n| `HttpServlet` | 継承する親クラス |\n| `doGet(req, res)` / `doPost(req, res)` | GET / POST が来たときに呼ばれる |\n| `req.getMethod()` | `\"GET\"` / `\"POST\"` など |\n| `req.getRequestURI()` | クエリ文字列を除いたパス |\n| `req.getParameter(name)` | パラメータを1つ。**無ければ `null`** |\n| `req.getParameterValues(name)` | 同じ名前のパラメータを全部。無ければ `null` |\n| `res.getWriter()` | 本文を書く `PrintWriter` |\n| `res.setStatus(int)` | ステータスコードを決める |\n| `res.sendError(int)` / `sendError(int, msg)` | エラーとして返す |\n| `res.setContentType(String)` | `\"text/html; charset=UTF-8\"` など |\n| `res.setHeader(name, value)` | ヘッダを付ける |\n| `HttpServletResponse.SC_NOT_FOUND` など | ステータスコードの定数 |\n\n`MiniWeb` 側の指定はこれだけです。\n\n| 書き方 | 意味 |\n|---|---|\n| `MiniWeb.app()` | 疑似コンテナを作る |\n| `.register(クラス.class)` | サーブレットを登録する（`@WebServlet` からパスを読む） |\n| `.serve()` | 標準入力のリクエストを処理する |\n| `.echoRequests()` | 処理したリクエストを `> GET /hello` の形でも出す |\n\n### ⚠️ ここが本物と違う\n\n`MiniWeb` と同梱の `jakarta.servlet.*` は、**学習用に自分で書いた最小限の再実装**です。\n本物の Jakarta EE ではありません。次の点が違います。\n\n- ネットワークを使わない（ポートを開かない）\n- 本物のアプリサーバは起動時にクラスを走査して `@WebServlet` を自動で見つけるが、\n  この教材では `register(...)` で明示的に登録する\n- リクエストを1つずつ順番に処理する（本物は同時に複数を並行処理する）\n- `HttpServletRequest` のメソッドは、上の表にあるものだけ\n\n**書き方（import 文・アノテーション・メソッド名）は本物と同じ**にしてあるので、\nここで身につけた形はそのまま実務で通用します。\n\n> 💡 本物では、`pom.xml` に `jakarta.jakartaee-api` を **`provided`** で入れ（第21章）、\n> `mvn package` で WAR を作り、アプリサーバに配置します。`@WebServlet` を付けておけば\n> `web.xml` は要りません（昔は `web.xml` に登録するのが必須でした）。\n",
@@ -687,6 +722,66 @@
               "minimum": 1,
               "message": "文字化けを防ぐため `setContentType` で charset まで指定してください。"
             }
+          ]
+        },
+        {
+          "kind": "applied",
+          "type": "runtime-lab",
+          "task": "【実行演習】`labs/jakarta-web/servlet-exercise`で、**実Open Liberty**へ配備したServletを直します。\n\n採点は`mvn package`でWARを作り、`servlet-6.1`だけを有効にしたLibertyを採点側が確保した動的ポートで起動して、HTTPで実測します。\n\n`src/main/java/cafe/web/OrderServlet.java`はいま1人で試すと動きますが、次の4つで落ちます。\n\n(1)POSTを受けていないのでコンテナが405を返し、無いIDでも200になります。POSTは201と`Location: /orders/<ID>`、無いIDは404にしてください。\n(2)**20本を同時に投げると19本が他の要求の名前を受け取ります。**Servletは1つのインスタンスが複数の要求を同時に処理するので、要求ごとの値をインスタンスフィールドへ置くと混ざります。\n(3)値に混ぜた`<script>`がそのまま本文に出ます。HTMLへ埋め込む前に置き換えてください。\n(4)charsetを指定していないので、応答の日本語が壊れます（サーバー既定はISO-8859-1）。本文を書く前に指定してください。\n\n`sleepQuietly()`は「重い処理」の代わりです。消さないでください（処理に時間がかかる間に他の要求が入ってくるのが通常の状態です）。クラス名と`@WebServlet(\"/orders/*\")`は採点の足場が使うので変えず、`OrderStore.java`・`pom.xml`・`server.xml`は参照専用です。",
+          "runtimeLab": {
+            "name": "servlet lifecycle and response lab",
+            "source": "labs/jakarta-web/servlet-exercise",
+            "exclude": [
+              "reference"
+            ],
+            "command": [
+              "./run-runtime-lab.sh"
+            ],
+            "timeoutSeconds": 60,
+            "verification": "実サーバーへ配備し、状態に合ったステータスコード・同時要求の分離・出力のエスケープ・応答の文字コードを確認する",
+            "capabilities": [
+              "server",
+              "http"
+            ],
+            "requiredTools": [
+              "java",
+              "javac",
+              "mvn"
+            ],
+            "requiredImages": [],
+            "checks": [
+              {
+                "id": "servlet-status",
+                "label": "201・Location・404・405を状態に合わせて返す"
+              },
+              {
+                "id": "servlet-shared-state",
+                "label": "20本の同時要求でデータが混ざらない"
+              },
+              {
+                "id": "servlet-escaping",
+                "label": "値に混ぜたタグがHTMLとして解釈されない"
+              },
+              {
+                "id": "servlet-charset",
+                "label": "応答の日本語が壊れない"
+              }
+            ],
+            "editableFiles": [
+              {
+                "path": "src/main/java/cafe/web/OrderServlet.java",
+                "solutionPath": "reference/src/main/java/cafe/web/OrderServlet.java"
+              }
+            ]
+          },
+          "hints": [
+            "要求ごとの値はローカル変数へ移します。フィールドに置いてよいのは、要求に依存しない・不変・スレッドセーフなものだけです（`OrderStore`はその条件を満たすのでフィールドのままで構いません）。",
+            "`response.setContentType(\"text/html; charset=UTF-8\")`は**本文を書く前に**呼びます。POSTでは`request.setCharacterEncoding(\"UTF-8\")`をパラメータを読む前に呼びます。",
+            "`doPost`を追加し、`store.add(item)`で採番したIDを`response.setHeader(\"Location\", \"/orders/\" + id)`へ入れて`SC_CREATED`にします。照会で見つからないときは`SC_NOT_FOUND`です。HTMLへ入れる値は`& < > \" '`を実体参照へ置き換えます。"
+          ],
+          "rubric": [
+            "implement",
+            "diagnose"
           ]
         }
       ]

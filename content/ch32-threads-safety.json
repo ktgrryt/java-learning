@@ -253,6 +253,60 @@
               "message": "結果を読む前に、全スレッドを `join()` で待ってください。"
             }
           ]
+        },
+        {
+          "kind": "applied",
+          "type": "runtime-lab",
+          "task": "【実行演習】`labs/concurrency/race-exercise`で、**8スレッドから同時に呼ばれる集計**を直します。\n\n`exercise/StockCounter.java`は1スレッドなら正しく動きますが、同時に呼ばれると3通りに壊れます。採点は`CyclicBarrier`で8スレッドを同じ瞬間に走り出させ、1スレッド50,000回・20回戦まわして実測します。競合はタイミング次第で再現しないものですが、この回数と一斉スタートで確定させてあるので、ひな形のままなら20回戦すべてで取りこぼしが出ます。\n\n測るのは3つです。(1)成功した`ship`の回数と`shipped`が一致すること。(2)別スレッドから`snapshot()`を何度覗いても、`在庫＋出荷済み`が最初の在庫数と変わらないこと。(3)在庫を超えて出荷しないこと。在庫は全要求より1,000少なくしてあるので、足りない分は`false`で断るのが正しい動きです。\n\n`AtomicInteger`を2本にするのでは足りません。1本ずつは原子的でも、片方を更新してからもう片方を更新するまでの間に他のスレッドが読めるので、合計が合わない瞬間ができます。`StockCounter(int)`・`ship(int)`・`snapshot()`は採点の足場が呼ぶので名前・引数・戻り値は変えず、中の作りを変えてください。",
+          "runtimeLab": {
+            "name": "shared counter race lab",
+            "source": "labs/concurrency/race-exercise",
+            "exclude": [
+              "reference"
+            ],
+            "command": [
+              "./run-runtime-lab.sh"
+            ],
+            "timeoutSeconds": 60,
+            "verification": "8スレッドで同時に呼んでも、取りこぼし・更新途中の観測・在庫超えが20回戦すべてで起きない",
+            "capabilities": [
+              "jdk-tool"
+            ],
+            "requiredTools": [
+              "java",
+              "javac"
+            ],
+            "requiredImages": [],
+            "checks": [
+              {
+                "id": "race-lost-update",
+                "label": "8スレッド×50,000回でも更新を取りこぼさない"
+              },
+              {
+                "id": "race-invariant",
+                "label": "別スレッドから見て在庫＋出荷済みが変わらない"
+              },
+              {
+                "id": "race-oversell",
+                "label": "在庫を超えて出荷しない"
+              }
+            ],
+            "editableFiles": [
+              {
+                "path": "exercise/StockCounter.java",
+                "solutionPath": "reference/StockCounter.java"
+              }
+            ]
+          },
+          "hints": [
+            "`ship`の「在庫を確認する」と「2つの値を更新する」は、途中で他のスレッドを入れてはいけない1つの操作です。確認と更新を同じ区間に入れてください。",
+            "`snapshot()`も同じ区間で守ります。読み出しを守らないと、更新途中の状態（合計が合わない状態）が別スレッドから見えます。",
+            "数を1本ずつ原子的にするのではなく、**一緒に守らないと意味がない範囲**をまとめて1スレッドずつ通します。在庫を出荷済みから導く形にして値を1つにするのも正解です。"
+          ],
+          "rubric": [
+            "implement",
+            "diagnose"
+          ]
         }
       ],
       "quiz": [

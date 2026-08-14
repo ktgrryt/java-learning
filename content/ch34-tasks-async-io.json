@@ -102,6 +102,64 @@
               "message": "プールは閉じないとプログラムが終わりません。try-with-resources で受けてください。"
             }
           ]
+        },
+        {
+          "kind": "applied",
+          "type": "runtime-lab",
+          "task": "【実行演習】`labs/concurrency/executor-exercise`で、集計jobをプールで実行するサービスを完成させます。\n\n`exercise/ReportService.java`はプールを作るだけで、実際には**呼び出し元のスレッドで順番に**実行しています。採点は4つを別に測ります。\n\n(1)4本のプールへ8件投入し、**同時に走った最大数**と所要時間を実測します（逐次なら同時1件・1200ms超）。結果は投入順のまま返してください。\n(2)4秒かかるjobを含む4件に600msの制限をかけ、間に合わなかった位置が`TIMEOUT`になり、遅いjobを待たずに戻ることを確かめます。打ち切りで起きた例外は失敗として扱いません。\n(3)`collect`では、jobが投げた`IllegalStateException(\"boom-42\")`が**原因を保って**呼び出し元まで届くことを確かめます。握りつぶすと失敗です。\n(4)`close`のあと、**別のJVM**が自力で終了できることを確かめます。プールのスレッドはdaemonではないので、終わらせないとJVMは終了できません。10秒待って残っていれば失敗です。\n\nクラス名とメソッドの形は採点の足場が呼ぶので変えず、中の作りを変えてください。",
+          "runtimeLab": {
+            "name": "executor lifecycle lab",
+            "source": "labs/concurrency/executor-exercise",
+            "exclude": [
+              "reference"
+            ],
+            "command": [
+              "./run-runtime-lab.sh"
+            ],
+            "timeoutSeconds": 60,
+            "verification": "並行に走り、制限時間で打ち切り、失敗の原因を伝え、閉じたあとJVMが終了する",
+            "capabilities": [
+              "jdk-tool"
+            ],
+            "requiredTools": [
+              "java",
+              "javac"
+            ],
+            "requiredImages": [],
+            "checks": [
+              {
+                "id": "tasks-parallel",
+                "label": "4本のプールで8件が並行に走り、投入順で返る"
+              },
+              {
+                "id": "tasks-timeout",
+                "label": "間に合わないjobを打ち切って待たずに戻る"
+              },
+              {
+                "id": "tasks-error",
+                "label": "失敗したjobの原因が呼び出し元へ届く"
+              },
+              {
+                "id": "tasks-shutdown",
+                "label": "閉じたあと別JVMが自力で終了する"
+              }
+            ],
+            "editableFiles": [
+              {
+                "path": "exercise/ReportService.java",
+                "solutionPath": "reference/ReportService.java"
+              }
+            ]
+          },
+          "hints": [
+            "`invokeAll`は**投入順**のFutureを返します。1件ずつ`submit`して`get`で待つと、次の投入が遅れて並行になりません。",
+            "制限時間つきの`invokeAll`は、間に合わなかったタスクを取り消します。取り消されたFutureの`get`は`CancellationException`、失敗したjobの`get`は`ExecutionException`です。この違いで`TIMEOUT`と失敗を分けます。",
+            "`close`は「受付を止める→終了を待つ→待っても終わらなければ止める」の順です。`shutdown`だけでは走っているjobが終わるまで戻りません。"
+          ],
+          "rubric": [
+            "implement",
+            "test"
+          ]
         }
       ],
       "quiz": [

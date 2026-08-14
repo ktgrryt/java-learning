@@ -9,6 +9,41 @@
   ],
   "lessons": [
     {
+      "id": "23-0",
+      "lessonType": "preflight",
+      "title": "事前確認：実サーバーでセッション labを動かす準備",
+      "explanation": "## 実サーバーへ配備して確かめます\n\nこの章の`runtime-lab`はセッションとCookieを実サーバーで確かめます。採点はCookieの入れ物を分けた2つのHTTP client（＝別々のブラウザ）で、利用者ごとの分離まで見ます。`mvn package`でWARを作り、**Open Liberty 26.0.0.8**を採点側が確保した動的ポートで起動して、HTTPで実測します。使うFeatureは`servlet-6.1`の1つだけです。\n\nLibertyの本体はMavenが取得します（`~/.m2`へ約120MB）。**初回だけ**時間がかかり、2回目以降はキャッシュから起動します。containerは使いません。\n\nlabは成功・失敗・timeoutのいずれでもサーバーを停止します。提出のたびに一時ディレクトリで動くので、`labs/`の中身は書き換わりません。この事前確認は★対象外です。",
+      "preflight": {
+        "buttonLabel": "セッション labの準備を確認する",
+        "checks": [
+          {
+            "id": "java-runtime",
+            "type": "tool",
+            "tool": "java",
+            "label": "Java実行環境",
+            "minimumVersion": "21",
+            "help": "JDK 21以降をインストールし、JAVA_HOMEとPATHを同じJDKへ向けてください。"
+          },
+          {
+            "id": "java-compiler",
+            "type": "tool",
+            "tool": "javac",
+            "label": "Javaコンパイラ",
+            "minimumVersion": "21",
+            "help": "JREではなくJDKが必要です。javac --versionを新しいターミナルで確認してください。"
+          },
+          {
+            "id": "maven",
+            "type": "tool",
+            "tool": "maven",
+            "label": "Apache Maven",
+            "minimumVersion": "3.9",
+            "help": "Maven 3.9以降をインストールし、mvnをPATHへ追加してください。変更後はアプリを再起動します。"
+          }
+        ]
+      }
+    },
+    {
       "id": "23-1",
       "title": "request属性とforward",
       "explanation": "## はじめて学ぶ人へ\n\n`forward` は、同じサーバの中で処理を引き継ぐ**バトン渡し**です。最初の処理が用意した値をrequest属性へ入れ、表示担当へ同じrequestごと渡します。ブラウザから見ると1回のアクセスのままなのでURLも変わりません。\n\n```text\nブラウザ → /user → requestへ userName を保存 → forward → /user-view\n```\n\n`redirect` はブラウザへ「次はこのURLへ行ってください」と返す案内です。そこで新しいリクエストが始まるため、request属性は引き継がれずURLも変わります。検索結果の表示などはforward、登録後の再読み込みによる二重登録を防ぎたいときは `POST → redirect → GET` と使い分けるのが基本です。\n\n## 値を渡して別の処理へ進む\n\nControllerでデータを用意し、ビューへ表示を任せるときはリクエスト属性を使います。\n\n```java\nreq.setAttribute(\"user\", user);\nreq.getRequestDispatcher(\"/view\").forward(req, res);\n```\n\n`getParameter` は利用者から来た文字列、`getAttribute` はサーバ内で置いたObjectです。同名でも別物です。requestスコープは1リクエストだけなので、別の利用者と混ざりません。forwardはサーバ内部で同じrequest/responseを引き継ぎます。\n\n```svg forward はサーバの中でバトンを渡す。redirect はブラウザに行き先を伝えて、新しく始まる\n<svg viewBox=\"0 0 720 262\">\n  <text class=\"fig-t fig-title\" x=\"180\" y=\"22\" text-anchor=\"middle\">forward</text>\n  <text class=\"fig-t fig-title\" x=\"538\" y=\"22\" text-anchor=\"middle\">redirect</text>\n\n  <rect class=\"fig-box\" x=\"14\" y=\"44\" width=\"110\" height=\"40\" rx=\"6\"/>\n  <text class=\"fig-t fig-small\" x=\"69\" y=\"64\" text-anchor=\"middle\">ブラウザ</text>\n  <rect class=\"fig-region\" x=\"150\" y=\"38\" width=\"200\" height=\"120\" rx=\"8\"/>\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"250\" y=\"56\" text-anchor=\"middle\">サーバの中（同じ request）</text>\n  <rect class=\"fig-box\" x=\"166\" y=\"68\" width=\"168\" height=\"34\" rx=\"6\"/>\n  <text class=\"fig-t fig-mono fig-small\" x=\"250\" y=\"85\" text-anchor=\"middle\">/user</text>\n  <line class=\"fig-line-accent\" x1=\"250\" y1=\"102\" x2=\"250\" y2=\"118\" marker-end=\"arrow-accent\"/>\n  <rect class=\"fig-box\" x=\"166\" y=\"120\" width=\"168\" height=\"34\" rx=\"6\"/>\n  <text class=\"fig-t fig-mono fig-small\" x=\"250\" y=\"137\" text-anchor=\"middle\">/user-view</text>\n  <line class=\"fig-line\" x1=\"128\" y1=\"64\" x2=\"162\" y2=\"70\" marker-end=\"arrow\"/>\n  <text class=\"fig-t fig-t-ok fig-small\" x=\"14\" y=\"182\">URL は変わらない</text>\n  <text class=\"fig-t fig-t-ok fig-small\" x=\"14\" y=\"204\">request 属性を引き継ぐ</text>\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"14\" y=\"226\">検索結果の表示などに向く</text>\n\n  <rect class=\"fig-box\" x=\"380\" y=\"44\" width=\"110\" height=\"40\" rx=\"6\"/>\n  <text class=\"fig-t fig-small\" x=\"435\" y=\"64\" text-anchor=\"middle\">ブラウザ</text>\n  <rect class=\"fig-box\" x=\"560\" y=\"44\" width=\"146\" height=\"40\" rx=\"6\"/>\n  <text class=\"fig-t fig-mono fig-small\" x=\"633\" y=\"64\" text-anchor=\"middle\">POST /orders</text>\n  <line class=\"fig-line\" x1=\"494\" y1=\"60\" x2=\"556\" y2=\"60\" marker-end=\"arrow\"/>\n  <line class=\"fig-line-accent\" x1=\"556\" y1=\"96\" x2=\"494\" y2=\"96\" marker-end=\"arrow-accent\"/>\n  <text class=\"fig-t fig-mono fig-small fig-t-accent\" x=\"525\" y=\"114\" text-anchor=\"middle\">302 Location: /done</text>\n  <rect class=\"fig-box\" x=\"560\" y=\"128\" width=\"146\" height=\"40\" rx=\"6\"/>\n  <text class=\"fig-t fig-mono fig-small\" x=\"633\" y=\"148\" text-anchor=\"middle\">GET /done</text>\n  <line class=\"fig-line\" x1=\"494\" y1=\"144\" x2=\"556\" y2=\"144\" marker-end=\"arrow\"/>\n  <text class=\"fig-t fig-t-ng fig-small\" x=\"380\" y=\"182\">URL が変わる</text>\n  <text class=\"fig-t fig-t-ng fig-small\" x=\"380\" y=\"204\">新しい request なので属性は失われる</text>\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"380\" y=\"226\">登録後の二重送信を防ぐ POST → Redirect → GET</text>\n\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"360\" y=\"252\" text-anchor=\"middle\">getParameter は利用者から来た文字列、getAttribute はサーバ内で置いた値。同じ名前でも別物</text>\n</svg>\n```\n\n一方 `sendRedirect(\"/login\")` は302を返し、ブラウザに別リクエストを依頼します。URLは変わりますがrequest属性は失われます。保存成功後は再読み込みによる二重登録を避けるため、POST→Redirect→GET（PRG）を使うのが定石です。",
@@ -564,6 +599,66 @@
               "minimum": 1,
               "message": "light / dark 以外が来たら 400 を返してください。"
             }
+          ]
+        },
+        {
+          "kind": "applied",
+          "type": "runtime-lab",
+          "task": "【実行演習】`labs/jakarta-web/session-exercise`で、**実Open Liberty**へ配備した買い物かごを直します。\n\n採点は`mvn package`でWARを作り、Libertyを動的ポートで起動して、**Cookieの入れ物を分けた2つのHTTP client**（＝別々のブラウザ）で実測します。\n\n`src/main/java/cafe/web/CartServlet.java`はかごをServletのフィールドに持っているので、**全員が同じかごを見ます**。直すのは(2)〜(4)の3つです。\n\n(1)同じブラウザで追加したものが次の要求にも残ること。**これはいまも通っています。**直す対象ではなく、他を直すときに壊さないための見張りです（かごを要求属性へ移すと、この検査が落ちます）。\n(2)**別のブラウザから他人のかごが見えないこと。**利用者ごとの状態はセッションへ持ちます。\n(3)`POST /cart/login?user=X`で**セッションIDを作り直す**こと。ログイン前のIDを使い続けると、攻撃者が先に取得させたIDでログイン後のセッションへ入れます（セッション固定攻撃）。検査はログイン前のIDを提示する第三者が入れないことまで確かめます。\n(4)`visitor` Cookieに`HttpOnly`と`SameSite`を付けること。`Secure`はHTTPSでだけ送る属性なので、この演習（HTTP）では付けません。\n\nURLは`GET /cart`・`POST /cart?item=X`・`POST /cart/login?user=X`・`POST /cart/logout`です。応答の形（`user=<名前> cart=[品名, 品名]`）とマッピングは採点の足場が読むので変えないでください。",
+          "runtimeLab": {
+            "name": "session and cookie lab",
+            "source": "labs/jakarta-web/session-exercise",
+            "exclude": [
+              "reference"
+            ],
+            "command": [
+              "./run-runtime-lab.sh"
+            ],
+            "timeoutSeconds": 60,
+            "verification": "実サーバーへ配備し、2つのブラウザで状態の継続・利用者ごとの分離・ログインでのID作り直し・Cookieの属性を確認する",
+            "capabilities": [
+              "server",
+              "http"
+            ],
+            "requiredTools": [
+              "java",
+              "javac",
+              "mvn"
+            ],
+            "requiredImages": [],
+            "checks": [
+              {
+                "id": "session-continuity",
+                "label": "（見張り）同じブラウザでは状態が次の要求へ残る"
+              },
+              {
+                "id": "session-isolation",
+                "label": "別のブラウザから他人の状態が見えない"
+              },
+              {
+                "id": "session-fixation",
+                "label": "ログインでセッションIDを作り直す"
+              },
+              {
+                "id": "cookie-attributes",
+                "label": "CookieにHttpOnlyとSameSiteを付ける"
+              }
+            ],
+            "editableFiles": [
+              {
+                "path": "src/main/java/cafe/web/CartServlet.java",
+                "solutionPath": "reference/src/main/java/cafe/web/CartServlet.java"
+              }
+            ]
+          },
+          "hints": [
+            "かごと利用者名は`request.getSession()`で取ったセッションへ`setAttribute`します。Servletのフィールドは全員で共有されるので、利用者ごとの状態を置く場所ではありません。",
+            "ログインでは`request.changeSessionId()`を呼びます。中身を保ったままIDだけ変わるので、かごは消えません。ログアウトは`request.getSession(false)`で取って`invalidate()`します（値を消すだけでは同じIDのセッションが残ります）。",
+            "Cookieは`cookie.setHttpOnly(true)`と`cookie.setAttribute(\"SameSite\", \"Lax\")`です。`setAttribute`はServlet 6.0以降で使えます。"
+          ],
+          "rubric": [
+            "implement",
+            "diagnose"
           ]
         }
       ]

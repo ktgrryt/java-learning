@@ -5,6 +5,24 @@
   "emoji": "🗄️",
   "lessons": [
     {
+      "id": "46-0",
+      "lessonType": "preflight",
+      "title": "事前確認：実PostgreSQLでSQL labを動かす準備",
+      "explanation": "## ここが最初のcontainer演習です\n\nこの章の章末演習は`runtime-lab`です。提出すると、container上で一時的なPostgreSQL 16へあなたが書いたDDLとSQLを適用し、制約・JOIN・集約・HAVING・実行計画（`EXPLAIN`）を本物のDBで確認します。書いたSQLが**実際に通るか**を見るので、想像で答えが決まりません。\n\n推奨順で進めている場合、containerを使う演習はこの章が最初です。ここで一度そろえておけば、このあとの実DB・実サーバを使うlab（第24章・第27章・第54章・第55章など）でも同じ準備がそのまま使えます。\n\nDockerまたはPodmanのどちらかが必須で、接続できて必要imageがある方を採点側が選びます。提出時に`postgres:16-alpine` imageがローカルに無ければ、自動で大きなdownloadを始めず、先に実行するpullコマンドを表示します。\n\n```bash\ndocker pull postgres:16-alpine\ndocker image inspect postgres:16-alpine\n```\n\nlabは動的なlocalhostポートと一意なcontainer名を使い、成功・失敗・timeoutのいずれでもcontainerを削除します。ただしDocker自体の強制終了などで残った場合は、表示された`jq-`で始まるcontainerを確認してから削除してください。\n\nSQLを手元で書き試すだけなら、H2やローカルのPostgreSQLでも練習できます（`labs/sql/README.md`に手順があります）。ただし採点はcontainerのPostgreSQLで行います。この事前確認は★対象外です。",
+      "preflight": {
+        "buttonLabel": "SQL labの準備を確認する",
+        "checks": [
+          {
+            "id": "docker-db",
+            "type": "tool",
+            "tool": "docker-or-podman",
+            "label": "PostgreSQL用container runtime",
+            "help": "DockerまたはPodmanのどちらかを起動してください。次にdocker pull postgres:16-alpine（Podmanならpodman pull postgres:16-alpine）で演習用imageを準備します。"
+          }
+        ]
+      }
+    },
+    {
       "id": "46-1",
       "title": "テーブル設計と制約",
       "explanation": "## データのルールをDBにも持たせる\n\nテーブルは行と列でデータを表します。主キー（PRIMARY KEY）は行を一意に識別し、外部キー（FOREIGN KEY）は参照先の存在を保証します。NOT NULL、UNIQUE、CHECKも不正データを入口で拒否する制約です。アプリの検証だけに頼らず、DBを最後の防波堤にします。\n\n正規化では、注文行へ顧客名を何度も複製する代わりに顧客IDで参照します。更新箇所を一つにし、不整合を避けるためです。ただし読み取り性能のための非正規化は、測定と整合性維持の方法を決めてから行います。\n\n```sql\nCREATE TABLE orders (\n  id BIGINT PRIMARY KEY,\n  customer_id BIGINT NOT NULL REFERENCES customers(id),\n  total DECIMAL(12,2) NOT NULL CHECK (total >= 0)\n);\n```\n\n### 制約は「入口で拒む」ための仕組み\n\n`labs/sql/schema.sql` はこう書いてあります。\n\n```sql\nCREATE TABLE customers (\n    id    BIGINT PRIMARY KEY,\n    name  VARCHAR(100) NOT NULL,\n    email VARCHAR(255) NOT NULL UNIQUE\n);\n\nCREATE TABLE orders (\n    id          BIGINT PRIMARY KEY,\n    customer_id BIGINT NOT NULL,\n    status      VARCHAR(20) NOT NULL CHECK (status IN ('NEW', 'PAID', 'CANCELLED')),\n    total       DECIMAL(12, 2) NOT NULL CHECK (total >= 0),\n    created_at  TIMESTAMP WITH TIME ZONE NOT NULL,\n    CONSTRAINT fk_orders_customer FOREIGN KEY (customer_id) REFERENCES customers(id)\n);\n```\n\nそれぞれが防いでいるものが違います。\n\n| 制約 | 防ぐもの |\n|---|---|\n| `PRIMARY KEY` | 同じ行の二重登録、行を特定できない状態 |\n| `NOT NULL` | 「未入力」が混ざって集計や比較が崩れること |\n| `UNIQUE` | 同じメールで2人登録されること |\n| `CHECK` | ありえない値（負の金額、未定義のステータス） |\n| `FOREIGN KEY` | 存在しない顧客の注文（孤児行） |\n\n`DECIMAL(12, 2)` は金額なので固定小数です。`DOUBLE` にすると誤差が出ます（第2章の\n`0.1 + 0.2`）。日時は、何を保存したいかで型を選びます。PostgreSQLの `TIMESTAMP WITH TIME ZONE`（`timestamptz`）は、入力された日時をUTC基準の同じ瞬間へ変換して保存します。そのため別のタイムゾーンでも同じ瞬間を表せますが、入力時の `Asia/Tokyo` のような地域名や元のオフセット自体は保持しません。元の地域も必要なら、タイムゾーンIDを別の列へ保存します。\n\n> ⚠️ 間違えやすい点 … 「アプリで検証しているからDBは緩くていい」は成り立ちません。\n> データが入る経路はアプリだけではなく、移行スクリプト、運用の手作業、別のサービス、\n> 障害時の直接投入があります。**DBを最後の防波堤** にしておけば、どの経路から来ても\n> 不正なデータは入りません。制約は後から足すほうが（既存データが違反しているため）\n> ずっと大変です。\n\n> 🧪 アプリで確かめること / labs で動かすこと … この問題で確かめるのはどの列にどの制約を置くかという設計の判断です。\n> DDLを実DBへ流して、制約違反を実際に起こすことは、1ファイル・標準入力だけのこの画面では扱えません。`labs/sql` に本物を置いてあります。",

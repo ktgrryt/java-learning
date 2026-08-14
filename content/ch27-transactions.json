@@ -8,6 +8,48 @@
   ],
   "lessons": [
     {
+      "id": "27-0",
+      "lessonType": "preflight",
+      "title": "事前確認：実DBでトランザクション labを動かす準備",
+      "explanation": "## 実DBを使う範囲を先に確認する\n\nこの章の`runtime-lab`はcontainer上で一時的なPostgreSQL 16を起動し、commitとrollback・同時更新・冪等性を本物のDBで確認します。DockerまたはPodmanのどちらかが必須で、接続できて必要imageがある方を採点側が選びます。提出時に`postgres:16-alpine` imageがローカルに無ければ、自動で大きなdownloadを始めず、先に実行するpullコマンドを表示します。\n\n```bash\ndocker pull postgres:16-alpine\ndocker image inspect postgres:16-alpine\n```\n\nJDBCドライバはMavenで取得します（`mvn dependency:copy-dependencies`）。buildもtestもMavenには任せず、取り出したjarを使って`javac`と`java`を直接動かします。初回はドライバのdownloadに時間がかかることがあります。\n\nlabは動的なlocalhostポートと一意なcontainer名を使い、成功・失敗・timeoutのいずれでもcontainerを削除します。ただしDocker自体の強制終了などで残った場合は、表示された`jq-`で始まるcontainerを確認してから削除してください。この事前確認は★対象外です。",
+      "preflight": {
+        "buttonLabel": "実DB labの準備を確認する",
+        "checks": [
+          {
+            "id": "java-runtime",
+            "type": "tool",
+            "tool": "java",
+            "label": "Java実行環境",
+            "minimumVersion": "21",
+            "help": "JDK 21以降をインストールし、JAVA_HOMEとPATHを同じJDKへ向けてください。"
+          },
+          {
+            "id": "java-compiler",
+            "type": "tool",
+            "tool": "javac",
+            "label": "Javaコンパイラ",
+            "minimumVersion": "21",
+            "help": "JREではなくJDKが必要です。javac --versionを新しいターミナルで確認してください。"
+          },
+          {
+            "id": "maven",
+            "type": "tool",
+            "tool": "maven",
+            "label": "Apache Maven",
+            "minimumVersion": "3.9",
+            "help": "JDBCドライバの取得にMavenを使います。Maven 3.9以降をインストールし、mvnをPATHへ追加してください。変更後はアプリを再起動します。"
+          },
+          {
+            "id": "docker-db",
+            "type": "tool",
+            "tool": "docker-or-podman",
+            "label": "PostgreSQL用container runtime",
+            "help": "DockerまたはPodmanのどちらかを起動してください。次にdocker pull postgres:16-alpine（Podmanならpodman pull postgres:16-alpine）で演習用imageを準備します。"
+          }
+        ]
+      }
+    },
+    {
       "id": "27-1",
       "title": "@Transactionalとrollback規則",
       "explanation": "## 複数の更新を「全部成功」か「全部取り消し」にする\n\n注文を保存したのに在庫だけ減っていない、送金元の残高だけ減って送金先が増えていない。このような途中状態をDBへ確定させないために **トランザクション** を使います。\n\n```text\nトランザクション開始\n  → 注文を保存\n  → 在庫を減らす\n両方成功: COMMIT（確定）\n途中で失敗: ROLLBACK（取り消し）\n```\n\nJakarta EEでは、業務メソッドへ `@Transactional` を付けると、この開始・確定・取り消しをサーバーへ任せられます。メソッド呼び出しの前後へ共通処理を差し込む仕組みを **インターセプター** と呼び、トランザクション用インターセプターが境界を管理します。\n\n```java\n@Transactional\npublic void transfer(long from, long to, int amount) {\n    debit(from, amount);\n    credit(to, amount);\n}\n```\n\n境界は、通常「送金する」「注文を確定する」のようなServiceの業務操作へ置きます。Repositoryの1メソッドごとに別々に確定すると、複数更新をまとめる目的を果たせません。\n\n### どの例外で取り消されるか\n\n既定では、`RuntimeException` とその派生例外、`Error` がインターセプターまで届くとロールバック対象になります。検査例外は既定ではロールバック対象になりません。業務例外でも取り消す必要があるなら `rollbackOn`、特定の例外では取り消さないなら `dontRollbackOn` を明示します。\n\n```java\n@Transactional(rollbackOn = BusinessException.class)\npublic void placeOrder(...) throws BusinessException { ... }\n```\n\n例外をメソッド内で捕まえて正常な戻り値へ変えると、インターセプターからは成功に見えることがあります。取り消しが必要なら例外を投げ直すか、トランザクションをrollback-onlyへ設定します。\n\n今回の演習では、送金途中で失敗したときにMapへ変更を残さない処理を作ります。MapはDBではありませんが、「成功時だけ全変更を確定する」という境界の考え方を再現しています。",
@@ -212,6 +254,69 @@
               "minimum": 1,
               "message": "0以下の購入数も `ng` です。数量そのものの検査を忘れないでください。"
             }
+          ]
+        },
+        {
+          "kind": "applied",
+          "type": "runtime-lab",
+          "task": "【実行演習】`labs/transactions/conflict-exercise`で、**実PostgreSQL**へ接続する送金を直します。\n\n採点はcontainerでPostgreSQL 16を起動し、`db/schema.sql`で表を作り直して口座A・Bへ100,000ずつ入れてから、4つの場面を流します。判定は必ず**DBを読んで**行うので、例外を投げたかどうかではなく、実際に何が残ったかで決まります。\n\n`exercise/TransferService.java`はいま1文ずつ別々に流し（autocommitのまま）、残高を読んで計算して書き戻しています。1スレッドで成功する分には動いて見えますが、実DBでは次の4つが起きます。\n\n(1)存在しない口座へ送ると、送金元だけ減って戻りません。`UPDATE`は**0行更新でもエラーになりません**。\n(2)同じ向きの同時送金（2スレッド×300件）で、読んで計算して書く間の更新が上書きされます。\n(3)逆向きの同時送金（A→BとB→Aを300件ずつ）が1件も失敗しないこと。**これはいまも通っています**（1文ずつ確定しているので待ち合わせが起きません）。直す対象ではなく見張りです。1つのトランザクションにまとめると、こんどは取得順が交差して待ち合わせが起きるので、そこで効いてきます。\n(4)同じ送金IDが2回届くと、残高だけ二重に動きます。\n\n1件の送金を1つのトランザクションにまとめ、金額の計算はDBに任せ、更新できた行数を確かめ、2回目の送金IDは「すでに済んでいる」として何もせずに戻してください。逆向きの衝突は、更新の順序をそろえるか、`SQLState`の`40001`/`40P01`を捕まえて再試行すれば通せます。\n\nクラス名・コンストラクタ・`transfer`の形は採点の足場が呼ぶので変えないでください。",
+          "runtimeLab": {
+            "name": "transfer transaction conflict lab",
+            "source": "labs/transactions/conflict-exercise",
+            "exclude": [
+              "reference"
+            ],
+            "command": [
+              "./run-runtime-lab.sh"
+            ],
+            "timeoutSeconds": 60,
+            "verification": "実PostgreSQLで、失敗した送金が何も残さず、同時送金で1円も失われず、逆向きの同時送金が失敗せず、同じ送金IDが1回だけ反映される",
+            "capabilities": [
+              "db",
+              "container"
+            ],
+            "requiredTools": [
+              "java",
+              "javac",
+              "mvn",
+              "docker-or-podman"
+            ],
+            "requiredImages": [
+              "postgres:16-alpine"
+            ],
+            "checks": [
+              {
+                "id": "tx-rollback",
+                "label": "失敗した送金が残高も記録も残さない"
+              },
+              {
+                "id": "tx-lost-update",
+                "label": "同じ向きの同時送金で1円も失われない"
+              },
+              {
+                "id": "tx-crossing",
+                "label": "（見張り）逆向きの同時送金が1件も失敗しない"
+              },
+              {
+                "id": "tx-idempotent",
+                "label": "同じ送金IDの2回目が反映されない"
+              }
+            ],
+            "editableFiles": [
+              {
+                "path": "exercise/TransferService.java",
+                "solutionPath": "reference/TransferService.java"
+              }
+            ]
+          },
+          "hints": [
+            "`connection.setAutoCommit(false)`で始め、最後に`commit()`、失敗したら`rollback()`します。autocommitのままだと、1文ごとに確定してしまうので途中の状態が残ります。",
+            "残高は`UPDATE account SET balance = balance + ? WHERE id = ?`でDBに計算させます。さらに`executeUpdate()`が1を返したかを確かめてください。存在しない口座は0行更新で「成功」します。",
+            "送金の記録（`INSERT INTO transfer`）を残高より**先に**入れます。同じ送金IDの2回目はPRIMARY KEYで弾かれるので、`SQLState`が`23505`なら`rollback()`して何もせずに戻ります。逆向きの衝突は、口座IDの小さい方から更新すれば起きません。"
+          ],
+          "rubric": [
+            "implement",
+            "diagnose"
           ]
         }
       ],

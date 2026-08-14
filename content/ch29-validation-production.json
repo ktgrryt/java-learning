@@ -12,6 +12,41 @@
   ],
   "lessons": [
     {
+      "id": "29-0",
+      "lessonType": "preflight",
+      "title": "事前確認：実サーバーでValidation labを動かす準備",
+      "explanation": "## 実サーバーへ配備して確かめます\n\nこの章の`runtime-lab`は宣言した制約が実際に効くかを、実サーバーへ不正な入力を送って確かめます。`mvn package`でWARを作り、**Open Liberty 26.0.0.8**を採点側が確保した動的ポートで起動して、HTTPで実測します。使うFeatureは`restfulWS-4.0`・`cdi-4.1`・`jsonb-3.0`・`validation-3.1`です。\n\nLibertyの本体はMavenが取得します（`~/.m2`へ約120MB）。**初回だけ**時間がかかり、2回目以降はキャッシュから起動します。containerは使いません。\n\nlabは成功・失敗・timeoutのいずれでもサーバーを停止します。提出のたびに一時ディレクトリで動くので、`labs/`の中身は書き換わりません。この事前確認は★対象外です。",
+      "preflight": {
+        "buttonLabel": "Validation labの準備を確認する",
+        "checks": [
+          {
+            "id": "java-runtime",
+            "type": "tool",
+            "tool": "java",
+            "label": "Java実行環境",
+            "minimumVersion": "21",
+            "help": "JDK 21以降をインストールし、JAVA_HOMEとPATHを同じJDKへ向けてください。"
+          },
+          {
+            "id": "java-compiler",
+            "type": "tool",
+            "tool": "javac",
+            "label": "Javaコンパイラ",
+            "minimumVersion": "21",
+            "help": "JREではなくJDKが必要です。javac --versionを新しいターミナルで確認してください。"
+          },
+          {
+            "id": "maven",
+            "type": "tool",
+            "tool": "maven",
+            "label": "Apache Maven",
+            "minimumVersion": "3.9",
+            "help": "Maven 3.9以降をインストールし、mvnをPATHへ追加してください。変更後はアプリを再起動します。"
+          }
+        ]
+      }
+    },
+    {
       "id": "29-1",
       "title": "Bean Validationで入力制約を宣言する",
       "explanation": "## はじめて学ぶ人へ\n\nBean Validationは、入口で確認する項目をJavaの注釈として宣言する仕組みです。申込書に「名前は必須」「年齢は0以上」とチェック欄を付けておくイメージです。\n\n```java\nclass UserRequest {\n    @NotBlank String name;\n    @Min(0) int age;\n}\n```\n\n`name=\"\"`、`age=-1` が届けば、業務処理へ進む前に項目ごとの違反を集められます。これは「形式として受け付けられるか」の検査です。在庫があるか、購入上限を超えていないかといった業務ルールは別の層で確認します。まず入口の単純な条件を注釈へ集めると、処理本体が読みやすくなります。\n\n## 制約をDTOへ集める\n\n```java\nrecord CreateUser(\n @NotBlank @Size(max=100) String name,\n @Email String email,\n @Min(0) int age\n) {}\n```\n\nJakarta Validationは `Validator.validate` やJakarta REST/CDIとの統合で制約を検査します。`@NotNull` はnullだけ、`@NotEmpty` はnullと空、`@NotBlank` はnull・空・空白だけを弾きます。文字列長は`@Size`、数値範囲は`@Min/@Max`。`@Email`だけでは必須にならないので、必須なら`@NotBlank`も付けます。\n\n```svg 形式の検査は入口で、業務ルールは Service で、最後の砦は DB の制約\n<svg viewBox=\"0 0 720 232\">\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"14\" y=\"24\">入口から順に、それぞれの担当で確かめる</text>\n\n  <rect class=\"fig-box\" x=\"14\" y=\"40\" width=\"150\" height=\"72\" rx=\"6\"/>\n  <text class=\"fig-t fig-small\" x=\"89\" y=\"60\" text-anchor=\"middle\">リクエスト</text>\n  <text class=\"fig-t fig-mono fig-small\" x=\"89\" y=\"82\" text-anchor=\"middle\">name = \"\"</text>\n  <text class=\"fig-t fig-mono fig-small\" x=\"89\" y=\"100\" text-anchor=\"middle\">age = -1</text>\n\n  <rect class=\"fig-box-accent\" x=\"190\" y=\"40\" width=\"160\" height=\"72\" rx=\"6\"/>\n  <text class=\"fig-t fig-mono fig-small fig-t-accent\" x=\"270\" y=\"60\" text-anchor=\"middle\">@NotBlank @Min(0)</text>\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"270\" y=\"82\" text-anchor=\"middle\">形式として</text>\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"270\" y=\"100\" text-anchor=\"middle\">受け付けられるか</text>\n\n  <rect class=\"fig-box\" x=\"376\" y=\"40\" width=\"160\" height=\"72\" rx=\"6\"/>\n  <text class=\"fig-t fig-small\" x=\"456\" y=\"60\" text-anchor=\"middle\">Service</text>\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"456\" y=\"82\" text-anchor=\"middle\">在庫はあるか</text>\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"456\" y=\"100\" text-anchor=\"middle\">上限を超えないか</text>\n\n  <rect class=\"fig-box\" x=\"562\" y=\"40\" width=\"144\" height=\"72\" rx=\"6\"/>\n  <text class=\"fig-t fig-small\" x=\"634\" y=\"60\" text-anchor=\"middle\">DB の制約</text>\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"634\" y=\"82\" text-anchor=\"middle\">UNIQUE・外部キー</text>\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"634\" y=\"100\" text-anchor=\"middle\">競合まで守る</text>\n\n  <line class=\"fig-line\" x1=\"168\" y1=\"76\" x2=\"186\" y2=\"76\" marker-end=\"arrow\"/>\n  <line class=\"fig-line\" x1=\"354\" y1=\"76\" x2=\"372\" y2=\"76\" marker-end=\"arrow\"/>\n  <line class=\"fig-line\" x1=\"540\" y1=\"76\" x2=\"558\" y2=\"76\" marker-end=\"arrow\"/>\n\n  <line class=\"fig-line-ng\" x1=\"270\" y1=\"112\" x2=\"270\" y2=\"148\" marker-end=\"arrow-ng\"/>\n  <rect class=\"fig-box-ng\" x=\"190\" y=\"152\" width=\"160\" height=\"40\" rx=\"6\"/>\n  <text class=\"fig-t fig-small fig-t-ng\" x=\"270\" y=\"166\" text-anchor=\"middle\">400 と、項目ごとの</text>\n  <text class=\"fig-t fig-small fig-t-ng\" x=\"270\" y=\"184\" text-anchor=\"middle\">違反の一覧を返す</text>\n  <line class=\"fig-line-ng\" x1=\"456\" y1=\"112\" x2=\"456\" y2=\"148\" marker-end=\"arrow-ng\"/>\n  <rect class=\"fig-box-ng\" x=\"376\" y=\"152\" width=\"160\" height=\"40\" rx=\"6\"/>\n  <text class=\"fig-t fig-small fig-t-ng\" x=\"456\" y=\"172\" text-anchor=\"middle\">業務エラーとして返す</text>\n\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"14\" y=\"222\">@NotNull は null だけ / @NotEmpty は null と空 / @NotBlank は空白だけも弾く。必須なら @Email に @NotBlank も付ける</text>\n</svg>\n```\n\n制約メッセージは利用者向けにし、フィールド名とcodeを持つエラーDTOへ変換します。DBのUNIQUEや外部状態を毎回問い合わせる検査は単純なBean制約にせず、ServiceとDB制約で競合まで守ります。教材のMiniValidatorは頻出制約だけを再現します。",
@@ -576,6 +611,74 @@
               "minimum": 1,
               "message": "成功したら在庫を減らして書き戻してください。読むだけでは次の注文に反映されません。"
             }
+          ]
+        },
+        {
+          "kind": "applied",
+          "type": "runtime-lab",
+          "task": "【実行演習】`labs/jakarta-web/validation-exercise`で、**実Open Liberty**へ配備した注文APIの入力検査を完成させます。\n\n編集するのは3ファイルです。「宣言する→有効にする→返す」の3段が揃わないと入力は守れません。\n\n(1)`OrderRequest.java`へ制約を宣言します。品名は空白だけ不可・40文字以内、数量は1〜20、合計は1以上、クーポンは英大文字と数字の4〜10文字です。\n(2)`OrderResource.java`で**宣言した制約を有効にします**。`@NotBlank`を書いても引数に`@Valid`が無ければ**1つも動きません**。ひな形は空白だけの品名・数量0・合計0を201で受け付けてしまいます。コードを読むと守られているように見えるので、実際に送るまで気づけません。\n(3)項目間のルール「クーポンを使うなら合計1000円以上」を宣言します。1項目だけでは判定できないので、`@AssertTrue`を付けたbooleanのメソッド`isCouponUsable()`にしてください（項目名が`couponUsable`になり、採点がそれを見ます）。\n(4)`ValidationErrorMapper.java`で400の本文を`{\"errors\":[{\"field\":\"item\",\"message\":\"...\"}]}`の形にします。`getPropertyPath()`は`create.arg0.quantity`のように内部の作りを含むので、**末尾の項目名だけ**を取り、項目名の昇順に並べます。例外の型名やスタックトレースは入れません。\n\nメッセージの文言は自由です。採点は項目名とステータスコードだけを見ます。",
+          "runtimeLab": {
+            "name": "bean validation api lab",
+            "source": "labs/jakarta-web/validation-exercise",
+            "exclude": [
+              "reference"
+            ],
+            "command": [
+              "./run-runtime-lab.sh"
+            ],
+            "timeoutSeconds": 60,
+            "verification": "実サーバーへ配備し、制約が実際に効くこと・項目間ルール・直せる400の本文を確認する",
+            "capabilities": [
+              "server",
+              "http"
+            ],
+            "requiredTools": [
+              "java",
+              "javac",
+              "mvn"
+            ],
+            "requiredImages": [],
+            "checks": [
+              {
+                "id": "validation-accepts",
+                "label": "正しい注文は201で通る"
+              },
+              {
+                "id": "validation-rejects",
+                "label": "宣言した制約が実際に効いて400になる"
+              },
+              {
+                "id": "validation-cross-field",
+                "label": "項目間のルールが効く"
+              },
+              {
+                "id": "validation-error-body",
+                "label": "400の本文がどの項目か示し、内部を漏らさない"
+              }
+            ],
+            "editableFiles": [
+              {
+                "path": "src/main/java/cafe/api/OrderRequest.java",
+                "solutionPath": "reference/src/main/java/cafe/api/OrderRequest.java"
+              },
+              {
+                "path": "src/main/java/cafe/api/OrderResource.java",
+                "solutionPath": "reference/src/main/java/cafe/api/OrderResource.java"
+              },
+              {
+                "path": "src/main/java/cafe/api/ValidationErrorMapper.java",
+                "solutionPath": "reference/src/main/java/cafe/api/ValidationErrorMapper.java"
+              }
+            ]
+          },
+          "hints": [
+            "`@NotBlank`・`@Size(max=40)`・`@Min(1)`・`@Max(20)`・`@Positive`・`@Pattern(regexp=\"^[A-Z0-9]{4,10}$\")`をrecordの各成分へ付けます。クーポンは省略できるので、`@NotNull`は付けません。",
+            "Resourceは`create(@Valid OrderRequest request)`にします。これが無いと制約は動きません。",
+            "Mapperでは`violations.getConstraintViolations()`を回し、`violation.getPropertyPath()`の**最後のノード名**を項目名にします。`Comparator.comparing`で項目名の昇順に並べ、recordへ入れて返せばJSON-Bがそのまま書き出します。"
+          ],
+          "rubric": [
+            "implement",
+            "test"
           ]
         }
       ]

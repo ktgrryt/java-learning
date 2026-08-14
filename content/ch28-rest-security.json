@@ -8,6 +8,41 @@
   ],
   "lessons": [
     {
+      "id": "28-0",
+      "lessonType": "preflight",
+      "title": "事前確認：実サーバーで認可 labを動かす準備",
+      "explanation": "## 実サーバーへ配備して確かめます\n\nこの章の`runtime-lab`はBasic認証つき・なしのHTTPを実サーバーへ当てて、401と403の出方を確かめます。`mvn package`でWARを作り、**Open Liberty 26.0.0.8**を採点側が確保した動的ポートで起動して、HTTPで実測します。使うFeatureは`restfulWS-4.0`・`cdi-4.1`・`jsonb-3.0`・`appSecurity-6.0`です。\n\nLibertyの本体はMavenが取得します（`~/.m2`へ約120MB）。**初回だけ**時間がかかり、2回目以降はキャッシュから起動します。containerは使いません。\n\nlabは成功・失敗・timeoutのいずれでもサーバーを停止します。提出のたびに一時ディレクトリで動くので、`labs/`の中身は書き換わりません。この事前確認は★対象外です。",
+      "preflight": {
+        "buttonLabel": "認可 labの準備を確認する",
+        "checks": [
+          {
+            "id": "java-runtime",
+            "type": "tool",
+            "tool": "java",
+            "label": "Java実行環境",
+            "minimumVersion": "21",
+            "help": "JDK 21以降をインストールし、JAVA_HOMEとPATHを同じJDKへ向けてください。"
+          },
+          {
+            "id": "java-compiler",
+            "type": "tool",
+            "tool": "javac",
+            "label": "Javaコンパイラ",
+            "minimumVersion": "21",
+            "help": "JREではなくJDKが必要です。javac --versionを新しいターミナルで確認してください。"
+          },
+          {
+            "id": "maven",
+            "type": "tool",
+            "tool": "maven",
+            "label": "Apache Maven",
+            "minimumVersion": "3.9",
+            "help": "Maven 3.9以降をインストールし、mvnをPATHへ追加してください。変更後はアプリを再起動します。"
+          }
+        ]
+      }
+    },
+    {
       "id": "28-1",
       "title": "Jakarta RESTでリソースを作る",
       "explanation": "## HTTPの要求をJavaのメソッドへ対応付ける\n\nWeb APIでは、利用側のプログラムを **クライアント**、要求を受けて処理する側を **サーバー** と呼びます。クライアントはHTTPリクエストに、操作の種類、対象のURL、必要ならJSONなどの本文を入れて送ります。\n\nRESTでは、URLを操作名ではなく、扱う対象である **リソース** の住所として設計します。操作はHTTPメソッドで表します。\n\n```text\nGET    /books       本の一覧を取得\nGET    /books/10    10番の本を取得\nPOST   /books       新しい本を作成\nPUT    /books/10    10番の本を置き換え\nDELETE /books/10    10番の本を削除\n```\n\nJakarta RESTは、このHTTPの情報をJavaのクラスとメソッドへ結び付ける標準APIです。\n\n```java\n@Path(\"/books\")\nclass BookResource {\n    @GET\n    @Path(\"/{id}\")\n    public BookResponse find(@PathParam(\"id\") long id) { ... }\n}\n```\n\n`@Path` はURLの一部、`@GET` はHTTPメソッド、`@PathParam` はURL内の `{id}` をJavaの引数へ渡す指定です。`@Consumes` は受け取る本文の形式、`@Produces` は返す本文の形式を示します。\n\nAPIの入出力には、通信項目だけを持つ **DTO（Data Transfer Object）** を使います。DB管理用のEntityをそのまま返すと、不要な項目や機密情報、遅延読み込みの内部状態まで境界へ漏れるためです。DTOとJSONの変換は、JSON-Bなどの **プロバイダー**、つまりJakarta RESTと連携する実装部品が行います。\n\n`GET` は読み取りを意味する **安全なメソッド** です。`PUT` や `DELETE` は、同じ要求を複数回送っても意図した最終状態が1回の場合と同じになる **冪等なメソッド** です。実装側もこの意味を壊さないよう、GETでデータ削除などを行いません。\n\n今回の演習では、`/products/{id}` に対応するGETメソッドを作り、URLの値がメソッド引数へ渡る形を確認します。",
@@ -449,6 +484,66 @@
               "minimum": 2,
               "message": "文字列の比較は `equals` です（`==` は同じインスタンスかを見るだけです）。"
             }
+          ]
+        },
+        {
+          "kind": "applied",
+          "type": "runtime-lab",
+          "task": "【実行演習】`labs/jakarta-web/security-exercise`で、**実Open Liberty**へ配備した注文APIの認可と応答を直します。\n\n採点はLibertyを動的ポートで起動し、Basic認証つき・なしのHTTPで実測します。利用者は`aki`（staff）・`mgr`（staff+manager）・`bob`（役割なし）で、`CafeIdentityStore.java`に固定で入っています。\n\n`src/main/java/cafe/api/OrderResource.java`はいま**誰でも全部できます**。資格情報なしで一覧が社内メモつきで見え、staffだけの利用者が削除もできます。\n\n(1)`GET /api/health`は公開のままにします。**これはいまも通っています。**直す対象ではなく見張りです（全部に`@RolesAllowed`を付けると、ここが落ちます）。\n(2)`GET /api/orders`に`staff`の役割を要求します。資格情報が無ければ**401**です。\n(3)`DELETE /api/orders/{id}`は`manager`だけが呼べるようにします。staffだけの`aki`は**403**です。401は「誰か分からない」、403は「権限が無い」で、この区別はコンテナが付けますが、宣言していなければどちらも起きません。\n(4)返すJSONに`internalNote`と`customer`を含めないようにします。外向きのrecordへ移し替えれば、内部にフィールドが増えても勝手に外へ出ていきません。\n\n`ApiApplication.java`・`CafeIdentityStore.java`・`Order.java`・`OrderRepository.java`・`pom.xml`・`server.xml`は参照専用です。パスも変えないでください。",
+          "runtimeLab": {
+            "name": "rest authorization lab",
+            "source": "labs/jakarta-web/security-exercise",
+            "exclude": [
+              "reference"
+            ],
+            "command": [
+              "./run-runtime-lab.sh"
+            ],
+            "timeoutSeconds": 60,
+            "verification": "実サーバーへ配備し、公開のままの場所・401・403・内部項目を返さないことを確認する",
+            "capabilities": [
+              "server",
+              "http"
+            ],
+            "requiredTools": [
+              "java",
+              "javac",
+              "mvn"
+            ],
+            "requiredImages": [],
+            "checks": [
+              {
+                "id": "rest-public",
+                "label": "（見張り）公開の場所は資格情報なしで200"
+              },
+              {
+                "id": "rest-unauthenticated",
+                "label": "資格情報が無ければ401"
+              },
+              {
+                "id": "rest-no-leak",
+                "label": "内部の項目を返さない"
+              },
+              {
+                "id": "rest-forbidden",
+                "label": "役割が足りなければ403"
+              }
+            ],
+            "editableFiles": [
+              {
+                "path": "src/main/java/cafe/api/OrderResource.java",
+                "solutionPath": "reference/src/main/java/cafe/api/OrderResource.java"
+              }
+            ]
+          },
+          "hints": [
+            "`@RolesAllowed(\"staff\")`を一覧のメソッドへ、`@RolesAllowed(\"manager\")`を削除のメソッドへ付けます。生存確認には付けません（付けると公開でなくなります）。",
+            "401と403はコンテナが使い分けます。アプリ側で`Response.status(401)`を組み立てる必要はありません。役割を宣言するだけです。",
+            "`record OrderView(String id, String item, int quantity)`のような外向きの形を作り、`repository.findAll().stream().map(...)`で移し替えて返します。`Order`をそのまま返すと`internalNote`も出ていきます。"
+          ],
+          "rubric": [
+            "implement",
+            "decide"
           ]
         }
       ]

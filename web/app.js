@@ -2245,60 +2245,21 @@
       '</div>';
   }
 
-  /**
-   * レッスンが測る軸を短いタグで出す。「実装」だけの回は出さない。
-   * どのレッスンで診断や判断を学ぶのかが、一覧の並びで読めるようにする。
+  /*
+   * 実務rubric（説明・実装・診断・test・判断）は画面に出さない。
+   * 章の5軸表（☆☆×5＋合計）も、レッスン行の軸タグ（「説明」「診断」など）も外した。
+   *
+   * 章を選ぶ画面で必要なのは「次に何をするか」で、採点の内訳ではなかった。
+   * 未着手の章では ☆☆ が5つ並び、「test / 対象なし」「合計 0 / 8」
+   * 「実装と診断が各1点以上＋8割」だけが読める状態になり、行動につながらない。
+   * レッスン行のタグも、その表があって初めて意味が通るものだった。
+   * 表を外したあとは凡例のないラベルになり、学習者には何のタグか分からない。
+   *
+   * 章クリアの判定はこの点数と無関係（★の達成率で決まる）ので、消しても進行は変わらない。
+   * 算出は API（ApiHandler.chapterRubric / lessonRubric）に残してあるので、
+   * 別の見せ方をしたくなれば使える。問題JSONの rubric 欄は、
+   * 問題を書くときにどの能力を測るか判断するための基準として引き続き必要（docs/guide.md §8.4）。
    */
-  function lessonRubricHtml(rubric) {
-    if (!rubric) { return ''; }
-    var keys = Object.keys(rubric).filter(function (k) { return k !== 'implement'; });
-    if (!keys.length) { return ''; }
-    var order = ['explain', 'diagnose', 'test', 'decide'];
-    var labels = { explain: '説明', diagnose: '診断', test: 'test', decide: '判断' };
-    return '<span class="lesson-rubric">' + order.filter(function (k) {
-      return keys.indexOf(k) >= 0;
-    }).map(function (k) {
-      var d = rubric[k];
-      var done = d.total > 0 && d.done === d.total;
-      return '<span class="lesson-rubric-tag' + (done ? ' tag-done' : '') + '">'
-        + labels[k] + '</span>';
-    }).join('') + '</span>';
-  }
-
-  var RUBRIC_LABELS = [
-    { key: 'explain', label: '説明' },
-    { key: 'implement', label: '実装' },
-    { key: 'diagnose', label: '診断' },
-    { key: 'test', label: 'test' },
-    { key: 'decide', label: '判断' }
-  ];
-
-  /**
-   * 章の実務rubric（0〜2点×5軸）。測っていない軸は「—」にして0点と区別する。
-   * その章に測る手段が無いことと、測ったが達成していないことは別。
-   */
-  function chapterRubricHtml(rubric) {
-    if (!rubric || !rubric.available) { return ''; }
-    var cells = RUBRIC_LABELS.map(function (row) {
-      var d = (rubric.dimensions || {})[row.key] || { measured: false };
-      var stars = d.measured
-        ? (d.points >= 2 ? '★★' : (d.points >= 1 ? '★☆' : '☆☆'))
-        : '—';
-      return '<div class="rubric-cell' + (d.measured ? '' : ' rubric-none') + '">' +
-        '<span class="rubric-name">' + row.label + '</span>' +
-        '<span class="rubric-stars">' + stars + '</span>' +
-        '<span class="rubric-count">'
-        + (d.measured ? d.done + ' / ' + d.total : '対象なし') + '</span>' +
-        '</div>';
-    }).join('');
-    return '<div class="chapter-rubric' + (rubric.meetsThreshold ? ' rubric-met' : '') + '"' +
-      ' aria-label="この章の実務rubric">' + cells +
-      '<div class="rubric-total"><span class="rubric-name">合計</span>' +
-      '<span class="rubric-stars">' + rubric.earned + ' / ' + rubric.available + '</span>' +
-      '<span class="rubric-count">'
-      + (rubric.meetsThreshold ? '実務修了の条件を満たす' : '実装と診断が各1点以上＋8割') +
-      '</span></div></div>';
-  }
 
   /** 左で章を選び、右でレッスンへ進む。開閉操作のないマスター・詳細UI。 */
   function renderChapterCards() {
@@ -2414,7 +2375,6 @@
         : '') +
       '</header>' +
       chapterLayersHtml(layers) +
-      chapterRubricHtml(selectedChapter.rubric) +
       (activePart.prerequisite
         ? '<div class="part-prerequisite"><strong>学習の前提</strong><span>'
           + esc(activePart.prerequisite) + '</span></div>'
@@ -2430,8 +2390,7 @@
           + '" data-lesson="' + esc(lesson.id) + '">' +
           '<span class="chapter-lesson-status">' + (isPreflight ? '⚙' : (lesson.cleared ? '✓' : displayLessonId(lesson))) + '</span>' +
           '<span class="chapter-lesson-copy"><strong>' + esc(lesson.title) + '</strong>' +
-          (lessonStatus ? '<small>' + lessonStatus + '</small>' : '') +
-          lessonRubricHtml(lesson.rubric) + '</span>' +
+          (lessonStatus ? '<small>' + lessonStatus + '</small>' : '') + '</span>' +
           '<span class="chapter-lesson-arrow">→</span></button></li>';
       }).join('') + '</ul>';
 
@@ -2743,6 +2702,62 @@
       '</div>';
   }
 
+  // ---- ファイル一覧の木（VSCodeのエクスプローラーのような見せ方） ----------
+
+  /**
+   * `{path: "src/main/java/App.java", …}` の並びから、フォルダとファイルの木を作る。
+   *
+   * 並び順はVSCodeに合わせて「フォルダが先、次にファイル」。名前の大小文字は区別しない。
+   * サーバが渡してくるのは path のコード順（大文字が先で `README.md` が `pom.xml` より前）
+   * なので、ここで並べ替える。
+   */
+  function buildFileTree(files) {
+    var root = { name: '', path: '', dirs: [], files: [] };
+    files.forEach(function (file) {
+      var parts = file.path.split('/');
+      var node = root;
+      for (var i = 0; i < parts.length - 1; i++) {
+        node = findOrAddDir(node, parts[i]);
+      }
+      node.files.push({ name: parts[parts.length - 1], file: file });
+    });
+    sortTree(root);
+    // フォルダが1つだけ続く区間は1行にまとめる（VSCodeの compact folders と同じ）。
+    // src / main / java / example / greeting と5段字下げしても、
+    // 分かることは増えないのに横幅だけ食われる。
+    root.dirs.forEach(compactDirs);
+    return root;
+  }
+
+  function findOrAddDir(node, name) {
+    var found = node.dirs.find(function (dir) { return dir.name === name; });
+    if (found) { return found; }
+    var dir = { name: name, path: node.path ? node.path + '/' + name : name, dirs: [], files: [] };
+    node.dirs.push(dir);
+    return dir;
+  }
+
+  function byName(a, b) {
+    return a.name.toLowerCase().localeCompare(b.name.toLowerCase()) || a.name.localeCompare(b.name);
+  }
+
+  function sortTree(node) {
+    node.dirs.sort(byName);
+    node.files.sort(byName);
+    node.dirs.forEach(sortTree);
+  }
+
+  function compactDirs(dir) {
+    while (dir.dirs.length === 1 && dir.files.length === 0) {
+      var only = dir.dirs[0];
+      dir.name = dir.name + '/' + only.name;
+      dir.path = only.path;
+      dir.files = only.files;
+      dir.dirs = only.dirs;
+    }
+    dir.dirs.forEach(compactDirs);
+  }
+
   /** project問題用のファイルナビゲータと、ファイルごとの軽量エディタ。 */
   function ProjectEditor(host, project) {
     this.host = host;
@@ -2761,19 +2776,9 @@
       '<div class="project-file-work"></div>';
     var list = this.host.querySelector('.project-file-list');
     var work = this.host.querySelector('.project-file-work');
+    this._renderFileTree(list);
 
     this.project.files.forEach(function (file, index) {
-      var button = document.createElement('button');
-      button.type = 'button';
-      button.className = 'project-file-tab';
-      button.setAttribute('role', 'tab');
-      button.setAttribute('data-path', file.path);
-      button.innerHTML = '<span class="project-file-name">' + esc(file.path.split('/').pop()) + '</span>' +
-        '<span class="project-file-path">' + esc(file.path) + '</span>' +
-        '<span class="project-file-mode">' + (file.editable ? '編集' : '参照') + '</span>';
-      button.addEventListener('click', function () { self.show(file.path); });
-      list.appendChild(button);
-
       var pane = document.createElement('div');
       pane.className = 'project-file-pane';
       pane.setAttribute('data-path', file.path);
@@ -2802,6 +2807,63 @@
 
     var firstEditable = this.project.files.find(function (file) { return file.editable; });
     this.show(firstEditable ? firstEditable.path : this.activePath);
+  };
+
+  /**
+   * ファイル一覧を、フォルダの行とファイルの行を並べて描く。
+   *
+   * フォルダは場所を示す見出しで、押せない（折りたたみは無い）。押せるのは
+   * ファイルの行だけなので、一覧は今までどおり「表示するファイルを選ぶ」ものになる。
+   */
+  ProjectEditor.prototype._renderFileTree = function (list) {
+    var self = this;
+    (function walk(node, depth) {
+      node.dirs.forEach(function (dir) {
+        list.appendChild(self._dirRow(dir, depth));
+        walk(dir, depth + 1);
+      });
+      node.files.forEach(function (entry) {      // ファイルはフォルダのあと
+        list.appendChild(self._fileRow(entry, depth));
+      });
+    })(buildFileTree(this.project.files), 0);
+  };
+
+  /**
+   * フォルダの見出し。
+   *
+   * 読み上げからは外す（aria-hidden）。ファイルの行がフルパスを読ませるので、
+   * 場所は文字で伝わっており、見出しはその字下げを目で追うためだけにある。
+   */
+  ProjectEditor.prototype._dirRow = function (dir, depth) {
+    var row = this._row('div', 'project-file-dir', depth);
+    row.setAttribute('aria-hidden', 'true');
+    row.innerHTML = '<span class="project-file-mark"></span>' +
+      '<span class="project-file-dirname">' + esc(dir.name) + '</span>';
+    return row;
+  };
+
+  ProjectEditor.prototype._fileRow = function (entry, depth) {
+    var self = this;
+    var file = entry.file;
+    var row = this._row('button', 'project-file-tab' + (file.editable ? ' is-editable' : ''), depth);
+    row.type = 'button';
+    row.setAttribute('role', 'tab');
+    row.setAttribute('data-path', file.path);
+    // 色だけで編集できるかを表さない。読み上げと吹き出しには文字で入れる
+    row.setAttribute('aria-label', file.path + (file.editable ? '（編集できます）' : '（参照専用）'));
+    row.title = row.getAttribute('aria-label');
+    row.innerHTML = '<span class="project-file-mark" aria-hidden="true"></span>' +
+      '<span class="project-file-name">' + esc(entry.name) + '</span>' +
+      (file.editable ? '<span class="project-file-mode">編集</span>' : '');
+    row.addEventListener('click', function () { self.show(file.path); });
+    return row;
+  };
+
+  ProjectEditor.prototype._row = function (tag, className, depth) {
+    var row = document.createElement(tag);
+    row.className = 'project-file-row ' + className;
+    row.style.setProperty('--depth', String(depth));   // 字下げの段数
+    return row;
   };
 
   ProjectEditor.prototype.show = function (path) {
