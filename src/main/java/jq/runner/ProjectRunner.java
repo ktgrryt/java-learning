@@ -109,13 +109,16 @@ public final class ProjectRunner {
         if (command.get(0).startsWith("./")) {
             command.set(0, workDir.resolve(command.get(0).substring(2)).toString());
         }
-        ProcessBuilder builder = new ProcessBuilder(command);
+        ProcessBuilder builder = new ProcessBuilder(ProcessGroupCommand.wrap(command));
         builder.directory(workDir.toFile());
         builder.redirectErrorStream(true);
         // ビルドツールの対話・色制御を安定させ、教材の出力を読みやすくする。
         builder.environment().put("CI", "true");
         builder.environment().put("NO_COLOR", "1");
         builder.environment().putAll(environment);
+        // 非対話bashの起動時hookを継承し、固定wrapperの外で任意scriptを実行しない。
+        builder.environment().remove("BASH_ENV");
+        builder.environment().remove("ENV");
 
         Process process;
         try {
@@ -124,7 +127,6 @@ public final class ProjectRunner {
             return new Result(false, false, false, -1, "", false,
                     toolError(spec.command().get(0), e), elapsedMs(startedAt));
         }
-
         OutputPump pump = new OutputPump(process.getInputStream());
         pump.start();
         boolean timedOut = false;
@@ -133,13 +135,13 @@ public final class ProjectRunner {
             if (process.waitFor(spec.timeoutSeconds(), TimeUnit.SECONDS)) {
                 exitCode = process.exitValue();
             } else {
-                destroyTree(process);
+                destroyRoot(process);
                 closeProcessOutput(process);
                 timedOut = true;
                 exitCode = -1;
             }
         } catch (InterruptedException e) {
-            destroyTree(process);
+            destroyRoot(process);
             closeProcessOutput(process);
             Thread.currentThread().interrupt();
             timedOut = true;
@@ -171,14 +173,7 @@ public final class ProjectRunner {
         }
     }
 
-    private static void destroyTree(Process process) {
-        List<ProcessHandle> descendants;
-        try {
-            descendants = process.toHandle().descendants().toList();
-        } catch (RuntimeException deniedByEnvironment) {
-            // sandbox等で子プロセス一覧を取得できなくても、親プロセスは停止する。
-            descendants = List.of();
-        }
+    private static void destroyRoot(Process process) {
         // runtime-labの固定scriptはTERM trapでserver/containerを片付ける。
         // 先に親へ通常の終了要求を送り、短い猶予のあと残ったプロセスだけ強制停止する。
         process.destroy();
@@ -188,13 +183,6 @@ public final class ProjectRunner {
             Thread.currentThread().interrupt();
         }
         if (process.isAlive()) process.destroyForcibly();
-        for (ProcessHandle descendant : descendants) {
-            try {
-                if (descendant.isAlive()) descendant.destroyForcibly();
-            } catch (RuntimeException ignored) {
-                // すでに終了済み、または制限環境。親の停止とtimeout応答は継続する。
-            }
-        }
     }
 
     private static void deleteRecursively(Path directory) {

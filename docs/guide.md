@@ -356,15 +356,18 @@ Rank5は約1.27倍）、Rank6以降と出店費は据え置いてあります。
 
 ## 必要なもの
 
-学習アプリ本体は **JDK 21以降だけ**で動きます。Mavenもnpmも不要です。
+学習アプリ本体は **JDK 21以降** で動きます。JDK 21を使う場合は21.0.12以降の
+security updateを推奨します。Mavenもnpmも不要です。
 `labs/testing-maven` と `labs/frameworks` は、実際の依存管理、JUnit、各runtimeを学ぶため
 Maven 3.9以降を別途使います。
 
 ```bash
-javac -version    # javac 21.x 以上が出れば OK
+javac -version    # 21以上で起動可能。21なら21.0.12以上を推奨
 ```
 
-入っていない場合は `brew install openjdk@21` などで入れてください。
+入っていない場合は `brew install openjdk@21` などで入れ、最新のsecurity updateまで
+更新してください。起動時は2026年7月CPUのbaseline（21.0.12 / 25.0.4 / 26.0.2）を確認し、
+古ければ警告しますが起動は続けます。
 JRE ではなく **JDK** が必要です（あなたのコードをコンパイルするため）。
 
 ## 起動する
@@ -1402,6 +1405,8 @@ index名の綴りが違って誰も合格できない検査、要件に書いた
 ./tools/check-content-inventory.sh # 章のJSONから省略可能なキーが黙って消えていないかを検査
 ./tools/check-layer-completion.sh  # 3層の数え方と、達成状態が保存され消えないことを検査
 ./tools/check-source-checks.sh     # sourceChecksがひな形のままで満たされていないかを1件ずつ数える
+./tools/check-build-jdk.sh         # 古いJDKへ警告するsecurity baseline判定を確認
+./tools/check-web-security.sh      # 静的配信のpath・symlink境界を確認
 node tools/check-cafe-scene.js    # カフェSVGの内装差分・再描画条件・出力を検査
 ```
 
@@ -1591,14 +1596,16 @@ Rank1〜5を約4.2倍の傾きへ引き直して、1章クリアで3個・2章�
 │   ├── web/                   API と静的ファイル配信
 │   └── json/MiniJson.java     自前の最小JSONパーサ
 ├── tools/
-│   ├── build.sh               ビルド（javacとjavaを同じJDKに固定する）
+│   ├── build.sh               ビルド（同じJDKへ固定し古い版には警告する）
 │   ├── launch.sh              バックグラウンド起動（アプリのアイコンから呼ばれる）
 │   ├── make-app.sh            「Java Café.app」を作る（macOS）
 │   ├── format-content-code.sh 教材コードの整形（1行に詰め込まれたものを直す）
 │   ├── verify-solutions.sh    コンテンツの回帰チェック
 │   ├── check-project-runner.sh project実行境界の回帰チェック
 │   ├── check-runtime-lab-runner.sh runtime実行境界の回帰チェック
-│   └── check-preflight-runner.sh 環境事前確認の回帰チェック
+│   ├── check-preflight-runner.sh 環境事前確認の回帰チェック
+│   ├── check-build-jdk.sh     JDK security baselineの回帰チェック
+│   └── check-web-security.sh  静的配信のpath・symlink境界チェック
 ├── labs/                      実ツールを使う独立ラボ
 │   ├── testing-maven/         Maven + JUnit
 │   ├── modules/               JPMS + modular JAR

@@ -7,6 +7,7 @@ import com.sun.net.httpserver.HttpHandler;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.file.Files;
+import java.nio.file.LinkOption;
 import java.nio.file.Path;
 import java.util.Map;
 
@@ -30,8 +31,9 @@ public final class StaticHandler implements HttpHandler {
 
     private final Path root;
 
-    public StaticHandler(Path root) {
-        this.root = root.toAbsolutePath().normalize();
+    public StaticHandler(Path root) throws IOException {
+        // root自体も実体へ解決し、後続の包含判定をsymlinkを含まない同じ基準で行う。
+        this.root = root.toRealPath();
     }
 
     @Override
@@ -50,8 +52,8 @@ public final class StaticHandler implements HttpHandler {
             if (rawPath.equals("/") || rawPath.isEmpty()) {
                 rawPath = "/index.html";
             }
-            Path target = resolveUnder(root, rawPath.substring(1));
-            if (target == null || !target.startsWith(root) || !Files.isRegularFile(target)) {
+            Path target = resolveRegularFileUnder(root, rawPath.substring(1));
+            if (target == null) {
                 send(exchange, 404, "text/plain; charset=utf-8",
                         ("見つかりません: " + rawPath).getBytes(java.nio.charset.StandardCharsets.UTF_8));
                 return;
@@ -74,10 +76,18 @@ public final class StaticHandler implements HttpHandler {
      * 既定のログレベルでは何も出さずに接続を切るため、応答も痕跡も残らない。
      * 存在しないのと同じ扱いにして 404 で答える。
      */
-    private static Path resolveUnder(Path root, String relative) {
+    static Path resolveRegularFileUnder(Path root, String relative) {
         try {
-            return root.resolve(relative).normalize();
-        } catch (RuntimeException e) {
+            Path candidate = root.resolve(relative).normalize();
+            if (!candidate.startsWith(root)) {
+                return null;
+            }
+            // normalize/startsWithだけではroot内のsymlinkが外部を指すケースを防げない。
+            // 実体パスへ解決した後でもroot配下にある通常ファイルだけを配信する。
+            Path real = candidate.toRealPath();
+            return real.startsWith(root)
+                    && Files.isRegularFile(real, LinkOption.NOFOLLOW_LINKS) ? real : null;
+        } catch (IOException | RuntimeException e) {
             return null;
         }
     }

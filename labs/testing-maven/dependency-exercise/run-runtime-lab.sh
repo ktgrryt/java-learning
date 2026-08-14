@@ -41,13 +41,16 @@ fi
 # 3. 古い方へ落として合わせていない
 major="$(printf '%s' "${core:-0.0}" | cut -d. -f1)"
 minor="$(printf '%s' "${core:-0.0}" | cut -d. -f2)"
-case "$major$minor" in
-  *[!0-9]*|'') major=0; minor=0 ;;
+patch="$(printf '%s' "${core:-0.0.0}" | cut -d. -f3 | sed 's/[^0-9].*//')"
+case "$major$minor$patch" in
+  *[!0-9]*|'') major=0; minor=0; patch=0 ;;
 esac
-if [ "$major" -gt 2 ] || { [ "$major" -eq 2 ] && [ "$minor" -ge 18 ]; }; then
-  pass deps-not-downgraded "databindが前提とする2.18.2以降へそろえました"
+if [ "$major" -gt 2 ] \
+    || { [ "$major" -eq 2 ] && [ "$minor" -gt 18 ]; } \
+    || { [ "$major" -eq 2 ] && [ "$minor" -eq 18 ] && [ "$patch" -ge 9 ]; }; then
+  pass deps-not-downgraded "既知の脆弱性を修正した2.18.9以降へそろえました"
 else
-  bad deps-not-downgraded "古い版へ落として合わせないでください（現在 ${core:-不明}）。2.18.2以降へそろえます"
+  bad deps-not-downgraded "古い版へ落として合わせないでください（現在 ${core:-不明}）。2.18.9以降へそろえます"
 fi
 
 grep -E 'NoClassDefFoundError|NoSuchMethodError|Tests run:|BUILD|com\.fasterxml\.jackson' out/maven.log \

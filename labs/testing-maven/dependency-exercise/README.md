@@ -6,12 +6,12 @@
 ## 何が起きているか
 
 ```text
-自分のアプリ → jackson-databind 2.18.2 → jackson-core 2.18.2 を前提にしている
+自分のアプリ → jackson-databind 2.18.9 → jackson-core 2.18.9 を前提にしている
              → jackson-core 2.11.0（昔のコードのために直接足された版）
 ```
 
 Mavenは同じartifactに1つの版だけを選びます。直接書いた宣言のほうが近いので `jackson-core 2.11.0`
-が採用され、`jackson-databind 2.18.2` が必要とするクラスが無くなります。
+が採用され、`jackson-databind 2.18.9` が必要とするクラスが無くなります。
 
 ```sh
 mvn dependency:list       # 選ばれた版を確かめる
@@ -23,8 +23,8 @@ mvn test                  # NoClassDefFoundError: com.fasterxml.jackson.core.uti
 | 見るところ | 直っていないとき | 直ったとき |
 |---|---|---|
 | `mvn test` | `Errors: 2`（実行時に落ちる） | 2件とも成功 |
-| `dependency:list` | core 2.11.0 / databind 2.18.2 | 3つとも同じ版 |
-| そろえた先 | 2.11.0（古い方へ落とした） | 2.18.2以降 |
+| `dependency:list` | core 2.11.0 / databind 2.18.9 | 3つとも同じ版 |
+| そろえた先 | 2.11.0（古い方へ落とした） | 2.18.9以降 |
 
 古い方へ落とせばエラーは消えますが、それは「動いた」だけです。この演習では、databindが前提と
 する版へそろえます。版を1か所で決める方法（BOMのimport、またはpropertyでの共有）を使うと、

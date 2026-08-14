@@ -14,45 +14,83 @@
 # 出力クラスが動く最低バージョン。ここを上げると古いJDKで動かなくなる
 JQ_TARGET_RELEASE=21
 
+# 2026-07-21のJava CPU（Critical Patch Update）で公開された最低security baseline。
+# 四半期ごとのCPUに合わせて更新する。非LTSの22〜24は現在の更新対象外なので受け付けない。
+jq_jdk_meets_security_baseline() {
+  local raw="$1" feature update minimum
+  if [[ ! "$raw" =~ ^([0-9]+)(\.0\.([0-9]+))? ]]; then
+    return 1
+  fi
+  feature="${BASH_REMATCH[1]}"
+  update="${BASH_REMATCH[3]:-0}"
+  case "$feature" in
+    21) minimum=12 ;;
+    25) minimum=4 ;;
+    26) minimum=2 ;;
+    *) (( feature > 26 )) && return 0 || return 1 ;;
+  esac
+  (( update >= minimum ))
+}
+
 # ---- 使うJDKを1つ決める ----------------------------------------------------
 jq_resolve_jdk() {
-  local candidates=() bin version
+  local candidates=() bin version full_version home
 
-  # 明示指定 > JAVA_HOME > PATH の javac > macOS の既定
+  # 明示指定 > JAVA_HOME > PATH の javac > Homebrew > macOS の既定
   [[ -n "${JQ_JAVA_HOME:-}" ]] && candidates+=("$JQ_JAVA_HOME/bin")
   [[ -n "${JAVA_HOME:-}" ]] && candidates+=("$JAVA_HOME/bin")
   if command -v javac >/dev/null 2>&1; then
     candidates+=("$(cd "$(dirname "$(command -v javac)")" && pwd)")
   fi
+  # HomebrewのOpenJDKはmacOSのjava_homeへ登録されず、PATHにも自動で入らないことがある。
+  # security update済みのJDKが既にあるのに古いApple側の既定だけを見る事態を避ける。
+  for home in \
+      /opt/homebrew/opt/openjdk/libexec/openjdk.jdk/Contents/Home/bin \
+      /opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home/bin \
+      /usr/local/opt/openjdk/libexec/openjdk.jdk/Contents/Home/bin \
+      /usr/local/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home/bin; do
+    [[ -d "$home" ]] && candidates+=("$home")
+  done
   if [[ -x /usr/libexec/java_home ]]; then
-    local home
     home="$(/usr/libexec/java_home 2>/dev/null || true)"
     [[ -n "$home" ]] && candidates+=("$home/bin")
   fi
 
   for bin in "${candidates[@]}"; do
     [[ -x "$bin/javac" && -x "$bin/java" ]] || continue
-    version="$("$bin/javac" -version 2>&1 | awk '{print $2}' | cut -d. -f1)"
+    full_version="$("$bin/javac" -version 2>&1 | awk '{print $2}')"
+    version="${full_version%%.*}"
     [[ "$version" =~ ^[0-9]+$ ]] || continue
     (( version >= JQ_TARGET_RELEASE )) || continue
 
     JQ_JAVAC="$bin/javac"
     JQ_JAVA="$bin/java"
     JQ_JDK_LABEL="$("$bin/javac" -version 2>&1) (release $JQ_TARGET_RELEASE)"
+    if ! jq_jdk_meets_security_baseline "$full_version"; then
+      JQ_JDK_SECURITY_WARNING="$full_version"
+    else
+      JQ_JDK_SECURITY_WARNING=""
+    fi
     return 0
   done
   return 1
 }
 
 if ! jq_resolve_jdk; then
-  echo "エラー: JDK ${JQ_TARGET_RELEASE} 以降が見つかりません。" >&2
+  echo "エラー: 対応するJDK ${JQ_TARGET_RELEASE} 以降が見つかりません。" >&2
   echo "" >&2
   echo "  javac が必要です（JRE だけでは足りません。あなたのコードをコンパイルするため）。" >&2
-  echo "  例: brew install openjdk@21" >&2
+  echo "  例: brew install openjdk@21（インストール後もsecurity updateを適用してください）" >&2
   echo "" >&2
   echo "  すでに入っている場合は、そのJDKの場所を指定してください:" >&2
   echo "    JQ_JAVA_HOME=/path/to/jdk ./run.sh" >&2
   exit 1
+fi
+
+if [[ -n "$JQ_JDK_SECURITY_WARNING" ]]; then
+  echo "警告: 使用するJDK $JQ_JDK_SECURITY_WARNING はsecurity updateが古い可能性があります。" >&2
+  echo "      2026年7月CPUのbaselineは JDK 21.0.12 / 25.0.4 / 26.0.2 以降です。" >&2
+  echo "      起動は続けますが、同じfeature versionの最新security updateを推奨します。" >&2
 fi
 
 # ---- 必要なときだけビルドする ----------------------------------------------

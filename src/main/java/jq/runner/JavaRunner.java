@@ -206,7 +206,7 @@ public final class JavaRunner {
             throw new IllegalStateException("コンパイルできていないコードは実行できません");
         }
         String javaBin = Path.of(System.getProperty("java.home"), "bin", "java").toString();
-        ProcessBuilder pb = new ProcessBuilder(
+        List<String> command = List.of(
                 javaBin,
                 "-XX:TieredStopAtLevel=1",   // 起動を速くする（学習用の小さなコードにJIT最適化は不要）
                 "-Xmx256m",                  // 暴走したコードがマシンのメモリを食い尽くさないように
@@ -221,7 +221,10 @@ public final class JavaRunner {
                 "-Duser.country=JP",
                 "-cp", compiled.workDir.toString(),
                 compiled.mainClass());
+        ProcessBuilder pb = new ProcessBuilder(ProcessGroupCommand.wrap(command));
         pb.directory(compiled.workDir.toFile());
+        pb.environment().remove("BASH_ENV");
+        pb.environment().remove("ENV");
 
         Process process;
         try {
@@ -229,7 +232,6 @@ public final class JavaRunner {
         } catch (IOException e) {
             throw new UncheckedIOException("実行プロセスを起動できません", e);
         }
-
         StreamPump out = new StreamPump(process.getInputStream());
         StreamPump err = new StreamPump(process.getErrorStream());
         out.start();
@@ -256,12 +258,12 @@ public final class JavaRunner {
             if (process.waitFor(TIMEOUT_MS, TimeUnit.MILLISECONDS)) {
                 exitCode = process.exitValue();
             } else {
-                destroyTree(process);
+                destroyRoot(process);
                 timedOut = true;
                 exitCode = -1;
             }
         } catch (InterruptedException e) {
-            destroyTree(process);
+            destroyRoot(process);
             Thread.currentThread().interrupt();
             timedOut = true;
             exitCode = -1;
@@ -279,28 +281,16 @@ public final class JavaRunner {
 
     // ------------------------------------------------------------- internals
 
-    /**
-     * 実行中のプロセスを、そこから起動された子孫ごと止める。
-     *
-     * {@code destroyForcibly()} は指定したプロセスだけを止める。学習者のコードが
-     * {@code ProcessBuilder} や {@code Runtime#exec} で別のコマンドを起動していると、
-     * タイムアウトでJVMだけが消えて、その先のコマンドは残り続ける
-     * （「5秒で止めました」と表示されたのにCPUが回り続ける状態になる）。
-     *
-     * 子孫の一覧は<b>親を止める前に</b>取る。親が消えたあとでは親子関係を辿れないため、
-     * 順序が逆だと取り逃がす。
-     */
-    private static void destroyTree(Process process) {
-        List<ProcessHandle> descendants = process.toHandle().descendants().toList();
-        process.destroyForcibly();
-        for (ProcessHandle descendant : descendants) {
-            descendant.destroyForcibly();
-        }
+    /** timeoutまたは割り込み時に、まず実行プロセス本体を停止する。 */
+    private static void destroyRoot(Process process) {
+        // wrapperへTERMを送ると、EXIT trapが専用プロセスグループ全体を停止する。
+        process.destroy();
         try {
             process.waitFor(2, TimeUnit.SECONDS);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         }
+        if (process.isAlive()) process.destroyForcibly();
     }
 
     private static Compiled failed(String hint) {

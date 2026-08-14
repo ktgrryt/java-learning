@@ -286,8 +286,8 @@ Criticalな技術誤りではない。問題engineの構造問題は大きく改
   - 最後の条件は章の核心（「本番用にもう一度ビルドすると、検証したものと本番で動くものが別物になる」）をそのまま検査する。buildを2回実行していると不合格になる。
   - 供給網の検査はtoolを限定せず、SBOM・dependency scan系の語をstepとして書けば通る。正しい別実装を不正解にしないためである。
   - YAMLは同梱parserが無いため、`ArtifactValidator`の設計どおりregexで教材固有の検査を行う。UIも「YAMLとして読めた」とは表示しない。構文の妥当性そのものは検査していない。
-  - `52-2`では実際の依存衝突を起こす。`jackson-databind 2.18.2`が前提とする`jackson-core`に対し、古い`2.11.0`が直接宣言されているため、Mavenの近い宣言が勝って実行時に`NoClassDefFoundError`になる。解説が書いている「選ばれた版に必要なメソッドがなければ実行時に落ちる」をそのまま起こしている。
-  - 検査は3つで、`mvn test`の実行時エラーが消えること、`dependency:list`のjackson系3つが同一版へ解決されること、古い方へ落として合わせていないこと（2.18.2以降）である。BOMのimportでもpropertyの共有でも通る。
+  - `52-2`では実際の依存衝突を起こす。`jackson-databind 2.18.9`が前提とする`jackson-core`に対し、古い`2.11.0`が直接宣言されているため、Mavenの近い宣言が勝って実行時に`NoClassDefFoundError`になる。解説が書いている「選ばれた版に必要なメソッドがなければ実行時に落ちる」をそのまま起こしている。
+  - 検査は3つで、`mvn test`の実行時エラーが消えること、`dependency:list`のjackson系3つが同一版へ解決されること、既知の脆弱性を修正した版へそろえていること（2.18.9以降）である。BOMのimportでもpropertyの共有でも通る。
 - 検証結果: `52-5`はstarterが5 checks全て不合格・参照解が5 checks合格。`52-2`はstarterが3 checks不合格（`core=2.11.0`という実測値つき）・参照解が3 checks合格で、いずれも約3秒。第32章限定回帰は6 lessons・10問・41 casesで合格した。カフェ経済も`simulate-cafe.sh`でplain 38.45% / reviewer 18.20%と目標帯に収まることを確認した。
 - 残る問題:
   - 52-1・52-3・52-4はPRのfile/line閾値、test時間の足し算、`n*n`のままで、Git diff、merge conflict、test reportを扱わない。
