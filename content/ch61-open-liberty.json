@@ -92,16 +92,6 @@
         "未知の目的にも必ず値を返せるよう、`default`を`CHECK_POM | 未知の目的`にします。"
       ],
       "solution": "import java.util.*;\n\npublic class Main {\n    static String commandFor(String goal) {\n        return switch (goal) {\n            case \"EDIT_AND_RUN\" -> \"mvn liberty:dev | 変更を検出して再配置\";\n            case \"RUN_ONLY\" -> \"mvn liberty:run | 手動で停止するまで実行\";\n            case \"TEST\" -> \"mvn test | テストを実行\";\n            case \"PACKAGE\" -> \"mvn package | WARを作成\";\n            default -> \"CHECK_POM | 未知の目的\";\n        };\n    }\n\n    public static void main(String[] args) {\n        String goal = new Scanner(System.in).nextLine();\n        System.out.println(commandFor(goal));\n    }\n}",
-      "sourceChecks": [
-        {
-          "pattern": "static\\s+String\\s+commandFor",
-          "message": "コマンド選択をcommandForメソッドへ分けてください。"
-        },
-        {
-          "pattern": "switch\\s*\\(",
-          "message": "目的ごとのコマンドをswitchで明示してください。"
-        }
-      ],
       "kind": "practice",
       "extraTasks": [],
       "quiz": [
@@ -127,6 +117,9 @@
           "answer": 0,
           "explanation": "アプリコードとランタイム構成を分け、環境に応じた設定を管理できます。"
         }
+      ],
+      "rubric": [
+        "decide"
       ]
     },
     {
@@ -214,6 +207,9 @@
           "answer": 0,
           "explanation": "機能と版が明示されます。ただしアプリのテストや更新確認は引き続き必要です。"
         }
+      ],
+      "rubric": [
+        "implement"
       ]
     },
     {
@@ -264,16 +260,6 @@
         "完成したpathは入力エラー時にも使います。`name.isBlank()`を先に判定し、正常時だけServiceを呼びましょう。"
       ],
       "solution": "import java.util.*;\n\npublic class Main {\n    static class GreetingService {\n        String message(String name) {\n            return \"Hello, \" + name.trim();\n        }\n    }\n\n    static String joinPath(String base, String resource) {\n        String left = base.endsWith(\"/\") ? base.substring(0, base.length() - 1) : base;\n        String right = resource.startsWith(\"/\") ? resource.substring(1) : resource;\n        return left + \"/\" + right;\n    }\n\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        String base = sc.nextLine();\n        String resource = sc.nextLine();\n        String name = sc.nextLine();\n        String path = joinPath(base, resource);\n        if (name.isBlank()) {\n            System.out.println(\"400 \" + path + \" NAME_REQUIRED\");\n        } else {\n            GreetingService service = new GreetingService();\n            System.out.println(\"200 \" + path + \" \" + service.message(name));\n        }\n    }\n}",
-      "sourceChecks": [
-        {
-          "pattern": "static\\s+String\\s+joinPath",
-          "message": "パス結合をjoinPathメソッドへ分けてください。"
-        },
-        {
-          "pattern": "service\\.message",
-          "message": "正常時の業務処理をGreetingServiceへ委譲してください。"
-        }
-      ],
       "kind": "practice",
       "extraTasks": [],
       "quiz": [
@@ -348,16 +334,6 @@
         "`TIMEOUT_RETRY`では機能名だけでなく、再実行しても安全かを示す`冪等性を確認`まで出力に含めます。"
       ],
       "solution": "import java.util.*;\n\npublic class Main {\n    static String select(String requirement) {\n        return switch (requirement) {\n            case \"EXTERNAL_CONFIG\" -> \"mpConfig-3.1 | @ConfigProperty\";\n            case \"READINESS\" -> \"mpHealth-4.0 | @Readiness\";\n            case \"TIMEOUT_RETRY\" -> \"mpFaultTolerance | 冪等性を確認\";\n            case \"API_DOCUMENT\" -> \"mpOpenAPI | API契約を共有\";\n            default -> \"REVIEW | 要件を具体化\";\n        };\n    }\n\n    public static void main(String[] args) {\n        System.out.println(select(new Scanner(System.in).nextLine()));\n    }\n}",
-      "sourceChecks": [
-        {
-          "pattern": "static\\s+String\\s+select",
-          "message": "機能選択をselectメソッドへ分けてください。"
-        },
-        {
-          "pattern": "switch\\s*\\(",
-          "message": "要件ごとの選択をswitchで実装してください。"
-        }
-      ],
       "kind": "drill",
       "extraTasks": [],
       "quiz": [
@@ -383,6 +359,9 @@
           "answer": 0,
           "explanation": "副作用のある処理は再試行で重複する可能性があるため、冪等性と回数・待ち時間を設計します。"
         }
+      ],
+      "rubric": [
+        "decide"
       ]
     },
     {
@@ -432,16 +411,6 @@
         "`switch`式の各分岐で「分類 | 次に行う確認」を返し、未知の変更は`REVIEW`へ回します。"
       ],
       "solution": "import java.util.*;\n\npublic class Main {\n    static String classify(String change) {\n        return switch (change) {\n            case \"RUNTIME_ONLY\" -> \"ZERO_MIGRATION_SCOPE | regression test\";\n            case \"FEATURE_VERSION\" -> \"SPEC_MIGRATION | guide and code test\";\n            case \"JAVA_VERSION\" -> \"JAVA_MIGRATION | compatibility test\";\n            case \"THIRD_PARTY\" -> \"LIBRARY_MIGRATION | release notes\";\n            case \"UNDOCUMENTED\" -> \"UNSUPPORTED_DEPENDENCY | remove reliance\";\n            default -> \"REVIEW | classify change\";\n        };\n    }\n\n    public static void main(String[] args) {\n        System.out.println(classify(new Scanner(System.in).nextLine()));\n    }\n}",
-      "sourceChecks": [
-        {
-          "pattern": "static\\s+String\\s+classify",
-          "message": "変更分類をclassifyメソッドへ分けてください。"
-        },
-        {
-          "pattern": "switch\\s*\\(\\s*change\\s*\\)",
-          "message": "ランタイムだけの更新を明示的に扱ってください。"
-        }
-      ],
       "kind": "drill",
       "extraTasks": [],
       "quiz": [
@@ -516,16 +485,6 @@
         "要件がある場合はfalseの条件だけを`LINUX`、`CRIU`、`JDK`、`FEATURE`の順で集め、空ならInstantOnを選びます。"
       ],
       "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        boolean required = Boolean.parseBoolean(sc.nextLine());\n        boolean linux = Boolean.parseBoolean(sc.nextLine());\n        boolean criu = Boolean.parseBoolean(sc.nextLine());\n        boolean jdk = Boolean.parseBoolean(sc.nextLine());\n        boolean feature = Boolean.parseBoolean(sc.nextLine());\n        if (!required) {\n            System.out.println(\"REGULAR_JVM:measure first\");\n            return;\n        }\n        List<String> missing = new ArrayList<>();\n        if (!linux) missing.add(\"LINUX\");\n        if (!criu) missing.add(\"CRIU\");\n        if (!jdk) missing.add(\"JDK\");\n        if (!feature) missing.add(\"FEATURE\");\n        System.out.println(missing.isEmpty()\n                ? \"INSTANTON:checkpoint and restore\"\n                : \"REGULAR_JVM:missing=\" + String.join(\",\", missing));\n    }\n}",
-      "sourceChecks": [
-        {
-          "pattern": "List<String>\\s+missing",
-          "message": "満たさない条件をListへ集めてください。"
-        },
-        {
-          "pattern": "if\\s*\\(\\s*!required",
-          "message": "高速起動が要件でない場合を先に判定してください。"
-        }
-      ],
       "kind": "applied",
       "extraTasks": [
         {
@@ -535,31 +494,73 @@
           "runtimeLab": {
             "name": "open-liberty-war-feature-http-health",
             "source": "labs/frameworks/open-liberty/runtime-exercise",
-            "exclude": ["reference", "target"],
-            "command": ["./run-runtime-lab.sh"],
+            "exclude": [
+              "reference",
+              "target"
+            ],
+            "command": [
+              "./run-runtime-lab.sh"
+            ],
             "timeoutSeconds": 60,
             "verification": "JUnit後に実WARをbuild・配備し、Feature起動ログ、REST、Validation、Readiness、停止を確認する",
-            "capabilities": ["server", "http"],
-            "requiredTools": ["java", "javac", "mvn"],
+            "capabilities": [
+              "server",
+              "http"
+            ],
+            "requiredTools": [
+              "java",
+              "javac",
+              "mvn"
+            ],
             "requiredImages": [],
             "checks": [
-              {"id": "liberty-war", "label": "mvn test後にResourceを含むWARをbuildする"},
-              {"id": "liberty-features", "label": "起動ログで必要なJakarta EE/MicroProfile Featureを確認する"},
-              {"id": "liberty-rest", "label": "実LibertyのJakarta REST APIがHTTP 200とJSONを返す"},
-              {"id": "liberty-validation", "label": "Jakarta Validationが入力不正をHTTP 400にする"},
-              {"id": "liberty-health", "label": "MicroProfile Readinessがgreeting=UPを返す"},
-              {"id": "liberty-stop", "label": "検証後にLiberty processとHTTP listenerを停止する"}
+              {
+                "id": "liberty-war",
+                "label": "mvn test後にResourceを含むWARをbuildする"
+              },
+              {
+                "id": "liberty-features",
+                "label": "起動ログで必要なJakarta EE/MicroProfile Featureを確認する"
+              },
+              {
+                "id": "liberty-rest",
+                "label": "実LibertyのJakarta REST APIがHTTP 200とJSONを返す"
+              },
+              {
+                "id": "liberty-validation",
+                "label": "Jakarta Validationが入力不正をHTTP 400にする"
+              },
+              {
+                "id": "liberty-health",
+                "label": "MicroProfile Readinessがgreeting=UPを返す"
+              },
+              {
+                "id": "liberty-stop",
+                "label": "検証後にLiberty processとHTTP listenerを停止する"
+              }
             ],
             "editableFiles": [
-              {"path": "src/main/liberty/config/server.xml", "solutionPath": "reference/src/main/liberty/config/server.xml"},
-              {"path": "src/main/java/example/greeting/GreetingResource.java", "solutionPath": "reference/src/main/java/example/greeting/GreetingResource.java"},
-              {"path": "src/main/java/example/greeting/GreetingReadiness.java", "solutionPath": "reference/src/main/java/example/greeting/GreetingReadiness.java"}
+              {
+                "path": "src/main/liberty/config/server.xml",
+                "solutionPath": "reference/src/main/liberty/config/server.xml"
+              },
+              {
+                "path": "src/main/java/example/greeting/GreetingResource.java",
+                "solutionPath": "reference/src/main/java/example/greeting/GreetingResource.java"
+              },
+              {
+                "path": "src/main/java/example/greeting/GreetingReadiness.java",
+                "solutionPath": "reference/src/main/java/example/greeting/GreetingReadiness.java"
+              }
             ]
           },
           "hints": [
             "`server.xml`のFeature Managerへ`validation-3.1`と`mpHealth-4.0`を追加します。ポートは`${env.JQ_LAB_PORT}`のままにし、固定値へ戻さないでください。",
             "Resourceの`name`引数へ`@NotBlank`と`@Size(max = 20)`を付けます。必要なimportは`jakarta.validation.constraints`です。",
             "Readinessは`HealthCheckResponse.up(\"greeting\")`を返します。HTTP検査だけでなく、起動ログのFeature一覧と停止後のlistenerも採点されます。"
+          ],
+          "rubric": [
+            "implement"
           ]
         }
       ],
@@ -586,6 +587,9 @@
           "answer": 0,
           "explanation": "効果を測定し、技術条件とcheckpoint前後の初期化を確認して採用します。"
         }
+      ],
+      "rubric": [
+        "decide"
       ]
     },
     {
@@ -629,16 +633,6 @@
         "未知のAPIも捨てずに`API=REVIEW`として残すと、server.xmlへ追加する前の確認漏れを防げます。"
       ],
       "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        String line = new Scanner(System.in).nextLine().trim();\n        Map<String, String> mapping = Map.of(\n                \"PATH\", \"restfulWS-4.0\", \"INJECT\", \"cdi-4.1\",\n                \"VALIDATE\", \"validation-3.1\", \"JSON\", \"jsonb-3.0\",\n                \"ENTITY\", \"persistence-3.2\", \"READINESS\", \"mpHealth-4.0\",\n                \"CONFIG\", \"mpConfig-3.1\"\n        );\n        Set<String> result = new LinkedHashSet<>();\n        if (!line.isEmpty()) {\n            for (String api : line.split(\"\\\\s+\")) {\n                result.add(api + \"=\" + mapping.getOrDefault(api, \"REVIEW\"));\n            }\n        }\n        System.out.println(String.join(\",\", result));\n    }\n}",
-      "sourceChecks": [
-        {
-          "pattern": "LinkedHashSet",
-          "message": "利用順を保った重複除去を行ってください。"
-        },
-        {
-          "pattern": "getOrDefault",
-          "message": "未知のAPIをREVIEWとして残してください。"
-        }
-      ],
       "kind": "applied",
       "extraTasks": [
         {
@@ -678,17 +672,10 @@
             "次にFeature版とJava版の変更を一覧化します。両方なければ、runtimeの有無でZero Migration更新と更新なしを分けます。"
           ],
           "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        boolean runtime = Boolean.parseBoolean(sc.nextLine());\n        boolean feature = Boolean.parseBoolean(sc.nextLine());\n        boolean javaVersion = Boolean.parseBoolean(sc.nextLine());\n        boolean tests = Boolean.parseBoolean(sc.nextLine());\n        if (!tests) {\n            System.out.println(\"BLOCKED:TEST\");\n            return;\n        }\n        List<String> migration = new ArrayList<>();\n        if (feature) migration.add(\"FEATURE\");\n        if (javaVersion) migration.add(\"JAVA\");\n        if (!migration.isEmpty()) {\n            System.out.println(\"PLANNED_MIGRATION:\" + String.join(\",\", migration));\n        } else if (runtime) {\n            System.out.println(\"ZERO_MIGRATION_UPDATE\");\n        } else {\n            System.out.println(\"NO_UPDATE\");\n        }\n    }\n}",
-          "sourceChecks": [
-            {
-              "pattern": "if\\s*\\(\\s*!tests",
-              "message": "テスト失敗を最優先で停止してください。"
-            },
-            {
-              "pattern": "List<String>\\s+migration",
-              "message": "仕様移行項目をListへ集めてください。"
-            }
-          ],
-          "kind": "applied"
+          "kind": "applied",
+          "rubric": [
+            "decide"
+          ]
         },
         {
           "task": "LivenessとReadinessを判定する\n\n1行目にプロセス内部が正常か、2行目にDBが利用可能か、3行目に外部APIが利用可能かが`true`/`false`で与えられます。内部異常なら`LIVENESS=DOWN READINESS=DOWN ACTION=RESTART`です。内部正常で依存先のどちらかが異常なら`LIVENESS=UP READINESS=DOWN ACTION=REMOVE_TRAFFIC`、すべて正常なら`LIVENESS=UP READINESS=UP ACTION=SERVE`を出力してください。",
@@ -727,17 +714,10 @@
             "内部が正常ならDBと外部APIをまとめて確認し、依存先障害では再起動せず`REMOVE_TRAFFIC`を選びます。"
           ],
           "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        boolean internal = Boolean.parseBoolean(sc.nextLine());\n        boolean database = Boolean.parseBoolean(sc.nextLine());\n        boolean externalApi = Boolean.parseBoolean(sc.nextLine());\n        if (!internal) {\n            System.out.println(\"LIVENESS=DOWN READINESS=DOWN ACTION=RESTART\");\n        } else if (!database || !externalApi) {\n            System.out.println(\"LIVENESS=UP READINESS=DOWN ACTION=REMOVE_TRAFFIC\");\n        } else {\n            System.out.println(\"LIVENESS=UP READINESS=UP ACTION=SERVE\");\n        }\n    }\n}",
-          "sourceChecks": [
-            {
-              "pattern": "if\\s*\\(\\s*!internal",
-              "message": "内部異常を先に判定してください。"
-            },
-            {
-              "pattern": "!database\\s*\\|\\|\\s*!externalApi",
-              "message": "依存先のいずれかが異常ならReadinessをDOWNにしてください。"
-            }
-          ],
-          "kind": "applied"
+          "kind": "applied",
+          "rubric": [
+            "decide"
+          ]
         }
       ],
       "quiz": []

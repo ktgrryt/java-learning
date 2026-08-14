@@ -26,7 +26,14 @@ BASE = f"http://localhost:{PORT}/api/"
 # 章を1つ書いている間、1122件すべてを走らせ直さなくて済むようにするための指定。
 # 例:  tools/verify-solutions.sh --only 21      （第21章だけ）
 #      tools/verify-solutions.sh --only 21-3    （そのレッスンだけ）
-ONLY = [p for p in sys.argv[2:] if p]
+ONLY = [p for p in sys.argv[2:] if p and p != "--strict-starters"]
+
+# ひな形の検査をどこまでやるか。
+#   既定 … 構成検査つきの問題（artifact / project / runtime-lab）だけ、
+#          ひな形が最初から合格しないことを確かめる。追加の実行費用は0。
+#   --strict-starters … single-fileのひな形も全ケースで採点する。
+#          「ひな形が偶然通る」も捕まえられるが、実行時間はおよそ2倍になる。
+STRICT_STARTERS = "--strict-starters" in sys.argv[2:]
 
 GREEN, RED, YELLOW, DIM, RESET = "\033[32m", "\033[31m", "\033[33m", "\033[2m", "\033[0m"
 
@@ -92,12 +99,29 @@ def verify_task(lid, task, problems, warnings):
         if not starter.get("syntaxValid"):
             problems.append(f"{where}のひな形を{task['artifact']['format']}として読めない")
             print(f"      {RED}{starter.get('syntaxError', '')}{RESET}")
+    elif STRICT_STARTERS:
+        # ひな形も全ケースで採点する（review=True なので書いたコードは保存されない）。
+        starter = post("submit", {
+            "lessonId": lid, "taskId": tid,
+            "code": task["starterCode"], "review": True
+        })
+        if not starter.get("compiled"):
+            problems.append(f"{where}のひな形がコンパイルできない")
+            show_diagnostics(starter.get("diagnostics", []))
     else:
         # libLessonId は同梱ライブラリを引き当てるためだけのもの（保存はされない）
         starter = post("run", {"code": task["starterCode"], "libLessonId": lid})
         if not starter.get("compiled"):
             problems.append(f"{where}のひな形がコンパイルできない")
             show_diagnostics(starter.get("diagnostics", []))
+
+    # ── ひな形が最初から合格していないか ──────────────────────────
+    # 合格するなら、その問題は学習者へ何も要求していない。
+    # 「絶対に落ちない検査」「書いてあるのに実際は測っていない要件」がここで出る。
+    # runtime環境が無いときは allPass が立たないので、誤検知にならない。
+    if starter.get("allPass"):
+        problems.append(f"{where}のひな形が最初から合格している"
+                        f"（検査が何も要求していない可能性）")
 
     if not task["task"].strip():
         problems.append(f"{where}の問題文が空")
@@ -228,6 +252,14 @@ def main():
                 elif any("pass" not in check or "required" not in check
                          for check in preflight.get("checks", [])):
                     problems.append("事前確認の実行結果に必須項目が無い")
+                else:
+                    # readyそのものは端末ごとに違うので合否にしない。ただし黙って✅にすると
+                    # 「この端末では満たせない前提」に気づけないので、必須項目の不合格は注意へ出す。
+                    for check in preflight.get("checks", []):
+                        if check.get("required") and not check.get("pass"):
+                            warnings.append(
+                                f"{lid}: 事前確認「{check.get('label', check.get('id'))}」が"
+                                f"この端末では満たせません: {check.get('summary', '')}")
 
             # ── サンプルコードが実行できるか ──────────────────────────
             for i, sample in enumerate(lesson["samples"]):

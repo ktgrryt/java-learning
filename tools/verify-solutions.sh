@@ -7,9 +7,17 @@
 #   ./tools/verify-solutions.sh --port 8123     … すでに動いているサーバを使う
 #   ./tools/verify-solutions.sh --only 21       … 第21章だけ検査する
 #   ./tools/verify-solutions.sh --only 21-3 22  … レッスン21-3と第22章だけ
+#   ./tools/verify-solutions.sh --strict-starters … single-fileのひな形も全ケースで採点する
+#                                                   （所要はおよそ2倍。既定では構成検査つきの
+#                                                     問題だけひな形の不合格を確かめる）
 #
-# --only は章を1つ書いている間の確認用（全部で数分かかるので）。
-# コンテンツを直し終えたら、必ず --only なしで全体を通してください。
+# 全件は20〜30分かかるので、毎回通す必要はありません。変更が影響する範囲で選びます。
+#   1つの章のJSONを直した     … --only <章番号>
+#   labのscriptを直した        … そのlabを直接実行してから --only <章番号>
+#   engineを直した             … tools/check-*.sh と、非single-file問題を持つ章だけ
+#   問題数を増減した           … 上記 + tools/simulate-cafe.sh（投資率が動く）
+#   一括整形・複数章の同時修正・コミット前 … --only なしで全件
+# 判断の根拠は docs/guide.md「どこまで検証するか」にあります。
 #
 # 進捗ファイル(progress.json)は書き換えない（一時ディレクトリで動かすため）。
 #
@@ -19,6 +27,7 @@ cd "$(dirname "$0")/.."
 
 PORT=""
 ONLY=()
+STRICT=()
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --port)
@@ -32,6 +41,10 @@ while [[ $# -gt 0 ]]; do
       if [[ ${#ONLY[@]} -eq 0 ]]; then
         echo "--only にはレッスンIDの先頭が必要です（例: --only 21）" >&2; exit 1
       fi
+      ;;
+    --strict-starters)
+      STRICT=(--strict-starters)
+      shift
       ;;
     *)
       echo "知らない引数です: $1" >&2
@@ -118,5 +131,6 @@ fi
 # -u … 出力先がファイルやパイプでも1行ずつ流す（長い検査中に無言にならないように）
 # ${ONLY[@]+...} … 空配列を set -u のもとで展開してもエラーにしない書き方（bash 3.2 対策）
 RC=0
-python3 -u tools/verify_solutions.py "$PORT" ${ONLY[@]+"${ONLY[@]}"} || RC=$?
+python3 -u tools/verify_solutions.py "$PORT" ${ONLY[@]+"${ONLY[@]}"} \
+  ${STRICT[@]+"${STRICT[@]}"} || RC=$?
 exit "$RC"

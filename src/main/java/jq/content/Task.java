@@ -23,6 +23,7 @@ import java.util.Map;
  * @param artifact artifact問題の対象と検査。single-file問題ではnull
  * @param project project問題の対象と実行方法。それ以外ではnull
  * @param runtimeLab runtime-lab問題の対象、必要環境、実行時検査。それ以外ではnull
+ * @param rubric   この問題が測る実務能力（省略可）。空なら型から導く（{@link #rubricDimensions()}）
  */
 public record Task(
         String id,
@@ -37,7 +38,31 @@ public record Task(
         List<SourceCheck> sourceChecks,
         ArtifactSpec artifact,
         ProjectSpec project,
-        RuntimeLabSpec runtimeLab) {
+        RuntimeLabSpec runtimeLab,
+        List<String> rubric) {
+
+    /**
+     * 実務rubricの5軸。§8.4の項目に対応する。
+     *
+     * <p>問題の型（4種類）からは5軸を区別できない。とくに`runtime-lab`は
+     * 「実装できる」と「壊れた状態を直せる」の両方を兼ねるので、
+     * どちらを測っているかは教材側で示す必要がある。
+     */
+    public static final List<String> RUBRIC_DIMENSIONS =
+            List.of("explain", "implement", "diagnose", "test", "decide");
+
+    /**
+     * この問題が測る軸。教材側に{@code rubric}があればそれを使い、無ければ型から導く。
+     *
+     * <p>導出は控えめにする。`single-file`と`artifact`は「実装できる」だけを主張し、
+     * 診断や判断まで測ったことにはしない。それらを主張したい問題には`rubric`を書く。
+     */
+    public List<String> rubricDimensions() {
+        if (!rubric.isEmpty()) {
+            return rubric;
+        }
+        return isMultiFile() ? List.of("implement", "diagnose") : List.of("implement");
+    }
 
     public boolean isArtifact() {
         return "artifact".equals(type);

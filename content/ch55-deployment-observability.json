@@ -8,7 +8,7 @@
       "id": "55-0",
       "lessonType": "preflight",
       "title": "事前確認：container labを動かす準備",
-      "explanation": "## imageをbuildして動かす環境を確認する\n\n`labs/delivery`の`runtime-lab`では、Dockerfileの静的な形だけでなく、実際にimageをbuildし、non-root、read-only filesystem、memory・CPU制限付きで起動してreadinessへHTTP要求を送ります。JDK 21とDocker daemonが必要です。\n\n```bash\ndocker pull eclipse-temurin:21-jdk\ndocker pull eclipse-temurin:21-jre\n```\n\n提出時はこの2つのbase imageがローカルにあるかを確認し、不足していても自動downloadはしません。実行ごとに一意なimage/container名と動的なlocalhostポートを使い、終了時に削除します。この事前確認は★対象外です。",
+      "explanation": "## imageをbuildして動かす環境を確認する\n\n`labs/delivery`の`runtime-lab`では、Dockerfileの静的な形だけでなく、実際にimageをbuildし、non-root、read-only filesystem、memory・CPU制限付きで起動してreadinessへHTTP要求を送ります。JDK 21と、DockerまたはPodmanのどちらかが必要です。\n\n```bash\ndocker pull eclipse-temurin:21-jdk\ndocker pull eclipse-temurin:21-jre\n```\n\n提出時はこの2つのbase imageがローカルにあるかを確認し、不足していても自動downloadはしません。実行ごとに一意なimage/container名と動的なlocalhostポートを使い、終了時に削除します。この事前確認は★対象外です。",
       "preflight": {
         "buttonLabel": "container labの準備を確認する",
         "checks": [
@@ -31,9 +31,9 @@
           {
             "id": "docker-container",
             "type": "tool",
-            "tool": "docker",
-            "label": "container build用Docker daemon",
-            "help": "Docker Desktop等を起動し、Temurin 21のJDK/JRE imageをpullしてください。"
+            "tool": "docker-or-podman",
+            "label": "container build用runtime",
+            "help": "DockerまたはPodmanのどちらかを起動し、Temurin 21のJDK/JRE imageをpullしてください。"
           }
         ]
       }
@@ -370,14 +370,7 @@
             "ステータスは `switch` 式で書けます。`starting` と `draining` は同じ503です。",
             "livenessは「再起動すべきか」、readinessは「トラフィックを受けられるか」です。`draining` が503でもプロセスは生きています。だから状態とステータスを別に持っています。"
           ],
-          "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        int limit = s.nextInt(), nonHeap = s.nextInt(), margin = s.nextInt(), heap = limit - nonHeap - margin;\n        System.out.println(heap > 0 ? \"HEAP \" + heap : \"HEAP INVALID\");\n        int n = s.nextInt(), ready = 0;\n        for (int k = 1; k <= n; k++) {\n            String state = s.next();\n            int status = switch (state) {\n                case \"ready\" -> 200;\n                case \"failed\" -> 500;\n                default -> 503;\n            };\n            if (state.equals(\"ready\")) ready++;\n            System.out.println(k + \" \" + state + \" \" + status);\n        }\n        System.out.println(ready > 0 ? \"RECEIVED_TRAFFIC \" + ready : \"NO_TRAFFIC\");\n    }\n}\n",
-          "sourceChecks": [
-            {
-              "pattern": "limit\\s*-\\s*nonHeap",
-              "minimum": 1,
-              "message": "ヒープの上限は、コンテナの制限からJVM以外の使用量と余裕を引いて求めます。制限いっぱいにするとOOM Killerに落とされます。"
-            }
-          ]
+          "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        int limit = s.nextInt(), nonHeap = s.nextInt(), margin = s.nextInt(), heap = limit - nonHeap - margin;\n        System.out.println(heap > 0 ? \"HEAP \" + heap : \"HEAP INVALID\");\n        int n = s.nextInt(), ready = 0;\n        for (int k = 1; k <= n; k++) {\n            String state = s.next();\n            int status = switch (state) {\n                case \"ready\" -> 200;\n                case \"failed\" -> 500;\n                default -> 503;\n            };\n            if (state.equals(\"ready\")) ready++;\n            System.out.println(k + \" \" + state + \" \" + status);\n        }\n        System.out.println(ready > 0 ? \"RECEIVED_TRAFFIC \" + ready : \"NO_TRAFFIC\");\n    }\n}\n"
         },
         {
           "kind": "applied",
@@ -438,11 +431,6 @@
               "pattern": "Locale\\s*\\.\\s*ROOT",
               "minimum": 1,
               "message": "小数の書式には `Locale.ROOT` を渡してください。既定のLocaleでは小数点がカンマになる国があり、出力が環境で変わります。"
-            },
-            {
-              "pattern": "String\\s*\\.\\s*format\\s*\\(",
-              "minimum": 1,
-              "message": "桁を揃えた表示は `String.format` を使ってください。"
             }
           ]
         },
@@ -453,26 +441,60 @@
           "runtimeLab": {
             "name": "container readiness lab",
             "source": "labs/delivery",
-            "exclude": ["reference"],
-            "command": ["./run-runtime-lab.sh"],
+            "exclude": [
+              "reference"
+            ],
+            "command": [
+              "./run-runtime-lab.sh"
+            ],
             "timeoutSeconds": 60,
             "verification": "non-root imageを制限付きで起動し、実HTTP readinessを確認する",
-            "capabilities": ["server", "http", "container"],
-            "requiredTools": ["java", "javac", "docker"],
-            "requiredImages": ["eclipse-temurin:21-jdk", "eclipse-temurin:21-jre"],
+            "capabilities": [
+              "server",
+              "http",
+              "container"
+            ],
+            "requiredTools": [
+              "java",
+              "javac",
+              "docker-or-podman"
+            ],
+            "requiredImages": [
+              "eclipse-temurin:21-jdk",
+              "eclipse-temurin:21-jre"
+            ],
             "checks": [
-              {"id": "container-build", "label": "編集したDockerfileからimageをbuildする"},
-              {"id": "container-nonroot", "label": "最終imageをnon-rootユーザーで実行する"},
-              {"id": "container-readonly", "label": "資源制限とread-only filesystemで起動する"},
-              {"id": "container-readiness", "label": "実containerのreadinessがHTTP 200を返す"}
+              {
+                "id": "container-build",
+                "label": "編集したDockerfileからimageをbuildする"
+              },
+              {
+                "id": "container-nonroot",
+                "label": "最終imageをnon-rootユーザーで実行する"
+              },
+              {
+                "id": "container-readonly",
+                "label": "資源制限とread-only filesystemで起動する"
+              },
+              {
+                "id": "container-readiness",
+                "label": "実containerのreadinessがHTTP 200を返す"
+              }
             ],
             "editableFiles": [
-              {"path": "exercise/Dockerfile", "solutionPath": "reference/Dockerfile"}
+              {
+                "path": "exercise/Dockerfile",
+                "solutionPath": "reference/Dockerfile"
+              }
             ]
           },
           "hints": [
             "最終stageで`RUN useradd --system --uid 10001 appuser`のように専用ユーザーを作ります。",
             "`USER 10001`をENTRYPOINTより前に置くと、実行時の既定ユーザーがrootではなくなります。"
+          ],
+          "rubric": [
+            "implement",
+            "diagnose"
           ]
         }
       ]

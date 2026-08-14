@@ -27,6 +27,9 @@ public final class RuntimeLabRunner {
 
     private static final Pattern SAFE_MESSAGE = Pattern.compile("[^\\r\\n\\t]{1,500}");
     private static final int REQUIREMENT_TIMEOUT_SECONDS = 5;
+    // 能力の実測は数百msで終わるが、遅い環境で打ち切ると「使えるlabを環境不足にする」側へ
+    // 誤るので、要件確認より長く待つ。
+    private static final int CAPABILITY_PROBE_TIMEOUT_SECONDS = 20;
     private final ProjectRunner projectRunner = new ProjectRunner();
 
     public Result run(RuntimeLabSpec spec, Map<String, String> submittedFiles) {
@@ -65,8 +68,34 @@ public final class RuntimeLabRunner {
         boolean acceptsPodman = spec.requiredTools().contains("docker-or-podman");
         for (String tool : spec.requiredTools()) {
             if (tool.equals("docker-or-podman")) continue;
+            if (tool.equals("jlink")) {
+                // jlinkは在るだけでは足りない。JMODを同梱しない配布物や、配布物側の
+                // module hashが合わない環境では縮小ランタイムを作れない。実際に作って確かめる。
+                if (!canBuildRuntimeImage()) missing.add(toolHelp(tool));
+                continue;
+            }
+            if (tool.equals("jfr")) {
+                // jfr CLIが在るだけでは足りない。OpenJ9系の配布物はJVM側が設定つきの
+                // 記録を作れず、labは必ず失敗する。短い記録を実際に取って確かめる。
+                if (!commandWorks(List.of(jdkTool(tool), "help")) || !canRecordFlight()) {
+                    missing.add(toolHelp(tool));
+                }
+                continue;
+            }
+            if (tool.equals("jpackage")) {
+                // jpackageが在るだけでは足りない。プラットフォーム側の道具が欠けていると
+                // 生成に失敗し、labは必ず落ちる。実際に最小のapp-imageを作って確かめる。
+                if (!canBuildAppImage()) {
+                    missing.add(toolHelp(tool));
+                }
+                continue;
+            }
             List<String> command = switch (tool) {
-                case "java", "javac" -> List.of(jdkTool(tool), "--version");
+                case "java", "javac", "jdeps", "jar" -> List.of(jdkTool(tool), "--version");
+                case "jshell" -> List.of(jdkTool(tool), "--version");
+                case "keytool" -> List.of(jdkTool(tool), "-help");
+                // javapは--versionでも版を表示するが終了コードは0にならない。
+                case "javap" -> List.of(jdkTool(tool), "-help");
                 case "jcmd" -> List.of(jdkTool(tool), "-h");
                 case "jfr" -> List.of(jdkTool(tool), "help");
                 case "mvn", "gradle" -> List.of(tool, "--version");
@@ -136,7 +165,107 @@ public final class RuntimeLabRunner {
         return Files.isExecutable(candidate) ? candidate.toString() : name;
     }
 
+    /** 最小のimageを実際に作り、この配布物のjlinkが使えるかを確かめる。 */
+    private static boolean canBuildRuntimeImage() {
+        Path probe;
+        try {
+            probe = Files.createTempDirectory("jq-jlink-probe-");
+        } catch (IOException e) {
+            return false;
+        }
+        try {
+            // --module-pathを省くと、このJDKのjmodsが既定の探索先になる。
+            return commandWorks(List.of(jdkTool("jlink"), "--add-modules", "java.base",
+                    "--output", probe.resolve("image").toString()),
+                    CAPABILITY_PROBE_TIMEOUT_SECONDS);
+        } finally {
+            deleteRecursively(probe);
+        }
+    }
+
+    /**
+     * 最小のapp-imageを実際に作り、この環境で{@code jpackage}が使えるかを確かめる。
+     *
+     * <p>{@code jpackage}はプラットフォーム側の道具に依存するので、コマンドが在るだけでは
+     * 判断できない。作れない環境ではlabが必ず落ちるため、要件確認の段で分離する。
+     */
+    private static boolean canBuildAppImage() {
+        Path probe;
+        try {
+            probe = Files.createTempDirectory("jq-jpackage-probe-");
+        } catch (IOException e) {
+            return false;
+        }
+        try {
+            Path input = probe.resolve("input");
+            Files.createDirectories(input);
+            Path source = probe.resolve("Probe.java");
+            Files.writeString(source,
+                    "public class Probe { public static void main(String[] a) { } }");
+            if (!commandWorks(List.of(jdkTool("javac"), "-d", input.toString(), source.toString()),
+                    CAPABILITY_PROBE_TIMEOUT_SECONDS)) {
+                return false;
+            }
+            Path jar = input.resolve("probe.jar");
+            if (!commandWorks(List.of(jdkTool("jar"), "--create", "--file", jar.toString(),
+                    "--main-class", "Probe", "-C", input.toString(), "."),
+                    CAPABILITY_PROBE_TIMEOUT_SECONDS)) {
+                return false;
+            }
+            return commandWorks(List.of(jdkTool("jpackage"), "--type", "app-image",
+                    "--name", "Probe", "--input", input.toString(),
+                    "--main-jar", "probe.jar", "--dest", probe.resolve("dist").toString()),
+                    CAPABILITY_PROBE_TIMEOUT_SECONDS);
+        } catch (IOException e) {
+            return false;
+        } finally {
+            deleteRecursively(probe);
+        }
+    }
+
+    /** 短い記録を実際に作り、この配布物のJVMでJFRが使えるかを確かめる。 */
+    private static boolean canRecordFlight() {
+        Path probe;
+        try {
+            probe = Files.createTempDirectory("jq-jfr-probe-");
+        } catch (IOException e) {
+            return false;
+        }
+        Path recording = probe.resolve("probe.jfr");
+        try {
+            // 教材のlabと同じく設定を指定して記録する。OpenJ9はここで起動オプションを拒否する。
+            // 起動オプションを受け付けても記録fileを作らない配布物があるため、file自体も確かめる。
+            boolean started = commandWorks(List.of(jdkTool("java"),
+                    "-XX:StartFlightRecording=filename=" + recording
+                            + ",settings=profile,duration=1s",
+                    "-version"), CAPABILITY_PROBE_TIMEOUT_SECONDS);
+            return started && Files.size(recording) > 0;
+        } catch (IOException recordingMissing) {
+            return false;
+        } finally {
+            deleteRecursively(probe);
+        }
+    }
+
+    private static void deleteRecursively(Path directory) {
+        try (java.util.stream.Stream<Path> paths = Files.walk(directory)) {
+            for (Path path : paths.sorted(java.util.Comparator.reverseOrder()).toList()) {
+                try {
+                    Files.deleteIfExists(path);
+                } catch (IOException ignored) {
+                    // 消せなくても要件確認の結果は変わらない。一時領域はOSが後で回収する。
+                }
+            }
+        } catch (IOException ignored) {
+            // 同上
+        }
+    }
+
     private static boolean commandWorks(List<String> command) {
+        return commandWorks(command, REQUIREMENT_TIMEOUT_SECONDS);
+    }
+
+    private static boolean commandWorks(List<String> command, int timeoutSeconds) {
         Process process;
         try {
             process = new ProcessBuilder(command).redirectErrorStream(true).start();
@@ -144,7 +273,7 @@ public final class RuntimeLabRunner {
             return false;
         }
         try {
-            boolean ended = process.waitFor(REQUIREMENT_TIMEOUT_SECONDS, TimeUnit.SECONDS);
+            boolean ended = process.waitFor(timeoutSeconds, TimeUnit.SECONDS);
             if (!ended) process.destroyForcibly();
             return ended && process.exitValue() == 0;
         } catch (InterruptedException e) {
@@ -156,8 +285,18 @@ public final class RuntimeLabRunner {
 
     private static String toolHelp(String tool) {
         return switch (tool) {
-            case "java", "javac", "jcmd", "jfr" -> "JDK 21の`" + tool
-                    + "`を起動できません。JREではなくJDKをインストールし、PATHを確認してください。";
+            case "java", "javac", "javap", "jdeps", "jar", "jcmd", "jshell", "keytool" -> "JDK 21の`"
+                    + tool + "`を起動できません。JREではなくJDKをインストールし、PATHを確認してください。";
+            case "jpackage" -> "このJDKと環境では`jpackage`で配布物を作れません。"
+                    + "jpackageはプラットフォーム側の道具に依存するため、"
+                    + "配布物を含まないJDKや、必要な道具が入っていない環境では作成できません。";
+            case "jfr" -> "このJDKではJFRの記録を作れません。"
+                    + "OpenJ9系の配布物では`-XX:StartFlightRecording`の設定指定に対応せず、"
+                    + "受け付けても記録ファイルを作らないことがあります。"
+                    + "HotSpot系のJDK 21以降で試してください。";
+            case "jlink" -> "このJDKでは`jlink`で縮小ランタイムを作れません。"
+                    + "JMODを同梱しない配布物や、配布物側のmodule hashが一致しない配布物では作成できません。"
+                    + "別のJDKなら試せます。縮小ランタイムは任意課題なので、★や章クリアには影響しません。";
             case "mvn" -> "Mavenを起動できません。Maven 3.9以降をインストールしてください。";
             case "gradle" -> "Gradleを起動できません。GradleまたはWrapperを準備してください。";
             case "docker" -> "Docker daemonへ接続できません。Docker Desktop等を起動してください。";

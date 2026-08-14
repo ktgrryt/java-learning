@@ -85,16 +85,6 @@
         "入力順を残したまま重複を除くには`LinkedHashSet`を使い、最後に`String.join(\",\", selected)`で連結できます。"
       ],
       "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        String line = sc.nextLine().trim();\n        String[] requirements = line.isEmpty() ? new String[0] : line.split(\"\\\\s+\");\n        Map<String, String> starters = Map.of(\n                \"web\", \"spring-boot-starter-web\",\n                \"validation\", \"spring-boot-starter-validation\",\n                \"data\", \"spring-boot-starter-data-jpa\",\n                \"security\", \"spring-boot-starter-security\",\n                \"batch\", \"spring-boot-starter-batch\",\n                \"operations\", \"spring-boot-starter-actuator\"\n        );\n        Set<String> selected = new LinkedHashSet<>();\n        for (String requirement : requirements) {\n            selected.add(starters.getOrDefault(requirement, \"UNKNOWN:\" + requirement));\n        }\n        System.out.println(String.join(\",\", selected));\n    }\n}",
-      "sourceChecks": [
-        {
-          "pattern": "LinkedHashSet",
-          "message": "入力順を保った重複除去にはLinkedHashSetを使いましょう。"
-        },
-        {
-          "pattern": "getOrDefault|containsKey",
-          "message": "未知の要件を分岐またはMapの既定値で処理してください。"
-        }
-      ],
       "kind": "practice",
       "extraTasks": [],
       "quiz": [
@@ -120,6 +110,9 @@
           "answer": 0,
           "explanation": "Spring BootはTomcatなどを組み込み、自己完結したHTTPアプリとして起動できます。"
         }
+      ],
+      "rubric": [
+        "decide"
       ]
     },
     {
@@ -170,16 +163,6 @@
         "3つの境界検査を通過したときだけ`GreetingService`を作り、Serviceが返した文字列の前に`200 `を付けます。"
       ],
       "solution": "import java.util.*;\n\npublic class Main {\n    static class GreetingService {\n        String message(String name) {\n            return \"Hello, \" + name.trim();\n        }\n    }\n\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        String method = sc.nextLine();\n        String path = sc.nextLine();\n        String name = sc.nextLine();\n        if (!path.equals(\"/api/greetings\")) {\n            System.out.println(\"404 NOT_FOUND\");\n        } else if (!method.equals(\"GET\")) {\n            System.out.println(\"405 METHOD_NOT_ALLOWED\");\n        } else if (name.isBlank()) {\n            System.out.println(\"400 NAME_REQUIRED\");\n        } else {\n            GreetingService service = new GreetingService();\n            System.out.println(\"200 \" + service.message(name));\n        }\n    }\n}",
-      "sourceChecks": [
-        {
-          "pattern": "class\\s+GreetingService",
-          "message": "業務処理を表すGreetingServiceを残してください。"
-        },
-        {
-          "pattern": "service\\.message",
-          "message": "正常時のメッセージ作成はServiceへ委譲してください。"
-        }
-      ],
       "kind": "practice",
       "extraTasks": [],
       "quiz": [
@@ -254,16 +237,6 @@
         "設定値の選択と構成元の判定は別です。`userBean`がtrueなら`USER_BEAN`、falseなら`AUTO_CONFIGURED`です。"
       ],
       "solution": "import java.util.*;\n\npublic class Main {\n    static String resolve(String environment, String file, String defaultValue) {\n        if (!environment.equals(\"-\")) return environment;\n        if (!file.equals(\"-\")) return file;\n        return defaultValue;\n    }\n\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        String environment = sc.nextLine();\n        String file = sc.nextLine();\n        String defaultValue = sc.nextLine();\n        boolean userBean = Boolean.parseBoolean(sc.nextLine());\n        String source = userBean ? \"USER_BEAN\" : \"AUTO_CONFIGURED\";\n        System.out.println(resolve(environment, file, defaultValue) + \" \" + source);\n    }\n}",
-      "sourceChecks": [
-        {
-          "pattern": "static\\s+String\\s+resolve",
-          "message": "設定解決をresolveメソッドへ分けてください。"
-        },
-        {
-          "pattern": "userBean\\s*\\?",
-          "message": "利用者定義Beanの有無で構成元を選んでください。"
-        }
-      ],
       "kind": "drill",
       "extraTasks": [],
       "quiz": [
@@ -289,6 +262,10 @@
           "answer": 0,
           "explanation": "設定名、型、検証規則を1か所にまとめられるため、設定の意図と不足を把握しやすくなります。"
         }
+      ],
+      "rubric": [
+        "implement",
+        "diagnose"
       ]
     },
     {
@@ -338,16 +315,6 @@
         "未知の要件を例外にせず、`default`で`NO_MODULE | 要件を具体化する`へ分類します。"
       ],
       "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        String requirement = new Scanner(System.in).nextLine();\n        String result = switch (requirement) {\n            case \"REST_API\" -> \"Spring MVC | HTTP境界\";\n            case \"DB_CRUD\" -> \"Spring Data JPA | Serviceの業務操作をトランザクション境界にする\";\n            case \"LOGIN\" -> \"Spring Security | 認証と認可を分ける\";\n            case \"NIGHTLY_IMPORT\" -> \"Spring Batch | 一定件数ごとの処理と再実行を設計する\";\n            case \"KAFKA_CONSUMER\" -> \"Spring Kafka | 重複処理に耐える\";\n            default -> \"NO_MODULE | 要件を具体化する\";\n        };\n        System.out.println(result);\n    }\n}",
-      "sourceChecks": [
-        {
-          "pattern": "switch\\s*\\(",
-          "message": "要件ごとの選択をswitchで明示してください。"
-        },
-        {
-          "pattern": "default\\s*->",
-          "message": "未知の要件も安全に扱ってください。"
-        }
-      ],
       "kind": "drill",
       "extraTasks": [],
       "quiz": [
@@ -373,6 +340,9 @@
           "answer": 0,
           "explanation": "注文確定など、一緒に成功または失敗させたい業務操作を境界にします。"
         }
+      ],
+      "rubric": [
+        "decide"
       ]
     },
     {
@@ -422,16 +392,6 @@
         "外部依存の用意方法はその後に付けます。`realExternal ? \" + Testcontainers\" : \" + fake\"`と分けて考えましょう。"
       ],
       "solution": "import java.util.*;\n\npublic class Main {\n    static String scope(String target) {\n        return switch (target) {\n            case \"SERVICE_RULE\" -> \"JUnit\";\n            case \"JSON_VALIDATION\" -> \"@WebMvcTest\";\n            case \"JPA_MAPPING\" -> \"@DataJpaTest\";\n            case \"FULL_WIRING\" -> \"@SpringBootTest\";\n            default -> \"UNKNOWN\";\n        };\n    }\n\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        String target = sc.nextLine();\n        boolean realExternal = Boolean.parseBoolean(sc.nextLine());\n        String dependency = realExternal ? \"Testcontainers\" : \"fake\";\n        System.out.println(scope(target) + \" + \" + dependency);\n    }\n}",
-      "sourceChecks": [
-        {
-          "pattern": "static\\s+String\\s+scope",
-          "message": "テスト範囲の選択をscopeメソッドへ分けてください。"
-        },
-        {
-          "pattern": "realExternal\\s*\\?",
-          "message": "外部依存の要否でTestcontainersとfakeを選んでください。"
-        }
-      ],
       "kind": "drill",
       "extraTasks": [
         {
@@ -441,23 +401,50 @@
           "project": {
             "name": "spring-boot-controller-service-testing",
             "source": "labs/frameworks/spring-boot/project-exercise",
-            "exclude": ["reference"],
-            "command": ["mvn", "test"],
+            "exclude": [
+              "reference"
+            ],
+            "command": [
+              "mvn",
+              "test"
+            ],
             "timeoutSeconds": 60,
             "verification": "Starter、constructor injection、Validation、外部設定、@WebMvcTest、Service単体テストをmvn testで確認する",
             "editableFiles": [
-              {"path": "pom.xml", "solutionPath": "reference/pom.xml"},
-              {"path": "src/main/java/example/greeting/GreetingController.java", "solutionPath": "reference/src/main/java/example/greeting/GreetingController.java"},
-              {"path": "src/main/java/example/greeting/GreetingService.java", "solutionPath": "reference/src/main/java/example/greeting/GreetingService.java"},
-              {"path": "src/main/resources/application.properties", "solutionPath": "reference/src/main/resources/application.properties"},
-              {"path": "src/test/java/example/greeting/GreetingControllerTest.java", "solutionPath": "reference/src/test/java/example/greeting/GreetingControllerTest.java"},
-              {"path": "src/test/java/example/greeting/GreetingServiceTest.java", "solutionPath": "reference/src/test/java/example/greeting/GreetingServiceTest.java"}
+              {
+                "path": "pom.xml",
+                "solutionPath": "reference/pom.xml"
+              },
+              {
+                "path": "src/main/java/example/greeting/GreetingController.java",
+                "solutionPath": "reference/src/main/java/example/greeting/GreetingController.java"
+              },
+              {
+                "path": "src/main/java/example/greeting/GreetingService.java",
+                "solutionPath": "reference/src/main/java/example/greeting/GreetingService.java"
+              },
+              {
+                "path": "src/main/resources/application.properties",
+                "solutionPath": "reference/src/main/resources/application.properties"
+              },
+              {
+                "path": "src/test/java/example/greeting/GreetingControllerTest.java",
+                "solutionPath": "reference/src/test/java/example/greeting/GreetingControllerTest.java"
+              },
+              {
+                "path": "src/test/java/example/greeting/GreetingServiceTest.java",
+                "solutionPath": "reference/src/test/java/example/greeting/GreetingServiceTest.java"
+              }
             ]
           },
           "hints": [
             "`pom.xml`には`spring-boot-starter-validation`、`spring-boot-starter-actuator`、test scopeの`spring-boot-starter-webmvc-test`が必要です。Spring Boot parentが各versionを管理するため個別versionは書きません。",
             "Controllerの`final GreetingService`はコンストラクタ引数で受け取ります。`@RequestParam`へ`@NotBlank`と`@Size(max = 20)`を付け、ServiceへHTTPの責務を持ち込まないでください。",
             "`@WebMvcTest(GreetingController.class)`へServiceを`@Import`し、MockMvcでstatusとJSONを検証します。Serviceの文字列組み立ては普通のJUnitから直接newして確認できます。"
+          ],
+          "rubric": [
+            "implement",
+            "test"
           ]
         }
       ],
@@ -484,6 +471,9 @@
           "answer": 0,
           "explanation": "何をどの理由で置き換えるかを理解すれば、手書きfakeとMockitoを状況で選べます。"
         }
+      ],
+      "rubric": [
+        "test"
       ]
     },
     {
@@ -533,16 +523,6 @@
         "`missing.isEmpty()`なら`READY`、それ以外は`BLOCKED:`と`String.join(\",\", missing)`を組み合わせます。"
       ],
       "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        boolean guide = Boolean.parseBoolean(sc.nextLine());\n        boolean tests = Boolean.parseBoolean(sc.nextLine());\n        boolean exposure = Boolean.parseBoolean(sc.nextLine());\n        boolean migratorRemoved = Boolean.parseBoolean(sc.nextLine());\n        List<String> missing = new ArrayList<>();\n        if (!guide) missing.add(\"GUIDE\");\n        if (!tests) missing.add(\"TEST\");\n        if (!exposure) missing.add(\"EXPOSURE\");\n        if (!migratorRemoved) missing.add(\"MIGRATOR\");\n        System.out.println(missing.isEmpty() ? \"READY\" : \"BLOCKED:\" + String.join(\",\", missing));\n    }\n}",
-      "sourceChecks": [
-        {
-          "pattern": "List<String>\\s+missing",
-          "message": "複数の未完了理由をListに集めてください。"
-        },
-        {
-          "pattern": "missing\\.isEmpty",
-          "message": "未完了項目がない場合だけREADYにしてください。"
-        }
-      ],
       "kind": "applied",
       "extraTasks": [
         {
@@ -552,19 +532,45 @@
           "runtimeLab": {
             "name": "spring-boot-live-http-health",
             "source": "labs/frameworks/spring-boot/runtime-exercise",
-            "exclude": ["reference"],
-            "command": ["./run-runtime-lab.sh"],
+            "exclude": [
+              "reference"
+            ],
+            "command": [
+              "./run-runtime-lab.sh"
+            ],
             "timeoutSeconds": 60,
             "verification": "mvn testの成功後、動的ポートで実JARを起動し、API・Validation・Actuator health・停止を確認する",
-            "capabilities": ["server", "http"],
-            "requiredTools": ["java", "javac", "mvn"],
+            "capabilities": [
+              "server",
+              "http"
+            ],
+            "requiredTools": [
+              "java",
+              "javac",
+              "mvn"
+            ],
             "requiredImages": [],
             "checks": [
-              {"id": "spring-tests", "label": "mvn testが成功する"},
-              {"id": "spring-api", "label": "実サーバーの正常APIがHTTP 200とJSONを返す"},
-              {"id": "spring-validation", "label": "入力不正を実HTTP境界で400にする"},
-              {"id": "spring-health", "label": "Actuator healthがHTTP 200とUPを返す"},
-              {"id": "spring-stop", "label": "検証後にSpring Bootプロセスを停止する"}
+              {
+                "id": "spring-tests",
+                "label": "mvn testが成功する"
+              },
+              {
+                "id": "spring-api",
+                "label": "実サーバーの正常APIがHTTP 200とJSONを返す"
+              },
+              {
+                "id": "spring-validation",
+                "label": "入力不正を実HTTP境界で400にする"
+              },
+              {
+                "id": "spring-health",
+                "label": "Actuator healthがHTTP 200とUPを返す"
+              },
+              {
+                "id": "spring-stop",
+                "label": "検証後にSpring Bootプロセスを停止する"
+              }
             ],
             "editableFiles": [
               {
@@ -576,6 +582,9 @@
           "hints": [
             "管理endpointの公開は`management.endpoints.web.exposure.include=health`とし、`*`を公開しないでください。",
             "Kubernetes向けのprobe groupは`management.endpoint.health.probes.enabled=true`で有効にできます。ポート番号は採点側が起動引数で渡すため、設定ファイルへ固定しません。"
+          ],
+          "rubric": [
+            "implement"
           ]
         }
       ],
@@ -602,6 +611,9 @@
           "answer": 0,
           "explanation": "移行支援用の一時的な依存関係です。警告を修正し、不要になったら外します。"
         }
+      ],
+      "rubric": [
+        "decide"
       ]
     },
     {
@@ -645,16 +657,6 @@
         "未知の語は`plan.getOrDefault(word, word + \"=review\")`で、要件名を残した確認項目へ変換します。"
       ],
       "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        String line = new Scanner(System.in).nextLine().trim();\n        Map<String, String> plan = Map.of(\n                \"api\", \"api=web/@WebMvcTest\",\n                \"db\", \"db=data-jpa/@DataJpaTest\",\n                \"auth\", \"auth=security/authorization-test\",\n                \"ops\", \"ops=actuator/health-check\"\n        );\n        Set<String> result = new LinkedHashSet<>();\n        if (!line.isEmpty()) {\n            for (String item : line.split(\"\\\\s+\")) {\n                result.add(plan.getOrDefault(item, item + \"=review\"));\n            }\n        }\n        System.out.println(String.join(\",\", result));\n    }\n}",
-      "sourceChecks": [
-        {
-          "pattern": "LinkedHashSet",
-          "message": "入力順を保った重複除去を行ってください。"
-        },
-        {
-          "pattern": "getOrDefault",
-          "message": "未知の要件にもreview計画を返してください。"
-        }
-      ],
       "kind": "applied",
       "extraTasks": [
         {
@@ -694,16 +696,6 @@
             "`prefix`では環境変数、ファイル、`Hello`の順に`-`でない値を選び、名前には`trim()`を使います。"
           ],
           "solution": "import java.util.*;\n\npublic class Main {\n    static String prefix(String environment, String file) {\n        if (!environment.equals(\"-\")) return environment;\n        if (!file.equals(\"-\")) return file;\n        return \"Hello\";\n    }\n\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        String environment = sc.nextLine();\n        String file = sc.nextLine();\n        String name = sc.nextLine();\n        boolean available = Boolean.parseBoolean(sc.nextLine());\n        if (!available) {\n            System.out.println(\"503 SERVICE_UNAVAILABLE\");\n        } else if (name.isBlank()) {\n            System.out.println(\"400 NAME_REQUIRED\");\n        } else {\n            System.out.println(\"200 \" + prefix(environment, file) + \", \" + name.trim());\n        }\n    }\n}",
-          "sourceChecks": [
-            {
-              "pattern": "static\\s+String\\s+prefix",
-              "message": "設定解決をprefixメソッドへ分けてください。"
-            },
-            {
-              "pattern": "if\\s*\\(\\s*!available",
-              "message": "Service障害を最優先で判定してください。"
-            }
-          ],
           "kind": "applied"
         },
         {
@@ -743,20 +735,17 @@
             "`public`と`internal`を分け、各環境で許可するendpointを`Set.of(...)`にすると最小公開の規則を読み取りやすくできます。"
           ],
           "solution": "import java.util.*;\n\npublic class Main {\n    static String policy(String environment, String endpoint) {\n        if (endpoint.equals(\"env\")) return \"DENY\";\n        if (environment.equals(\"public\")) {\n            return endpoint.equals(\"health\") || endpoint.equals(\"info\") ? \"ALLOW\" : \"DENY\";\n        }\n        return switch (endpoint) {\n            case \"health\", \"info\", \"metrics\" -> \"ALLOW\";\n            case \"loggers\" -> \"ADMIN_ONLY\";\n            default -> \"DENY\";\n        };\n    }\n\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        String environment = sc.nextLine();\n        String endpoint = sc.nextLine();\n        System.out.println(endpoint + \":\" + policy(environment, endpoint));\n    }\n}",
-          "sourceChecks": [
-            {
-              "pattern": "static\\s+String\\s+policy",
-              "message": "公開規則をpolicyメソッドへ分けてください。"
-            },
-            {
-              "pattern": "if\\s*\\(\\s*endpoint\\.equals",
-              "message": "envを環境にかかわらず拒否してください。"
-            }
-          ],
-          "kind": "applied"
+          "kind": "applied",
+          "rubric": [
+            "decide"
+          ]
         }
       ],
-      "quiz": []
+      "quiz": [],
+      "rubric": [
+        "decide",
+        "test"
+      ]
     }
   ]
 }

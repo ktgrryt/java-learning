@@ -192,6 +192,8 @@ public final class ApiHandler implements HttpHandler {
             chJson.put("cleared", c.isChapterCleared(ch, cleared));
             chJson.put("clearedCount", c.clearedCount(ch, cleared));
             chJson.put("taskCount", c.taskCount(ch));
+            chJson.put("layers", chapterLayers(c, ch, cleared));
+            chJson.put("rubric", chapterRubric(c, ch, cleared));
 
             @SuppressWarnings("unchecked")
             List<Object> lessons = (List<Object>) chJson.get("lessons");
@@ -203,6 +205,7 @@ public final class ApiHandler implements HttpHandler {
                 lJson.put("cleared", c.isLessonCleared(lesson, cleared));
                 lJson.put("clearedCount", c.clearedCount(lesson, cleared));
                 lJson.put("quizResults", quizResults(lesson));
+                lJson.put("rubric", lessonRubric(c, lesson, cleared));
 
                 @SuppressWarnings("unchecked")
                 List<Object> tasks = (List<Object>) lJson.get("tasks");
@@ -341,6 +344,100 @@ public final class ApiHandler implements HttpHandler {
      * 答えた問題については正解の番号と解説も返す（答え合わせ済みなので隠す意味がない）。
      * 答える前に正解が漏れないよう、null のときは何も入れない。
      */
+    /**
+     * 章の3層（概念／コード／実践）の進み具合と、最初に達成した日を返す。
+     *
+     * <p>達成した層はその場で記録する。導出だけにすると、章へ問題が増えた瞬間に
+     * 過去の達成が未達成へ戻ってしまう（{@code ProgressStore#recordLayerCompletion}）。
+     */
+    private Map<String, Object> chapterLayers(Curriculum c, Chapter chapter, Set<String> cleared) {
+        Map<String, Object> layers = new LinkedHashMap<>();
+        for (Curriculum.Layer layer : Curriculum.Layer.values()) {
+            Curriculum.LayerProgress p = c.layerProgress(chapter, layer, cleared,
+                    (lessonId, index) -> {
+                        Integer choice = progress.quizChoice(lessonId, index);
+                        return choice != null && c.lesson(lessonId)
+                                .map(l -> choice == l.quizzes().get(index).answer())
+                                .orElse(false);
+                    });
+            if (p.complete()) {
+                progress.recordLayerCompletion(chapter.id(), layer.id());
+            }
+            Map<String, Object> m = new LinkedHashMap<>();
+            m.put("total", p.total());
+            m.put("done", p.done());
+            m.put("complete", p.complete());
+            m.put("completedAt", progress.layerCompletedAt(chapter.id(), layer.id()));
+            layers.put(layer.id(), m);
+        }
+        return layers;
+    }
+
+    /**
+     * 章の実務rubric（§8.4）。軸ごとに0〜2点と、実務修了の条件を満たすかを返す。
+     *
+     * <p>測っていない軸は{@code measured=false}にして、0点と区別する。
+     * その章に手段が無いことと、測ったが達成していないことは別である。
+     */
+    private Map<String, Object> chapterRubric(Curriculum c, Chapter chapter, Set<String> cleared) {
+        java.util.function.BiPredicate<String, Integer> correct = (lessonId, index) -> {
+            Integer choice = progress.quizChoice(lessonId, index);
+            return choice != null && c.lesson(lessonId)
+                    .map(l -> choice == l.quizzes().get(index).answer())
+                    .orElse(false);
+        };
+        Map<String, Object> dimensions = new LinkedHashMap<>();
+        int earned = 0;
+        int available = 0;
+        for (String dimension : Task.RUBRIC_DIMENSIONS) {
+            Curriculum.RubricScore score = c.rubricScore(chapter, dimension, cleared, correct);
+            Map<String, Object> m = new LinkedHashMap<>();
+            m.put("total", score.total());
+            m.put("done", score.done());
+            m.put("points", score.measured() ? score.points() : null);
+            m.put("measured", score.measured());
+            dimensions.put(dimension, m);
+            if (score.measured()) {
+                available += 2;
+                earned += score.points();
+            }
+        }
+        Map<String, Object> rubric = new LinkedHashMap<>();
+        rubric.put("dimensions", dimensions);
+        rubric.put("earned", earned);
+        rubric.put("available", available);
+        rubric.put("meetsThreshold", c.meetsRubricThreshold(chapter, cleared, correct));
+        return rubric;
+    }
+
+    /**
+     * レッスンのrubric。軸ごとの対象数と達成数だけを返す（点数は章でまとめて出す）。
+     *
+     * <p>「この章のどこで診断を学ぶのか」を、レッスン一覧の並びで読めるようにするため。
+     * 対象が無い軸は入れない。空の軸を並べても情報にならない。
+     */
+    private Map<String, Object> lessonRubric(Curriculum c, Lesson lesson, Set<String> cleared) {
+        java.util.function.BiPredicate<String, Integer> correct = (lessonId, index) -> {
+            Integer choice = progress.quizChoice(lessonId, index);
+            return choice != null && c.lesson(lessonId)
+                    .map(l -> choice == l.quizzes().get(index).answer())
+                    .orElse(false);
+        };
+        Map<String, Object> dimensions = new LinkedHashMap<>();
+        for (String dimension : Task.RUBRIC_DIMENSIONS) {
+            Curriculum.RubricScore score =
+                    c.lessonRubricScore(lesson, dimension, cleared, correct);
+            if (!score.measured()) {
+                continue;
+            }
+            Map<String, Object> m = new LinkedHashMap<>();
+            m.put("total", score.total());
+            m.put("done", score.done());
+            dimensions.put(dimension, m);
+        }
+        return dimensions;
+    }
+
     private List<Object> quizResults(Lesson lesson) {
         List<Object> results = new ArrayList<>();
         for (int i = 0; i < lesson.quizzes().size(); i++) {

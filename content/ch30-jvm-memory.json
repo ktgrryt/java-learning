@@ -226,18 +226,67 @@
             "追加後の超過量は `b.length() - max` です。",
             "超過していれば `b.delete(0, 超過量)` で先頭を落とします。"
           ],
-          "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        int max = s.nextInt(), n = s.nextInt();\n        StringBuilder b = new StringBuilder();\n        for (int i = 0; i < n; i++) {\n            b.append(s.next());\n            int excess = b.length() - max;\n            if (excess > 0) b.delete(0, excess);\n        }\n        System.out.println(b);\n    }\n}\n",
-          "sourceChecks": [
-            {
-              "pattern": "\\bnew\\s+StringBuilder\\b",
-              "minimum": 1,
-              "message": "追加を繰り返すので `StringBuilder` を使ってください。"
-            },
-            {
-              "pattern": "\\.delete\\s*\\(",
-              "minimum": 1,
-              "message": "上限を超えたぶんは先頭から `delete` で捨ててください。捨てないと際限なく伸びます（これがメモリリークの形です）。"
-            }
+          "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        int max = s.nextInt(), n = s.nextInt();\n        StringBuilder b = new StringBuilder();\n        for (int i = 0; i < n; i++) {\n            b.append(s.next());\n            int excess = b.length() - max;\n            if (excess > 0) b.delete(0, excess);\n        }\n        System.out.println(b);\n    }\n}\n"
+        },
+        {
+          "kind": "applied",
+          "type": "runtime-lab",
+          "task": "【実測演習】`labs/diagnostics/heap-exercise`で、解説の「不要な参照を保持し続ける形のメモリリーク」を実際のJVMから測って直します。2ファイルを編集してください。\n\n1. `exercise/RecentOrders.java` — putとgetは正しく動きますが、古い注文の参照が残り続けます。直近`CAPACITY`件だけを保持し、追い出したエントリへの参照をどこにも残さない形へ直してください。\n2. `exercise/OrderTotals.java` — 合計を再帰で求めているので、深い入力でスタックを使い切ります。1件ごとにフレームを積まない形へ直してください。\n\n提出すると`java -Xmx128m`で実行し、2万件（1件2KB）を投入したあとのGC後の使用ヒープ、追い出したエントリが`WeakReference`越しに回収されるか、直近1000件だけが残るか、20万件でも`StackOverflowError`にならないかを測ります。GCログの形式はJVM実装で違うため、標準のJMXと標準のエラーだけを見ます。",
+          "runtimeLab": {
+            "name": "Heap retention and stack depth lab",
+            "source": "labs/diagnostics/heap-exercise",
+            "exclude": [
+              "reference"
+            ],
+            "command": [
+              "./run-runtime-lab.sh"
+            ],
+            "timeoutSeconds": 60,
+            "verification": "実JVMでGC後の保持量・追い出しの回収・キャッシュの窓・深い入力のスタックを測る",
+            "capabilities": [
+              "jdk-tool"
+            ],
+            "requiredTools": [
+              "java",
+              "javac"
+            ],
+            "requiredImages": [],
+            "checks": [
+              {
+                "id": "heap-retained",
+                "label": "GC後の使用ヒープが上限内に収まる"
+              },
+              {
+                "id": "heap-evicted-collectable",
+                "label": "追い出したエントリがGCで回収される"
+              },
+              {
+                "id": "cache-window",
+                "label": "直近の一定件数だけが残る"
+              },
+              {
+                "id": "stack-deep-input",
+                "label": "深い入力でスタックを使い切らない"
+              }
+            ],
+            "editableFiles": [
+              {
+                "path": "exercise/RecentOrders.java",
+                "solutionPath": "reference/RecentOrders.java"
+              },
+              {
+                "path": "exercise/OrderTotals.java",
+                "solutionPath": "reference/OrderTotals.java"
+              }
+            ]
+          },
+          "hints": [
+            "上限付きにするには、access-orderの`LinkedHashMap`で`removeEldestEntry`が`size() > CAPACITY`のときtrueを返すようにします。",
+            "追い出したものを履歴やリストへ残すと、参照が生きたままなのでGCは回収できません。上限を付けただけでは足りない場合があります。",
+            "再帰は1件ごとにスタックフレームを積みます。合計は`for`で1つのフレームのまま計算できます。"
+          ],
+          "rubric": [
+            "diagnose"
           ]
         }
       ],

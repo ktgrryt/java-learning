@@ -8,16 +8,16 @@
       "id": "54-0",
       "lessonType": "preflight",
       "title": "事前確認：実PostgreSQL labを動かす準備",
-      "explanation": "## 実DBを使う範囲を先に確認する\n\nこの章の`runtime-lab`はDocker上で一時的なPostgreSQL 16を起動し、migrationと制約を本物のDBで確認します。Docker daemonが必須です。提出時に`postgres:16-alpine` imageがローカルに無ければ、自動で大きなdownloadを始めず、先に実行する`docker pull`コマンドを表示します。\n\n```bash\ndocker pull postgres:16-alpine\ndocker image inspect postgres:16-alpine\n```\n\nlabは動的なlocalhostポートと一意なcontainer名を使い、成功・失敗・timeoutのいずれでもcontainerを削除します。ただしDocker自体の強制終了などで残った場合は、表示された`jq-`で始まるcontainerを確認してから削除してください。この事前確認は★対象外です。",
+      "explanation": "## 実DBを使う範囲を先に確認する\n\nこの章の`runtime-lab`はcontainer上で一時的なPostgreSQL 16を起動し、migrationと制約を本物のDBで確認します。DockerまたはPodmanのどちらかが必須で、接続できて必要imageがある方を採点側が選びます。提出時に`postgres:16-alpine` imageがローカルに無ければ、自動で大きなdownloadを始めず、先に実行するpullコマンドを表示します。\n\n```bash\ndocker pull postgres:16-alpine\ndocker image inspect postgres:16-alpine\n```\n\nlabは動的なlocalhostポートと一意なcontainer名を使い、成功・失敗・timeoutのいずれでもcontainerを削除します。ただしDocker自体の強制終了などで残った場合は、表示された`jq-`で始まるcontainerを確認してから削除してください。この事前確認は★対象外です。",
       "preflight": {
         "buttonLabel": "実DB labの準備を確認する",
         "checks": [
           {
             "id": "docker-db",
             "type": "tool",
-            "tool": "docker",
-            "label": "PostgreSQL用Docker daemon",
-            "help": "Docker Desktop等を起動してください。次にdocker pull postgres:16-alpineで演習用imageを準備します。"
+            "tool": "docker-or-podman",
+            "label": "PostgreSQL用container runtime",
+            "help": "DockerまたはPodmanのどちらかを起動してください。次にdocker pull postgres:16-alpine（Podmanならpodman pull postgres:16-alpine）で演習用imageを準備します。"
           }
         ]
       }
@@ -32,26 +32,48 @@
           "code": "public class Main {\n    public static void main(String[] a) {\n        int instances = 4, pool = 20, reserved = 10;\n        System.out.println(instances * pool + reserved);\n    }\n}\n"
         }
       ],
-      "task": "教材用に接続予算を全インスタンスへ均等配分します。DBの最大接続数、予約分、インスタンス数nを読み、1インスタンスあたりのプール上限 `(max-reserved)/n` を表示してください。",
-      "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] a) {\n        Scanner s = new Scanner(System.in);\n        int max = s.nextInt(), reserved = s.nextInt(), n = s.nextInt();\n        /* TODO */\n    }\n}\n",
+      "task": "接続予算が破綻していないかを判定してください。\n\n**各インスタンスが自分の接続プールを持ちます。** サービスを3インスタンスに増やせば、そのサービスが掴む接続数も3倍になります。ここを見落とすと、増やした瞬間にDBの接続上限に当たります。\n\n入力の1行目はDBの最大接続数と、管理・移行用に予約する数。2行目はサービスの数`n`、続く`n`行が`サービス名 インスタンス数 1インスタンスあたりのプール上限`です。\n\nサービスごとに1行、`<名前> total=<インスタンス数×プール上限>`を入力順に出力してください。続けて`sum=<合計> budget=<最大接続数-予約分>`を出力し、最後に予算内なら`verdict=OK headroom=<予算-合計>`、超えていれば`verdict=OVERSUBSCRIBED over=<合計-予算>`を出力してください。ちょうど同じ場合はOKです。",
+      "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int maxConnections = sc.nextInt();\n        int reserved = sc.nextInt();\n        int n = sc.nextInt();\n        for (int i = 0; i < n; i++) {\n            String name = sc.next();\n            int instances = sc.nextInt();\n            int poolSize = sc.nextInt();\n            // TODO: このサービスが掴む合計を出し、全体へ足す\n        }\n        // TODO: sum・budget を出し、予算内かどうかを判定する\n        System.out.println(\"sum=0 budget=\" + (maxConnections - reserved));\n        System.out.println(\"verdict=OK headroom=\" + (maxConnections - reserved));\n    }\n}\n",
       "visibleCases": [
         {
-          "label": "接続予算",
-          "stdin": "100 10 3",
-          "expected": "30"
+          "label": "予算内におさまる",
+          "stdin": "100 20\n2\norders 3 10\ninventory 2 15",
+          "expected": "orders total=30\ninventory total=30\nsum=60 budget=80\nverdict=OK headroom=20"
+        },
+        {
+          "label": "インスタンスを増やして超える",
+          "stdin": "100 20\n2\norders 6 10\ninventory 2 15",
+          "expected": "orders total=60\ninventory total=30\nsum=90 budget=80\nverdict=OVERSUBSCRIBED over=10"
         }
       ],
       "hiddenCases": [
         {
-          "label": "端数切捨て",
-          "stdin": "50 5 4",
-          "expected": "11"
+          "label": "ちょうど同じならOK",
+          "stdin": "50 10\n1\norders 4 10",
+          "expected": "orders total=40\nsum=40 budget=40\nverdict=OK headroom=0"
+        },
+        {
+          "label": "サービスが0件",
+          "stdin": "100 20\n0",
+          "expected": "sum=0 budget=80\nverdict=OK headroom=80"
+        },
+        {
+          "label": "1インスタンスでも超えることがある",
+          "stdin": "30 10\n1\nbatch 1 25",
+          "expected": "batch total=25\nsum=25 budget=20\nverdict=OVERSUBSCRIBED over=5"
+        },
+        {
+          "label": "予約が大きい",
+          "stdin": "40 35\n2\na 1 3\nb 1 3",
+          "expected": "a total=3\nb total=3\nsum=6 budget=5\nverdict=OVERSUBSCRIBED over=1"
         }
       ],
       "hints": [
-        "整数除算で `(max-reserved)/n`。"
+        "1サービスが掴む数は「インスタンス数 × プール上限」です。インスタンスごとにプールを持つので掛け算になります。",
+        "使える予算は「最大接続数 − 予約分」です。移行や管理のための接続を残しておかないと、いざというときに繋げません。",
+        "ちょうど同じ場合はOKなので、比較は `sum > budget` で超過を判定します。"
       ],
-      "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] a) {\n        Scanner s = new Scanner(System.in);\n        int max = s.nextInt(), reserved = s.nextInt(), n = s.nextInt();\n        System.out.println((max - reserved) / n);\n    }\n}\n",
+      "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int maxConnections = sc.nextInt();\n        int reserved = sc.nextInt();\n        int n = sc.nextInt();\n        int sum = 0;\n        for (int i = 0; i < n; i++) {\n            String name = sc.next();\n            int instances = sc.nextInt();\n            int poolSize = sc.nextInt();\n            int total = instances * poolSize;\n            sum += total;\n            System.out.println(name + \" total=\" + total);\n        }\n        int budget = maxConnections - reserved;\n        System.out.println(\"sum=\" + sum + \" budget=\" + budget);\n        if (sum > budget) {\n            System.out.println(\"verdict=OVERSUBSCRIBED over=\" + (sum - budget));\n        } else {\n            System.out.println(\"verdict=OK headroom=\" + (budget - sum));\n        }\n    }\n}\n",
       "quiz": [
         {
           "question": "実DBを使う結合テストでスキーマを作る、望ましい方法は？",
@@ -85,6 +107,68 @@
           ],
           "answer": 1,
           "explanation": "PostgreSQLではNULLを通常の値より大きいものとして扱うため、既定はASCでNULLS LAST、DESCでNULLS FIRSTです。意図を明確にしたい場合は `NULLS FIRST` / `NULLS LAST` を明示します。"
+        }
+      ],
+      "extraTasks": [
+        {
+          "kind": "applied",
+          "type": "runtime-lab",
+          "task": "`labs/integration-data/verification-exercise`で、**実際のPostgreSQLに対して**後片付けの方式を選び分けてください。\n\n`exercise/strategy.properties`に、2つのテストへ`rollback`か`truncate`を割り当て、1つの観察結果を記録します。\n\n- `rollback`… トランザクションを開いて検証し、最後に`ROLLBACK`する。速いが、コミットしていないので「コミット後にしか起きないこと」は検証できない\n- `truncate`… 実際に`COMMIT`してから検証し、後片付けに`TRUNCATE`する。遅いが、本番と同じ経路を通る\n\n**正解表はありません。** 割り当てを間違えると、実際のPostgreSQLがそのテストを落とします。`psql`の呼び出し1回が接続1つなので、「別の接続から見えるか」は本物の別接続で確かめています。\n\n観察のほうは、ロールバックしたあとに`BIGSERIAL`の採番が巻き戻るかどうかです。実測した値と突き合わせます。",
+          "hints": [
+            "「別の接続から見える」ことを確かめたいなら、書いた側がコミットしている必要があります。",
+            "遅延させた一意制約（`DEFERRABLE INITIALLY DEFERRED`）は、コミットの瞬間に検査されます。「途中では重複していてもよい」ことを確かめたいなら、コミットしてはいけません。",
+            "採番はトランザクションの外側で進みます。ロールバックした注文のIDは戻ってこないので、次のIDが1になるか2になるかを見れば分かります。"
+          ],
+          "runtimeLab": {
+            "name": "verification strategy lab",
+            "source": "labs/integration-data/verification-exercise",
+            "exclude": [
+              "reference"
+            ],
+            "command": [
+              "./run-runtime-lab.sh"
+            ],
+            "timeoutSeconds": 60,
+            "verification": "ロールバック方式とtruncate方式を、検証内容に合わせて選び分けられる",
+            "capabilities": [
+              "db",
+              "container"
+            ],
+            "requiredTools": [
+              "docker-or-podman"
+            ],
+            "requiredImages": [
+              "postgres:16-alpine"
+            ],
+            "checks": [
+              {
+                "id": "db-ready",
+                "label": "PostgreSQLを起動しスキーマを適用できる"
+              },
+              {
+                "id": "strategy-outbox",
+                "label": "別の接続から見える検証に合う方式を選ぶ"
+              },
+              {
+                "id": "strategy-deferred",
+                "label": "遅延制約の途中状態を確かめる方式を選ぶ"
+              },
+              {
+                "id": "observed-sequence",
+                "label": "ロールバック後の採番の挙動を実測と一致させる"
+              }
+            ],
+            "editableFiles": [
+              {
+                "path": "exercise/strategy.properties",
+                "solutionPath": "reference/strategy.properties"
+              }
+            ]
+          },
+          "rubric": [
+            "diagnose",
+            "decide"
+          ]
         }
       ]
     },
@@ -126,26 +210,57 @@
           "runtimeLab": {
             "name": "PostgreSQL migration lab",
             "source": "labs/integration-data",
-            "exclude": ["reference"],
-            "command": ["./run-runtime-lab.sh"],
+            "exclude": [
+              "reference",
+              "verification-exercise"
+            ],
+            "command": [
+              "./run-runtime-lab.sh"
+            ],
             "timeoutSeconds": 60,
             "verification": "実PostgreSQLへmigrationを適用し、後方互換性とDB制約を確認する",
-            "capabilities": ["db", "container"],
-            "requiredTools": ["docker"],
-            "requiredImages": ["postgres:16-alpine"],
+            "capabilities": [
+              "db",
+              "container"
+            ],
+            "requiredTools": [
+              "docker-or-podman"
+            ],
+            "requiredImages": [
+              "postgres:16-alpine"
+            ],
             "checks": [
-              {"id": "db-migrations", "label": "空のPostgreSQLへV1〜V3を適用する"},
-              {"id": "db-backward-insert", "label": "旧application形式のINSERTを維持する"},
-              {"id": "db-unique", "label": "emailの重複をDB制約で拒否する"},
-              {"id": "db-outbox-index", "label": "outbox未送信検索用indexを確認する"}
+              {
+                "id": "db-migrations",
+                "label": "空のPostgreSQLへV1〜V3を適用する"
+              },
+              {
+                "id": "db-backward-insert",
+                "label": "旧application形式のINSERTを維持する"
+              },
+              {
+                "id": "db-unique",
+                "label": "emailの重複をDB制約で拒否する"
+              },
+              {
+                "id": "db-outbox-index",
+                "label": "outbox未送信検索用indexを確認する"
+              }
             ],
             "editableFiles": [
-              {"path": "exercise/V2__add_customer_status.sql", "solutionPath": "reference/V2__add_customer_status.sql"}
+              {
+                "path": "exercise/V2__add_customer_status.sql",
+                "solutionPath": "reference/V2__add_customer_status.sql"
+              }
             ]
           },
           "hints": [
             "旧applicationはstatus列をINSERTしません。NOT NULLだけを追加すると、そのINSERTが失敗します。",
             "`DEFAULT 'ACTIVE'`を付ければ、列を知らない旧版と新しいスキーマを一時的に共存させられます。"
+          ],
+          "rubric": [
+            "implement",
+            "diagnose"
           ]
         }
       ],
@@ -391,19 +506,7 @@
             "`add-not-null-column` は許可集合に入れず、先に弾きます。段階に関係なく止める規則です。",
             "旧版と新版が同居する間は、両方が読み書きできる形しか置けません。だから追加→両方書き→読み替え→削除の順に分けます。"
           ],
-          "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        String phase = s.next();\n        int n = s.nextInt();\n        Map<String, Set<String>> allowed = Map.of(\"expand\", Set.of(\"add-nullable-column\", \"write-both\"), \"migrate\", Set.of(\"write-both\", \"backfill\", \"switch-read\"), \"contract\", Set.of(\"drop-old-column\"));\n        Map<String, String> meaning = Map.of(\"expand\", \"ADD_COMPATIBLE\", \"migrate\", \"BACKFILL_AND_SWITCH\", \"contract\", \"REMOVE_OLD\");\n        System.out.println(\"PHASE \" + meaning.get(phase));\n        int forbidden = 0;\n        for (int k = 1; k <= n; k++) {\n            String op = s.next();\n            boolean ok = !op.equals(\"add-not-null-column\") && allowed.get(phase).contains(op);\n            if (!ok) forbidden++;\n            System.out.println(k + \" \" + op + \" \" + (ok ? \"ALLOW\" : \"FORBID\"));\n        }\n        System.out.println(\"FORBIDDEN \" + forbidden);\n    }\n}\n",
-          "sourceChecks": [
-            {
-              "pattern": "Map\\s*\\.\\s*of\\s*\\(|new\\s+(Hash|LinkedHash|Tree)Map|\\bswitch\\b",
-              "minimum": 2,
-              "message": "段階ごとの「許される操作」と「段階の意味」を、それぞれ表として持ってください。"
-            },
-            {
-              "pattern": "\\.contains\\s*\\(",
-              "minimum": 1,
-              "message": "その段階で許される操作かどうかは `contains` で調べてください。"
-            }
-          ]
+          "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        String phase = s.next();\n        int n = s.nextInt();\n        Map<String, Set<String>> allowed = Map.of(\"expand\", Set.of(\"add-nullable-column\", \"write-both\"), \"migrate\", Set.of(\"write-both\", \"backfill\", \"switch-read\"), \"contract\", Set.of(\"drop-old-column\"));\n        Map<String, String> meaning = Map.of(\"expand\", \"ADD_COMPATIBLE\", \"migrate\", \"BACKFILL_AND_SWITCH\", \"contract\", \"REMOVE_OLD\");\n        System.out.println(\"PHASE \" + meaning.get(phase));\n        int forbidden = 0;\n        for (int k = 1; k <= n; k++) {\n            String op = s.next();\n            boolean ok = !op.equals(\"add-not-null-column\") && allowed.get(phase).contains(op);\n            if (!ok) forbidden++;\n            System.out.println(k + \" \" + op + \" \" + (ok ? \"ALLOW\" : \"FORBID\"));\n        }\n        System.out.println(\"FORBIDDEN \" + forbidden);\n    }\n}\n"
         },
         {
           "kind": "applied",
@@ -453,19 +556,7 @@
             "`retryable` の分岐だけが `attempt` と maxAttempts を比べます。`RETRY` に出すのは次の試行回数（`attempt+1`）です。",
             "`DLQ` へ送ったeventを処理済みに記録しないのは、再処理の手順であらためて扱うからです。「隔離した」と「処理した」は別の状態です。"
           ],
-          "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        int maxAttempts = s.nextInt(), n = s.nextInt();\n        Set<String> done = new HashSet<>();\n        int processed = 0, skipped = 0, retried = 0, dlq = 0;\n        for (int i = 0; i < n; i++) {\n            String id = s.next();\n            int attempt = s.nextInt();\n            String outcome = s.next();\n            if (done.contains(id)) {\n                System.out.println(\"SKIP \" + id);\n                skipped++;\n            } else if (outcome.equals(\"ok\")) {\n                done.add(id);\n                System.out.println(\"PROCESS \" + id);\n                processed++;\n            } else if (outcome.equals(\"permanent\")) {\n                System.out.println(\"DLQ \" + id);\n                dlq++;\n            } else if (attempt >= maxAttempts) {\n                System.out.println(\"DLQ \" + id);\n                dlq++;\n            } else {\n                System.out.println(\"RETRY \" + id + \" \" + (attempt + 1));\n                retried++;\n            }\n        }\n        System.out.println(\"SUMMARY processed=\" + processed + \" skipped=\" + skipped + \" retried=\" + retried + \" dlq=\" + dlq);\n    }\n}\n",
-          "sourceChecks": [
-            {
-              "pattern": "\\bSet\\s*<",
-              "minimum": 1,
-              "message": "同じイベントが2回届いても1回しか処理しないよう、処理済みIDを集合で覚えてください。これが at-least-once を受ける側の冪等性です。"
-            },
-            {
-              "pattern": "maxAttempts",
-              "minimum": 1,
-              "message": "試行回数が上限に達したものはDLQへ送ってください。際限なく再試行しないための境界です。"
-            }
-          ]
+          "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        int maxAttempts = s.nextInt(), n = s.nextInt();\n        Set<String> done = new HashSet<>();\n        int processed = 0, skipped = 0, retried = 0, dlq = 0;\n        for (int i = 0; i < n; i++) {\n            String id = s.next();\n            int attempt = s.nextInt();\n            String outcome = s.next();\n            if (done.contains(id)) {\n                System.out.println(\"SKIP \" + id);\n                skipped++;\n            } else if (outcome.equals(\"ok\")) {\n                done.add(id);\n                System.out.println(\"PROCESS \" + id);\n                processed++;\n            } else if (outcome.equals(\"permanent\")) {\n                System.out.println(\"DLQ \" + id);\n                dlq++;\n            } else if (attempt >= maxAttempts) {\n                System.out.println(\"DLQ \" + id);\n                dlq++;\n            } else {\n                System.out.println(\"RETRY \" + id + \" \" + (attempt + 1));\n                retried++;\n            }\n        }\n        System.out.println(\"SUMMARY processed=\" + processed + \" skipped=\" + skipped + \" retried=\" + retried + \" dlq=\" + dlq);\n    }\n}\n"
         }
       ]
     },
@@ -530,23 +621,6 @@
         "失敗判定を先に行い、成功側でだけ `checkpoint = to` と `processed += to - from + 1` を実行します。"
       ],
       "solution": "import java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int total = sc.nextInt();\n        int chunkSize = sc.nextInt();\n        int checkpoint = sc.nextInt();\n        int failAt = sc.nextInt();\n        int processed = 0;\n\n        for (int from = checkpoint + 1; from <= total; from += chunkSize) {\n            int to = Math.min(total, from + chunkSize - 1);\n            if (failAt >= from && failAt <= to) {\n                System.out.println(\"ROLLBACK \" + from + \"-\" + to);\n                break;\n            }\n            System.out.println(\"COMMIT \" + from + \"-\" + to);\n            checkpoint = to;\n            processed += to - from + 1;\n        }\n        System.out.println(\"CHECKPOINT \" + checkpoint);\n        System.out.println(\"PROCESSED \" + processed);\n    }\n}\n",
-      "sourceChecks": [
-        {
-          "pattern": "Math\\s*\\.\\s*min\\s*\\(",
-          "minimum": 1,
-          "message": "最後のchunkがtotalを超えないようMath.minを使ってください。"
-        },
-        {
-          "pattern": "\\bbreak\\s*;",
-          "minimum": 1,
-          "message": "失敗したchunkより後は処理せず、そこで停止してください。"
-        },
-        {
-          "pattern": "checkpoint\\s*=\\s*to",
-          "minimum": 1,
-          "message": "checkpointはチャンク全体が成功した側でだけtoへ進めてください。"
-        }
-      ],
       "quiz": [
         {
           "question": "毎日2時の請求バッチについて、スケジューラの主な責務はどれですか。",
@@ -648,24 +722,7 @@
             "FINISHでは現在値がRUNNINGかつownerがworkerと一致することを確認してから状態を変えます。",
             "最後はruns.values()を1回走査してstatus別に数えます。"
           ],
-          "solution": "import java.util.*;\n\nrecord RunState(String status, String owner) {}\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n        Map<String, RunState> runs = new LinkedHashMap<>();\n        for (int i = 0; i < n; i++) {\n            String command = sc.next();\n            String job = sc.next(), date = sc.next(), worker = sc.next();\n            String key = job + \"@\" + date;\n            RunState current = runs.get(key);\n            if (command.equals(\"START\")) {\n                if (current == null || current.status().equals(\"FAILED\")) {\n                    runs.put(key, new RunState(\"RUNNING\", worker));\n                    System.out.println(\"STARTED \" + key + \" \" + worker);\n                } else if (current.status().equals(\"RUNNING\")) {\n                    System.out.println(\"BUSY \" + key + \" \" + current.owner());\n                } else {\n                    System.out.println(\"ALREADY_DONE \" + key);\n                }\n            } else {\n                String outcome = sc.next();\n                if (current != null && current.status().equals(\"RUNNING\")\n                        && current.owner().equals(worker)) {\n                    String next = outcome.equals(\"SUCCESS\") ? \"DONE\" : \"FAILED\";\n                    runs.put(key, new RunState(next, worker));\n                    System.out.println(\"FINISHED \" + key + \" \" + next);\n                } else {\n                    System.out.println(\"REJECTED \" + key);\n                }\n            }\n        }\n        int running = 0, done = 0, failed = 0;\n        for (RunState state : runs.values()) {\n            if (state.status().equals(\"RUNNING\")) running++;\n            else if (state.status().equals(\"DONE\")) done++;\n            else failed++;\n        }\n        System.out.println(\"SUMMARY running=\" + running + \" done=\" + done + \" failed=\" + failed);\n    }\n}\n",
-          "sourceChecks": [
-            {
-              "pattern": "Map\\s*<\\s*String\\s*,\\s*RunState\\s*>",
-              "minimum": 1,
-              "message": "全workerが共有する実行表の代わりとして、キーごとのRunStateをMapに持ってください。"
-            },
-            {
-              "pattern": "String\\s+key\\s*=\\s*job\\s*\\+",
-              "minimum": 1,
-              "message": "同じ業務を識別するキーはjobとdateの組み合わせにしてください。"
-            },
-            {
-              "pattern": "current\\s*\\.\\s*status\\s*\\(\\s*\\)",
-              "minimum": 2,
-              "message": "STARTとFINISHの両方でRUNNING状態を確認してください。"
-            }
-          ]
+          "solution": "import java.util.*;\n\nrecord RunState(String status, String owner) {}\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n        Map<String, RunState> runs = new LinkedHashMap<>();\n        for (int i = 0; i < n; i++) {\n            String command = sc.next();\n            String job = sc.next(), date = sc.next(), worker = sc.next();\n            String key = job + \"@\" + date;\n            RunState current = runs.get(key);\n            if (command.equals(\"START\")) {\n                if (current == null || current.status().equals(\"FAILED\")) {\n                    runs.put(key, new RunState(\"RUNNING\", worker));\n                    System.out.println(\"STARTED \" + key + \" \" + worker);\n                } else if (current.status().equals(\"RUNNING\")) {\n                    System.out.println(\"BUSY \" + key + \" \" + current.owner());\n                } else {\n                    System.out.println(\"ALREADY_DONE \" + key);\n                }\n            } else {\n                String outcome = sc.next();\n                if (current != null && current.status().equals(\"RUNNING\")\n                        && current.owner().equals(worker)) {\n                    String next = outcome.equals(\"SUCCESS\") ? \"DONE\" : \"FAILED\";\n                    runs.put(key, new RunState(next, worker));\n                    System.out.println(\"FINISHED \" + key + \" \" + next);\n                } else {\n                    System.out.println(\"REJECTED \" + key);\n                }\n            }\n        }\n        int running = 0, done = 0, failed = 0;\n        for (RunState state : runs.values()) {\n            if (state.status().equals(\"RUNNING\")) running++;\n            else if (state.status().equals(\"DONE\")) done++;\n            else failed++;\n        }\n        System.out.println(\"SUMMARY running=\" + running + \" done=\" + done + \" failed=\" + failed);\n    }\n}\n"
         }
       ]
     },
@@ -717,23 +774,6 @@
         "残りはlastCompletedがtodayより前の場合だけ `ChronoUnit.DAYS.between(lastCompleted, today)` です。"
       ],
       "solution": "import java.time.LocalDate;\nimport java.time.temporal.ChronoUnit;\nimport java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        LocalDate lastCompleted = LocalDate.parse(sc.next());\n        LocalDate today = LocalDate.parse(sc.next());\n        int maxCatchUp = sc.nextInt();\n        int runs = 0;\n        LocalDate next = lastCompleted.plusDays(1);\n        while (!next.isAfter(today) && runs < maxCatchUp) {\n            System.out.println(\"RUN \" + next);\n            lastCompleted = next;\n            next = next.plusDays(1);\n            runs++;\n        }\n        if (runs == 0) System.out.println(\"UP_TO_DATE\");\n        long remaining = lastCompleted.isBefore(today)\n                ? ChronoUnit.DAYS.between(lastCompleted, today) : 0;\n        System.out.println(\"CHECKPOINT \" + lastCompleted);\n        System.out.println(\"REMAINING \" + remaining);\n    }\n}\n",
-      "sourceChecks": [
-        {
-          "pattern": "LocalDate\\s*\\.\\s*parse\\s*\\(",
-          "minimum": 2,
-          "message": "業務日は文字列のまま比べずLocalDateとして扱ってください。"
-        },
-        {
-          "pattern": "\\.plusDays\\s*\\(",
-          "minimum": 1,
-          "message": "最後に完了した日の翌日から順に進めてください。"
-        },
-        {
-          "pattern": "ChronoUnit\\s*\\.\\s*DAYS\\s*\\.\\s*between",
-          "minimum": 1,
-          "message": "残りの未処理日数はChronoUnit.DAYS.betweenで求めてください。"
-        }
-      ],
       "extraTasks": [
         {
           "kind": "drill",
@@ -773,24 +813,7 @@
             "拡張forの中で `id <= checkpoint` をcontinueします。",
             "チャンク用ListがchunkSizeになったとき出力してclearし、最後の端数も忘れず出します。"
           ],
-          "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n        Set<Long> sorted = new TreeSet<>();\n        for (int i = 0; i < n; i++) sorted.add(sc.nextLong());\n        long checkpoint = sc.nextLong();\n        int chunkSize = sc.nextInt();\n        List<String> chunk = new ArrayList<>();\n        long nextCheckpoint = checkpoint;\n        for (long id : sorted) {\n            if (id <= checkpoint) continue;\n            chunk.add(String.valueOf(id));\n            nextCheckpoint = id;\n            if (chunk.size() == chunkSize) {\n                System.out.println(\"CHUNK \" + String.join(\",\", chunk));\n                chunk.clear();\n            }\n        }\n        if (!chunk.isEmpty()) System.out.println(\"CHUNK \" + String.join(\",\", chunk));\n        System.out.println(\"CHECKPOINT \" + nextCheckpoint);\n    }\n}\n",
-          "sourceChecks": [
-            {
-              "pattern": "new\\s+TreeSet\\s*<",
-              "minimum": 1,
-              "message": "重複を除き、ID順を安定させるためTreeSetを使ってください。"
-            },
-            {
-              "pattern": "id\\s*<=\\s*checkpoint",
-              "minimum": 1,
-              "message": "確定済みID以下は再開対象から除いてください。"
-            },
-            {
-              "pattern": "String\\s*\\.\\s*join\\s*\\(",
-              "minimum": 1,
-              "message": "チャンク内のIDはカンマで連結してください。"
-            }
-          ]
+          "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n        Set<Long> sorted = new TreeSet<>();\n        for (int i = 0; i < n; i++) sorted.add(sc.nextLong());\n        long checkpoint = sc.nextLong();\n        int chunkSize = sc.nextInt();\n        List<String> chunk = new ArrayList<>();\n        long nextCheckpoint = checkpoint;\n        for (long id : sorted) {\n            if (id <= checkpoint) continue;\n            chunk.add(String.valueOf(id));\n            nextCheckpoint = id;\n            if (chunk.size() == chunkSize) {\n                System.out.println(\"CHUNK \" + String.join(\",\", chunk));\n                chunk.clear();\n            }\n        }\n        if (!chunk.isEmpty()) System.out.println(\"CHUNK \" + String.join(\",\", chunk));\n        System.out.println(\"CHECKPOINT \" + nextCheckpoint);\n    }\n}\n"
         },
         {
           "kind": "applied",
@@ -830,24 +853,7 @@
             "失敗がなければ2回目のループで `done.add(id)` の戻り値がtrueだった件数をEFFECTSへ足します。",
             "checkpointには、チャンクが空でない場合の最大IDを使います。rollback側では代入しません。"
           ],
-          "solution": "import java.util.*;\n\nrecord Item(long id, String outcome) {}\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        long checkpoint = sc.nextLong();\n        int d = sc.nextInt();\n        Set<Long> done = new HashSet<>();\n        for (int i = 0; i < d; i++) done.add(sc.nextLong());\n        int n = sc.nextInt();\n        List<Item> chunk = new ArrayList<>();\n        for (int i = 0; i < n; i++) chunk.add(new Item(sc.nextLong(), sc.next()));\n\n        boolean failed = false;\n        for (Item item : chunk) {\n            if (item.outcome().equals(\"fail\")) failed = true;\n        }\n        int effects = 0;\n        if (!failed) {\n            for (Item item : chunk) {\n                if (done.add(item.id())) effects++;\n                checkpoint = Math.max(checkpoint, item.id());\n            }\n        }\n        System.out.println(\"RESULT \" + (failed ? \"ROLLBACK\" : \"COMMIT\"));\n        System.out.println(\"CHECKPOINT \" + checkpoint);\n        System.out.println(\"EFFECTS \" + effects);\n        System.out.println(\"DONE \" + done.size());\n    }\n}\n",
-          "sourceChecks": [
-            {
-              "pattern": "Set\\s*<\\s*Long\\s*>",
-              "minimum": 1,
-              "message": "処理済みIDはSetで持ち、同じIDの効果を1回にしてください。"
-            },
-            {
-              "pattern": "done\\s*\\.\\s*add\\s*\\(",
-              "minimum": 1,
-              "message": "Set.addの戻り値で、新たに確定したIDだけを数えてください。"
-            },
-            {
-              "pattern": "Math\\s*\\.\\s*max\\s*\\(",
-              "minimum": 1,
-              "message": "commit側でチャンク内の最大IDまでcheckpointを進めてください。"
-            }
-          ]
+          "solution": "import java.util.*;\n\nrecord Item(long id, String outcome) {}\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        long checkpoint = sc.nextLong();\n        int d = sc.nextInt();\n        Set<Long> done = new HashSet<>();\n        for (int i = 0; i < d; i++) done.add(sc.nextLong());\n        int n = sc.nextInt();\n        List<Item> chunk = new ArrayList<>();\n        for (int i = 0; i < n; i++) chunk.add(new Item(sc.nextLong(), sc.next()));\n\n        boolean failed = false;\n        for (Item item : chunk) {\n            if (item.outcome().equals(\"fail\")) failed = true;\n        }\n        int effects = 0;\n        if (!failed) {\n            for (Item item : chunk) {\n                if (done.add(item.id())) effects++;\n                checkpoint = Math.max(checkpoint, item.id());\n            }\n        }\n        System.out.println(\"RESULT \" + (failed ? \"ROLLBACK\" : \"COMMIT\"));\n        System.out.println(\"CHECKPOINT \" + checkpoint);\n        System.out.println(\"EFFECTS \" + effects);\n        System.out.println(\"DONE \" + done.size());\n    }\n}\n"
         }
       ]
     }

@@ -7,43 +7,55 @@
     {
       "id": "50-1",
       "title": "OakからJavaへ",
-      "explanation": "## 歴史を知ると、Javaの設計理由が見える\n\nJavaの歴史は年号を覚えるためのものではありません。現在も使う「JVM」「バイトコード」「互換性」が、どんな困りごとを解決するために生まれたのかを理解するために学びます。\n\n1990年代初め、家電や携帯端末は製品ごとにCPUやOSが異なり、同じプログラムを機種ごとに作り直す必要がありました。ここでいう **CPU** は命令を実行する部品、**OS** はハードウェアを管理する基本ソフトです。Sun MicrosystemsのGreenプロジェクトでは、この違いをプログラムから隠すためにOakという言語が作られました。Oakは後にJavaへ改名され、1995年に公開されます。\n\nJavaはソースコードを、特定のCPUの命令へ直接変換せず、まず **バイトコード** という中間形式へ変換します。そのバイトコードを、各OS向けに用意された **JVM（Java Virtual Machine）** が実行します。\n\n```text\nJavaのソースコード\n       ↓ コンパイル\n共通のバイトコード\n       ↓ 各環境のJVMが実行\nWindows / Linux / macOS\n```\n\nこの分担により、同じバイトコードを複数の環境で動かしやすくなりました。これが「Write Once, Run Anywhere」の考え方です。ただし、OS固有のファイルパスやネイティブライブラリへ依存すれば差は残ります。「何も考えなくても必ず同じ」ではなく、**共通仕様に沿って作れば移植しやすい**という意味です。\n\nまた、不要になったオブジェクトのメモリをJVMが回収する **GC（ガベージコレクション）** も、安全性を高める重要な仕組みです。今回の演習では、出来事を古い順へ並べ、Oakから現在のJavaへつながる流れを確認します。",
+      "explanation": "## 歴史を知ると、Javaの設計理由が見える\n\nJavaの歴史は年号を覚えるためのものではありません。現在も使う「JVM」「バイトコード」「互換性」が、どんな困りごとを解決するために生まれたのかを理解するために学びます。\n\n1990年代初め、家電や携帯端末は製品ごとにCPUやOSが異なり、同じプログラムを機種ごとに作り直す必要がありました。ここでいう **CPU** は命令を実行する部品、**OS** はハードウェアを管理する基本ソフトです。Sun MicrosystemsのGreenプロジェクトでは、この違いをプログラムから隠すためにOakという言語が作られました。Oakは後にJavaへ改名され、1995年に公開されます。\n\nJavaはソースコードを、特定のCPUの命令へ直接変換せず、まず **バイトコード** という中間形式へ変換します。そのバイトコードを、各OS向けに用意された **JVM（Java Virtual Machine）** が実行します。\n\n```text\nJavaのソースコード\n       ↓ コンパイル\n共通のバイトコード\n       ↓ 各環境のJVMが実行\nWindows / Linux / macOS\n```\n\nこの分担により、同じバイトコードを複数の環境で動かしやすくなりました。これが「Write Once, Run Anywhere」の考え方です。ただし、OS固有のファイルパスやネイティブライブラリへ依存すれば差は残ります。「何も考えなくても必ず同じ」ではなく、**共通仕様に沿って作れば移植しやすい**という意味です。\n\nまた、不要になったオブジェクトのメモリをJVMが回収する **GC（ガベージコレクション）** も、安全性を高める重要な仕組みです。\n\n## 「どのJVMでも動く」には版の条件がある\n\nバイトコードが共通でも、**新しいJDKで作ったclass fileは、古いJVMでは動きません**。\nclass fileの先頭には作られた版が入っていて、JVMは自分より新しい版を読むことを拒否します。\n\n```text\njava.lang.UnsupportedClassVersionError:\n  Main has been compiled by a more recent version of the Java Runtime\n  (class file version 65.0), this version of the Java Runtime only recognizes\n  class file versions up to 61.0\n```\n\n版の対応は計算できます。**メジャー版 = リリース番号 + 44** です。\n\n| リリース | メジャー版 |\n|---:|---:|\n| 8 | 52 |\n| 11 | 55 |\n| 17 | 61 |\n| 21 | 65 |\n\nJVMは「自分のメジャー版**以下**」なら読めます。古いclass fileは新しいJVMで動きます（後方互換）。\n逆はできません。だから配布するときは、**動かす環境のいちばん古いJVM**に合わせて\n`javac --release` で作ります。今回の演習では、この判定を実際に計算します。",
       "samples": [
         {
           "caption": "実行環境からプラットフォーム情報を得る",
           "code": "public class Main {\n    public static void main(String[] a) {\n        System.out.println(System.getProperty(\"java.vm.name\"));\n        System.out.println(Runtime.version().feature());\n    }\n}\n"
         }
       ],
-      "task": "3件の出来事を `year name` で読み、年の昇順に `year:name` と表示してください。同年は名前順です。歴史を時系列として扱う練習です。",
-      "starterCode": "import java.util.*;\n\nrecord Event(int year, String name) { }\n\npublic class Main {\n    public static void main(String[] a) {\n        Scanner s = new Scanner(System.in);\n        List<Event> events = new ArrayList<>();\n        for (int i = 0; i < 3; i++) events.add(new Event(s.nextInt(), s.next()));\n        /* TODO */\n    }\n}\n",
+      "task": "class fileを実行できるかを判定してください。\n\n1行目にJVMのリリース番号、2行目に確かめるclass fileの数`n`、続く`n`行に`名前 メジャー版`が並びます。\n\nメジャー版とリリース番号の関係は **メジャー版 = リリース番号 + 44** です。JVMは自分のメジャー版以下のclass fileを読めます。\n\n各class fileについて1行ずつ、読めるなら`<名前> RUN`、読めないなら`<名前> UnsupportedClassVersionError <必要なリリース>`と出力してください。`必要なリリース`は、そのclass fileを読むために最低限必要なJVMのリリース番号です。最後に`runnable=<読めた数>/<全体の数>`を出力してください。",
+      "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int jvmRelease = sc.nextInt();\n        int n = sc.nextInt();\n        for (int i = 0; i < n; i++) {\n            String name = sc.next();\n            int majorVersion = sc.nextInt();\n            // TODO: メジャー版 = リリース番号 + 44 から、読めるかどうかを判定する\n        }\n        // TODO: runnable=<読めた数>/<全体の数>\n        System.out.println(\"runnable=0/\" + n);\n    }\n}\n",
       "visibleCases": [
         {
-          "label": "Javaの節目",
-          "stdin": "1995 Java 1991 Oak 2006 OpenJDK",
-          "expected": "1991:Oak\n1995:Java\n2006:OpenJDK"
+          "label": "JDK 17で3つ確かめる",
+          "stdin": "17\n3\nlegacy 52\ncurrent 61\nnewer 65",
+          "expected": "legacy RUN\ncurrent RUN\nnewer UnsupportedClassVersionError 21\nrunnable=2/3"
+        },
+        {
+          "label": "古いJVMでは新しいclass fileが動かない",
+          "stdin": "8\n2\nold 52\nmodern 55",
+          "expected": "old RUN\nmodern UnsupportedClassVersionError 11\nrunnable=1/2"
         }
       ],
       "hiddenCases": [
         {
-          "label": "同年",
-          "stdin": "2000 B 1999 Z 2000 A",
-          "expected": "1999:Z\n2000:A\n2000:B"
+          "label": "最新のJVMなら全部動く",
+          "stdin": "21\n3\na 52\nb 61\nc 65",
+          "expected": "a RUN\nb RUN\nc RUN\nrunnable=3/3"
         },
         {
-          "label": "すべて同年なら名前順",
-          "stdin": "2000 c 2000 a 2000 b",
-          "expected": "2000:a\n2000:b\n2000:c"
+          "label": "1つも動かない",
+          "stdin": "11\n2\nx 61\ny 65",
+          "expected": "x UnsupportedClassVersionError 17\ny UnsupportedClassVersionError 21\nrunnable=0/2"
         },
         {
-          "label": "逆順に与える",
-          "stdin": "2010 z 2000 y 1990 x",
-          "expected": "1990:x\n2000:y\n2010:z"
+          "label": "ちょうど同じ版",
+          "stdin": "21\n1\nsame 65",
+          "expected": "same RUN\nrunnable=1/1"
+        },
+        {
+          "label": "class fileが0件",
+          "stdin": "17\n0",
+          "expected": "runnable=0/0"
         }
       ],
       "hints": [
-        "`Comparator.comparingInt(Event::year).thenComparing(Event::name)`。"
+        "JVMが読める上限のメジャー版は `jvmRelease + 44` です。class fileのメジャー版がこれ以下なら読めます。",
+        "読めないときに必要なリリース番号は `majorVersion - 44` です。",
+        "「ちょうど同じ版」は読めます。比較は `<=` です。"
       ],
-      "solution": "import java.util.*;\n\nrecord Event(int year, String name) { }\n\npublic class Main {\n    public static void main(String[] a) {\n        Scanner s = new Scanner(System.in);\n        List<Event> events = new ArrayList<>();\n        for (int i = 0; i < 3; i++) events.add(new Event(s.nextInt(), s.next()));\n        events.stream().sorted(Comparator.comparingInt(Event::year).thenComparing(Event::name)).forEach(e -> System.out.println(e.year() + \":\" + e.name()));\n    }\n}\n",
+      "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int jvmRelease = sc.nextInt();\n        int n = sc.nextInt();\n        int supported = jvmRelease + 44;\n        int runnable = 0;\n        for (int i = 0; i < n; i++) {\n            String name = sc.next();\n            int majorVersion = sc.nextInt();\n            if (majorVersion <= supported) {\n                runnable++;\n                System.out.println(name + \" RUN\");\n            } else {\n                System.out.println(name + \" UnsupportedClassVersionError \" + (majorVersion - 44));\n            }\n        }\n        System.out.println(\"runnable=\" + runnable + \"/\" + n);\n    }\n}\n",
       "quiz": [
         {
           "question": "Oak/Javaで環境依存を減らす中心的な構造は？",
@@ -132,6 +144,69 @@
           ],
           "answer": 3,
           "explanation": "ポインタ演算を持たないこと、境界を検査すること、例外と型検査を備えることは同じ判断から来ています。"
+        }
+      ],
+      "extraTasks": [
+        {
+          "kind": "applied",
+          "type": "runtime-lab",
+          "task": "【実測演習】`labs/platform`で、この章の設計目標のうち「移植性」が実際に何を保証して何を保証しないのかを確かめます。\n\n採点は**1回だけコンパイル**し、出来た同じclass fileを環境の既定値だけ変えて4通り動かします。`exercise/OrderReport.java`は既定のロケール・タイムゾーン・文字集合に任せているため、条件を変えると出力が変わります。どの条件でも同じ4行になるよう直してください。注文の記録時刻はUTCで扱い、金額の桁区切りは`1,234.50`の形にします。\n\n```\ncode=ID\ntotal=1,234.50\nrecorded=2026-08-13\nlabel=café\n```\n\n`data/`の2ファイルはUTF-8で、変更しません。別のデータでも実行するので、定数を出すだけでは通りません。bytecodeはどのJVMでも読めますが、既定値の違いまでは面倒を見てくれない、という所を体で確かめる演習です。",
+          "runtimeLab": {
+            "name": "Platform independence lab",
+            "source": "labs/platform",
+            "exclude": [
+              "reference"
+            ],
+            "command": [
+              "./run-runtime-lab.sh"
+            ],
+            "timeoutSeconds": 60,
+            "verification": "同じclass fileをロケール・タイムゾーン・文字集合を変えて実行し、出力が変わらないことを確認する",
+            "capabilities": [
+              "jdk-tool"
+            ],
+            "requiredTools": [
+              "java",
+              "javac"
+            ],
+            "requiredImages": [],
+            "checks": [
+              {
+                "id": "platform-default",
+                "label": "既定の環境で期待した出力になる"
+              },
+              {
+                "id": "platform-locale",
+                "label": "ロケールを変えても出力が変わらない"
+              },
+              {
+                "id": "platform-timezone",
+                "label": "タイムゾーンを変えても出力が変わらない"
+              },
+              {
+                "id": "platform-charset",
+                "label": "既定の文字集合を変えても出力が変わらない"
+              },
+              {
+                "id": "platform-input",
+                "label": "別のデータでも計算されている"
+              }
+            ],
+            "editableFiles": [
+              {
+                "path": "exercise/OrderReport.java",
+                "solutionPath": "reference/OrderReport.java"
+              }
+            ]
+          },
+          "hints": [
+            "UTF-8で保存されたバイト列は`new String(bytes, StandardCharsets.UTF_8)`で復号します。引数なしの`new String(bytes)`は実行環境の既定の文字集合を使います。",
+            "`toUpperCase()`と`String.format(...)`はどちらも既定のロケールを見ます。`Locale.ROOT`を渡すと環境によらず同じ結果になります（トルコ語ロケールでは`\"id\"`が`İD`になります）。",
+            "`ZoneId.systemDefault()`は動かす機械の設定です。記録時刻をUTCで扱うなら`ZoneOffset.UTC`を明示します。"
+          ],
+          "rubric": [
+            "diagnose"
+          ]
         }
       ]
     },
@@ -362,19 +437,7 @@
             "道具とフレームワークは `Set.of(...).contains(term)` で判定できます。",
             "JSRは標準化する仕様の要求、JEPはOpenJDKでの変更提案です。Open Libertyはフレームワークではなく、Jakarta EEアプリを動かすサーバー実装です。"
           ],
-          "solution": "import java.util.*;\n\npublic class Main {\n    static String classify(String term) {\n        if (term.startsWith(\"JSR\")) return \"specification-request\";\n        if (term.startsWith(\"JEP\")) return \"proposal\";\n        if (Set.of(\"javac\", \"java\", \"jar\", \"javadoc\", \"jlink\", \"jshell\").contains(term)) return \"jdk-tool\";\n        if (Set.of(\"SpringBoot\", \"Quarkus\").contains(term)) return \"framework\";\n        if (term.equals(\"OpenLiberty\")) return \"runtime\";\n        return \"unknown\";\n    }\n\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        int n = s.nextInt();\n        List<String> kinds = List.of(\"specification-request\", \"proposal\", \"jdk-tool\", \"framework\", \"runtime\", \"unknown\");\n        Map<String, Integer> count = new LinkedHashMap<>();\n        for (String k : kinds) count.put(k, 0);\n        for (int i = 0; i < n; i++) {\n            String term = s.next(), kind = classify(term);\n            System.out.println(term + \"=\" + kind);\n            count.merge(kind, 1, Integer::sum);\n        }\n        for (String k : kinds) System.out.println(k + \"=\" + count.get(k));\n    }\n}\n",
-          "sourceChecks": [
-            {
-              "pattern": "startsWith\\s*\\(",
-              "minimum": 2,
-              "message": "「JSRで始まる」「JEPで始まる」は `startsWith` で判定してください。"
-            },
-            {
-              "pattern": "Set\\s*\\.\\s*of\\s*\\(|List\\s*\\.\\s*of\\s*\\(",
-              "minimum": 1,
-              "message": "決まった語のまとまりは `Set.of` に入れて `contains` で調べてください。"
-            }
-          ]
+          "solution": "import java.util.*;\n\npublic class Main {\n    static String classify(String term) {\n        if (term.startsWith(\"JSR\")) return \"specification-request\";\n        if (term.startsWith(\"JEP\")) return \"proposal\";\n        if (Set.of(\"javac\", \"java\", \"jar\", \"javadoc\", \"jlink\", \"jshell\").contains(term)) return \"jdk-tool\";\n        if (Set.of(\"SpringBoot\", \"Quarkus\").contains(term)) return \"framework\";\n        if (term.equals(\"OpenLiberty\")) return \"runtime\";\n        return \"unknown\";\n    }\n\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        int n = s.nextInt();\n        List<String> kinds = List.of(\"specification-request\", \"proposal\", \"jdk-tool\", \"framework\", \"runtime\", \"unknown\");\n        Map<String, Integer> count = new LinkedHashMap<>();\n        for (String k : kinds) count.put(k, 0);\n        for (int i = 0; i < n; i++) {\n            String term = s.next(), kind = classify(term);\n            System.out.println(term + \"=\" + kind);\n            count.merge(kind, 1, Integer::sum);\n        }\n        for (String k : kinds) System.out.println(k + \"=\" + count.get(k));\n    }\n}\n"
         },
         {
           "kind": "applied",
@@ -425,17 +488,8 @@
             "同じフィーチャーバージョンでも、ベンダーによって更新期間やライセンスは違います。だから台帳では version と vendor を組で持ちます。"
           ],
           "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        int thisYear = s.nextInt(), minVersion = s.nextInt(), n = s.nextInt();\n        Map<Integer, Integer> byVersion = new TreeMap<>();\n        boolean action = false;\n        for (int i = 0; i < n; i++) {\n            String vendor = s.next();\n            int version = s.nextInt(), endYear = s.nextInt();\n            String status = version < minVersion ? \"OUTDATED\" : endYear < thisYear ? \"UNSUPPORTED\" : endYear == thisYear ? \"EXPIRING\" : \"OK\";\n            if (!status.equals(\"OK\")) action = true;\n            System.out.println(vendor + \" \" + status);\n            byVersion.merge(version, 1, Integer::sum);\n        }\n        System.out.println(action ? \"ACTION_REQUIRED\" : \"ALL_OK\");\n        for (Map.Entry<Integer, Integer> e : byVersion.entrySet()) System.out.println(e.getKey() + \" \" + e.getValue());\n    }\n}\n",
-          "sourceChecks": [
-            {
-              "pattern": "\\bnew\\s+TreeMap\\b",
-              "minimum": 1,
-              "message": "バージョン順に集計するので `TreeMap` を使ってください。"
-            },
-            {
-              "pattern": "minVersion",
-              "minimum": 1,
-              "message": "必要な最低バージョンを満たしているかを確かめてください。"
-            }
+          "rubric": [
+            "decide"
           ]
         }
       ]

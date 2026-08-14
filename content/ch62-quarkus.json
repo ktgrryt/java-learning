@@ -57,52 +57,61 @@
           "expected": "quarkus-rest-jackson\nquarkus-hibernate-validator\nquarkus-smallrye-health"
         }
       ],
-      "task": "要件からQuarkus Extensionを選ぶ\n\n空白区切りの要件`rest`、`validation`、`health`、`jdbc`、`kafka`を入力順に読み、重複を除いて`quarkus-rest-jackson`、`quarkus-hibernate-validator`、`quarkus-smallrye-health`、`quarkus-jdbc-postgresql`、`quarkus-messaging-kafka`へ変換し、カンマ区切りで出力してください。未知の要件は`REVIEW:<語>`です。",
-      "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        String line = new Scanner(System.in).nextLine().trim();\n        Map<String, String> extensions = Map.of(\n                \"rest\", \"quarkus-rest-jackson\",\n                \"validation\", \"quarkus-hibernate-validator\",\n                \"health\", \"quarkus-smallrye-health\",\n                \"jdbc\", \"quarkus-jdbc-postgresql\",\n                \"kafka\", \"quarkus-messaging-kafka\"\n        );\n        // TODO: 入力順を保ってExtensionを選ぶ\n    }\n}",
-      "visibleCases": [
-        {
-          "label": "表示ケース1",
-          "stdin": "rest validation health\n",
-          "expected": "quarkus-rest-jackson,quarkus-hibernate-validator,quarkus-smallrye-health"
-        },
-        {
-          "label": "表示ケース2",
-          "stdin": "jdbc rest jdbc\n",
-          "expected": "quarkus-jdbc-postgresql,quarkus-rest-jackson"
-        }
-      ],
-      "hiddenCases": [
-        {
-          "label": "隠しケース1",
-          "stdin": "kafka\n",
-          "expected": "quarkus-messaging-kafka"
-        },
-        {
-          "label": "隠しケース2",
-          "stdin": "rest cache\n",
-          "expected": "quarkus-rest-jackson,REVIEW:cache"
-        },
-        {
-          "label": "隠しケース3",
-          "stdin": "health jdbc kafka\n",
-          "expected": "quarkus-smallrye-health,quarkus-jdbc-postgresql,quarkus-messaging-kafka"
-        }
-      ],
+      "type": "artifact",
+      "task": "注文APIに必要なQuarkus Extensionを、**実際の`pom.xml`へ宣言**してください。\n\n要件は4つです。\n\n- REST APIをJSONで公開する\n- 入力を検証する\n- ヘルスチェックを公開する\n- PostgreSQLへJDBCで接続する\n\nBOMの取り込みはすでに書いてあります。**これがあるので各Extensionに`<version>`を書く必要はありません。個別に版を書くと、BOMが決めた版と食い違って壊れます。**\n\n`groupId`は`io.quarkus`です。要件に無いExtensionは足さないでください（使わない依存はbuild時間と攻撃面を増やします）。",
+      "starterContent": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<project xmlns=\"http://maven.apache.org/POM/4.0.0\">\n  <modelVersion>4.0.0</modelVersion>\n  <groupId>cafe</groupId>\n  <artifactId>orders</artifactId>\n  <version>1.0.0</version>\n\n  <properties>\n    <quarkus.platform.group-id>io.quarkus.platform</quarkus.platform.group-id>\n    <quarkus.platform.artifact-id>quarkus-bom</quarkus.platform.artifact-id>\n    <quarkus.platform.version>3.15.1</quarkus.platform.version>\n  </properties>\n\n  <!-- BOMの取り込み。ここは変更しません。\n       これがあるので、下の各Extensionに <version> を書く必要がありません。 -->\n  <dependencyManagement>\n    <dependencies>\n      <dependency>\n        <groupId>${quarkus.platform.group-id}</groupId>\n        <artifactId>${quarkus.platform.artifact-id}</artifactId>\n        <version>${quarkus.platform.version}</version>\n        <type>pom</type>\n        <scope>import</scope>\n      </dependency>\n    </dependencies>\n  </dependencyManagement>\n\n  <dependencies>\n    <!-- TODO: 要件に対応するExtensionをここへ宣言します。\n         groupId は io.quarkus、version は書きません（BOMが決めます）。 -->\n  </dependencies>\n</project>\n",
+      "artifact": {
+        "path": "pom.xml",
+        "format": "xml",
+        "checks": [
+          {
+            "type": "xpath",
+            "expression": "count(/project/dependencyManagement/dependencies/dependency[normalize-space(type) = 'pom' and normalize-space(scope) = 'import']) = 1",
+            "message": "BOMの取り込み（type=pom・scope=import）を残す。これがExtensionの版を決めている"
+          },
+          {
+            "type": "xpath",
+            "expression": "count(/project/dependencies/dependency[normalize-space(artifactId) = 'quarkus-rest-jackson']) = 1",
+            "message": "RESTとJSONのために quarkus-rest-jackson を1回だけ宣言する"
+          },
+          {
+            "type": "xpath",
+            "expression": "count(/project/dependencies/dependency[normalize-space(artifactId) = 'quarkus-hibernate-validator']) = 1",
+            "message": "入力検証のために quarkus-hibernate-validator を1回だけ宣言する"
+          },
+          {
+            "type": "xpath",
+            "expression": "count(/project/dependencies/dependency[normalize-space(artifactId) = 'quarkus-smallrye-health']) = 1",
+            "message": "ヘルスチェックのために quarkus-smallrye-health を1回だけ宣言する"
+          },
+          {
+            "type": "xpath",
+            "expression": "count(/project/dependencies/dependency[normalize-space(artifactId) = 'quarkus-jdbc-postgresql']) = 1",
+            "message": "PostgreSQL接続のために quarkus-jdbc-postgresql を1回だけ宣言する"
+          },
+          {
+            "type": "xpath",
+            "expression": "count(/project/dependencies/dependency[starts-with(normalize-space(artifactId), 'quarkus-')][version]) = 0",
+            "message": "Extensionに <version> を書かない。版はBOMが決めるので、個別に書くと食い違いの原因になる"
+          },
+          {
+            "type": "xpath",
+            "expression": "count(/project/dependencies/dependency[starts-with(normalize-space(artifactId), 'quarkus-')][not(normalize-space(groupId) = 'io.quarkus')]) = 0",
+            "message": "ExtensionのgroupIdは io.quarkus にする"
+          },
+          {
+            "type": "xpath",
+            "expression": "count(/project/dependencies/dependency[normalize-space(artifactId) = 'quarkus-messaging-kafka']) = 0",
+            "message": "要件に無いExtensionは足さない（Kafkaは今回の要件に含まれない）"
+          }
+        ]
+      },
       "hints": [
-        "要件とExtension名のMapを使い、各入力を`getOrDefault`で変換します。",
-        "`LinkedHashSet`へ変換結果を入れると入力順の維持と重複除去ができます。未知の語には`REVIEW:`を付けます。"
+        "1つのExtensionは `<dependency><groupId>io.quarkus</groupId><artifactId>…</artifactId></dependency>` の3行です。",
+        "Extension名は `quarkus-` で始まります。REST+JSONは `quarkus-rest-jackson`、検証は `quarkus-hibernate-validator`、ヘルスは `quarkus-smallrye-health`、PostgreSQLは `quarkus-jdbc-postgresql` です。",
+        "`<version>` は書きません。BOM（`quarkus-bom`）が版を決めているので、書くとそちらと食い違います。"
       ],
-      "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        String line = new Scanner(System.in).nextLine().trim();\n        Map<String, String> extensions = Map.of(\n                \"rest\", \"quarkus-rest-jackson\",\n                \"validation\", \"quarkus-hibernate-validator\",\n                \"health\", \"quarkus-smallrye-health\",\n                \"jdbc\", \"quarkus-jdbc-postgresql\",\n                \"kafka\", \"quarkus-messaging-kafka\"\n        );\n        Set<String> selected = new LinkedHashSet<>();\n        if (!line.isEmpty()) {\n            for (String requirement : line.split(\"\\\\s+\")) {\n                selected.add(extensions.getOrDefault(requirement, \"REVIEW:\" + requirement));\n            }\n        }\n        System.out.println(String.join(\",\", selected));\n    }\n}",
-      "sourceChecks": [
-        {
-          "pattern": "LinkedHashSet",
-          "message": "入力順を保った重複除去を行ってください。"
-        },
-        {
-          "pattern": "getOrDefault",
-          "message": "未知の要件をREVIEWとして残してください。"
-        }
-      ],
+      "solution": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<project xmlns=\"http://maven.apache.org/POM/4.0.0\">\n  <modelVersion>4.0.0</modelVersion>\n  <groupId>cafe</groupId>\n  <artifactId>orders</artifactId>\n  <version>1.0.0</version>\n\n  <properties>\n    <quarkus.platform.group-id>io.quarkus.platform</quarkus.platform.group-id>\n    <quarkus.platform.artifact-id>quarkus-bom</quarkus.platform.artifact-id>\n    <quarkus.platform.version>3.15.1</quarkus.platform.version>\n  </properties>\n\n  <!-- BOMの取り込み。ここは変更しません。\n       これがあるので、下の各Extensionに <version> を書く必要がありません。 -->\n  <dependencyManagement>\n    <dependencies>\n      <dependency>\n        <groupId>${quarkus.platform.group-id}</groupId>\n        <artifactId>${quarkus.platform.artifact-id}</artifactId>\n        <version>${quarkus.platform.version}</version>\n        <type>pom</type>\n        <scope>import</scope>\n      </dependency>\n    </dependencies>\n  </dependencyManagement>\n\n  <dependencies>\n    <!-- REST + JSON -->\n    <dependency>\n      <groupId>io.quarkus</groupId>\n      <artifactId>quarkus-rest-jackson</artifactId>\n    </dependency>\n    <!-- 入力検証 -->\n    <dependency>\n      <groupId>io.quarkus</groupId>\n      <artifactId>quarkus-hibernate-validator</artifactId>\n    </dependency>\n    <!-- ヘルスチェック -->\n    <dependency>\n      <groupId>io.quarkus</groupId>\n      <artifactId>quarkus-smallrye-health</artifactId>\n    </dependency>\n    <!-- PostgreSQLへのJDBC接続 -->\n    <dependency>\n      <groupId>io.quarkus</groupId>\n      <artifactId>quarkus-jdbc-postgresql</artifactId>\n    </dependency>\n  </dependencies>\n</project>\n",
       "kind": "practice",
       "extraTasks": [],
       "quiz": [
@@ -128,6 +137,10 @@
           "answer": 0,
           "explanation": "JVMとNativeの両方を選べます。ビルド時間、起動、メモリ、機能制約を比較します。"
         }
+      ],
+      "rubric": [
+        "implement",
+        "decide"
       ]
     },
     {
@@ -177,16 +190,6 @@
         "未知の語を実行時設定と決めつけず`CHECK_DOCUMENTATION`にし、`key + \"=\" + phase(key)`を集合へ追加します。"
       ],
       "solution": "import java.util.*;\n\npublic class Main {\n    static String phase(String key) {\n        return switch (key) {\n            case \"EXTENSION\", \"DB_KIND\" -> \"BUILD_TIME\";\n            case \"HTTP_PORT\", \"DB_URL\", \"LOG_LEVEL\", \"GREETING_PREFIX\" -> \"RUN_TIME\";\n            default -> \"CHECK_DOCUMENTATION\";\n        };\n    }\n\n    public static void main(String[] args) {\n        String line = new Scanner(System.in).nextLine().trim();\n        Set<String> result = new LinkedHashSet<>();\n        if (!line.isEmpty()) {\n            for (String key : line.split(\"\\\\s+\")) result.add(key + \"=\" + phase(key));\n        }\n        System.out.println(String.join(\",\", result));\n    }\n}",
-      "sourceChecks": [
-        {
-          "pattern": "static\\s+String\\s+phase",
-          "message": "設定時点の判定をphaseメソッドへ分けてください。"
-        },
-        {
-          "pattern": "default\\s*->",
-          "message": "未知の設定はドキュメント確認へ回してください。"
-        }
-      ],
       "kind": "practice",
       "extraTasks": [],
       "quiz": [
@@ -261,16 +264,6 @@
         "nameの空白判定を先に行い、正常時だけServiceへprefixとnameを渡して、profileを含む200レスポンスを組み立てます。"
       ],
       "solution": "import java.util.*;\n\npublic class Main {\n    static class GreetingService {\n        String message(String prefix, String name) {\n            return prefix + \", \" + name.trim();\n        }\n    }\n\n    static String resolve(String profileValue, String commonValue) {\n        if (!profileValue.equals(\"-\")) return profileValue;\n        if (!commonValue.equals(\"-\")) return commonValue;\n        return \"Hello\";\n    }\n\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        String profile = sc.nextLine();\n        String profileValue = sc.nextLine();\n        String commonValue = sc.nextLine();\n        String name = sc.nextLine();\n        if (name.isBlank()) {\n            System.out.println(\"400 NAME_REQUIRED\");\n        } else {\n            GreetingService service = new GreetingService();\n            String message = service.message(resolve(profileValue, commonValue), name);\n            System.out.println(\"200 [\" + profile + \"] \" + message);\n        }\n    }\n}",
-      "sourceChecks": [
-        {
-          "pattern": "static\\s+String\\s+resolve",
-          "message": "設定解決をresolveメソッドへ分けてください。"
-        },
-        {
-          "pattern": "service\\.message",
-          "message": "メッセージ作成をGreetingServiceへ委譲してください。"
-        }
-      ],
       "kind": "practice",
       "extraTasks": [
         {
@@ -280,21 +273,44 @@
           "project": {
             "name": "quarkus-extension-config-quarkus-test",
             "source": "labs/frameworks/quarkus/project-exercise",
-            "exclude": ["reference", "target"],
-            "command": ["mvn", "-q", "test"],
+            "exclude": [
+              "reference",
+              "target"
+            ],
+            "command": [
+              "mvn",
+              "-q",
+              "test"
+            ],
             "timeoutSeconds": 60,
             "verification": "Extension、Config、@QuarkusTestを使い、実Quarkus HTTP境界の受け入れテストをすべて通す",
             "editableFiles": [
-              {"path": "pom.xml", "solutionPath": "reference/pom.xml"},
-              {"path": "src/main/java/example/greeting/GreetingService.java", "solutionPath": "reference/src/main/java/example/greeting/GreetingService.java"},
-              {"path": "src/main/resources/application.properties", "solutionPath": "reference/src/main/resources/application.properties"},
-              {"path": "src/test/java/example/greeting/GreetingResourceTest.java", "solutionPath": "reference/src/test/java/example/greeting/GreetingResourceTest.java"}
+              {
+                "path": "pom.xml",
+                "solutionPath": "reference/pom.xml"
+              },
+              {
+                "path": "src/main/java/example/greeting/GreetingService.java",
+                "solutionPath": "reference/src/main/java/example/greeting/GreetingService.java"
+              },
+              {
+                "path": "src/main/resources/application.properties",
+                "solutionPath": "reference/src/main/resources/application.properties"
+              },
+              {
+                "path": "src/test/java/example/greeting/GreetingResourceTest.java",
+                "solutionPath": "reference/src/test/java/example/greeting/GreetingResourceTest.java"
+              }
             ]
           },
           "hints": [
             "`pom.xml`へ`quarkus-rest-jackson`、`quarkus-hibernate-validator`、`quarkus-smallrye-health`を追加します。versionはBOMが管理するため各dependencyへ書きません。",
             "`GreetingService`のconstructor引数へ`@ConfigProperty(name = \"app.greeting.prefix\")`を付け、`application.properties`へ`app.greeting.prefix=Welcome`を書きます。",
             "`GreetingResourceTest`へ`@QuarkusTest`を付け、`/api/greeting`と`/q/health/ready`をREST Assuredで呼びます。正常時はmessageが`Welcome, Java`になることも確認します。"
+          ],
+          "rubric": [
+            "implement",
+            "test"
           ]
         }
       ],
@@ -370,16 +386,6 @@
         "dev/testでは、明示設定があればそれを優先し、なければコンテナ利用可否でDev Servicesを起動できるか決めます。"
       ],
       "solution": "import java.util.*;\n\npublic class Main {\n    static String decide(String profile, boolean configured, boolean containerAvailable) {\n        if (profile.equals(\"prod\")) {\n            return configured ? \"EXPLICIT_PROD_SERVICE\" : \"BLOCKED:MISSING_PROD_CONFIG\";\n        }\n        if (configured) return \"EXPLICIT_DEV_SERVICE\";\n        return containerAvailable ? \"DEV_SERVICES:START\" : \"BLOCKED:CONTAINER_RUNTIME\";\n    }\n\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        String profile = sc.nextLine();\n        boolean configured = Boolean.parseBoolean(sc.nextLine());\n        boolean containerAvailable = Boolean.parseBoolean(sc.nextLine());\n        System.out.println(decide(profile, configured, containerAvailable));\n    }\n}",
-      "sourceChecks": [
-        {
-          "pattern": "static\\s+String\\s+decide",
-          "message": "環境判定をdecideメソッドへ分けてください。"
-        },
-        {
-          "pattern": "if\\s*\\(\\s*profile\\.equals",
-          "message": "本番ではDev Servicesに頼らず明示設定を要求してください。"
-        }
-      ],
       "kind": "drill",
       "extraTasks": [],
       "quiz": [
@@ -454,16 +460,6 @@
         "JIT優先でなければ、Native採用に必要な4条件のfalse項目を順に集めます。空のときだけNative候補です。"
       ],
       "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        boolean coldStart = Boolean.parseBoolean(sc.nextLine());\n        boolean memory = Boolean.parseBoolean(sc.nextLine());\n        boolean library = Boolean.parseBoolean(sc.nextLine());\n        boolean nativeTest = Boolean.parseBoolean(sc.nextLine());\n        boolean jit = Boolean.parseBoolean(sc.nextLine());\n        if (jit) {\n            System.out.println(\"JVM:JIT workload\");\n            return;\n        }\n        List<String> missing = new ArrayList<>();\n        if (!coldStart) missing.add(\"COLD_START\");\n        if (!memory) missing.add(\"MEMORY\");\n        if (!library) missing.add(\"LIBRARY\");\n        if (!nativeTest) missing.add(\"NATIVE_TEST\");\n        System.out.println(missing.isEmpty()\n                ? \"NATIVE:measured candidate\"\n                : \"JVM:missing=\" + String.join(\",\", missing));\n    }\n}",
-      "sourceChecks": [
-        {
-          "pattern": "if\\s*\\(\\s*jit",
-          "message": "JIT性能が重要な処理を先に判定してください。"
-        },
-        {
-          "pattern": "List<String>\\s+missing",
-          "message": "Native採用の未達条件をListへ集めてください。"
-        }
-      ],
       "kind": "applied",
       "extraTasks": [
         {
@@ -473,31 +469,73 @@
           "runtimeLab": {
             "name": "quarkus-jvm-package-http-health",
             "source": "labs/frameworks/quarkus/runtime-exercise",
-            "exclude": ["reference", "target"],
-            "command": ["./run-runtime-lab.sh"],
+            "exclude": [
+              "reference",
+              "target"
+            ],
+            "command": [
+              "./run-runtime-lab.sh"
+            ],
             "timeoutSeconds": 60,
             "verification": "JUnit後にJVM配布物をbuild・起動し、REST、Validation、SmallRye Health、停止を確認する",
-            "capabilities": ["server", "http"],
-            "requiredTools": ["java", "javac", "mvn"],
+            "capabilities": [
+              "server",
+              "http"
+            ],
+            "requiredTools": [
+              "java",
+              "javac",
+              "mvn"
+            ],
             "requiredImages": [],
             "checks": [
-              {"id": "quarkus-tests", "label": "mvn package内のJUnitを通す"},
-              {"id": "quarkus-jvm-package", "label": "quarkus-run.jarと依存libを含むJVM配布物を作る"},
-              {"id": "quarkus-api", "label": "JVMモードのQuarkus RESTがHTTP 200とJSONを返す"},
-              {"id": "quarkus-validation", "label": "入力不正を実HTTP境界で400にする"},
-              {"id": "quarkus-health", "label": "SmallRye Health readinessがgreeting=UPを返す"},
-              {"id": "quarkus-stop", "label": "検証後にJVM processとHTTP listenerを停止する"}
+              {
+                "id": "quarkus-tests",
+                "label": "mvn package内のJUnitを通す"
+              },
+              {
+                "id": "quarkus-jvm-package",
+                "label": "quarkus-run.jarと依存libを含むJVM配布物を作る"
+              },
+              {
+                "id": "quarkus-api",
+                "label": "JVMモードのQuarkus RESTがHTTP 200とJSONを返す"
+              },
+              {
+                "id": "quarkus-validation",
+                "label": "入力不正を実HTTP境界で400にする"
+              },
+              {
+                "id": "quarkus-health",
+                "label": "SmallRye Health readinessがgreeting=UPを返す"
+              },
+              {
+                "id": "quarkus-stop",
+                "label": "検証後にJVM processとHTTP listenerを停止する"
+              }
             ],
             "editableFiles": [
-              {"path": "src/main/java/example/greeting/GreetingResource.java", "solutionPath": "reference/src/main/java/example/greeting/GreetingResource.java"},
-              {"path": "src/main/java/example/greeting/GreetingReadiness.java", "solutionPath": "reference/src/main/java/example/greeting/GreetingReadiness.java"},
-              {"path": "src/main/resources/application.properties", "solutionPath": "reference/src/main/resources/application.properties"}
+              {
+                "path": "src/main/java/example/greeting/GreetingResource.java",
+                "solutionPath": "reference/src/main/java/example/greeting/GreetingResource.java"
+              },
+              {
+                "path": "src/main/java/example/greeting/GreetingReadiness.java",
+                "solutionPath": "reference/src/main/java/example/greeting/GreetingReadiness.java"
+              },
+              {
+                "path": "src/main/resources/application.properties",
+                "solutionPath": "reference/src/main/resources/application.properties"
+              }
             ]
           },
           "hints": [
             "`GreetingResource`のname引数へ`@NotBlank`と`@Size(max = 20)`を付けます。import元は`jakarta.validation.constraints`です。",
             "`GreetingReadiness.call()`は`HealthCheckResponse.up(\"greeting\")`を返します。",
             "`application.properties`へ`app.greeting.prefix=Hello`を書きます。HTTP portは採点側が起動引数で渡すため固定しません。"
+          ],
+          "rubric": [
+            "implement"
           ]
         },
         {
@@ -508,31 +546,66 @@
           "runtimeLab": {
             "name": "quarkus-native-container-optional",
             "source": "labs/frameworks/quarkus/native-exercise",
-            "exclude": ["reference", "target"],
-            "command": ["./run-native-lab.sh"],
+            "exclude": [
+              "reference",
+              "target"
+            ],
+            "command": [
+              "./run-native-lab.sh"
+            ],
             "timeoutSeconds": 600,
             "verification": "Native executableをcontainer buildし、実containerのREST、Health、cleanupを確認する",
-            "capabilities": ["container", "server", "http"],
-            "requiredTools": ["java", "javac", "mvn", "docker"],
+            "capabilities": [
+              "container",
+              "server",
+              "http"
+            ],
+            "requiredTools": [
+              "java",
+              "javac",
+              "mvn",
+              "docker"
+            ],
             "requiredImages": [
               "quay.io/quarkus/ubi9-quarkus-mandrel-builder-image:jdk-21",
               "quay.io/quarkus/ubi9-quarkus-micro-image:2.0"
             ],
             "checks": [
-              {"id": "quarkus-native-build", "label": "Mandrel containerでNative executableをbuildする"},
-              {"id": "quarkus-native-api", "label": "Native containerのRESTが期待したJSONを返す"},
-              {"id": "quarkus-native-health", "label": "Native containerのreadinessがUPを返す"},
-              {"id": "quarkus-native-stop", "label": "検証後にNative containerとlistenerを停止する"}
+              {
+                "id": "quarkus-native-build",
+                "label": "Mandrel containerでNative executableをbuildする"
+              },
+              {
+                "id": "quarkus-native-api",
+                "label": "Native containerのRESTが期待したJSONを返す"
+              },
+              {
+                "id": "quarkus-native-health",
+                "label": "Native containerのreadinessがUPを返す"
+              },
+              {
+                "id": "quarkus-native-stop",
+                "label": "検証後にNative containerとlistenerを停止する"
+              }
             ],
             "editableFiles": [
-              {"path": "src/main/java/example/greeting/GreetingReadiness.java", "solutionPath": "reference/src/main/java/example/greeting/GreetingReadiness.java"},
-              {"path": "src/main/resources/application.properties", "solutionPath": "reference/src/main/resources/application.properties"}
+              {
+                "path": "src/main/java/example/greeting/GreetingReadiness.java",
+                "solutionPath": "reference/src/main/java/example/greeting/GreetingReadiness.java"
+              },
+              {
+                "path": "src/main/resources/application.properties",
+                "solutionPath": "reference/src/main/resources/application.properties"
+              }
             ]
           },
           "hints": [
             "先に`docker pull quay.io/quarkus/ubi9-quarkus-mandrel-builder-image:jdk-21`と`docker pull quay.io/quarkus/ubi9-quarkus-micro-image:2.0`を実行します。採点はimageを自動pullしません。",
             "設定は`app.greeting.prefix=Native`、readinessは`HealthCheckResponse.up(\"native-greeting\")`です。",
             "Nativeを採用する結論ありきにせず、JVM版とbuild時間、起動時間、RSS、定常性能、障害調査性を同条件で比較してください。"
+          ],
+          "rubric": [
+            "implement"
           ]
         }
       ],
@@ -559,6 +632,9 @@
           "answer": 0,
           "explanation": "プロセス再起動の判定であるLivenessとは目的を分けます。"
         }
+      ],
+      "rubric": [
+        "decide"
       ]
     },
     {
@@ -608,16 +684,6 @@
         "Spring APIは対応Extensionの確認結果で分岐します。対応表にないAPIを無理に互換扱いせず、書き換え対象にします。"
       ],
       "solution": "import java.util.*;\n\npublic class Main {\n    static String route(String api, boolean confirmed) {\n        if (api.equals(\"JAKARTA_REST\") || api.equals(\"CDI\")) return \"NATIVE_QUARKUS_API\";\n        Set<String> springApis = Set.of(\"SPRING_DI\", \"SPRING_WEB\", \"SPRING_DATA\", \"SPRING_SECURITY\");\n        if (springApis.contains(api)) {\n            return confirmed ? \"COMPATIBILITY_EXTENSION:TEST_SUBSET\" : \"SPIKE:CHECK_SUPPORTED_SUBSET\";\n        }\n        return \"REWRITE_REQUIRED:UNSUPPORTED_API\";\n    }\n\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        String api = sc.nextLine();\n        boolean confirmed = Boolean.parseBoolean(sc.nextLine());\n        System.out.println(route(api, confirmed));\n    }\n}",
-      "sourceChecks": [
-        {
-          "pattern": "Set\\.of\\(",
-          "message": "確認対象のSpring API群をSetで表してください。"
-        },
-        {
-          "pattern": "springApis\\.contains",
-          "message": "APIが互換確認対象かをSetで判定してください。"
-        }
-      ],
       "kind": "drill",
       "extraTasks": [],
       "quiz": [
@@ -643,6 +709,9 @@
           "answer": 0,
           "explanation": "公式ガイドで対象APIを確認し、不足部分は書き換えまたは小さな検証を行います。"
         }
+      ],
+      "rubric": [
+        "decide"
       ]
     },
     {
@@ -686,16 +755,6 @@
         "未知の要件は捨てずに`要件=SPIKE`とし、小さな検証が必要な項目として計画へ残します。"
       ],
       "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        String line = new Scanner(System.in).nextLine().trim();\n        Map<String, String> plan = Map.of(\n                \"api\", \"api=rest-jackson/@QuarkusTest\",\n                \"db\", \"db=jdbc-postgresql/DevServices\",\n                \"health\", \"health=smallrye-health|/q/health\",\n                \"validation\", \"validation=hibernate-validator/boundary-test\",\n                \"native\", \"native=native-build/native-test\"\n        );\n        Set<String> result = new LinkedHashSet<>();\n        if (!line.isEmpty()) {\n            for (String requirement : line.split(\"\\\\s+\")) {\n                result.add(plan.getOrDefault(requirement, requirement + \"=SPIKE\"));\n            }\n        }\n        System.out.println(String.join(\",\", result));\n    }\n}",
-      "sourceChecks": [
-        {
-          "pattern": "LinkedHashSet",
-          "message": "入力順を保った重複除去を行ってください。"
-        },
-        {
-          "pattern": "getOrDefault",
-          "message": "未知の要件はSPIKEへ回してください。"
-        }
-      ],
       "kind": "applied",
       "extraTasks": [
         {
@@ -735,17 +794,10 @@
             "次にprodとdev/testを分けます。本番は明示DB設定を必須にし、Dev Servicesは開発・テストだけで候補にします。"
           ],
           "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        String profile = sc.nextLine();\n        boolean databaseConfigured = Boolean.parseBoolean(sc.nextLine());\n        boolean containerAvailable = Boolean.parseBoolean(sc.nextLine());\n        boolean tests = Boolean.parseBoolean(sc.nextLine());\n        if (!tests) {\n            System.out.println(\"BLOCKED:TEST\");\n        } else if (profile.equals(\"prod\")) {\n            System.out.println(databaseConfigured ? \"PROD:EXPLICIT_DB\" : \"BLOCKED:PROD_DB\");\n        } else if (databaseConfigured) {\n            System.out.println(\"DEV:EXPLICIT_DB\");\n        } else {\n            System.out.println(containerAvailable ? \"DEV:DEV_SERVICES\" : \"BLOCKED:DEV_CONTAINER\");\n        }\n    }\n}",
-          "sourceChecks": [
-            {
-              "pattern": "if\\s*\\(\\s*!tests",
-              "message": "テスト失敗を最優先で停止してください。"
-            },
-            {
-              "pattern": "profile\\.equals\\(",
-              "message": "本番とdev/testのサービス準備を分けてください。"
-            }
-          ],
-          "kind": "applied"
+          "kind": "applied",
+          "rubric": [
+            "decide"
+          ]
         },
         {
           "task": "Quarkus更新のリリースゲートを作る\n\n5行に、Update Tool実行済み、Migration Guide確認済み、diffレビュー済み、JVMテスト成功、Native採用時のNativeテスト成功、を表す`true`/`false`が与えられ、6行目にNative採用有無が与えられます。未完了を`UPDATE,GUIDE,DIFF,JVM_TEST,NATIVE_TEST`順に集め、なければ`READY`、あれば`BLOCKED:<項目>`と出力してください。Nativeを採用しない場合はNative testの値を判定しません。",
@@ -784,17 +836,10 @@
             "`NATIVE_TEST`を追加するのはNative採用時かつNativeテスト失敗時だけです。最後に空なら`READY`と判定します。"
           ],
           "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        boolean update = Boolean.parseBoolean(sc.nextLine());\n        boolean guide = Boolean.parseBoolean(sc.nextLine());\n        boolean diff = Boolean.parseBoolean(sc.nextLine());\n        boolean jvmTest = Boolean.parseBoolean(sc.nextLine());\n        boolean nativeTest = Boolean.parseBoolean(sc.nextLine());\n        boolean nativeDeployment = Boolean.parseBoolean(sc.nextLine());\n        List<String> missing = new ArrayList<>();\n        if (!update) missing.add(\"UPDATE\");\n        if (!guide) missing.add(\"GUIDE\");\n        if (!diff) missing.add(\"DIFF\");\n        if (!jvmTest) missing.add(\"JVM_TEST\");\n        if (nativeDeployment && !nativeTest) missing.add(\"NATIVE_TEST\");\n        System.out.println(missing.isEmpty() ? \"READY\" : \"BLOCKED:\" + String.join(\",\", missing));\n    }\n}",
-          "sourceChecks": [
-            {
-              "pattern": "List<String>\\s+missing",
-              "message": "未完了項目をListへ集めてください。"
-            },
-            {
-              "pattern": "nativeDeployment\\s*&&\\s*!nativeTest",
-              "message": "Native採用時だけNativeテストを必須にしてください。"
-            }
-          ],
-          "kind": "applied"
+          "kind": "applied",
+          "rubric": [
+            "decide"
+          ]
         }
       ],
       "quiz": []

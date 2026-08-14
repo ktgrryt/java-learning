@@ -36,7 +36,31 @@ public final class PreflightRunner {
     }
 
     private static CheckResult checkTool(PreflightCheck check) {
-        List<String> command = toolCommand(check.tool());
+        if (check.tool().equals("docker-or-podman")) return checkContainerRuntime(check);
+        return runTool(check, toolCommand(check.tool()));
+    }
+
+    /**
+     * Docker/Podmanのどちらでも良いlabのための確認。
+     *
+     * どちらかが応答すれば合格にする。片方しか入れていない学習者へ、
+     * 入れていない方の導入を促さないための分岐である。
+     */
+    private static CheckResult checkContainerRuntime(PreflightCheck check) {
+        List<String> failures = new ArrayList<>();
+        for (String runtime : List.of("docker", "podman")) {
+            CheckResult attempt = runTool(check,
+                    List.of(runtime, "version", "--format", "{{.Server.Version}}"));
+            if (attempt.pass()) {
+                return passed(check, runtime + "を利用できます（" + attempt.detail() + "）",
+                        runtime + "が応答しました。もう一方は入っていなくてかまいません。");
+            }
+            failures.add(runtime + ": " + attempt.summary());
+        }
+        return failed(check, "DockerもPodmanも利用できません", String.join(" / ", failures));
+    }
+
+    private static CheckResult runTool(PreflightCheck check, List<String> command) {
         Process process;
         try {
             process = new ProcessBuilder(command).redirectErrorStream(true).start();

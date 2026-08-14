@@ -212,6 +212,10 @@
           "maximum": 0,
           "message": "レポートの表示は `MiniJUnit` がやります。自分で `System.out` へ書かないでください。"
         }
+      ],
+      "rubric": [
+        "implement",
+        "test"
       ]
     },
     {
@@ -288,6 +292,10 @@
           "answer": 1,
           "explanation": "内部実装へ結合したmock検証は、外から見た振る舞いが同じでも壊れます。利用者から見える振る舞いを検証します。"
         }
+      ],
+      "rubric": [
+        "implement",
+        "test"
       ]
     },
     {
@@ -341,6 +349,128 @@
         "`computeIfAbsent` でTreeSetを作り、sizeが2以上のキーを出します。"
       ],
       "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] a) {\n        Scanner s = new Scanner(System.in);\n        int n = s.nextInt();\n        Map<String, Set<String>> versions = new TreeMap<>();\n        for (int i = 0; i < n; i++) {\n            String[] p = s.next().split(\":\", - 1);\n            versions.computeIfAbsent(p[0] + \":\" + p[1], k -> new TreeSet<>()).add(p[2]);\n        }\n        boolean ok = true;\n        for (var e : versions.entrySet()) if (e.getValue().size() > 1) {\n            System.out.println(\"CONFLICT \" + e.getKey());\n            ok = false;\n        }\n        if (ok) System.out.println(\"OK\");\n    }\n}\n",
+      "extraTasks": [
+        {
+          "kind": "applied",
+          "type": "runtime-lab",
+          "task": "【実ビルド演習】`labs/testing-maven/build-exercise`の`pom.xml`を直してください。このビルドは今も`BUILD SUCCESS`で終わりますが、成功しているのに次の4つが成り立っていません。\n\n1. testが一度も走らない\n2. JUnitが実行時の依存にも混ざっている\n3. 配布JARにtestのclassやbuildの中間物まで入る\n4. 版を明示していないpluginがあり、同じ手順を将来再現できない\n\n提出すると`mvn clean package dependency:list`を実際に実行し、surefireの結果、依存の解決結果、出来たJARの中身、Mavenの警告を検査します。ソースとテストは変更しません。",
+          "runtimeLab": {
+            "name": "Maven build and artifact lab",
+            "source": "labs/testing-maven/build-exercise",
+            "exclude": [
+              "reference"
+            ],
+            "command": [
+              "./run-runtime-lab.sh"
+            ],
+            "timeoutSeconds": 60,
+            "verification": "mvn clean package dependency:listを実際に実行し、testの実行結果・依存scope・JARの中身・版の明示を確認する",
+            "capabilities": [
+              "build"
+            ],
+            "requiredTools": [
+              "java",
+              "javac",
+              "mvn"
+            ],
+            "requiredImages": [],
+            "checks": [
+              {
+                "id": "maven-tests-run",
+                "label": "9件のtestが実際に走り、すべて成功する"
+              },
+              {
+                "id": "maven-test-scope",
+                "label": "JUnitがtestのときだけ必要な依存として解決される"
+              },
+              {
+                "id": "maven-jar-content",
+                "label": "JARに本体のclassだけが入り、testのclassは入らない"
+              },
+              {
+                "id": "maven-pinned-versions",
+                "label": "依存とpluginの版が明示され、再現できるビルドになる"
+              }
+            ],
+            "editableFiles": [
+              {
+                "path": "pom.xml",
+                "solutionPath": "reference/pom.xml"
+              }
+            ]
+          },
+          "hints": [
+            "`skipTests`はsurefireが読むプロパティです。`<properties>`へ書くとproject全体でtestが走らず、`package`まで進んでも成果物だけができます。",
+            "`<scope>test</scope>`は「testのときだけclasspathへ入れる」宣言です。省略すると`compile`扱いになり、`dependency:list`にも`:compile`で現れます。",
+            "JARへ入る範囲は`maven-jar-plugin`の`classesDirectory`が決めます。既定は`target/classes`で、`target`ごと指定すると`test-classes`まで入ります。pluginの版も明示してください。"
+          ],
+          "rubric": [
+            "implement"
+          ]
+        },
+        {
+          "kind": "applied",
+          "type": "runtime-lab",
+          "task": "【実モジュール演習】`labs/modules/boundary-exercise`で、moduleの公開境界がコンパイル時に守られることを確かめます。解説が「`labs/modules`には2モジュールの最小例があり、JARへまとめて実行したあと`exports`を外すと、公開境界がコンパイル時に守られることを確かめられます」と書いている部分です。\n\n`cafe.greeting`には公開するAPI（`cafe.greeting`）と内部実装（`cafe.greeting.internal`）の2つのpackageがあります。2つの`module-info.java`を書いてください。\n\n1. `src/cafe.greeting/module-info.java` — 利用側が使うpackageだけを公開する\n2. `src/cafe.app/module-info.java` — 使うmoduleを宣言する\n\n提出すると`javac --module-source-path`で2 moduleをcompileし、別moduleから公開APIと内部packageの両方を参照してみて、**公開したものだけが使えること**を確かめます。続けてJARへまとめ、`java --module-path`で起動し、`jar --describe-module`で公開範囲を読みます。`exports`を2つ書けばcompileも実行も通りますが、それは境界を捨てた状態なので不合格になります。",
+          "runtimeLab": {
+            "name": "Module boundary lab",
+            "source": "labs/modules/boundary-exercise",
+            "exclude": [
+              "reference"
+            ],
+            "command": [
+              "./run-runtime-lab.sh"
+            ],
+            "timeoutSeconds": 60,
+            "verification": "module-source-pathでのcompile、別moduleからの参照可否、JAR起動、describe-moduleの公開範囲を確認する",
+            "capabilities": [
+              "jdk-tool"
+            ],
+            "requiredTools": [
+              "java",
+              "javac",
+              "jar"
+            ],
+            "requiredImages": [],
+            "checks": [
+              {
+                "id": "modules-compile",
+                "label": "2つのmoduleをまとめてcompileできる"
+              },
+              {
+                "id": "modules-boundary",
+                "label": "公開したpackageだけが他moduleから使える"
+              },
+              {
+                "id": "modules-jar-run",
+                "label": "JARへまとめてmodule-pathから起動できる"
+              },
+              {
+                "id": "modules-describe",
+                "label": "describe-moduleの公開範囲が最小になる"
+              }
+            ],
+            "editableFiles": [
+              {
+                "path": "src/cafe.greeting/module-info.java",
+                "solutionPath": "reference/cafe.greeting/module-info.java"
+              },
+              {
+                "path": "src/cafe.app/module-info.java",
+                "solutionPath": "reference/cafe.app/module-info.java"
+              }
+            ]
+          },
+          "hints": [
+            "`module cafe.app { requires cafe.greeting; }`のように、使うmoduleを名前で宣言します。classpathと違い、宣言していないmoduleのpackageは読めません。",
+            "`exports cafe.greeting;`で公開します。`public`だけでは足りず、moduleの外からはexportsしたpackageしか見えません。",
+            "内部実装は公開しません。`cafe.greeting.internal`は同じmodule内からは使えますが、外へは出しません。`jar --describe-module`で公開範囲を確認できます。"
+          ],
+          "rubric": [
+            "implement"
+          ]
+        }
+      ],
       "quiz": [
         {
           "question": "Mavenの標準的なテストソース配置は？",
@@ -474,19 +604,7 @@
             "`layers` の順に取り出せば、0件の層も抜けずに表示できます。",
             "判定は2つの比較を `&&` でつなぎます。上の層が下の層より多いとき、テストは遅く壊れやすくなります。"
           ],
-          "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        int n = s.nextInt();\n        List<String> layers = List.of(\"unit\", \"integration\", \"e2e\");\n        Map<String, Integer> count = new LinkedHashMap<>(), time = new LinkedHashMap<>();\n        for (String l : layers) {\n            count.put(l, 0);\n            time.put(l, 0);\n        }\n        for (int i = 0; i < n; i++) {\n            String name = s.next(), layer = s.next();\n            int ms = s.nextInt();\n            count.merge(layer, 1, Integer::sum);\n            time.merge(layer, ms, Integer::sum);\n        }\n        for (String l : layers) System.out.println(l + \" \" + count.get(l) + \" \" + time.get(l));\n        System.out.println(count.get(\"unit\") >= count.get(\"integration\") && count.get(\"integration\") >= count.get(\"e2e\") ? \"PYRAMID\" : \"INVERTED\");\n    }\n}\n",
-          "sourceChecks": [
-            {
-              "pattern": "List\\s*\\.\\s*of\\s*\\(|String\\s*\\[\\s*\\]",
-              "minimum": 1,
-              "message": "出力する層の順番は決まっています。`List.of(\"unit\", \"integration\", \"e2e\")` のように順序を持ってください。"
-            },
-            {
-              "pattern": "\\bnew\\s+LinkedHashMap\\b",
-              "minimum": 1,
-              "message": "入れた順を保つので `LinkedHashMap` を使ってください。`HashMap` では並び順が決まりません。"
-            }
-          ]
+          "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        int n = s.nextInt();\n        List<String> layers = List.of(\"unit\", \"integration\", \"e2e\");\n        Map<String, Integer> count = new LinkedHashMap<>(), time = new LinkedHashMap<>();\n        for (String l : layers) {\n            count.put(l, 0);\n            time.put(l, 0);\n        }\n        for (int i = 0; i < n; i++) {\n            String name = s.next(), layer = s.next();\n            int ms = s.nextInt();\n            count.merge(layer, 1, Integer::sum);\n            time.merge(layer, ms, Integer::sum);\n        }\n        for (String l : layers) System.out.println(l + \" \" + count.get(l) + \" \" + time.get(l));\n        System.out.println(count.get(\"unit\") >= count.get(\"integration\") && count.get(\"integration\") >= count.get(\"e2e\") ? \"PYRAMID\" : \"INVERTED\");\n    }\n}\n"
         },
         {
           "kind": "applied",
@@ -537,24 +655,13 @@
             "競合の一覧を先に全部出し、そのあとで解決結果を出します。2回ループを回して構いません。"
           ],
           "solution": "import java.util.*;\n\npublic class Main {\n    static int[] parse(String v) {\n        String[] q = v.split(\"\\\\.\", - 1);\n        return new int[] {Integer.parseInt(q[0]), Integer.parseInt(q[1])};\n    }\n\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        int n = s.nextInt();\n        Map<String, Set<String>> versions = new TreeMap<>();\n        for (int i = 0; i < n; i++) {\n            String[] p = s.next().split(\":\", - 1);\n            versions.computeIfAbsent(p[0] + \":\" + p[1], k -> new LinkedHashSet<>()).add(p[2]);\n        }\n        for (Map.Entry<String, Set<String>> e : versions.entrySet()) if (e.getValue().size() > 1) System.out.println(\"CONFLICT \" + e.getKey());\n        for (Map.Entry<String, Set<String>> e : versions.entrySet()) {\n            String best = null;\n            for (String v : e.getValue()) {\n                if (best == null) {\n                    best = v;\n                    continue;\n                }\n                int[] a = parse(v), b = parse(best);\n                if (a[0] > b[0] || (a[0] == b[0] && a[1] > b[1])) best = v;\n            }\n            System.out.println(e.getKey() + \"=\" + best);\n        }\n    }\n}\n",
-          "sourceChecks": [
-            {
-              "pattern": "\\bnew\\s+TreeMap\\b",
-              "minimum": 1,
-              "message": "辞書順に出すので `TreeMap` を使ってください。"
-            },
-            {
-              "pattern": "Integer\\s*\\.\\s*parseInt",
-              "minimum": 1,
-              "message": "バージョンは区切りごとに数値へ直して比べてください。文字列比較では `1.10` が `1.2` より小さくなります。"
-            },
-            {
-              "pattern": "\\.split\\s*\\(",
-              "minimum": 1,
-              "message": "`group:artifact:major.minor` は `split` で分解してください。"
-            }
+          "rubric": [
+            "diagnose"
           ]
         }
+      ],
+      "rubric": [
+        "test"
       ]
     },
     {
@@ -748,22 +855,57 @@
               "message": "fakeは本物と同じOrderRepositoryインターフェースを実装してください。"
             },
             {
-              "pattern": "Map\\s*<\\s*Long\\s*,\\s*Order\\s*>",
-              "minimum": 1,
-              "message": "状態を持つfakeとして、IDから注文を引くMapを使ってください。"
-            },
-            {
-              "pattern": "\\.put\\s*\\(",
-              "minimum": 1,
-              "message": "saveではMapへ注文を保存してください。"
-            },
-            {
               "pattern": "Optional\\s*\\.\\s*ofNullable",
               "minimum": 1,
               "message": "存在しない注文も表せるよう、findByIdはOptionalを返してください。"
             }
+          ],
+          "rubric": [
+            "implement",
+            "test"
+          ]
+        },
+        {
+          "kind": "applied",
+          "type": "project",
+          "task": "【実JUnit演習】`labs/testing-maven/junit-exercise`で、教材画面の`MiniJUnit`では動かせない`@MethodSource`・`@TempDir`・`@BeforeEach`を実際のJUnitで動かします。仕事は2つです。\n\n1. `DiscountReport`を直す。変更不能な`RequirementsTest`が、出力先が無いときと、同じファイルへ書き直したときの2件で失敗します。まず`mvn test`の報告を読んでください。\n2. `DiscountReportTest`を書き換える。今は自分で作った一時ディレクトリを片付けていません。`@TempDir`のPathフィールドと`@BeforeEach`でテストごとに空の出力先を用意し、複数の入力は`@ParameterizedTest`と`@MethodSource`で表にします。供給メソッドはstaticにし、2件以上を返します。\n\n提出すると隔離したコピーで`mvn test`を実行します。`RequirementsTest`は編集できず、仕様とテストの形の両方を固定します。",
+          "project": {
+            "name": "Real JUnit maintainability lab",
+            "source": "labs/testing-maven/junit-exercise",
+            "exclude": [
+              "reference"
+            ],
+            "command": [
+              "mvn",
+              "test"
+            ],
+            "timeoutSeconds": 60,
+            "verification": "変更不能な受け入れテストを含む実JUnitのtestが`mvn test`で全て成功する",
+            "editableFiles": [
+              {
+                "path": "src/main/java/cafe/lab/DiscountReport.java",
+                "solutionPath": "reference/src/main/java/cafe/lab/DiscountReport.java"
+              },
+              {
+                "path": "src/test/java/cafe/lab/DiscountReportTest.java",
+                "solutionPath": "reference/src/test/java/cafe/lab/DiscountReportTest.java"
+              }
+            ]
+          },
+          "hints": [
+            "`Files.createDirectories`は既に在るディレクトリでも失敗しません。出力先を先に作ってから書いてください。",
+            "`Files.write`は既定で前回の内容を切り詰めます。`StandardOpenOption.APPEND`を足すと古い行が残ります。",
+            "`@TempDir`のPathフィールドはJUnitがテストごとに作って消します。`@MethodSource`の供給メソッドはstaticにし、`Stream<Arguments>`を返します。"
+          ],
+          "rubric": [
+            "implement",
+            "test"
           ]
         }
+      ],
+      "rubric": [
+        "implement",
+        "test"
       ]
     },
     {
@@ -821,12 +963,12 @@
         {
           "pattern": "items\\s*\\.\\s*clear\\s*\\(",
           "minimum": 1,
-          "message": "前のテストやmainが残した状態をclearしてください。"
+          "message": "共有しているListを毎回空にしてから、既知の状態を作ってください。前のテストが残したデータが次のテストへ漏れます。"
         },
         {
-              "pattern": "items\\s*\\.\\s*add\\s*\\(",
-              "minimum": 2,
-              "message": "setUpの基準データとテスト内の追加データを、どちらもitemsへ入れてください。"
+          "pattern": "\\bassertEquals\\s*\\(",
+          "minimum": 2,
+          "message": "2つのテストメソッドの中で、実際に`assertEquals`で検証してください。中身が空のテストは何も確かめないまま成功します。"
         }
       ],
       "extraTasks": [
@@ -881,6 +1023,10 @@
               "maximum": 0,
               "message": "この問題では実行時刻に依存するInstant.now()を直接呼ばないでください。"
             }
+          ],
+          "rubric": [
+            "implement",
+            "test"
           ]
         },
         {
@@ -922,19 +1068,15 @@
             "risksが空ならstable、1件以上ならflakyを増やします。"
           ],
           "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n        int stable = 0, flaky = 0;\n        for (int i = 0; i < n; i++) {\n            String name = sc.next();\n            String clock = sc.next(), random = sc.next(), state = sc.next();\n            String wait = sc.next(), network = sc.next();\n            List<String> risks = new ArrayList<>();\n            if (clock.equals(\"real\")) risks.add(\"CLOCK\");\n            if (random.equals(\"unseeded\")) risks.add(\"RANDOM\");\n            if (state.equals(\"shared\")) risks.add(\"STATE\");\n            if (wait.equals(\"sleep\")) risks.add(\"WAIT\");\n            if (network.equals(\"live\")) risks.add(\"NETWORK\");\n            if (risks.isEmpty()) {\n                stable++;\n                System.out.println(name + \" STABLE\");\n            } else {\n                flaky++;\n                System.out.println(name + \" FLAKY \" + String.join(\",\", risks));\n            }\n        }\n        System.out.println(\"SUMMARY stable=\" + stable + \" flaky=\" + flaky);\n    }\n}\n",
-          "sourceChecks": [
-            {
-              "pattern": "String\\s*\\.\\s*join\\s*\\(",
-              "minimum": 1,
-              "message": "複数の不安定要因はString.joinでカンマ区切りにしてください。"
-            },
-            {
-              "pattern": "\\.isEmpty\\s*\\(",
-              "minimum": 1,
-              "message": "要因リストが空かどうかでSTABLEとFLAKYを分けてください。"
-            }
+          "rubric": [
+            "test",
+            "decide"
           ]
         }
+      ],
+      "rubric": [
+        "implement",
+        "test"
       ]
     }
   ]

@@ -10,8 +10,9 @@ Jakarta EE 11対応サーバーで確認する最小WARです。
 - **Jakarta EE 11 Platform対応サーバー**（Open Liberty、WildFly、Payara など）
 - 初回のみ、依存をダウンロードするためのネットワーク
 
-> この環境にはアプリサーバーが無いため、デプロイ後の応答は未確認です。
-> `mvn clean package` までは同じ構成で通ります。
+> このWAR単体のデプロイ後の応答は未確認です。`mvn clean package` までは同じ構成で通ります。
+> 実サーバーでの応答は `runtime-exercise/` で確認できます（第46章 48-5の採点対象）。
+> そちらはOpen Liberty 26を一時領域へ準備し、動的portへ配備してHTTPまで検証します。
 
 API JARは `provided` であり、実装はサーバーが提供します。Tomcatは
 フルのJakarta EEサーバーではないので、Servlet以外の仕様には対応サーバーが必要です。

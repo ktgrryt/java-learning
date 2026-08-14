@@ -49,6 +49,11 @@ import java.util.concurrent.TimeUnit;
  */
 public final class ProgressStore {
 
+    // 23: 問題を574問から596問へ増やしたぶん投資率が下限へ寄っていたので、終盤改装の
+    //     基準額を450億→2,000億へ上げ、あわせて1段ごとの値上がりを2倍→1.5倍へ寝かせた。
+    //     2倍のままでは、次の1段だけで全段の合計と同額になり、20問ごとの解放の瞬間に
+    //     ラッキーコイン未解放の投資率が上限45%を超えてしまう（基準額を上げるほど跳ね幅も
+    //     比例して大きくなるため、基準額だけでは直せない）。plain 35.34%→38.35%。
     // 22: 序盤の解放ペースを緩めるため、Rank1〜5の価格を引き上げた（Rank1は約6倍、
     //     Rank5は約1.27倍）。数問で6系統すべてのRank1が買えていたのを、1〜2節で1つ、
     //     1章クリアで3つに落としてある。Rank6以降と出店費は据え置きなので、
@@ -57,7 +62,7 @@ public final class ProgressStore {
     //     574問すべて外れても投資率45%以内になるよう、終盤改装の基準額を450億へ下げた。
     // 20: ラッキーコインを「頻繁な小当たり」から「5%の大当たり」へ変更し、価格を77,777にした。
     //     期待売上が下がるぶん、全購入時の投資率を範囲内へ戻すため終盤改装の基準額も下げた。
-    private static final int CAFE_ECONOMY_VERSION = 22;
+    private static final int CAFE_ECONOMY_VERSION = 23;
     private static final int CUP_PRICE = 500;
     private static final int MAX_CAFE_STORES = 512;
     private static final long FIRST_EXPANSION_COST = 2_500L;
@@ -125,8 +130,22 @@ public final class ProgressStore {
     /** 終盤の任意投資は★520から20問ごとに1段階ずつ解放する。 */
     private static final int ENDGAME_INVESTMENT_START_STARS = 500;
     private static final int ENDGAME_INVESTMENT_STAR_INTERVAL = 20;
-    /** 収益効果のない任意投資。1段階ごとに価格を2倍にし、追加章のコイン余りを受け止める。 */
-    private static final long ENDGAME_INVESTMENT_BASE_COST = 45_000_000_000L;
+    /**
+     * 収益効果のない任意投資。追加章のコイン余りを受け止める調整弁。
+     *
+     * <p>値上がりは1段ごとに 3/2 倍。以前は2倍だったが、2倍だと<b>次の1段だけで
+     * それまでの全段の合計と同額</b>になるため、20問ごとの解放の瞬間に投資率が跳ね、
+     * ラッキーコイン未解放（生涯売上が最も小さい）で上限45%を突き抜けてしまう。
+     * 2倍のまま基準額を上げてこの穴を埋めることはできない ― 基準額を上げるほど
+     * 跳ね幅も比例して大きくなる。傾きを寝かせて基準額を上げると、解放のたびの段差が
+     * 小さくなり、問題を増やしても帯の中に留まる。
+     *
+     * <p>基準額を触ったら {@code tools/simulate-cafe.sh} を通すこと。効くのは上限側で、
+     * plainより先にラッキーコイン未解放の投資率が45%へ当たる。
+     */
+    private static final long ENDGAME_INVESTMENT_BASE_COST = 200_000_000_000L;
+    private static final long ENDGAME_INVESTMENT_STEP_NUMERATOR = 3L;
+    private static final long ENDGAME_INVESTMENT_STEP_DENOMINATOR = 2L;
     /*
      * 設備（通常設備・自動営業）に★の解放条件は<b>置かない</b>。
      *
@@ -238,6 +257,14 @@ public final class ProgressStore {
     private final Map<String, Integer> bestPassed = new LinkedHashMap<>();
     /** "レッスンID#クイズ番号" -> 選んだ選択肢の番号 */
     private final Map<String, Integer> quizChoices = new LinkedHashMap<>();
+    /**
+     * 章ごとの層（概念／コード／実践）を最初に達成した日。キーは {@code 章ID#層}。
+     *
+     * <p>層の達成は進捗から導けるが、<b>導出だけにすると章へ問題が増えた瞬間に
+     * 過去の達成が未達成へ戻る</b>。それでは「この章の実践までやり切った」という記録として
+     * 使えない。所有アイテム（{@link #cafeItems}）と同じく、一度達成したら消さない。
+     */
+    private final Map<String, String> layerCompletions = new LinkedHashMap<>();
     /** 何かをクリアした日付 */
     private final Set<String> clearDates = new TreeSet<>();
     /**
@@ -756,6 +783,26 @@ public final class ProgressStore {
     // ------------------------------------------------------------------ read
 
     /** クリア済みの問題キー。 */
+    /** 章の層を最初に達成した日（未達成なら null）。キーは {@code 章ID#層}。 */
+    public synchronized String layerCompletedAt(String chapterId, String layerId) {
+        return layerCompletions.get(chapterId + "#" + layerId);
+    }
+
+    /**
+     * 章の層の達成を記録する。すでに記録があれば何もしない（達成日は最初のまま）。
+     *
+     * @return 新しく記録したら true
+     */
+    public synchronized boolean recordLayerCompletion(String chapterId, String layerId) {
+        String key = chapterId + "#" + layerId;
+        if (layerCompletions.containsKey(key)) {
+            return false;
+        }
+        layerCompletions.put(key, LocalDate.now().toString());
+        saveSoon();
+        return true;
+    }
+
     public synchronized Set<String> clearedIds() {
         return new LinkedHashSet<>(cleared.keySet());
     }
@@ -1903,7 +1950,8 @@ public final class ProgressStore {
     private static long cafeInvestmentCost(int level) {
         long cost = ENDGAME_INVESTMENT_BASE_COST;
         for (int i = 1; i < level; i++) {
-            cost = saturatedMultiply(cost, 2L);
+            cost = saturatedMultiply(cost, ENDGAME_INVESTMENT_STEP_NUMERATOR)
+                    / ENDGAME_INVESTMENT_STEP_DENOMINATOR;
         }
         return cost;
     }
@@ -2224,6 +2272,7 @@ public final class ProgressStore {
         attempts.clear();
         bestPassed.clear();
         quizChoices.clear();
+        layerCompletions.clear();
         clearDates.clear();
         reviewWeight.clear();
         bookmarks.clear();
@@ -2397,6 +2446,12 @@ public final class ProgressStore {
                 for (Object o : MiniJson.list(cafe, "ownedAutomation")) {
                     if (o instanceof String s && isKnownAutomation(s)) {
                         cafeAutomationUpgrades.add(s);
+                    }
+                }
+                for (Map.Entry<String, Object> e
+                        : MiniJson.obj(root, "layerCompletions").entrySet()) {
+                    if (e.getValue() instanceof String date && !date.isBlank()) {
+                        layerCompletions.put(e.getKey(), date);
                     }
                 }
                 for (Object o : MiniJson.list(cafe, "ownedItems")) {
@@ -2611,6 +2666,7 @@ public final class ProgressStore {
         });
         m.put("reviewPlans", plans);
         m.put("bookmarks", new ArrayList<>(bookmarks));
+        m.put("layerCompletions", new LinkedHashMap<>(layerCompletions));
 
         Map<String, Object> cafe = new LinkedHashMap<>();
         cafe.put("economyVersion", CAFE_ECONOMY_VERSION);

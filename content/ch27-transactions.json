@@ -85,7 +85,11 @@
               "message": "結果を直接書かず、catchの中で `throw e;` として例外を外へ伝えてください（握りつぶさないことがこの問題の要点です）。"
             }
           ],
-          "solution": "import jakarta.transaction.Transactional;\n\nclass AccountService {\n    int balance = 1000;\n\n    @Transactional\n    void withdraw(int amount) {\n        int before = balance;\n        try {\n            balance -= amount;\n            saveHistory();\n        } catch (RuntimeException e) {\n            balance = before;\n            throw e;\n        }\n    }\n\n    void saveHistory() {\n        throw new IllegalStateException(\"DB error\");\n    }\n}\n\npublic class TxException {\n    public static void main(String[] a) {\n        AccountService s = new AccountService();\n        try {\n            s.withdraw(100);\n        } catch (RuntimeException e) {\n            System.out.println(\"rollback balance=\" + s.balance);\n        }\n    }\n}\n"
+          "solution": "import jakarta.transaction.Transactional;\n\nclass AccountService {\n    int balance = 1000;\n\n    @Transactional\n    void withdraw(int amount) {\n        int before = balance;\n        try {\n            balance -= amount;\n            saveHistory();\n        } catch (RuntimeException e) {\n            balance = before;\n            throw e;\n        }\n    }\n\n    void saveHistory() {\n        throw new IllegalStateException(\"DB error\");\n    }\n}\n\npublic class TxException {\n    public static void main(String[] a) {\n        AccountService s = new AccountService();\n        try {\n            s.withdraw(100);\n        } catch (RuntimeException e) {\n            System.out.println(\"rollback balance=\" + s.balance);\n        }\n    }\n}\n",
+          "rubric": [
+            "implement",
+            "diagnose"
+          ]
         }
       ]
     },
@@ -137,6 +141,9 @@
           ],
           "solution": "public class TxShort {\n    public static void main(String[] a) {\n        System.out.println(\"[OUT] validate\");\n        System.out.println(\"[TX] db-update\");\n        System.out.println(\"[TX] commit\");\n        System.out.println(\"[OUT] http-call\");\n    }\n}\n"
         }
+      ],
+      "rubric": [
+        "diagnose"
       ]
     },
     {

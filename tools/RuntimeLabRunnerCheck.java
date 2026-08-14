@@ -76,6 +76,27 @@ public final class RuntimeLabRunnerCheck {
                             && !alternativeMissing.error().isBlank(),
                     "Docker/Podman代替要件の環境不足を分離できません: " + alternativeMissing);
 
+            // JDK同梱ツールの要件確認。javapは--versionで0を返さないため、
+            // 判定コマンドを間違えると存在するツールを「環境不足」と誤診する。
+            RuntimeLabSpec jdkTools = new RuntimeLabSpec(normal.workspace(), List.of("jdk-tool"),
+                    List.of("java", "javac", "javap", "jdeps"), List.of(), checks);
+            RuntimeLabRunner.Result withJdkTools = runner.run(jdkTools,
+                    Map.of("exercise/value.txt", "completed\n"));
+            require(withJdkTools.available() && withJdkTools.allPass(),
+                    "JDK付属ツールを環境不足と誤判定しました: " + withJdkTools.error());
+
+            // JFRとjlinkは在るだけでは足りず、配布物によっては使えない。
+            // 使えるなら実行し、使えないなら理由を残す。どちらでもない結果は許さない。
+            for (String capable : List.of("jfr", "jlink")) {
+                RuntimeLabSpec spec = new RuntimeLabSpec(normal.workspace(),
+                        List.of(capable.equals("jfr") ? "jfr" : "jdk-tool"),
+                        List.of("java", "javac", capable), List.of(), checks);
+                RuntimeLabRunner.Result result = runner.run(spec,
+                        Map.of("exercise/value.txt", "completed\n"));
+                require(result.available() ? result.allPass() : !result.error().isBlank(),
+                        capable + "の可否判定が不明です: " + result);
+            }
+
             System.out.println("runtime lab runner: すべて合格");
         } finally {
             deleteRecursively(source);

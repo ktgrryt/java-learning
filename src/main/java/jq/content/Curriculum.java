@@ -128,6 +128,193 @@ public final class Curriculum {
         return clearedCount(chapter, clearedKeys) == taskCount(chapter);
     }
 
+    /** 修了条件の3層。数え方は問題の種類から導く（教材側に項目を足さない）。 */
+    public enum Layer {
+        /** 概念。クイズで確かめる。 */
+        CONCEPT,
+        /** コード。`single-file`と`artifact`で確かめる。 */
+        CODING,
+        /** 実践。`project`と`runtime-lab`で確かめる。 */
+        PRACTICE;
+
+        public String id() {
+            return name().toLowerCase(java.util.Locale.ROOT);
+        }
+    }
+
+    /**
+     * 章の1つの層について「対象数」と「達成数」を数える。
+     *
+     * <p>層はブラウザ側でも数えていたが、達成状態を保存するにはサーバー側の値が要る。
+     * 数え方が2箇所にあるとずれるので、ここを唯一の定義にする。
+     *
+     * @param answeredCorrectly クイズ1問が正解済みかを返す判定（レッスンIDと問番号）
+     */
+    public LayerProgress layerProgress(Chapter chapter, Layer layer, Set<String> clearedKeys,
+                                       java.util.function.BiPredicate<String, Integer> answeredCorrectly) {
+        int total = 0;
+        int done = 0;
+        for (Lesson lesson : chapter.lessons()) {
+            if (layer == Layer.CONCEPT) {
+                for (int i = 0; i < lesson.quizzes().size(); i++) {
+                    total++;
+                    if (answeredCorrectly.test(lesson.id(), i)) {
+                        done++;
+                    }
+                }
+                continue;
+            }
+            for (Task task : lesson.tasks()) {
+                if (task.isOptional() || layerOf(task) != layer) {
+                    continue;
+                }
+                total++;
+                if (clearedKeys.contains(Lesson.taskKey(lesson.id(), task.id()))) {
+                    done++;
+                }
+            }
+        }
+        return new LayerProgress(total, done);
+    }
+
+    /**
+     * 章の実務rubric（§8.4）を、実際に解いた問題から算出する。
+     *
+     * <p>軸ごとに0〜2点。<b>対象が無い軸は「—」（{@code total=0}）</b>とし、0点とは区別する。
+     * その章で測る手段が無いことと、測ったが達成していないことは別である。
+     *
+     * <ul>
+     *   <li>2点 … その軸を測る問題（クイズ）を全部クリアした</li>
+     *   <li>1点 … 半分以上クリアした</li>
+     *   <li>0点 … それ未満</li>
+     * </ul>
+     *
+     * <p>{@code explain}はクイズと、説明を成果物として書かせる問題が対象になる。
+     * 文章の質は測れないので、ここで言えるのは「説明を書く課題を通した」までである。
+     */
+    public RubricScore rubricScore(Chapter chapter, String dimension, Set<String> clearedKeys,
+                                   java.util.function.BiPredicate<String, Integer> answeredCorrectly) {
+        int total = 0;
+        int done = 0;
+        for (Lesson lesson : chapter.lessons()) {
+            if (dimension.equals("explain")) {
+                for (int i = 0; i < lesson.quizzes().size(); i++) {
+                    total++;
+                    if (answeredCorrectly.test(lesson.id(), i)) {
+                        done++;
+                    }
+                }
+            }
+            for (Task task : lesson.tasks()) {
+                if (task.isOptional() || !task.rubricDimensions().contains(dimension)) {
+                    continue;
+                }
+                total++;
+                if (clearedKeys.contains(Lesson.taskKey(lesson.id(), task.id()))) {
+                    done++;
+                }
+            }
+        }
+        return new RubricScore(total, done);
+    }
+
+    /**
+     * レッスン1つのrubric。章と同じ数え方を、レッスンの範囲へ当てる。
+     *
+     * <p>章の合計だけでは「どのレッスンで診断を学んだか」が分からない。
+     * レッスンごとに出すことで、章のどこがどの能力に当たるかが読める。
+     */
+    public RubricScore lessonRubricScore(Lesson lesson, String dimension, Set<String> clearedKeys,
+                                         java.util.function.BiPredicate<String, Integer> answeredCorrectly) {
+        int total = 0;
+        int done = 0;
+        if (dimension.equals("explain")) {
+            for (int i = 0; i < lesson.quizzes().size(); i++) {
+                total++;
+                if (answeredCorrectly.test(lesson.id(), i)) {
+                    done++;
+                }
+            }
+        }
+        for (Task task : lesson.tasks()) {
+            if (task.isOptional() || !task.rubricDimensions().contains(dimension)) {
+                continue;
+            }
+            total++;
+            if (clearedKeys.contains(Lesson.taskKey(lesson.id(), task.id()))) {
+                done++;
+            }
+        }
+        return new RubricScore(total, done);
+    }
+
+    /**
+     * rubricの1軸の点数。
+     *
+     * @param total 対象数。0なら「この章では測っていない」
+     * @param done  クリア数
+     */
+    public record RubricScore(int total, int done) {
+
+        public int points() {
+            if (total == 0) {
+                return 0;
+            }
+            if (done == total) {
+                return 2;
+            }
+            return done * 2 >= total ? 1 : 0;
+        }
+
+        public boolean measured() {
+            return total > 0;
+        }
+    }
+
+    /**
+     * 実務修了の条件（§8.4）を満たすか。
+     *
+     * <p>合計8点以上、かつ「実装」「診断」が各1点以上。ただし<b>その章で測っていない軸は
+     * 条件に数えない</b>。クイズしか無い章に診断を要求しても意味がないためである。
+     * 測っている軸だけを分母にして、8/10と同じ割合（80%）を満たすかで判定する。
+     */
+    public boolean meetsRubricThreshold(Chapter chapter, Set<String> clearedKeys,
+                                        java.util.function.BiPredicate<String, Integer> answeredCorrectly) {
+        int earned = 0;
+        int available = 0;
+        for (String dimension : Task.RUBRIC_DIMENSIONS) {
+            RubricScore score = rubricScore(chapter, dimension, clearedKeys, answeredCorrectly);
+            if (!score.measured()) {
+                continue;
+            }
+            available += 2;
+            earned += score.points();
+            if ((dimension.equals("implement") || dimension.equals("diagnose"))
+                    && score.points() < 1) {
+                return false;
+            }
+        }
+        return available > 0 && earned * 10 >= available * 8;
+    }
+
+    /** 問題が属する層。事前確認は問題ではないので`tasks()`へ入っていない。 */
+    public static Layer layerOf(Task task) {
+        return task.isMultiFile() ? Layer.PRACTICE : Layer.CODING;
+    }
+
+    /**
+     * 層の進み具合。
+     *
+     * <p>対象が0件のときは「達成」にしない。クイズや実践課題を持たない章で
+     * バッジだけ点くのは、達成の意味が薄れる。
+     */
+    public record LayerProgress(int total, int done) {
+
+        public boolean complete() {
+            return total > 0 && done == total;
+        }
+    }
+
     /**
      * 指定問題の次の問題（同じレッスン内の次の問題 → 次のレッスンの1問目、の順）。
      * 最後の問題なら null。

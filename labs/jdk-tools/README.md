@@ -6,7 +6,20 @@ IDEを閉じる必要はありません。IDEが裏で扱っているclass、mod
 
 - JDK 21以降のみ（`javap` `jdeps` `javadoc` `jlink` はJDKに同梱）
 
-> JDK 21.0.8 (IBM Semeru) / macOS 15 で動作確認（`jlink` は後述のとおりJDKによって失敗します）
+> JDK 21.0.8 (IBM Semeru) / macOS 15 で動作確認。`jlink` は JDK 25.0.3 (IBM Semeru) /
+> macOS 15 でも確認したが、後述のとおりJDK配布物によって失敗する。
+
+## 教材の採点対象
+
+第51章の演習は、このラボを自動採点へつないでいる。学習者が編集するのは次のファイルで、
+`reference/` は模範解答、`run-runtime-lab.sh` は固定の採点スクリプトである。
+
+| 課題 | 編集するファイル | 確認すること |
+|---|---|---|
+| 51-3 実機演習（必須） | `exercise/tools.options` `exercise/Menu.java` | `--release`で作った版、`javap`のmajor versionと命令、`jdeps`のmodule依存、実行結果 |
+| 51-3 任意発展 | `jlink-lab/exercise/module-info.java` | `jlink`で作った縮小ランタイムのmodule一覧と起動 |
+
+下の「手順」は同じ道具を手で動かすためのもので、採点とは独立している。
 
 ## 手順
 
@@ -53,9 +66,9 @@ runtime/bin/java -m example.tools/example.tools.ToolDemo
 うまくいくと `55` が出て、`runtime` は **46MB 程度**（JDK全体は370MB程度）になります。
 
 > ⚠️ `jlink` はJDKによって失敗します。IBM Semeru 21 (OpenJ9) では
-> `エラー: invalid section: __MACOSX` で止まりました。同じ手順が HotSpot 系
-> （Homebrewの `openjdk` など）では通ります。`jlink` を試すときはJDKを替えてください。
-> `jmods` を同梱しないJDKでも失敗します。
+> `エラー: invalid section: __MACOSX` で止まりました（同じ手順が Semeru 25.0.3 では通ります）。
+> HotSpot 系（Homebrewの `openjdk` など）でも通ります。`jlink` を試すときはJDKを替えてください。
+> `jmods` を同梱しないJDKでも失敗します。だから教材側でも任意発展として分けています。
 
 ## 確認すること
 

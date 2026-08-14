@@ -275,6 +275,70 @@
           "answer": 3,
           "explanation": "だからアルゴリズム識別子とパラメータも一緒に保存します。平文は保存していないため取り出せません。保存済みのパラメータは各ハッシュに記録されています。"
         }
+      ],
+      "extraTasks": [
+        {
+          "kind": "applied",
+          "type": "runtime-lab",
+          "task": "【実装演習】`labs/security/rehash-exercise`の`PasswordHasher`を、この節の説明どおりに直してください。解説の前半（パスワードの保存と段階移行）を、実際に動かして確かめます。\n\n出発点はSHA-256を1回だけ計算する実装です。照合は動くので気づきにくいのですが、ソルトも無く、方式や設定の版も保存値に残っていません。次の3つを満たしてください。\n\n1. `hash`はPBKDF2（`PBKDF2WithHmacSHA256`）で導出し、利用者ごとのソルトを付ける。保存値は`pbkdf2-sha256$<反復回数>$<Base64のsalt>$<Base64の導出値>`の形にし、反復回数は100000以上にする\n2. `verify`は新形式に加え、旧形式`sha256$<hex>`も照合できる。移行の途中でも既存利用者がログインできなくならないようにする\n3. `needsRehash`は、旧形式か反復回数が100000未満のときtrueを返す。ログインに成功した利用者だけを新形式へ入れ替えるために使う\n\n提出すると実際に`PasswordHasher`を呼び、保存値の形、同じパスワードでも値が変わること、照合、旧形式の受け入れ、入れ替え対象の判定を検査します。",
+          "runtimeLab": {
+            "name": "Password storage migration lab",
+            "source": "labs/security/rehash-exercise",
+            "exclude": [
+              "reference"
+            ],
+            "command": [
+              "./run-runtime-lab.sh"
+            ],
+            "timeoutSeconds": 60,
+            "verification": "実際のPBKDF2で保存値の形・ソルト・照合・旧形式の受け入れ・再ハッシュ判定を確認する",
+            "capabilities": [
+              "jdk-tool"
+            ],
+            "requiredTools": [
+              "java",
+              "javac"
+            ],
+            "requiredImages": [],
+            "checks": [
+              {
+                "id": "hash-format",
+                "label": "保存値に方式と反復回数が入り、平文は入らない"
+              },
+              {
+                "id": "hash-salted",
+                "label": "同じパスワードでも保存値が毎回変わる"
+              },
+              {
+                "id": "hash-verify",
+                "label": "正しいパスワードだけが一致する"
+              },
+              {
+                "id": "hash-legacy-verify",
+                "label": "旧形式の保存値でも照合できる"
+              },
+              {
+                "id": "hash-needs-rehash",
+                "label": "入れ替えが必要な保存値を見分ける"
+              }
+            ],
+            "editableFiles": [
+              {
+                "path": "exercise/PasswordHasher.java",
+                "solutionPath": "reference/PasswordHasher.java"
+              }
+            ]
+          },
+          "hints": [
+            "`SecretKeyFactory.getInstance(\"PBKDF2WithHmacSHA256\")`と`PBEKeySpec(password, salt, iterations, 256)`で導出します。ソルトは`SecureRandom`で毎回作ります。",
+            "保存値は`$`区切りなので`split(\"\\\\$\", -1)`で分けられます。要素数が2なら旧形式、4なら新形式と判断できます。",
+            "照合の比較には`MessageDigest.isEqual`を使います。反復回数は保存値から読み、上げたあとも古い保存値を照合できるようにします。"
+          ],
+          "rubric": [
+            "implement",
+            "diagnose"
+          ]
+        }
       ]
     },
     {
@@ -379,19 +443,7 @@
             "切り出す範囲は `from=(page-1)*size` から `Math.min(from+size, n)` までです。`from` が件数以上なら空ページです。",
             "総ページ数は `(n+size-1)/size` で計算できます。全件取得ではなくページで返すのは、件数が増えても応答が壊れないようにするためです。"
           ],
-          "solution": "import java.util.*;\n\nrecord Book(long id, String title) { }\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        int n = s.nextInt();\n        List<Book> books = new ArrayList<>();\n        for (int i = 0; i < n; i++) books.add(new Book(s.nextLong(), s.next()));\n        String sort = s.next();\n        int page = s.nextInt(), size = s.nextInt();\n        books.sort(sort.equals(\"id\") ? Comparator.comparingLong(Book::id) : Comparator.comparing(Book::title));\n        int from = (page - 1) * size, to = Math.min(from + size, n);\n        if (from >= n || from < 0) System.out.println(\"EMPTY_PAGE\");\n        else for (Book b : books.subList(from, to)) System.out.println(b.id() + \":\" + b.title());\n        System.out.println(\"PAGES \" + (n + size - 1) / size);\n    }\n}\n",
-          "sourceChecks": [
-            {
-              "pattern": "Comparator\\s*\\.\\s*comparing",
-              "minimum": 1,
-              "message": "並び替えの鍵は `Comparator.comparing` で指定してください。"
-            },
-            {
-              "pattern": "\\.subList\\s*\\(|\\.skip\\s*\\(",
-              "minimum": 1,
-              "message": "ページの切り出しは、件数を超えないよう丸めてから行ってください。"
-            }
-          ]
+          "solution": "import java.util.*;\n\nrecord Book(long id, String title) { }\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        int n = s.nextInt();\n        List<Book> books = new ArrayList<>();\n        for (int i = 0; i < n; i++) books.add(new Book(s.nextLong(), s.next()));\n        String sort = s.next();\n        int page = s.nextInt(), size = s.nextInt();\n        books.sort(sort.equals(\"id\") ? Comparator.comparingLong(Book::id) : Comparator.comparing(Book::title));\n        int from = (page - 1) * size, to = Math.min(from + size, n);\n        if (from >= n || from < 0) System.out.println(\"EMPTY_PAGE\");\n        else for (Book b : books.subList(from, to)) System.out.println(b.id() + \":\" + b.title());\n        System.out.println(\"PAGES \" + (n + size - 1) / size);\n    }\n}\n"
         },
         {
           "kind": "applied",
@@ -446,18 +498,131 @@
             "表示日付は `Instant.parse(...).atZone(zone).toLocalDate()` で作れます。保存する値は `Instant` のまま、地域を当てるのは表示のときだけです。",
             "判定のループと監査ログのループを分けます。ログは妥当・不正にかかわらず全件出し、秘密の項目は値を持たせません。"
           ],
-          "solution": "import java.time.*;\nimport java.time.format.*;\nimport java.util.*;\n\nrecord Request(String name, String email, String password, String createdAt) { }\n\npublic class Main {\n    static String violation(Request r) {\n        if (r.name().equals(\"-\")) return \"name\";\n        if (!r.email().contains(\"@\")) return \"email\";\n        if (r.password().length() < 8) return \"password\";\n        try {\n            Instant.parse(r.createdAt());\n        } catch (DateTimeParseException e) {\n            return \"createdAt\";\n        }\n        return null;\n    }\n\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        ZoneId zone = ZoneId.of(s.next());\n        int n = s.nextInt();\n        List<Request> requests = new ArrayList<>();\n        for (int i = 0; i < n; i++) requests.add(new Request(s.next(), s.next(), s.next(), s.next()));\n        for (int k = 1; k <= n; k++) {\n            Request r = requests.get(k - 1);\n            String bad = violation(r);\n            if (bad != null) System.out.println(\"400 \" + k + \" \" + bad);\n            else System.out.println(\"201 \" + k + \" \" + Instant.parse(r.createdAt()).atZone(zone).toLocalDate().format(DateTimeFormatter.ISO_LOCAL_DATE));\n        }\n        for (int k = 1; k <= n; k++) {\n            Request r = requests.get(k - 1);\n            System.out.println(\"LOG \" + k + \" name=\" + r.name() + \" email=\" + r.email() + \" password=[REDACTED]\");\n        }\n    }\n}\n",
-          "sourceChecks": [
-            {
-              "pattern": "\\brecord\\s+Request\\s*\\(",
-              "minimum": 1,
-              "message": "受け取る値のまとまりは `record` で表してください。"
-            },
-            {
-              "pattern": "Instant\\s*\\.\\s*parse\\s*\\(",
-              "minimum": 1,
-              "message": "`createdAt` は時点なので `Instant.parse` で解釈してください。解釈できないものを弾くのが検証です。"
-            }
+          "solution": "import java.time.*;\nimport java.time.format.*;\nimport java.util.*;\n\nrecord Request(String name, String email, String password, String createdAt) { }\n\npublic class Main {\n    static String violation(Request r) {\n        if (r.name().equals(\"-\")) return \"name\";\n        if (!r.email().contains(\"@\")) return \"email\";\n        if (r.password().length() < 8) return \"password\";\n        try {\n            Instant.parse(r.createdAt());\n        } catch (DateTimeParseException e) {\n            return \"createdAt\";\n        }\n        return null;\n    }\n\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        ZoneId zone = ZoneId.of(s.next());\n        int n = s.nextInt();\n        List<Request> requests = new ArrayList<>();\n        for (int i = 0; i < n; i++) requests.add(new Request(s.next(), s.next(), s.next(), s.next()));\n        for (int k = 1; k <= n; k++) {\n            Request r = requests.get(k - 1);\n            String bad = violation(r);\n            if (bad != null) System.out.println(\"400 \" + k + \" \" + bad);\n            else System.out.println(\"201 \" + k + \" \" + Instant.parse(r.createdAt()).atZone(zone).toLocalDate().format(DateTimeFormatter.ISO_LOCAL_DATE));\n        }\n        for (int k = 1; k <= n; k++) {\n            Request r = requests.get(k - 1);\n            System.out.println(\"LOG \" + k + \" name=\" + r.name() + \" email=\" + r.email() + \" password=[REDACTED]\");\n        }\n    }\n}\n"
+        },
+        {
+          "kind": "applied",
+          "type": "runtime-lab",
+          "task": "【実サーバー演習】`labs/jakarta-ee11/runtime-exercise`の`UserResource`を完成させてください。ここまでの問題はJavaの模型でしたが、これはJakarta EE 11対応サーバーへ実際に配備して確かめます。\n\n要求は`POST /api/users`で、本文は`{\"name\":\" Aki \",\"email\":\"aki@example.test\",\"registeredAt\":\"2026-08-13T09:00:00Z\"}`です。次の3つを実サーバーの応答として成り立たせます。\n\n1. 新規作成なのでHTTP 201を返し、前後の空白を除いた名前とメールをJSONへ入れる\n2. 名前が空、メールが形式違反の要求をHTTP 400で拒否する\n3. 応答へ登録時刻を`Instant`として入れ、ISO-8601の文字列として返す\n\n`pom.xml`と`server.xml`は変更しません（Feature Managerの扱いは第49章で行います）。提出するとOpen Liberty 26を一時領域へ準備し、採点側が確保した動的portへWARを配備します。recordがgetterなしでJSONへ変換されること、Bean Validationがrecordの構成要素の制約で400にすることを実HTTPで確認し、最後にサーバーを停止します。",
+          "runtimeLab": {
+            "name": "Jakarta EE 11 real server lab",
+            "source": "labs/jakarta-ee11/runtime-exercise",
+            "exclude": [
+              "reference"
+            ],
+            "command": [
+              "./run-runtime-lab.sh"
+            ],
+            "timeoutSeconds": 60,
+            "verification": "Jakarta EE 11対応サーバーへWARを配備し、201・record JSON・Instant・Validation 400・停止を実HTTPで確認する",
+            "capabilities": [
+              "server",
+              "http"
+            ],
+            "requiredTools": [
+              "java",
+              "javac",
+              "mvn"
+            ],
+            "requiredImages": [],
+            "checks": [
+              {
+                "id": "ee11-war",
+                "label": "EE 11のAPIだけを参照するWARを作成できる"
+              },
+              {
+                "id": "ee11-created",
+                "label": "新規作成がHTTP 201を返し、recordがJSONへ変換される"
+              },
+              {
+                "id": "ee11-instant",
+                "label": "InstantがISO-8601の文字列としてJSONへ出る"
+              },
+              {
+                "id": "ee11-validation",
+                "label": "Bean Validationが不正な要求をHTTP 400にする"
+              },
+              {
+                "id": "ee11-stop",
+                "label": "検証後にサーバーとHTTP listenerを停止する"
+              }
+            ],
+            "editableFiles": [
+              {
+                "path": "src/main/java/cafe/api/UserResource.java",
+                "solutionPath": "reference/src/main/java/cafe/api/UserResource.java"
+              }
+            ]
+          },
+          "hints": [
+            "`Response.status(Response.Status.CREATED).entity(...).build()`で201になります。`Response.ok`は200です。",
+            "Bean Validationはrecordの構成要素へ付けた`@NotBlank`や`@Email`を見ます。引数へ`@Valid`を付けないと検証されません。",
+            "JSON-BはgetterがなくてもrecordをJSONへ変換し、`Instant`は既定でISO-8601の文字列になります。要求の文字列は`Instant.parse`で時点へ直します。"
+          ],
+          "rubric": [
+            "implement"
+          ]
+        },
+        {
+          "kind": "applied",
+          "type": "runtime-lab",
+          "task": "`labs/jakarta-ee11/data-exercise`で、**Jakarta Data 1.0 のリポジトリを宣言**してください。\n\nJakarta Dataでは実装を書きません。インタフェースの宣言からビルド時に実装が生成されるので、**宣言の形そのものが仕様**です。次の4つを宣言します。\n\n- 基本操作は`CrudRepository<Order, Long>`を継承して受け取る（保存・削除・全件を自分で宣言しない）\n- `@Find`で状態を指定して取り出す。引数がどの属性かは`@By`で示し、並びは`@OrderBy`で注文IDの降順にする\n- `@Query`（JDQL）で、金額のしきい値より大きい注文の件数を数える\n- 1件だけ取り出すメソッドの戻り値は`Optional<Order>`にする\n\n採点はAPIに対する`compile`と、宣言の形を確かめます。**DBへ問い合わせて結果が返るかは確かめていません**（それには実装とDBが必要です）。宣言が正しいことと、問い合わせが意図どおり動くことは別だと分けて考えてください。",
+          "hints": [
+            "`jakarta.data.repository`に`@Repository`・`CrudRepository`・`@Find`・`@By`・`@OrderBy`・`@Query`があります。",
+            "`@OrderBy`は`@OrderBy(value = \"id\", descending = true)`の形で降順を指定します。",
+            "JDQLは`SELECT COUNT(THIS) WHERE amount > :threshold`のように書きます。`THIS`は問い合わせ対象のEntity自身を指します。"
+          ],
+          "runtimeLab": {
+            "name": "Jakarta Data repository lab",
+            "source": "labs/jakarta-ee11/data-exercise",
+            "exclude": [
+              "reference"
+            ],
+            "command": [
+              "./run-runtime-lab.sh"
+            ],
+            "timeoutSeconds": 60,
+            "verification": "Jakarta Data 1.0 のAPIに対してcompileでき、宣言が仕様どおりである",
+            "capabilities": [
+              "build"
+            ],
+            "requiredTools": [
+              "java",
+              "javac",
+              "mvn"
+            ],
+            "requiredImages": [],
+            "checks": [
+              {
+                "id": "data-compiles",
+                "label": "Jakarta Data APIに対してcompileできる"
+              },
+              {
+                "id": "data-crud",
+                "label": "CrudRepositoryで基本操作を受け取る"
+              },
+              {
+                "id": "data-find",
+                "label": "@Find・@By・@OrderByで取り出しを宣言する"
+              },
+              {
+                "id": "data-query",
+                "label": "@Query（JDQL）で件数を数える"
+              },
+              {
+                "id": "data-optional",
+                "label": "1件取得の戻り値をOptionalにする"
+              }
+            ],
+            "editableFiles": [
+              {
+                "path": "exercise/OrderRepository.java",
+                "solutionPath": "reference/OrderRepository.java"
+              }
+            ]
+          },
+          "rubric": [
+            "implement"
           ]
         }
       ]

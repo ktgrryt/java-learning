@@ -95,6 +95,9 @@
           "answer": 3,
           "explanation": "機能・非機能・運用・組織の制約を、同じ条件で比較します。設計判断の記録（ADR）として残します。"
         }
+      ],
+      "rubric": [
+        "decide"
       ]
     },
     {
@@ -320,6 +323,9 @@
           "answer": 3,
           "explanation": "JVMモードより速いものとして見積もるのは、確かめずに決める行為そのものです。BOMから extension を外すのは関係ありません。ネイティブではリフレクションに設定が必要なので、無制限に使える前提は危険です。ビルド時間・互換性・デバッグ・メモリ・実負荷の性能を、同じ条件で測って比べます。"
         }
+      ],
+      "rubric": [
+        "decide"
       ]
     },
     {
@@ -430,17 +436,8 @@
             "契約テストは、フレームワークが違っても同じ入力へ同じ答えを返すことを確かめるものです。だからフレームワークごとに期待値を変えません。"
           ],
           "solution": "import java.util.*;\n\npublic class Main {\n    static int expected(String name) {\n        String v = name.equals(\"-\") ? \"\" : name;\n        return !v.isEmpty() && v.length() <= 20 ? 200 : 400;\n    }\n\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        int n = s.nextInt();\n        List<String> frameworks = List.of(\"spring\", \"liberty\", \"quarkus\");\n        Map<String, Integer> fails = new LinkedHashMap<>();\n        for (String f : frameworks) fails.put(f, 0);\n        boolean broken = false;\n        for (int k = 1; k <= n; k++) {\n            String name = s.next(), framework = s.next();\n            int actual = s.nextInt(), want = expected(name);\n            boolean pass = want == actual;\n            if (!pass) {\n                fails.merge(framework, 1, Integer::sum);\n                broken = true;\n            }\n            System.out.println(k + \" \" + framework + \" expected=\" + want + \" actual=\" + actual + \" \" + (pass ? \"PASS\" : \"FAIL\"));\n        }\n        for (String f : frameworks) System.out.println(f + \" \" + fails.get(f));\n        System.out.println(broken ? \"CONTRACT_BROKEN\" : \"CONTRACT_OK\");\n    }\n}\n",
-          "sourceChecks": [
-            {
-              "pattern": "List\\s*\\.\\s*of\\s*\\(|String\\s*\\[\\s*\\]",
-              "minimum": 1,
-              "message": "3つのフレームワークは決まった順で出すので、リストで順序を持ってください。"
-            },
-            {
-              "pattern": "\\bnew\\s+LinkedHashMap\\b|\\bnew\\s+TreeMap\\b|int\\s*\\[\\s*\\]",
-              "minimum": 1,
-              "message": "集計の並び順を保つので `LinkedHashMap` を使ってください。"
-            }
+          "rubric": [
+            "diagnose"
           ]
         },
         {
@@ -492,17 +489,72 @@
             "3つの出力はどれも同じ要件から導いています。同じ要件を3つの形へ写せるかが、フレームワークを比較できる状態です。"
           ],
           "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        int n = s.nextInt();\n        Set<String> features = new TreeSet<>();\n        for (int i = 0; i < n; i++) features.add(s.next());\n        boolean web = s.nextInt() == 1, json = s.nextInt() == 1, userBean = s.nextInt() == 1;\n        String mode = s.next(), goal = s.next();\n        for (String f : features) System.out.println(\"  <feature>\" + f + \"</feature>\");\n        System.out.println(userBean ? \"BACK_OFF\" : web && json ? \"AUTO_CONFIGURE\" : \"NO_MATCH\");\n        System.out.println(goal.equals(\"fast-build\") ? \"jvm\" : goal.equals(\"fast-start\") && mode.equals(\"native\") ? \"native-candidate\" : \"measure\");\n    }\n}\n",
-          "sourceChecks": [
-            {
-              "pattern": "\\bnew\\s+TreeSet\\b|\\.sorted\\s*\\(|Collections\\s*\\.\\s*sort",
-              "minimum": 1,
-              "message": "機能名は辞書順に出すので `TreeSet` に入れてください。"
-            },
-            {
-              "pattern": "==\\s*1",
-              "minimum": 1,
-              "message": "classpathの条件は `0` / `1` で来るので、`1` かどうかで真偽に直してください。"
-            }
+          "rubric": [
+            "decide"
+          ]
+        },
+        {
+          "kind": "applied",
+          "type": "runtime-lab",
+          "task": "【実build比較演習】`labs/frameworks/comparison-exercise`には、同じ注文APIをSpring Boot・Open Liberty・Quarkusで用意してあります。3つを実際にbuildし、出来た成果物を見比べて`exercise/comparison.properties`を埋めてください。\n\n埋めるのは3つです。\n\n1. `runtime.*` — 実行時の実装をどこから得るか（`bundled` = 成果物に同梱 / `server` = サーバーが提供）\n2. `artifact.*` — 本番へ運ぶ成果物の形（`single-jar` / `war` / `directory`）\n3. `decision.rejected` と `decision.reason` — 先頭に書かれた必須条件（実装をサーバー側が提供すること）を**先に適用**したとき候補から外れる製品と、その根拠\n\n**時間やメモリは測りません。** build時間や起動時間は機械の性能で大きく変わるので、合否の条件にすると「速いマシンなら合格」になってしまいます。ここでは成果物の構造だけを見ます。\n\n提出すると3製品を`mvn package`でbuildし、`BOOT-INF/lib`、`WEB-INF/lib`と`server.xml`、`quarkus-app/lib`を実際に読んで、あなたの回答と一致するかを確かめます。採点は答えを表示せず、見るところだけを示します。初回は依存の取得に時間がかかります。",
+          "runtimeLab": {
+            "name": "Three product artifact comparison lab",
+            "source": "labs/frameworks/comparison-exercise",
+            "exclude": [
+              "reference"
+            ],
+            "command": [
+              "./run-runtime-lab.sh"
+            ],
+            "timeoutSeconds": 60,
+            "verification": "3製品を実際にbuildし、成果物の構造（実装の出所・配備の形）と必須条件の適用を確認する",
+            "capabilities": [
+              "build"
+            ],
+            "requiredTools": [
+              "java",
+              "javac",
+              "jar",
+              "mvn"
+            ],
+            "requiredImages": [],
+            "checks": [
+              {
+                "id": "compare-built",
+                "label": "3製品の成果物をbuildできる"
+              },
+              {
+                "id": "compare-runtime-origin",
+                "label": "実行時の実装の出所を成果物から読み取れる"
+              },
+              {
+                "id": "compare-artifact-shape",
+                "label": "本番へ運ぶ成果物の形を読み取れる"
+              },
+              {
+                "id": "compare-constraint-first",
+                "label": "必須条件を先に適用して候補を絞れる"
+              },
+              {
+                "id": "compare-reason",
+                "label": "結論の根拠に実測した事実を挙げている"
+              }
+            ],
+            "editableFiles": [
+              {
+                "path": "exercise/comparison.properties",
+                "solutionPath": "reference/comparison.properties"
+              }
+            ]
+          },
+          "hints": [
+            "Spring Bootのfat JARには`BOOT-INF/lib`と起動用のloaderが入ります。`java -jar`だけで動くのは、実装を成果物側が持っているからです。",
+            "LibertyのWARは`WEB-INF/lib`が空です。Jakarta EEの実装はサーバーが持ち、`server.xml`のFeature宣言で有効になります。",
+            "Quarkusは`target/quarkus-app/`に`quarkus-run.jar`と`lib/`を分けて置きます。JARだけを運んでも動かないので、配備単位はディレクトリ一式です。"
+          ],
+          "rubric": [
+            "diagnose",
+            "decide"
           ]
         }
       ]

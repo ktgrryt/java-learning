@@ -5,6 +5,33 @@
   "emoji": "🧰",
   "lessons": [
     {
+      "id": "51-0",
+      "lessonType": "preflight",
+      "title": "事前確認：JDK付属ツールを動かす準備",
+      "explanation": "## 本題の前に、環境とコードの問題を分ける\n\nこの章では、ツールの名前を覚えるだけでなく、`javac` `javap` `jdeps` `jlink` を実際に動かして出力を読みます。環境不足を自分の誤りと取り違えないよう、先に確認します。この確認には★が付かず、章のクリア条件にも含まれません。\n\n```bash\njava --version\njavac --version\njavap -version\njdeps --version\n```\n\n`javap`や`jdeps`はJDKに同梱されるので、`javac`が動けば通常は一緒に使えます。JREだけでは足りません。\n\n`jlink`には追加の条件があります。縮小ランタイムはJDK同梱の**JMODファイル**から組み立てるため、JMODを含まない配布物では作れません。手元のJDKにあるかは次で分かります。\n\n```bash\nls \"$(dirname \"$(dirname \"$(command -v javac)\")\")/jmods\" | head -3\n```\n\n無くてもこの章は修了できます。`jlink`を使う演習は任意発展として分けてあり、★・章クリア・カフェ報酬の対象外です。",
+      "preflight": {
+        "buttonLabel": "JDKを確認する",
+        "checks": [
+          {
+            "id": "java-runtime",
+            "type": "tool",
+            "tool": "java",
+            "label": "Java実行環境",
+            "minimumVersion": "21",
+            "help": "JDK 21以降をインストールし、JAVA_HOMEとPATHを同じJDKへ向けてください。"
+          },
+          {
+            "id": "java-compiler",
+            "type": "tool",
+            "tool": "javac",
+            "label": "Javaコンパイラと付属ツール",
+            "minimumVersion": "21",
+            "help": "JREではなくJDKが必要です。javac --versionを新しいターミナルで確認してください。javapとjdepsも同じJDKに含まれます。"
+          }
+        ]
+      }
+    },
+    {
       "id": "51-1",
       "title": "フィーチャーリリースとLTSを選ぶ",
       "explanation": "## JDKは「一番新しい版」ではなく、更新し続けられる組み合わせを選ぶ\n\n本番で使うJDKを選ぶときは、Javaの版だけでなく、配布するベンダー、更新の提供期間、利用製品の対応状況を一緒に決めます。\n\n**フィーチャーバージョン** はJava 17、21、25のような機能の世代を示す番号です。同じフィーチャーバージョンでも、脆弱性修正や不具合修正を含む更新版が継続して提供されます。本番では最初に入れた版を固定するのではなく、更新を安全に適用する手順が必要です。\n\n**LTS（Long-Term Support）** は、Java言語で機能が増える特別な版という意味ではありません。特定のJDKベンダーが、あるフィーチャーバージョンへ長期の更新や有償・無償サポートを提供する運用上の区分です。期間と条件はベンダーや配布物ごとに確認します。\n\n選定では次を順に確認します。\n\n1. フレームワークやアプリケーションサーバーが、そのJDKとJava版をサポートしているか\n2. 本番OS、CPU、コンテナ基盤で利用できる配布物か\n3. 無償更新・有償サポート・ライセンスが組織の運用期間に合うか\n4. 開発、CI、本番で同じベンダーと更新版を再現できるか\n5. パッチ更新、性能確認、障害時の切り戻しを誰が行うか\n\n`java -version` で実行中の版と配布物を確認できます。さらに `java.vendor`、`java.home`、CPUアーキテクチャなども台帳へ残すと、「Java 21は同じだが配布物が違う」という差を追跡できます。\n\n今回の演習では、`supported=yes` を「上の条件をすでに確認済み」と単純化し、その候補から新しい版を選びます。実務ではyes/noの根拠となる製品対応表、更新期限、検証結果も一緒に保存します。",
@@ -72,6 +99,9 @@
           "answer": 1,
           "explanation": "同じバージョン番号でも、配布元ごとに条件が違います。開発・CI・本番のベンダーとバージョンを記録します。"
         }
+      ],
+      "rubric": [
+        "decide"
       ]
     },
     {
@@ -194,6 +224,208 @@
         "読んだ文字列を `Map` のキーとして使います。"
       ],
       "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] a) {\n        Map<String, String> tools = Map.of(\"experiment\", \"jshell\", \"bytecode\", \"javap\", \"dependencies\", \"jdeps\", \"runtime\", \"jlink\", \"installer\", \"jpackage\");\n        Scanner s = new Scanner(System.in);\n        int n = s.nextInt();\n        for (int i = 0; i < n; i++) System.out.println(tools.get(s.next()));\n    }\n}\n",
+      "extraTasks": [
+        {
+          "kind": "applied",
+          "type": "runtime-lab",
+          "task": "【実機演習】`labs/jdk-tools`で、道具の名前を答える代わりに実際に動かします。本番のJVMはJava 21です。\n\n`exercise/tools.options`へ3つの目的の指定を書きます。①本番で動くclass fileを作る版、②class fileが「どの版のJVM向けか」と連結が変換された命令を読む道具と指定、③実行に必要なJDK moduleだけを一覧する道具と指定です。\n\n`exercise/Menu.java`は、Java 21で追加されたAPIで先頭と末尾を取り出し、`java.net.http`の`HttpRequest`を組み立てて、`first=espresso last=mocha`と`path=/menu`の2行を出力する形に仕上げます。\n\n提出すると、書いた指定でcompile・逆アセンブル・依存分析・実行を実際に行います。同じsourceが`--release 17`では通らないことも確かめます。道具や指定を取り違えると、出力に答えが出ないので不合格になります。",
+          "runtimeLab": {
+            "name": "JDK tool observation lab",
+            "source": "labs/jdk-tools",
+            "exclude": [
+              "reference",
+              "jlink-lab",
+              "jshell-lab"
+            ],
+            "command": [
+              "./run-runtime-lab.sh"
+            ],
+            "timeoutSeconds": 40,
+            "verification": "javac --release、javap、jdeps、javaを実際に動かし、class fileの版・命令・依存module・実行結果を読み取る",
+            "capabilities": [
+              "jdk-tool"
+            ],
+            "requiredTools": [
+              "java",
+              "javac",
+              "javap",
+              "jdeps"
+            ],
+            "requiredImages": [],
+            "checks": [
+              {
+                "id": "jdk-release-target",
+                "label": "本番のJVMへ向けてclass fileを作れる"
+              },
+              {
+                "id": "jdk-source-compat",
+                "label": "同じsourceが古い版では通らないことを確かめる"
+              },
+              {
+                "id": "jdk-class-version",
+                "label": "class fileがどの版のJVM向けかを読み取れる"
+              },
+              {
+                "id": "jdk-bytecode-concat",
+                "label": "文字列連結が変換された命令を読み取れる"
+              },
+              {
+                "id": "jdk-module-deps",
+                "label": "実行に必要なJDK moduleを一覧できる"
+              },
+              {
+                "id": "jdk-run",
+                "label": "作ったclass fileがJVMで動く"
+              }
+            ],
+            "editableFiles": [
+              {
+                "path": "exercise/tools.options",
+                "solutionPath": "reference/tools.options"
+              },
+              {
+                "path": "exercise/Menu.java",
+                "solutionPath": "reference/Menu.java"
+              }
+            ]
+          },
+          "hints": [
+            "`javac --release 21`は、新しいJDKでビルドしても21のAPIと21向けのclass fileにそろえます。`-target`だけではAPIの新しさを止められません。",
+            "class fileの版は`javap -verbose`の`major version`に出ます。Java 21向けなら65です。逆アセンブルも同じ出力に含まれるので、連結が`makeConcatWithConstants`になっていることも読めます。",
+            "必要なmoduleだけを1行で出すのは`jdeps --print-module-deps`です。`-summary`は依存の要約で、`jlink`へ渡すmodule名の一覧には向きません。"
+          ],
+          "rubric": [
+            "diagnose"
+          ]
+        },
+        {
+          "kind": "applied",
+          "required": false,
+          "type": "runtime-lab",
+          "task": "【任意・縮小ランタイム発展】`labs/jdk-tools/jlink-lab`で、このprogramだけが動くランタイムイメージを作ります。配布物の大きさや同梱範囲を自分で決める必要があるときだけ進めてください。\n\n`exercise/module-info.java`へ、`Menu.java`が使うJDK moduleを宣言します。\n\n提出するとmoduleとしてcompileし、`jlink`でimageを作り、入ったmodule一覧を確かめ、そのimageの`bin/java`だけでprogramを起動します。JDK配布物によっては`jmods`を同梱しないため作れません。章クリア・★・カフェ報酬・復習の対象外です。",
+          "runtimeLab": {
+            "name": "jlink custom runtime lab",
+            "source": "labs/jdk-tools/jlink-lab",
+            "exclude": [
+              "reference"
+            ],
+            "command": [
+              "./run-runtime-lab.sh"
+            ],
+            "timeoutSeconds": 120,
+            "verification": "module宣言からjlinkで縮小ランタイムを作り、入ったmoduleと実行を確かめる",
+            "capabilities": [
+              "jdk-tool"
+            ],
+            "requiredTools": [
+              "java",
+              "javac",
+              "jlink"
+            ],
+            "requiredImages": [],
+            "checks": [
+              {
+                "id": "jlink-module-compile",
+                "label": "依存を宣言したmoduleとしてcompileできる"
+              },
+              {
+                "id": "jlink-image",
+                "label": "jlinkでランタイムイメージを作れる"
+              },
+              {
+                "id": "jlink-modules",
+                "label": "imageへ入ったmoduleが宣言した範囲に収まる"
+              },
+              {
+                "id": "jlink-run",
+                "label": "縮小ランタイムだけでprogramが動く"
+              }
+            ],
+            "editableFiles": [
+              {
+                "path": "exercise/module-info.java",
+                "solutionPath": "reference/module-info.java"
+              }
+            ]
+          },
+          "hints": [
+            "`Menu.java`は`java.net.http`のHttpRequestを使います。moduleは使うJDK moduleを`requires`で宣言しないとcompileできません。",
+            "`jlink`は宣言した依存を辿ってimageを組み立てます。`java.sql`や`java.desktop`を書き足す必要はありません。",
+            "出来たimageの大きさはJDK配布物・OS・圧縮設定で変わります。「何MBになる」と暗記せず、配布物で実測してください。"
+          ],
+          "rubric": [
+            "implement"
+          ]
+        },
+        {
+          "kind": "applied",
+          "type": "runtime-lab",
+          "task": "`labs/jdk-tools/jshell-lab`で、**配布前の確認を`jshell`で行い、配布物を`jpackage`で作ります**。\n\n`exercise/probe.jsh`は`jshell`がそのまま評価します。値は環境変数`JQ_PRICE`・`JQ_COUNT`・`JQ_ODD`で渡されるので、`Pricing`を呼んで計算してください。**採点は違う値で2回動かします**。定数を直接書くと2回目で外れます。最後に`/exit`が無いと終わりません。\n\n`exercise/package.options`には`jpackage`へ渡す指定を1行1つで書きます。採点側は`jpackage --dest out/dist --input <JARの置き場>`のうしろへ、書いた指定を足して実行します。そのまま起動できる形（インストーラではない）で、名前を`CafeOrders`、入口を`app.jar`、版を`2.1.0`にしてください。",
+          "hints": [
+            "`jshell`は `-q --execution local --class-path <出力先> probe.jsh` の形で動かされます。`System.getenv(\"JQ_PRICE\")`は文字列なので`Integer.parseInt`で数値にします。",
+            "`jpackage --help`で指定の名前が分かります。必要なのは4つです。そのまま起動できる形は`--type app-image`、名前は`--name`、入口は`--main-jar`、版は`--app-version`です。",
+            "生成物の起動可能ファイルは、macOSなら`CafeOrders.app/Contents/MacOS/CafeOrders`、Linuxなら`CafeOrders/bin/CafeOrders`にできます。採点は名前で探すのでどちらでも通ります。"
+          ],
+          "runtimeLab": {
+            "name": "jshell script and jpackage lab",
+            "source": "labs/jdk-tools/jshell-lab",
+            "exclude": [
+              "reference"
+            ],
+            "command": [
+              "./run-runtime-lab.sh"
+            ],
+            "timeoutSeconds": 60,
+            "verification": "jshellをスクリプトとして評価し、jpackageでそのまま起動できる配布物を作れる",
+            "capabilities": [
+              "jdk-tool"
+            ],
+            "requiredTools": [
+              "java",
+              "javac",
+              "jar",
+              "jshell",
+              "jpackage"
+            ],
+            "requiredImages": [],
+            "checks": [
+              {
+                "id": "jshell-runs",
+                "label": "jshellがスクリプトを最後まで評価する"
+              },
+              {
+                "id": "jshell-values",
+                "label": "違う値で2回動かしても正しい結果を出す"
+              },
+              {
+                "id": "jpackage-image",
+                "label": "jpackageが配布物を生成する"
+              },
+              {
+                "id": "jpackage-runs",
+                "label": "生成した配布物をそのまま起動できる"
+              },
+              {
+                "id": "jpackage-version",
+                "label": "配布物へ版を記録する"
+              }
+            ],
+            "editableFiles": [
+              {
+                "path": "exercise/probe.jsh",
+                "solutionPath": "reference/probe.jsh"
+              },
+              {
+                "path": "exercise/package.options",
+                "solutionPath": "reference/package.options"
+              }
+            ]
+          },
+          "rubric": [
+            "implement"
+          ]
+        }
+      ],
       "quiz": [
         {
           "question": "アプリが依存するJDKモジュールを調べるツールは？",
@@ -222,43 +454,55 @@
     {
       "id": "51-4",
       "title": "プレビュー機能・非推奨化・移行",
-      "explanation": "## 機能の成熟段階と、採用判断を分ける\n\nJavaの機能には、正式機能になる前の評価段階や、将来の削除へ向かう段階があります。機能名だけでなく状態を確認すると、更新時の手戻りを見積もれます。\n\n- **標準・正式機能**: 対象のJava SE/JDKで正式に利用できる。ただし、要件に合うかを評価して採用する\n- **プレビュー機能**: 実際の利用者からフィードバックを得るための暫定機能。後の版で変更・再プレビュー・撤回される可能性がある\n- **インキュベーターモジュール**: 確定前のAPIや道具をモジュールとして試す仕組み。利用にはモジュールの追加指定が必要\n- **非推奨API**: 利用を減らし、代替へ移行することが推奨されるAPI。`forRemoval=true` は将来削除予定の強い合図\n- **削除済み**: 対象JDKには存在せず、そのままではビルド・実行できない\n\nプレビュー言語機能やAPIを使う場合、コンパイルと実行の両方で `--enable-preview` が必要です。プレビュー機能はリリースごとに定義されるため、コンパイル時と実行時のフィーチャーバージョンもそろえます。IDE、CI、コンテナの起動設定などすべてへ同じ前提が必要です。\n\nJEPはJDK変更を提案・追跡する文書です。JEPが提出されたこと、JDKへ取り込まれたこと、Java SEの標準仕様へ反映されたことは同じ意味ではありません。採用時は、利用するJDK版のリリースノート、JEPの状態と対象版、API仕様、必要ならJava SE仕様を確認します。\n\n移行では `jdeprscan`、コンパイラ警告、依存ライブラリの対応表を使い、版の差を小さくして段階的に上げます。コンパイルだけでなく、単体・結合・性能テスト、本番相当の起動、監視、切り戻しまで確認します。\n\n今回の演習では、正式機能を `CONSIDER`、プレビューを `EVALUATE`、非推奨を `MIGRATE`、削除済みを `BLOCK` と分類します。正式機能でも自動採用ではなく、検討対象であることを出力へ反映します。",
+      "explanation": "## 機能の成熟段階と、採用判断を分ける\n\nJavaの機能には、正式機能になる前の評価段階や、将来の削除へ向かう段階があります。機能名だけでなく状態を確認すると、更新時の手戻りを見積もれます。\n\n- **標準・正式機能**: 対象のJava SE/JDKで正式に利用できる。ただし、要件に合うかを評価して採用する\n- **プレビュー機能**: 実際の利用者からフィードバックを得るための暫定機能。後の版で変更・再プレビュー・撤回される可能性がある\n- **インキュベーターモジュール**: 確定前のAPIや道具をモジュールとして試す仕組み。利用にはモジュールの追加指定が必要\n- **非推奨API**: 利用を減らし、代替へ移行することが推奨されるAPI。`forRemoval=true` は将来削除予定の強い合図\n- **削除済み**: 対象JDKには存在せず、そのままではビルド・実行できない\n\nプレビュー言語機能やAPIを使う場合、コンパイルと実行の両方で `--enable-preview` が必要です。プレビュー機能はリリースごとに定義されるため、コンパイル時と実行時のフィーチャーバージョンもそろえます。IDE、CI、コンテナの起動設定などすべてへ同じ前提が必要です。\n\nJEPはJDK変更を提案・追跡する文書です。JEPが提出されたこと、JDKへ取り込まれたこと、Java SEの標準仕様へ反映されたことは同じ意味ではありません。採用時は、利用するJDK版のリリースノート、JEPの状態と対象版、API仕様、必要ならJava SE仕様を確認します。\n\n移行では `jdeprscan`、コンパイラ警告、依存ライブラリの対応表を使い、版の差を小さくして段階的に上げます。コンパイルだけでなく、単体・結合・性能テスト、本番相当の起動、監視、切り戻しまで確認します。\n\n## プレビュー機能は「版がぴったり合う」ことを要求する\n\nプレビュー機能でいちばん詰まるのは、**版の一致**です。通常のclass fileは古い版でも\n新しいJVMで動きます（後方互換）。ところが `--enable-preview` で作ったclass fileは違います。\n\n```text\njava.lang.UnsupportedClassVersionError:\n  Preview features are not enabled for Main (class file version 65.65535).\n  Try running with '--enable-preview'\n```\n\n規則は3つです。\n\n1. **コンパイルできるのは、その機能がプレビューになったリリース以降。** それより前の\n   `--release` を指定するとコンパイルできません。\n2. **プレビューのあいだは、コンパイルにも実行にも `--enable-preview` が必要。** 片方だけでは動きません。\n3. **プレビューで作ったclass fileは、作った版のJVMでしか動かない。** 21で作ったものは22でも動きません。\n   後方互換の保証が無いからです。正式機能になれば、この制約は消えます。\n\nつまり「プレビューを使う」判断は、動かす環境のJVMを1つの版に固定できるかどうかと同じ意味になります。\nCI、コンテナ、開発者の手元がばらついていると使えません。\n\n今回の演習では、この判定を実際に計算します。",
       "samples": [
         {
           "caption": "非推奨APIを宣言して検出する",
           "code": "class OldApi {\n    @Deprecated(forRemoval = true)\n    static void old() { }\n}\n\npublic class Main {\n    public static void main(String[] a) {\n        OldApi.old();\n    }\n}\n"
         }
       ],
-      "task": "機能の状態をn件読み、`standard→CONSIDER`、`preview→EVALUATE`、`deprecated→MIGRATE`、`removed→BLOCK` と表示してください。standardは利用可能という意味であり、自動採用ではありません。",
-      "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] a) {\n        Map<String, String> action = Map.of(\"standard\", \"CONSIDER\", \"preview\", \"EVALUATE\", \"deprecated\", \"MIGRATE\", \"removed\", \"BLOCK\");\n        Scanner s = new Scanner(System.in);\n        int n = s.nextInt();\n        for (int i = 0; i < n; i++) {\n            /* TODO */\n        }\n    }\n}\n",
+      "task": "プレビュー機能を使えるかを判定してください。\n\n1行目に、その機能がプレビューになったリリース`previewedIn`と、正式機能になったリリース`standardIn`が空白区切りで並びます（まだ正式でなければ`standardIn`は`-`です）。2行目に確かめる構成の数`n`、続く`n`行に`名前 コンパイルするrelease 実行するJVMのrelease`が並びます。\n\n各構成について1行ずつ、次のどれかを出力してください。上から順に確かめ、最初に当てはまったものを出します。\n\n- コンパイルする`release`が`previewedIn`より前 → `<名前> TOO_OLD`\n- その`release`で正式機能になっている（`standardIn`があり`release >= standardIn`） → `<名前> STANDARD`\n- プレビュー扱いで、コンパイルとJVMの`release`が同じ → `<名前> PREVIEW_OK`\n- プレビュー扱いで、両者が違う → `<名前> VERSION_MISMATCH`\n\n最後に`usable=<STANDARDとPREVIEW_OKの数>/<全体の数>`を出力してください。",
+      "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int previewedIn = sc.nextInt();\n        String standardText = sc.next();\n        int n = sc.nextInt();\n        for (int i = 0; i < n; i++) {\n            String name = sc.next();\n            int compileRelease = sc.nextInt();\n            int runtimeRelease = sc.nextInt();\n            // TODO: TOO_OLD → STANDARD → PREVIEW_OK → VERSION_MISMATCH の順で判定する\n        }\n        // TODO: usable=<数>/<全体の数>\n        System.out.println(\"usable=0/\" + n);\n    }\n}\n",
       "visibleCases": [
         {
-          "label": "移行判断",
-          "stdin": "4 standard preview deprecated removed",
-          "expected": "CONSIDER\nEVALUATE\nMIGRATE\nBLOCK"
+          "label": "まだプレビューの機能",
+          "stdin": "21 -\n3\nsame 21 21\ncross 21 22\nold 17 17",
+          "expected": "same PREVIEW_OK\ncross VERSION_MISMATCH\nold TOO_OLD\nusable=1/3"
+        },
+        {
+          "label": "正式になれば版の一致は不要",
+          "stdin": "19 21\n2\nstd 21 25\npreview 20 20",
+          "expected": "std STANDARD\npreview PREVIEW_OK\nusable=2/2"
         }
       ],
       "hiddenCases": [
         {
-          "label": "preview",
-          "stdin": "1 preview",
-          "expected": "EVALUATE"
+          "label": "正式化と同じリリース",
+          "stdin": "19 21\n1\nexact 21 21",
+          "expected": "exact STANDARD\nusable=1/1"
         },
         {
-          "label": "0件",
-          "stdin": "0",
-          "expected": ""
+          "label": "正式化の直前はプレビュー扱い",
+          "stdin": "19 21\n2\njustbefore 20 21\nmatched 20 20",
+          "expected": "justbefore VERSION_MISMATCH\nmatched PREVIEW_OK\nusable=1/2"
         },
         {
-          "label": "削除済みが混ざる",
-          "stdin": "3 removed standard removed",
-          "expected": "BLOCK\nCONSIDER\nBLOCK"
+          "label": "プレビュー前は正式化されていても古すぎる",
+          "stdin": "19 21\n1\ntooold 18 25",
+          "expected": "tooold TOO_OLD\nusable=0/1"
+        },
+        {
+          "label": "構成が0件",
+          "stdin": "21 -\n0",
+          "expected": "usable=0/0"
         }
       ],
       "hints": [
-        "`Map` から対応する動作を取り出します。"
+        "判定の順番が決まっています。まず`compileRelease < previewedIn`なら`TOO_OLD`です。",
+        "`standardIn`が`-`のときは、まだ正式になっていません。数値のときだけ`compileRelease >= standardIn`を確かめます。",
+        "プレビュー扱いのときは、`compileRelease`と`runtimeRelease`が同じかどうかだけを見ます。プレビューで作ったclass fileは、作った版のJVMでしか動きません。"
       ],
-      "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] a) {\n        Map<String, String> action = Map.of(\"standard\", \"CONSIDER\", \"preview\", \"EVALUATE\", \"deprecated\", \"MIGRATE\", \"removed\", \"BLOCK\");\n        Scanner s = new Scanner(System.in);\n        int n = s.nextInt();\n        for (int i = 0; i < n; i++) System.out.println(action.get(s.next()));\n    }\n}\n",
+      "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int previewedIn = sc.nextInt();\n        String standardText = sc.next();\n        int standardIn = standardText.equals(\"-\") ? Integer.MAX_VALUE\n                : Integer.parseInt(standardText);\n        int n = sc.nextInt();\n        int usable = 0;\n        for (int i = 0; i < n; i++) {\n            String name = sc.next();\n            int compileRelease = sc.nextInt();\n            int runtimeRelease = sc.nextInt();\n            String verdict;\n            if (compileRelease < previewedIn) {\n                verdict = \"TOO_OLD\";\n            } else if (compileRelease >= standardIn) {\n                verdict = \"STANDARD\";\n            } else if (compileRelease == runtimeRelease) {\n                verdict = \"PREVIEW_OK\";\n            } else {\n                verdict = \"VERSION_MISMATCH\";\n            }\n            if (verdict.equals(\"STANDARD\") || verdict.equals(\"PREVIEW_OK\")) {\n                usable++;\n            }\n            System.out.println(name + \" \" + verdict);\n        }\n        System.out.println(\"usable=\" + usable + \"/\" + n);\n    }\n}\n",
       "quiz": [
         {
           "question": "プレビュー機能を本番で採用するときに必要な姿勢は？",
@@ -386,19 +630,7 @@
             "`NEED_RUNTIME` に出すのは `TOO_NEW` になった `release` の最大値だけです。`Math.max` で更新していきます。",
             "`--release` はclassの対象版と、コンパイル時に見える標準APIの両方を揃えます。`-source` と `-target` だけでは新しいAPIを参照できてしまいます。"
           ],
-          "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        int compile = s.nextInt(), runtime = s.nextInt(), n = s.nextInt();\n        boolean invalid = false;\n        int need = - 1;\n        for (int i = 0; i < n; i++) {\n            String module = s.next();\n            int release = s.nextInt();\n            String status;\n            if (release > compile) {\n                status = \"INVALID_RELEASE\";\n                invalid = true;\n            } else if (release > runtime) {\n                status = \"TOO_NEW\";\n                need = Math.max(need, release);\n            } else status = \"OK\";\n            System.out.println(module + \" \" + status);\n        }\n        System.out.println(invalid ? \"FIX_BUILD\" : need >= 0 ? \"NEED_RUNTIME \" + need : \"ALL_OK\");\n    }\n}\n",
-          "sourceChecks": [
-            {
-              "pattern": "\\bruntime\\b",
-              "minimum": 1,
-              "message": "`--release` に渡した版が実行環境の版より新しいと動きません。`runtime` と比べてください。"
-            },
-            {
-              "pattern": "\\bcompile\\b",
-              "minimum": 1,
-              "message": "ビルドに使うJDKの版も判定に使います。"
-            }
-          ]
+          "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        int compile = s.nextInt(), runtime = s.nextInt(), n = s.nextInt();\n        boolean invalid = false;\n        int need = - 1;\n        for (int i = 0; i < n; i++) {\n            String module = s.next();\n            int release = s.nextInt();\n            String status;\n            if (release > compile) {\n                status = \"INVALID_RELEASE\";\n                invalid = true;\n            } else if (release > runtime) {\n                status = \"TOO_NEW\";\n                need = Math.max(need, release);\n            } else status = \"OK\";\n            System.out.println(module + \" \" + status);\n        }\n        System.out.println(invalid ? \"FIX_BUILD\" : need >= 0 ? \"NEED_RUNTIME \" + need : \"ALL_OK\");\n    }\n}\n"
         },
         {
           "kind": "applied",
@@ -448,20 +680,11 @@
             "`removed` の行はツール名を出しません。表示の形が変わる場合を先に片づけると読みやすくなります。",
             "`preview` は仕様が変わり得る暫定機能なので、`--enable-preview` の件数を別に数えます。`deprecated` は即時削除ではありませんが、`removed` と同じく移行の対象です。"
           ],
-          "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        Map<String, String> tools = Map.of(\"experiment\", \"jshell\", \"bytecode\", \"javap\", \"dependencies\", \"jdeps\", \"runtime\", \"jlink\", \"installer\", \"jpackage\");\n        Map<String, String> actions = Map.of(\"standard\", \"CONSIDER\", \"preview\", \"EVALUATE\", \"deprecated\", \"MIGRATE\", \"removed\", \"BLOCK\");\n        int n = s.nextInt(), preview = 0, migrate = 0;\n        for (int k = 1; k <= n; k++) {\n            String goal = s.next(), state = s.next();\n            if (state.equals(\"removed\")) System.out.println(k + \" BLOCK\");\n            else System.out.println(k + \" \" + tools.get(goal) + \" \" + actions.get(state));\n            if (state.equals(\"preview\")) preview++;\n            if (state.equals(\"deprecated\") || state.equals(\"removed\")) migrate++;\n        }\n        System.out.println(\"PREVIEW \" + preview);\n        System.out.println(\"MIGRATE \" + migrate);\n    }\n}\n",
-          "sourceChecks": [
-            {
-              "pattern": "Map\\s*\\.\\s*of\\s*\\(|new\\s+(Hash|LinkedHash|Tree)Map|\\bswitch\\b",
-              "minimum": 2,
-              "message": "「目的→ツール」と「状態→対応」の2つを表として持ってください。`if` を並べるより、対応関係がそのまま読めます。"
-            },
-            {
-              "pattern": "\\.get\\s*\\(|getOrDefault\\s*\\(",
-              "minimum": 1,
-              "message": "表からの引き当ては `get` / `getOrDefault` で行ってください。"
-            }
-          ]
+          "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        Map<String, String> tools = Map.of(\"experiment\", \"jshell\", \"bytecode\", \"javap\", \"dependencies\", \"jdeps\", \"runtime\", \"jlink\", \"installer\", \"jpackage\");\n        Map<String, String> actions = Map.of(\"standard\", \"CONSIDER\", \"preview\", \"EVALUATE\", \"deprecated\", \"MIGRATE\", \"removed\", \"BLOCK\");\n        int n = s.nextInt(), preview = 0, migrate = 0;\n        for (int k = 1; k <= n; k++) {\n            String goal = s.next(), state = s.next();\n            if (state.equals(\"removed\")) System.out.println(k + \" BLOCK\");\n            else System.out.println(k + \" \" + tools.get(goal) + \" \" + actions.get(state));\n            if (state.equals(\"preview\")) preview++;\n            if (state.equals(\"deprecated\") || state.equals(\"removed\")) migrate++;\n        }\n        System.out.println(\"PREVIEW \" + preview);\n        System.out.println(\"MIGRATE \" + migrate);\n    }\n}\n"
         }
+      ],
+      "rubric": [
+        "decide"
       ]
     }
   ]

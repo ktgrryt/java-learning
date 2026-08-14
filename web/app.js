@@ -2187,6 +2187,119 @@
       '</section>';
   }
 
+  /*
+   * 章の到達状況を「概念・コード・実践」の3層に分けて数える。
+   *
+   * ★は問題ごとに1つで、簡略な模型と実物を動かす課題が同じ見た目になる。
+   * 何を説明できるのか、何を書けるのか、何を動かして直せるのかは別の能力なので、
+   * 問題の種類とクイズから3層を作って分けて示す。
+   *
+   *   概念 … 確認クイズ（★の判定には影響しないが、知識の確認はここで数える）
+   *   コード … single-file と artifact（コードや設定を書く）
+   *   実践 … project と runtime-lab（実物を起動・観測・修正する）
+   *
+   * 任意発展問題は章クリアの対象外なので、どの層の分母にも入れない。
+   */
+  // 層の数え方はサーバー側（Curriculum.layerProgress）に1つだけ置いてある。
+  // ここで数え直すと定義が2箇所になってずれるので、返ってきた値をそのまま使う。
+  // completedAt は「最初に達成した日」で、章へ問題が増えても消えない。
+  function chapterLayers(chapter) {
+    var empty = { total: 0, done: 0, complete: false, completedAt: null };
+    var layers = chapter.layers || {};
+    return {
+      concept: layers.concept || empty,
+      coding: layers.coding || empty,
+      practice: layers.practice || empty
+    };
+  }
+
+  function chapterLayersHtml(layers) {
+    var rows = [
+      { key: 'concept', label: '概念', note: 'クイズで確かめる', empty: 'クイズはありません' },
+      { key: 'coding', label: 'コード', note: '書いて動かす', empty: 'コード問題はありません' },
+      { key: 'practice', label: '実践', note: '実物を起動して直す', empty: 'この章にはありません' }
+    ];
+    return '<div class="chapter-layers" aria-label="この章の到達状況">' +
+      rows.map(function (row) {
+        var layer = layers[row.key];
+        var done = !!layer.complete;
+        // 一度達成した層は、章へ問題が増えても記録として残る。
+        // いま満たしていないなら、残件も分かるように両方出す。
+        var earned = !!layer.completedAt;
+        var note = row.note;
+        if (layer.total > 0 && !done) {
+          note = row.key === 'practice' ? '章クリアに必要' : row.note;
+          if (earned) { note = layer.completedAt + ' に達成（追加分が残り）'; }
+        } else if (earned) {
+          note = layer.completedAt + ' に達成';
+        }
+        return '<div class="chapter-layer'
+          + (layer.total ? '' : ' layer-none')
+          + (done ? ' layer-done' : '') + (earned && !done ? ' layer-earned' : '') + '">' +
+          '<span class="layer-name">' + row.label + (earned ? ' ✓' : '') + '</span>' +
+          '<span class="layer-count">'
+          + (layer.total ? layer.done + ' / ' + layer.total : '—') + '</span>' +
+          '<span class="layer-note">' + (layer.total ? note : row.empty) + '</span>' +
+          '</div>';
+      }).join('') +
+      '</div>';
+  }
+
+  /**
+   * レッスンが測る軸を短いタグで出す。「実装」だけの回は出さない。
+   * どのレッスンで診断や判断を学ぶのかが、一覧の並びで読めるようにする。
+   */
+  function lessonRubricHtml(rubric) {
+    if (!rubric) { return ''; }
+    var keys = Object.keys(rubric).filter(function (k) { return k !== 'implement'; });
+    if (!keys.length) { return ''; }
+    var order = ['explain', 'diagnose', 'test', 'decide'];
+    var labels = { explain: '説明', diagnose: '診断', test: 'test', decide: '判断' };
+    return '<span class="lesson-rubric">' + order.filter(function (k) {
+      return keys.indexOf(k) >= 0;
+    }).map(function (k) {
+      var d = rubric[k];
+      var done = d.total > 0 && d.done === d.total;
+      return '<span class="lesson-rubric-tag' + (done ? ' tag-done' : '') + '">'
+        + labels[k] + '</span>';
+    }).join('') + '</span>';
+  }
+
+  var RUBRIC_LABELS = [
+    { key: 'explain', label: '説明' },
+    { key: 'implement', label: '実装' },
+    { key: 'diagnose', label: '診断' },
+    { key: 'test', label: 'test' },
+    { key: 'decide', label: '判断' }
+  ];
+
+  /**
+   * 章の実務rubric（0〜2点×5軸）。測っていない軸は「—」にして0点と区別する。
+   * その章に測る手段が無いことと、測ったが達成していないことは別。
+   */
+  function chapterRubricHtml(rubric) {
+    if (!rubric || !rubric.available) { return ''; }
+    var cells = RUBRIC_LABELS.map(function (row) {
+      var d = (rubric.dimensions || {})[row.key] || { measured: false };
+      var stars = d.measured
+        ? (d.points >= 2 ? '★★' : (d.points >= 1 ? '★☆' : '☆☆'))
+        : '—';
+      return '<div class="rubric-cell' + (d.measured ? '' : ' rubric-none') + '">' +
+        '<span class="rubric-name">' + row.label + '</span>' +
+        '<span class="rubric-stars">' + stars + '</span>' +
+        '<span class="rubric-count">'
+        + (d.measured ? d.done + ' / ' + d.total : '対象なし') + '</span>' +
+        '</div>';
+    }).join('');
+    return '<div class="chapter-rubric' + (rubric.meetsThreshold ? ' rubric-met' : '') + '"' +
+      ' aria-label="この章の実務rubric">' + cells +
+      '<div class="rubric-total"><span class="rubric-name">合計</span>' +
+      '<span class="rubric-stars">' + rubric.earned + ' / ' + rubric.available + '</span>' +
+      '<span class="rubric-count">'
+      + (rubric.meetsThreshold ? '実務修了の条件を満たす' : '実装と診断が各1点以上＋8割') +
+      '</span></div></div>';
+  }
+
   /** 左で章を選び、右でレッスンへ進む。開閉操作のないマスター・詳細UI。 */
   function renderChapterCards() {
     var listHost = document.getElementById('chGrid');
@@ -2282,6 +2395,7 @@
     var uncheckedPreflight = selectedChapter.cleared ? null : selectedChapter.lessons.find(function (lesson) {
       return lesson.type === 'preflight' && !preflightRecentlyReady(lesson.id);
     });
+    var layers = chapterLayers(selectedChapter);
     var nextLessonInChapter = uncheckedPreflight || selectedChapter.lessons.find(function (lesson) {
       return lesson.type !== 'preflight' && !lesson.cleared;
     }) || selectedChapter.lessons.find(function (lesson) { return lesson.type !== 'preflight'; })
@@ -2299,6 +2413,8 @@
         ? '  <div class="chapter-detail-progress"><strong>' + selectedStatus + '</strong></div>'
         : '') +
       '</header>' +
+      chapterLayersHtml(layers) +
+      chapterRubricHtml(selectedChapter.rubric) +
       (activePart.prerequisite
         ? '<div class="part-prerequisite"><strong>学習の前提</strong><span>'
           + esc(activePart.prerequisite) + '</span></div>'
@@ -2314,7 +2430,8 @@
           + '" data-lesson="' + esc(lesson.id) + '">' +
           '<span class="chapter-lesson-status">' + (isPreflight ? '⚙' : (lesson.cleared ? '✓' : displayLessonId(lesson))) + '</span>' +
           '<span class="chapter-lesson-copy"><strong>' + esc(lesson.title) + '</strong>' +
-          (lessonStatus ? '<small>' + lessonStatus + '</small>' : '') + '</span>' +
+          (lessonStatus ? '<small>' + lessonStatus + '</small>' : '') +
+          lessonRubricHtml(lesson.rubric) + '</span>' +
           '<span class="chapter-lesson-arrow">→</span></button></li>';
       }).join('') + '</ul>';
 
@@ -2842,11 +2959,21 @@
           return '<code>' + esc(image) + '</code>';
         }).join('、');
       }
+      // ツールやビルドを動かすだけのlabはポートを使わない。使わない条件を書くと嘘になる。
+      var portless = ['jdk-tool', 'build'];
+      var needsPort = (lab.capabilities || []).some(function (name) {
+        return portless.indexOf(name) < 0;
+      });
+      var runNote = needsPort
+        ? '提出すると動的なlocalhostポートを使い、<code>' + esc(lab.command) +
+          '</code>で起動・観測・停止まで実行します。'
+        : '提出すると一時コピーの中で<code>' + esc(lab.command) +
+          '</code>を実行し、生成物とツールの出力を検査します。';
       return '<div class="cases runtime-verification">' +
         '<div class="cases-title">実環境で検証すること（全' + lab.checkCount + '件）</div>' +
         '<ul>' + runtimeChecks + '</ul>' +
-        '<p class="case-hidden-note">必要環境: ' + requirements + '。提出すると動的なlocalhostポートを使い、' +
-        '<code>' + esc(lab.command) + '</code>で起動・観測・停止まで実行します。元のlabは変更しません。</p></div>';
+        '<p class="case-hidden-note">必要環境: ' + requirements + '。' + runNote +
+        '元のlabは変更しません。</p></div>';
     }
     if (task.type === 'project') {
       return '<div class="cases project-verification">' +

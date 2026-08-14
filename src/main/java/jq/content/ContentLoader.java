@@ -32,11 +32,13 @@ public final class ContentLoader {
     private static final Pattern LIB_NAME = Pattern.compile("[A-Za-z0-9_-]+");
     private static final Pattern SAFE_PROJECT_PATH = Pattern.compile("[A-Za-z0-9._/-]+");
     private static final java.util.Set<String> PREFLIGHT_TOOLS = java.util.Set.of(
-            "java", "javac", "maven", "gradle", "docker");
+            "java", "javac", "maven", "gradle", "docker", "docker-or-podman");
     private static final java.util.Set<String> RUNTIME_CAPABILITIES = java.util.Set.of(
-            "server", "db", "http", "jfr", "container");
+            "server", "db", "http", "jfr", "container", "jdk-tool", "build");
     private static final java.util.Set<String> RUNTIME_TOOLS = java.util.Set.of(
-            "java", "javac", "jcmd", "jfr", "mvn", "gradle", "docker",
+            "java", "javac", "javap", "jdeps", "jlink", "jar", "jcmd", "jfr", "jshell", "jpackage",
+            "keytool", "mvn", "gradle",
+            "docker",
             "docker-or-podman");
     private static final Pattern RUNTIME_IMAGE = Pattern.compile("[A-Za-z0-9._/@:-]+");
     private static final List<String> PROJECT_GENERATED_DIRS = List.of(
@@ -45,7 +47,7 @@ public final class ContentLoader {
     private static final List<String> PROJECT_TEXT_NAMES = List.of("Dockerfile", "pom.xml");
     private static final List<String> PROJECT_TEXT_EXTENSIONS = List.of(
             ".java", ".xml", ".properties", ".sql", ".md", ".txt", ".json",
-            ".yaml", ".yml", ".gradle", ".kts", ".sh", ".options");
+            ".yaml", ".yml", ".gradle", ".kts", ".sh", ".options", ".jsh");
 
     private final Path contentDir;
 
@@ -348,6 +350,19 @@ public final class ContentLoader {
             }
         }
 
+        List<String> rubric = new ArrayList<>();
+        for (String dimension : stringList(raw, "rubric")) {
+            if (!Task.RUBRIC_DIMENSIONS.contains(dimension)) {
+                throw new IllegalStateException(where + " の rubric は "
+                        + String.join(" / ", Task.RUBRIC_DIMENSIONS)
+                        + " のいずれかにしてください: " + dimension);
+            }
+            if (rubric.contains(dimension)) {
+                throw new IllegalStateException(where + " の rubric が重複しています: " + dimension);
+            }
+            rubric.add(dimension);
+        }
+
         List<SourceCheck> sourceChecks = new ArrayList<>();
         for (Object o : MiniJson.list(raw, "sourceChecks")) {
             Map<String, Object> check = MiniJson.asObj(o);
@@ -390,7 +405,8 @@ public final class ContentLoader {
                 List.copyOf(sourceChecks),
                 artifact,
                 project,
-                runtimeLab);
+                runtimeLab,
+                List.copyOf(rubric));
     }
 
     private RuntimeLabSpec parseRuntimeLab(Map<String, Object> raw, String where) {

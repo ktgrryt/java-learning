@@ -94,6 +94,62 @@
         "`m.equals(d)` を記録します。"
       ],
       "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] a) {\n        Scanner s = new Scanner(System.in);\n        int n = s.nextInt();\n        boolean bad = false;\n        for (int i = 0; i < n; i++) {\n            String m = s.next(), d = s.next();\n            if (m.equals(d)) bad = true;\n        }\n        System.out.println(bad ? \"SELF_CYCLE\" : \"OK\");\n    }\n}\n",
+      "extraTasks": [
+        {
+          "kind": "applied",
+          "type": "runtime-lab",
+          "task": "【実ビルド演習】`labs/testing-maven/dependency-exercise`の`pom.xml`を直してください。このprojectはコンパイルは通りますが、テストが**実行時に**落ちます。\n\n`jackson-databind 2.18.2`は同じ版の`jackson-core`を前提にしています。ところが昔のコードのために`jackson-core 2.11.0`が直接書かれていて、Mavenは近い宣言を選ぶのでそちらが採用されます。解説の「選ばれた版に必要なメソッドがなければ、実行時に`NoSuchMethodError`などが起きます」がそのまま起きている状態です。\n\n関連部品の版をまとめてそろえてください。古い方へ落とせばエラーは消えますが、それは直したことになりません。`databind`が前提とする2.18.2以降へそろえます。\n\n提出すると`mvn clean test dependency:list`を実際に実行し、testが実行時エラーなしで通るか、解決後の版がそろっているか、古い方へ落としていないかを検査します。ソースとテストは変更しません。",
+          "runtimeLab": {
+            "name": "Dependency convergence lab",
+            "source": "labs/testing-maven/dependency-exercise",
+            "exclude": [
+              "reference"
+            ],
+            "command": [
+              "./run-runtime-lab.sh"
+            ],
+            "timeoutSeconds": 60,
+            "verification": "mvn clean test dependency:listを実際に実行し、実行時エラーの解消と解決後の版のそろい方を確認する",
+            "capabilities": [
+              "build"
+            ],
+            "requiredTools": [
+              "java",
+              "javac",
+              "mvn"
+            ],
+            "requiredImages": [],
+            "checks": [
+              {
+                "id": "deps-runtime-ok",
+                "label": "実行時エラーが消え、testが通る"
+              },
+              {
+                "id": "deps-aligned",
+                "label": "解決後のjackson系の版がそろう"
+              },
+              {
+                "id": "deps-not-downgraded",
+                "label": "古い版へ落として合わせていない"
+              }
+            ],
+            "editableFiles": [
+              {
+                "path": "pom.xml",
+                "solutionPath": "reference/pom.xml"
+              }
+            ]
+          },
+          "hints": [
+            "まず`mvn dependency:list`の結果を読みます。`jackson-core`と`jackson-databind`に違う版が並んでいれば、それが原因です。",
+            "同じartifactに2つの版は入りません。直接書いた宣言が近いので勝ちます。古い宣言が今も必要かをまず疑ってください。",
+            "版を1か所で決めるには、`dependencyManagement`へ`jackson-bom`を`<type>pom</type>`・`<scope>import</scope>`でimportし、個々の`dependency`から`version`を消します。propertyで共有する方法でも通ります。"
+          ],
+          "rubric": [
+            "diagnose"
+          ]
+        }
+      ],
       "quiz": [
         {
           "question": "再現できるビルドに有効なのは？",
@@ -161,6 +217,10 @@
           "answer": 0,
           "explanation": "再実行で隠すと、同じ原因が本番の不具合として残ります。時刻や外部I/Oは注入できるようにします。"
         }
+      ],
+      "rubric": [
+        "test",
+        "decide"
       ]
     },
     {
@@ -221,6 +281,9 @@
           "answer": 2,
           "explanation": "ベンチマークはJMHのウォームアップとforkを使い、想定する最大のnと実測から判断します。定常状態の性能を表しません。"
         }
+      ],
+      "rubric": [
+        "diagnose"
       ]
     },
     {
@@ -253,6 +316,55 @@
         "いまの `ok` と `s.nextInt()==1` を `&&` で結んで更新します。"
       ],
       "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] a) {\n        Scanner s = new Scanner(System.in);\n        boolean ok = true;\n        for (int i = 0; i < 4; i++) ok = ok && s.nextInt() == 1;\n        System.out.println(ok ? \"RELEASE\" : \"BLOCK\");\n    }\n}\n",
+      "extraTasks": [
+        {
+          "kind": "applied",
+          "type": "artifact",
+          "task": "この章の説明どおりに動くCI設定を完成させてください。`.github/workflows/ci.yml`は今も緑になりますが、緑であることが何も保証していません。次の5つを直します。\n\n1. 使うJDKの版と配布元を設定で固定する（21）\n2. テストを飛ばさず、`verify`まで進める\n3. 供給網の確認を1つ入れる（SBOM生成や依存の脆弱性scanなど、道具は問いません）\n4. `build`で作った成果物を保存する\n5. `deploy`は保存した成果物を受け取る。**同じ成果物を運ぶ**ので、ここで作り直さない\n\nYAMLの字下げや順序、step名は自由です。要件を満たす別の書き方でも合格します。",
+          "starterContent": "name: ci\n\non:\n  push:\n    branches: [main]\n  pull_request:\n\njobs:\n  build:\n    runs-on: ubuntu-latest\n    steps:\n      - uses: actions/checkout@v4\n      # TODO 1: 使うJDKを固定する（版と配布元をここで決める）\n      - name: build\n        # TODO 2: テストを飛ばしている\n        run: mvn -B -DskipTests package\n      # TODO 3: 供給網の確認を1つ入れる\n      # TODO 4: 作った成果物を保存する\n\n  deploy:\n    needs: build\n    runs-on: ubuntu-latest\n    steps:\n      - uses: actions/checkout@v4\n      # TODO 5: buildで作った成果物を受け取る。ここで作り直さない\n      - name: deploy\n        run: mvn -B package && ./deploy.sh target/app.jar\n",
+          "solution": "name: ci\n\non:\n  push:\n    branches: [main]\n  pull_request:\n\njobs:\n  build:\n    runs-on: ubuntu-latest\n    steps:\n      - uses: actions/checkout@v4\n      - uses: actions/setup-java@v4\n        with:\n          distribution: temurin\n          java-version: '21'\n      - name: build and test\n        run: mvn -B verify\n      - name: generate sbom\n        uses: anchore/sbom-action@v0\n      - uses: actions/upload-artifact@v4\n        with:\n          name: app-jar\n          path: target/*.jar\n\n  deploy:\n    needs: build\n    runs-on: ubuntu-latest\n    steps:\n      - uses: actions/download-artifact@v4\n        with:\n          name: app-jar\n          path: target\n      - name: deploy the same artifact\n        run: ./deploy.sh target/app.jar\n",
+          "artifact": {
+            "path": ".github/workflows/ci.yml",
+            "format": "yaml",
+            "checks": [
+              {
+                "type": "regex",
+                "expression": "(?s)^(?=[\\s\\S]*actions/setup-java@v\\d)(?=[\\s\\S]*distribution:\\s*\\S)(?=[\\s\\S]*java-version:\\s*['\\\"]?21['\\\"]?).*$",
+                "message": "JDKの版と配布元を設定で固定する（setup-javaでdistributionとjava-version 21を指定する）"
+              },
+              {
+                "type": "regex",
+                "expression": "(?s)^(?![\\s\\S]*-DskipTests)(?![\\s\\S]*maven\\.test\\.skip)(?=[\\s\\S]*mvn[^\\n]*\\b(?:verify|test)\\b).*$",
+                "message": "テストを飛ばさず、verifyまで進める（skipTestsを残さない）"
+              },
+              {
+                "type": "regex",
+                "expression": "(?si)^(?=[\\s\\S]*(?:uses|run):[^\\n]*(?:sbom|dependency-review|dependency-check|owasp|trivy|grype|cyclonedx|snyk)).*$",
+                "message": "供給網の確認をstepとして1つ入れる（SBOM生成や依存scanなど）"
+              },
+              {
+                "type": "regex",
+                "expression": "(?s)^(?=[\\s\\S]*actions/upload-artifact@v\\d)(?=[\\s\\S]*path:[^\\n]*target[^\\n]*\\.jar).*$",
+                "message": "buildで作った成果物を保存する（target配下のJARをupload-artifactへ渡す）"
+              },
+              {
+                "type": "regex",
+                "expression": "(?s)^(?=[\\s\\S]*actions/download-artifact@v\\d)(?![\\s\\S]*mvn[^\\n]*\\b(?:package|verify)\\b[\\s\\S]*mvn[^\\n]*\\b(?:package|verify)\\b).*$",
+                "message": "deployは保存した成果物を受け取り、作り直さない（buildを2回実行しない）"
+              }
+            ]
+          },
+          "hints": [
+            "JDKは`actions/setup-java@v4`の`with:`へ`distribution: temurin`と`java-version: '21'`を書きます。runnerの既定JDKに任せると、手元と違う版で作られます。",
+            "`mvn -B verify`はcompileからtestまで進みます。`-DskipTests`が残っていると、緑になってもテストは動いていません。",
+            "`actions/upload-artifact@v4`で`target/*.jar`を保存し、`deploy`側は`actions/download-artifact@v4`で受け取ります。検証したものと別のものを本番へ出さないのが目的です。"
+          ],
+          "rubric": [
+            "implement",
+            "decide"
+          ]
+        }
+      ],
       "quiz": [
         {
           "question": "環境間で成果物を作り直さず昇格させる理由は？",
@@ -375,17 +487,8 @@
             "`TreeSet` と `TreeMap` を使うと、取り出すときに名前の辞書順になります。件数の最大は、辞書順にたどって「より大きいときだけ」更新すると同数の先勝ちになります。"
           ],
           "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        int n = s.nextInt();\n        Set<String> selfs = new TreeSet<>();\n        Set<String> edges = new LinkedHashSet<>();\n        Map<String, Integer> depended = new TreeMap<>();\n        List<String[]> pairs = new ArrayList<>();\n        for (int i = 0; i < n; i++) {\n            String module = s.next(), dependency = s.next();\n            if (module.equals(dependency)) {\n                selfs.add(module);\n                continue;\n            }\n            edges.add(module + \">\" + dependency);\n            pairs.add(new String[] {module, dependency});\n            depended.merge(dependency, 1, Integer::sum);\n        }\n        for (String m : selfs) System.out.println(\"SELF \" + m);\n        Set<String> shown = new TreeSet<>();\n        for (String[] p : pairs) if (edges.contains(p[1] + \">\" + p[0])) {\n            String a = p[0].compareTo(p[1]) <= 0 ? p[0] : p[1], b = p[0].compareTo(p[1]) <= 0 ? p[1] : p[0];\n            shown.add(a + \" \" + b);\n        }\n        for (String c : shown) System.out.println(\"CYCLE \" + c);\n        if (selfs.isEmpty() && shown.isEmpty()) System.out.println(\"ACYCLIC\");\n        String best = \"NONE\";\n        int bestCount = 0;\n        for (Map.Entry<String, Integer> e : depended.entrySet()) if (e.getValue() > bestCount) {\n            best = e.getKey();\n            bestCount = e.getValue();\n        }\n        System.out.println(\"MOST_DEPENDED \" + best + \" \" + bestCount);\n    }\n}\n",
-          "sourceChecks": [
-            {
-              "pattern": "\\bnew\\s+TreeSet\\b|\\.sorted\\s*\\(|Collections\\s*\\.\\s*sort",
-              "minimum": 1,
-              "message": "辞書順で1行だけ出すので `TreeSet` を使うと、重複除去と並べ替えが同時にできます。"
-            },
-            {
-              "pattern": "\\bnew\\s+LinkedHashSet\\b|\\bnew\\s+TreeMap\\b",
-              "minimum": 1,
-              "message": "出現順や辞書順を保ちながら重複を除くので、順序のある入れ物を選んでください。"
-            }
+          "rubric": [
+            "diagnose"
           ]
         },
         {
@@ -437,17 +540,8 @@
             "ゲートは `gates` の順に読み、`0` のものだけ `FAILED` を出しつつ、1つでもあったことを `boolean` で覚えておきます。上位の判定（`RELEASE`）は最後にまとめて決めます。"
           ],
           "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        Map<String, Integer> cost = Map.of(\"unit\", 1, \"component\", 5, \"e2e\", 20);\n        int budget = s.nextInt(), n = s.nextInt(), estimate = 0;\n        for (int i = 0; i < n; i++) estimate += cost.get(s.next());\n        List<String> gates = List.of(\"compile\", \"test\", \"scan\", \"package\");\n        System.out.println(\"ESTIMATE \" + estimate);\n        boolean within = estimate <= budget;\n        System.out.println(within ? \"WITHIN_BUDGET \" + (budget - estimate) : \"OVER_BUDGET \" + (estimate - budget));\n        boolean allPass = true;\n        for (String gate : gates) if (s.nextInt() == 0) {\n            System.out.println(\"FAILED \" + gate);\n            allPass = false;\n        }\n        System.out.println(allPass && within ? \"RELEASE\" : \"BLOCK\");\n    }\n}\n",
-          "sourceChecks": [
-            {
-              "pattern": "Map\\s*\\.\\s*of\\s*\\(|new\\s+(Hash|LinkedHash|Tree)Map|\\bswitch\\b",
-              "minimum": 1,
-              "message": "テスト種別ごとの所要時間は表として持ってください。`if` を並べるより、費用の対応が一目で読めます。"
-            },
-            {
-              "pattern": "List\\s*\\.\\s*of\\s*\\(|String\\s*\\[\\s*\\]",
-              "minimum": 1,
-              "message": "ゲートは並び順そのものが意味を持つので、リストで持ってください。"
-            }
+          "rubric": [
+            "decide"
           ]
         }
       ]

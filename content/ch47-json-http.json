@@ -266,25 +266,51 @@
           "runtimeLab": {
             "name": "local HTTP boundary lab",
             "source": "labs/http-client",
-            "exclude": ["reference"],
-            "command": ["./run-runtime-lab.sh"],
+            "exclude": [
+              "reference"
+            ],
+            "command": [
+              "./run-runtime-lab.sh"
+            ],
             "timeoutSeconds": 15,
             "verification": "実サーバーへのHTTP 200・404・request timeoutをクライアントが区別する",
-            "capabilities": ["server", "http"],
-            "requiredTools": ["java", "javac"],
+            "capabilities": [
+              "server",
+              "http"
+            ],
+            "requiredTools": [
+              "java",
+              "javac"
+            ],
             "requiredImages": [],
             "checks": [
-              {"id": "http-success", "label": "HTTP 200と期待したJSONを受信する"},
-              {"id": "http-not-found", "label": "HTTP 404のJSONエラーを扱う"},
-              {"id": "http-timeout", "label": "遅い応答をrequest timeoutとして扱う"}
+              {
+                "id": "http-success",
+                "label": "HTTP 200と期待したJSONを受信する"
+              },
+              {
+                "id": "http-not-found",
+                "label": "HTTP 404のJSONエラーを扱う"
+              },
+              {
+                "id": "http-timeout",
+                "label": "遅い応答をrequest timeoutとして扱う"
+              }
             ],
             "editableFiles": [
-              {"path": "exercise/ApiClient.java", "solutionPath": "reference/ApiClient.java"}
+              {
+                "path": "exercise/ApiClient.java",
+                "solutionPath": "reference/ApiClient.java"
+              }
             ]
           },
           "hints": [
             "接続timeoutではなく、`HttpRequest.Builder.timeout`が応答全体を待つ上限です。",
             "サーバーの遅延は2秒です。`Duration.ofMillis(500)`なら、遅い応答だけがtimeoutになります。"
+          ],
+          "rubric": [
+            "implement",
+            "diagnose"
           ]
         }
       ],
@@ -420,19 +446,7 @@
             "待ち時間の倍々は `baseMs*(1L<<(k-1))` で計算できます（`1L` にしておくと、試行回数が増えても桁溢れしません）。",
             "`k<maxAttempts` のときだけ `wait=` を付けます。上限に達したあとに待つ意味はありません。"
           ],
-          "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        String method = s.next();\n        int maxAttempts = s.nextInt(), baseMs = s.nextInt();\n        Set<Integer> retryable = Set.of(429, 502, 503, 504);\n        boolean idempotent = Set.of(\"GET\", \"PUT\", \"DELETE\").contains(method);\n        for (int k = 1; k <= maxAttempts; k++) {\n            int status = s.nextInt();\n            if (status / 100 == 2) {\n                System.out.println(k + \" SUCCESS \" + status);\n                System.out.println(\"RESULT OK \" + k);\n                return;\n            }\n            if (idempotent && retryable.contains(status)) {\n                System.out.println(k < maxAttempts ? k + \" RETRY \" + status + \" wait=\" + baseMs * (1L << (k - 1)) : k + \" RETRY \" + status);\n                continue;\n            }\n            System.out.println(k + \" FAIL \" + status);\n            System.out.println(\"RESULT FAILED \" + k);\n            return;\n        }\n        System.out.println(\"RESULT GIVEUP \" + maxAttempts);\n    }\n}\n",
-          "sourceChecks": [
-            {
-              "pattern": "Set\\s*\\.\\s*of\\s*\\(|List\\s*\\.\\s*of\\s*\\(",
-              "minimum": 2,
-              "message": "「再試行してよいステータス」と「冪等なメソッド」を、それぞれ集合として持ってください。"
-            },
-            {
-              "pattern": "\\.contains\\s*\\(",
-              "minimum": 1,
-              "message": "集合に含まれるかは `contains` で調べてください。`if` を並べるより条件が読みやすくなります。"
-            }
-          ]
+          "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        String method = s.next();\n        int maxAttempts = s.nextInt(), baseMs = s.nextInt();\n        Set<Integer> retryable = Set.of(429, 502, 503, 504);\n        boolean idempotent = Set.of(\"GET\", \"PUT\", \"DELETE\").contains(method);\n        for (int k = 1; k <= maxAttempts; k++) {\n            int status = s.nextInt();\n            if (status / 100 == 2) {\n                System.out.println(k + \" SUCCESS \" + status);\n                System.out.println(\"RESULT OK \" + k);\n                return;\n            }\n            if (idempotent && retryable.contains(status)) {\n                System.out.println(k < maxAttempts ? k + \" RETRY \" + status + \" wait=\" + baseMs * (1L << (k - 1)) : k + \" RETRY \" + status);\n                continue;\n            }\n            System.out.println(k + \" FAIL \" + status);\n            System.out.println(\"RESULT FAILED \" + k);\n            return;\n        }\n        System.out.println(\"RESULT GIVEUP \" + maxAttempts);\n    }\n}\n"
         },
         {
           "kind": "applied",
@@ -487,19 +501,7 @@
             "判定は上から順に、条件演算子か else if でつなぎます。最初に外れた理由だけを出します。",
             "要素の文字列をリストへ貯めておき、最後に `\"[\"+String.join(\",\",items)+\"]\"` を表示すれば、0件のときも `[]` になります。"
           ],
-          "solution": "import java.util.*;\n\npublic class Main {\n    static String escape(String v) {\n        return v.replace(\"\\\\\", \"\\\\\\\\\").replace(\"\\\"\", \"\\\\\\\"\");\n    }\n\n    static Integer age(String raw) {\n        try {\n            return Integer.valueOf(raw);\n        } catch (NumberFormatException e) {\n            return null;\n        }\n    }\n\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        int n = s.nextInt();\n        List<String> items = new ArrayList<>();\n        for (int k = 1; k <= n; k++) {\n            String name = s.next(), raw = s.next(), status = s.next();\n            Integer value = age(raw);\n            String reason = name.equals(\"null\") ? \"NAME\" : (value == null || value < 0 || value > 150) ? \"AGE\" : (!status.equals(\"active\") && !status.equals(\"inactive\")) ? \"STATUS\" : null;\n            if (reason != null) {\n                System.out.println(\"INVALID \" + k + \" \" + reason);\n                continue;\n            }\n            items.add(\"{\\\"name\\\":\\\"\" + escape(name) + \"\\\",\\\"age\\\":\" + value + \",\\\"status\\\":\\\"\" + status.toUpperCase(Locale.ROOT) + \"\\\"}\");\n        }\n        System.out.println(\"[\" + String.join(\",\", items) + \"]\");\n    }\n}\n",
-          "sourceChecks": [
-            {
-              "pattern": "\\.replace\\s*\\(",
-              "minimum": 2,
-              "message": "バックスラッシュと引用符をエスケープしてください。**バックスラッシュを先に**変換しないと、あとで足した記号が二重に変換されます。"
-            },
-            {
-              "pattern": "Integer\\s*\\.\\s*(valueOf|parseInt)",
-              "minimum": 1,
-              "message": "数値への変換は `Integer.valueOf` / `parseInt` で行い、変換できない場合を分けてください。"
-            }
-          ]
+          "solution": "import java.util.*;\n\npublic class Main {\n    static String escape(String v) {\n        return v.replace(\"\\\\\", \"\\\\\\\\\").replace(\"\\\"\", \"\\\\\\\"\");\n    }\n\n    static Integer age(String raw) {\n        try {\n            return Integer.valueOf(raw);\n        } catch (NumberFormatException e) {\n            return null;\n        }\n    }\n\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        int n = s.nextInt();\n        List<String> items = new ArrayList<>();\n        for (int k = 1; k <= n; k++) {\n            String name = s.next(), raw = s.next(), status = s.next();\n            Integer value = age(raw);\n            String reason = name.equals(\"null\") ? \"NAME\" : (value == null || value < 0 || value > 150) ? \"AGE\" : (!status.equals(\"active\") && !status.equals(\"inactive\")) ? \"STATUS\" : null;\n            if (reason != null) {\n                System.out.println(\"INVALID \" + k + \" \" + reason);\n                continue;\n            }\n            items.add(\"{\\\"name\\\":\\\"\" + escape(name) + \"\\\",\\\"age\\\":\" + value + \",\\\"status\\\":\\\"\" + status.toUpperCase(Locale.ROOT) + \"\\\"}\");\n        }\n        System.out.println(\"[\" + String.join(\",\", items) + \"]\");\n    }\n}\n"
         }
       ]
     }

@@ -78,19 +78,7 @@
             "delayをinitialで始め、各ループでリストへ追加します。",
             "次の値は `Math.min(max, delay * 2)` です。"
           ],
-          "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        long initial = s.nextLong(), max = s.nextLong();\n        int retries = s.nextInt();\n        List<Long> delays = new ArrayList<>();\n        long delay = Math.min(initial, max);\n        for (int i = 0; i < retries; i++) {\n            delays.add(delay);\n            delay = Math.min(max, delay * 2);\n        }\n        System.out.println(delays);\n    }\n}\n",
-          "sourceChecks": [
-            {
-              "pattern": "Math\\s*\\.\\s*min\\s*\\(|>\\s*max",
-              "minimum": 1,
-              "message": "待ち時間が上限を超えないよう、`Math.min` か比較で抑えてください。"
-            },
-            {
-              "pattern": "\\*\\s*2|<<\\s*1",
-              "minimum": 1,
-              "message": "待ち時間を2倍にしていくのが指数バックオフです。"
-            }
-          ]
+          "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        long initial = s.nextLong(), max = s.nextLong();\n        int retries = s.nextInt();\n        List<Long> delays = new ArrayList<>();\n        long delay = Math.min(initial, max);\n        for (int i = 0; i < retries; i++) {\n            delays.add(delay);\n            delay = Math.min(max, delay * 2);\n        }\n        System.out.println(delays);\n    }\n}\n"
         }
       ],
       "quiz": [
@@ -154,7 +142,7 @@
     {
       "id": "38-2",
       "title": "ログ・メトリクス・トレースをつなぐ",
-      "explanation": "## はじめて学ぶ人へ\n\n可観測性は、動いているシステムの内部状態を外から推測できるようにすることです。3つの道具は役割が違います。\n\n- ログ: 何が起きたかを残す防犯カメラの記録\n- メトリクス: 全体の件数や遅さを見る計器盤\n- トレース: 1件の依頼が複数サービスを通る経路を追う配送番号\n\nたとえば注文1件に `traceId=abc` を付け、API、決済、DBのログへ同じIDを残せば、エラー率上昇をメトリクスで発見したあと、その失敗リクエストをログとトレースで追えます。秘密情報や本文すべてを記録せず、処理名・結果・時間・相関IDを構造化して残します。\n\n## 三つの観測信号\n\nログは個別イベントの詳細、メトリクスは件数や分布の時系列、トレースは1リクエストが複数サービスを通る因果関係を表します。障害時に後付けできないため、平常時から設計します。\n\n```svg 同じ `traceId` をログに残せば、メトリクスで気づいた異常をログとトレースまで辿れる\n<svg viewBox=\"0 0 720 244\">\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"14\" y=\"26\">1件のリクエストが通る経路（trace）</text>\n  <rect class=\"fig-box-accent\" x=\"60\" y=\"42\" width=\"600\" height=\"28\" rx=\"6\"/>\n  <text class=\"fig-t fig-mono fig-small fig-t-accent\" x=\"76\" y=\"56\">API /orders   traceId=abc</text>\n  <rect class=\"fig-box\" x=\"140\" y=\"78\" width=\"260\" height=\"26\" rx=\"6\"/>\n  <text class=\"fig-t fig-mono fig-small\" x=\"156\" y=\"91\">決済サービス呼び出し</text>\n  <rect class=\"fig-box\" x=\"420\" y=\"78\" width=\"180\" height=\"26\" rx=\"6\"/>\n  <text class=\"fig-t fig-mono fig-small\" x=\"436\" y=\"91\">DB 更新</text>\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"52\" y=\"56\" text-anchor=\"end\">親</text>\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"132\" y=\"91\" text-anchor=\"end\">子</text>\n\n  <rect class=\"fig-box\" x=\"14\" y=\"130\" width=\"220\" height=\"70\" rx=\"6\"/>\n  <text class=\"fig-t fig-title fig-small\" x=\"124\" y=\"150\" text-anchor=\"middle\">ログ</text>\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"124\" y=\"172\" text-anchor=\"middle\">個別の出来事を残す</text>\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"124\" y=\"190\" text-anchor=\"middle\">構造化して traceId を入れる</text>\n\n  <rect class=\"fig-box\" x=\"250\" y=\"130\" width=\"220\" height=\"70\" rx=\"6\"/>\n  <text class=\"fig-t fig-title fig-small\" x=\"360\" y=\"150\" text-anchor=\"middle\">メトリクス</text>\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"360\" y=\"172\" text-anchor=\"middle\">件数・遅さの時系列</text>\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"360\" y=\"190\" text-anchor=\"middle\">異常に気づくのはここ</text>\n\n  <rect class=\"fig-box-accent\" x=\"486\" y=\"130\" width=\"220\" height=\"70\" rx=\"6\"/>\n  <text class=\"fig-t fig-title fig-small fig-t-accent\" x=\"596\" y=\"150\" text-anchor=\"middle\">トレース</text>\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"596\" y=\"172\" text-anchor=\"middle\">1件が通った経路と時間</text>\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"596\" y=\"190\" text-anchor=\"middle\">どこで遅いかが分かる</text>\n\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"14\" y=\"230\">パスワード・トークン・個人情報は残さない。同じ例外を各層で何度も ERROR にせず、責任を持つ境界で一度記録する</text>\n</svg>\n```\n\nログには時刻、レベル、イベント名、trace/request ID、処理結果、必要な識別子を構造化して入れます。パスワード、トークン、個人情報をそのまま出さず、例外は調査できるスタックトレースを一度、責任を持つ境界で記録します。同じ例外を各層で何度もERRORにしません。\n\nサービスではlatency（応答時間）・traffic（要求量）・errors（失敗）・saturation（資源の詰まり具合）を出発点にします。平均だけでなく分位値、スレッド／接続プール使用率、キュー長も観測します。\n\nここで、利用者から見たサービスの良さを測る値を **SLI（Service Level Indicator、サービスレベル指標）** と呼びます。たとえば「成功した要求の割合」や「300ms以内に終わった要求の割合」です。そのSLIに対して、**どの期間に、どの値を目指すか**を決めた目標が **SLO（Service Level Objective、サービスレベル目標）** です。\n\n```text\nSLI: 実際の成功率は99.7%\nSLO: 直近30日間の成功率を99.9%以上にする\n```\n\nアラートはCPU使用率のような原因候補だけでなく、利用者影響やSLO違反へ近い信号を中心にし、調査手順書と直近の変更履歴へつなげます。",
+      "explanation": "## はじめて学ぶ人へ\n\n可観測性は、動いているシステムの内部状態を外から推測できるようにすることです。3つの道具は役割が違います。\n\n- ログ: 何が起きたかを残す防犯カメラの記録\n- メトリクス: 全体の件数や遅さを見る計器盤\n- トレース: 1件の依頼が複数サービスを通る経路を追う配送番号\n\nたとえば注文1件に `traceId=abc` を付け、API、決済、DBのログへ同じIDを残せば、エラー率上昇をメトリクスで発見したあと、その失敗リクエストをログとトレースで追えます。秘密情報や本文すべてを記録せず、処理名・結果・時間・相関IDを構造化して残します。\n\n## 三つの観測信号\n\nログは個別イベントの詳細、メトリクスは件数や分布の時系列、トレースは1リクエストが複数サービスを通る因果関係を表します。障害時に後付けできないため、平常時から設計します。\n\n```svg 同じ `traceId` をログに残せば、メトリクスで気づいた異常をログとトレースまで辿れる\n<svg viewBox=\"0 0 720 244\">\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"14\" y=\"26\">1件のリクエストが通る経路（trace）</text>\n  <rect class=\"fig-box-accent\" x=\"60\" y=\"42\" width=\"600\" height=\"28\" rx=\"6\"/>\n  <text class=\"fig-t fig-mono fig-small fig-t-accent\" x=\"76\" y=\"56\">API /orders   traceId=abc</text>\n  <rect class=\"fig-box\" x=\"140\" y=\"78\" width=\"260\" height=\"26\" rx=\"6\"/>\n  <text class=\"fig-t fig-mono fig-small\" x=\"156\" y=\"91\">決済サービス呼び出し</text>\n  <rect class=\"fig-box\" x=\"420\" y=\"78\" width=\"180\" height=\"26\" rx=\"6\"/>\n  <text class=\"fig-t fig-mono fig-small\" x=\"436\" y=\"91\">DB 更新</text>\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"52\" y=\"56\" text-anchor=\"end\">親</text>\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"132\" y=\"91\" text-anchor=\"end\">子</text>\n\n  <rect class=\"fig-box\" x=\"14\" y=\"130\" width=\"220\" height=\"70\" rx=\"6\"/>\n  <text class=\"fig-t fig-title fig-small\" x=\"124\" y=\"150\" text-anchor=\"middle\">ログ</text>\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"124\" y=\"172\" text-anchor=\"middle\">個別の出来事を残す</text>\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"124\" y=\"190\" text-anchor=\"middle\">構造化して traceId を入れる</text>\n\n  <rect class=\"fig-box\" x=\"250\" y=\"130\" width=\"220\" height=\"70\" rx=\"6\"/>\n  <text class=\"fig-t fig-title fig-small\" x=\"360\" y=\"150\" text-anchor=\"middle\">メトリクス</text>\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"360\" y=\"172\" text-anchor=\"middle\">件数・遅さの時系列</text>\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"360\" y=\"190\" text-anchor=\"middle\">異常に気づくのはここ</text>\n\n  <rect class=\"fig-box-accent\" x=\"486\" y=\"130\" width=\"220\" height=\"70\" rx=\"6\"/>\n  <text class=\"fig-t fig-title fig-small fig-t-accent\" x=\"596\" y=\"150\" text-anchor=\"middle\">トレース</text>\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"596\" y=\"172\" text-anchor=\"middle\">1件が通った経路と時間</text>\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"596\" y=\"190\" text-anchor=\"middle\">どこで遅いかが分かる</text>\n\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"14\" y=\"230\">パスワード・トークン・個人情報は残さない。同じ例外を各層で何度も ERROR にせず、責任を持つ境界で一度記録する</text>\n</svg>\n```\n\nログには時刻、レベル、イベント名、trace/request ID、処理結果、必要な識別子を構造化して入れます。パスワード、トークン、個人情報をそのまま出さず、例外は調査できるスタックトレースを一度、責任を持つ境界で記録します。同じ例外を各層で何度もERRORにしません。\n\nサービスではlatency（応答時間）・traffic（要求量）・errors（失敗）・saturation（資源の詰まり具合）を出発点にします。平均だけでなく分位値、スレッド／接続プール使用率、キュー長も観測します。\n\nここで、利用者から見たサービスの良さを測る値を **SLI（Service Level Indicator、サービスレベル指標）** と呼びます。たとえば「成功した要求の割合」や「300ms以内に終わった要求の割合」です。そのSLIに対して、**どの期間に、どの値を目指すか**を決めた目標が **SLO（Service Level Objective、サービスレベル目標）** です。\n\n```text\nSLI: 実際の成功率は99.7%\nSLO: 直近30日間の成功率を99.9%以上にする\n```\n\n## トレースは区間（span）の木でできている\n\nトレースは1本の線ではありません。**span（区間）** という単位の集まりで、それぞれが\n「どのサービスで、いつ始まり、どれだけかかり、成功したか」を持ちます。spanは親を指すので、\n全体は木になります。\n\n```text\ntraceId=t-1002\n  s1 gateway    (parent=-)      1200ms  error   ← 根\n    s2 orders   (parent=s1)     1100ms  error\n      s3 inventory (parent=s2)  1000ms  error   ← いちばん深いエラー\n```\n\nいちばん外側のspanは、内側の遅さや失敗をそのまま被ります。だから根のspanが `error` でも、\n**原因はいちばん深いところにある**ことが普通です。gatewayを見て「gatewayが悪い」と結論すると外します。\n\nそしてログは `traceId` と `spanId` の両方を持ちます。これがあるので、次の順で辿れます。\n\n```text\nメトリクス … どの分に異常が出たか\n      ↓ その時間帯で絞る\nトレース   … どの依頼が失敗し、木のどこで失敗したか\n      ↓ traceId + spanId で絞る\nログ       … その区間で実際に何が起きたか\n```\n\nこの「絞り込みの順番」が可観測性の使い方です。ログを最初から全部読むのではなく、\n**メトリクスで範囲を決め、トレースで場所を決め、ログで中身を読む**という順に進めます。\n\nアラートはCPU使用率のような原因候補だけでなく、利用者影響やSLO違反へ近い信号を中心にし、調査手順書と直近の変更履歴へつなげます。",
       "samples": [
         {
           "caption": "要求メトリクスを集計",
@@ -195,49 +183,55 @@
       "extraTasks": [
         {
           "kind": "applied",
-          "task": "測定数n、続くn組の `endpoint latencyMs` を読み、endpointごとの件数、切捨て平均、最大を辞書順に `endpoint count=件数 avg=値 max=値` と表示してください。record Statsは可変クラス等に置き換えて構いません。",
-          "starterCode": "import java.util.*;\n\nclass Stats {\n    long count, sum, max;\n\n    void add(long value) { }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        int n = s.nextInt();\n        Map<String, Stats> stats = new TreeMap<>();\n        // TODO\n    }\n}\n",
+          "task": "メトリクスの異常から、トレースの木を辿って、原因のログまで絞り込んでください。\n\n入力は3つの並びです。\n\n1. 1行目にSLOのしきい値（1分あたりに許すエラー件数）。2行目にメトリクスの行数`m`、続く`m`行が`分 エラー件数`。\n2. 次の行にspanの数`s`、続く`s`行が`traceId spanId 親spanId サービス名 分 所要ms 状態`（親が無い根は`-`、状態は`ok`か`error`）。\n3. 次の行にログの数`l`、続く`l`行が`traceId spanId レベル メッセージ`（メッセージは空白を含みます）。\n\n次の順で絞り込み、1行ずつ出力してください。\n\n- `breach=<分>` … エラー件数がしきい値を**超えた**最初の分（入力順）。無ければ`breach=NONE`だけを出力して終わり\n- `trace=<traceId>` … その分に`error`のspanを持つtraceのうち、traceIdが辞書順で最小のもの。無ければ`trace=NONE`を出力して終わり\n- `path=<サービス名を>で連結>` … そのtraceの根から、**いちばん深い`error`のspan**までの経路。深さが同じなら spanId が辞書順で小さいものを選びます\n- `log=<レベル> <メッセージ>` … いちばん深い`error`のspanに紐づくログを入力順に。無ければ`log=NONE`",
+          "starterCode": "import java.util.*;\n\npublic class Main {\n\n    record Span(String trace, String id, String parent, String service,\n                String minute, long durationMs, String status) {\n    }\n\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int threshold = sc.nextInt();\n        int m = sc.nextInt();\n        for (int i = 0; i < m; i++) {\n            String minute = sc.next();\n            int errors = sc.nextInt();\n            // TODO: しきい値を超えた最初の分を覚える\n        }\n        int s = sc.nextInt();\n        List<Span> spans = new ArrayList<>();\n        for (int i = 0; i < s; i++) {\n            spans.add(new Span(sc.next(), sc.next(), sc.next(), sc.next(),\n                    sc.next(), sc.nextLong(), sc.next()));\n        }\n        int l = sc.nextInt();\n        List<String[]> logs = new ArrayList<>();\n        for (int i = 0; i < l; i++) {\n            String trace = sc.next();\n            String span = sc.next();\n            String level = sc.next();\n            logs.add(new String[] {trace, span, level, sc.nextLine().trim()});\n        }\n        // TODO: breach → trace → path → log の順に絞り込む\n        System.out.println(\"breach=NONE\");\n    }\n}\n",
           "visibleCases": [
             {
-              "label": "2エンドポイント",
-              "stdin": "4 /users 10 /orders 30 /users 20 /orders 50",
-              "expected": "/orders count=2 avg=40 max=50\n/users count=2 avg=15 max=20"
+              "label": "メトリクスからログまで辿る",
+              "stdin": "2\n3\n09:13 1\n09:14 3\n09:15 0\n4\nt-1002 s1 - gateway 09:14 1200 error\nt-1002 s2 s1 orders 09:14 1100 error\nt-1002 s3 s2 inventory 09:14 1000 error\nt-1001 s1 - gateway 09:14 40 ok\n2\nt-1002 s3 ERROR connection timeout after 2000ms\nt-1002 s1 INFO request received",
+              "expected": "breach=09:14\ntrace=t-1002\npath=gateway>orders>inventory\nlog=ERROR connection timeout after 2000ms"
             },
             {
-              "label": "1件",
-              "stdin": "1 /health 3",
-              "expected": "/health count=1 avg=3 max=3"
+              "label": "しきい値を超えていない",
+              "stdin": "5\n2\n09:13 1\n09:14 3\n0\n0",
+              "expected": "breach=NONE"
             }
           ],
           "hiddenCases": [
             {
-              "label": "同一3件",
-              "stdin": "3 /a 0 /a 10 /a 20",
-              "expected": "/a count=3 avg=10 max=20"
+              "label": "traceが複数あれば辞書順で最小",
+              "stdin": "1\n1\n09:20 4\n4\nt-2002 s1 - gateway 09:20 900 error\nt-2002 s2 s1 payment 09:20 800 error\nt-2001 s1 - gateway 09:20 700 error\nt-2001 s2 s1 orders 09:20 600 error\n2\nt-2001 s2 ERROR card declined\nt-2002 s2 ERROR gateway refused",
+              "expected": "breach=09:20\ntrace=t-2001\npath=gateway>orders\nlog=ERROR card declined"
             },
             {
-              "label": "辞書順",
-              "stdin": "3 /z 5 /a 9 /m 1",
-              "expected": "/a count=1 avg=9 max=9\n/m count=1 avg=1 max=1\n/z count=1 avg=5 max=5"
+              "label": "その分にerrorのspanが無い",
+              "stdin": "1\n1\n09:30 5\n2\nt-3001 s1 - gateway 09:31 100 error\nt-3001 s2 s1 orders 09:30 90 ok\n1\nt-3001 s1 ERROR later failure",
+              "expected": "breach=09:30\ntrace=NONE"
+            },
+            {
+              "label": "深さが同じならspanIdが小さい方",
+              "stdin": "0\n1\n10:00 1\n3\nt-4001 s1 - gateway 10:00 500 error\nt-4001 s3 s1 orders 10:00 400 error\nt-4001 s2 s1 payment 10:00 300 error\n1\nt-4001 s2 ERROR payment failed",
+              "expected": "breach=10:00\ntrace=t-4001\npath=gateway>payment\nlog=ERROR payment failed"
+            },
+            {
+              "label": "ログが複数あれば入力順に",
+              "stdin": "0\n1\n11:00 1\n2\nt-5001 s1 - gateway 11:00 200 error\nt-5001 s2 s1 db 11:00 150 error\n3\nt-5001 s2 WARN retrying\nt-5001 s1 INFO received\nt-5001 s2 ERROR deadlock detected",
+              "expected": "breach=11:00\ntrace=t-5001\npath=gateway>db\nlog=WARN retrying\nlog=ERROR deadlock detected"
+            },
+            {
+              "label": "根そのものがいちばん深いerror",
+              "stdin": "0\n1\n12:00 2\n2\nt-6001 s1 - gateway 12:00 300 error\nt-6001 s2 s1 orders 12:00 100 ok\n0",
+              "expected": "breach=12:00\ntrace=t-6001\npath=gateway\nlog=NONE"
             }
           ],
           "hints": [
-            "Stats.addでcount、sum、maxを更新します。",
-            "`stats.computeIfAbsent(endpoint, k -> new Stats()).add(latency)` を使えます。",
-            "TreeMapをforEachし、avgはsum/countで求めます。"
+            "メトリクスは「超えた」ので `>` です。`>=` にすると、しきい値ちょうどの分を拾ってしまいます。",
+            "深さは、親を`-`まで辿った回数です。spanIdから親を引けるように`Map<String, Span>`を作ると楽です。",
+            "経路は最深のspanから根へ辿ると逆順になります。`ArrayDeque`の`addFirst`か、最後に`Collections.reverse`で戻します。"
           ],
-          "solution": "import java.util.*;\n\nclass Stats {\n    long count, sum, max;\n\n    void add(long value) {\n        count++;\n        sum += value;\n        max = Math.max(max, value);\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        int n = s.nextInt();\n        Map<String, Stats> stats = new TreeMap<>();\n        for (int i = 0; i < n; i++) {\n            String endpoint = s.next();\n            long latency = s.nextLong();\n            stats.computeIfAbsent(endpoint, k -> new Stats()).add(latency);\n        }\n        stats.forEach((endpoint, v) -> System.out.println(endpoint + \" count=\" + v.count + \" avg=\" + (v.sum / v.count) + \" max=\" + v.max));\n    }\n}\n",
-          "sourceChecks": [
-            {
-              "pattern": "\\bnew\\s+TreeMap\\b",
-              "minimum": 1,
-              "message": "辞書順に出すので `TreeMap` を使ってください（`HashMap` では順序が決まりません）。"
-            },
-            {
-              "pattern": "computeIfAbsent\\s*\\(",
-              "minimum": 1,
-              "message": "初回だけ作るのは `computeIfAbsent` です。`get` して `null` を確かめる書き方より短くなります。"
-            }
+          "solution": "import java.util.*;\n\npublic class Main {\n\n    record Span(String trace, String id, String parent, String service,\n                String minute, long durationMs, String status) {\n    }\n\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int threshold = sc.nextInt();\n        int m = sc.nextInt();\n        String breach = null;\n        for (int i = 0; i < m; i++) {\n            String minute = sc.next();\n            int errors = sc.nextInt();\n            if (breach == null && errors > threshold) {\n                breach = minute;\n            }\n        }\n        int s = sc.nextInt();\n        List<Span> spans = new ArrayList<>();\n        for (int i = 0; i < s; i++) {\n            spans.add(new Span(sc.next(), sc.next(), sc.next(), sc.next(),\n                    sc.next(), sc.nextLong(), sc.next()));\n        }\n        int l = sc.nextInt();\n        List<String[]> logs = new ArrayList<>();\n        for (int i = 0; i < l; i++) {\n            String trace = sc.next();\n            String span = sc.next();\n            String level = sc.next();\n            logs.add(new String[] {trace, span, level, sc.nextLine().trim()});\n        }\n\n        if (breach == null) {\n            System.out.println(\"breach=NONE\");\n            return;\n        }\n        System.out.println(\"breach=\" + breach);\n\n        String target = null;\n        for (Span span : spans) {\n            if (span.minute().equals(breach) && span.status().equals(\"error\")\n                    && (target == null || span.trace().compareTo(target) < 0)) {\n                target = span.trace();\n            }\n        }\n        if (target == null) {\n            System.out.println(\"trace=NONE\");\n            return;\n        }\n        System.out.println(\"trace=\" + target);\n\n        Map<String, Span> byId = new LinkedHashMap<>();\n        for (Span span : spans) {\n            if (span.trace().equals(target)) {\n                byId.put(span.id(), span);\n            }\n        }\n\n        Span deepest = null;\n        int bestDepth = -1;\n        for (Span span : byId.values()) {\n            if (!span.status().equals(\"error\")) {\n                continue;\n            }\n            int depth = 0;\n            for (Span cursor = span; !cursor.parent().equals(\"-\");\n                    cursor = byId.get(cursor.parent())) {\n                depth++;\n            }\n            if (depth > bestDepth\n                    || (depth == bestDepth && span.id().compareTo(deepest.id()) < 0)) {\n                bestDepth = depth;\n                deepest = span;\n            }\n        }\n\n        Deque<String> path = new ArrayDeque<>();\n        for (Span cursor = deepest; ; cursor = byId.get(cursor.parent())) {\n            path.addFirst(cursor.service());\n            if (cursor.parent().equals(\"-\")) {\n                break;\n            }\n        }\n        System.out.println(\"path=\" + String.join(\">\", path));\n\n        List<String> lines = new ArrayList<>();\n        for (String[] log : logs) {\n            if (log[0].equals(target) && log[1].equals(deepest.id())) {\n                lines.add(\"log=\" + log[2] + \" \" + log[3]);\n            }\n        }\n        if (lines.isEmpty()) {\n            System.out.println(\"log=NONE\");\n        } else {\n            lines.forEach(System.out::println);\n        }\n    }\n}\n",
+          "rubric": [
+            "diagnose"
           ]
         }
       ],
@@ -402,17 +396,9 @@
             "成功率の分母は `ok+fail` だけです。ブレーカーで止めた分と押し戻した分を分母へ入れると、**下流を守るために止めた回数まで失敗として数えてしまいます**。表示は `String.format(Locale.ROOT,\"success=%.2f%%\",...)` で桁を固定します。"
           ],
           "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        int capacity = s.nextInt(), threshold = s.nextInt(), n = s.nextInt();\n        int queued = 0, consecutive = 0, ok = 0, fail = 0, rejected = 0, full = 0;\n        boolean open = false;\n        for (int i = 0; i < n; i++) {\n            String id = s.next(), outcome = s.next();\n            if (open) {\n                System.out.println(\"rejected \" + id);\n                rejected++;\n                continue;\n            }\n            if (queued == capacity) {\n                System.out.println(\"full \" + id);\n                full++;\n                continue;\n            }\n            queued++;\n            if (outcome.equals(\"ok\")) {\n                consecutive = 0;\n                ok++;\n                System.out.println(\"ok \" + id);\n            } else {\n                consecutive++;\n                fail++;\n                System.out.println(\"fail \" + id);\n                if (consecutive >= threshold) open = true;\n            }\n        }\n        System.out.println(\"state=\" + (open ? \"OPEN\" : \"CLOSED\"));\n        System.out.println(\"queued=\" + queued + \"/\" + capacity);\n        System.out.println(\"ok=\" + ok + \" fail=\" + fail + \" rejected=\" + rejected + \" full=\" + full);\n        int handled = ok + fail;\n        System.out.println(handled == 0 ? \"success=NO_DATA\" : String.format(Locale.ROOT, \"success=%.2f%%\", ok * 100.0 / handled));\n    }\n}\n",
-          "sourceChecks": [
-            {
-              "pattern": ">=\\s*threshold|threshold\\s*<=",
-              "minimum": 1,
-              "message": "連続失敗がしきい値に達したら遮断してください。これがサーキットブレーカーの開く条件です。"
-            },
-            {
-              "pattern": "(>=|==)\\s*capacity|capacity\\s*(<=|==)",
-              "minimum": 1,
-              "message": "待ち行列が容量に達したら受け付けないでください。無制限に溜めるとメモリを使い切ります。"
-            }
+          "rubric": [
+            "implement",
+            "decide"
           ]
         },
         {
@@ -463,19 +449,7 @@
             "`TreeMap` にしておくと、traceIdの辞書順で取り出せます。経路の中身は入力順のままにします。",
             "最遅の更新は「まだ1件も無いとき」「より大きいとき」「同じ時間で名前が辞書順に先のとき」の3つです。`slowest==null` を先に見ておけば、1件目で `null` を比較してしまうことがありません。"
           ],
-          "solution": "import java.util.*;\n\npublic class Main {\n    static long percentile(long[] sorted, int percent) {\n        int rank = (percent * sorted.length + 99) / 100;\n        return sorted[rank - 1];\n    }\n\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        long sloMs = s.nextLong();\n        int n = s.nextInt();\n        Map<String, List<String>> paths = new TreeMap<>();\n        Map<String, Long> totals = new TreeMap<>();\n        long[] durations = new long[n];\n        String slowest = null;\n        long slowestMs = - 1;\n        for (int i = 0; i < n; i++) {\n            String traceId = s.next(), service = s.next();\n            long ms = s.nextLong();\n            paths.computeIfAbsent(traceId, k -> new ArrayList<>()).add(service);\n            totals.merge(traceId, ms, Long::sum);\n            durations[i] = ms;\n            if (slowest == null || ms > slowestMs || (ms == slowestMs && service.compareTo(slowest) < 0)) {\n                slowestMs = ms;\n                slowest = service;\n            }\n        }\n        for (Map.Entry<String, List<String>> e : paths.entrySet()) System.out.println(e.getKey() + \" \" + String.join(\" -> \", e.getValue()) + \" total=\" + totals.get(e.getKey()));\n        long p95 = 0;\n        if (n > 0) {\n            long[] sorted = Arrays.copyOf(durations, n);\n            Arrays.sort(sorted);\n            p95 = percentile(sorted, 95);\n        }\n        System.out.println(\"p95=\" + p95);\n        System.out.println(p95 <= sloMs ? \"SLO_MET\" : \"SLO_VIOLATED\");\n        System.out.println(\"slowest=\" + (slowest == null ? \"NONE 0\" : slowest + \" \" + slowestMs));\n    }\n}\n",
-          "sourceChecks": [
-            {
-              "pattern": "\\bnew\\s+TreeMap\\b",
-              "minimum": 1,
-              "message": "traceIdの辞書順に出すので `TreeMap` を使ってください。"
-            },
-            {
-              "pattern": "String\\s*\\.\\s*join\\s*\\(",
-              "minimum": 1,
-              "message": "経路は ` -> ` でつなぐので `String.join` を使ってください。"
-            }
-          ]
+          "solution": "import java.util.*;\n\npublic class Main {\n    static long percentile(long[] sorted, int percent) {\n        int rank = (percent * sorted.length + 99) / 100;\n        return sorted[rank - 1];\n    }\n\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        long sloMs = s.nextLong();\n        int n = s.nextInt();\n        Map<String, List<String>> paths = new TreeMap<>();\n        Map<String, Long> totals = new TreeMap<>();\n        long[] durations = new long[n];\n        String slowest = null;\n        long slowestMs = - 1;\n        for (int i = 0; i < n; i++) {\n            String traceId = s.next(), service = s.next();\n            long ms = s.nextLong();\n            paths.computeIfAbsent(traceId, k -> new ArrayList<>()).add(service);\n            totals.merge(traceId, ms, Long::sum);\n            durations[i] = ms;\n            if (slowest == null || ms > slowestMs || (ms == slowestMs && service.compareTo(slowest) < 0)) {\n                slowestMs = ms;\n                slowest = service;\n            }\n        }\n        for (Map.Entry<String, List<String>> e : paths.entrySet()) System.out.println(e.getKey() + \" \" + String.join(\" -> \", e.getValue()) + \" total=\" + totals.get(e.getKey()));\n        long p95 = 0;\n        if (n > 0) {\n            long[] sorted = Arrays.copyOf(durations, n);\n            Arrays.sort(sorted);\n            p95 = percentile(sorted, 95);\n        }\n        System.out.println(\"p95=\" + p95);\n        System.out.println(p95 <= sloMs ? \"SLO_MET\" : \"SLO_VIOLATED\");\n        System.out.println(\"slowest=\" + (slowest == null ? \"NONE 0\" : slowest + \" \" + slowestMs));\n    }\n}\n"
         }
       ]
     }

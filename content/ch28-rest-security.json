@@ -17,7 +17,7 @@
           "code": "import jakarta.ws.rs.*;\nimport jakarta.ws.rs.core.*;\n\n@Path(\"/hello\")\nclass HelloResource {\n    @GET\n    @Produces(MediaType.TEXT_PLAIN)\n    String hello() {\n        return \"hello\";\n    }\n}\n\npublic class RestSample {\n    public static void main(String[] a) {\n        System.out.println(new HelloResource().hello());\n    }\n}\n"
         }
       ],
-      "task": "`/products/{id}` 相当のResourceを完成させます。`find(long id)` にGETとPathを付け、ID 1はbook/1200、2はpen/150。main入力IDに対しDTOの `id:name:price`、無ければ `not found`。",
+      "task": "`/products/{id}` 相当のResourceを完成させます。classへ `@Path` と `@Produces`、`find` へ `@GET` と `@Path`、その引数へ `@PathParam` を付けてください。ID 1はbook/1200、2はpen/150。main入力IDに対しDTOの `id:name:price`、無ければ `not found`。",
       "starterCode": "import jakarta.ws.rs.*;\nimport jakarta.ws.rs.core.*;\nimport java.util.*;\n\nrecord ProductDto(long id, String name, int price) { }\n\n// TODO class Path/Produces\nclass ProductResource {\n    private final Map<Long, ProductDto> data = Map.of(1L, new ProductDto(1, \"book\", 1200), 2L, new ProductDto(2, \"pen\", 150));\n\n    // TODO GET/Path/PathParam\n    ProductDto find(long id) {\n        return data.get(id);\n    }\n}\n\npublic class RestResource {\n    public static void main(String[] a) {\n        long id = new Scanner(System.in).nextLong();\n        ProductDto p = new ProductResource().find(id);\n        System.out.println(p == null ? \"not found\" : p.id() + \":\" + p.name() + \":\" + p.price());\n    }\n}\n",
       "visibleCases": [
         {
@@ -43,6 +43,28 @@
         "メソッドに `@GET @Path(\"/{id}\")`、引数に `@PathParam(\"id\")`。"
       ],
       "solution": "import jakarta.ws.rs.*;\nimport jakarta.ws.rs.core.*;\nimport java.util.*;\n\nrecord ProductDto(long id, String name, int price) { }\n\n@Path(\"/products\")\n@Produces(MediaType.APPLICATION_JSON)\nclass ProductResource {\n    private final Map<Long, ProductDto> data = Map.of(1L, new ProductDto(1, \"book\", 1200), 2L, new ProductDto(2, \"pen\", 150));\n\n    @GET\n    @Path(\"/{id}\")\n    ProductDto find(@PathParam(\"id\") long id) {\n        return data.get(id);\n    }\n}\n\npublic class RestResource {\n    public static void main(String[] a) {\n        long id = new Scanner(System.in).nextLong();\n        ProductDto p = new ProductResource().find(id);\n        System.out.println(p == null ? \"not found\" : p.id() + \":\" + p.name() + \":\" + p.price());\n    }\n}\n",
+      "sourceChecks": [
+        {
+          "pattern": "@Path\\b",
+          "minimum": 2,
+          "message": "class と メソッドの両方に `@Path` が必要です。classへ担当するリソースの住所、メソッドへURLの可変部分を書いてください。"
+        },
+        {
+          "pattern": "@Produces\\b",
+          "minimum": 1,
+          "message": "返す本文の形式を `@Produces(MediaType.APPLICATION_JSON)` で宣言してください。"
+        },
+        {
+          "pattern": "@GET\\b",
+          "minimum": 1,
+          "message": "取得は GET なので、メソッドに `@GET` を付けてください。"
+        },
+        {
+          "pattern": "@PathParam\\b",
+          "minimum": 1,
+          "message": "URLの `{id}` をJavaの引数へ渡すため、`find` の引数に `@PathParam(\"id\")` を付けてください。"
+        }
+      ],
       "extraTasks": [
         {
           "kind": "applied",
