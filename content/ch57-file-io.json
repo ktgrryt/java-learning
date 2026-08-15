@@ -3,10 +3,35 @@
   "title": "ファイル入出力",
   "subtitle": "残るデータを読み書きする",
   "emoji": "📄",
+  "objectives": [
+    {
+      "id": "ch57-o1",
+      "text": "`Files` でファイルの書き込み・読み込み・存在確認・削除ができる"
+    },
+    {
+      "id": "ch57-o2",
+      "text": "1行ずつの読み書きと追記（`APPEND`）を書き分けられる"
+    },
+    {
+      "id": "ch57-o3",
+      "text": "ファイルが無い場合を、例外で受け止める形と先に確かめる形のどちらでも書ける"
+    },
+    {
+      "id": "ch57-o4",
+      "text": "文字コードを明示して読み書きし、大きなファイルを少しずつ処理できる"
+    },
+    {
+      "id": "ch57-o5",
+      "text": "利用者が指定したパスを基準ディレクトリの中に収め、置き換えを安全に行える"
+    }
+  ],
   "lessons": [
     {
       "id": "57-1",
       "title": "ファイルに書く・読む",
+      "objectiveIds": [
+        "ch57-o1"
+      ],
       "explanation": "## ファイルの場所は Path で表す\n\nここまで入力は `Scanner`（キーボード）から、出力は `System.out`（画面）へでした。\nファイルを使うと、**プログラムが終わっても残るデータ** を扱えます。\n\nファイルの場所は **`Path`** で表します。\n\n```java\nimport java.nio.file.Path;\n\nPath memo = Path.of(\"memo.txt\");\n```\n\n`Path.of(\"memo.txt\")` のように `/` を含まない書き方は **相対パス** で、\n「プログラムを動かした場所」からの位置を指します。この教材では実行のたびに\n使い捨ての作業フォルダが用意されるので、そこにファイルができます。\n\n## 書く — Files.writeString\n\n```java\nimport java.nio.file.Files;\n\nFiles.writeString(memo, \"こんにちは\\n\");\n```\n\n- ファイルが **無ければ作る**\n- ファイルが **あれば中身を捨てて書き直す**（足すのではありません）\n\n## 読む — Files.readString\n\n```java\nString text = Files.readString(memo);\n```\n\nファイル全体を1つの `String` として返します。**改行も文字として入っています**。\n`\"あ\\nい\\n\"` を書いたなら、読み返した文字数は4ではなく **4文字**（`あ` `\\n` `い` `\\n`）です。\n\n## IOException は検査例外\n\nファイルの操作は失敗しえます（権限がない、ディスクがいっぱい、など）。\nだから `Files` のメソッドは **`IOException`** を投げます。これは第13章でやった\n**検査例外** なので、`try-catch` で受け止めるか、`throws` を書いて呼び出し元へ\n渡すかのどちらかが必要です。書かないとコンパイルできません。\n\nいまは `main` に `throws IOException` を付けるのがいちばん簡単です。\n\n```java\npublic static void main(String[] args) throws IOException {\n    Files.writeString(Path.of(\"memo.txt\"), \"ok\\n\");\n}\n```\n\n> ⚠️ 間違えやすい点 … `writeString` は **上書き** です。2回呼べば1回目の中身は残りません。\n> 足していく書き方は次のレッスンで扱います。\n\n> 💡 あるかどうかは `Files.exists(path)`、消すのは `Files.deleteIfExists(path)` です。\n> `deleteIfExists` は消したら `true`、無くて何もしなければ `false` を返します。",
       "samples": [
         {
@@ -118,6 +143,9 @@
     {
       "id": "57-2",
       "title": "1行ずつ扱う",
+      "objectiveIds": [
+        "ch57-o2"
+      ],
       "explanation": "## 行のリストとして読む — readAllLines\n\nファイルは「行の集まり」として扱うことが多いので、1行ずつの `List<String>` で\n受け取れると便利です。\n\n```java\nList<String> lines = Files.readAllLines(Path.of(\"words.txt\"));\nfor (String line : lines) {\n    System.out.println(\"> \" + line);\n}\n```\n\n各要素に **改行は含まれません**。`readString` が改行込みの1つの文字列を返すのに対し、\n`readAllLines` は改行で切った `List<String>` を返します。\n\n## 行のリストを書く — Files.write\n\n```java\nList<String> lines = List.of(\"apple\", \"banana\");\nFiles.write(Path.of(\"words.txt\"), lines);\n```\n\n各要素が1行として書かれ、**行の終わりに改行が付きます**。`writeString` と同じく\n**上書き** です。\n\n## 足していく — APPEND\n\n上書きではなく **末尾に足したい** ときは、書き方のオプションを渡します。\n\n```java\nimport java.nio.file.StandardOpenOption;\n\nFiles.writeString(p, \"追加\\n\",\n        StandardOpenOption.CREATE, StandardOpenOption.APPEND);\n```\n\n- `CREATE` … 無ければ作る\n- `APPEND` … あれば末尾に足す\n\n`APPEND` を付けないと、`writeString` は前の中身を捨ててしまいます。\n\n> ⚠️ 間違えやすい点 … 追記は「前の状態」に結果が左右されます。同じプログラムを2回動かすと\n> 行が2倍になります。**まず消してから足す** と、何回動かしても同じ結果になります。\n> `Files.deleteIfExists(p)` を先に呼ぶのが手軽な方法です。\n\n> 💡 `readAllLines` はファイル全体をいちどメモリへ読み込みます。この教材で扱う小さな\n> ファイルなら問題ありませんが、巨大なファイルには向きません。",
       "samples": [
         {
@@ -229,6 +257,9 @@
     {
       "id": "57-3",
       "title": "ファイルが無いとき",
+      "objectiveIds": [
+        "ch57-o3"
+      ],
       "explanation": "## 無いファイルを読むとどうなるか\n\n`Files.readString` に存在しないファイルを渡すと、例外が飛びます。\n\n```\njava.nio.file.NoSuchFileException: nothing.txt\n```\n\n`NoSuchFileException` は **`IOException` のサブクラス** です。だから\n`catch (IOException e)` でも受け止められますし、`catch (NoSuchFileException e)` と\n**狭いほうを先に** 書けば区別もできます（第13章の「狭い例外を先に」です）。\n\n## 受け止める — try-catch\n\n```java\ntry {\n    String text = Files.readString(p);\n    System.out.println(\"読めた \" + text);\n} catch (NoSuchFileException e) {\n    System.out.println(\"ファイルがありません\");\n}\n```\n\n## 先に確かめる — Files.exists\n\n例外を使わず、読む前に確かめる書き方もあります。\n\n```java\nif (Files.exists(p)) {\n    System.out.println(Files.readString(p));\n} else {\n    System.out.println(\"ファイルがありません\");\n}\n```\n\n### どちらを使うか\n\n| 場面 | 向いている書き方 |\n|---|---|\n| 無いのが **想定内**（あれば読む、無ければ既定値） | `Files.exists` で分ける |\n| 無いのが **異常**（設定ファイルが消えている） | `try-catch` で受けて理由を出す |\n\n> ⚠️ 間違えやすい点 … `exists` が `true` でも、読む瞬間に消されていれば失敗します。\n> `exists` で確かめても `IOException` の対処（`throws` か `try-catch`）は必要です。\n> **確認は例外処理の代わりにはなりません。**\n\n> 💡 例外の種類の名前は `e.getClass().getSimpleName()` で取れます（13-1）。\n> `getMessage()` の文面はJVMによって変わるので、判定には使いません。",
       "samples": [
         {
@@ -299,10 +330,10 @@
         {
           "question": "`Files.readString` と `Files.readAllLines` のちがいとして正しいのはどれでしょう。",
           "choices": [
-            "`readAllLines` は改行を含む1つの文字列を返す",
-            "`readString` は各行の末尾の改行を残した `List<String>` を返す",
-            "`readString` は改行込みの1つの文字列、`readAllLines` は改行を除いた行のリスト",
-            "どちらも同じで、戻り値の型だけが違う"
+            "`readAllLines`が、改行を含む1つの文字列を返す",
+            "`readString`が、改行を残した`List<String>`を返す",
+            "`readString` は改行込みの1文字列、`readAllLines` は行のリスト",
+            "戻り値の型が違うだけで、読み込む内容も改行の扱いも同じになる"
           ],
           "answer": 2,
           "explanation": "`readString` はファイル全体を1つの `String` として返し、改行も文字として含みます。`readAllLines` は改行で切った `List<String>` を返し、各要素に改行は含まれません。"
@@ -378,6 +409,10 @@
     {
       "id": "57-4",
       "title": "中間演習：ファイル入出力の基本",
+      "objectiveIds": [
+        "ch57-o1",
+        "ch57-o2"
+      ],
       "explanation": "## この章の知識を、自分の手で組み合わせよう\n\nここでは、**Path・writeString / readString・readAllLines / Files.write・exists・\nIOException** をまとめて使います。新しい文法は登場しません。\n分からなくなったら、直前までの解説やサンプルへ戻って確認して大丈夫です。\n\n### 3問の進め方\n\n1. **基本**で、中心となる書き方をもう一度使う\n2. **組み合わせ**で、章内の複数の知識を一緒に使う\n3. **実践**で、少し現実的な入力と条件を整理する\n\nファイルを作る問題では、**まず書く（上書き）か、まず消す** から始めると、\n何回動かしても同じ結果になります。",
       "samples": [
         {
@@ -535,7 +570,10 @@
     {
       "id": "57-5",
       "title": "実務で安全にファイルを扱う",
-      "intro": "文字コード、大きなファイル、利用者が指定するパス、安全な上書きをまとめて学びます。",
+      "objectiveIds": [
+        "ch57-o4",
+        "ch57-o5"
+      ],
       "explanation": "## まず「文字」と「バイト」を区別する\n\nテキストファイルの実体はバイト列です。Javaの `String` とバイト列を相互に変換する規則が**文字コード（charset）**です。書く側と読む側で規則が違うと、文字化けしたり読み込みに失敗したりします。\n\n`Files.readString(path)` と `Files.writeString(path, text)` の文字コードを省略したオーバーロードはUTF-8を使います。ただし、外部システムと受け渡すファイルでは `StandardCharsets.UTF_8` を明記すると、ファイル仕様がコードから分かります。\n\n```java\nFiles.writeString(path, text, StandardCharsets.UTF_8);\nString restored = Files.readString(path, StandardCharsets.UTF_8);\n```\n\n相手からUTF-16LEやShift_JISを指定された場合は、その仕様に合わせます。推測で決めず、入出力の両側で同じ文字コードを契約にしてください。\n\n## 大きなファイルは少しずつ読む\n\n`readString` と `readAllLines` はファイル全体をメモリへ載せます。設定ファイルのように小さいと分かっている場合には便利ですが、ログやCSVのように大きくなり得るファイルには向きません。\n\n`Files.lines(path, UTF_8)` は行を必要になった分だけ読む `Stream<String>` を返します。ファイルを開いているため、try-with-resourcesで確実に閉じます。途中で処理を止めたい、行番号やエラー復旧を細かく制御したい場合は `Files.newBufferedReader` と `readLine()` のループも選択肢です。\n\n```java\ntry (Stream<String> lines = Files.lines(path, StandardCharsets.UTF_8)) {\n    long errors = lines.filter(line -> line.startsWith(\"ERROR\")).count();\n}\n```\n\nStreamは一度しか使えません。件数と合計など複数の集計が必要なら、1回の走査で両方を更新するか、ファイルを開き直します。\n\n## ディレクトリもPathとFilesで扱う\n\n`Files.createDirectories(dir)` は、存在しない親ディレクトリも含めて作ります。すでに存在していても成功するため、業務処理の準備に使いやすいメソッドです。`Files.list(dir)` は直下だけ、`Files.walk(dir)` は子孫までたどります。どちらも開いたディレクトリを保持するStreamなのでtry-with-resourcesで閉じます。\n\n## パストラバーサルを防ぐ\n\n利用者が `../secret.txt` や絶対パスを入力できると、意図した保存先の外を読んだり書いたりする**パストラバーサル**につながります。基準ディレクトリを絶対パスにして正規化し、入力を結合した結果が基準の内側か確認します。\n\n```java\nPath base = Path.of(\"uploads\").toAbsolutePath().normalize();\nPath candidate = base.resolve(userInput).normalize();\nif (!candidate.startsWith(base) || candidate.equals(base)) {\n    throw new IllegalArgumentException(\"許可されていないパス\");\n}\n```\n\nこの確認は `..` や絶対パスによる脱出を防ぎます。ただし `normalize()` は文字列上の整理で、シンボリックリンクの行き先までは確認しません。攻撃者が基準ディレクトリ内にリンクを作れる環境では、リンクを禁止するか、存在するパスを `toRealPath()` で解決して基準の実体パス内か追加確認します。\n\n## 上書き中の中途半端なファイルを見せない\n\n対象ファイルへ直接書くと、書き込み中の停止で途中までの内容が残ります。そこで同じディレクトリに一時ファイルを作り、書き込みを閉じてから移動で置き換えます。\n\n```java\nPath temp = Files.createTempFile(target.getParent(), \"settings-\", \".tmp\");\ntry {\n    Files.writeString(temp, newText, StandardCharsets.UTF_8);\n    Files.move(temp, target,\n            StandardCopyOption.ATOMIC_MOVE,\n            StandardCopyOption.REPLACE_EXISTING);\n} finally {\n    Files.deleteIfExists(temp);\n}\n```\n\n`ATOMIC_MOVE` は対応するファイルシステムなら、移動を不可分な操作として行います。ただしJava仕様では、これを指定すると他のオプションは無視され、対象がすでに存在する場合に置き換えるか失敗するかは実装依存です。つまり `REPLACE_EXISTING` も一緒に渡すだけで、すべての環境に原子的な置き換えを保証できるわけではありません。対象のファイルシステムで動作を確認し、未対応なら `AtomicMoveNotSupportedException` を受けて、非原子的な移動へ切り替えるか処理を失敗させるかを要件で決めます。権限不足など別の `IOException` まで安易にフォールバックさせないことも重要です。また、原子的な切り替えは「停電後も必ずディスクに残る」という耐久性まで保証するものではありません。\n\n公式資料: [Files](https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/nio/file/Files.html) / [Path](https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/nio/file/Path.html) / [StandardCopyOption](https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/nio/file/StandardCopyOption.html)",
       "points": [
         "外部とのテキスト入出力では文字コードを明示し、書く側と読む側の契約をそろえる",
@@ -619,10 +657,10 @@
         {
           "question": "外部システムへ渡すテキストファイルで文字コードを明示する主な理由はどれですか。",
           "choices": [
-            "ファイルが必ず小さくなるから",
+            "変換の手間が減り、ファイルの大きさが小さくなるから",
             "書く側と読む側が同じ変換規則を使う契約を明確にするため",
-            "IOExceptionが発生しなくなるから",
-            "OSに関係なく改行コードも必ず同じになるから"
+            "文字コードの不一致による`IOException`を防げるから",
+            "OSごとに違う改行コードも、あわせてそろえられるから"
           ],
           "answer": 1,
           "explanation": "文字コードは文字とバイトの変換規則です。明示すると相手側と合わせるべき仕様が見えます。改行コードは別の論点です。"
@@ -630,10 +668,10 @@
         {
           "question": "数GBまで増える可能性があるログを条件検索する方法として適切なのはどれですか。",
           "choices": [
-            "Files.readAllLinesで全行をListにしてから検索する",
-            "Files.readStringで1つのStringにしてから検索する",
+            "`Files.readAllLines`で全行をListへ読み、あとから絞り込む",
+            "`Files.readString`で1つのStringへ読み、部分文字列を探す",
             "Files.linesをtry-with-resourcesで開き、Stream上で絞り込む",
-            "同じファイルを小さくなるまで何度もコピーする"
+            "同じファイルを分割してコピーし、小さくしてから読む"
           ],
           "answer": 2,
           "explanation": "Files.linesは必要な行を順次読みます。ファイル資源を保持するため、Streamはtry-with-resourcesで閉じます。"
@@ -642,20 +680,20 @@
           "question": "基準ディレクトリに利用者入力をresolveしたあとに必要な確認はどれですか。",
           "choices": [
             "normalizeした結果が基準ディレクトリから始まるか確認する",
-            "拡張子が3文字かだけ確認する",
-            "入力にドットが1つでもあれば許可する",
-            "PathをStringへ変換すれば安全になる"
+            "拡張子が許可した一覧に入っているかを確認する",
+            "入力に`..`が文字として含まれていないかを確認する",
+            "`Path`を`String`へ戻し、基準の文字列で始まるか確認する"
           ],
           "answer": 0,
-          "explanation": "normalize後のcandidateがbase.startsWithではなく、candidate.startsWith(base)を満たすか確認します。シンボリックリンクを作れる環境では実体パスも別途検討します。"
+          "explanation": "normalize後のcandidateが`candidate.startsWith(base)`を満たすか確認します。拡張子や文字としての`..`の確認だけでは、記号を組み替えた入力を防げません。文字列での前方一致は`/base2`のような別ディレクトリを通してしまいます。シンボリックリンクを作れる環境では実体パスも別途検討します。"
         },
         {
           "question": "ATOMIC_MOVEが未対応だった場合の扱いとして正しいものはどれですか。",
           "choices": [
-            "Javaが必ず同じ保証で通常のmoveへ変える",
-            "AtomicMoveNotSupportedExceptionを踏まえ、失敗させるか保証を弱めて移動するか要件で決める",
-            "一時ファイルを閉じずに直接コピーする",
-            "REPLACE_EXISTINGだけで必ず原子的になる"
+            "通常のmoveへ自動で切り替わり、原子性も保たれる",
+            "失敗させるか、保証を弱めて移動するかを要件で決める",
+            "一時ファイルへ書いてからコピーすれば原子的になる",
+            "`REPLACE_EXISTING`を足せば、原子性が補われる"
           ],
           "answer": 1,
           "explanation": "原子的移動はファイルシステム依存です。未対応時に保証を弱めてよいかはデータの重要度に応じて設計します。"
@@ -734,7 +772,10 @@
     {
       "id": "57-6",
       "title": "章末演習：文字コード・大容量・安全な更新",
-      "intro": "実務ファイル操作の境界条件を、3つの演習で仕上げます。",
+      "objectiveIds": [
+        "ch57-o4",
+        "ch57-o5"
+      ],
       "explanation": "ここでは、文字コードの違いをバイト数で確かめる問題、ディレクトリを閉じながら一覧する問題、一時ファイルから安全に置き換える問題に取り組みます。いずれも「たまたま動く」ではなく、入出力の契約と失敗時の状態を意識してください。",
       "points": [
         "StandardCharsetsの定数を使い、同じ文字コードで往復する",

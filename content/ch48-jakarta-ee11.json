@@ -3,6 +3,24 @@
   "title": "Jakarta EE 11アップデート",
   "subtitle": "Jakarta Data・モダンJava・安全な移行を押さえる",
   "emoji": "🏙️",
+  "objectives": [
+    {
+      "id": "ch48-o1",
+      "text": "JavaとJakarta EEの版の対応を確かめ、動かせる組み合わせを選べる"
+    },
+    {
+      "id": "ch48-o2",
+      "text": "Jakarta Dataのリポジトリをインターフェースの宣言だけで用意できる"
+    },
+    {
+      "id": "ch48-o3",
+      "text": "recordとInstantを使って、時点をずれずに保存・表示できる"
+    },
+    {
+      "id": "ch48-o4",
+      "text": "ログの機密値を隠し、パスワードの保存方式を段階的に移行できる"
+    }
+  ],
   "lessons": [
     {
       "id": "48-0",
@@ -41,6 +59,9 @@
     {
       "id": "48-1",
       "title": "Platform・Web Profile・Core Profile",
+      "objectiveIds": [
+        "ch48-o1"
+      ],
       "explanation": "## プロファイルは、アプリの用途ごとに「必要な仕様の範囲」をそろえる\n\nJakarta EEは1つの巨大なライブラリではなく、REST、依存性注入、永続化、トランザクションなど、サーバーアプリに必要な標準仕様をまとめたものです。しかし、すべてのアプリが全機能を必要とするわけではありません。そこで、用途に合う仕様の組み合わせを **プロファイル** として定義します。\n\n- **Core Profile**: 軽量なサービスの土台となる最小構成。REST、依存性注入、JSON処理などを中心にする\n- **Web Profile**: Webアプリ向け。Coreの範囲に加え、Servlet、Persistence、トランザクションなどWeb開発でよく使う仕様を含む\n- **Platform**: Jakarta EE全体。Web Profileより広く、メッセージングなどを含む完全な仕様集合\n\nプロファイルが嬉しいのは、開発者とサーバー実装の間で「この種類のアプリに必要なAPIは一式そろう」という共通の約束を持てることです。個々のAPIを毎回ばらばらに確認する負担を減らし、対応する別実装へ移すときも必要機能を比較しやすくなります。\n\nただし、Core Profileを選んだだけで、必ず起動が速くなったり配布サイズが小さくなったりするわけではありません。プロファイルは **仕様の範囲** です。実際の起動時間やサイズは、利用するサーバー実装、機能の有効化方法、依存関係、コンテナイメージを測って判断します。\n\nMavenの `jakarta.jakartaee-api` のような依存関係は、主にコンパイル時にAPIの型を提供します。実行時の処理本体はJakarta EE対応サーバーが提供するため、一般に依存範囲を `provided` とし、アプリへ同じAPIを重ねて同梱しないようにします。\n\nJakarta EE 11はJava SE 17以上を対象とします。利用前に、コンパイルするJavaの版、サーバーが対応するJakarta EEの版、実行環境のJavaの版をそろえて確認します。今回の演習では、JavaとJakarta EEの版から、まず組み合わせを調査対象として分類します。最終的な対応可否は採用サーバーの公式文書でも確認してください。",
       "samples": [
         {
@@ -49,7 +70,7 @@
         }
       ],
       "task": "Java feature versionとJakarta EE major versionを読み、Javaが17以上かつJakartaが11以上なら `READY`、Javaだけ不足なら `UPGRADE_JAVA`、Jakartaだけ不足なら `UPGRADE_SERVER`、両方不足なら `UPGRADE_BOTH` と表示してください。",
-      "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] a) {\n        Scanner s = new Scanner(System.in);\n        int java = s.nextInt(), jakarta = s.nextInt();\n        /* TODO */\n    }\n}\n",
+      "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] a) {\n        Scanner sc = new Scanner(System.in);\n        int java = sc.nextInt(), jakarta = sc.nextInt();\n        /* TODO */\n    }\n}\n",
       "visibleCases": [
         {
           "label": "準備完了",
@@ -78,15 +99,15 @@
         "`java >= 17` と `jakarta >= 11` を別々のbooleanにします。",
         "両方不足の分岐を先に置くと整理できます。"
       ],
-      "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] a) {\n        Scanner s = new Scanner(System.in);\n        int java = s.nextInt(), jakarta = s.nextInt();\n        boolean j = java >= 17, e = jakarta >= 11;\n        if (j && e) System.out.println(\"READY\");\n        else if (!j && !e) System.out.println(\"UPGRADE_BOTH\");\n        else if (!j) System.out.println(\"UPGRADE_JAVA\");\n        else System.out.println(\"UPGRADE_SERVER\");\n    }\n}\n",
+      "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] a) {\n        Scanner sc = new Scanner(System.in);\n        int java = sc.nextInt(), jakarta = sc.nextInt();\n        boolean j = java >= 17, e = jakarta >= 11;\n        if (j && e) System.out.println(\"READY\");\n        else if (!j && !e) System.out.println(\"UPGRADE_BOTH\");\n        else if (!j) System.out.println(\"UPGRADE_JAVA\");\n        else System.out.println(\"UPGRADE_SERVER\");\n    }\n}\n",
       "quiz": [
         {
           "question": "jakarta.jakartaee-apiをprovidedにする主な理由は？",
           "choices": [
             "実行時の実装は対応サーバーが提供するため",
-            "依存をfat JARへ含めるため",
-            "SQLを生成するため",
-            "Java文法を無効にするため"
+            "依存をfat JARへ含め、成果物を1つにまとめるため",
+            "SQLをビルド時に生成し、実行を速くするため",
+            "Java文法の検査を外し、ビルドを通すため"
           ],
           "answer": 0,
           "explanation": "`provided` は fat JAR へ**含めない**ための指定です。SQLの生成やJava文法とは関係ありません。Jakarta EEでは、APIはコンパイルに使い、実行時の実装は対応サーバーが持っています。両方を入れると、サーバー側の実装と自分が同梱した実装が衝突します。"
@@ -94,10 +115,10 @@
         {
           "question": "`jakarta.jakartaee-api` を依存に入れて `mvn package` は通ったのに、デプロイしたWARが動きません。まず確認するのはどれでしょう。",
           "choices": [
-            "依存するAPIのversionをさらに上げる",
-            "WAR内でのrecordの使用をやめる",
+            "依存するAPIの版を、さらに新しいものへ上げれば動くか",
+            "WARの中でのrecordの使用をやめ、classへ戻す",
             "サーバーが対象のJakarta EE版・プロファイルに対応しているか",
-            "依存のscopeを `compile` へ変えて同梱する"
+            "依存のscopeを `compile` へ変え、WARへ同梱する"
           ],
           "answer": 2,
           "explanation": "API JARは実装を含みません。scopeを `compile` にするとサーバー実装と衝突しやすくなります。"
@@ -107,6 +128,9 @@
     {
       "id": "48-2",
       "title": "Jakarta Dataでリポジトリを宣言する",
+      "objectiveIds": [
+        "ch48-o2"
+      ],
       "explanation": "## Jakarta Dataは、よくあるデータ操作を「何をしたいか」の宣言にする\n\nデータベースを使うアプリでは、IDで1件取得する、条件に合う一覧を返す、保存する、といった処理を何度も書きます。SQLやEntityManagerを毎回組み立てると、定型コードが増え、業務上の目的が見えにくくなります。\n\nJakarta Dataは、この繰り返しを減らすための仕様です。開発者は **リポジトリ** というインターフェースに必要な操作を宣言し、対応するJakarta EE実装が実行時の処理を提供します。\n\n```java\n@Repository\npublic interface BookRepository extends BasicRepository<Book, Long> {\n    List<Book> findByAuthor(String author);\n}\n```\n\nここで `Book` は扱うエンティティ、`Long` はIDの型です。`findByAuthor` のようなメソッド名や注釈から問い合わせの意図を表せるため、サービス層はSQLの組み立てより業務処理へ集中できます。実装クラスを自分で `new` するのではなく、CDIなどを通じてサーバーが生成した実装を受け取ります。\n\nJakarta Persistence（JPA）がエンティティの対応付け、永続化コンテキスト、問い合わせなど低い層の仕組みを提供するのに対し、Jakarta Dataはその上でリポジトリ形式のアクセスを標準化します。JPAを置き換える同義語ではありません。\n\n定型操作には便利ですが、複雑な集計、データベース固有の最適化、大量更新までメソッド名へ押し込むと、かえって意図が分かりにくくなります。その場合は明示的な問い合わせを使い、実行されるSQL、インデックス、トランザクション境界を確認します。\n\n今回の演習は、リポジトリの考え方を単純化し、インターフェースの宣言から検索処理を実装します。実際のJakarta Dataでは、対応サーバーがこの実装を提供する点が違います。",
       "samples": [
         {
@@ -115,7 +139,7 @@
         }
       ],
       "task": "n件の `id title` を読み、続く検索idに一致する本を `id:title` と表示してください。なければ `NOT_FOUND`。アクセス側は `BookRepository` インターフェース越しに呼びます。",
-      "starterCode": "import java.util.*;\n\nrecord Book(long id, String title) { }\n\ninterface BookRepository {\n    Optional<Book> findById(long id);\n}\n\npublic class Main {\n    public static void main(String[] a) {\n        Scanner s = new Scanner(System.in);\n        int n = s.nextInt();\n        Map<Long, Book> data = new HashMap<>();\n        for (int i = 0; i < n; i++) {\n            long id = s.nextLong();\n            data.put(id, new Book(id, s.next()));\n        }\n        long target = s.nextLong();\n        /* TODO */\n    }\n}\n",
+      "starterCode": "import java.util.*;\n\nrecord Book(long id, String title) { }\n\ninterface BookRepository {\n    Optional<Book> findById(long id);\n}\n\npublic class Main {\n    public static void main(String[] a) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n        Map<Long, Book> data = new HashMap<>();\n        for (int i = 0; i < n; i++) {\n            long id = sc.nextLong();\n            data.put(id, new Book(id, sc.next()));\n        }\n        long target = sc.nextLong();\n        /* TODO */\n    }\n}\n",
       "visibleCases": [
         {
           "label": "発見",
@@ -134,7 +158,7 @@
         "ラムダで `BookRepository repo = id -> Optional.ofNullable(data.get(id));`。",
         "Optionalをmapして表示文字列へ変換します。"
       ],
-      "solution": "import java.util.*;\n\nrecord Book(long id, String title) { }\n\ninterface BookRepository {\n    Optional<Book> findById(long id);\n}\n\npublic class Main {\n    public static void main(String[] a) {\n        Scanner s = new Scanner(System.in);\n        int n = s.nextInt();\n        Map<Long, Book> data = new HashMap<>();\n        for (int i = 0; i < n; i++) {\n            long id = s.nextLong();\n            data.put(id, new Book(id, s.next()));\n        }\n        long target = s.nextLong();\n        BookRepository repo = id -> Optional.ofNullable(data.get(id));\n        String out = repo.findById(target).map(b -> b.id() + \":\" + b.title()).orElse(\"NOT_FOUND\");\n        System.out.println(out);\n    }\n}\n",
+      "solution": "import java.util.*;\n\nrecord Book(long id, String title) { }\n\ninterface BookRepository {\n    Optional<Book> findById(long id);\n}\n\npublic class Main {\n    public static void main(String[] a) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n        Map<Long, Book> data = new HashMap<>();\n        for (int i = 0; i < n; i++) {\n            long id = sc.nextLong();\n            data.put(id, new Book(id, sc.next()));\n        }\n        long target = sc.nextLong();\n        BookRepository repo = id -> Optional.ofNullable(data.get(id));\n        String out = repo.findById(target).map(b -> b.id() + \":\" + b.title()).orElse(\"NOT_FOUND\");\n        System.out.println(out);\n    }\n}\n",
       "quiz": [
         {
           "question": "Jakarta Dataのリポジトリを使っても確認が必要なものは？",
@@ -163,6 +187,9 @@
     {
       "id": "48-3",
       "title": "record・Validation・Instant",
+      "objectiveIds": [
+        "ch48-o3"
+      ],
       "explanation": "## APIのデータ形と時刻の基準を、型で明確にする\n\nWeb APIでは、受け取るJSONの項目、必須条件、時刻の意味が曖昧だと、層ごとに確認コードが増えます。Jakarta EE 11で使えるJavaの言語機能と標準APIを組み合わせると、データの約束を型の近くへ置けます。\n\n### recordは「値のまとまり」を簡潔に表す\n\n```java\npublic record CreateOrderRequest(\n        @NotBlank String productCode,\n        @Positive int quantity) {}\n```\n\n`record` は、主に変更しない値のまとまりを表すためのクラスです。上の宣言からコンストラクタ、各項目を読むメソッド、`equals`、`hashCode`、`toString` が生成されます。ただし、recordにしただけで入力が検証されるわけではありません。`@NotBlank` などJakarta Validationの制約を付け、RESTの入口で検証を実行します。エンティティは更新や遅延読み込みなど別の責務があるため、API用recordと同じにするかは慎重に判断します。\n\n### 保存する時刻と、利用者へ見せる時刻を分ける\n\n`Instant` は世界共通の時間軸上の一点を表し、API受信時刻や更新時刻の保存に向きます。`ZoneId` は `Asia/Tokyo` のような地域の時差規則を表します。\n\n```java\nInstant createdAt = Instant.now();\nLocalDate localDate = createdAt.atZone(ZoneId.of(\"Asia/Tokyo\")).toLocalDate();\n```\n\n同じ `Instant` でも、地域によって日付が変わることがあります。そのため、DBや内部イベントでは基準となる時点を保存し、画面表示や「現地の日付で集計」といった境界で `ZoneId` を適用します。`LocalDateTime` だけではタイムゾーンが分からないので、世界中の利用者がいる処理の絶対時刻には不十分です。\n\n今回の演習では、`Instant` と `ZoneId` を使って指定地域の日付へ変換します。日時文字列を解析する前に、その入力が「時点」「地域付き日時」「日付だけ」のどれを表すのかを決めることが重要です。",
       "samples": [
         {
@@ -171,7 +198,7 @@
         }
       ],
       "task": "ISO-8601の時点とZoneIdを読み、その地域の日付を `yyyy-MM-dd` で表示してください。不正入力なら `INVALID`。",
-      "starterCode": "import java.time.*;\nimport java.time.format.*;\nimport java.util.*;\n\npublic class Main {\n    public static void main(String[] a) {\n        Scanner s = new Scanner(System.in);\n        String instant = s.next(), zone = s.next();\n        /* TODO */\n    }\n}\n",
+      "starterCode": "import java.time.*;\nimport java.time.format.*;\nimport java.util.*;\n\npublic class Main {\n    public static void main(String[] a) {\n        Scanner sc = new Scanner(System.in);\n        String instant = sc.next(), zone = sc.next();\n        /* TODO */\n    }\n}\n",
       "visibleCases": [
         {
           "label": "日付が進む",
@@ -195,7 +222,7 @@
         "`Instant.parse(instant).atZone(ZoneId.of(zone))`。",
         "DateTimeParseExceptionとDateTimeExceptionはまとめてRuntimeExceptionとしてcatchできますが、ここではDateTimeExceptionをcatchします。"
       ],
-      "solution": "import java.time.*;\nimport java.time.format.*;\nimport java.util.*;\n\npublic class Main {\n    public static void main(String[] a) {\n        Scanner s = new Scanner(System.in);\n        String instant = s.next(), zone = s.next();\n        try {\n            LocalDate d = Instant.parse(instant).atZone(ZoneId.of(zone)).toLocalDate();\n            System.out.println(d.format(DateTimeFormatter.ISO_LOCAL_DATE));\n        } catch (DateTimeException e) {\n            System.out.println(\"INVALID\");\n        }\n    }\n}\n",
+      "solution": "import java.time.*;\nimport java.time.format.*;\nimport java.util.*;\n\npublic class Main {\n    public static void main(String[] a) {\n        Scanner sc = new Scanner(System.in);\n        String instant = sc.next(), zone = sc.next();\n        try {\n            LocalDate d = Instant.parse(instant).atZone(ZoneId.of(zone)).toLocalDate();\n            System.out.println(d.format(DateTimeFormatter.ISO_LOCAL_DATE));\n        } catch (DateTimeException e) {\n            System.out.println(\"INVALID\");\n        }\n    }\n}\n",
       "quiz": [
         {
           "question": "サーバー間で時点を保存する基本方針は？",
@@ -211,19 +238,22 @@
         {
           "question": "保存を `LocalDateTime.now()` で行っていたアプリを、タイムゾーン設定の違うサーバーへ移したら値がずれました。説明として適切なものはどれでしょう。",
           "choices": [
-            "`LocalDateTime` はDBへ保存できないため",
-            "`Instant` は表示専用で保存には使えないため",
-            "`LocalDateTime` はミリ秒を持たないため",
-            "時差の情報を持たず、`now()` が実行環境の既定ゾーンに依存するため"
+            "`LocalDateTime` はDBの列へそのまま保存できないため",
+            "`Instant` は表示専用で、保存には使えないため",
+            "`LocalDateTime` はミリ秒より細かい値を持てないため",
+            "`now()` が実行環境の既定ゾーンに依存するため"
           ],
           "answer": 3,
-          "explanation": "永続化する時点は `Instant` で統一し、表示の段階で `ZoneId` を適用します。"
+          "explanation": "`LocalDateTime` は時差の情報を持たず、`now()` は実行環境の既定ゾーンで現在時刻を作ります。サーバーのゾーン設定が違えば、同じ瞬間でも違う値になります。時点は `Instant` で保存します。"
         }
       ]
     },
     {
       "id": "48-4",
       "title": "認証情報と段階的アップグレード",
+      "objectiveIds": [
+        "ch48-o4"
+      ],
       "explanation": "## 認証情報の保護と基盤の更新は、止めずに安全性を上げる計画が必要\n\nこの節では別々に見える2つの課題を扱います。1つはパスワードを漏えい時にも悪用されにくく保存すること、もう1つは稼働中のJakarta EEアプリを段階的に更新することです。共通するのは、一度に全利用者・全機能を切り替えられないため、移行途中の状態を安全に扱う必要がある点です。\n\n### パスワードは暗号化して戻すのではなく、照合用にハッシュ化する\n\nパスワード保存には、パスワード向けのハッシュ方式を使います。**ハッシュ** は元の文字列へ戻さず、入力が一致するかを検証するための値です。利用者ごとにランダムな **ソルト** を加えると、同じパスワードでも保存値が変わります。さらに計算コストを調整できるArgon2、scrypt、bcrypt、PBKDF2などを使い、総当たりを遅くします。単純なSHA-256を1回だけ計算する方式は、パスワード保存には速すぎます。\n\n方式を更新するときは、保存値にアルゴリズムと設定の版を含めます。古い形式でログインに成功した利用者だけ新形式で再ハッシュすれば、全パスワードの平文を保持せず段階移行できます。\n\n### Jakarta EEの更新は、互換性の境界を先に洗い出す\n\nJava EE 8以前から移行する場合、`javax.*` から `jakarta.*` へのパッケージ名変更は大きな境界です。さらにJavaの版、利用するサーバー、各仕様、外部ライブラリ、ビルドプラグインを一覧にし、対応表を作ります。コンパイルを通す段階、テストを通す段階、検証環境で動かす段階、本番へ少しずつ流す段階に分けると、問題の発生範囲を限定できます。\n\n移行中も、パスワード、トークン、Cookie、接続文字列などをログへ出してはいけません。今回の演習では、ログ文字列中の `password=` と `token=` の値を伏せます。これは最後の防御であり、本来は機密値をログ生成処理へ渡さない設計、項目単位の構造化ログ、ログへのアクセス制御と保存期間の管理も必要です。",
       "samples": [
         {
@@ -232,7 +262,7 @@
         }
       ],
       "task": "ログのkeyとvalueをn件読み、keyを小文字化したものに `password`、`token`、`secret` のいずれかが含まれれば `key=[REDACTED]`、それ以外は `key=value` と表示してください。",
-      "starterCode": "import java.util.*;\n\npublic class Main {\n    static boolean sensitive(String key) {\n        return false;\n    }\n\n    public static void main(String[] a) {\n        Scanner s = new Scanner(System.in);\n        int n = s.nextInt();\n        for (int i = 0; i < n; i++) {\n            String key = s.next(), value = s.next();\n            System.out.println(key + \"=\" + (sensitive(key) ? \"[REDACTED]\" : value));\n        }\n    }\n}\n",
+      "starterCode": "import java.util.*;\n\npublic class Main {\n    static boolean sensitive(String key) {\n        return false;\n    }\n\n    public static void main(String[] a) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n        for (int i = 0; i < n; i++) {\n            String key = sc.next(), value = sc.next();\n            System.out.println(key + \"=\" + (sensitive(key) ? \"[REDACTED]\" : value));\n        }\n    }\n}\n",
       "visibleCases": [
         {
           "label": "伏字",
@@ -251,18 +281,18 @@
         "`key.toLowerCase(Locale.ROOT)` を使います。",
         "3語のcontainsをORでつなぎます。"
       ],
-      "solution": "import java.util.*;\n\npublic class Main {\n    static boolean sensitive(String key) {\n        String k = key.toLowerCase(Locale.ROOT);\n        return k.contains(\"password\") || k.contains(\"token\") || k.contains(\"secret\");\n    }\n\n    public static void main(String[] a) {\n        Scanner s = new Scanner(System.in);\n        int n = s.nextInt();\n        for (int i = 0; i < n; i++) {\n            String key = s.next(), value = s.next();\n            System.out.println(key + \"=\" + (sensitive(key) ? \"[REDACTED]\" : value));\n        }\n    }\n}\n",
+      "solution": "import java.util.*;\n\npublic class Main {\n    static boolean sensitive(String key) {\n        String k = key.toLowerCase(Locale.ROOT);\n        return k.contains(\"password\") || k.contains(\"token\") || k.contains(\"secret\");\n    }\n\n    public static void main(String[] a) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n        for (int i = 0; i < n; i++) {\n            String key = sc.next(), value = sc.next();\n            System.out.println(key + \"=\" + (sensitive(key) ? \"[REDACTED]\" : value));\n        }\n    }\n}\n",
       "quiz": [
         {
           "question": "パスワード保存について適切なものは？",
           "choices": [
-            "暗号方式を自作する",
-            "高速なSHA-256をsaltなしで1回だけ使う",
+            "自分で考えた変換を組み合わせ、方式を秘密にする",
+            "高速なSHA-256を、saltなしで1回だけ通す",
             "パスワード向け導出関数と利用者ごとのランダムsaltを使う",
-            "平文で保存する"
+            "平文で保存し、DBのアクセス制御だけで守る"
           ],
           "answer": 2,
-          "explanation": "暗号方式の自作は、検証されていない実装を使うことになり危険です。SHA-256をsaltなしで1回だけ使うと、速いぶん総当たりも速く、同じパスワードが同じ値になるので使い回しも見えます。平文保存は論外です。パスワード向けの導出関数と、利用者ごとのランダムなsaltを使います。"
+          "explanation": "方式を秘密にして守るのは、検証されていない実装に頼ることになり危険です（秘密は漏れます）。SHA-256をsaltなしで1回だけ使うと、速いぶん総当たりも速く、同じパスワードが同じ値になるので使い回しも見えます。平文保存は、DBのアクセス制御が破られた時点で終わりです。パスワード向けの導出関数と、利用者ごとのランダムなsaltを使います。"
         },
         {
           "question": "反復回数を上げる方針に変えたとき、既存利用者のパスワードをどう移行するのが現実的でしょう。",
@@ -270,7 +300,7 @@
             "全利用者のパスワードを平文で取り出して再計算する",
             "反復回数は後から変更できない",
             "全利用者のパスワードを一律リセットするしかない",
-            "従来の設定で検証し、ログイン成功時に新しい設定で再ハッシュする"
+            "従来の設定で検証し、成功時に新しい設定で再ハッシュする"
           ],
           "answer": 3,
           "explanation": "だからアルゴリズム識別子とパラメータも一緒に保存します。平文は保存していないため取り出せません。保存済みのパラメータは各ハッシュに記録されています。"
@@ -344,6 +374,9 @@
     {
       "id": "48-5",
       "title": "章末演習：Jakarta EE 11アップデート",
+      "objectiveIds": [
+        "ch48-o1"
+      ],
       "explanation": "## 章末では「新機能を使う」前に、目的と実行環境を確認する\n\nJakarta EE 11の機能を採用するときは、API名だけを追うのではなく、解決したい問題と実行時に誰が機能を提供するかを確認します。\n\n- プロファイルは用途別の仕様集合であり、実際のサイズや起動時間はサーバー構成を測る\n- API依存関係はコンパイル時の型を提供し、実装は対応サーバーが提供することが多い\n- Jakarta Dataは定型的なデータアクセスをリポジトリの宣言へまとめる\n- recordはAPIの値を簡潔に表すが、Validationや永続化の設計を自動では解決しない\n- `Instant` は共通の時点、`ZoneId` は地域の時差規則を表し、保存と表示の責務を分ける\n- 認証情報とアップグレードは、旧形式を扱う期間を含めて段階移行する\n\n採用判断では、Javaの版、Jakarta EEの版、サーバーの対応状況、ライブラリ、ビルド、テスト、本番の監視を1本の経路として確認します。「コンパイルできた」は入口にすぎず、サーバー起動、リクエスト処理、トランザクション、認証、ロールバックまで検証します。\n\n章末演習では、対応版の確認、リポジトリ形式の検索、地域付き日付への変換、機密情報のマスキングを組み合わせます。どの問題でも、便利な機能の名前ではなく「何の失敗を防ぐために使うのか」を説明できることを目標にしてください。",
       "samples": [
         {
@@ -353,7 +386,7 @@
         }
       ],
       "task": "【基本】必要な最低版を `minJava minJakarta` の形で読み、続けてサーバーをn件 `name java jakarta` の形で読みます。各サーバーについて、`java` が minJava 以上かつ `jakarta` が minJakarta 以上なら `READY`、Javaだけ足りなければ `UPGRADE_JAVA`、Jakartaだけ足りなければ `UPGRADE_SERVER`、両方足りなければ `UPGRADE_BOTH` と判定し、読んだ順に `name STATUS` と表示してください。最後に `READY 件数/全件数` の形で、そのまま使えるサーバーの数を表示します。",
-      "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        int minJava = s.nextInt(), minJakarta = s.nextInt(), n = s.nextInt();\n        int ready = 0;\n        for (int i = 0; i < n; i++) {\n            String name = s.next();\n            int java = s.nextInt(), jakarta = s.nextInt();\n            /* TODO 4つの判定 */\n        }\n        System.out.println(\"READY \" + ready + \"/\" + n);\n    }\n}\n",
+      "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int minJava = sc.nextInt(), minJakarta = sc.nextInt(), n = sc.nextInt();\n        int ready = 0;\n        for (int i = 0; i < n; i++) {\n            String name = sc.next();\n            int java = sc.nextInt(), jakarta = sc.nextInt();\n            /* TODO 4つの判定 */\n        }\n        System.out.println(\"READY \" + ready + \"/\" + n);\n    }\n}\n",
       "visibleCases": [
         {
           "label": "3種類の不足",
@@ -393,12 +426,15 @@
         "両方足りない場合を先に判定すると、残りの分岐が短くなります。",
         "APIのJARだけ新しくしてもサーバー機能は動きません。だからJavaとサーバーの版を別々に数えています。"
       ],
-      "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        int minJava = s.nextInt(), minJakarta = s.nextInt(), n = s.nextInt();\n        int ready = 0;\n        for (int i = 0; i < n; i++) {\n            String name = s.next();\n            int java = s.nextInt(), jakarta = s.nextInt();\n            boolean okJava = java >= minJava, okJakarta = jakarta >= minJakarta;\n            String status = okJava && okJakarta ? \"READY\" : !okJava && !okJakarta ? \"UPGRADE_BOTH\" : !okJava ? \"UPGRADE_JAVA\" : \"UPGRADE_SERVER\";\n            if (status.equals(\"READY\")) ready++;\n            System.out.println(name + \" \" + status);\n        }\n        System.out.println(\"READY \" + ready + \"/\" + n);\n    }\n}\n",
+      "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int minJava = sc.nextInt(), minJakarta = sc.nextInt(), n = sc.nextInt();\n        int ready = 0;\n        for (int i = 0; i < n; i++) {\n            String name = sc.next();\n            int java = sc.nextInt(), jakarta = sc.nextInt();\n            boolean okJava = java >= minJava, okJakarta = jakarta >= minJakarta;\n            String status = okJava && okJakarta ? \"READY\" : !okJava && !okJakarta ? \"UPGRADE_BOTH\" : !okJava ? \"UPGRADE_JAVA\" : \"UPGRADE_SERVER\";\n            if (status.equals(\"READY\")) ready++;\n            System.out.println(name + \" \" + status);\n        }\n        System.out.println(\"READY \" + ready + \"/\" + n);\n    }\n}\n",
       "extraTasks": [
         {
+          "objectiveIds": [
+            "ch48-o2"
+          ],
           "kind": "drill",
           "task": "【組み合わせ】本をn件 `id title` の形で読み、続けて `sort page size` を読みます。`sort` は `id` または `title` で、その順に昇順で並べます（`title` は辞書順）。`page` は1から数えるページ番号、`size` は1ページの件数で1以上です。指定ページに入る本を `id:title` の形で表示してください。そのページに1件も無ければ `EMPTY_PAGE` と表示します。最後に総ページ数を `PAGES 数` の形で表示します（0件のときは0ページです）。",
-          "starterCode": "import java.util.*;\n\nrecord Book(long id, String title) { }\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        int n = s.nextInt();\n        List<Book> books = new ArrayList<>();\n        for (int i = 0; i < n; i++) books.add(new Book(s.nextLong(), s.next()));\n        String sort = s.next();\n        int page = s.nextInt(), size = s.nextInt();\n        /* TODO 並べ替え */ /* TODO ページの切り出しと表示 */ /* TODO 総ページ数 */\n    }\n}\n",
+          "starterCode": "import java.util.*;\n\nrecord Book(long id, String title) { }\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n        List<Book> books = new ArrayList<>();\n        for (int i = 0; i < n; i++) books.add(new Book(sc.nextLong(), sc.next()));\n        String sort = sc.next();\n        int page = sc.nextInt(), size = sc.nextInt();\n        /* TODO 並べ替え */ /* TODO ページの切り出しと表示 */ /* TODO 総ページ数 */\n    }\n}\n",
           "visibleCases": [
             {
               "label": "title順の2ページ目",
@@ -443,12 +479,16 @@
             "切り出す範囲は `from=(page-1)*size` から `Math.min(from+size, n)` までです。`from` が件数以上なら空ページです。",
             "総ページ数は `(n+size-1)/size` で計算できます。全件取得ではなくページで返すのは、件数が増えても応答が壊れないようにするためです。"
           ],
-          "solution": "import java.util.*;\n\nrecord Book(long id, String title) { }\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        int n = s.nextInt();\n        List<Book> books = new ArrayList<>();\n        for (int i = 0; i < n; i++) books.add(new Book(s.nextLong(), s.next()));\n        String sort = s.next();\n        int page = s.nextInt(), size = s.nextInt();\n        books.sort(sort.equals(\"id\") ? Comparator.comparingLong(Book::id) : Comparator.comparing(Book::title));\n        int from = (page - 1) * size, to = Math.min(from + size, n);\n        if (from >= n || from < 0) System.out.println(\"EMPTY_PAGE\");\n        else for (Book b : books.subList(from, to)) System.out.println(b.id() + \":\" + b.title());\n        System.out.println(\"PAGES \" + (n + size - 1) / size);\n    }\n}\n"
+          "solution": "import java.util.*;\n\nrecord Book(long id, String title) { }\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n        List<Book> books = new ArrayList<>();\n        for (int i = 0; i < n; i++) books.add(new Book(sc.nextLong(), sc.next()));\n        String sort = sc.next();\n        int page = sc.nextInt(), size = sc.nextInt();\n        books.sort(sort.equals(\"id\") ? Comparator.comparingLong(Book::id) : Comparator.comparing(Book::title));\n        int from = (page - 1) * size, to = Math.min(from + size, n);\n        if (from >= n || from < 0) System.out.println(\"EMPTY_PAGE\");\n        else for (Book b : books.subList(from, to)) System.out.println(b.id() + \":\" + b.title());\n        System.out.println(\"PAGES \" + (n + size - 1) / size);\n    }\n}\n"
         },
         {
+          "objectiveIds": [
+            "ch48-o3",
+            "ch48-o4"
+          ],
           "kind": "applied",
           "task": "【実践】表示用タイムゾーン `zone` と件数nを読み、続けてn件のリクエストを `name email password createdAt` の形で読みます。各リクエストについて次を上から順に確かめ、最初に外れた項目だけを `400 行番号 項目名` と表示してください（行番号は1から）。\n\n1. `name` が `-`（値なしを表します）なら `name`\n2. `email` に `@` が含まれなければ `email`\n3. `password` が8文字未満なら `password`\n4. `createdAt` を `Instant` として読めなければ `createdAt`\n\nすべて満たしたら `201 行番号 表示日付` と表示します。表示日付は `createdAt` を `zone` の地域時刻へ直した `yyyy-MM-dd` です。\n\nすべてのリクエストを判定し終えたあと、監査ログとして全件を読んだ順に `LOG 行番号 name=値 email=値 password=[REDACTED]` の形で表示してください。`password` は妥当でも不正でも値を出さず、必ず `[REDACTED]` にします。",
-          "starterCode": "import java.time.*;\nimport java.time.format.*;\nimport java.util.*;\n\nrecord Request(String name, String email, String password, String createdAt) { }\n\npublic class Main {\n    static String violation(Request r) {\n        /* TODO 上から順に検査し、外れた項目名か null を返す */ return null;\n    }\n\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        ZoneId zone = ZoneId.of(s.next());\n        int n = s.nextInt();\n        List<Request> requests = new ArrayList<>();\n        for (int i = 0; i < n; i++) requests.add(new Request(s.next(), s.next(), s.next(), s.next()));\n        /* TODO 判定の表示 */ /* TODO 監査ログの表示 */\n    }\n}\n",
+          "starterCode": "import java.time.*;\nimport java.time.format.*;\nimport java.util.*;\n\nrecord Request(String name, String email, String password, String createdAt) { }\n\npublic class Main {\n    static String violation(Request r) {\n        /* TODO 上から順に検査し、外れた項目名か null を返す */ return null;\n    }\n\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        ZoneId zone = ZoneId.of(sc.next());\n        int n = sc.nextInt();\n        List<Request> requests = new ArrayList<>();\n        for (int i = 0; i < n; i++) requests.add(new Request(sc.next(), sc.next(), sc.next(), sc.next()));\n        /* TODO 判定の表示 */ /* TODO 監査ログの表示 */\n    }\n}\n",
           "visibleCases": [
             {
               "label": "作成できる",
@@ -498,12 +538,15 @@
             "表示日付は `Instant.parse(...).atZone(zone).toLocalDate()` で作れます。保存する値は `Instant` のまま、地域を当てるのは表示のときだけです。",
             "判定のループと監査ログのループを分けます。ログは妥当・不正にかかわらず全件出し、秘密の項目は値を持たせません。"
           ],
-          "solution": "import java.time.*;\nimport java.time.format.*;\nimport java.util.*;\n\nrecord Request(String name, String email, String password, String createdAt) { }\n\npublic class Main {\n    static String violation(Request r) {\n        if (r.name().equals(\"-\")) return \"name\";\n        if (!r.email().contains(\"@\")) return \"email\";\n        if (r.password().length() < 8) return \"password\";\n        try {\n            Instant.parse(r.createdAt());\n        } catch (DateTimeParseException e) {\n            return \"createdAt\";\n        }\n        return null;\n    }\n\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        ZoneId zone = ZoneId.of(s.next());\n        int n = s.nextInt();\n        List<Request> requests = new ArrayList<>();\n        for (int i = 0; i < n; i++) requests.add(new Request(s.next(), s.next(), s.next(), s.next()));\n        for (int k = 1; k <= n; k++) {\n            Request r = requests.get(k - 1);\n            String bad = violation(r);\n            if (bad != null) System.out.println(\"400 \" + k + \" \" + bad);\n            else System.out.println(\"201 \" + k + \" \" + Instant.parse(r.createdAt()).atZone(zone).toLocalDate().format(DateTimeFormatter.ISO_LOCAL_DATE));\n        }\n        for (int k = 1; k <= n; k++) {\n            Request r = requests.get(k - 1);\n            System.out.println(\"LOG \" + k + \" name=\" + r.name() + \" email=\" + r.email() + \" password=[REDACTED]\");\n        }\n    }\n}\n"
+          "solution": "import java.time.*;\nimport java.time.format.*;\nimport java.util.*;\n\nrecord Request(String name, String email, String password, String createdAt) { }\n\npublic class Main {\n    static String violation(Request r) {\n        if (r.name().equals(\"-\")) return \"name\";\n        if (!r.email().contains(\"@\")) return \"email\";\n        if (r.password().length() < 8) return \"password\";\n        try {\n            Instant.parse(r.createdAt());\n        } catch (DateTimeParseException e) {\n            return \"createdAt\";\n        }\n        return null;\n    }\n\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        ZoneId zone = ZoneId.of(sc.next());\n        int n = sc.nextInt();\n        List<Request> requests = new ArrayList<>();\n        for (int i = 0; i < n; i++) requests.add(new Request(sc.next(), sc.next(), sc.next(), sc.next()));\n        for (int k = 1; k <= n; k++) {\n            Request r = requests.get(k - 1);\n            String bad = violation(r);\n            if (bad != null) System.out.println(\"400 \" + k + \" \" + bad);\n            else System.out.println(\"201 \" + k + \" \" + Instant.parse(r.createdAt()).atZone(zone).toLocalDate().format(DateTimeFormatter.ISO_LOCAL_DATE));\n        }\n        for (int k = 1; k <= n; k++) {\n            Request r = requests.get(k - 1);\n            System.out.println(\"LOG \" + k + \" name=\" + r.name() + \" email=\" + r.email() + \" password=[REDACTED]\");\n        }\n    }\n}\n"
         },
         {
+          "objectiveIds": [
+            "ch48-o1"
+          ],
           "kind": "applied",
           "type": "runtime-lab",
-          "task": "【実サーバー演習】`labs/jakarta-ee11/runtime-exercise`の`UserResource`を完成させてください。ここまでの問題はJavaの模型でしたが、これはJakarta EE 11対応サーバーへ実際に配備して確かめます。\n\n要求は`POST /api/users`で、本文は`{\"name\":\" Aki \",\"email\":\"aki@example.test\",\"registeredAt\":\"2026-08-13T09:00:00Z\"}`です。次の3つを実サーバーの応答として成り立たせます。\n\n1. 新規作成なのでHTTP 201を返し、前後の空白を除いた名前とメールをJSONへ入れる\n2. 名前が空、メールが形式違反の要求をHTTP 400で拒否する\n3. 応答へ登録時刻を`Instant`として入れ、ISO-8601の文字列として返す\n\n`pom.xml`と`server.xml`は変更しません（Feature Managerの扱いは第49章で行います）。提出するとOpen Liberty 26を一時領域へ準備し、採点側が確保した動的portへWARを配備します。recordがgetterなしでJSONへ変換されること、Bean Validationがrecordの構成要素の制約で400にすることを実HTTPで確認し、最後にサーバーを停止します。",
+          "task": "【実サーバー演習】`labs/jakarta-ee11/runtime-exercise`の`UserResource`を完成させてください。ここまでの問題はJavaの模型でしたが、これはJakarta EE 11対応サーバーへ実際に配備して確かめます。\n\n要求は`POST /api/users`で、本文は`{\"name\":\" Aki \",\"email\":\"aki@example.test\",\"registeredAt\":\"2026-08-13T09:00:00Z\"}`です。次の3つを実サーバーの応答として成り立たせます。\n\n1. 新規作成なのでHTTP 201を返し、前後の空白を除いた名前とメールをJSONへ入れる\n2. 名前が空、メールが形式違反の要求をHTTP 400で拒否する\n3. 応答へ登録時刻を`Instant`として入れ、ISO-8601の文字列として返す\n\n`pom.xml`と`server.xml`は変更しません（Feature Managerの扱いは第61章で行います）。提出するとOpen Liberty 26を一時領域へ準備し、採点側が確保した動的portへWARを配備します。recordがgetterなしでJSONへ変換されること、Bean Validationがrecordの構成要素の制約で400にすることを実HTTPで確認し、最後にサーバーを停止します。",
           "runtimeLab": {
             "name": "Jakarta EE 11 real server lab",
             "source": "labs/jakarta-ee11/runtime-exercise",
@@ -564,6 +607,9 @@
           ]
         },
         {
+          "objectiveIds": [
+            "ch48-o2"
+          ],
           "kind": "applied",
           "type": "runtime-lab",
           "task": "`labs/jakarta-ee11/data-exercise`で、**Jakarta Data 1.0 のリポジトリを宣言**してください。\n\nJakarta Dataでは実装を書きません。インタフェースの宣言からビルド時に実装が生成されるので、**宣言の形そのものが仕様**です。次の4つを宣言します。\n\n- 基本操作は`CrudRepository<Order, Long>`を継承して受け取る（保存・削除・全件を自分で宣言しない）\n- `@Find`で状態を指定して取り出す。引数がどの属性かは`@By`で示し、並びは`@OrderBy`で注文IDの降順にする\n- `@Query`（JDQL）で、金額のしきい値より大きい注文の件数を数える\n- 1件だけ取り出すメソッドの戻り値は`Optional<Order>`にする\n\n採点はAPIに対する`compile`と、宣言の形を確かめます。**DBへ問い合わせて結果が返るかは確かめていません**（それには実装とDBが必要です）。宣言が正しいことと、問い合わせが意図どおり動くことは別だと分けて考えてください。",

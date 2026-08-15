@@ -3,6 +3,24 @@
   "title": "REST APIとセキュリティ",
   "subtitle": "HTTP境界を一貫して安全に設計する",
   "emoji": "🔌",
+  "objectives": [
+    {
+      "id": "ch28-o1",
+      "text": "Jakarta RESTでリソースを定義し、パスとメディア型を宣言できる"
+    },
+    {
+      "id": "ch28-o2",
+      "text": "状況に応じたステータスとエラー本文を返し、一覧をページングできる"
+    },
+    {
+      "id": "ch28-o3",
+      "text": "認証と認可を分けて判定し、他人のデータへ触れないようにできる"
+    },
+    {
+      "id": "ch28-o4",
+      "text": "CSRFトークンの照合など、Web攻撃への備えを実装できる"
+    }
+  ],
   "libs": [
     "jakarta-rest"
   ],
@@ -45,6 +63,9 @@
     {
       "id": "28-1",
       "title": "Jakarta RESTでリソースを作る",
+      "objectiveIds": [
+        "ch28-o1"
+      ],
       "explanation": "## HTTPの要求をJavaのメソッドへ対応付ける\n\nWeb APIでは、利用側のプログラムを **クライアント**、要求を受けて処理する側を **サーバー** と呼びます。クライアントはHTTPリクエストに、操作の種類、対象のURL、必要ならJSONなどの本文を入れて送ります。\n\nRESTでは、URLを操作名ではなく、扱う対象である **リソース** の住所として設計します。操作はHTTPメソッドで表します。\n\n```text\nGET    /books       本の一覧を取得\nGET    /books/10    10番の本を取得\nPOST   /books       新しい本を作成\nPUT    /books/10    10番の本を置き換え\nDELETE /books/10    10番の本を削除\n```\n\nJakarta RESTは、このHTTPの情報をJavaのクラスとメソッドへ結び付ける標準APIです。\n\n```java\n@Path(\"/books\")\nclass BookResource {\n    @GET\n    @Path(\"/{id}\")\n    public BookResponse find(@PathParam(\"id\") long id) { ... }\n}\n```\n\n`@Path` はURLの一部、`@GET` はHTTPメソッド、`@PathParam` はURL内の `{id}` をJavaの引数へ渡す指定です。`@Consumes` は受け取る本文の形式、`@Produces` は返す本文の形式を示します。\n\nAPIの入出力には、通信項目だけを持つ **DTO（Data Transfer Object）** を使います。DB管理用のEntityをそのまま返すと、不要な項目や機密情報、遅延読み込みの内部状態まで境界へ漏れるためです。DTOとJSONの変換は、JSON-Bなどの **プロバイダー**、つまりJakarta RESTと連携する実装部品が行います。\n\n`GET` は読み取りを意味する **安全なメソッド** です。`PUT` や `DELETE` は、同じ要求を複数回送っても意図した最終状態が1回の場合と同じになる **冪等なメソッド** です。実装側もこの意味を壊さないよう、GETでデータ削除などを行いません。\n\n今回の演習では、`/products/{id}` に対応するGETメソッドを作り、URLの値がメソッド引数へ渡る形を確認します。",
       "samples": [
         {
@@ -104,7 +125,7 @@
         {
           "kind": "applied",
           "task": "POST create(CreateProduct)を作り、nameとpriceからID 3のDTOを返すResponseを201で構築してください。Locationは `/products/3`。不正priceは次レッスンで扱うためここでは入力済みとします。",
-          "starterCode": "import jakarta.ws.rs.*;\nimport jakarta.ws.rs.core.*;\nimport java.util.*;\n\nrecord CreateProduct(String name, int price) { }\n\nrecord ProductDto(long id, String name, int price) { }\n\n@Path(\"/products\")\nclass ProductResource {\n    // TODO POST/Consumes\n    Response create(CreateProduct in) {\n        return null;\n    }\n}\n\npublic class RestCreate {\n    public static void main(String[] a) {\n        Scanner s = new Scanner(System.in);\n        Response r = new ProductResource().create(new CreateProduct(s.next(), s.nextInt()));\n        ProductDto p = (ProductDto) r.getEntity();\n        System.out.println(r.getStatus() + \" \" + r.getHeaderString(\"Location\") + \" \" + p.id() + \":\" + p.name() + \":\" + p.price());\n    }\n}\n",
+          "starterCode": "import jakarta.ws.rs.*;\nimport jakarta.ws.rs.core.*;\nimport java.util.*;\n\nrecord CreateProduct(String name, int price) { }\n\nrecord ProductDto(long id, String name, int price) { }\n\n@Path(\"/products\")\nclass ProductResource {\n    // TODO POST/Consumes\n    Response create(CreateProduct in) {\n        return null;\n    }\n}\n\npublic class RestCreate {\n    public static void main(String[] a) {\n        Scanner sc = new Scanner(System.in);\n        Response r = new ProductResource().create(new CreateProduct(sc.next(), sc.nextInt()));\n        ProductDto p = (ProductDto) r.getEntity();\n        System.out.println(r.getStatus() + \" \" + r.getHeaderString(\"Location\") + \" \" + p.id() + \":\" + p.name() + \":\" + p.price());\n    }\n}\n",
           "visibleCases": [
             {
               "label": "作成",
@@ -123,7 +144,7 @@
             "メソッドに `@POST @Consumes(MediaType.APPLICATION_JSON)`。",
             "`Response.status(201).header(\"Location\",\"/products/3\").entity(new ProductDto(...)).build()`。"
           ],
-          "solution": "import jakarta.ws.rs.*;\nimport jakarta.ws.rs.core.*;\nimport java.util.*;\n\nrecord CreateProduct(String name, int price) { }\n\nrecord ProductDto(long id, String name, int price) { }\n\n@Path(\"/products\")\nclass ProductResource {\n    @POST\n    @Consumes(MediaType.APPLICATION_JSON)\n    Response create(CreateProduct in) {\n        return Response.status(201).header(\"Location\", \"/products/3\").entity(new ProductDto(3, in.name(), in.price())).build();\n    }\n}\n\npublic class RestCreate {\n    public static void main(String[] a) {\n        Scanner s = new Scanner(System.in);\n        Response r = new ProductResource().create(new CreateProduct(s.next(), s.nextInt()));\n        ProductDto p = (ProductDto) r.getEntity();\n        System.out.println(r.getStatus() + \" \" + r.getHeaderString(\"Location\") + \" \" + p.id() + \":\" + p.name() + \":\" + p.price());\n    }\n}\n",
+          "solution": "import jakarta.ws.rs.*;\nimport jakarta.ws.rs.core.*;\nimport java.util.*;\n\nrecord CreateProduct(String name, int price) { }\n\nrecord ProductDto(long id, String name, int price) { }\n\n@Path(\"/products\")\nclass ProductResource {\n    @POST\n    @Consumes(MediaType.APPLICATION_JSON)\n    Response create(CreateProduct in) {\n        return Response.status(201).header(\"Location\", \"/products/3\").entity(new ProductDto(3, in.name(), in.price())).build();\n    }\n}\n\npublic class RestCreate {\n    public static void main(String[] a) {\n        Scanner sc = new Scanner(System.in);\n        Response r = new ProductResource().create(new CreateProduct(sc.next(), sc.nextInt()));\n        ProductDto p = (ProductDto) r.getEntity();\n        System.out.println(r.getStatus() + \" \" + r.getHeaderString(\"Location\") + \" \" + p.id() + \":\" + p.name() + \":\" + p.price());\n    }\n}\n",
           "sourceChecks": [
             {
               "pattern": "@POST",
@@ -152,6 +173,9 @@
     {
       "id": "28-2",
       "title": "ステータス・エラー・一覧API",
+      "objectiveIds": [
+        "ch28-o2"
+      ],
       "explanation": "## ステータスコードと本文を、利用側が判断できる形にする\n\nAPIは、成功時のデータだけでなく失敗の種類も契約として返します。HTTP **ステータスコード** は結果を大きく分類する番号で、レスポンス本文は商品データやエラーの詳細を表します。\n\n| 状況 | よく使うコード | 意味 |\n|---|---:|---|\n| 取得成功 | 200 | 本文に取得結果がある |\n| 作成成功 | 201 | 新しいリソースを作成した。`Location` で住所を返せる |\n| 本文なしの成功 | 204 | 処理は成功したが返す本文がない |\n| 入力不正 | 400 | 形式や値が要求を満たさない |\n| 未認証 | 401 | 利用者を確認できていない |\n| 権限不足 | 403 | 利用者は分かるが操作を許可できない |\n| 対象なし | 404 | 指定したリソースが見つからない |\n| 状態の競合 | 409 | 現在の状態では処理を完了できない |\n\nエラー本文は毎回同じ形にします。\n\n```json\n{\n  \"code\": \"INVALID_NAME\",\n  \"message\": \"nameは必須です\",\n  \"field\": \"name\",\n  \"traceId\": \"...\"\n}\n```\n\n`code` はクライアントが分岐に使う安定した識別子、`message` は人向けの説明です。`traceId` はサーバー側のログと照合する番号です。スタックトレース、SQL、内部クラス名は攻撃の手掛かりになるため応答へ出さず、アクセスを管理したログへ残します。\n\n例外ごとに各Resourceで同じ変換を書く代わりに、`ExceptionMapper` へ「この例外をどのステータスとエラーDTOへ変えるか」を集められます。予期しない例外は500系へ一般化し、詳細はログで追います。\n\n### 一覧を無制限に返さない\n\n件数が増える一覧にはページングを付けます。`offset` 方式は「先頭から何件飛ばすか」、`cursor` 方式は「前回の最後の位置から続けるか」を表します。どちらでも、`createdAt, id` のように同値を区別できる列まで並び順へ含めないと、ページ間で重複や欠落が起こります。`size` や `limit` には上限を設けます。\n\n今回の演習では、商品があれば200とDTO、なければ404と共通形式のエラーを返します。",
       "samples": [
         {
@@ -189,7 +213,7 @@
         {
           "kind": "applied",
           "task": "1〜10の一覧を `offset limit` でページングします。offsetは0以上、limitは1〜5へ丸め（0以下は1、6以上は5）、範囲外なら空。`items=[...] nextOffset=n` と表示し、次が無ければnextOffset=-1。",
-          "starterCode": "import java.util.*;\n\npublic class RestPaging {\n    public static void main(String[] a) {\n        Scanner s = new Scanner(System.in);\n        int offset = s.nextInt(), limit = s.nextInt();\n        // TODO\n    }\n}\n",
+          "starterCode": "import java.util.*;\n\npublic class RestPaging {\n    public static void main(String[] a) {\n        Scanner sc = new Scanner(System.in);\n        int offset = sc.nextInt(), limit = sc.nextInt();\n        // TODO\n    }\n}\n",
           "visibleCases": [
             {
               "label": "先頭3件",
@@ -224,13 +248,17 @@
             "fromを最大10、toを最大10で計算し、1〜10のリストからsubList。",
             "to<10ならnextOffset=to、そうでなければ-1。"
           ],
-          "solution": "import java.util.*;\n\npublic class RestPaging {\n    public static void main(String[] a) {\n        Scanner s = new Scanner(System.in);\n        int offset = Math.max(0, s.nextInt()), limit = Math.max(1, Math.min(5, s.nextInt()));\n        List<Integer> all = new ArrayList<>();\n        for (int i = 1; i <= 10; i++) all.add(i);\n        int from = Math.min(offset, all.size()), to = Math.min(from + limit, all.size());\n        List<Integer> page = all.subList(from, to);\n        int next = to < all.size() ? to : - 1;\n        System.out.println(\"items=\" + page + \" nextOffset=\" + next);\n    }\n}\n"
+          "solution": "import java.util.*;\n\npublic class RestPaging {\n    public static void main(String[] a) {\n        Scanner sc = new Scanner(System.in);\n        int offset = Math.max(0, sc.nextInt()), limit = Math.max(1, Math.min(5, sc.nextInt()));\n        List<Integer> all = new ArrayList<>();\n        for (int i = 1; i <= 10; i++) all.add(i);\n        int from = Math.min(offset, all.size()), to = Math.min(from + limit, all.size());\n        List<Integer> page = all.subList(from, to);\n        int next = to < all.size() ? to : - 1;\n        System.out.println(\"items=\" + page + \" nextOffset=\" + next);\n    }\n}\n"
         }
       ]
     },
     {
       "id": "28-3",
       "title": "認証・認可とWeb攻撃への備え",
+      "objectiveIds": [
+        "ch28-o3",
+        "ch28-o4"
+      ],
       "explanation": "## 「誰か」と「何をしてよいか」を別々に確認する\n\n**認証** は、トークンやCookieなどを使って「この要求を送ったのは誰か」を確認する処理です。**認可** は、その利用者が「このデータを読む・変更する権限を持つか」を確認する処理です。\n\nログイン済みでも、URLの `/orders/123` を `/orders/124` へ変えて他人の注文を読めるなら認可が不足しています。これはIDを直接変更して他人のオブジェクトへアクセスする **IDOR** と呼ばれる問題です。検索条件へ注文IDだけでなく所有者IDも含め、管理者など明示された権限以外では他人のデータを返しません。画面上でボタンを隠すだけでは、直接APIを呼べるため認可になりません。\n\nWeb APIでは、攻撃ごとに守る境界が違います。\n\n- **CSRF（クロスサイト・リクエスト・フォージェリ）**: ブラウザがCookieを自動送信する性質を悪用し、別サイトから変更要求を送らせる。CSRFトークンやSameSite Cookieを使う\n- **XSS（クロスサイト・スクリプティング）**: 入力をHTMLへそのまま表示し、スクリプトを実行させる。表示する文脈に合った出力エンコードを行う\n- **SQLインジェクション**: 入力をSQL文字列へ連結し、SQLの構造を変えさせる。`PreparedStatement` のパラメータを使う\n- **CORS**: どの別オリジンからブラウザが応答を読めるかを制御する仕組み。認証・認可やCSRF対策の代わりではない\n\nパスワードは復号する必要がないため、暗号化して戻すのではなく、Argon2id、bcrypt、PBKDF2などパスワード向けのハッシュ方式と利用者ごとのソルトで保存します。トークン、Cookie、秘密鍵、DBパスワードはログやGitへ置きません。\n\n認証失敗と認可失敗を記録するときも、トークンそのものは残さず、利用者識別子、対象操作、結果、traceIdなど必要な情報に限定します。失敗回数制限や監査ログも、攻撃の検知と調査に役立ちます。\n\n今回の演習では、未認証を401、認証済みだが所有者でも管理者でもない場合を403、許可時を200として、認証と認可を順に判定します。",
       "samples": [
         {
@@ -239,7 +267,7 @@
         }
       ],
       "task": "入力 `caller role owner` の認可判定をします。adminは全件、userはcaller==ownerだけ許可。callerが `-` は401、ログイン済みだが不許可は403、許可は200。",
-      "starterCode": "import java.util.*;\n\npublic class RestAuth {\n    public static void main(String[] a) {\n        Scanner s = new Scanner(System.in);\n        String caller = s.next(), role = s.next(), owner = s.next();\n        // TODO\n    }\n}\n",
+      "starterCode": "import java.util.*;\n\npublic class RestAuth {\n    public static void main(String[] a) {\n        Scanner sc = new Scanner(System.in);\n        String caller = sc.next(), role = sc.next(), owner = sc.next();\n        // TODO\n    }\n}\n",
       "visibleCases": [
         {
           "label": "本人",
@@ -274,12 +302,12 @@
         "許可条件は `role.equals(\"admin\") || role.equals(\"user\") && caller.equals(owner)`。",
         "演算子の優先順位が伝わるよう括弧を付けてもよいです。"
       ],
-      "solution": "import java.util.*;\n\npublic class RestAuth {\n    public static void main(String[] a) {\n        Scanner s = new Scanner(System.in);\n        String caller = s.next(), role = s.next(), owner = s.next();\n        if (caller.equals(\"-\")) {\n            System.out.println(\"401 Unauthorized\");\n            return;\n        }\n        boolean allowed = role.equals(\"admin\") || (role.equals(\"user\") && caller.equals(owner));\n        System.out.println(allowed ? \"200 OK\" : \"403 Forbidden\");\n    }\n}\n",
+      "solution": "import java.util.*;\n\npublic class RestAuth {\n    public static void main(String[] a) {\n        Scanner sc = new Scanner(System.in);\n        String caller = sc.next(), role = sc.next(), owner = sc.next();\n        if (caller.equals(\"-\")) {\n            System.out.println(\"401 Unauthorized\");\n            return;\n        }\n        boolean allowed = role.equals(\"admin\") || (role.equals(\"user\") && caller.equals(owner));\n        System.out.println(allowed ? \"200 OK\" : \"403 Forbidden\");\n    }\n}\n",
       "extraTasks": [
         {
           "kind": "applied",
           "task": "セッション内CSRF tokenと送信tokenを比較します。状態変更POSTは一致時だけ200、不一致・欠落は403。入力では欠落を `-` と表します。比較は定数側equalsでnull安全にしてください。",
-          "starterCode": "import java.util.*;\n\npublic class RestCsrf {\n    public static void main(String[] a) {\n        Scanner s = new Scanner(System.in);\n        String sessionToken = s.next(), submitted = s.next();\n        if (submitted.equals(\"-\")) submitted = null;\n        // TODO\n    }\n}\n",
+          "starterCode": "import java.util.*;\n\npublic class RestCsrf {\n    public static void main(String[] a) {\n        Scanner sc = new Scanner(System.in);\n        String sessionToken = sc.next(), submitted = sc.next();\n        if (submitted.equals(\"-\")) submitted = null;\n        // TODO\n    }\n}\n",
           "visibleCases": [
             {
               "label": "一致",
@@ -302,7 +330,7 @@
           "hints": [
             "`sessionToken.equals(submitted)` なら200、それ以外403。sessionTokenはサーバ側に必ずある前提です。"
           ],
-          "solution": "import java.util.*;\n\npublic class RestCsrf {\n    public static void main(String[] a) {\n        Scanner s = new Scanner(System.in);\n        String sessionToken = s.next(), submitted = s.next();\n        if (submitted.equals(\"-\")) submitted = null;\n        System.out.println(sessionToken.equals(submitted) ? \"200 Updated\" : \"403 CSRF\");\n    }\n}\n",
+          "solution": "import java.util.*;\n\npublic class RestCsrf {\n    public static void main(String[] a) {\n        Scanner sc = new Scanner(System.in);\n        String sessionToken = sc.next(), submitted = sc.next();\n        if (submitted.equals(\"-\")) submitted = null;\n        System.out.println(sessionToken.equals(submitted) ? \"200 Updated\" : \"403 CSRF\");\n    }\n}\n",
           "sourceChecks": [
             {
               "pattern": "sessionToken\\s*\\.\\s*equals\\s*\\(",
@@ -338,9 +366,9 @@
         {
           "question": "認証済み利用者が他人のIDへアクセスできないようにする対策は？",
           "choices": [
-            "CORSの設定だけを行う",
-            "画面のボタンを隠すだけ",
-            "IDを推測しにくい値にするだけ",
+            "CORSの許可元を設定し、別ドメインからの呼び出しを絞る",
+            "画面側で操作できないボタンを隠し、要求を送らせない",
+            "IDを推測しにくい値にして、他人のIDを当てさせない",
             "サーバ側で対象データの所有者・権限を確認"
           ],
           "answer": 3,
@@ -362,6 +390,10 @@
     {
       "id": "28-4",
       "title": "章末演習：REST API",
+      "objectiveIds": [
+        "ch28-o1",
+        "ch28-o2"
+      ],
       "explanation": "## 章末では、1回のHTTP要求が通る境界を順に追う\n\nREST APIの処理は、注釈を付けたメソッド1つだけでは完結しません。要求が届いてから応答を返すまでを、次の順に分けます。\n\n1. HTTPメソッド、URL、ヘッダー、JSON本文を受け取る\n2. Jakarta RESTがResourceメソッドと引数へ対応付ける\n3. DTOの形式を検証し、認証と認可を確認する\n4. Serviceが業務ルールを判断する\n5. 成功結果または例外を、ステータスコードとDTOへ変換する\n6. traceId、処理結果、時間を安全なログへ残す\n\nURLは対象、HTTPメソッドは操作、ステータスコードは結果、DTOは境界で交換するデータを表します。それぞれの役割を分けると、利用側は内部実装を知らなくてもAPIを利用できます。\n\n安全なAPIは、入力検証だけで作れるわけではありません。認証済みでも対象ごとの認可を行い、SQLはパラメータ化し、HTML表示は出力時にエンコードします。また、内部例外や機密情報を応答・ログへ漏らさないようにします。\n\n章末演習では、Resourceの検索、一覧のページング、認証・認可と状態コードを組み合わせます。各分岐で「クライアントが次に何を判断できる応答か」を確認してください。",
       "samples": [
         {
@@ -402,9 +434,12 @@
       "solution": "import jakarta.ws.rs.*;\nimport jakarta.ws.rs.core.*;\nimport java.util.*;\n\n@Path(\"/books\")\nclass BookResource {\n    private final Map<Integer, String> books = Map.of(1, \"Java\", 2, \"API\");\n\n    @GET\n    @Path(\"/{id}\")\n    Response find(@PathParam(\"id\") int id) {\n        String book = books.get(id);\n        return book == null ? Response.status(404).entity(\"not found\").build() : Response.ok(book).build();\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Response r = new BookResource().find(new Scanner(System.in).nextInt());\n        System.out.println(r.getStatus() + \" \" + r.getEntity());\n    }\n}\n",
       "extraTasks": [
         {
+          "objectiveIds": [
+            "ch28-o2"
+          ],
           "kind": "drill",
           "task": "【組み合わせ】1〜10の整数一覧に対し、0始まりのpageと正のsizeを読みます。該当ページをリスト形式で表示し、範囲外なら空リストにしてください。",
-          "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        int page = s.nextInt(), size = s.nextInt();\n        List<Integer> all = new ArrayList<>();\n        for (int i = 1; i <= 10; i++) all.add(i);\n        /* TODO */\n    }\n}\n",
+          "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int page = sc.nextInt(), size = sc.nextInt();\n        List<Integer> all = new ArrayList<>();\n        for (int i = 1; i <= 10; i++) all.add(i);\n        /* TODO */\n    }\n}\n",
           "visibleCases": [
             {
               "label": "1ページ目",
@@ -438,12 +473,15 @@
             "fromはpage×sizeですが、一覧サイズを超えないようMath.minします。",
             "page<0またはsize<=0は先に400として処理します。"
           ],
-          "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        int page = s.nextInt(), size = s.nextInt();\n        List<Integer> all = new ArrayList<>();\n        for (int i = 1; i <= 10; i++) all.add(i);\n        if (page < 0 || size <= 0) {\n            System.out.println(\"400 Bad Request\");\n            return;\n        }\n        int from = Math.min(page * size, all.size());\n        int to = Math.min(from + size, all.size());\n        System.out.println(all.subList(from, to));\n    }\n}\n"
+          "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int page = sc.nextInt(), size = sc.nextInt();\n        List<Integer> all = new ArrayList<>();\n        for (int i = 1; i <= 10; i++) all.add(i);\n        if (page < 0 || size <= 0) {\n            System.out.println(\"400 Bad Request\");\n            return;\n        }\n        int from = Math.min(page * size, all.size());\n        int to = Math.min(from + size, all.size());\n        System.out.println(all.subList(from, to));\n    }\n}\n"
         },
         {
+          "objectiveIds": [
+            "ch28-o3"
+          ],
           "kind": "applied",
           "task": "【実践】caller、role、ownerを読みます。callerが `-` なら401、roleがadminまたはcallerとownerが同じなら200、それ以外は403を表示してください。これは認証後に所有者も確認する処理です。",
-          "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        String caller = s.next(), role = s.next(), owner = s.next();\n        /* TODO */\n    }\n}\n",
+          "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        String caller = sc.next(), role = sc.next(), owner = sc.next();\n        /* TODO */\n    }\n}\n",
           "visibleCases": [
             {
               "label": "所有者",
@@ -472,7 +510,7 @@
             "認証の有無を最初に判定します。",
             "認可はadminか、callerとownerが同じかで判定します。"
           ],
-          "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        String caller = s.next(), role = s.next(), owner = s.next();\n        if (caller.equals(\"-\")) {\n            System.out.println(\"401 Unauthorized\");\n            return;\n        }\n        boolean allowed = role.equals(\"admin\") || caller.equals(owner);\n        System.out.println(allowed ? \"200 OK\" : \"403 Forbidden\");\n    }\n}\n",
+          "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        String caller = sc.next(), role = sc.next(), owner = sc.next();\n        if (caller.equals(\"-\")) {\n            System.out.println(\"401 Unauthorized\");\n            return;\n        }\n        boolean allowed = role.equals(\"admin\") || caller.equals(owner);\n        System.out.println(allowed ? \"200 OK\" : \"403 Forbidden\");\n    }\n}\n",
           "sourceChecks": [
             {
               "pattern": "\\|\\|",
@@ -487,6 +525,10 @@
           ]
         },
         {
+          "objectiveIds": [
+            "ch28-o2",
+            "ch28-o3"
+          ],
           "kind": "applied",
           "type": "runtime-lab",
           "task": "【実行演習】`labs/jakarta-web/security-exercise`で、**実Open Liberty**へ配備した注文APIの認可と応答を直します。\n\n採点はLibertyを動的ポートで起動し、Basic認証つき・なしのHTTPで実測します。利用者は`aki`（staff）・`mgr`（staff+manager）・`bob`（役割なし）で、`CafeIdentityStore.java`に固定で入っています。\n\n`src/main/java/cafe/api/OrderResource.java`はいま**誰でも全部できます**。資格情報なしで一覧が社内メモつきで見え、staffだけの利用者が削除もできます。\n\n(1)`GET /api/health`は公開のままにします。**これはいまも通っています。**直す対象ではなく見張りです（全部に`@RolesAllowed`を付けると、ここが落ちます）。\n(2)`GET /api/orders`に`staff`の役割を要求します。資格情報が無ければ**401**です。\n(3)`DELETE /api/orders/{id}`は`manager`だけが呼べるようにします。staffだけの`aki`は**403**です。401は「誰か分からない」、403は「権限が無い」で、この区別はコンテナが付けますが、宣言していなければどちらも起きません。\n(4)返すJSONに`internalNote`と`customer`を含めないようにします。外向きのrecordへ移し替えれば、内部にフィールドが増えても勝手に外へ出ていきません。\n\n`ApiApplication.java`・`CafeIdentityStore.java`・`Order.java`・`OrderRepository.java`・`pom.xml`・`server.xml`は参照専用です。パスも変えないでください。",

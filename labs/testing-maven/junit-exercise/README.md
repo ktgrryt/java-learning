@@ -1,4 +1,6 @@
-# 実JUnit演習（第29章 45-6の採点対象）
+# 実JUnit演習
+
+Java実践・開発基盤編『テストとビルド』のレッスン「実際のJUnitで保守しやすいテストを書く」が採点に使います。
 
 教材画面の`MiniJUnit`では動かせない`@MethodSource`・`@TempDir`・`@BeforeEach`を、実際のJUnitで
 動かす演習です。

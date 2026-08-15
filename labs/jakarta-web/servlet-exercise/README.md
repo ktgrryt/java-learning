@@ -1,7 +1,7 @@
 # Servlet lab
 
 実Open Libertyへ配備して、Servletの応答とスレッドの扱いを直します。
-第22章の「章末演習：ServletとHTTP」が採点に使います。
+Web・Jakarta EE編『サーブレットとHTTP』の「章末演習：ServletとHTTP」が採点に使います。
 
 ```
 sh run-runtime-lab.sh

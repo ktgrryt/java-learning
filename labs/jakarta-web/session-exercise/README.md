@@ -1,7 +1,7 @@
 # セッションとCookie lab
 
 実Open Libertyへ配備して、利用者ごとの状態の持ち方とCookieの属性を直します。
-第23章の「章末演習：Webの状態管理」が採点に使います。
+Web・Jakarta EE編『画面遷移と状態管理』の「章末演習：Webの状態管理」が採点に使います。
 
 ```
 sh run-runtime-lab.sh

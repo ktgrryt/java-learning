@@ -3,10 +3,31 @@
   "title": "JSONとHTTPクライアント",
   "subtitle": "外部APIと安全にデータを交換する",
   "emoji": "🔌",
+  "objectives": [
+    {
+      "id": "ch47-o1",
+      "text": "JSON文字列を正しくエスケープして組み立てられる"
+    },
+    {
+      "id": "ch47-o2",
+      "text": "`HttpClient` でリクエストを組み立て、timeoutが何を制限するかを説明できる"
+    },
+    {
+      "id": "ch47-o3",
+      "text": "ステータスごとに再試行してよいかを判断し、冪等でない再送を避けられる"
+    },
+    {
+      "id": "ch47-o4",
+      "text": "通信DTOとドメインモデルを分け、境界で入力を検証できる"
+    }
+  ],
   "lessons": [
     {
       "id": "47-1",
       "title": "JSONの型とエスケープ",
+      "objectiveIds": [
+        "ch47-o1"
+      ],
       "explanation": "## 文字列ではなく構造として扱う\n\nJSONにはobject、array、string、number、boolean、nullがあります。objectのキーは文字列で、文字列内の `\"`、`\\`、改行などはエスケープが必要です。Javaオブジェクトとの変換はJSON-B、木構造や生成はJSON-Pなどのライブラリを使うと、手作業の連結による壊れたJSONや注入を避けられます。\n\n```java\n// JSON-Bの例（Jakarta EE環境または依存関係が必要）\nString json = jsonb.toJson(new User(1, \"Aki\"));\nUser user = jsonb.fromJson(json, User.class);\n```\n\n未知フィールド、必須フィールド欠落、数値範囲、日時形式をどう扱うかはAPI契約として決めます。パスワードやトークンをログへ出してはいけません。\n\n### エスケープを自分で書くと、どこで漏れるか\n\nJSONの文字列の中では、`\"` `\\` 改行 タブ をそのままにできません。\n\n```java\nstatic String quote(String s) {\n    return \"\\\"\" + s.replace(\"\\\\\", \"\\\\\\\\\")     // ← バックスラッシュを先に\n            .replace(\"\\\"\", \"\\\\\\\"\")\n            .replace(\"\\n\", \"\\\\n\")\n            .replace(\"\\t\", \"\\\\t\") + \"\\\"\";\n}\n```\n\n```\nquote(\"A\\\"B\")     -> \"A\\\"B\"\nquote(\"1行\\n2行\")  -> \"1行\\n2行\"\nquote(\"C:\\\\temp\")  -> \"C:\\\\\\\\temp\"\n```\n\n**置換の順番が重要** です。バックスラッシュを最後に処理すると、自分が足した\nエスケープ用のバックスラッシュまで二重に置換してしまいます。\n\nこういう間違いは1か所直しても別の場所で再発するので、実務では手で組み立てず\nライブラリ（JSON-B / JSON-P など）に任せます。\n\n### 型を意識する\n\n| JSON | 注意 |\n|---|---|\n| number | 整数と小数の区別がない。桁の大きい値は精度が落ちる |\n| string | 日時も文字列。形式は契約で決める（ISO 8601など） |\n| null | 「項目が無い」と「値が null」は別。どう扱うか決める |\n| object | キーの順序に意味は無い |\n\n> ⚠️ 間違えやすい点 … 文字列連結でJSONを作ると、値に `\"` が入った瞬間に\n> **壊れたJSON** になるか、悪意ある入力で構造を書き換えられます（JSONインジェクション）。\n> そしてパスワードやトークンをログへ出さないこと。JSON全体をそのままログへ流す実装が\n> いちばん漏らします。",
       "samples": [
         {
@@ -15,7 +36,7 @@
         }
       ],
       "task": "1行の名前を読み、JSON object `{\"name\":\"...\"}` を出力してください。バックスラッシュ、ダブルクォート、改行コード、タブをJSON文字列としてエスケープするstaticメソッドを作ります。",
-      "starterCode": "import java.util.*;\n\npublic class Main {\n    static String quote(String value) {\n        return \"\";\n    }\n\n    public static void main(String[] a) {\n        Scanner s = new Scanner(System.in);\n        String name = s.nextLine();\n        System.out.println(\"{\\\"name\\\":\" + quote(name) + \"}\");\n    }\n}\n",
+      "starterCode": "import java.util.*;\n\npublic class Main {\n    static String quote(String value) {\n        return \"\";\n    }\n\n    public static void main(String[] a) {\n        Scanner sc = new Scanner(System.in);\n        String name = sc.nextLine();\n        System.out.println(\"{\\\"name\\\":\" + quote(name) + \"}\");\n    }\n}\n",
       "visibleCases": [
         {
           "label": "通常",
@@ -54,7 +75,7 @@
         "1文字ずつswitchで処理すると、置換順序の事故を避けられます。",
         "最後に前後へダブルクォートを付けます。"
       ],
-      "solution": "import java.util.*;\n\npublic class Main {\n    static String quote(String value) {\n        StringBuilder b = new StringBuilder(\"\\\"\");\n        for (char c : value.toCharArray()) switch (c) {\n            case '\\\\' -> b.append(\"\\\\\\\\\");\n            case '\"' -> b.append(\"\\\\\\\"\");\n            case '\\n' -> b.append(\"\\\\n\");\n            case '\\r' -> b.append(\"\\\\r\");\n            case '\\t' -> b.append(\"\\\\t\");\n            default -> b.append(c);\n        }\n        return b.append('\"').toString();\n    }\n\n    public static void main(String[] a) {\n        Scanner s = new Scanner(System.in);\n        String name = s.nextLine();\n        System.out.println(\"{\\\"name\\\":\" + quote(name) + \"}\");\n    }\n}\n",
+      "solution": "import java.util.*;\n\npublic class Main {\n    static String quote(String value) {\n        StringBuilder b = new StringBuilder(\"\\\"\");\n        for (char c : value.toCharArray()) switch (c) {\n            case '\\\\' -> b.append(\"\\\\\\\\\");\n            case '\"' -> b.append(\"\\\\\\\"\");\n            case '\\n' -> b.append(\"\\\\n\");\n            case '\\r' -> b.append(\"\\\\r\");\n            case '\\t' -> b.append(\"\\\\t\");\n            default -> b.append(c);\n        }\n        return b.append('\"').toString();\n    }\n\n    public static void main(String[] a) {\n        Scanner sc = new Scanner(System.in);\n        String name = sc.nextLine();\n        System.out.println(\"{\\\"name\\\":\" + quote(name) + \"}\");\n    }\n}\n",
       "quiz": [
         {
           "question": "JSON文字列を手作業で連結する主な問題は？",
@@ -83,6 +104,9 @@
     {
       "id": "47-2",
       "title": "HttpClientでリクエストする",
+      "objectiveIds": [
+        "ch47-o2"
+      ],
       "explanation": "## 通信の境界を明示する\n\nJava標準の `java.net.http.HttpClient` でHTTP/1.1とHTTP/2の通信を扱えます。URI、メソッド、ヘッダー、ボディ、タイムアウトを `HttpRequest` へ組み立てます。\n\n```java\nHttpClient client = HttpClient.newBuilder()\n    .connectTimeout(Duration.ofSeconds(3)).build();\nHttpRequest request = HttpRequest.newBuilder(URI.create(url))\n    .timeout(Duration.ofSeconds(5))\n    .header(\"Accept\", \"application/json\")\n    .GET().build();\nHttpResponse<String> response = client.send(\n    request, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));\n```\n\n接続タイムアウトとリクエストタイムアウトは別です。ベースURLや認証情報をコードへ埋め込まず設定から受け取り、クエリ値はURLエンコードします。実通信は `labs/http-client` のローカルサーバーで試せます。\n\n> 🧪 アプリで確かめること / labs で動かすこと … この問題で確かめるのはタイムアウトと再試行の判断です。\n> `HttpClient` で実際に通信すること（この画面から外部へは接続できません）は、1ファイル・標準入力だけのこの画面では扱えません。`labs/http-client` に本物を置いてあります。",
       "samples": [
         {
@@ -91,7 +115,7 @@
         }
       ],
       "task": "hostと整数idを読み、`https://host/items/id` へのGETリクエストを組み立て、`GET /items/id timeout=3` と表示してください。通信はしません。hostは妥当なホスト名、idは0以上です。",
-      "starterCode": "import java.net.*;\nimport java.net.http.*;\nimport java.time.*;\nimport java.util.*;\n\npublic class Main {\n    public static void main(String[] a) {\n        Scanner s = new Scanner(System.in);\n        String host = s.next();\n        int id = s.nextInt();\n        /* TODO */\n    }\n}\n",
+      "starterCode": "import java.net.*;\nimport java.net.http.*;\nimport java.time.*;\nimport java.util.*;\n\npublic class Main {\n    public static void main(String[] a) {\n        Scanner sc = new Scanner(System.in);\n        String host = sc.next();\n        int id = sc.nextInt();\n        /* TODO */\n    }\n}\n",
       "visibleCases": [
         {
           "label": "構築",
@@ -120,7 +144,7 @@
         "`URI.create(\"https://\" + host + \"/items/\" + id)`。",
         "`request.timeout().orElseThrow().toSeconds()` で秒を確認できます。"
       ],
-      "solution": "import java.net.*;\nimport java.net.http.*;\nimport java.time.*;\nimport java.util.*;\n\npublic class Main {\n    public static void main(String[] a) {\n        Scanner s = new Scanner(System.in);\n        String host = s.next();\n        int id = s.nextInt();\n        HttpRequest r = HttpRequest.newBuilder(URI.create(\"https://\" + host + \"/items/\" + id)).timeout(Duration.ofSeconds(3)).GET().build();\n        System.out.println(r.method() + \" \" + r.uri().getPath() + \" timeout=\" + r.timeout().orElseThrow().toSeconds());\n    }\n}\n",
+      "solution": "import java.net.*;\nimport java.net.http.*;\nimport java.time.*;\nimport java.util.*;\n\npublic class Main {\n    public static void main(String[] a) {\n        Scanner sc = new Scanner(System.in);\n        String host = sc.next();\n        int id = sc.nextInt();\n        HttpRequest r = HttpRequest.newBuilder(URI.create(\"https://\" + host + \"/items/\" + id)).timeout(Duration.ofSeconds(3)).GET().build();\n        System.out.println(r.method() + \" \" + r.uri().getPath() + \" timeout=\" + r.timeout().orElseThrow().toSeconds());\n    }\n}\n",
       "quiz": [
         {
           "question": "HttpRequestのtimeoutが主に制限するものは？",
@@ -136,9 +160,9 @@
         {
           "question": "`connectTimeout` を3秒にしたのに、応答が返らないリクエストが待ち続けました。理由はどれでしょう。",
           "choices": [
-            "GETリクエストにはtimeoutが効かないため",
-            "指定した値の単位が分だったため",
-            "`HttpClient` はtimeoutを無視するため",
+            "GETのリクエストには、timeoutが効かないため",
+            "指定した値の単位が、秒ではなく分だったため",
+            "`HttpClient` には、応答待ちの上限を設ける方法が無いため",
             "接続確立までの上限で、確立後の応答待ちには効かないため"
           ],
           "answer": 3,
@@ -149,6 +173,9 @@
     {
       "id": "47-3",
       "title": "ステータス・再試行・冪等性",
+      "objectiveIds": [
+        "ch47-o3"
+      ],
       "explanation": "## 成功以外を通常の分岐として扱う\n\nHTTPは応答が返っても成功とは限りません。2xxは成功、4xxは要求側の問題、5xxはサーバー側の失敗が中心です。ただし429や503では `Retry-After` を見て再試行できる場合があります。無限再試行せず、回数上限、指数バックオフ、ジッター、全体の期限を持たせます。\n\nGETやPUTのような冪等な操作は同じ要求を再送しても状態の意味が変わりにくい一方、POSTの再送は二重登録を起こすことがあります。APIが対応する冪等性キーを使うなど、サーバー側の契約と合わせます。割り込みは握りつぶさず、必要なら割り込み状態を戻します。\n\n### 何を再試行してよいかを、コードで決める\n\n```java\nstatic boolean retryable(int status) {\n    return status == 429 || status == 502 || status == 503 || status == 504;\n}\n```\n\n`4xx` は基本的に要求側の問題なので、同じ要求を送り直しても直りません（`429` は例外）。\n`5xx` のうち一時的なものだけを対象にします。\n\n### 待ち時間は指数で伸ばし、ばらつかせる\n\n```\n1回目失敗 → 0.2秒待つ\n2回目失敗 → 0.4秒\n3回目失敗 → 0.8秒\n4回目失敗 → あきらめる（全体の期限も超える）\n```\n\n倍にしていくのが指数バックオフです。さらに **ジッター**（±ランダム）を足します。\n同時に失敗した100件が同じ間隔で再試行すると、回復しかけたサーバーへ\nまた一斉に押し寄せるからです。\n\n`429` や `503` に `Retry-After` ヘッダーが付いていれば、自分の計算より\n**そちらを優先**します。\n\n### 冪等性\n\n再試行してよいかは、その操作を2回実行しても結果が同じかで決まります。\n\n| メソッド | 2回送ると |\n|---|---|\n| GET / PUT / DELETE | 状態の意味は変わらない（冪等） |\n| POST | **二重登録になりうる** |\n\nPOSTを安全に再試行するには、サーバーが冪等性キー（同じキーの要求は1回だけ処理する）に\n対応している必要があります。対応していなければ、再試行は勝手にやってはいけません。\n\n> ⚠️ 間違えやすい点 … 応答が返らなかったときは「届かなかった」のか\n> 「処理されたが応答が失われた」のか **区別できません**。だからタイムアウトは\n> 「失敗」ではなく「不明」として扱い、冪等でない操作は問い合わせてから決めます。",
       "samples": [
         {
@@ -157,7 +184,7 @@
         }
       ],
       "task": "HTTPメソッドとstatusを読み、`SUCCESS`、`RETRY`、`FAIL` のいずれかを表示してください。2xxはSUCCESS。GET/PUT/DELETEの429,502,503,504だけRETRY。それ以外はFAILです。",
-      "starterCode": "import java.util.*;\n\npublic class Main {\n    static String classify(String method, int status) {\n        return \"\";\n    }\n\n    public static void main(String[] a) {\n        Scanner s = new Scanner(System.in);\n        System.out.println(classify(s.next(), s.nextInt()));\n    }\n}\n",
+      "starterCode": "import java.util.*;\n\npublic class Main {\n    static String classify(String method, int status) {\n        return \"\";\n    }\n\n    public static void main(String[] a) {\n        Scanner sc = new Scanner(System.in);\n        System.out.println(classify(sc.next(), sc.nextInt()));\n    }\n}\n",
       "visibleCases": [
         {
           "label": "成功",
@@ -186,7 +213,7 @@
         "まず200〜299を判定します。",
         "冪等メソッドかつ再試行対象statusの積で判定します。"
       ],
-      "solution": "import java.util.*;\n\npublic class Main {\n    static String classify(String method, int status) {\n        if (status >= 200 && status < 300) return \"SUCCESS\";\n        boolean safe = method.equals(\"GET\") || method.equals(\"PUT\") || method.equals(\"DELETE\");\n        boolean transientFailure = status == 429 || status == 502 || status == 503 || status == 504;\n        return safe && transientFailure ? \"RETRY\" : \"FAIL\";\n    }\n\n    public static void main(String[] a) {\n        Scanner s = new Scanner(System.in);\n        System.out.println(classify(s.next(), s.nextInt()));\n    }\n}\n",
+      "solution": "import java.util.*;\n\npublic class Main {\n    static String classify(String method, int status) {\n        if (status >= 200 && status < 300) return \"SUCCESS\";\n        boolean safe = method.equals(\"GET\") || method.equals(\"PUT\") || method.equals(\"DELETE\");\n        boolean transientFailure = status == 429 || status == 502 || status == 503 || status == 504;\n        return safe && transientFailure ? \"RETRY\" : \"FAIL\";\n    }\n\n    public static void main(String[] a) {\n        Scanner sc = new Scanner(System.in);\n        System.out.println(classify(sc.next(), sc.nextInt()));\n    }\n}\n",
       "quiz": [
         {
           "question": "POST再送で特に注意することは？",
@@ -202,19 +229,22 @@
         {
           "question": "400 Bad Requestに対して指数バックオフで再試行を続けるのが不適切なのはなぜでしょう。",
           "choices": [
-            "再試行はGETでのみ許されるため",
-            "要求内容の問題なので、同じ要求を送り直しても結果が変わらないため",
-            "4xxは再試行すれば必ず成功するため",
-            "4xxでは `Retry-After` が必須のため"
+            "再試行が許されるのは、GETだけと決まっているため",
+            "要求内容の問題なので、送り直しても結果が変わらないため",
+            "4xxでも時間をおいて再試行すれば、必ず成功するため",
+            "4xxの応答には `Retry-After` が付いてくるため"
           ],
           "answer": 1,
-          "explanation": "再試行はGET以外でも、安全にできるなら許されます。4xxを再試行して成功するようになるわけではありません。`Retry-After` も必須ではありません。400は「送った内容が間違っている」という返事なので、同じ内容を何度送っても結果は変わりません。再試行が効くのは429や503のような一時的な失敗です。"
+          "explanation": "再試行はGET以外でも、安全にできるなら許されます。4xxを時間をおいて送り直しても成功するようになりません。`Retry-After` は4xxに必ず付くものでもありません。400は「送った内容が間違っている」という返事なので、同じ内容を何度送っても結果は変わりません。再試行が効くのは429や503のような一時的な失敗です。"
         }
       ]
     },
     {
       "id": "47-4",
       "title": "API契約と境界のテスト",
+      "objectiveIds": [
+        "ch47-o4"
+      ],
       "explanation": "## 外部形式をドメインへ直接漏らさない\n\n通信DTOは外部APIの形、ドメインモデルはアプリの意味を表します。変換層を置くと、フィールド名変更、null、単位、列挙値の追加を境界で扱えます。recordは不変なDTOに向きますが、入力検証は別途必要です。\n\nAPIテストでは、正常応答だけでなく、不正JSON、必須項目欠落、未知の列挙値、4xx/5xx、遅延、途中切断を確認します。外部の本番APIに毎回依存せず、単体テストではfake、統合テストではローカルサーバーやテスト環境を使います。契約で許容される変更と破壊的変更を区別し、ログには相関IDを残します。\n\n### recordは「形」を保証するだけ\n\n```java\nrecord SignupRequest(String name, String email, int age) {}\n```\n\nこれで保証されるのは、3つの成分を持つ不変な入れ物であることだけです。\n`name` が空文字でも、`email` が `\"abc\"` でも、`age` が `-5` でも作れてしまいます。\n\n値が業務的に妥当かは、別に確かめます。\n\n```java\nrecord SignupRequest(String name, String email, int age) {\n    SignupRequest {                                   // コンパクトコンストラクタ\n        if (name == null || name.isBlank()) throw new IllegalArgumentException(\"name\");\n        if (age < 0 || age > 150) throw new IllegalArgumentException(\"age\");\n    }\n}\n```\n\n宣言的に書くなら Bean Validation（`@NotBlank` `@Email` `@Min`）を使います。\n\n### 境界のテストで確かめること\n\n契約のテストは「通る形」より **「弾く形」** を先に書きます。\n\n| 入力 | 期待 |\n|---|---|\n| 必須項目が無い | 400。どの項目が悪いかが分かる |\n| 型が違う（`age` に文字列） | 400。500にしない |\n| 未知の項目が増えている | 決めた方針どおり（無視する / 400にする） |\n| 数値が範囲外・文字列が長すぎる | 400 |\n| 日時の形式が違う | 400 |\n\n「未知の項目が来たらどうするか」は**契約として決めておく**ことです。\n決めていないと、送る側が項目を増やしたときに落ちるか黙って無視するかが実装依存になります。\n\n> ⚠️ 間違えやすい点 … 検証の結果を返すときに、内部の情報を混ぜないこと。\n> スタックトレースやSQL、内部のフィールド名を返すと、攻撃の手がかりになります。\n> 詳細はログへ、利用者へは「どの項目がなぜ不正か」だけを返します。",
       "samples": [
         {
@@ -223,7 +253,7 @@
         }
       ],
       "task": "n件の `name age` を外部DTO相当として読み、名前が`null`、または年齢が0〜150外なら `INVALID 行番号`、それ以外は `name:age` を表示してください。文字列 `null` を欠落値とみなします。",
-      "starterCode": "import java.util.*;\n\nrecord UserDto(String name, int age) { }\n\npublic class Main {\n    static Optional<String> map(UserDto dto) {\n        return Optional.empty();\n    }\n\n    public static void main(String[] a) {\n        Scanner s = new Scanner(System.in);\n        int n = s.nextInt();\n        for (int i = 1; i <= n; i++) {\n            var dto = new UserDto(s.next(), s.nextInt());\n            var value = map(dto);\n            System.out.println(value.orElse(\"INVALID \" + i));\n        }\n    }\n}\n",
+      "starterCode": "import java.util.*;\n\nrecord UserDto(String name, int age) { }\n\npublic class Main {\n    static Optional<String> map(UserDto dto) {\n        return Optional.empty();\n    }\n\n    public static void main(String[] a) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n        for (int i = 1; i <= n; i++) {\n            var dto = new UserDto(sc.next(), sc.nextInt());\n            var value = map(dto);\n            System.out.println(value.orElse(\"INVALID \" + i));\n        }\n    }\n}\n",
       "visibleCases": [
         {
           "label": "混在",
@@ -257,7 +287,7 @@
         "不正ならOptional.emptyを返します。",
         "正常なら `Optional.of(dto.name() + \":\" + dto.age())`。"
       ],
-      "solution": "import java.util.*;\n\nrecord UserDto(String name, int age) { }\n\npublic class Main {\n    static Optional<String> map(UserDto dto) {\n        if (dto.name().equals(\"null\") || dto.age() < 0 || dto.age() > 150) return Optional.empty();\n        return Optional.of(dto.name() + \":\" + dto.age());\n    }\n\n    public static void main(String[] a) {\n        Scanner s = new Scanner(System.in);\n        int n = s.nextInt();\n        for (int i = 1; i <= n; i++) {\n            var dto = new UserDto(s.next(), s.nextInt());\n            var value = map(dto);\n            System.out.println(value.orElse(\"INVALID \" + i));\n        }\n    }\n}\n",
+      "solution": "import java.util.*;\n\nrecord UserDto(String name, int age) { }\n\npublic class Main {\n    static Optional<String> map(UserDto dto) {\n        if (dto.name().equals(\"null\") || dto.age() < 0 || dto.age() > 150) return Optional.empty();\n        return Optional.of(dto.name() + \":\" + dto.age());\n    }\n\n    public static void main(String[] a) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n        for (int i = 1; i <= n; i++) {\n            var dto = new UserDto(sc.next(), sc.nextInt());\n            var value = map(dto);\n            System.out.println(value.orElse(\"INVALID \" + i));\n        }\n    }\n}\n",
       "extraTasks": [
         {
           "kind": "applied",
@@ -318,19 +348,19 @@
         {
           "question": "通信DTOとドメインモデルを分ける利点は？",
           "choices": [
-            "テストそのものが不要になる",
-            "HTTPを使わなくてよくなる",
+            "境界で検証するので、テストを書く必要が減る",
+            "HTTPの状態コードを設計せずに済むようになる",
             "外部形式の変更や不正値を境界へ閉じ込めやすい",
-            "nullが言語からなくなる"
+            "`null` を扱う必要がなくなり、分岐が減る"
           ],
           "answer": 2,
-          "explanation": "テストが不要になることはなく、HTTPを使わなくなるわけでもなく、`null` が言語から消えることもありません。外部の形式が変わったときに直す場所を変換層だけに閉じ込められ、不正な値も内部へ入る前に弾けます。内部の型は、自分たちの不変条件だけを守れば済むようになります。"
+          "explanation": "境界で検証してもテストは減りませんし、HTTPの状態コードはどちらにしても設計が必要です。`null` を扱う必要が消えることもありません。利点は、外部の形式が変わったときに直す場所を変換層だけに閉じ込められ、不正な値も内部へ入る前に弾けることです。内部の型は、自分たちの不変条件だけを守れば済むようになります。"
         },
         {
           "question": "recordをDTOに使えば入力検証まで済む、と考えるのはなぜ誤りでしょう。",
           "choices": [
             "保証するのは不変性と構造で、値の妥当性は別に検証するため",
-            "recordはフィールドを持てず検証できないため",
+            "recordはフィールドを持てないので、値の検証を書けないため",
             "recordはJSONへ変換できず検証も効かないため",
             "recordはnullを許さないので検証が要らないため"
           ],
@@ -342,6 +372,9 @@
     {
       "id": "47-5",
       "title": "章末演習：JSONとHTTPクライアント",
+      "objectiveIds": [
+        "ch47-o1"
+      ],
       "explanation": "## この章の知識を、自分の手で組み合わせよう\n\nここでは、**JSON文字列のエスケープ・リクエストの組み立て・ステータスと再試行・外部DTOの検証**をまとめて使います。新しい文法は登場しません。分からなくなったら、直前までの解説やサンプルへ戻って確認して大丈夫です。\n\n### 3問の進め方\n\n1. **基本**で、中心となる書き方をもう一度使う\n2. **組み合わせ**で、章内の複数の知識を一緒に使う\n3. **実践**で、少し現実的な入力と条件を整理する\n\n実際の通信はしません。ここで書くのは、**HTTPクライアントとJSONライブラリに任せる前に決めておく判断**の部分です。",
       "samples": [
         {
@@ -351,7 +384,7 @@
         }
       ],
       "task": "【基本】フィールドをn件 `key value` の形で読み、JSON objectを1行で組み立てて表示してください。値はJSON文字列として、`\\` を `\\\\` に、`\"` を `\\\"` にエスケープします（この順で置き換えます）。同じ `key` が2回目に現れたら、その時点で `DUPLICATE_KEY key` だけを表示して終わります。nが0のときは `{}` と表示します。",
-      "starterCode": "import java.util.*;\n\npublic class Main {\n    static String escape(String v) {\n        /* TODO エスケープ */ return v;\n    }\n\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        int n = s.nextInt();\n        LinkedHashMap<String, String> fields = new LinkedHashMap<>();\n        for (int i = 0; i < n; i++) {\n            String key = s.next(), value = s.next();\n            /* TODO 重複キーの検査 */\n        }\n        /* TODO JSONの組み立て */\n    }\n}\n",
+      "starterCode": "import java.util.*;\n\npublic class Main {\n    static String escape(String v) {\n        /* TODO エスケープ */ return v;\n    }\n\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n        LinkedHashMap<String, String> fields = new LinkedHashMap<>();\n        for (int i = 0; i < n; i++) {\n            String key = sc.next(), value = sc.next();\n            /* TODO 重複キーの検査 */\n        }\n        /* TODO JSONの組み立て */\n    }\n}\n",
       "visibleCases": [
         {
           "label": "通常",
@@ -391,12 +424,15 @@
         "`LinkedHashMap` に入れると、読んだ順のまま出力できます。`containsKey` で重複を見つけます。",
         "重複を見つけたら `System.out.println(...)` のあと `return;` で main を抜けます。"
       ],
-      "solution": "import java.util.*;\n\npublic class Main {\n    static String escape(String v) {\n        return v.replace(\"\\\\\", \"\\\\\\\\\").replace(\"\\\"\", \"\\\\\\\"\");\n    }\n\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        int n = s.nextInt();\n        LinkedHashMap<String, String> fields = new LinkedHashMap<>();\n        for (int i = 0; i < n; i++) {\n            String key = s.next(), value = s.next();\n            if (fields.containsKey(key)) {\n                System.out.println(\"DUPLICATE_KEY \" + key);\n                return;\n            }\n            fields.put(key, value);\n        }\n        StringBuilder sb = new StringBuilder(\"{\");\n        boolean first = true;\n        for (Map.Entry<String, String> e : fields.entrySet()) {\n            if (!first) sb.append(\",\");\n            sb.append(\"\\\"\").append(e.getKey()).append(\"\\\":\\\"\").append(escape(e.getValue())).append(\"\\\"\");\n            first = false;\n        }\n        System.out.println(sb.append(\"}\"));\n    }\n}\n",
+      "solution": "import java.util.*;\n\npublic class Main {\n    static String escape(String v) {\n        return v.replace(\"\\\\\", \"\\\\\\\\\").replace(\"\\\"\", \"\\\\\\\"\");\n    }\n\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n        LinkedHashMap<String, String> fields = new LinkedHashMap<>();\n        for (int i = 0; i < n; i++) {\n            String key = sc.next(), value = sc.next();\n            if (fields.containsKey(key)) {\n                System.out.println(\"DUPLICATE_KEY \" + key);\n                return;\n            }\n            fields.put(key, value);\n        }\n        StringBuilder sb = new StringBuilder(\"{\");\n        boolean first = true;\n        for (Map.Entry<String, String> e : fields.entrySet()) {\n            if (!first) sb.append(\",\");\n            sb.append(\"\\\"\").append(e.getKey()).append(\"\\\":\\\"\").append(escape(e.getValue())).append(\"\\\"\");\n            first = false;\n        }\n        System.out.println(sb.append(\"}\"));\n    }\n}\n",
       "extraTasks": [
         {
+          "objectiveIds": [
+            "ch47-o3"
+          ],
           "kind": "drill",
           "task": "【組み合わせ】再試行の流れをたどります。`method maxAttempts baseMs` を読み、続けてサーバーが返すステータスを maxAttempts 件読みます（早く終わったぶんは読み残して構いません）。k回目（1から数えます）の試行について、次のように表示してください。\n\n- 2xxなら `k SUCCESS status` を表示し、最後に `RESULT OK k` を表示して終わります\n- `method` が `GET` / `PUT` / `DELETE` のいずれかで、statusが429・502・503・504のどれかなら再試行します。次の試行があるときは `k RETRY status wait=待ち時間`、最後の試行だったときは `k RETRY status` と表示します。待ち時間は `baseMs * 2^(k-1)` です\n- それ以外は `k FAIL status` を表示し、最後に `RESULT FAILED k` を表示して終わります\n\nmaxAttempts 回すべて再試行で終わったときは、最後に `RESULT GIVEUP maxAttempts` と表示します。",
-          "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        String method = s.next();\n        int maxAttempts = s.nextInt(), baseMs = s.nextInt();\n        Set<Integer> retryable = Set.of(429, 502, 503, 504);\n        boolean idempotent = Set.of(\"GET\", \"PUT\", \"DELETE\").contains(method);\n        for (int k = 1; k <= maxAttempts; k++) {\n            int status = s.nextInt();\n            /* TODO 3つの分岐 */\n        }\n        /* TODO 使い切ったとき */\n    }\n}\n",
+          "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        String method = sc.next();\n        int maxAttempts = sc.nextInt(), baseMs = sc.nextInt();\n        Set<Integer> retryable = Set.of(429, 502, 503, 504);\n        boolean idempotent = Set.of(\"GET\", \"PUT\", \"DELETE\").contains(method);\n        for (int k = 1; k <= maxAttempts; k++) {\n            int status = sc.nextInt();\n            /* TODO 3つの分岐 */\n        }\n        /* TODO 使い切ったとき */\n    }\n}\n",
           "visibleCases": [
             {
               "label": "2回目で成功",
@@ -446,12 +482,15 @@
             "待ち時間の倍々は `baseMs*(1L<<(k-1))` で計算できます（`1L` にしておくと、試行回数が増えても桁溢れしません）。",
             "`k<maxAttempts` のときだけ `wait=` を付けます。上限に達したあとに待つ意味はありません。"
           ],
-          "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        String method = s.next();\n        int maxAttempts = s.nextInt(), baseMs = s.nextInt();\n        Set<Integer> retryable = Set.of(429, 502, 503, 504);\n        boolean idempotent = Set.of(\"GET\", \"PUT\", \"DELETE\").contains(method);\n        for (int k = 1; k <= maxAttempts; k++) {\n            int status = s.nextInt();\n            if (status / 100 == 2) {\n                System.out.println(k + \" SUCCESS \" + status);\n                System.out.println(\"RESULT OK \" + k);\n                return;\n            }\n            if (idempotent && retryable.contains(status)) {\n                System.out.println(k < maxAttempts ? k + \" RETRY \" + status + \" wait=\" + baseMs * (1L << (k - 1)) : k + \" RETRY \" + status);\n                continue;\n            }\n            System.out.println(k + \" FAIL \" + status);\n            System.out.println(\"RESULT FAILED \" + k);\n            return;\n        }\n        System.out.println(\"RESULT GIVEUP \" + maxAttempts);\n    }\n}\n"
+          "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        String method = sc.next();\n        int maxAttempts = sc.nextInt(), baseMs = sc.nextInt();\n        Set<Integer> retryable = Set.of(429, 502, 503, 504);\n        boolean idempotent = Set.of(\"GET\", \"PUT\", \"DELETE\").contains(method);\n        for (int k = 1; k <= maxAttempts; k++) {\n            int status = sc.nextInt();\n            if (status / 100 == 2) {\n                System.out.println(k + \" SUCCESS \" + status);\n                System.out.println(\"RESULT OK \" + k);\n                return;\n            }\n            if (idempotent && retryable.contains(status)) {\n                System.out.println(k < maxAttempts ? k + \" RETRY \" + status + \" wait=\" + baseMs * (1L << (k - 1)) : k + \" RETRY \" + status);\n                continue;\n            }\n            System.out.println(k + \" FAIL \" + status);\n            System.out.println(\"RESULT FAILED \" + k);\n            return;\n        }\n        System.out.println(\"RESULT GIVEUP \" + maxAttempts);\n    }\n}\n"
         },
         {
+          "objectiveIds": [
+            "ch47-o4"
+          ],
           "kind": "applied",
           "task": "【実践】外部APIから受け取ったDTO相当の行をn件、`name age status` の形で読みます（`null` は値が無いことを表します）。次を上から順に確かめ、最初に外れた理由だけを `INVALID 行番号 理由` の形で表示してください（行番号は1から）。\n\n1. `name` が `null` なら `NAME`\n2. `age` が整数として読めない、または0〜150の外なら `AGE`\n3. `status` が `active` / `inactive` のどちらでもなければ `STATUS`\n\nすべて満たした行だけを集め、最後に1行のJSON配列として表示します。要素は `{\"name\":\"...\",\"age\":数値,\"status\":\"...\"}` の形で、`status` は大文字にし、`name` の中の `\\` と `\"` はJSON文字列としてエスケープします。妥当な行が無ければ `[]` と表示します。",
-          "starterCode": "import java.util.*;\n\npublic class Main {\n    static String escape(String v) {\n        /* TODO エスケープ */ return v;\n    }\n\n    static Integer age(String raw) {\n        /* TODO 読めなければ null を返す */ return 0;\n    }\n\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        int n = s.nextInt();\n        List<String> items = new ArrayList<>();\n        for (int k = 1; k <= n; k++) {\n            String name = s.next(), raw = s.next(), status = s.next();\n            /* TODO 検証と組み立て */\n        }\n        /* TODO JSON配列の表示 */\n    }\n}\n",
+          "starterCode": "import java.util.*;\n\npublic class Main {\n    static String escape(String v) {\n        /* TODO エスケープ */ return v;\n    }\n\n    static Integer age(String raw) {\n        /* TODO 読めなければ null を返す */ return 0;\n    }\n\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n        List<String> items = new ArrayList<>();\n        for (int k = 1; k <= n; k++) {\n            String name = sc.next(), raw = sc.next(), status = sc.next();\n            /* TODO 検証と組み立て */\n        }\n        /* TODO JSON配列の表示 */\n    }\n}\n",
           "visibleCases": [
             {
               "label": "妥当と不正が混じる",
@@ -501,7 +540,7 @@
             "判定は上から順に、条件演算子か else if でつなぎます。最初に外れた理由だけを出します。",
             "要素の文字列をリストへ貯めておき、最後に `\"[\"+String.join(\",\",items)+\"]\"` を表示すれば、0件のときも `[]` になります。"
           ],
-          "solution": "import java.util.*;\n\npublic class Main {\n    static String escape(String v) {\n        return v.replace(\"\\\\\", \"\\\\\\\\\").replace(\"\\\"\", \"\\\\\\\"\");\n    }\n\n    static Integer age(String raw) {\n        try {\n            return Integer.valueOf(raw);\n        } catch (NumberFormatException e) {\n            return null;\n        }\n    }\n\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        int n = s.nextInt();\n        List<String> items = new ArrayList<>();\n        for (int k = 1; k <= n; k++) {\n            String name = s.next(), raw = s.next(), status = s.next();\n            Integer value = age(raw);\n            String reason = name.equals(\"null\") ? \"NAME\" : (value == null || value < 0 || value > 150) ? \"AGE\" : (!status.equals(\"active\") && !status.equals(\"inactive\")) ? \"STATUS\" : null;\n            if (reason != null) {\n                System.out.println(\"INVALID \" + k + \" \" + reason);\n                continue;\n            }\n            items.add(\"{\\\"name\\\":\\\"\" + escape(name) + \"\\\",\\\"age\\\":\" + value + \",\\\"status\\\":\\\"\" + status.toUpperCase(Locale.ROOT) + \"\\\"}\");\n        }\n        System.out.println(\"[\" + String.join(\",\", items) + \"]\");\n    }\n}\n"
+          "solution": "import java.util.*;\n\npublic class Main {\n    static String escape(String v) {\n        return v.replace(\"\\\\\", \"\\\\\\\\\").replace(\"\\\"\", \"\\\\\\\"\");\n    }\n\n    static Integer age(String raw) {\n        try {\n            return Integer.valueOf(raw);\n        } catch (NumberFormatException e) {\n            return null;\n        }\n    }\n\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n        List<String> items = new ArrayList<>();\n        for (int k = 1; k <= n; k++) {\n            String name = sc.next(), raw = sc.next(), status = sc.next();\n            Integer value = age(raw);\n            String reason = name.equals(\"null\") ? \"NAME\" : (value == null || value < 0 || value > 150) ? \"AGE\" : (!status.equals(\"active\") && !status.equals(\"inactive\")) ? \"STATUS\" : null;\n            if (reason != null) {\n                System.out.println(\"INVALID \" + k + \" \" + reason);\n                continue;\n            }\n            items.add(\"{\\\"name\\\":\\\"\" + escape(name) + \"\\\",\\\"age\\\":\" + value + \",\\\"status\\\":\\\"\" + status.toUpperCase(Locale.ROOT) + \"\\\"}\");\n        }\n        System.out.println(\"[\" + String.join(\",\", items) + \"]\");\n    }\n}\n"
         }
       ]
     }

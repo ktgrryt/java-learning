@@ -3,10 +3,35 @@
   "title": "条件で分ける",
   "subtitle": "if で処理を選ぶ",
   "emoji": "🔀",
+  "objectives": [
+    {
+      "id": "ch04-o1",
+      "text": "`if` `else if` `else` で3つ以上の場合に分け、境界の値がどちらに入るかを決められる"
+    },
+    {
+      "id": "ch04-o2",
+      "text": "`&&` `||` `!` を組み合わせた条件を書ける"
+    },
+    {
+      "id": "ch04-o3",
+      "text": "文字列の比較に `equals` を使い、`==` との違いを説明できる"
+    },
+    {
+      "id": "ch04-o4",
+      "text": "値ごとの分岐を `switch` で書ける"
+    },
+    {
+      "id": "ch04-o5",
+      "text": "三項演算子と短絡評価を使って、`null` や0除算を避ける条件を書ける"
+    }
+  ],
   "lessons": [
     {
       "id": "4-1",
       "title": "if と else",
+      "objectiveIds": [
+        "ch04-o1"
+      ],
       "explanation": "## 「もし〜なら」を書く\n\nここまでのプログラムは上から下へ一直線に流れていました。\n`if` を使うと **条件によって道を分けられます**。\n\n```java\nif (age >= 18) {\n    System.out.println(\"大人です\");\n}\n```\n\n- `if` … 「もし」\n- `(age >= 18)` … 条件。**true か false になる式**を書く\n- `{ ... }` … 条件が true のときだけ実行される部分\n\n条件が false なら、波かっこの中はまるごと飛ばされます。\n\n### そうでなければ → else\n\n```java\nif (age >= 18) {\n    System.out.println(\"大人です\");\n} else {\n    System.out.println(\"子どもです\");\n}\n```\n\n`else` は「そうでなければ」です。`if` と `else` のどちらか一方だけが必ず実行されます。\n\n## 比べるための記号\n\n| 記号 | 意味 | 例 |\n|---|---|---|\n| `==` | 等しい | `n == 0` |\n| `!=` | 等しくない | `n != 0` |\n| `>` | より大きい | `n > 0` |\n| `>=` | 以上 | `n >= 0` |\n| `<` | より小さい | `n < 0` |\n| `<=` | 以下 | `n <= 0` |\n\n### `=` と `==` は別物\n\nこれは初心者がいちばん間違えるところです。\n\n```java\nn = 5     // 代入: n に 5 を入れる\nn == 5    // 比較: n は 5 と等しいか？（true か false になる）\n```\n\n`if (n = 5)` と書くとエラーになります。**比べるときは `=` を2つ**です。\n\n### 「以上」と「より大きい」を混同しないこと\n\n`>` と `>=` の違いは、ちょうど境界の値でだけ現れます。\n\n```java\nif (n > 0)     // n が 0 のときは false\nif (n >= 0)    // n が 0 のときは true\n```\n\nバグの多くはこの1文字から生まれます。「0はどっちに入るべきか？」を毎回考えるくせを付けましょう。\n\n> 💡 波かっこ `{ }` は1行のときも省略しないほうが安全です。\n> 後から行を足したときに、意図せず条件の外に出てしまう事故を防げます。",
       "samples": [
         {
@@ -121,6 +146,9 @@
     {
       "id": "4-2",
       "title": "else if で3つ以上に分ける",
+      "objectiveIds": [
+        "ch04-o1"
+      ],
       "explanation": "## 分岐を増やす\n\n`if` と `else` だけだと2択です。3つ以上に分けたいときは `else if` をはさみます。\n\n```java\nif (score >= 80) {\n    System.out.println(\"合格\");\n} else if (score >= 60) {\n    System.out.println(\"追試\");\n} else {\n    System.out.println(\"不合格\");\n}\n```\n\n`else if` は好きな数だけ並べられます。最後の `else` は省略もできます。\n\n## 大事なルール: 上から順に調べ、最初に当たった1つだけ実行される\n\n`score` が `85` のとき、何が起きるか追ってみます。\n\n1. `score >= 80` → true → **`合格` を出力してここで終わり**\n2. `score >= 60` は **調べられない**（もう抜けている）\n\n`score` が `70` のときは、\n\n1. `score >= 80` → false → 次へ\n2. `score >= 60` → true → `追試` を出力して終わり\n\nつまり `else if (score >= 60)` は、実際には\n「80未満で、かつ60以上」を意味します。`score < 80 && score >= 60` と書く必要はありません。\n\n```svg 上から順に調べ、最初に当たった1つだけを実行してそこで終わる\n<svg viewBox=\"0 0 720 258\">\n  <polygon class=\"fig-box-accent\" points=\"200,44 320,70 200,96 80,70\"/>\n  <text class=\"fig-t fig-mono fig-small fig-t-accent\" x=\"200\" y=\"70\" text-anchor=\"middle\">score &gt;= 80</text>\n  <line class=\"fig-line-ok\" x1=\"322\" y1=\"70\" x2=\"398\" y2=\"70\" marker-end=\"arrow-ok\"/>\n  <text class=\"fig-t fig-t-ok fig-small\" x=\"360\" y=\"56\" text-anchor=\"middle\">true</text>\n  <rect class=\"fig-box\" x=\"402\" y=\"50\" width=\"150\" height=\"40\" rx=\"6\"/>\n  <text class=\"fig-t\" x=\"477\" y=\"70\" text-anchor=\"middle\">合格</text>\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"562\" y=\"70\">ここで終わり</text>\n\n  <line class=\"fig-line\" x1=\"200\" y1=\"98\" x2=\"200\" y2=\"122\" marker-end=\"arrow\"/>\n  <text class=\"fig-t fig-t-ng fig-small\" x=\"214\" y=\"110\">false</text>\n\n  <polygon class=\"fig-box-accent\" points=\"200,124 320,150 200,176 80,150\"/>\n  <text class=\"fig-t fig-mono fig-small fig-t-accent\" x=\"200\" y=\"150\" text-anchor=\"middle\">score &gt;= 60</text>\n  <line class=\"fig-line-ok\" x1=\"322\" y1=\"150\" x2=\"398\" y2=\"150\" marker-end=\"arrow-ok\"/>\n  <text class=\"fig-t fig-t-ok fig-small\" x=\"360\" y=\"136\" text-anchor=\"middle\">true</text>\n  <rect class=\"fig-box\" x=\"402\" y=\"130\" width=\"150\" height=\"40\" rx=\"6\"/>\n  <text class=\"fig-t\" x=\"477\" y=\"150\" text-anchor=\"middle\">追試</text>\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"562\" y=\"150\">80未満かつ60以上</text>\n\n  <line class=\"fig-line\" x1=\"200\" y1=\"178\" x2=\"200\" y2=\"202\" marker-end=\"arrow\"/>\n  <text class=\"fig-t fig-t-ng fig-small\" x=\"214\" y=\"190\">false</text>\n  <rect class=\"fig-box\" x=\"125\" y=\"206\" width=\"150\" height=\"40\" rx=\"6\"/>\n  <text class=\"fig-t\" x=\"200\" y=\"226\" text-anchor=\"middle\">不合格</text>\n\n  <text class=\"fig-t fig-t-dim fig-small\" x=\"402\" y=\"200\">score が 85 なら1つ目で終わるので、</text>\n  <text class=\"fig-t fig-t-dim fig-small\" x=\"402\" y=\"222\">2つ目の条件は調べられもしない</text>\n</svg>\n```\n\n## 順番を間違えるとどうなるか\n\n条件のゆるいほうを先に書くと、後ろが永久に実行されません。\n\n```java\n// ✗ よくない例\nif (score >= 60) {\n    System.out.println(\"追試\");\n} else if (score >= 80) {   // ここには絶対に来ない\n    System.out.println(\"合格\");\n}\n```\n\n`score` が 85 でも、最初の `score >= 60` が true なので `追試` になってしまいます。\n**きびしい条件（範囲のせまいほう）から先に書く** のがコツです。\n\n> 💡 分岐を書いたら、必ず**境界の値**（この例なら 59, 60, 79, 80）を自分で追ってみましょう。\n> バグはほぼ必ず境界にひそんでいます。",
       "samples": [
         {
@@ -254,6 +282,9 @@
     {
       "id": "4-3",
       "title": "かつ / または（&& と ||）",
+      "objectiveIds": [
+        "ch04-o2"
+      ],
       "explanation": "## 条件を組み合わせる\n\n2つ以上の条件をまとめたいときに使います。\n\n| 記号 | 読み | true になるのは |\n|---|---|---|\n| `&&` | かつ (AND) | **両方** true のとき |\n| `\\|\\|` | または (OR) | **どちらか一方でも** true のとき |\n| `!` | ではない (NOT) | true と false を逆にする |\n\n```java\nif (age >= 18 && age < 65) {\n    System.out.println(\"大人料金\");\n}\n```\n\nこれは「18以上 **かつ** 65未満」です。`age` が 30 なら両方 true なので実行されます。\n`age` が 70 だと `age < 65` が false なので、全体も false です。\n\n### 「または」の例\n\n```java\nif (day == 6 || day == 7) {\n    System.out.println(\"週末です\");\n}\n```\n\n`day` が 6 でも 7 でも true になります。\n\n### やってしまいがちな間違い\n\n数学のように範囲をつなげて書くことはできません。\n\n```java\nif (18 <= age < 65)       // ✗ エラー。Javaではこう書けない\nif (18 <= age && age < 65) // ○ 条件を2つに分けて && でつなぐ\n```\n\n`age` を2回書くのが正しい形です。\n\n### && と || を混ぜるときはかっこを付ける\n\n```java\nif ((a && b) || c)     // 意図が明確\nif (a && b || c)       // && が先に効くので同じ意味だが、読み手が迷う\n```\n\n迷ったらかっこを付けましょう。読みやすさはバグを減らします。\n\n### ! で反転する\n\n```java\nboolean isMember = false;\nif (!isMember) {\n    System.out.println(\"会員ではありません\");\n}\n```\n\n`!isMember` は「isMember が false のとき true」です。\n\n> 💡 `&&` は左が false だと右を**評価しません**（そこで答えが決まるため）。\n> これは後々「null チェックを先に書く」というテクニックにつながります。",
       "samples": [
         {
@@ -393,6 +424,9 @@
     {
       "id": "4-4",
       "title": "文字列の比較は equals",
+      "objectiveIds": [
+        "ch04-o3"
+      ],
       "explanation": "## 文字列に == を使ってはいけない\n\n数を比べるときは `==` でよいのですが、**文字列では `==` を使いません**。\n\n```java\nString name = sc.next();\n\nif (name == \"admin\") { ... }        // ✗ うまく動かないことがある\nif (name.equals(\"admin\")) { ... }   // ○ こちらが正しい\n```\n\n理由をざっくり言うと、`==` は「同じ**箱**か？」を調べ、\n`equals` は「同じ**中身**か？」を調べるからです。\n文字列は同じ内容でも別の箱に入っていることがあるため、`==` では false になり得ます。\n\nやっかいなのは、短い文字列だと**たまたま `==` でも true になってしまう**ことです。\nだから「動いたから大丈夫」とは言えません。**文字列は必ず `equals`** と覚えてください。\n\n### 使い方\n\n```java\nname.equals(\"admin\")      // name の中身が \"admin\" なら true\n!name.equals(\"admin\")     // 違うなら true（! で反転）\n```\n\n### 大文字・小文字を無視して比べる\n\n`equals` は大文字と小文字を区別します。`Admin` と `admin` は別物です。\n区別せず比べたいときは `equalsIgnoreCase` を使います。\n\n```java\n\"Admin\".equals(\"admin\");             // false\n\"Admin\".equalsIgnoreCase(\"admin\");   // true\n```\n\n### 文字列でよく使う操作\n\n```java\nString s = \"Hello\";\ns.length()          // 5      文字数\ns.charAt(0)         // 'H'    0番目の文字\ns.toUpperCase()     // \"HELLO\"\ns.contains(\"ell\")   // true   含んでいるか\ns.isEmpty()         // false  空文字か\n```\n\n`charAt` が返すのは文字列ではなく **`char`**（文字1つ）です。だから `'H'` と\nシングルクォートで書いてあります（`2-5`）。\n\n`length()` にはかっこが付くことに注意してください（配列の `length` はかっこ無しです。第6章で出てきます）。\n\n> 💡 `sc.next()` は空白までの1単語を、`sc.nextLine()` は改行までの1行を読みます。\n> 名前など空白を含まないものは `next()` で十分です。",
       "samples": [
         {
@@ -517,6 +551,9 @@
     {
       "id": "4-5",
       "title": "switch で値ごとに分ける",
+      "objectiveIds": [
+        "ch04-o4"
+      ],
       "explanation": "## 1つの値を、たくさんの候補と比べるとき\n\n`else if` を何段も並べると読みにくくなります。\n「1つの変数が、どの値と等しいか」だけを見る場合は `switch` がすっきりします。\n\n```java\nswitch (day) {\n    case 1:\n        System.out.println(\"月曜日\");\n        break;\n    case 2:\n        System.out.println(\"火曜日\");\n        break;\n    default:\n        System.out.println(\"そんな曜日はありません\");\n}\n```\n\n- `case 1:` … `day` が 1 のときここから実行\n- `break;` … switch を抜ける。**これを忘れると次の case に流れ込みます**\n- `default:` … どの case にも当てはまらなかったとき（`else` にあたる）\n\n### break を忘れると起こること\n\n```java\nswitch (day) {\n    case 1:\n        System.out.println(\"月曜日\");\n        // break を書き忘れた\n    case 2:\n        System.out.println(\"火曜日\");\n        break;\n}\n```\n\n`day` が 1 のとき、`月曜日` と `火曜日` の **両方** が出力されます。\nこれは「フォールスルー」と呼ばれる仕様で、バグの原因になりがちです。\n**case を書いたら break** をセットで覚えましょう。\n\n```svg `break` があれば1つだけ、無ければ下の `case` に流れ込む（フォールスルー）\n<svg viewBox=\"0 0 720 252\">\n  <text class=\"fig-t fig-title\" x=\"197\" y=\"22\" text-anchor=\"middle\">break がある</text>\n  <text class=\"fig-t fig-title\" x=\"537\" y=\"22\" text-anchor=\"middle\">break を書き忘れた</text>\n\n  <rect class=\"fig-box-accent\" x=\"44\" y=\"40\" width=\"306\" height=\"44\" rx=\"6\"/>\n  <text class=\"fig-t fig-mono fig-small fig-t-accent\" x=\"60\" y=\"56\">case 1:</text>\n  <text class=\"fig-t fig-small\" x=\"60\" y=\"74\">月曜日 を出力 → break</text>\n  <path class=\"fig-line-accent\" d=\"M 44 62 L 22 62 L 22 186 L 40 186\" marker-end=\"arrow-accent\"/>\n  <text class=\"fig-t fig-t-accent fig-small\" x=\"14\" y=\"124\" text-anchor=\"middle\" transform=\"rotate(-90 14 124)\">break で抜ける</text>\n  <rect class=\"fig-box-dim\" x=\"44\" y=\"104\" width=\"306\" height=\"44\" rx=\"6\"/>\n  <text class=\"fig-t fig-mono fig-small fig-t-faint\" x=\"60\" y=\"120\">case 2:</text>\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"60\" y=\"138\">実行されない</text>\n  <rect class=\"fig-box\" x=\"44\" y=\"166\" width=\"306\" height=\"40\" rx=\"6\"/>\n  <text class=\"fig-t fig-small\" x=\"197\" y=\"186\" text-anchor=\"middle\">switch の外へ</text>\n  <text class=\"fig-t fig-t-ok fig-small\" x=\"44\" y=\"234\">出力は 月曜日 だけ</text>\n\n  <rect class=\"fig-box-accent\" x=\"384\" y=\"40\" width=\"306\" height=\"44\" rx=\"6\"/>\n  <text class=\"fig-t fig-mono fig-small fig-t-accent\" x=\"400\" y=\"56\">case 1:</text>\n  <text class=\"fig-t fig-small\" x=\"400\" y=\"74\">月曜日 を出力（break なし）</text>\n  <line class=\"fig-line-ng\" x1=\"537\" y1=\"84\" x2=\"537\" y2=\"100\" marker-end=\"arrow-ng\"/>\n  <text class=\"fig-t fig-t-ng fig-small\" x=\"549\" y=\"94\">下へ流れ込む</text>\n  <rect class=\"fig-box-ng\" x=\"384\" y=\"104\" width=\"306\" height=\"44\" rx=\"6\"/>\n  <text class=\"fig-t fig-mono fig-small fig-t-ng\" x=\"400\" y=\"120\">case 2:</text>\n  <text class=\"fig-t fig-small\" x=\"400\" y=\"138\">火曜日 も出力されてしまう</text>\n  <rect class=\"fig-box\" x=\"384\" y=\"166\" width=\"306\" height=\"40\" rx=\"6\"/>\n  <text class=\"fig-t fig-small\" x=\"537\" y=\"186\" text-anchor=\"middle\">switch の外へ</text>\n  <text class=\"fig-t fig-t-ng fig-small\" x=\"384\" y=\"234\">出力は 月曜日 と 火曜日 の両方</text>\n</svg>\n```\n\n### まとめて同じ処理にしたいとき\n\ncase を続けて並べると、複数の値を1つの処理にまとめられます。\n\n```java\nswitch (day) {\n    case 6:\n    case 7:\n        System.out.println(\"週末\");\n        break;\n    default:\n        System.out.println(\"平日\");\n}\n```\n\n`day` が 6 でも 7 でも `週末` になります。\n\n### 新しい書き方（矢印つき switch）\n\nJava 14 以降では `->` を使った書き方もできます。break が不要で安全です。\n\n```java\nswitch (day) {\n    case 1 -> System.out.println(\"月曜日\");\n    case 2 -> System.out.println(\"火曜日\");\n    default -> System.out.println(\"そんな曜日はありません\");\n}\n```\n\nどちらで書いても構いません。既存のコードを読むために古い形も知っておくとよいでしょう。\n\n> 💡 `switch` は `int` や `String` などに使えます。「範囲」（`x > 10` など）は\n> 書けないので、そういうときは `else if` を使います。",
       "samples": [
         {
@@ -645,6 +682,9 @@
     {
       "id": "4-6",
       "title": "三項演算子と、短絡評価",
+      "objectiveIds": [
+        "ch04-o5"
+      ],
       "explanation": "## if を1行で書く — 三項演算子\n\n「条件によって値を選ぶ」だけなら、`if` を使わずに1行で書けます。\n\n```java\n条件 ? 条件が真のときの値 : 条件が偽のときの値\n```\n\n例えば次の2つはまったく同じ意味です。\n\n```java\n// if で書く\nString msg;\nif (score >= 80) {\n    msg = \"合格\";\n} else {\n    msg = \"不合格\";\n}\n\n// 三項演算子で書く\nString msg = (score >= 80) ? \"合格\" : \"不合格\";\n```\n\n`?` と `:` を使うので **条件演算子** とも呼ばれます。Javaで唯一、値を3つ取る演算子です。\n\n`println` の中に直接書くこともできます。\n\n```java\nint n = -5;\nSystem.out.println(n >= 0 ? \"0以上\" : \"マイナス\");\n```\n\nつなげて3択以上にもできますが、深くすると途端に読めなくなります。\n\n```java\nString rank = score >= 80 ? \"A\" : score >= 60 ? \"B\" : \"C\";\n```\n\n> 💡 「値を選ぶだけ」なら三項演算子、「処理を分ける」なら `if`。迷ったら `if` で構いません。\n\n## 短絡評価 — 右側が調べられないことがある\n\n`&&` と `||` には、覚えておくべき大事な性質があります。\n\n- `A && B` … `A` が **偽** なら、その時点で答えは偽に決まる。だから **`B` は評価されない**\n- `A || B` … `A` が **真** なら、その時点で答えは真に決まる。だから **`B` は評価されない**\n\nこれを **短絡評価（ショートサーキット）** といいます。\n\n```java\nint b = 0;\nif (b != 0 && 10 / b > 1) {      // b != 0 が偽なので 10 / b は実行されない → 安全\n    System.out.println(\"大きい\");\n}\n```\n\nもし順番を入れ替えて `10 / b > 1 && b != 0` と書くと、`10 / 0` が先に実行されて\n**ArithmeticException で落ちます**。つまり `&&` の左右の順番には意味があります。\n\n同じ理由で、`null` チェックは必ず左に書きます。\n\n```java\nif (s != null && s.length() > 0) {   // ✅ s が null なら length() を呼ばない\n```\n\n```svg `&&` は左が false と分かった時点で右を評価しない。だから危険な式は右に置く\n<svg viewBox=\"0 0 720 258\">\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"14\" y=\"22\">b が 0 のとき</text>\n\n  <path class=\"fig-line-ok\" d=\"M 118 54 L 118 38 L 595 38 L 595 54\" marker-end=\"arrow-ok\"/>\n  <text class=\"fig-t fig-t-ok fig-small\" x=\"356\" y=\"30\" text-anchor=\"middle\">左だけで答えが決まるので、そのまま結果へ</text>\n  <rect class=\"fig-box-accent\" x=\"30\" y=\"56\" width=\"176\" height=\"44\" rx=\"6\"/>\n  <text class=\"fig-t fig-mono fig-small fig-t-accent\" x=\"118\" y=\"72\" text-anchor=\"middle\">b != 0</text>\n  <text class=\"fig-t fig-t-ng fig-small\" x=\"118\" y=\"90\" text-anchor=\"middle\">false</text>\n  <line class=\"fig-line-ng fig-dashed\" x1=\"210\" y1=\"78\" x2=\"240\" y2=\"78\"/>\n  <line class=\"fig-line-ng\" x1=\"246\" y1=\"72\" x2=\"258\" y2=\"84\"/>\n  <line class=\"fig-line-ng\" x1=\"258\" y1=\"72\" x2=\"246\" y2=\"84\"/>\n  <rect class=\"fig-box-dim\" x=\"266\" y=\"56\" width=\"200\" height=\"44\" rx=\"6\"/>\n  <text class=\"fig-t fig-mono fig-small fig-t-faint\" x=\"366\" y=\"72\" text-anchor=\"middle\">10 / b &gt; 1</text>\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"366\" y=\"90\" text-anchor=\"middle\">評価されない → 落ちない</text>\n  <rect class=\"fig-box-ok\" x=\"510\" y=\"56\" width=\"170\" height=\"44\" rx=\"6\"/>\n  <text class=\"fig-t fig-small fig-t-ok\" x=\"595\" y=\"78\" text-anchor=\"middle\">全体は false</text>\n\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"14\" y=\"140\">左右を入れ替えると</text>\n  <rect class=\"fig-box-ng\" x=\"30\" y=\"156\" width=\"200\" height=\"44\" rx=\"6\"/>\n  <text class=\"fig-t fig-mono fig-small fig-t-ng\" x=\"130\" y=\"172\" text-anchor=\"middle\">10 / b &gt; 1</text>\n  <text class=\"fig-t fig-t-ng fig-small\" x=\"130\" y=\"190\" text-anchor=\"middle\">先に評価される</text>\n  <line class=\"fig-line-ng\" x1=\"234\" y1=\"178\" x2=\"286\" y2=\"178\" marker-end=\"arrow-ng\"/>\n  <rect class=\"fig-box-ng\" x=\"290\" y=\"156\" width=\"290\" height=\"44\" rx=\"6\"/>\n  <text class=\"fig-t fig-small fig-t-ng\" x=\"435\" y=\"178\" text-anchor=\"middle\">ArithmeticException で落ちる</text>\n\n  <text class=\"fig-t fig-t-dim fig-small\" x=\"14\" y=\"228\">だから <tspan class=\"fig-mono\">s != null &amp;&amp; s.length() &gt; 0</tspan> の順に書く。null なら length() は呼ばれない</text>\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"14\" y=\"250\">似ている <tspan class=\"fig-mono\">&amp;</tspan> <tspan class=\"fig-mono\">|</tspan> は短絡しないので、右側も必ず評価される</text>\n</svg>\n```\n\n### `&` と `|` は必ず両方を評価する\n\n`&&` `||` に似た `&` `|` もあり、結果（真偽）は同じですが **短絡しません**。\n右側も必ず評価されます。\n\n> ⚠️ 間違えやすい点 … `i` の最終値を問う問題で `&&` と `&` が入れ替えられます。\n\n```java\nint i = 0;\nboolean r1 = false && (i++ > 0);   // 右は評価されない → i は 0 のまま\nboolean r2 = false &  (i++ > 0);   // 右も評価される   → i は 1 になる\n```\n\n`r1` も `r2` も `false` ですが、`i` の値が変わります。ここが狙われます。",
       "samples": [
         {
@@ -828,6 +868,10 @@
     {
       "id": "4-7",
       "title": "章末演習：条件分岐",
+      "objectiveIds": [
+        "ch04-o1",
+        "ch04-o2"
+      ],
       "explanation": "## この章の知識を、自分の手で組み合わせよう\n\nここでは、**if・else if・論理演算子・switch**をまとめて使います。新しい文法は登場しません。分からなくなったら、直前までの解説やサンプルへ戻って確認して大丈夫です。\n\n### 3問の進め方\n\n1. **基本**で、中心となる書き方をもう一度使う\n2. **組み合わせ**で、章内の複数の知識を一緒に使う\n3. **実践**で、少し現実的な入力と条件を整理する\n\nまず入力例と期待される出力を紙に書き、処理を小さな手順へ分けてからコードにすると進めやすくなります。",
       "samples": [
         {

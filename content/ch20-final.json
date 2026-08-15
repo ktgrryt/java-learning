@@ -3,10 +3,31 @@
   "title": "総仕上げ",
   "subtitle": "全部を組み合わせて使う",
   "emoji": "🎓",
+  "objectives": [
+    {
+      "id": "ch20-o1",
+      "text": "`import` と `import static` を使い分け、モジュールの `exports` の意味を説明できる"
+    },
+    {
+      "id": "ch20-o2",
+      "text": "`record` とコレクションを組み合わせて、集計と並べ替えを書ける"
+    },
+    {
+      "id": "ch20-o3",
+      "text": "`Map` で単語を集計し、最大・最小や検索結果を取り出せる"
+    },
+    {
+      "id": "ch20-o4",
+      "text": "検査例外・分岐・集計を1つのプログラムへ組み合わせられる"
+    }
+  ],
   "lessons": [
     {
       "id": "20-1",
       "title": "import の総整理と、モジュールの概要",
+      "objectiveIds": [
+        "ch20-o1"
+      ],
       "explanation": "## import の復習\n\n第9章で見たように、`import` は **名前を短く書くための宣言** です。\n何かを読み込んでいるわけではないので、完全修飾名で書けば省略できます。\n\n```java\nimport java.util.Scanner;\nScanner sc = new Scanner(System.in);                     // 短く書ける\n\njava.util.Scanner sc = new java.util.Scanner(System.in); // import なしでもOK\n```\n\n### アスタリスクの範囲\n\n`import java.util.*;` はそのパッケージの **クラス全部** を対象にします。\nただし **サブパッケージは含みません**。\n\n```java\nimport java.util.*;              // List, Map, Scanner ... は使える\n                                 // java.util.function.Predicate は使えない\nimport java.util.function.*;     // これも別に必要\n```\n\n> ⚠️ 間違えやすい点 … `java.util.*` を import しても `java.util.function.Predicate` は短く書けません。パッケージは階層ではなく「別の名前」だからです。\n\n### 名前がぶつかったら\n\n`java.util.Date` と `java.sql.Date` のように同名のクラスがあるとき、\n両方を `import` するとコンパイルエラーです。片方だけ `import` して、\nもう片方は完全修飾名で書きます。\n\n## import static\n\n**クラスの `static` メンバーを、クラス名なしで使える** ようにする書き方があります。\n\n```java\nimport static java.lang.Math.abs;\nimport static java.lang.Math.max;\n\nSystem.out.println(abs(-5));        // Math. が要らない\nSystem.out.println(max(3, 8));\n```\n\nまとめて指定もできます。\n\n```java\nimport static java.lang.Math.*;     // abs, max, min, PI ... すべて\n```\n\n`Math` は `java.lang` なので普通の `import` は不要ですが、\n**`import static` は別に必要** です。ここは混同しやすいところです。\n\n便利ですが、どのクラスのメソッドか分からなくなるので、使いすぎには注意します。\n\n## モジュールの概要\n\nJava 9 から **モジュールシステム（JPMS）** が入りました。\nパッケージをさらにまとめる、より大きな単位です。\n\n宣言は `module-info.java` という専用のファイルに書きます。\n\n```java\nmodule com.example.app {\n    requires java.sql;              // 使うモジュール\n    exports com.example.api;        // 外に公開するパッケージ\n}\n```\n\n- `requires` … このモジュールが依存するモジュール\n- `exports` … 他のモジュールから使わせるパッケージ\n\nねらいは **「公開するものを絞れる」** ことです。\n`public` なクラスでも、`exports` していないパッケージのものは外から使えません。\n第9章のアクセス修飾子より上の層で、公開範囲をコントロールする仕組みです。\n\n標準ライブラリもモジュールに分割されています。\n\n| モジュール | 中身 |\n|---|---|\n| `java.base` | `java.lang` `java.util` `java.io` `java.time` など基本 |\n| `java.sql` | データベース関連 |\n| `java.desktop` | GUI 関連 |\n\n**`java.base` は暗黙的に requires される** ので、いつでも使えます。\nだから `String` や `List` や `LocalDate` を使うのに宣言は要りません。\n\n> ⚠️ 間違えやすい点 … `module-info.java` を置かなければ、そのコードは「名前のないモジュール（unnamed module）」として扱われ、**従来どおりクラスパスで動きます**。モジュールは必須ではありません。\n\nこのアプリも `module-info.java` を置いていないので、モジュールを意識せずに動いています。\nまずは「何のための仕組みか」と `requires` / `exports` の意味を押さえておけば十分です。\n\n> 💡 まとめると入れ物は3段階です。**クラス → パッケージ → モジュール**。それぞれに「どこまで見せるか」を決める仕組み（アクセス修飾子 / `exports`）があります。",
       "samples": [
         {
@@ -133,6 +154,9 @@
     {
       "id": "20-2",
       "title": "総合演習：在庫を集計する",
+      "objectiveIds": [
+        "ch20-o2"
+      ],
       "explanation": "## record + コレクション + Comparator\n\n第18章の `record`、第16章の `List`、第17章の `Comparator` を組み合わせます。\n\n### データを record で表す\n\n```java\nrecord Item(String name, int count, int price) {\n    int subtotal() {\n        return count * price;\n    }\n}\n```\n\n小計のように保持データから導ける値をメソッドで計算すれば、フィールド間の不整合を避けられます。\nなお、この例の `int` の掛け算自体はオーバーフローし得るため、実務では金額の範囲に応じて `long` や `BigDecimal` も検討します。\n\n### 2つの基準で並べ替える\n\n```java\nitems.sort(Comparator.comparingInt(Item::subtotal).reversed()\n        .thenComparing(Item::name));\n```\n\nこれは小計を降順、同じ小計なら名前を昇順にします。`reversed()` は直前の `comparingInt(...)` にかかり、\n後から追加した `thenComparing` まで反転しません。\n\nラムダで書く場合は、減算ではなく `Integer.compare` を使います。減算はオーバーフローで符号が逆転し、\n`Comparator` の規約に反する結果を返す可能性があるためです。\n\n```java\nitems.sort((a, b) -> {\n    int bySubtotal = Integer.compare(b.subtotal(), a.subtotal());\n    return bySubtotal != 0 ? bySubtotal : a.name().compareTo(b.name());\n});\n```\n\n> 💡 `Item::subtotal` は `item -> item.subtotal()` と同じ意味のメソッド参照です。\n\n> ⚠️ `record` のアクセサは `getName()` ではなく `name()` です。",
       "samples": [
         {
@@ -261,6 +285,9 @@
     {
       "id": "20-3",
       "title": "総合演習：単語を集計する",
+      "objectiveIds": [
+        "ch20-o3"
+      ],
       "explanation": "## Map + Set + String を組み合わせる\n\n第14章の `String`、第16章の `Map` と `Set` を合わせて使います。\n「数える」「重複を除く」「条件で絞る」という3つを1つの問題でやります。\n\n### 数える\n\n第16章の定番です。\n\n```java\nMap<String, Integer> counts = new HashMap<>();\nfor (String w : words) {\n    counts.put(w, counts.getOrDefault(w, 0) + 1);\n}\n```\n\n### 最多のものを探す（同数なら辞書順）\n\n`HashMap` は並び順を約束しないので、そのまま回すと\n「同数のときどちらが選ばれるか」が実行ごとに変わってしまいます。\n\nそこで **キーを辞書順にそろえてから** 回します。`TreeSet` に入れ直すのが簡単です。\n\n```java\nSet<String> keys = new TreeSet<>(counts.keySet());\n\nString best = null;\nint bestCount = 0;\nfor (String key : keys) {\n    if (counts.get(key) > bestCount) {      // > なので先に出た方が残る\n        best = key;\n        bestCount = counts.get(key);\n    }\n}\n```\n\n辞書順に見ていって `>` で更新するので、同数なら **辞書順で先のもの** が残ります。\n第6章・第11章でやった「最大値を探す」と同じ形です。\n\n> ⚠️ 間違えやすい点 … `counts.keySet()` の順番は `HashMap` では不定です。出力の順番が問題になるときは、必ず `TreeSet` や `List.sort` で順番を決めてください。\n\n### 条件で絞る\n\n「長さ3以上の単語だけ」は、`TreeSet` に入れるときに `if` で選ぶだけです。\n`Set` なので重複は自動で消え、`TreeSet` なので辞書順に並びます。\n\n```java\nSet<String> longWords = new TreeSet<>();\nfor (String w : words) {\n    if (w.length() >= 3) {\n        longWords.add(w);\n    }\n}\n```\n\n`Set` をそのまま `println` すると `[apple, fig, kiwi]` の形で出力されます。\n\n> 💡 「重複を除いて並べる」は `TreeSet` に入れるだけで終わります。自分でループを書いて重複チェックをする必要はありません。道具を知っていると短く書けます。",
       "samples": [
         {
@@ -384,6 +411,9 @@
     {
       "id": "20-4",
       "title": "最終問題：成績を処理する",
+      "objectiveIds": [
+        "ch20-o4"
+      ],
       "explanation": "## 学んだことを全部使う\n\n最後の問題です。次のものを組み合わせます。\n\n- 独自の **検査例外**（第13章）\n- **`switch` 式**（第18章）\n- **コレクション**（第16章）\n- 整数の割り算と境界値（第3章・第4章）\n\n### 検査例外で「ありえない値」を弾く\n\n点数は `0`〜`100` のはずです。範囲外なら例外を投げて、呼び出し元に判断させます。\n\n```java\nclass InvalidScoreException extends Exception {\n    InvalidScoreException(String message) {\n        super(message);\n    }\n}\n\nstatic int check(int score) throws InvalidScoreException {\n    if (score < 0 || score > 100) {\n        throw new InvalidScoreException(\"範囲外: \" + score);\n    }\n    return score;\n}\n```\n\n`Exception` を継承したので **検査例外** です。呼び出し側は `try-catch` を\n書かないとコンパイルできません（第13章）。「対処を忘れられない」のが利点です。\n\n### switch 式で評価を決める\n\n`switch` は等値の比較なので、範囲の判定には使えません。\nそこで **`score / 10`** にしてから使います。整数の割り算で切り捨てられるので、\n`95 / 10` は `9`、`89 / 10` は `8` になります。\n\n```java\nString grade = switch (score / 10) {\n    case 10, 9 -> \"A\";\n    case 8, 7 -> \"B\";\n    case 6 -> \"C\";\n    default -> \"D\";\n};\n```\n\n`100` のときだけ `10` になるので、`case 10` を忘れないようにします。\nこれで「90以上A、70以上B、60以上C、それ未満D」が表せます。\n\n### 平均は整数の割り算\n\n有効な点数だけを足して、その件数で割ります。\n**有効な点数が1つもないときに `0` で割らない** よう気をつけてください（第4章の短絡評価）。\n\n```java\nint average = validCount == 0 ? 0 : sum / validCount;\n```\n\n> ⚠️ 間違えやすい点 … 例外を投げる `check` を `try` の中で呼び、`catch` の中では\n> 「範囲外」の出力だけをして、集計には加えないようにします。`catch` で `continue`\n> するか、`try` の中に集計まで書くかで、結果が変わってしまいます。\n\n> 💡 ここまででJavaの基礎文法をひととおり使いました。あとは「なぜそう書くのか」を自分の言葉で説明できるかどうかです。模範解答を読むだけでなく、1行ずつ理由を言えるか試してみてください。",
       "samples": [
         {
@@ -558,6 +588,10 @@
     {
       "id": "20-5",
       "title": "章末演習：Java SE総合",
+      "objectiveIds": [
+        "ch20-o2",
+        "ch20-o3"
+      ],
       "explanation": "## この章の知識を、自分の手で組み合わせよう\n\nここでは、**入力・クラス・コレクション・ラムダ・日付を横断した設計**をまとめて使います。新しい文法は登場しません。分からなくなったら、直前までの解説やサンプルへ戻って確認して大丈夫です。\n\n### 3問の進め方\n\n1. **基本**で、中心となる書き方をもう一度使う\n2. **組み合わせ**で、章内の複数の知識を一緒に使う\n3. **実践**で、少し現実的な入力と条件を整理する\n\nまず入力例と期待される出力を紙に書き、処理を小さな手順へ分けてからコードにすると進めやすくなります。",
       "samples": [
         {
@@ -566,7 +600,7 @@
         }
       ],
       "task": "【基本】n個の `商品名 個数` を読み、TreeMapで商品ごとの合計個数を集計してキー順に表示してください。",
-      "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        int n = s.nextInt();\n        Map<String, Integer> stock = new TreeMap<>();\n        for (int i = 0; i < n; i++) {\n            String name = s.next();\n            int count = s.nextInt();\n            /* TODO */\n        }\n        stock.forEach((k, v) -> System.out.println(k + \"=\" + v));\n    }\n}\n",
+      "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n        Map<String, Integer> stock = new TreeMap<>();\n        for (int i = 0; i < n; i++) {\n            String name = sc.next();\n            int count = sc.nextInt();\n            /* TODO */\n        }\n        stock.forEach((k, v) -> System.out.println(k + \"=\" + v));\n    }\n}\n",
       "visibleCases": [
         {
           "label": "重複商品",
@@ -595,12 +629,12 @@
         "商品名をキー、個数を値にします。",
         "`merge(name, count, Integer::sum)` で同じ商品の個数を足します。"
       ],
-      "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        int n = s.nextInt();\n        Map<String, Integer> stock = new TreeMap<>();\n        for (int i = 0; i < n; i++) {\n            String name = s.next();\n            int count = s.nextInt();\n            stock.put(name, stock.getOrDefault(name, 0) + count);\n        }\n        stock.forEach((k, v) -> System.out.println(k + \"=\" + v));\n    }\n}\n",
+      "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n        Map<String, Integer> stock = new TreeMap<>();\n        for (int i = 0; i < n; i++) {\n            String name = sc.next();\n            int count = sc.nextInt();\n            stock.put(name, stock.getOrDefault(name, 0) + count);\n        }\n        stock.forEach((k, v) -> System.out.println(k + \"=\" + v));\n    }\n}\n",
       "extraTasks": [
         {
           "kind": "drill",
           "task": "【組み合わせ】`record Result(String name,int score)` を作り、n人分を読みます。60点以上だけを点数の高い順、同点なら名前順に並べ、`name:score` を表示してください。Streamで書きます。",
-          "starterCode": "import java.util.*;\n\nrecord Result(String name, int score) { }\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        int n = s.nextInt();\n        List<Result> list = new ArrayList<>();\n        for (int i = 0; i < n; i++) list.add(new Result(s.next(), s.nextInt()));\n        /* TODO */\n    }\n}\n",
+          "starterCode": "import java.util.*;\n\nrecord Result(String name, int score) { }\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n        List<Result> list = new ArrayList<>();\n        for (int i = 0; i < n; i++) list.add(new Result(sc.next(), sc.nextInt()));\n        /* TODO */\n    }\n}\n",
           "visibleCases": [
             {
               "label": "合格者",
@@ -629,7 +663,7 @@
             "まずscoreが60以上のResultだけfilterします。",
             "点数はreversed、続けて名前の自然順を指定します。"
           ],
-          "solution": "import java.util.*;\n\nrecord Result(String name, int score) { }\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        int n = s.nextInt();\n        List<Result> list = new ArrayList<>();\n        for (int i = 0; i < n; i++) list.add(new Result(s.next(), s.nextInt()));\n        list.stream().filter(r -> r.score() >= 60).sorted(Comparator.comparingInt(Result::score).reversed().thenComparing(Result::name)).forEach(r -> System.out.println(r.name() + \":\" + r.score()));\n    }\n}\n",
+          "solution": "import java.util.*;\n\nrecord Result(String name, int score) { }\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n        List<Result> list = new ArrayList<>();\n        for (int i = 0; i < n; i++) list.add(new Result(sc.next(), sc.nextInt()));\n        list.stream().filter(r -> r.score() >= 60).sorted(Comparator.comparingInt(Result::score).reversed().thenComparing(Result::name)).forEach(r -> System.out.println(r.name() + \":\" + r.score()));\n    }\n}\n",
           "sourceChecks": [
             {
               "pattern": "\\brecord\\s+Result\\s*\\(",
@@ -654,9 +688,12 @@
           ]
         },
         {
+          "objectiveIds": [
+            "ch20-o2"
+          ],
           "kind": "applied",
           "task": "【実践】注文日 `yyyy-MM-dd` と発送までの日数、商品名を読みます。`record Shipment(String item, LocalDate shipDate)` を作り、`商品名 ships yyyy-MM-dd` と表示してください。",
-          "starterCode": "import java.time.*;\nimport java.util.*;\n\nrecord Shipment(String item, LocalDate shipDate) { }\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        LocalDate ordered = LocalDate.parse(s.next());\n        long days = s.nextLong();\n        String item = s.next();\n        /* TODO */\n    }\n}\n",
+          "starterCode": "import java.time.*;\nimport java.util.*;\n\nrecord Shipment(String item, LocalDate shipDate) { }\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        LocalDate ordered = LocalDate.parse(sc.next());\n        long days = sc.nextLong();\n        String item = sc.next();\n        /* TODO */\n    }\n}\n",
           "visibleCases": [
             {
               "label": "翌日発送",
@@ -685,7 +722,7 @@
             "発送日は `ordered.plusDays(days)` です。",
             "計算した日付と商品名でShipmentを生成します。"
           ],
-          "solution": "import java.time.*;\nimport java.util.*;\n\nrecord Shipment(String item, LocalDate shipDate) { }\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        LocalDate ordered = LocalDate.parse(s.next());\n        long days = s.nextLong();\n        String item = s.next();\n        Shipment shipment = new Shipment(item, ordered.plusDays(days));\n        System.out.println(shipment.item() + \" ships \" + shipment.shipDate());\n    }\n}\n",
+          "solution": "import java.time.*;\nimport java.util.*;\n\nrecord Shipment(String item, LocalDate shipDate) { }\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        LocalDate ordered = LocalDate.parse(sc.next());\n        long days = sc.nextLong();\n        String item = sc.next();\n        Shipment shipment = new Shipment(item, ordered.plusDays(days));\n        System.out.println(shipment.item() + \" ships \" + shipment.shipDate());\n    }\n}\n",
           "sourceChecks": [
             {
               "pattern": "new\\s+Shipment\\s*\\(",

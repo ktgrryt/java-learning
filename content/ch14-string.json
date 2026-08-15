@@ -3,10 +3,31 @@
   "title": "String と StringBuilder",
   "subtitle": "文字列を自在に扱う",
   "emoji": "🔤",
+  "objectives": [
+    {
+      "id": "ch14-o1",
+      "text": "`String` が不変であることを、メソッドの戻り値を使って確かめられる"
+    },
+    {
+      "id": "ch14-o2",
+      "text": "長さ・切り出し・探す・置き換えなど `String` のメソッドを使い分けられる"
+    },
+    {
+      "id": "ch14-o3",
+      "text": "文字列の比較に `equals` を使い、`==` の結果が作り方で変わる理由を説明できる"
+    },
+    {
+      "id": "ch14-o4",
+      "text": "`StringBuilder` で文字列を組み立て、区切り文字を余らせずに出力できる"
+    }
+  ],
   "lessons": [
     {
       "id": "14-1",
       "title": "String は変わらない",
+      "objectiveIds": [
+        "ch14-o1"
+      ],
       "explanation": "## 文字列は一度作ったら変えられない\n\n`String` は **不変（イミュータブル）** です。第9章で作った `Money` と同じ性質で、\n一度できた文字列の中身は書き換わりません。\n\n大文字化・置換・空白除去などの**変換メソッド**は、元の文字列を変更せず、結果の `String` を返します。\n結果が元と同じ場合は同じインスタンスを返すこともあるため、「常に新しいインスタンスを作る」という意味ではありません。\nまた、`length()` や `equals()` のように `String` 以外を返すメソッドもあります。\n\n```java\nString s = \"abc\";\ns.toUpperCase();                 // 結果 \"ABC\" を返すが、ここでは捨てている\nSystem.out.println(s);           // abc（s が指す文字列は変わらない）\n```\n\n変換結果が必要なら、戻り値を受け取ります。\n\n```java\ns = s.toUpperCase();\nSystem.out.println(s);           // ABC\n```\n\n覚えるべきなのは、**文字列を変換するメソッドでは戻り値を使う**ことです。\n\n```svg 変換メソッドは元の文字列を変えない。結果は戻り値として返ってくる\n<svg viewBox=\"0 0 720 248\">\n  <text class=\"fig-t fig-mono fig-small fig-t-ng\" x=\"14\" y=\"24\">s.toUpperCase();</text>\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"170\" y=\"24\">… 戻り値を捨てた場合</text>\n  <rect class=\"fig-box\" x=\"30\" y=\"44\" width=\"110\" height=\"36\" rx=\"6\"/>\n  <text class=\"fig-t fig-mono\" x=\"85\" y=\"62\" text-anchor=\"middle\">s</text>\n  <line class=\"fig-line\" x1=\"144\" y1=\"62\" x2=\"226\" y2=\"62\" marker-end=\"arrow\"/>\n  <rect class=\"fig-box\" x=\"230\" y=\"44\" width=\"140\" height=\"36\" rx=\"6\"/>\n  <text class=\"fig-t fig-mono\" x=\"300\" y=\"62\" text-anchor=\"middle\">\"abc\"</text>\n  <rect class=\"fig-box-dim\" x=\"430\" y=\"44\" width=\"140\" height=\"36\" rx=\"6\"/>\n  <text class=\"fig-t fig-mono fig-t-faint\" x=\"500\" y=\"62\" text-anchor=\"middle\">\"ABC\"</text>\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"706\" y=\"62\" text-anchor=\"end\">誰も指さないので捨てられる</text>\n  <text class=\"fig-t fig-t-ng fig-small\" x=\"30\" y=\"104\">s の指し先は変わらないので、出力は abc のまま</text>\n\n  <text class=\"fig-t fig-mono fig-small fig-t-ok\" x=\"14\" y=\"140\">s = s.toUpperCase();</text>\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"204\" y=\"140\">… 戻り値を受け取った場合</text>\n  <path class=\"fig-line-ok\" d=\"M 85 164 L 85 152 L 500 152 L 500 164\" marker-end=\"arrow-ok\"/>\n  <rect class=\"fig-box\" x=\"30\" y=\"168\" width=\"110\" height=\"36\" rx=\"6\"/>\n  <text class=\"fig-t fig-mono\" x=\"85\" y=\"186\" text-anchor=\"middle\">s</text>\n  <line class=\"fig-line-soft fig-dashed\" x1=\"144\" y1=\"186\" x2=\"226\" y2=\"186\"/>\n  <rect class=\"fig-box-dim\" x=\"230\" y=\"168\" width=\"140\" height=\"36\" rx=\"6\"/>\n  <text class=\"fig-t fig-mono fig-t-faint\" x=\"300\" y=\"186\" text-anchor=\"middle\">\"abc\"</text>\n  <rect class=\"fig-box-ok\" x=\"430\" y=\"168\" width=\"140\" height=\"36\" rx=\"6\"/>\n  <text class=\"fig-t fig-mono fig-t-ok\" x=\"500\" y=\"186\" text-anchor=\"middle\">\"ABC\"</text>\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"580\" y=\"186\">s は新しい方を指す</text>\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"30\" y=\"230\">元の \"abc\" は書き換わっていない。だから <tspan class=\"fig-mono\">s.trim()</tspan> を単独で呼んでも何も変わらない</text>\n</svg>\n```\n\n## += は結果を代入し直す\n\n`s += \"!\"` は `String` 自体を書き換えるのではなく、連結結果を `s` に代入し直します。\n\n```java\nString s = \"a\";\ns += \"b\";        // 連結結果 \"ab\" を s に代入\n```\n\nループで大量に連結すると中間の文字列が多く作られて非効率になりやすいため、\nその用途では `StringBuilder` を使います（14-4）。\n\n```java\nString s = \"\";\nfor (int i = 0; i < 10000; i++) {\n    s += i;\n}\n```\n\n## 不変だと何がうれしいのか\n\nメソッドに文字列を渡しても、その `String` オブジェクトの内容を勝手に書き換えられることはありません。\n\n```java\nstatic void shout(String s) {\n    s = s.toUpperCase();     // 引数変数 s の参照先を変えるだけ\n}\n```\n\n複数の場所で安全に共有できるため、Javaは同じ内容のリテラルを使い回せます（14-3）。\n\n> 💡 `String` は `final` クラスなので継承もできません。\n\n> ⚠️ `s.replace(\"a\", \"b\");` や `s.trim();` を単独で呼んでも、`s` は変わりません。変換結果を使っているか確認してください。",
       "samples": [
         {
@@ -15,7 +36,7 @@
         },
         {
           "caption": "メソッドに渡しても書き換わらない",
-          "code": "public class Main {\n    static void shout(String s) {\n        s = s.toUpperCase();\n        System.out.println(\"  メソッドの中: \" + s);\n    }\n\n    public static void main(String[] args) {\n        String word = \"java\";\n        shout(word);\n        System.out.println(\"呼び出し元    : \" + word);\n\n        // 配列はこうならなかった（第7章）\n        String[] arr = {\"java\"};\n        arr[0] = arr[0].toUpperCase();      // 配列の中身は書き換えられる\n        System.out.println(\"配列の中身    : \" + arr[0]);\n    }\n}\n"
+          "code": "public class Main {\n    static void shout(String s) {\n        s = s.toUpperCase();\n        System.out.println(\"  メソッドの中: \" + s);\n    }\n\n    public static void main(String[] args) {\n        String word = \"java\";\n        shout(word);\n        System.out.println(\"呼び出し元    : \" + word);\n\n        // 配列はこうならなかった（「メソッド」の章）\n        String[] arr = {\"java\"};\n        arr[0] = arr[0].toUpperCase();      // 配列の中身は書き換えられる\n        System.out.println(\"配列の中身    : \" + arr[0]);\n    }\n}\n"
         }
       ],
       "task": "空白を含まない文字列 `s` が1語入力されます。次の **5行** を出力してください。\n\n1. `s.toUpperCase()` の結果\n2. その直後の `s`\n3. `s.concat(\"!\")` の結果（`concat` は `+` と同じ連結です）\n4. その直後の `s`\n5. `s.length()`\n\n`abc` が入力されたときの出力はこうです。\n\n```\nABC\nabc\nabc!\nabc\n3\n```\n\n2行目と4行目が `s` のまま変わらないことが、`String` が不変であることの証拠です。\nここが `ABC` や `abc!` になった人は、戻り値を `s` に代入してしまっています。",
@@ -138,6 +159,9 @@
     {
       "id": "14-2",
       "title": "よく使う String のメソッド",
+      "objectiveIds": [
+        "ch14-o2"
+      ],
       "explanation": "## 覚えておきたいメソッド\n\n| メソッド | すること | 例（`\"banana\"` に対して） |\n|---|---|---|\n| `length()` | 文字数 | `6` |\n| `charAt(i)` | `i` 番目の1文字（`char`） | `charAt(0)` → `b` |\n| `substring(b)` | `b` 番目から最後まで | `substring(1)` → `anana` |\n| `substring(b, e)` | `b` 番目から **`e` の直前** まで | `substring(0, 3)` → `ban` |\n| `indexOf(str)` | 最初に現れる位置。なければ `-1` | `indexOf(\"a\")` → `1` |\n| `lastIndexOf(str)` | 最後に現れる位置 | `lastIndexOf(\"a\")` → `5` |\n| `contains(str)` | 含むか（`boolean`） | `contains(\"nan\")` → `true` |\n| `replace(a, b)` | 置き換えた新しい文字列 | `replace(\"a\", \"o\")` → `bonono` |\n| `toUpperCase()` / `toLowerCase()` | 大文字 / 小文字にする | `BANANA` |\n| `trim()` / `strip()` | 前後の空白を取る | — |\n| `isEmpty()` | 長さが `0` か | `false` |\n| `startsWith(s)` / `endsWith(s)` | 前方 / 後方一致 | `startsWith(\"ba\")` → `true` |\n| `equals(s)` | 内容が完全に同じか（**大文字と小文字は区別する**） | `equals(\"BANANA\")` → `false` |\n| `equalsIgnoreCase(s)` | 大文字と小文字を無視して同じか | `equalsIgnoreCase(\"BANANA\")` → `true` |\n\n**位置は 0 から数えます。** 配列と同じです。\n\n## substring の境界に注意\n\n`substring` は境界を間違えやすいメソッドです。ポイントは\n**開始位置は含み、終了位置は含まない** ことです。\n\n```java\nString s = \"banana\";\ns.substring(0, 3);      // ban   ← 3番目（4文字目）は含まない\ns.substring(2, 4);      // na\ns.substring(6);         // \"\"    ← 長さと同じ位置は空文字（エラーではない）\ns.substring(0, 0);      // \"\"\n```\n\n`e - b` が取り出される文字数になる、と覚えると計算が楽です。\n\n> ⚠️ 間違えやすい点 … 範囲を超えると `StringIndexOutOfBoundsException` です。ただし **「長さと同じ位置」はセーフ** で、空文字が返ります。1つ超えるとアウトです。\n\n```java\n\"banana\".substring(6);      // ✅ \"\" が返る\n\"banana\".substring(7);      // ❌ 実行時に例外\n\"banana\".charAt(6);         // ❌ 実行時に例外（charAt は length-1 まで）\n```\n\n## 見つからないときは -1\n\n`indexOf` は「ない」ことを `-1` で表します。`0` ではありません。\n`0` は「先頭で見つかった」という意味なので、混同すると逆の判定になります。\n\n```java\nif (s.indexOf(\"z\") == -1) {\n    System.out.println(\"含まれていない\");\n}\n```\n\n`contains` を使えば `boolean` で受け取れるので、こちらの方が読みやすいです。\n\n## 文字数とUTF-16の単位\n\nJavaは文字列の内部を **UTF-16コード単位** という区切りで扱い、`length()` はその個数を返します。\n英数字や多くの日本語文字は1文字が1単位ですが、絵文字などには2単位を使うものがあります。\n\n```java\nString emoji = \"😀\";\nSystem.out.println(emoji.length());                         // 2\nSystem.out.println(emoji.codePointCount(0, emoji.length())); // 1\n```\n\n人が見る文字数を厳密に数える処理では、この違いを考える必要があります。まず通常の単語を扱う間は\n`length()` を使い、絵文字を1文字ずつ処理したいときに `codePoint` 系の道具を調べてください。\n\n> 💡 `charAt` が返すのは `String` ではなく `char` です。`char` は内部では文字に対応する数を\n> 持つため、`char + int` は数の足し算になります。",
       "samples": [
         {
@@ -278,6 +302,9 @@
     {
       "id": "14-3",
       "title": "== と equals と文字列プール",
+      "objectiveIds": [
+        "ch14-o3"
+      ],
       "explanation": "## 同じ内容なのに == が false になる\n\n第4章で「文字列の比較は `equals`」と学びました。その理由をここで詰めます。\n\n`String` は参照型なので、`==` は **同じ本体を指しているか** しか見ません（第8章）。\n\n```java\nString a = new String(\"abc\");\nString b = new String(\"abc\");\n\nSystem.out.println(a == b);        // false ← 本体が2つある\nSystem.out.println(a.equals(b));   // true  ← 内容は同じ\n```\n\n## ところがリテラルどうしは true になる\n\nここが混乱の元です。\n\n```java\nString a = \"abc\";\nString b = \"abc\";\n\nSystem.out.println(a == b);        // true！\n```\n\n同じ内容のリテラルは **1つにまとめて共有される** からです。\nこの共有場所を **文字列プール（String pool）** といいます。\n\n不変だからこそできる最適化です。中身が書き換わらないので、\n何人で共有しても誰も困りません（14-1でふれた通りです）。\n\n- `\"abc\"` … プールを探して、あれば使い回す → `==` が `true` になりうる\n- `new String(\"abc\")` … **必ず新しい本体を作る** → `==` は `false`\n\n```svg リテラルはプールの1つを共有し、`new` と実行時の連結は必ず別の本体になる\n<svg viewBox=\"0 0 720 268\">\n  <rect class=\"fig-box\" x=\"20\" y=\"40\" width=\"250\" height=\"40\" rx=\"6\"/>\n  <text class=\"fig-t fig-code\" x=\"34\" y=\"60\">String a = \"abc\";</text>\n  <rect class=\"fig-box\" x=\"20\" y=\"84\" width=\"250\" height=\"40\" rx=\"6\"/>\n  <text class=\"fig-t fig-code\" x=\"34\" y=\"104\">String b = \"abc\";</text>\n  <rect class=\"fig-box\" x=\"20\" y=\"140\" width=\"250\" height=\"40\" rx=\"6\"/>\n  <text class=\"fig-t fig-code\" x=\"34\" y=\"160\">String c = new String(\"abc\");</text>\n  <rect class=\"fig-box\" x=\"20\" y=\"194\" width=\"250\" height=\"40\" rx=\"6\"/>\n  <text class=\"fig-t fig-code\" x=\"34\" y=\"214\">String y = x + \"c\";</text>\n\n  <rect class=\"fig-region\" x=\"380\" y=\"26\" width=\"310\" height=\"96\" rx=\"8\"/>\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"535\" y=\"42\" text-anchor=\"middle\">文字列プール（同じ内容を共有する場所）</text>\n  <rect class=\"fig-box-accent\" x=\"430\" y=\"56\" width=\"210\" height=\"40\" rx=\"6\"/>\n  <text class=\"fig-t fig-mono fig-t-accent\" x=\"535\" y=\"76\" text-anchor=\"middle\">\"abc\"</text>\n  <text class=\"fig-t fig-t-ok fig-small\" x=\"535\" y=\"112\" text-anchor=\"middle\">a と b は同じ本体 → a == b は true</text>\n\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"380\" y=\"140\">プールの外 — 必ず新しい本体ができる</text>\n  <rect class=\"fig-box\" x=\"430\" y=\"150\" width=\"210\" height=\"40\" rx=\"6\"/>\n  <text class=\"fig-t fig-mono\" x=\"535\" y=\"170\" text-anchor=\"middle\">\"abc\"</text>\n  <rect class=\"fig-box\" x=\"430\" y=\"200\" width=\"210\" height=\"40\" rx=\"6\"/>\n  <text class=\"fig-t fig-mono\" x=\"535\" y=\"220\" text-anchor=\"middle\">\"abc\"</text>\n\n  <line class=\"fig-line\" x1=\"274\" y1=\"60\" x2=\"426\" y2=\"70\" marker-end=\"arrow\"/>\n  <line class=\"fig-line\" x1=\"274\" y1=\"104\" x2=\"426\" y2=\"84\" marker-end=\"arrow\"/>\n  <line class=\"fig-line-ng\" x1=\"274\" y1=\"160\" x2=\"426\" y2=\"168\" marker-end=\"arrow-ng\"/>\n  <line class=\"fig-line-ng\" x1=\"274\" y1=\"214\" x2=\"426\" y2=\"218\" marker-end=\"arrow-ng\"/>\n\n  <text class=\"fig-t fig-t-ng fig-small\" x=\"360\" y=\"258\" text-anchor=\"middle\">c == \"abc\" も y == \"abc\" も false。内容を比べるなら equals</text>\n</svg>\n```\n\n> ⚠️ 間違えやすい点 … コンパイル時に値が決まる連結はプールに入りますが、実行時に決まる連結は入りません。\n\n```java\nString a = \"ab\" + \"c\";              // コンパイル時に \"abc\" になる → プール\nSystem.out.println(a == \"abc\");     // true\n\nString x = \"ab\";\nString y = x + \"c\";                 // 実行時に作られる → 新しい本体\nSystem.out.println(y == \"abc\");     // false\n```\n\nつまり `==` の結果は **書き方で変わります**。だから内容を比べたいときは\n**必ず `equals`** を使う、という結論になります。\n\nキーボードから読み込んだ文字列も実行時に作られるので、\n**同じ文字を入力しても `==` は `false`** です。この問題で実際に確かめます。\n\n## 比較のためのメソッド\n\n| メソッド | すること |\n|---|---|\n| `equals(s)` | 内容が完全に同じか |\n| `equalsIgnoreCase(s)` | 大文字小文字を無視して同じか |\n| `compareTo(s)` | 辞書順の前後。`負`＝自分が前、`0`＝同じ、`正`＝自分が後 |\n\n`compareTo` が返す数そのものには意味を持たせず、**符号だけ** を見ます。最初に違った位置の文字コードの差を返しますが、片方がもう片方の先頭部分と全部同じとき（`ab` と `abc` のような場合）は長さの差を返すので、返る数は場面によって変わります。\n\n```java\n\"apple\".compareTo(\"banana\");    // 負（apple が前）\n\"b\".compareTo(\"a\");             // 正\n\"x\".compareTo(\"x\");             // 0\n```\n\n大文字は小文字より前（`'A'` は 65、`'a'` は 97）なので、\n`\"Java\".compareTo(\"java\")` は **負** になります。\n\n> 💡 `equals` の引数は `Object` です（第10章）。だから `s.equals(123)` はコンパイルできて `false` を返します。型が違うだけでエラーにはなりません。",
       "samples": [
         {
@@ -409,6 +436,9 @@
     {
       "id": "14-4",
       "title": "StringBuilder で組み立てる",
+      "objectiveIds": [
+        "ch14-o4"
+      ],
       "explanation": "## 変えられる文字列バッファ\n\n`String` は不変なので、ループで連結を繰り返すと中間結果が多数作られて非効率になりやすいです。\n`StringBuilder` は内部の文字列バッファを変更しながら組み立てられます。\n\n```java\nStringBuilder sb = new StringBuilder();\nsb.append(\"a\");\nsb.append(\"b\");\nsb.append(\"c\");\nSystem.out.println(sb);           // abc\n```\n\n`append` は同じ `StringBuilder` の内容を変更し、そのインスタンス自身を返します。\n\n```java\nfor (int i = 0; i < 10000; i++) {\n    sb.append(i);\n}\nString result = sb.toString();\n```\n\n## よく使うメソッド\n\n| メソッド | すること |\n|---|---|\n| `append(x)` | 末尾に追加 |\n| `insert(i, x)` | `i` の位置に挿入 |\n| `delete(b, e)` | `b` から `e` の直前まで削除 |\n| `deleteCharAt(i)` | `i` のコード単位を削除 |\n| `reverse()` | 内容を逆順にする |\n| `replace(b, e, str)` | 範囲を置換 |\n| `setCharAt(i, c)` | `i` のコード単位を差し替える |\n| `length()` | UTF-16コード単位の数 |\n| `toString()` | `String` に変換 |\n\n多くの変更メソッドが自分自身を返すため、メソッドチェーンを書けます。\n\n```java\nsb.append(\"a\").append(\"b\").reverse();\n```\n\n`String` の変換メソッドは元を変更せず結果を返し、`StringBuilder` の変更メソッドは自身を変更します。\n前者が常に新しいインスタンスを返すという意味ではありません。\n\n```java\nString s = \"abc\";\ns.toUpperCase();                  // s は変わらない\nStringBuilder b = new StringBuilder(\"abc\");\nb.reverse();                      // b は cba になる\n```\n\n`StringBuilder` は内容比較用の `equals` を上書きしていません。内容を比較するなら `toString()` してから比較します。\n\n```java\nnew StringBuilder(\"a\").equals(new StringBuilder(\"a\")); // false\nnew StringBuilder(\"a\").toString().equals(\"a\");         // true\n```\n\n通常の受け渡しや比較には `String`、ループでの組み立てには `StringBuilder` を使い分けます。",
       "samples": [
         {
@@ -540,6 +570,10 @@
     {
       "id": "14-5",
       "title": "総合問題：単語を加工して集計する",
+      "objectiveIds": [
+        "ch14-o2",
+        "ch14-o4"
+      ],
       "explanation": "## String の道具を組み合わせる\n\n第14章のまとめです。「先頭だけ大文字にする」という定番の処理を作りながら、\n`substring` と `toUpperCase` を組み合わせます。\n\n### 先頭だけ大文字にする\n\n`String` には「先頭を大文字にする」メソッドはありません。自分で組み立てます。\n\n```java\nString capitalize(String s) {\n    return s.substring(0, 1).toUpperCase() + s.substring(1);\n}\n```\n\nやっていることは3つです。\n\n1. `s.substring(0, 1)` … 先頭の1文字を取り出す（`\"j\"`）\n2. `.toUpperCase()` … 大文字にする（`\"J\"`）\n3. `+ s.substring(1)` … 2文字目以降をそのままつなぐ（`\"ava\"`）\n\n1文字の単語でも動きます。`\"a\".substring(1)` は **空文字** なので（14-2で確認しました）、\n`\"A\" + \"\"` で `\"A\"` になります。境界がきれいに収まっているのがポイントです。\n\n### 最長の単語を探す\n\n第6章の「最大値を探す」と同じ形です。仮の1位を置いて、超えたら入れ替えます。\n\n```java\nString longest = words[0];\nfor (String w : words) {\n    if (w.length() > longest.length()) {\n        longest = w;\n    }\n}\n```\n\n`>` なので、同じ長さが並んだときは **先に出てきた方** が残ります。\n\n> 💡 `length()` は文字数です。日本語1文字も1として数えます（絵文字などは2文字分になる場合があります）。\n\n> ⚠️ 間違えやすい点 … `substring(0, 1)` の代わりに `charAt(0)` を使うと `char` が返ります。`char` を `toUpperCase` することはできず、`Character.toUpperCase(c)` を使う必要があります。さらに `char + String` の連結順にも注意が必要なので、`substring` の方が安全です。",
       "samples": [
         {
@@ -717,6 +751,10 @@
     {
       "id": "14-6",
       "title": "章末演習：文字列",
+      "objectiveIds": [
+        "ch14-o2",
+        "ch14-o4"
+      ],
       "explanation": "## この章の知識を、自分の手で組み合わせよう\n\nここでは、**Stringの不変性・検索加工・equals・StringBuilder**をまとめて使います。新しい文法は登場しません。分からなくなったら、直前までの解説やサンプルへ戻って確認して大丈夫です。\n\n### 3問の進め方\n\n1. **基本**で、中心となる書き方をもう一度使う\n2. **組み合わせ**で、章内の複数の知識を一緒に使う\n3. **実践**で、少し現実的な入力と条件を整理する\n\nまず入力例と期待される出力を紙に書き、処理を小さな手順へ分けてからコードにすると進めやすくなります。",
       "samples": [
         {
@@ -810,7 +848,7 @@
         {
           "kind": "applied",
           "task": "【実践】単語wordと正の整数nを読み、`word-word-...` とn回つないで表示してください。StringBuilderを使い、末尾にハイフンを付けません。",
-          "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        String word = s.next();\n        int n = s.nextInt();\n        StringBuilder b = new StringBuilder();\n        /* TODO */ System.out.println(b);\n    }\n}\n",
+          "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        String word = sc.next();\n        int n = sc.nextInt();\n        StringBuilder b = new StringBuilder();\n        /* TODO */ System.out.println(b);\n    }\n}\n",
           "visibleCases": [
             {
               "label": "3回",
@@ -834,7 +872,7 @@
             "2回目以降だけ先にハイフンを追加します。",
             "文字は `append` で順番に追加します。"
           ],
-          "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        String word = s.next();\n        int n = s.nextInt();\n        StringBuilder b = new StringBuilder();\n        for (int i = 0; i < n; i++) {\n            if (i > 0) b.append(\"-\");\n            b.append(word);\n        }\n        System.out.println(b);\n    }\n}\n",
+          "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        String word = sc.next();\n        int n = sc.nextInt();\n        StringBuilder b = new StringBuilder();\n        for (int i = 0; i < n; i++) {\n            if (i > 0) b.append(\"-\");\n            b.append(word);\n        }\n        System.out.println(b);\n    }\n}\n",
           "sourceChecks": [
             {
               "pattern": "\\.append\\s*\\(",

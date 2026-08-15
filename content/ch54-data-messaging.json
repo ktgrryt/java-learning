@@ -3,6 +3,28 @@
   "title": "実DB・スキーマ移行・非同期連携",
   "subtitle": "データを壊さず、境界を越えて届ける",
   "emoji": "🗄️",
+  "objectives": [
+    {
+      "id": "ch54-o1",
+      "text": "インスタンス数を含めた接続予算を計算し、本番同等DBで後片付けの方式を選べる"
+    },
+    {
+      "id": "ch54-o2",
+      "text": "expand→migrate→contract の段階でスキーマを移行し、稼働中の版と両立させられる"
+    },
+    {
+      "id": "ch54-o3",
+      "text": "キャッシュのキーとTTLを設計し、一斉失効を避けられる"
+    },
+    {
+      "id": "ch54-o4",
+      "text": "at-least-once の再送を冪等に処理し、outboxで送信を確実にできる"
+    },
+    {
+      "id": "ch54-o5",
+      "text": "checkpointを進める位置を決めて、途中から再開できるバッチを設計できる"
+    }
+  ],
   "lessons": [
     {
       "id": "54-0",
@@ -25,6 +47,9 @@
     {
       "id": "54-1",
       "title": "本番同等DBで検証する",
+      "objectiveIds": [
+        "ch54-o1"
+      ],
       "explanation": "## はじめて学ぶ人へ\n\n第46章では、テーブル、制約、インデックスなどDBの基本を学びました。この章では一歩進み、**開発環境では通ったのに本番だけ失敗する**状況をどう減らすかを考えます。中心は、①本番に近いDBで試す、②変更を安全な段階に分ける、③キャッシュの古さを管理する、④メッセージの重複を前提にする、の4点です。専門用語は、それが防ぐ事故と一緒に確認していきます。\n\n## SQLだけでなく挙動を合わせる\n\nリポジトリの単体テストに加えて、本番と同じ系統でバージョンも近いDBをコンテナで起動し、スキーマ移行を先頭から適用してから結合テストを行います。型、照合順序、タイムゾーン、制約、インデックス、ロック、分離レベル、実行計画は、DB製品によって違います。テストごとにロールバックする方式は速い一方で、コミット時に初めて評価される遅延制約や、PostgreSQLの `NOTIFY` のように、コミットして初めて外部へ届く通知を確認できません。用途に応じて、実際にコミットしてからデータを削除する方式と使い分けます。\n\nコネクションプールには上限、取得のタイムアウト、接続の検証方法を設定します。プールを増やせば速くなるとは限りません。DBの最大接続数とクエリの所要時間から、全インスタンス分の接続予算を決めます。N+1問題や無制限な全件取得は、SQLログ・メトリクス・実行計画で検出します。\n\n### 何が違うのかを具体で見る\n\n「SQLが通る」ことと「同じ挙動になる」ことは別です。よく食い違うのはこのあたりです。\n\n| 観点 | 食い違いの例 |\n|---|---|\n| 文字列比較 | 照合順序（collation）によって大文字小文字の区別が変わる |\n| NULLの並び | `ORDER BY` でNULLが先か後か（PostgreSQLは既定で、昇順なら後・降順なら前） |\n| 自動採番 | `IDENTITY` / `SERIAL` / シーケンスの挙動と、ロールバック時の欠番 |\n| 型の丸め | `DECIMAL` と浮動小数の扱い、日時の精度 |\n| 実行計画 | 同じSQLでもインデックスを使うかが製品と件数で変わる |\n\nだから「開発はH2、本番はPostgreSQL」だと、**テストが通るのに本番で落ちる**、あるいは\n逆に本番だけ遅いという形で出ます。結合テストは本番と同じ製品・同じメジャーバージョンで\n動かすのが原則です。\n\n### ロールバック方式で見逃すもの\n\n各テストの最後にロールバックする方式は速い一方、**コミットしないと現れない挙動** を\n見逃します。\n\n- コミット時に評価される制約（遅延制約）\n- コミットするまで配送されない通知\n- コミット後の状態を別トランザクションから読んだときの挙動\n\n通常のDBトリガーは、文の実行中または文の終わりに動きます。制約トリガーはトランザクションの終わりまで遅延できることがありますが、**コミットが完了したあとに通常のトリガーが起動する**という意味ではありません。\n\n> ⚠️ 間違えやすい点 … ロールバック方式は「テストの後片付けが速い」だけで、\n> 本番と同じ経路を通ったわけではありません。コミットを伴う経路が要るテストは、\n> 後片付け方式（truncate や毎回作り直し）に分けて用意します。\n> どちらか一方に統一しようとすると、必ずどちらかが検証できなくなります。",
       "samples": [
         {
@@ -100,7 +125,7 @@
         {
           "question": "PostgreSQLでNULLの並びを明示しない場合の既定として正しいものはどれでしょう。",
           "choices": [
-            "昇順でも降順でも常にNULLが最後",
+            "昇順でも降順でも、NULLが最後に並ぶ",
             "昇順はNULLが最後、降順はNULLが最初",
             "昇順はNULLが最初、降順はNULLが最後",
             "NULLを含む列はORDER BYできない"
@@ -175,6 +200,9 @@
     {
       "id": "54-2",
       "title": "スキーマ移行を段階化する",
+      "objectiveIds": [
+        "ch54-o2"
+      ],
       "explanation": "## アプリケーションとDBを同時に切り替えない\n\nローリングデプロイでは、旧版と新版が一時的に同居します。列名を変えるなら、まず新しい列をNULL可で追加し（expand）、両方へ書くか既存データを埋め（backfill）、読み取りを切り替え（migrate）、旧版がすべて消えたあとに古い列を削除します（contract）。大きなテーブルへのロックを伴うDDLは、所要時間と中止・切り戻しの手順を事前に測っておきます。\n\nFlywayやLiquibaseのような移行ツールは、適用履歴とチェックサムを管理します。すでに適用したファイルは書き換えず、新しい移行を足して前へ進みます。バックアップがあることと、切り戻せることは別の話です。破壊的な変更の前には、復元のリハーサルも行います。\n\n> 🧪 画面内問題は、段階と操作の対応です。`labs/integration-data` の `db/migration` には `V1`〜`V3` の番号付き移行があり、空のDBへV1から全部適用できるか、ローリングデプロイ中に旧版と新版が同居できるか、切り戻したあとにoutboxだけが残らないかを確認できます。\n\n### expand → migrate → contract を具体で見る\n\n`db/migration` の `V2` は、こう書いてあります。\n\n```sql\n-- expand: 旧applicationも動けるよう、まず既定値つきで追加する。\nALTER TABLE customer ADD COLUMN status VARCHAR(20) NOT NULL DEFAULT 'ACTIVE';\n```\n\n`DEFAULT 'ACTIVE'` が付いているのが要点です。列の存在を知らない旧アプリの\n`INSERT INTO customer (email, display_name, created_at) VALUES (...)` が、\nこれなら通ります。\n\n段階はこうなります。\n\n| 段階 | DB | アプリ |\n|---|---|---|\n| expand | 列を **既定値つき** で追加 | 旧のまま（新しい列を知らない） |\n| migrate | 既存行の値を埋める | 新しいアプリを出す（両方の形を読める） |\n| contract | 制約を厳しくする・古い列を消す | 旧アプリはもう動いていない |\n\n**DBの変更とアプリの入れ替えを同時にやらない**のが目的です。ローリングデプロイ中は\n新旧のアプリが同時に動くので、どちらでも壊れない形を経由する必要があります。\n\n> ⚠️ 間違えやすい点 … `NOT NULL` を **既定値なしで** 足すと、その列を知らない旧アプリの\n> INSERTがその瞬間から落ちます。ロールバックしたくなっても、すでに新しい列に依存した\n> 行が書かれていると戻せません。「足すだけ」は安全に見えて、いちばん事故が多い操作です。\n> また、適用済みの移行ファイルを **後から書き換えない** こと（履歴のチェックサムが合わず、\n> 環境ごとに適用状態が食い違います）。\n\n> 🧪 アプリで確かめること / labs で動かすこと … この問題で確かめるのは移行を段階に分ける順序です。\n> 実DBへ移行を流すことは、1ファイル・標準入力だけのこの画面では扱えません。`labs/integration-data` に本物を置いてあります。",
       "samples": [
         {
@@ -182,26 +210,48 @@
           "code": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] a) {\n        List.of(\"expand\", \"migrate\", \"contract\").forEach(System.out::println);\n    }\n}\n"
         }
       ],
-      "task": "段階を1語読み、`expand`なら `ADD_COMPATIBLE`、`migrate`なら `BACKFILL_AND_SWITCH`、`contract`なら `REMOVE_OLD` と表示してください。",
-      "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] a) {\n        String phase = new Scanner(System.in).next();\n        /* TODO */\n    }\n}\n",
+      "task": "移行の計画を段階へ振り分けます。1行目に文の数 `n`、続く `n` 行に1文ずつSQLが与えられます（行の中に空白を含みます。大文字小文字は区別しません）。\n\n各文について段階を1行ずつ出力し、**上から順に**次の規則を当てて最初に当たったものを使います。\n\n| 文に含まれるもの | 段階 | なぜ |\n|---|---|---|\n| `DROP COLUMN` | `contract` | 旧版が読めなくなるので、旧版が消えたあと |\n| `SET NOT NULL` | `contract` | 制約を厳しくするのは最後 |\n| `ADD COLUMN` で `NOT NULL` が無い | `expand` | 列を知らない旧版のINSERTが通る |\n| `ADD COLUMN` で `NOT NULL` と `DEFAULT` の両方がある | `expand` | 既定値があるので旧版のINSERTが通る |\n| `ADD COLUMN` で `NOT NULL` があり `DEFAULT` が無い | `unsafe` | **旧版のINSERTがその瞬間から落ちる** |\n| `UPDATE` | `migrate` | 既存行を埋める |\n| どれにも当てはまらない | `unsafe` | 段階を決められない |\n\n最後に1行、並びが `expand` → `migrate` → `contract` の順（同じ段階の連続は可）になっていて `unsafe` が1つも無ければ `order=ok`、そうでなければ `order=ng` を出力してください。",
+      "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] a) {\n        Scanner sc = new Scanner(System.in);\n        int n = Integer.parseInt(sc.nextLine().trim());\n        for (int i = 0; i < n; i++) {\n            String sql = sc.nextLine().toUpperCase();\n            /* TODO 段階を決めて出力し、あとで順序を判定できるよう覚えておく */\n        }\n        /* TODO order=ok または order=ng */\n    }\n}\n",
       "visibleCases": [
         {
-          "label": "移行中",
-          "stdin": "migrate",
-          "expected": "BACKFILL_AND_SWITCH"
+          "label": "正しく段階を踏んだ計画",
+          "stdin": "4\nALTER TABLE customer ADD COLUMN status VARCHAR(20) NOT NULL DEFAULT 'ACTIVE'\nUPDATE customer SET status = 'ACTIVE' WHERE status IS NULL\nALTER TABLE customer ALTER COLUMN status SET NOT NULL\nALTER TABLE customer DROP COLUMN old_status\n",
+          "expected": "expand\nmigrate\ncontract\ncontract\norder=ok"
+        },
+        {
+          "label": "既定値なしのNOT NULLを足してしまった",
+          "stdin": "2\nALTER TABLE customer ADD COLUMN status VARCHAR(20) NOT NULL\nUPDATE customer SET status = 'ACTIVE'\n",
+          "expected": "unsafe\nmigrate\norder=ng"
         }
       ],
       "hiddenCases": [
         {
-          "label": "削除段階",
-          "stdin": "contract",
-          "expected": "REMOVE_OLD"
+          "label": "削除を先にやってしまった",
+          "stdin": "3\nALTER TABLE customer DROP COLUMN old_status\nALTER TABLE customer ADD COLUMN status VARCHAR(20) NULL\nUPDATE customer SET status = 'ACTIVE'\n",
+          "expected": "contract\nexpand\nmigrate\norder=ng"
+        },
+        {
+          "label": "NULL可の追加だけ",
+          "stdin": "1\nALTER TABLE customer ADD COLUMN memo VARCHAR(100) NULL\n",
+          "expected": "expand\norder=ok"
+        },
+        {
+          "label": "同じ段階が続くのは可",
+          "stdin": "3\nalter table customer add column status varchar(20) null\nalter table customer add column memo varchar(100) null\nupdate customer set status = 'ACTIVE'\n",
+          "expected": "expand\nexpand\nmigrate\norder=ok"
+        },
+        {
+          "label": "段階を決められない文",
+          "stdin": "2\nCREATE INDEX ix_status ON customer (status)\nUPDATE customer SET status = 'ACTIVE'\n",
+          "expected": "unsafe\nmigrate\norder=ng"
         }
       ],
       "hints": [
-        "switch式で3段階を対応付けます。"
+        "規則は上から順に当てます。`ALTER COLUMN ... SET NOT NULL` は `NOT NULL` を含みますが、`ADD COLUMN` ではないので `contract` です。",
+        "`ADD COLUMN` で `NOT NULL` があるときだけ `DEFAULT` の有無を見ます。既定値が無ければ、その列を知らない旧版のINSERTが落ちます。",
+        "順序は `expand`=1 `migrate`=2 `contract`=3 と数にして、前より小さくならないかを見ると簡単です。`unsafe` が1つでもあれば `order=ng` です。"
       ],
-      "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] a) {\n        String phase = new Scanner(System.in).next();\n        System.out.println(switch (phase) {\n            case \"expand\" -> \"ADD_COMPATIBLE\";\n            case \"migrate\" -> \"BACKFILL_AND_SWITCH\";\n            case \"contract\" -> \"REMOVE_OLD\";\n            default -> \"UNKNOWN\";\n        });\n    }\n}\n",
+      "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] a) {\n        Scanner sc = new Scanner(System.in);\n        int n = Integer.parseInt(sc.nextLine().trim());\n        List<String> stages = new ArrayList<>();\n        for (int i = 0; i < n; i++) {\n            String sql = sc.nextLine().toUpperCase();\n            String stage;\n            if (sql.contains(\"DROP COLUMN\")) {\n                stage = \"contract\";\n            } else if (sql.contains(\"SET NOT NULL\")) {\n                stage = \"contract\";\n            } else if (sql.contains(\"ADD COLUMN\")) {\n                stage = !sql.contains(\"NOT NULL\") || sql.contains(\"DEFAULT\") ? \"expand\" : \"unsafe\";\n            } else if (sql.contains(\"UPDATE\")) {\n                stage = \"migrate\";\n            } else {\n                stage = \"unsafe\";\n            }\n            stages.add(stage);\n            System.out.println(stage);\n        }\n        int reached = 0;\n        boolean ordered = true;\n        for (String stage : stages) {\n            int rank = switch (stage) {\n                case \"expand\" -> 1;\n                case \"migrate\" -> 2;\n                case \"contract\" -> 3;\n                default -> -1;\n            };\n            if (rank < 0 || rank < reached) {\n                ordered = false;\n            } else {\n                reached = rank;\n            }\n        }\n        System.out.println(\"order=\" + (ordered ? \"ok\" : \"ng\"));\n    }\n}\n",
       "extraTasks": [
         {
           "kind": "applied",
@@ -270,28 +320,31 @@
           "choices": [
             "インデックスの再構築に時間がかかるため",
             "同居している旧版がその列を参照する可能性があるため",
-            "新版しか動かないため",
-            "Javaが再コンパイルされるため"
+            "新しい版のアプリしか、その列を読めなくなるため",
+            "Javaのコードが再コンパイルされ、配備が必要になるため"
           ],
           "answer": 1,
-          "explanation": "インデックスの再構築時間は主な理由ではありません。ローリングデプロイの最中は新版と旧版が同時に動いているので、「新版しか動かない」も誤りです。Javaの再コンパイルは起きません。旧版がまだその列を読み書きしている可能性があるため、削除は互換期間を置いてから行います。"
+          "explanation": "インデックスの再構築時間は主な理由ではありません。ローリングデプロイの最中は新版と旧版が同時に動いているので、「新しい版しか読めなくなる」も誤りです。Javaの再コンパイルも起きません。旧版がまだその列を読み書きしている可能性があるため、削除は互換期間を置いてから行います。"
         },
         {
           "question": "すでに適用済みの移行ファイルを直接書き換えると、何が問題になるでしょう。",
           "choices": [
-            "移行ファイルの名前が長くなる",
+            "同じ版番号のファイルが2つある状態になってしまう",
             "履歴のチェックサムと一致せず、環境間で適用状態が食い違う",
-            "切り戻しが自動化されて元に戻ってしまう",
-            "そのSQL自体が実行できなくなる"
+            "切り戻し用のSQLが自動生成され、意図せず戻される",
+            "書き換えた部分だけが、次回にもう一度実行される"
           ],
           "answer": 1,
-          "explanation": "ファイル名の長さは問題ではなく、切り戻しが自動化されることもなく、SQLが実行できなくなるわけでもありません。移行ツールは適用済みファイルのチェックサムを記録しているので、あとから中身を変えると照合に失敗し、環境によって適用された内容が違う状態になります。"
+          "explanation": "移行ツールは適用済みファイルのチェックサムを記録しているので、あとから中身を変えると照合に失敗し、環境によって適用された内容が違う状態になります。版番号は変わらず、再実行も自動の切り戻しも起きません。"
         }
       ]
     },
     {
       "id": "54-3",
       "title": "キャッシュの整合性を設計する",
+      "objectiveIds": [
+        "ch54-o3"
+      ],
       "explanation": "## 速さと引き換えに「古さ」を引き受ける\n\ncache-aside方式では、キャッシュに無ければDBから読み、その結果をキャッシュへ保存します。更新のときはDBのコミット後にキャッシュを破棄するのが基本ですが、その間に別の読み取りが割り込む競合や、破棄そのものの失敗も考える必要があります。TTL（有効期間）は、許容できる古さの上限・容量・障害時のDB負荷を踏まえて決めます。人気のキーが一斉に切れてDBへ問い合わせが集中する現象（cache stampede）には、同じ要求をまとめる仕組み、TTLのばらつき（ジッター）、期限前の先読み更新を使います。\n\nキャッシュのキーには、テナント・ロケール・認可によって結果が変わる条件を必ず含めます。含め忘れると情報漏えいになります。「存在しない」という結果もキャッシュしておくと連打を防げますが、作成直後しばらく見えない期間が生まれます。キャッシュは正となるデータ（source of truth）にはせず、消えても再構築できる設計にします。\n\n### いっせいに切れると、DBへ集中する\n\nTTLを全キーで同じにすると、書き込んだタイミングが近いキーが**同時に切れます**。\n切れた瞬間、同じ問い合わせが一斉にDBへ流れます（cache stampede）。\n\n対策は3つを組み合わせます。\n\n| 対策 | すること |\n|---|---|\n| ジッター | TTLに±10%程度のばらつきを持たせ、切れる時刻を散らす |\n| 同一要求のまとめ | 同じキーの再計算は1つだけ走らせ、他は待って結果を共有する |\n| 先読み更新 | 期限が近づいたら裏で更新し、切れる前に差し替える |\n\n### 「無い」もキャッシュする\n\n問い合わせても見つからなかったという結果をキャッシュしないと、存在しないキーへの\nアクセスが **毎回DBまで到達します**。攻撃にも使われるので、短いTTLで「無い」を\n覚えておきます（negative caching）。\n\n> ⚠️ 間違えやすい点 … キャッシュを「正しいデータの置き場所」にしないこと。\n> 正はDBで、キャッシュはいつ消えても業務が続けられる複製です。\n> 更新時は「DBを更新してからキャッシュを消す」の順にします。逆にすると、\n> 消してからDB更新までの一瞬に古い値を読み直して、また入れてしまいます。",
       "samples": [
         {
@@ -300,7 +353,7 @@
         }
       ],
       "task": "基準となるTTL（秒）、ばらつきの幅（秒）、キーを読み、毎回同じ値になるTTL `base + floorMod(key.hashCode(), jitter+1)` を表示してください。",
-      "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] a) {\n        Scanner s = new Scanner(System.in);\n        int base = s.nextInt(), jitter = s.nextInt();\n        String key = s.next();\n        /* TODO */\n    }\n}\n",
+      "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] a) {\n        Scanner sc = new Scanner(System.in);\n        int base = sc.nextInt(), jitter = sc.nextInt();\n        String key = sc.next();\n        /* TODO */\n    }\n}\n",
       "visibleCases": [
         {
           "label": "ばらつきなし",
@@ -318,18 +371,18 @@
       "hints": [
         "`Math.floorMod(key.hashCode(),jitter+1)` を加えます。文字列 `\"a\"` の `hashCode()` は97です。"
       ],
-      "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] a) {\n        Scanner s = new Scanner(System.in);\n        int base = s.nextInt(), jitter = s.nextInt();\n        String key = s.next();\n        System.out.println(base + Math.floorMod(key.hashCode(), jitter + 1));\n    }\n}\n",
+      "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] a) {\n        Scanner sc = new Scanner(System.in);\n        int base = sc.nextInt(), jitter = sc.nextInt();\n        String key = sc.next();\n        System.out.println(base + Math.floorMod(key.hashCode(), jitter + 1));\n    }\n}\n",
       "quiz": [
         {
           "question": "キャッシュのキーにテナントを含めることが重要な理由は？",
           "choices": [
-            "TTLを無限にするため",
-            "キーを長く見せるため",
+            "TTLを長くしても、値が古くならないようにするため",
+            "キーの衝突を、長さを増やして避けるため",
             "テナント間で値が混ざり、情報漏えいになるのを防ぐため",
-            "DBのトランザクションを不要にするため"
+            "DBのトランザクションを、省略できるようにするため"
           ],
           "answer": 2,
-          "explanation": "TTLを無限にするためでも、キーを長く見せるためでもなく、トランザクションが不要になる話でもありません。テナントを含めないと、あるテナント向けに作った結果を別のテナントが受け取ることになり、情報漏えいになります。結果を変える条件はすべてキーへ入れる、が原則です。"
+          "explanation": "TTLを長くしても値が古くならないようにする仕組みではなく、キーの長さで衝突を避ける話でもなく、トランザクションを省略できるようになるわけでもありません。テナントを含めないと、あるテナント向けに作った結果を別のテナントが受け取ることになり、情報漏えいになります。結果を変える条件はすべてキーへ入れる、が原則です。"
         },
         {
           "question": "人気のキーのTTLが一斉に切れて、DBへ問い合わせが集中しました。対策として適切なものはどれでしょう。",
@@ -347,6 +400,9 @@
     {
       "id": "54-4",
       "title": "メッセージングとoutbox",
+      "objectiveIds": [
+        "ch54-o4"
+      ],
       "explanation": "## 「少なくとも一回」を前提にする\n\nメッセージブローカーは送信側と受信側を時間的に切り離してくれますが、通信障害によって「処理は終えたのに、確認応答（ack）を返せなかった」状態が起きます。だから at-least-once（少なくとも一回）配信では重複を前提にして、イベントIDの処理済み記録や業務上の一意制約によって、受信側を冪等にします。再試行には指数バックオフと上限を持たせ、回復しないエラーはdead-letter queueへ隔離して、再処理の手順を用意します。\n\nDBの更新とメッセージ送信を別々に行う「二重書き込み」は、片方だけ成功しえます。transactional outboxは、業務データとイベントを同じDBトランザクションで保存し、別のプロセスがoutboxを読んで送信する方式です。順序が必要な範囲は集約のキーなどに限定し、イベント形式の互換性と、個人情報をどこまで保持するかも合わせて管理します。\n\n```svg 別々に書くと片方だけ成功しうる。同じトランザクションで outbox に書き、後から publish する\n<svg viewBox=\"0 0 720 250\">\n  <text class=\"fig-t fig-title fig-t-ng\" x=\"172\" y=\"22\" text-anchor=\"middle\">dual write</text>\n  <text class=\"fig-t fig-title fig-t-ok\" x=\"543\" y=\"22\" text-anchor=\"middle\">transactional outbox</text>\n\n  <rect class=\"fig-box\" x=\"90\" y=\"40\" width=\"160\" height=\"36\" rx=\"6\"/>\n  <text class=\"fig-t fig-small\" x=\"170\" y=\"58\" text-anchor=\"middle\">業務処理</text>\n  <line class=\"fig-line-ok\" x1=\"140\" y1=\"76\" x2=\"100\" y2=\"104\" marker-end=\"arrow-ok\"/>\n  <line class=\"fig-line-ng\" x1=\"200\" y1=\"76\" x2=\"250\" y2=\"104\" marker-end=\"arrow-ng\"/>\n  <rect class=\"fig-box-ok\" x=\"30\" y=\"108\" width=\"130\" height=\"36\" rx=\"6\"/>\n  <text class=\"fig-t fig-small fig-t-ok\" x=\"95\" y=\"126\" text-anchor=\"middle\">DB 更新 成功</text>\n  <rect class=\"fig-box-ng\" x=\"190\" y=\"108\" width=\"130\" height=\"36\" rx=\"6\"/>\n  <text class=\"fig-t fig-small fig-t-ng\" x=\"255\" y=\"126\" text-anchor=\"middle\">publish 失敗</text>\n  <text class=\"fig-t fig-t-ng fig-small\" x=\"14\" y=\"172\">片方だけ成功して、データとイベントがずれる</text>\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"14\" y=\"194\">あとから整合させる手段が無い</text>\n\n  <rect class=\"fig-box\" x=\"460\" y=\"40\" width=\"160\" height=\"36\" rx=\"6\"/>\n  <text class=\"fig-t fig-small\" x=\"540\" y=\"58\" text-anchor=\"middle\">業務処理</text>\n  <line class=\"fig-line-ok\" x1=\"540\" y1=\"76\" x2=\"540\" y2=\"88\" marker-end=\"arrow-ok\"/>\n  <rect class=\"fig-box-accent\" x=\"390\" y=\"92\" width=\"300\" height=\"62\" rx=\"8\"/>\n  <text class=\"fig-t fig-t-accent fig-small\" x=\"540\" y=\"108\" text-anchor=\"middle\">同じトランザクション</text>\n  <rect class=\"fig-box\" x=\"404\" y=\"116\" width=\"130\" height=\"30\" rx=\"6\"/>\n  <text class=\"fig-t fig-small\" x=\"469\" y=\"131\" text-anchor=\"middle\">業務データ</text>\n  <rect class=\"fig-box\" x=\"546\" y=\"116\" width=\"130\" height=\"30\" rx=\"6\"/>\n  <text class=\"fig-t fig-mono fig-small\" x=\"611\" y=\"131\" text-anchor=\"middle\">outbox</text>\n  <line class=\"fig-line\" x1=\"610\" y1=\"154\" x2=\"610\" y2=\"172\" marker-end=\"arrow\"/>\n  <rect class=\"fig-box\" x=\"530\" y=\"176\" width=\"160\" height=\"32\" rx=\"6\"/>\n  <text class=\"fig-t fig-small\" x=\"610\" y=\"192\" text-anchor=\"middle\">別プロセスが publish</text>\n  <line class=\"fig-line\" x1=\"526\" y1=\"192\" x2=\"506\" y2=\"192\" marker-end=\"arrow\"/>\n  <rect class=\"fig-box\" x=\"390\" y=\"176\" width=\"112\" height=\"32\" rx=\"6\"/>\n  <text class=\"fig-t fig-small\" x=\"446\" y=\"192\" text-anchor=\"middle\">broker</text>\n\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"14\" y=\"238\">受信側は at-least-once（重複あり）前提で冪等にする。イベント ID の処理済み記録や業務の一意制約で吸収する</text>\n</svg>\n```",
       "samples": [
         {
@@ -355,7 +411,7 @@
         }
       ],
       "task": "イベントIDをn件読み、初めて見たものだけ `PROCESS id`、すでに見たものは `SKIP id` と表示してください。",
-      "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] a) {\n        Scanner s = new Scanner(System.in);\n        int n = s.nextInt();\n        Set<String> done = new HashSet<>();\n        for (int i = 0; i < n; i++) {\n            String id = s.next();\n            /* TODO */\n        }\n    }\n}\n",
+      "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] a) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n        Set<String> done = new HashSet<>();\n        for (int i = 0; i < n; i++) {\n            String id = sc.next();\n            /* TODO */\n        }\n    }\n}\n",
       "visibleCases": [
         {
           "label": "再配送",
@@ -373,14 +429,14 @@
       "hints": [
         "`Set.add` の戻り値は、新しく追加できたときだけ `true` です。"
       ],
-      "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] a) {\n        Scanner s = new Scanner(System.in);\n        int n = s.nextInt();\n        Set<String> done = new HashSet<>();\n        for (int i = 0; i < n; i++) {\n            String id = s.next();\n            System.out.println((done.add(id) ? \"PROCESS \" : \"SKIP \") + id);\n        }\n    }\n}\n",
+      "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] a) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n        Set<String> done = new HashSet<>();\n        for (int i = 0; i < n; i++) {\n            String id = sc.next();\n            System.out.println((done.add(id) ? \"PROCESS \" : \"SKIP \") + id);\n        }\n    }\n}\n",
       "quiz": [
         {
           "question": "transactional outboxが解決する中心的な課題は？",
           "choices": [
-            "JVMのクラスロードの順序",
-            "JSONのインデントの揺れ",
-            "Javaのジェネリクスの型消去",
+            "JVMがクラスを読み込む順序の違い",
+            "JSONの項目の並びと、字下げの揺れ",
+            "ジェネリクスの型消去による、型情報の欠落",
             "DBの更新とメッセージ送信の間に生じる不整合"
           ],
           "answer": 3,
@@ -402,6 +458,9 @@
     {
       "id": "54-5",
       "title": "中間演習：実DB・スキーマ移行・非同期連携",
+      "objectiveIds": [
+        "ch54-o1"
+      ],
       "explanation": "## この章の知識を、自分の手で組み合わせよう\n\nここでは、**接続予算の配分・スキーマ移行の段階・少なくとも一回の配送・冪等な受信側**をまとめて使います。新しい文法は登場しません。分からなくなったら、直前までの解説やサンプルへ戻って確認して大丈夫です。\n\n### 3問の進め方\n\n1. **基本**で、中心となる書き方をもう一度使う\n2. **組み合わせ**で、章内の複数の知識を一緒に使う\n3. **実践**で、少し現実的な入力と条件を整理する\n\n実DBとメッセージブローカーを動かすのは `labs/integration-data` です。ここで書くのは、**そこで壊れないために先に決めておく規則**のほうです。\n\n> 🧪 アプリで確かめること / labs で動かすこと … この問題で確かめるのは実DB・スキーマ移行・非同期連携の判断です。\n> 実DBとメッセージングを実際に動かすことは、1ファイル・標準入力だけのこの画面では扱えません。`labs/integration-data` に本物を置いてあります。\n> ★はアプリの問題に対して付きます。labs をやったかどうかは★には出ないので、\n> 手を動かした記録は labs 側のREADMEの手順で残してください。",
       "samples": [
         {
@@ -411,7 +470,7 @@
         }
       ],
       "task": "【基本】接続予算の考え方をつかむため、全サービスへ均等に配る教材用モデルを使います。実運用ではサービスごとの負荷、問い合わせ時間、ほかのDB利用者も考慮します。DBの最大接続数 max、DB管理用に空けておく reserved（max 以下）、サービス数nを読み、続けてn件を `service instances` の形で読みます。\n\n1行目に、アプリで使える接続数を `BUDGET 値` の形で表示してください（`max - reserved`）。2行目に、1インスタンス当たりの上限を `PER_INSTANCE 値` の形で表示します。これは使える接続数を全サービスのインスタンス総数で割った切り捨ての値で、インスタンス総数が0のときは0とします。\n\n続けて、サービスごとの合計接続数を読んだ順に `service 値`（インスタンス数 × 1インスタンス当たりの上限）と表示します。次に配り切れなかった数を `SPARE 値` と表示します。最後に、インスタンスが1つ以上あるのに1インスタンス当たりの上限が0になってしまった場合は `INSUFFICIENT`、そうでなければ `OK` と表示します。",
-      "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        int max = s.nextInt(), reserved = s.nextInt(), n = s.nextInt();\n        String[] names = new String[n];\n        int[] instances = new int[n];\n        int totalInstances = 0;\n        for (int i = 0; i < n; i++) {\n            names[i] = s.next();\n            instances[i] = s.nextInt();\n            totalInstances += instances[i];\n        }\n        int budget = max - reserved;\n        /* TODO BUDGET と PER_INSTANCE */ /* TODO サービスごとの割り当てと SPARE */ /* TODO INSUFFICIENT の判定 */\n    }\n}\n",
+      "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int max = sc.nextInt(), reserved = sc.nextInt(), n = sc.nextInt();\n        String[] names = new String[n];\n        int[] instances = new int[n];\n        int totalInstances = 0;\n        for (int i = 0; i < n; i++) {\n            names[i] = sc.next();\n            instances[i] = sc.nextInt();\n            totalInstances += instances[i];\n        }\n        int budget = max - reserved;\n        /* TODO BUDGET と PER_INSTANCE */ /* TODO サービスごとの割り当てと SPARE */ /* TODO INSUFFICIENT の判定 */\n    }\n}\n",
       "visibleCases": [
         {
           "label": "ちょうど配り切れる",
@@ -456,12 +515,15 @@
         "余りは `budget - 1インスタンス当たりの上限 × インスタンス総数` です。",
         "poolを増やせば速くなるとは限りません。DBの最大接続から逆算して、全インスタンス分の予算を先に決めるための計算です。"
       ],
-      "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        int max = s.nextInt(), reserved = s.nextInt(), n = s.nextInt();\n        String[] names = new String[n];\n        int[] instances = new int[n];\n        int totalInstances = 0;\n        for (int i = 0; i < n; i++) {\n            names[i] = s.next();\n            instances[i] = s.nextInt();\n            totalInstances += instances[i];\n        }\n        int budget = max - reserved;\n        int per = totalInstances == 0 ? 0 : budget / totalInstances;\n        System.out.println(\"BUDGET \" + budget);\n        System.out.println(\"PER_INSTANCE \" + per);\n        for (int i = 0; i < n; i++) System.out.println(names[i] + \" \" + instances[i] * per);\n        System.out.println(\"SPARE \" + (budget - per * totalInstances));\n        System.out.println(totalInstances > 0 && per == 0 ? \"INSUFFICIENT\" : \"OK\");\n    }\n}\n",
+      "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int max = sc.nextInt(), reserved = sc.nextInt(), n = sc.nextInt();\n        String[] names = new String[n];\n        int[] instances = new int[n];\n        int totalInstances = 0;\n        for (int i = 0; i < n; i++) {\n            names[i] = sc.next();\n            instances[i] = sc.nextInt();\n            totalInstances += instances[i];\n        }\n        int budget = max - reserved;\n        int per = totalInstances == 0 ? 0 : budget / totalInstances;\n        System.out.println(\"BUDGET \" + budget);\n        System.out.println(\"PER_INSTANCE \" + per);\n        for (int i = 0; i < n; i++) System.out.println(names[i] + \" \" + instances[i] * per);\n        System.out.println(\"SPARE \" + (budget - per * totalInstances));\n        System.out.println(totalInstances > 0 && per == 0 ? \"INSUFFICIENT\" : \"OK\");\n    }\n}\n",
       "extraTasks": [
         {
+          "objectiveIds": [
+            "ch54-o2"
+          ],
           "kind": "drill",
           "task": "【組み合わせ】rolling deploy中のschema migrationを点検します。現在の段階 phase（`expand` / `migrate` / `contract`）と操作数nを読み、続けてn件の操作名を読みます。\n\n1行目に段階の意味を `PHASE ADD_COMPATIBLE`（expand）、`PHASE BACKFILL_AND_SWITCH`（migrate）、`PHASE REMOVE_OLD`（contract）の形で表示してください。\n\n続けて各操作を読んだ順に `行番号 操作名 ALLOW` または `行番号 操作名 FORBID` と表示します（行番号は1から）。その段階で許される操作は次のとおりです。\n\n- `expand` … `add-nullable-column`、`write-both`\n- `migrate` … `write-both`、`backfill`、`switch-read`\n- `contract` … `drop-old-column`\n\nただし `add-not-null-column` は、旧版が新しい列へ書けないため、どの段階でも `FORBID` です。最後に `FORBID` の件数を `FORBIDDEN 件数` の形で表示します。",
-          "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        String phase = s.next();\n        int n = s.nextInt();\n        Map<String, Set<String>> allowed = Map.of(\"expand\", Set.of(\"add-nullable-column\", \"write-both\"), \"migrate\", Set.of(\"write-both\", \"backfill\", \"switch-read\"), \"contract\", Set.of(\"drop-old-column\"));\n        /* TODO PHASE の表示 */ for (int k = 1; k <= n; k++) {\n            String op = s.next();\n            /* TODO ALLOW か FORBID */\n        }\n        /* TODO FORBIDDEN の表示 */\n    }\n}\n",
+          "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        String phase = sc.next();\n        int n = sc.nextInt();\n        Map<String, Set<String>> allowed = Map.of(\"expand\", Set.of(\"add-nullable-column\", \"write-both\"), \"migrate\", Set.of(\"write-both\", \"backfill\", \"switch-read\"), \"contract\", Set.of(\"drop-old-column\"));\n        /* TODO PHASE の表示 */ for (int k = 1; k <= n; k++) {\n            String op = sc.next();\n            /* TODO ALLOW か FORBID */\n        }\n        /* TODO FORBIDDEN の表示 */\n    }\n}\n",
           "visibleCases": [
             {
               "label": "expandで旧列を消そうとする",
@@ -506,12 +568,15 @@
             "`add-not-null-column` は許可集合に入れず、先に弾きます。段階に関係なく止める規則です。",
             "旧版と新版が同居する間は、両方が読み書きできる形しか置けません。だから追加→両方書き→読み替え→削除の順に分けます。"
           ],
-          "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        String phase = s.next();\n        int n = s.nextInt();\n        Map<String, Set<String>> allowed = Map.of(\"expand\", Set.of(\"add-nullable-column\", \"write-both\"), \"migrate\", Set.of(\"write-both\", \"backfill\", \"switch-read\"), \"contract\", Set.of(\"drop-old-column\"));\n        Map<String, String> meaning = Map.of(\"expand\", \"ADD_COMPATIBLE\", \"migrate\", \"BACKFILL_AND_SWITCH\", \"contract\", \"REMOVE_OLD\");\n        System.out.println(\"PHASE \" + meaning.get(phase));\n        int forbidden = 0;\n        for (int k = 1; k <= n; k++) {\n            String op = s.next();\n            boolean ok = !op.equals(\"add-not-null-column\") && allowed.get(phase).contains(op);\n            if (!ok) forbidden++;\n            System.out.println(k + \" \" + op + \" \" + (ok ? \"ALLOW\" : \"FORBID\"));\n        }\n        System.out.println(\"FORBIDDEN \" + forbidden);\n    }\n}\n"
+          "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        String phase = sc.next();\n        int n = sc.nextInt();\n        Map<String, Set<String>> allowed = Map.of(\"expand\", Set.of(\"add-nullable-column\", \"write-both\"), \"migrate\", Set.of(\"write-both\", \"backfill\", \"switch-read\"), \"contract\", Set.of(\"drop-old-column\"));\n        Map<String, String> meaning = Map.of(\"expand\", \"ADD_COMPATIBLE\", \"migrate\", \"BACKFILL_AND_SWITCH\", \"contract\", \"REMOVE_OLD\");\n        System.out.println(\"PHASE \" + meaning.get(phase));\n        int forbidden = 0;\n        for (int k = 1; k <= n; k++) {\n            String op = sc.next();\n            boolean ok = !op.equals(\"add-not-null-column\") && allowed.get(phase).contains(op);\n            if (!ok) forbidden++;\n            System.out.println(k + \" \" + op + \" \" + (ok ? \"ALLOW\" : \"FORBID\"));\n        }\n        System.out.println(\"FORBIDDEN \" + forbidden);\n    }\n}\n"
         },
         {
+          "objectiveIds": [
+            "ch54-o4"
+          ],
           "kind": "applied",
           "task": "【実践】at-least-once配送を受け取る側を組みます。最大試行回数 maxAttempts と配送件数nを読み、続けてn件を `eventId attempt outcome` の形で読みます（`outcome` は `ok` / `retryable` / `permanent`）。\n\n読んだ順に1行ずつ、次のように表示してください。\n\n- そのeventIdを既に処理済みなら、`outcome` に関係なく `SKIP eventId`\n- そうでなく `outcome` が `ok` なら `PROCESS eventId` として処理済みに記録する\n- そうでなく `outcome` が `permanent` なら `DLQ eventId`（恒久エラーなので隔離します。処理済みには記録しません）\n- そうでなく `outcome` が `retryable` なら、`attempt` が maxAttempts 以上のとき `DLQ eventId`、未満のとき `RETRY eventId 次の試行回数`\n\n最後に集計を `SUMMARY processed=件数 skipped=件数 retried=件数 dlq=件数` の形で1行表示します。",
-          "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        int maxAttempts = s.nextInt(), n = s.nextInt();\n        Set<String> done = new HashSet<>();\n        int processed = 0, skipped = 0, retried = 0, dlq = 0;\n        for (int i = 0; i < n; i++) {\n            String id = s.next();\n            int attempt = s.nextInt();\n            String outcome = s.next();\n            /* TODO 4つの分岐 */\n        }\n        /* TODO SUMMARY */\n    }\n}\n",
+          "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int maxAttempts = sc.nextInt(), n = sc.nextInt();\n        Set<String> done = new HashSet<>();\n        int processed = 0, skipped = 0, retried = 0, dlq = 0;\n        for (int i = 0; i < n; i++) {\n            String id = sc.next();\n            int attempt = sc.nextInt();\n            String outcome = sc.next();\n            /* TODO 4つの分岐 */\n        }\n        /* TODO SUMMARY */\n    }\n}\n",
           "visibleCases": [
             {
               "label": "再配送と上限",
@@ -556,14 +621,16 @@
             "`retryable` の分岐だけが `attempt` と maxAttempts を比べます。`RETRY` に出すのは次の試行回数（`attempt+1`）です。",
             "`DLQ` へ送ったeventを処理済みに記録しないのは、再処理の手順であらためて扱うからです。「隔離した」と「処理した」は別の状態です。"
           ],
-          "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        int maxAttempts = s.nextInt(), n = s.nextInt();\n        Set<String> done = new HashSet<>();\n        int processed = 0, skipped = 0, retried = 0, dlq = 0;\n        for (int i = 0; i < n; i++) {\n            String id = s.next();\n            int attempt = s.nextInt();\n            String outcome = s.next();\n            if (done.contains(id)) {\n                System.out.println(\"SKIP \" + id);\n                skipped++;\n            } else if (outcome.equals(\"ok\")) {\n                done.add(id);\n                System.out.println(\"PROCESS \" + id);\n                processed++;\n            } else if (outcome.equals(\"permanent\")) {\n                System.out.println(\"DLQ \" + id);\n                dlq++;\n            } else if (attempt >= maxAttempts) {\n                System.out.println(\"DLQ \" + id);\n                dlq++;\n            } else {\n                System.out.println(\"RETRY \" + id + \" \" + (attempt + 1));\n                retried++;\n            }\n        }\n        System.out.println(\"SUMMARY processed=\" + processed + \" skipped=\" + skipped + \" retried=\" + retried + \" dlq=\" + dlq);\n    }\n}\n"
+          "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int maxAttempts = sc.nextInt(), n = sc.nextInt();\n        Set<String> done = new HashSet<>();\n        int processed = 0, skipped = 0, retried = 0, dlq = 0;\n        for (int i = 0; i < n; i++) {\n            String id = sc.next();\n            int attempt = sc.nextInt();\n            String outcome = sc.next();\n            if (done.contains(id)) {\n                System.out.println(\"SKIP \" + id);\n                skipped++;\n            } else if (outcome.equals(\"ok\")) {\n                done.add(id);\n                System.out.println(\"PROCESS \" + id);\n                processed++;\n            } else if (outcome.equals(\"permanent\")) {\n                System.out.println(\"DLQ \" + id);\n                dlq++;\n            } else if (attempt >= maxAttempts) {\n                System.out.println(\"DLQ \" + id);\n                dlq++;\n            } else {\n                System.out.println(\"RETRY \" + id + \" \" + (attempt + 1));\n                retried++;\n            }\n        }\n        System.out.println(\"SUMMARY processed=\" + processed + \" skipped=\" + skipped + \" retried=\" + retried + \" dlq=\" + dlq);\n    }\n}\n"
         }
       ]
     },
     {
       "id": "54-6",
       "title": "バッチ処理と定期実行",
-      "intro": "大量の仕事を分け、失敗しても安全に再開できる処理を設計します。",
+      "objectiveIds": [
+        "ch54-o5"
+      ],
       "explanation": "## バッチとスケジューラは役割が違う\n\n**バッチ処理**は、請求締め、日次集計、CSV取込のように、まとまったデータを開始から終了まで処理する仕事です。**スケジューラ**は「毎日2時」「5分ごと」のように、その仕事を開始するきっかけを作ります。\n\ncron、クラウドのスケジューラ、ジョブ管理製品などは起動時刻を決められますが、処理済みデータや再開位置までは自動では守ってくれません。「毎日2時に起動する」だけでなく、次をバッチ側で設計します。\n\n- どの業務日・どの入力を処理するジョブか\n- 成功、実行中、失敗のどの状態か\n- どこまで確定済みか\n- 同じ仕事がもう一度起動したらどうするか\n\n起動時刻そのものをIDにせず、`売上集計@2026-08-10` のような**ジョブ名と業務日**を一意なキーにすると、起動が遅れたり翌日に再実行したりしても同じ仕事だと判断できます。\n\n## 大量データは安定した順序で分割する\n\n100万件を1回で読み、1つのトランザクションで更新すると、メモリ、ロック時間、失敗時のやり直しが大きくなります。そこで例えば1000件ずつの**chunk（チャンク）**に分けます。\n\n```text\n読み取り → 必要なら変換 → 1000件を書き込み → commit → checkpoint更新\n```\n\n「何ページ目」だけを再開位置にすると、途中で行が追加・削除されたときに重複や抜けが起こり得ます。`ORDER BY id` と `WHERE id > :lastId` のように、変化しない一意キーで順序と境界を決める**keyset方式**が再開に向きます。\n\nチャンクを小さくすると再実行範囲とロック時間は短くなりますが、commit回数は増えます。大きくするとその逆です。件数を固定値として暗記せず、1件の重さ、DB負荷、許容再実行時間を測って決めます。\n\n## checkpointはcommit後に進める\n\n**checkpoint（チェックポイント）**は「ここまでは確定した」という再開位置です。1チャンクのDB更新とcheckpoint更新を同じトランザクションに入れます。\n\n1. チャンクを読み、更新する\n2. 更新と新しいcheckpointを同じトランザクションでcommitする\n3. commit後に次のチャンクへ進む\n\n先にcheckpointだけ進めて更新が失敗すると、再開時に未処理データを飛ばします。反対に更新だけ確定してcheckpointが古いと再処理が起きます。同じトランザクションにできない外部APIやファイル出力がある場合は、後述する冪等性キーやoutboxなどで境界を補います。\n\nJakarta Batchのchunk stepも、item reader・processor・writerを一定件数ごとに実行してcheckpointを記録し、原則として各chunkを別トランザクションで扱います。失敗後は最後に確定したcheckpointから再開できます。\n\n## 再実行できる処理は冪等にする\n\n失敗直前に外部送信だけ成功し、checkpoint更新前に停止すると、再開時に同じ送信が起こります。そのため、同じ `jobName + businessDate + itemId` を何度処理しても結果が1回分と同じになる**冪等性**を持たせます。\n\n- 処理済みキーへ一意制約を置き、同じキーの副作用を2回作らない\n- 上書きで同じ最終状態にする\n- 外部APIへidempotency keyを渡す\n- 通知はoutboxへ一意キー付きで記録する\n\n「2回呼ばれないはず」ではなく「2回呼ばれても壊れない」を目標にします。\n\n## 二重起動は永続的な状態で止める\n\nアプリ内の `boolean running` だけでは、複数インスタンスや再起動をまたげません。DBに `jobName + businessDate` の一意制約を持つ実行表を作り、状態を `RUNNING / DONE / FAILED` として原子的に獲得します。同じキーがRUNNINGなら後続を止め、DONEなら再実行不要と判断します。\n\n実行プロセスが突然落ちるとRUNNINGが残るため、必要なら期限付きの**lease（実行権）**、heartbeat、管理者による安全な解放を設計します。単に一定時間後にロックを消すと、遅い旧プロセスと新プロセスが同時に動く可能性があります。重要な処理では世代番号も書き込み時に確認するfencingを検討します。\n\nなおJakarta Batchはジョブ実行と再開を定義しますが、いつ起動するかというスケジューリングは別の仕組みの責務です。\n\n公式資料: [Jakarta Batch specification](https://jakarta.ee/specifications/batch/2.1/jakarta-batch-spec-2.1) / [Jakarta EE Tutorial: Batch Processing](https://jakarta.ee/learn/docs/jakartaee-tutorial/current/supporttechs/batch-processing/batch-processing.html)",
       "points": [
         "スケジューラは起動契機、バッチは対象・状態・再開・重複防止を担当する",
@@ -625,10 +692,10 @@
         {
           "question": "毎日2時の請求バッチについて、スケジューラの主な責務はどれですか。",
           "choices": [
-            "処理済み明細をすべて記録する",
+            "処理した明細を記録し、次回の開始位置を決める",
             "指定した時刻にジョブを起動する契機を作る",
-            "各業務更新を必ず冪等にする",
-            "失敗したSQLを自動で修正する"
+            "業務更新を冪等にして、二重起動でも壊れないようにする",
+            "失敗したSQLを検出し、次の起動まで再試行を続ける"
           ],
           "answer": 1,
           "explanation": "起動時刻はスケジューラ、対象・状態・checkpoint・冪等性はバッチ側の設計です。"
@@ -636,10 +703,10 @@
         {
           "question": "更新対象が増減するテーブルを途中再開する境界として比較的適切なのはどれですか。",
           "choices": [
-            "OFFSETで数えたページ番号だけ",
-            "ORDER BYなしの現在の行順",
+            "`OFFSET`で数えたページ番号を保存し、次はその続きから読む",
+            "`ORDER BY`を付けず、DBが返した現在の行順をそのまま使う",
             "安定した一意IDを並べ、最後に確定したIDより大きいものを読む",
-            "JVM内のループ回数だけ"
+            "JVM内で回したループの回数を保存し、次はその次から数える"
           ],
           "answer": 2,
           "explanation": "安定した一意キーによるkeyset方式なら、行の増減による位置ずれを避けやすくなります。"
@@ -647,10 +714,10 @@
         {
           "question": "checkpointを進める正しいタイミングはどれですか。",
           "choices": [
-            "チャンクの更新を始める前",
+            "チャンクの更新を始める前に、先に進めておく",
             "1件読むたびに、更新結果と無関係に進める",
             "チャンクの更新と同じトランザクションで確定するとき",
-            "次の日のスケジューラが起動したとき"
+            "次の日のスケジューラが起動したときにまとめて進める"
           ],
           "answer": 2,
           "explanation": "更新とcheckpointを同じ確定単位にすると、未処理の飛ばしや不要な再処理を防ぎやすくなります。"
@@ -658,10 +725,10 @@
         {
           "question": "外部APIへの送信後、checkpoint更新前に停止する可能性への備えはどれですか。",
           "choices": [
-            "同じitemIdを再送しても二重効果にならないidempotency keyを使う",
-            "例外をすべて無視する",
-            "chunkを必ず全件にする",
-            "送信前にcheckpointだけ進める"
+            "同じitemIdの再送で二重効果にならない冪等キーを使う",
+            "送信で例外が出たら記録だけ残し、そのchunkを飛ばす",
+            "chunkを1件ずつにして、送信とcheckpointを近づける",
+            "送信の前にcheckpointを進めておき、二重送信を避ける"
           ],
           "answer": 0,
           "explanation": "異なるトランザクション境界をまたぐ副作用では、再試行される前提で冪等性を持たせます。"
@@ -669,10 +736,10 @@
         {
           "question": "複数インスタンスで同じ業務日のジョブが二重起動するのを防ぐ方法として適切なのはどれですか。",
           "choices": [
-            "各JVMにbooleanフィールドを置くだけ",
-            "開始時刻を少しずつずらすだけ",
+            "各JVMにbooleanのフィールドを置き、起動時に確認する",
+            "起動時刻を少しずつずらして、重なりを避ける",
             "ジョブ名と業務日の一意キーをDBで原子的に獲得する",
-            "ログにRUNNINGと書くだけ"
+            "ログへRUNNINGと書き、次の起動時にそれを読む"
           ],
           "answer": 2,
           "explanation": "全インスタンスが共有する永続ストアと一意制約で、実行権を1つだけ獲得させます。"
@@ -729,7 +796,9 @@
     {
       "id": "54-7",
       "title": "章末演習：再開できるバッチを設計する",
-      "intro": "起動漏れの回収、安定した分割、チャンク単位の確定を一続きで確認します。",
+      "objectiveIds": [
+        "ch54-o5"
+      ],
       "explanation": "バッチは正常終了だけでなく、遅延、二重起動、途中停止からの復旧まで含めて完成です。業務日を明示して未完了日を拾い、安定したキーで対象を分割し、副作用とcheckpointを同じ確定単位で扱います。",
       "points": [
         "前回成功した業務日から未処理日を列挙し、起動漏れを回収する",

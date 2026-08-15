@@ -3,6 +3,24 @@
   "title": "トランザクションと整合性",
   "subtitle": "全部成功・全部取消と同時実行を設計する",
   "emoji": "🔒",
+  "objectives": [
+    {
+      "id": "ch27-o1",
+      "text": "`@Transactional` のrollback規則を踏まえ、例外を握りつぶさずに書ける"
+    },
+    {
+      "id": "ch27-o2",
+      "text": "伝播種別を選び、外部呼び出しをトランザクションの外へ出せる"
+    },
+    {
+      "id": "ch27-o3",
+      "text": "冪等性キーで再送を検出し、同じ結果を返せる"
+    },
+    {
+      "id": "ch27-o4",
+      "text": "同時更新を原子的な操作で守り、在庫が負にならないようにできる"
+    }
+  ],
   "libs": [
     "jakarta-transactions"
   ],
@@ -52,6 +70,9 @@
     {
       "id": "27-1",
       "title": "@Transactionalとrollback規則",
+      "objectiveIds": [
+        "ch27-o1"
+      ],
       "explanation": "## 複数の更新を「全部成功」か「全部取り消し」にする\n\n注文を保存したのに在庫だけ減っていない、送金元の残高だけ減って送金先が増えていない。このような途中状態をDBへ確定させないために **トランザクション** を使います。\n\n```text\nトランザクション開始\n  → 注文を保存\n  → 在庫を減らす\n両方成功: COMMIT（確定）\n途中で失敗: ROLLBACK（取り消し）\n```\n\nJakarta EEでは、業務メソッドへ `@Transactional` を付けると、この開始・確定・取り消しをサーバーへ任せられます。メソッド呼び出しの前後へ共通処理を差し込む仕組みを **インターセプター** と呼び、トランザクション用インターセプターが境界を管理します。\n\n```java\n@Transactional\npublic void transfer(long from, long to, int amount) {\n    debit(from, amount);\n    credit(to, amount);\n}\n```\n\n境界は、通常「送金する」「注文を確定する」のようなServiceの業務操作へ置きます。Repositoryの1メソッドごとに別々に確定すると、複数更新をまとめる目的を果たせません。\n\n### どの例外で取り消されるか\n\n既定では、`RuntimeException` とその派生例外、`Error` がインターセプターまで届くとロールバック対象になります。検査例外は既定ではロールバック対象になりません。業務例外でも取り消す必要があるなら `rollbackOn`、特定の例外では取り消さないなら `dontRollbackOn` を明示します。\n\n```java\n@Transactional(rollbackOn = BusinessException.class)\npublic void placeOrder(...) throws BusinessException { ... }\n```\n\n例外をメソッド内で捕まえて正常な戻り値へ変えると、インターセプターからは成功に見えることがあります。取り消しが必要なら例外を投げ直すか、トランザクションをrollback-onlyへ設定します。\n\n今回の演習では、送金途中で失敗したときにMapへ変更を残さない処理を作ります。MapはDBではありませんが、「成功時だけ全変更を確定する」という境界の考え方を再現しています。",
       "samples": [
         {
@@ -60,7 +81,7 @@
         }
       ],
       "task": "口座残高Mapを使う送金Serviceを完成させてください。amount<=0、IDなし、残高不足なら元のMapへ一切変更を残さず `失敗`。成功なら `A=残高 B=残高`。メソッドへ@Transactionalも付けます。",
-      "starterCode": "import jakarta.transaction.Transactional;\nimport java.util.*;\n\nclass TransferService {\n    private final Map<String, Integer> balances = new LinkedHashMap<>(Map.of(\"A\", 1000, \"B\", 500));\n\n    String transfer(String from, String to, int amount) {\n        // TODO annotation and atomic update\n        return \"\";\n    }\n}\n\npublic class TxTransfer {\n    public static void main(String[] a) {\n        Scanner s = new Scanner(System.in);\n        TransferService service = new TransferService();\n        System.out.println(service.transfer(s.next(), s.next(), s.nextInt()));\n    }\n}\n",
+      "starterCode": "import jakarta.transaction.Transactional;\nimport java.util.*;\n\nclass TransferService {\n    private final Map<String, Integer> balances = new LinkedHashMap<>(Map.of(\"A\", 1000, \"B\", 500));\n\n    String transfer(String from, String to, int amount) {\n        // TODO annotation and atomic update\n        return \"\";\n    }\n}\n\npublic class TxTransfer {\n    public static void main(String[] a) {\n        Scanner sc = new Scanner(System.in);\n        TransferService service = new TransferService();\n        System.out.println(service.transfer(sc.next(), sc.next(), sc.nextInt()));\n    }\n}\n",
       "visibleCases": [
         {
           "label": "成功",
@@ -95,7 +116,7 @@
         "更新前に両残高のnull、amount<=0、from残高不足を全て確認し、失敗ならreturn。",
         "検証後に2つのputを連続して行います。"
       ],
-      "solution": "import jakarta.transaction.Transactional;\nimport java.util.*;\n\nclass TransferService {\n    private final Map<String, Integer> balances = new LinkedHashMap<>(Map.of(\"A\", 1000, \"B\", 500));\n\n    @Transactional\n    String transfer(String from, String to, int amount) {\n        Integer f = balances.get(from), t = balances.get(to);\n        if (f == null || t == null || amount <= 0 || f < amount) return \"失敗\";\n        balances.put(from, f - amount);\n        balances.put(to, t + amount);\n        return \"A=\" + balances.get(\"A\") + \" B=\" + balances.get(\"B\");\n    }\n}\n\npublic class TxTransfer {\n    public static void main(String[] a) {\n        Scanner s = new Scanner(System.in);\n        TransferService service = new TransferService();\n        System.out.println(service.transfer(s.next(), s.next(), s.nextInt()));\n    }\n}\n",
+      "solution": "import jakarta.transaction.Transactional;\nimport java.util.*;\n\nclass TransferService {\n    private final Map<String, Integer> balances = new LinkedHashMap<>(Map.of(\"A\", 1000, \"B\", 500));\n\n    @Transactional\n    String transfer(String from, String to, int amount) {\n        Integer f = balances.get(from), t = balances.get(to);\n        if (f == null || t == null || amount <= 0 || f < amount) return \"失敗\";\n        balances.put(from, f - amount);\n        balances.put(to, t + amount);\n        return \"A=\" + balances.get(\"A\") + \" B=\" + balances.get(\"B\");\n    }\n}\n\npublic class TxTransfer {\n    public static void main(String[] a) {\n        Scanner sc = new Scanner(System.in);\n        TransferService service = new TransferService();\n        System.out.println(service.transfer(sc.next(), sc.next(), sc.nextInt()));\n    }\n}\n",
       "sourceChecks": [
         {
           "pattern": "@Transactional\\b",
@@ -138,6 +159,9 @@
     {
       "id": "27-2",
       "title": "伝播とトランザクションを短く保つ",
+      "objectiveIds": [
+        "ch27-o2"
+      ],
       "explanation": "## 同じトランザクションへ参加するか、別に確定するかを決める\n\nServiceから別のServiceを呼ぶとき、呼び出し先を同じトランザクションへ含めるのか、新しいトランザクションで実行するのかを決める必要があります。この参加規則を **伝播** と呼び、`@Transactional` の `TxType` で指定します。\n\n| TxType | 既存のトランザクションがある場合 | ない場合 |\n|---|---|---|\n| `REQUIRED` | そのまま参加する | 新しく開始する |\n| `REQUIRES_NEW` | 外側を一時停止し、別のものを開始する | 新しく開始する |\n| `MANDATORY` | 参加する | 例外にする |\n| `SUPPORTS` | 参加する | トランザクションなしで動く |\n\n`REQUIRED` が既定です。注文保存と在庫更新を両方成功させたいなら、同じ `REQUIRED` の境界へ参加させます。\n\n`REQUIRES_NEW` は外側と別に確定したい処理に使えます。たとえば監査記録を別トランザクションで確定すると、外側の注文処理がロールバックしても監査記録は残ります。これは便利ですが、「注文はないのに記録だけある」という別々の結果を意図的に作ります。本当に分離してよい処理だけに限定します。\n\n### トランザクションを短くする理由\n\nDB更新中は、接続や行ロックなど限られた資源を保持することがあります。その中で外部HTTP APIの応答を長く待つと、ほかの処理までDB接続やロックを待つことになります。\n\n```text\n外部情報を取得\n      ↓\n短いDBトランザクションで検証・更新\n      ↓\n確定後に通知\n```\n\nただしDB更新と外部通知を単純に分けると、DBだけ成功して通知に失敗する可能性があります。この問題には、第54章で扱う **transactional outbox** を使えます。これは業務データと「後で送る通知」を同じDBトランザクションへ保存し、確定後に別処理が通知を送る方式です。\n\n同じクラスの `this.someMethod()` のような内部呼び出しは、通常インターセプターの境界を通りません。注釈を付けただけで別トランザクションになると思わず、境界となるBean同士の呼び出しとして設計します。\n\n今回の演習では、外側を `REQUIRED`、監査を `REQUIRES_NEW` とした場合の開始・確定・再開の順序を追います。",
       "samples": [
         {
@@ -191,6 +215,10 @@
     {
       "id": "27-3",
       "title": "同時更新・再試行・冪等性",
+      "objectiveIds": [
+        "ch27-o3",
+        "ch27-o4"
+      ],
       "explanation": "## 同じ要求が届いても、結果を二重に増やさない\n\nネットワークでは、サーバーが処理を終えた後に応答だけが失われることがあります。利用者やクライアントは「処理されなかった」と考えて同じ要求を再送します。このとき注文や決済をもう一度作ると、二重登録になります。\n\n同じ操作を複数回受けても、最終結果を1回分に保つ性質を **冪等性（べきとうせい）** と呼びます。作成APIでは、要求ごとに **冪等性キー** を付け、初回の結果をキーと一緒に保存します。\n\n```text\nkey=abc の1回目 → 注文42を作成し、abc→注文42を保存\nkey=abc の再送  → 新規作成せず、注文42の結果を返す\n```\n\nメモリ上の確認だけでは、同時に届いた2件がどちらも「未処理」と判断できます。DBの `UNIQUE` 制約でもキーの重複を止め、競合した側は保存済みの結果を読み直します。\n\n### 同時更新を黙って上書きしない\n\n2人が同じデータを読み、順に保存すると、後の保存が先の変更を消すことがあります。JPAの `@Version` を使う **楽観ロック** は、読み取った版が保存時にも同じかを検査し、違えば競合として知らせます。競合が頻繁な処理では、条件付きUPDATEや悲観ロックなど別の方法も検討します。\n\n### 再試行は、安全だと分かる失敗だけにする\n\nデッドロックや一時的な接続失敗は再試行で成功する場合があります。しかし、回数制限なしで即時に繰り返すと、障害中のDBへさらに負荷をかけます。待ち時間を1秒、2秒、4秒のように伸ばす **指数バックオフ**、回数上限、全体の期限を決めます。\n\n再試行の前提は、その処理が冪等であることです。外部決済がすでに成功したか分からない状態で、確認せず再実行してはいけません。処理結果を照会するか、外部サービスの冪等性キーを使います。\n\n今回の演習では、同じキーの再送に初回の注文結果を返します。再送時のitemが違っても初回結果を返すことで、キーが「1つの操作」を識別していることを確認します。",
       "samples": [
         {
@@ -199,7 +227,7 @@
         }
       ],
       "task": "複数行の `key item` を処理します。同じkeyの初回は連番注文を作り `created key=... order=n item=...`、再送はitemが違っても初回結果を `replay key=... order=n item=初回値` と返してください。",
-      "starterCode": "import java.util.*;\n\nrecord Result(int order, String item) { }\n\npublic class TxIdempotency {\n    public static void main(String[] a) {\n        Scanner s = new Scanner(System.in);\n        Map<String, Result> done = new LinkedHashMap<>();\n        int sequence = 0;\n        while (s.hasNext()) {\n            String key = s.next(), item = s.next();\n            // TODO\n        }\n    }\n}\n",
+      "starterCode": "import java.util.*;\n\nrecord Result(int order, String item) { }\n\npublic class TxIdempotency {\n    public static void main(String[] a) {\n        Scanner sc = new Scanner(System.in);\n        Map<String, Result> done = new LinkedHashMap<>();\n        int sequence = 0;\n        while (sc.hasNext()) {\n            String key = sc.next(), item = sc.next();\n            // TODO\n        }\n    }\n}\n",
       "visibleCases": [
         {
           "label": "再送",
@@ -218,12 +246,12 @@
         "`Result old=done.get(key)` で確認。",
         "nullなら `new Result(++sequence,item)` を保存してcreated。既存ならoldの値でreplay。"
       ],
-      "solution": "import java.util.*;\n\nrecord Result(int order, String item) { }\n\npublic class TxIdempotency {\n    public static void main(String[] a) {\n        Scanner s = new Scanner(System.in);\n        Map<String, Result> done = new LinkedHashMap<>();\n        int sequence = 0;\n        while (s.hasNext()) {\n            String key = s.next(), item = s.next();\n            Result r = done.get(key);\n            if (r == null) {\n                r = new Result(++ sequence, item);\n                done.put(key, r);\n                System.out.println(\"created key=\" + key + \" order=\" + r.order() + \" item=\" + r.item());\n            } else System.out.println(\"replay key=\" + key + \" order=\" + r.order() + \" item=\" + r.item());\n        }\n    }\n}\n",
+      "solution": "import java.util.*;\n\nrecord Result(int order, String item) { }\n\npublic class TxIdempotency {\n    public static void main(String[] a) {\n        Scanner sc = new Scanner(System.in);\n        Map<String, Result> done = new LinkedHashMap<>();\n        int sequence = 0;\n        while (sc.hasNext()) {\n            String key = sc.next(), item = sc.next();\n            Result r = done.get(key);\n            if (r == null) {\n                r = new Result(++ sequence, item);\n                done.put(key, r);\n                System.out.println(\"created key=\" + key + \" order=\" + r.order() + \" item=\" + r.item());\n            } else System.out.println(\"replay key=\" + key + \" order=\" + r.order() + \" item=\" + r.item());\n        }\n    }\n}\n",
       "extraTasks": [
         {
           "kind": "applied",
           "task": "在庫5から複数の購入数を順に受け、在庫以上なら原子的に減らして `ok rest=n`、不足なら変更せず `ng rest=n`。0以下もngです。",
-          "starterCode": "import java.util.*;\n\npublic class TxStock {\n    public static void main(String[] a) {\n        Scanner s = new Scanner(System.in);\n        int stock = 5;\n        while (s.hasNextInt()) {\n            int count = s.nextInt();\n            // TODO\n        }\n    }\n}\n",
+          "starterCode": "import java.util.*;\n\npublic class TxStock {\n    public static void main(String[] a) {\n        Scanner sc = new Scanner(System.in);\n        int stock = 5;\n        while (sc.hasNextInt()) {\n            int count = sc.nextInt();\n            // TODO\n        }\n    }\n}\n",
           "visibleCases": [
             {
               "label": "境界と不足",
@@ -242,7 +270,7 @@
             "成功条件は `count > 0 && stock >= count`。",
             "成功時だけstockを減らします。"
           ],
-          "solution": "import java.util.*;\n\npublic class TxStock {\n    public static void main(String[] a) {\n        Scanner s = new Scanner(System.in);\n        int stock = 5;\n        while (s.hasNextInt()) {\n            int count = s.nextInt();\n            if (count > 0 && stock >= count) {\n                stock -= count;\n                System.out.println(\"ok rest=\" + stock);\n            } else System.out.println(\"ng rest=\" + stock);\n        }\n    }\n}\n",
+          "solution": "import java.util.*;\n\npublic class TxStock {\n    public static void main(String[] a) {\n        Scanner sc = new Scanner(System.in);\n        int stock = 5;\n        while (sc.hasNextInt()) {\n            int count = sc.nextInt();\n            if (count > 0 && stock >= count) {\n                stock -= count;\n                System.out.println(\"ok rest=\" + stock);\n            } else System.out.println(\"ng rest=\" + stock);\n        }\n    }\n}\n",
           "sourceChecks": [
             {
               "pattern": "stock\\s*>=\\s*count|count\\s*<=\\s*stock",
@@ -357,19 +385,22 @@
         {
           "question": "冪等性キーの目的は？",
           "choices": [
-            "EntityをEAGER化",
+            "関連するEntityをすべてEAGERで取得する",
             "同じ要求の再送で二重処理しない",
-            "パスワードを暗号化",
-            "HTMLを装飾"
+            "保存するパスワードを暗号化しておく",
+            "応答のHTMLを整形して読みやすくする"
           ],
           "answer": 1,
-          "explanation": "EAGER化・暗号化・HTMLの装飾とは関係ありません。ネットワークの再送や利用者の二度押しで同じ要求が2回届くことは避けられないので、初回の結果をキーに結びつけて覚えておき、2回目には**もう一度処理せず同じ結果を返す**ようにします。これで再送が安全になります。"
+          "explanation": "EAGER化・暗号化・HTMLの整形とは関係ありません。ネットワークの再送や利用者の二度押しで同じ要求が2回届くことは避けられないので、初回の結果をキーに結びつけて覚えておき、2回目には**もう一度処理せず同じ結果を返す**ようにします。これで再送が安全になります。"
         }
       ]
     },
     {
       "id": "27-4",
       "title": "章末演習：トランザクション",
+      "objectiveIds": [
+        "ch27-o1"
+      ],
       "explanation": "## 章末では、確定の境界と再実行の安全性を組み合わせる\n\nこの章では、複数のDB更新をまとめるトランザクション、呼び出し先の参加方法を決める伝播、同じ要求を安全に扱う冪等性を学びました。\n\n判断は次の順に行います。\n\n1. どの更新を「全部成功か全部取り消し」にするか決める\n2. Serviceの業務操作へ `@Transactional` の境界を置く\n3. 例外がインターセプターへ届くか、どの例外でロールバックするか確認する\n4. 呼び出し先を同じ境界へ含めるか、`REQUIRES_NEW` で分離するか決める\n5. 外部通信を含む処理では、重複と結果不明を前提に冪等性を設計する\n\nトランザクションを付ければ、DBと外部サービスのすべてが自動的に1つになるわけではありません。また、再試行を付ければ安全になるわけでもありません。守れる資源の範囲と、失敗後に何が確定済みかを明らかにします。\n\n章末演習では、注釈の伝播種別、確定・取り消しの集計、冪等性キーを組み合わせます。出力を追うときは「今どのトランザクションの中か」「この結果は再送されても増えないか」を書き添えてください。",
       "samples": [
         {
@@ -406,9 +437,12 @@
       "solution": "import jakarta.transaction.Transactional;\n\nclass OrderService {\n    @Transactional\n    void create() { }\n}\n\npublic class Main {\n    public static void main(String[] args) throws Exception {\n        Transactional tx = OrderService.class.getDeclaredMethod(\"create\").getAnnotation(Transactional.class);\n        System.out.println(tx.value());\n    }\n}\n",
       "extraTasks": [
         {
+          "objectiveIds": [
+            "ch27-o1"
+          ],
           "kind": "drill",
           "task": "【組み合わせ】初期残高1000円から、n件の出金額を順に処理します。各出金は1トランザクションと考え、正の金額かつ残高以内ならcommitして `commit balance=...`、それ以外は残高を変えず `rollback balance=...` と表示してください。",
-          "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        int n = s.nextInt(), balance = 1000;\n        for (int i = 0; i < n; i++) {\n            int amount = s.nextInt();\n            /* TODO */\n        }\n    }\n}\n",
+          "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt(), balance = 1000;\n        for (int i = 0; i < n; i++) {\n            int amount = sc.nextInt();\n            /* TODO */\n        }\n    }\n}\n",
           "visibleCases": [
             {
               "label": "成功と失敗",
@@ -437,10 +471,10 @@
             "成功条件を満たしたときだけbalanceを減らします。",
             "失敗時は現在のbalanceをそのまま表示します。"
           ],
-          "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        int n = s.nextInt(), balance = 1000;\n        for (int i = 0; i < n; i++) {\n            int amount = s.nextInt();\n            if (amount > 0 && amount <= balance) {\n                balance -= amount;\n                System.out.println(\"commit balance=\" + balance);\n            } else System.out.println(\"rollback balance=\" + balance);\n        }\n    }\n}\n",
+          "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt(), balance = 1000;\n        for (int i = 0; i < n; i++) {\n            int amount = sc.nextInt();\n            if (amount > 0 && amount <= balance) {\n                balance -= amount;\n                System.out.println(\"commit balance=\" + balance);\n            } else System.out.println(\"rollback balance=\" + balance);\n        }\n    }\n}\n",
           "sourceChecks": [
             {
-              "pattern": "amount\\s*>\\s*0|amount\\s*<=\\s*0",
+              "pattern": "amount\\s*>\\s*0|amount\\s*<=\\s*0|amount\\s*<\\s*1|amount\\s*>=\\s*1",
               "minimum": 1,
               "message": "正の金額かどうかを確かめてください。"
             },
@@ -452,9 +486,12 @@
           ]
         },
         {
+          "objectiveIds": [
+            "ch27-o3"
+          ],
           "kind": "applied",
           "task": "【実践】n件の `冪等性キー 商品名` を読みます。初めてのキーなら注文番号を採番して `created key=... order=... item=...`、同じキーなら最初の結果を `replay` として返してください。",
-          "starterCode": "import java.util.*;\n\nrecord Order(int number, String item) { }\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        int n = s.nextInt(), sequence = 0;\n        Map<String, Order> done = new LinkedHashMap<>();\n        for (int i = 0; i < n; i++) {\n            String key = s.next(), item = s.next();\n            /* TODO */\n        }\n    }\n}\n",
+          "starterCode": "import java.util.*;\n\nrecord Order(int number, String item) { }\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt(), sequence = 0;\n        Map<String, Order> done = new LinkedHashMap<>();\n        for (int i = 0; i < n; i++) {\n            String key = sc.next(), item = sc.next();\n            /* TODO */\n        }\n    }\n}\n",
           "visibleCases": [
             {
               "label": "再送",
@@ -483,7 +520,7 @@
             "キーをMapで検索し、無いときだけsequenceを増やします。",
             "再送時は新しいitemではなく保存済みOrderのitemを返します。"
           ],
-          "solution": "import java.util.*;\n\nrecord Order(int number, String item) { }\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        int n = s.nextInt(), sequence = 0;\n        Map<String, Order> done = new LinkedHashMap<>();\n        for (int i = 0; i < n; i++) {\n            String key = s.next(), item = s.next();\n            Order order = done.get(key);\n            if (order == null) {\n                order = new Order(++ sequence, item);\n                done.put(key, order);\n                System.out.println(\"created key=\" + key + \" order=\" + order.number() + \" item=\" + order.item());\n            } else System.out.println(\"replay key=\" + key + \" order=\" + order.number() + \" item=\" + order.item());\n        }\n    }\n}\n",
+          "solution": "import java.util.*;\n\nrecord Order(int number, String item) { }\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt(), sequence = 0;\n        Map<String, Order> done = new LinkedHashMap<>();\n        for (int i = 0; i < n; i++) {\n            String key = sc.next(), item = sc.next();\n            Order order = done.get(key);\n            if (order == null) {\n                order = new Order(++ sequence, item);\n                done.put(key, order);\n                System.out.println(\"created key=\" + key + \" order=\" + order.number() + \" item=\" + order.item());\n            } else System.out.println(\"replay key=\" + key + \" order=\" + order.number() + \" item=\" + order.item());\n        }\n    }\n}\n",
           "sourceChecks": [
             {
               "pattern": "\\bMap\\s*<",

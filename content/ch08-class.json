@@ -3,10 +3,35 @@
   "title": "クラスとインスタンス",
   "subtitle": "自分でデータの型を作る",
   "emoji": "🏗️",
+  "objectives": [
+    {
+      "id": "ch08-o1",
+      "text": "フィールドとメソッドを持つクラスを作り、`new` してインスタンスを使える"
+    },
+    {
+      "id": "ch08-o2",
+      "text": "コンストラクタを複数作り、`this` で使い回せる"
+    },
+    {
+      "id": "ch08-o3",
+      "text": "フィールドの既定値とローカル変数の違いを説明できる"
+    },
+    {
+      "id": "ch08-o4",
+      "text": "参照の `==` と `null` の扱いを予測して書ける"
+    },
+    {
+      "id": "ch08-o5",
+      "text": "`static` をインスタンスごとの持ち物と使い分けられる"
+    }
+  ],
   "lessons": [
     {
       "id": "8-1",
       "title": "クラスを作って new する",
+      "objectiveIds": [
+        "ch08-o1"
+      ],
       "explanation": "## 関係のあるデータをひとまとめにする\n\n本の情報を扱うとして、これまでの道具ではこう書くしかありませんでした。\n\n```java\nString title1 = \"Java入門\";\nint price1 = 2500;\nString title2 = \"Python入門\";\nint price2 = 3000;\n```\n\n冊数が増えるたびに変数も増え、「どのタイトルとどの価格が組なのか」は\n名前の付け方で祈るしかありません。\n\nそこで **自分で新しい型を作ります**。それが **クラス** です。\n\n```java\nclass Book {\n    String title;   // フィールド（このクラスが持つデータ）\n    int price;\n}\n```\n\nこれで `Book` という型ができました。`int` や `String` と同じように使える、自作の型です。\n\n## クラスは設計図、インスタンスは実体\n\nクラスは「どんなデータを持つか」を書いた **設計図** にすぎません。\n実際のデータを入れる箱は `new` で作ります。作られた箱を **インスタンス**（またはオブジェクト）と呼びます。\n\n```java\nBook b = new Book();      // 設計図から実体を1つ作る\nb.title = \"Java入門\";     // ドットでフィールドにアクセスする\nb.price = 2500;\nSystem.out.println(b.title + \" \" + b.price);\n```\n\n`new Book()` を2回書けば、独立した箱が2つできます。\n\n```java\nBook b1 = new Book();\nBook b2 = new Book();\nb1.price = 2500;\nb2.price = 3000;      // b1 には影響しない\n```\n\n```svg クラスは設計図。データが入る箱は `new` のたびに新しくできる\n<svg viewBox=\"0 0 720 240\">\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"145\" y=\"26\" text-anchor=\"middle\">クラス＝設計図</text>\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"530\" y=\"26\" text-anchor=\"middle\">インスタンス＝データが入る箱</text>\n\n  <rect class=\"fig-box-accent\" x=\"20\" y=\"44\" width=\"250\" height=\"110\" rx=\"6\"/>\n  <text class=\"fig-t fig-mono fig-t-accent\" x=\"145\" y=\"66\" text-anchor=\"middle\">class Book</text>\n  <text class=\"fig-t fig-mono fig-small\" x=\"40\" y=\"96\">String title;</text>\n  <text class=\"fig-t fig-mono fig-small\" x=\"40\" y=\"120\">int price;</text>\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"40\" y=\"142\">値は入っていない</text>\n\n  <line class=\"fig-line-accent\" x1=\"274\" y1=\"90\" x2=\"352\" y2=\"80\" marker-end=\"arrow-accent\"/>\n  <text class=\"fig-t fig-mono fig-small fig-t-accent\" x=\"313\" y=\"66\" text-anchor=\"middle\">new Book()</text>\n  <path class=\"fig-line-accent\" d=\"M 274 116 L 420 152 L 534 142\" marker-end=\"arrow-accent\"/>\n\n  <rect class=\"fig-box\" x=\"356\" y=\"50\" width=\"160\" height=\"88\" rx=\"6\"/>\n  <text class=\"fig-t fig-mono\" x=\"436\" y=\"72\" text-anchor=\"middle\">b1</text>\n  <text class=\"fig-t fig-mono fig-small\" x=\"372\" y=\"98\">title = \"Java入門\"</text>\n  <text class=\"fig-t fig-mono fig-small\" x=\"372\" y=\"120\">price = 2500</text>\n\n  <rect class=\"fig-box\" x=\"536\" y=\"50\" width=\"160\" height=\"88\" rx=\"6\"/>\n  <text class=\"fig-t fig-mono\" x=\"616\" y=\"72\" text-anchor=\"middle\">b2</text>\n  <text class=\"fig-t fig-mono fig-small\" x=\"552\" y=\"98\">title = \"Python入門\"</text>\n  <text class=\"fig-t fig-mono fig-small\" x=\"552\" y=\"120\">price = 3000</text>\n\n  <text class=\"fig-t fig-t-dim fig-small\" x=\"356\" y=\"176\">b2.price を変えても b1 は変わらない（別の箱だから）</text>\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"20\" y=\"212\">メソッドは設計図の側に1つ書いておき、呼ぶときに「どの箱に対してか」を指定する（<tspan class=\"fig-mono\">b1.show()</tspan>）</text>\n</svg>\n```\n\n## インスタンスメソッド — データにくっついた処理\n\nクラスの中にはメソッドも書けます。第7章では `static` を付けていましたが、\n`static` を **付けない** メソッドは「そのインスタンスに対する処理」になります。\n\n```java\nclass Book {\n    String title;\n    int price;\n\n    void show() {                                   // static を付けない\n        System.out.println(title + \" \" + price + \"円\");\n    }\n}\n```\n\n`show()` の中では、自分のフィールドを名前だけで使えます。\n呼び出すときは「どのインスタンスに対してか」を書きます。\n\n```java\nBook b = new Book();\nb.title = \"Java入門\";\nb.price = 2500;\nb.show();            // Java入門 2500円\n```\n\n> 💡 `System.out.println(...)` も、`System.out` というインスタンスに対して `println` を呼んでいます。同じ形です。\n\n### ファイルの書き方\n\nこのアプリでは1つのファイルにまとめて書きます。`public` を付けるのは `Main` だけです。\n\n```java\nclass Book {          // public は付けない\n    String title;\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Book b = new Book();\n    }\n}\n```\n\n> ⚠️ 間違えやすい点 … 1つのファイルに `public` なクラスを2つ書くとコンパイルエラーです。`public` はファイル名と同じ名前のクラスだけに付けられます。",
       "samples": [
         {
@@ -128,6 +153,9 @@
     {
       "id": "8-2",
       "title": "コンストラクタと this",
+      "objectiveIds": [
+        "ch08-o2"
+      ],
       "explanation": "## new のときに走る初期化 — コンストラクタ\n\n前のレッスンでは、`new` したあとにフィールドを1つずつ埋めました。\n\n```java\nBook b = new Book();\nb.title = \"Java入門\";\nb.price = 2500;\n```\n\n埋め忘れると中身が空のままです。そこで **作るときに必ず値を渡させる** ようにします。\nそのための特別なメソッドが **コンストラクタ** です。\n\n```java\nclass Book {\n    String title;\n    int price;\n\n    Book(String title, int price) {      // ← コンストラクタ\n        this.title = title;\n        this.price = price;\n    }\n}\n```\n\nこれで `new` のときに値を渡せます。というより、**渡さないと作れなくなります**。\n\n```java\nBook b = new Book(\"Java入門\", 2500);     // 1行で完成\n```\n\n### コンストラクタの決まり\n\n- 名前は **クラス名とまったく同じ**\n- **戻り値の型を書かない**（`void` すら書かない）\n\n> ⚠️ 間違えやすい点 … 戻り値の型を書くと、それはコンストラクタではなく **ただのメソッド** になります。\n\n```java\nclass Book {\n    void Book(String t) { }    // ❌ これはメソッド。new Book(\"x\") では呼ばれない\n}\n```\n\n見た目がそっくりで間違えやすいので、`void` があるかどうかを必ず確認してください。\n\n## this — 自分自身を指す\n\n`this.title = title;` の `this` は「**いま処理しているこのインスタンス**」を指します。\n\n引数の名前とフィールドの名前が同じとき、`title` だけ書くと **引数** の方が優先されます。\nだから `this.` を付けてフィールドだと示す必要があります。\n\n```java\nBook(String title, int price) {\n    title = title;          // ❌ 引数を引数に代入している。フィールドは空のまま\n    this.title = title;     // ✅ フィールド ← 引数\n}\n```\n\n名前が違えば `this` は省略できますが、同じ名前にして `this` を付けるのが定番です。\n\n## デフォルトコンストラクタ\n\n第8章の最初では `new Book()` と引数なしで書けました。コンストラクタを1つも書かなかったので、\nJavaが **引数なしのコンストラクタを自動で用意していた** からです。これを\n**デフォルトコンストラクタ** といいます。\n\n> ⚠️ 間違えやすい点 … 自分でコンストラクタを1つでも書くと、デフォルトコンストラクタは **作られなくなります**。\n\n```java\nclass Book {\n    Book(String title) { }\n}\n\nBook b = new Book();          // ❌ コンパイルエラー：引数なしの版はもう存在しない\n```\n\n引数なしでも作りたいなら、自分で両方書きます。コンストラクタもオーバーロードできます。\n\n## this(...) で別のコンストラクタを呼ぶ\n\n似たコンストラクタを2つ書くと、同じ初期化が重複します。\n`this(...)` を使うと、**同じクラスの別のコンストラクタ** に処理を任せられます。\n\n```java\nclass Book {\n    String title;\n    int price;\n\n    Book(String title, int price) {\n        this.title = title;\n        this.price = price;\n    }\n\n    Book(String title) {\n        this(title, 0);        // 価格 0 として上のコンストラクタに任せる\n    }\n}\n```\n\n`this(...)` は **コンストラクタの1行目** に書かなければなりません（それより前に文を書くとエラー）。",
       "samples": [
         {
@@ -239,6 +267,9 @@
     {
       "id": "8-3",
       "title": "フィールドの初期値と、ローカル変数",
+      "objectiveIds": [
+        "ch08-o3"
+      ],
       "explanation": "## フィールドは勝手に初期化される\n\nクラスのフィールドは、値を入れなくても **必ず既定値で初期化されます**。\n`new` した直後に読んでも、ゴミが入っていることはありません。\n\n```java\nclass Data {\n    int num;\n    double rate;\n    boolean flag;\n    String name;\n}\n\nData d = new Data();\nSystem.out.println(d.num);     // 0\nSystem.out.println(d.name);    // null\n```\n\n既定値は型で決まっています。初期化の挙動を理解するために押さえてください。\n（8つの基本型の一覧は `2-5` にあります。）\n\n| 型 | 既定値 |\n|---|---|\n| `byte` `short` `int` `long` | `0` |\n| `float` `double` | `0.0` |\n| `char` | 空文字ではなく「数としては `0` の文字」（画面には見えません） |\n| `boolean` | `false` |\n| 参照型（`String` や自作クラス、配列） | `null` |\n\n配列の要素も同じルールで初期化されます。`new int[3]` の中身は `0, 0, 0`、\n`new String[3]` の中身は `null, null, null` です。\n\n> 💡 `null` を `println` に渡すと、文字として `null` と表示されます。エラーにはなりません。\n\n## ローカル変数は自分で初期化する\n\n一方、メソッドの中で宣言した変数（**ローカル変数**）はまったく違います。\n**初期化せずに読もうとすると、コンパイルエラー** になります。\n\n```java\npublic static void main(String[] args) {\n    int i;\n    System.out.println(i);     // ❌ コンパイルエラー：初期化されていない可能性がある\n}\n```\n\nこれは意地悪ではなく親切です。フィールドは「箱の一部」なので既定値を用意する意味がありますが、\nローカル変数は一時的な作業用なので、**入れ忘れはバグ以外にありえない** からです。\n\n宣言だけしておいて、後で必ず入れるなら問題ありません。\n\n```java\nint i;\nif (flag) {\n    i = 1;\n} else {\n    i = 2;          // ✅ どの道すじでも必ず入るのでOK\n}\nSystem.out.println(i);\n```\n\n`else` を書き忘れると「入らない道すじ」ができるので、その時点でエラーになります。\n\n> ⚠️ 間違えやすい点 … 「初期化していない変数を使う」問題は、**フィールドかローカル変数か** で答えが変わります。フィールドなら既定値が出力され、ローカル変数ならコンパイルエラーです。",
       "samples": [
         {
@@ -365,6 +396,9 @@
     {
       "id": "8-4",
       "title": "参照とは何か（== と null）",
+      "objectiveIds": [
+        "ch08-o4"
+      ],
       "explanation": "## 変数が持っているのは「場所」\n\n`int` の変数は値そのものを持っています。けれどクラス型の変数が持っているのは\n**本体がどこにあるかを指す矢印** です。これを **参照** と呼びます。\n\n```java\nPoint p1 = new Point(1, 2);\nPoint p2 = p1;          // 矢印のコピー。本体は増えない\n```\n\nこの状態では `p1` と `p2` は **同じ本体** を指しています。\nだから `p2` 経由で書き換えると `p1` からも見えます。\n\n```java\np2.x = 99;\nSystem.out.println(p1.x);    // 99\n```\n\n`new` を2回書けば、中身が同じでも **別の本体** になります。\n\n```java\nPoint a = new Point(1, 2);\nPoint b = new Point(1, 2);   // 中身は同じだが別の本体\n```\n\n## == は「同じ本体か」を調べる\n\n`==` は矢印の指し先を比べます。**中身が同じかどうかは見ません**。\n\n```java\nPoint a = new Point(1, 2);\nPoint b = new Point(1, 2);\nPoint c = a;\n\nSystem.out.println(a == b);   // false ← 中身は同じでも別の本体\nSystem.out.println(a == c);   // true  ← 同じ本体\n```\n\n```svg 変数が持っているのは「本体がどこにあるか」だけ。`c` は `a` と同じ本体を、`b` は別の本体を指している\n<svg viewBox=\"0 0 720 322\">\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"103\" y=\"26\" text-anchor=\"middle\">変数</text>\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"553\" y=\"26\" text-anchor=\"middle\">本体（new が作った実体）</text>\n  <rect class=\"fig-region\" x=\"14\" y=\"40\" width=\"178\" height=\"204\" rx=\"8\"/>\n  <rect class=\"fig-region\" x=\"400\" y=\"40\" width=\"306\" height=\"204\" rx=\"8\"/>\n\n  <rect class=\"fig-box\" x=\"30\" y=\"54\" width=\"146\" height=\"34\" rx=\"6\"/>\n  <text class=\"fig-t fig-code\" x=\"44\" y=\"71\">Point a</text>\n  <rect class=\"fig-box\" x=\"30\" y=\"98\" width=\"146\" height=\"34\" rx=\"6\"/>\n  <text class=\"fig-t fig-code\" x=\"44\" y=\"115\">Point b</text>\n  <rect class=\"fig-box\" x=\"30\" y=\"142\" width=\"146\" height=\"34\" rx=\"6\"/>\n  <text class=\"fig-t fig-code\" x=\"44\" y=\"159\">Point c</text>\n  <rect class=\"fig-box\" x=\"30\" y=\"196\" width=\"146\" height=\"34\" rx=\"6\"/>\n  <text class=\"fig-t fig-code\" x=\"44\" y=\"213\">Point p</text>\n\n  <rect class=\"fig-box\" x=\"418\" y=\"52\" width=\"270\" height=\"58\" rx=\"6\"/>\n  <text class=\"fig-t fig-title\" x=\"436\" y=\"72\">Point</text>\n  <text class=\"fig-t fig-mono\" x=\"436\" y=\"93\">x = 1, y = 2</text>\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"672\" y=\"72\" text-anchor=\"end\">本体①</text>\n\n  <rect class=\"fig-box\" x=\"418\" y=\"166\" width=\"270\" height=\"58\" rx=\"6\"/>\n  <text class=\"fig-t fig-title\" x=\"436\" y=\"186\">Point</text>\n  <text class=\"fig-t fig-mono\" x=\"436\" y=\"207\">x = 1, y = 2</text>\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"672\" y=\"186\" text-anchor=\"end\">本体②</text>\n\n  <line class=\"fig-line\" x1=\"196\" y1=\"71\" x2=\"410\" y2=\"74\" marker-end=\"arrow\"/>\n  <line class=\"fig-line\" x1=\"196\" y1=\"115\" x2=\"410\" y2=\"180\" marker-end=\"arrow\"/>\n  <path class=\"fig-line-accent\" d=\"M 196 159 C 300 159 300 92 410 92\" marker-end=\"arrow-accent\"/>\n\n  <line class=\"fig-line-ng fig-dashed\" x1=\"196\" y1=\"213\" x2=\"240\" y2=\"213\"/>\n  <line class=\"fig-line-ng\" x1=\"248\" y1=\"207\" x2=\"260\" y2=\"219\"/>\n  <line class=\"fig-line-ng\" x1=\"260\" y1=\"207\" x2=\"248\" y2=\"219\"/>\n  <text class=\"fig-t fig-t-ng fig-small\" x=\"270\" y=\"206\">null</text>\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"270\" y=\"224\">指し先がない</text>\n\n  <text class=\"fig-t fig-t-ok fig-small\" x=\"20\" y=\"280\"><tspan class=\"fig-mono\">a == c</tspan> は true … 同じ本体を指している</text>\n  <text class=\"fig-t fig-t-ng fig-small\" x=\"20\" y=\"304\"><tspan class=\"fig-mono\">a == b</tspan> は false … 中身は同じでも本体が別</text>\n</svg>\n```\n\n「中身が同じか」を判定したいときは `equals` メソッドを使います。\nただし **自分で作ったクラスでは、`equals` を書かないかぎり `==` と同じ動作** です\n（`Object` から受け継いだ既定の `equals` が「同じ本体か」を返すため）。\n自作クラスの `equals` を書く方法は第10章で学びます。\n\n> ⚠️ 間違えやすい点 … `String` の比較で `==` を使うと、同じ文字列でも `false` になることがあります。第4章でやったように、文字列は `equals` で比べます。\n\n## null — どこも指していない状態\n\n参照型の変数には **`null`** を入れられます。「矢印がどこも指していない」という意味です。\n\n```java\nPoint p = null;\nSystem.out.println(p == null);    // true\n```\n\n`null` の変数に対してフィールドやメソッドを使おうとすると、実行時に\n**NullPointerException** で落ちます。コンパイルは通ってしまうので、\nJavaで最もよく出会うエラーです。\n\n```java\nPoint p = null;\nSystem.out.println(p.x);          // 実行時に NullPointerException\n```\n\nだから「使う前に `null` かどうか確かめる」書き方が基本になります。\n\n```java\nif (p != null) {\n    System.out.println(p.x);      // ここは安全\n}\n```\n\n> 💡 `p == null` の比較は安全です。落ちるのは `p.` と **ドットを付けた** ときだけ、と覚えると分かりやすいです。",
       "samples": [
         {
@@ -481,6 +515,9 @@
     {
       "id": "8-5",
       "title": "static — クラスに1つだけの持ち物",
+      "objectiveIds": [
+        "ch08-o5"
+      ],
       "explanation": "## インスタンスごとか、クラスに1つか\n\nフィールドに `static` を付けると、**インスタンスごとではなくクラスに1つだけ** 存在する\nフィールドになります。すべてのインスタンスがそれを **共有** します。\n\n```java\nclass Counter {\n    static int total;    // クラスに1つ。全員で共有する\n    int count;           // インスタンスごとに別々\n\n    void add() {\n        total++;\n        count++;\n    }\n}\n```\n\n2つ作って動かすと、違いがはっきりします。\n\n```java\nCounter c1 = new Counter();\nCounter c2 = new Counter();\n\nc1.add();\nc1.add();\nc2.add();\n\nSystem.out.println(c1.count);        // 2 ← c1 の分だけ\nSystem.out.println(c2.count);        // 1 ← c2 の分だけ\nSystem.out.println(Counter.total);   // 3 ← 全員の合計\n```\n\n`static` なフィールドは **クラス名から** アクセスするのが作法です（`Counter.total`）。\nインスタンス経由（`c1.total`）でも動きますが、共有だと分かりにくいので避けます。\n\n```svg `static` を付けたフィールドはクラスに1つだけ。全部のインスタンスが同じものを触る\n<svg viewBox=\"0 0 720 272\">\n  <rect class=\"fig-region\" x=\"14\" y=\"34\" width=\"692\" height=\"186\" rx=\"8\"/>\n  <text class=\"fig-t fig-mono fig-small\" x=\"30\" y=\"52\">class Counter</text>\n\n  <rect class=\"fig-box\" x=\"180\" y=\"68\" width=\"150\" height=\"58\" rx=\"6\"/>\n  <text class=\"fig-t fig-mono\" x=\"255\" y=\"88\" text-anchor=\"middle\">c1</text>\n  <text class=\"fig-t fig-mono fig-small\" x=\"255\" y=\"110\" text-anchor=\"middle\">count = 2</text>\n  <rect class=\"fig-box\" x=\"390\" y=\"68\" width=\"150\" height=\"58\" rx=\"6\"/>\n  <text class=\"fig-t fig-mono\" x=\"465\" y=\"88\" text-anchor=\"middle\">c2</text>\n  <text class=\"fig-t fig-mono fig-small\" x=\"465\" y=\"110\" text-anchor=\"middle\">count = 1</text>\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"560\" y=\"88\">count は</text>\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"560\" y=\"108\">インスタンスごとに別</text>\n\n  <line class=\"fig-line-accent\" x1=\"255\" y1=\"126\" x2=\"300\" y2=\"152\" marker-end=\"arrow-accent\"/>\n  <line class=\"fig-line-accent\" x1=\"465\" y1=\"126\" x2=\"420\" y2=\"152\" marker-end=\"arrow-accent\"/>\n\n  <rect class=\"fig-box-accent\" x=\"240\" y=\"156\" width=\"240\" height=\"52\" rx=\"6\"/>\n  <text class=\"fig-t fig-mono fig-small fig-t-accent\" x=\"360\" y=\"174\" text-anchor=\"middle\">static int total</text>\n  <text class=\"fig-t fig-mono fig-small fig-t-accent\" x=\"360\" y=\"194\" text-anchor=\"middle\">= 3（全員の合計）</text>\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"500\" y=\"182\">クラスに1つだけ</text>\n\n  <text class=\"fig-t fig-t-dim fig-small\" x=\"14\" y=\"240\">add() の中の <tspan class=\"fig-mono\">total++</tspan> は、どちらのインスタンスから呼んでも同じ1つを増やす</text>\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"14\" y=\"262\">static メソッドからインスタンスフィールドは触れない（誰のものか決まらないため）</text>\n</svg>\n```\n\n## static メソッド\n\nメソッドに `static` を付けると、**インスタンスを作らずに呼べる** メソッドになります。\n第7章で書いていたのはこれです。\n\n```java\nclass MathUtil {\n    static int twice(int n) {\n        return n * 2;\n    }\n}\n\nSystem.out.println(MathUtil.twice(5));    // インスタンス不要\n```\n\n`Math.max(...)` や `Integer.parseInt(...)` も static メソッドです。\n「特定のインスタンスの状態と関係のない処理」に向いています。\n\n### static からインスタンスのものは触れない\n\n`static` メソッドは「インスタンスがなくても呼べる」ので、\nその中から **インスタンスフィールドを直接使うことはできません**。誰のものか決まらないからです。\n\n```java\nclass Sample {\n    int value;                    // インスタンスフィールド\n    static int shared;\n\n    static void bad() {\n        System.out.println(value);     // ❌ コンパイルエラー\n        System.out.println(shared);    // ✅ OK\n    }\n}\n```\n\n同じ理由で、**`static` の中では `this` が使えません**。\n\n逆向き（インスタンスメソッドから static のものを使う）は自由です。\n\n> ⚠️ 間違えやすい点 … `main` は `static` です。だから `main` の中でインスタンスフィールドやインスタンスメソッドを直接書くとコンパイルエラーになります。使いたければ `new` してインスタンス経由で呼びます。\n\nこれが第7章で「メソッドに `static` を付けてください」とお願いしていた理由です。\n\n> 💡 迷ったときの目安。「インスタンスごとの値を使う」ならインスタンス側、「引数だけで完結する」なら `static`。",
       "samples": [
         {
@@ -619,13 +656,13 @@
         {
           "question": "初期化していない変数について正しいのはどれでしょう。",
           "choices": [
-            "フィールドもローカル変数も既定値になる",
-            "フィールドはコンパイルエラー、ローカル変数は既定値",
-            "どちらもコンパイルエラー",
-            "フィールドは既定値、ローカル変数は必ずコンパイルエラー"
+            "フィールドもローカル変数も、宣言だけで既定値が入る",
+            "フィールドは宣言だけだとコンパイルエラー、ローカル変数は既定値",
+            "どちらも代入する前に読むとコンパイルエラーになる",
+            "フィールドは必ず既定値、ローカル変数は代入前に読むとエラー"
           ],
           "answer": 3,
-          "explanation": "フィールドは `int` なら `0`、参照型なら `null` で自動的に初期化されます。ローカル変数は初期化せずに読むと **コンパイルエラー** です。"
+          "explanation": "フィールドは宣言だけで既定値（`int` なら0、参照型なら `null`）が入ります。ローカル変数には既定値が無く、値を代入する前に読むとコンパイルエラーになります。"
         },
         {
           "question": "`static` について **誤っている** のはどれでしょう。",
@@ -643,6 +680,10 @@
     {
       "id": "8-6",
       "title": "章末演習：クラス",
+      "objectiveIds": [
+        "ch08-o1",
+        "ch08-o5"
+      ],
       "explanation": "## この章の知識を、自分の手で組み合わせよう\n\nここでは、**クラス・コンストラクタ・this・static**をまとめて使います。新しい文法は登場しません。分からなくなったら、直前までの解説やサンプルへ戻って確認して大丈夫です。\n\n### 3問の進め方\n\n1. **基本**で、中心となる書き方をもう一度使う\n2. **組み合わせ**で、章内の複数の知識を一緒に使う\n3. **実践**で、少し現実的な入力と条件を整理する\n\nまず入力例と期待される出力を紙に書き、処理を小さな手順へ分けてからコードにすると進めやすくなります。",
       "samples": [
         {
@@ -685,7 +726,7 @@
         {
           "kind": "drill",
           "task": "【組み合わせ】幅widthと高さheightを持つRectangleを作り、`area()` と `perimeter()` を実装してください。2整数を読み `area=... perimeter=...` と表示します。",
-          "starterCode": "import java.util.*;\n\nclass Rectangle {\n    int width, height;\n\n    Rectangle(int width, int height) {\n        this.width = width;\n        this.height = height;\n    }\n\n    int area() {\n        return 0;\n    }\n\n    int perimeter() {\n        return 0;\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        Rectangle r = new Rectangle(s.nextInt(), s.nextInt());\n        System.out.println(\"area=\" + r.area() + \" perimeter=\" + r.perimeter());\n    }\n}\n",
+          "starterCode": "import java.util.*;\n\nclass Rectangle {\n    int width, height;\n\n    Rectangle(int width, int height) {\n        this.width = width;\n        this.height = height;\n    }\n\n    int area() {\n        return 0;\n    }\n\n    int perimeter() {\n        return 0;\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        Rectangle r = new Rectangle(sc.nextInt(), sc.nextInt());\n        System.out.println(\"area=\" + r.area() + \" perimeter=\" + r.perimeter());\n    }\n}\n",
           "visibleCases": [
             {
               "label": "長方形",
@@ -714,7 +755,7 @@
             "面積はwidth×heightです。",
             "周の長さは `(width + height) * 2` です。"
           ],
-          "solution": "import java.util.*;\n\nclass Rectangle {\n    int width, height;\n\n    Rectangle(int width, int height) {\n        this.width = width;\n        this.height = height;\n    }\n\n    int area() {\n        return width * height;\n    }\n\n    int perimeter() {\n        return (width + height) * 2;\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        Rectangle r = new Rectangle(s.nextInt(), s.nextInt());\n        System.out.println(\"area=\" + r.area() + \" perimeter=\" + r.perimeter());\n    }\n}\n",
+          "solution": "import java.util.*;\n\nclass Rectangle {\n    int width, height;\n\n    Rectangle(int width, int height) {\n        this.width = width;\n        this.height = height;\n    }\n\n    int area() {\n        return width * height;\n    }\n\n    int perimeter() {\n        return (width + height) * 2;\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        Rectangle r = new Rectangle(sc.nextInt(), sc.nextInt());\n        System.out.println(\"area=\" + r.area() + \" perimeter=\" + r.perimeter());\n    }\n}\n",
           "sourceChecks": [
             {
               "pattern": "\\bclass\\s+Rectangle\\b",

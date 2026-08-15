@@ -3,6 +3,24 @@
   "title": "CDIと依存性注入",
   "subtitle": "newを手放し、ライフサイクルをコンテナへ任せる",
   "emoji": "🧩",
+  "objectives": [
+    {
+      "id": "ch25-o1",
+      "text": "`@Inject` のコンストラクタ注入で依存を受け取り、`new` を書かずに組み立てられる"
+    },
+    {
+      "id": "ch25-o2",
+      "text": "本番実装を変えずにテスト用の実装へ差し替えられる"
+    },
+    {
+      "id": "ch25-o3",
+      "text": "共有してよい状態と利用者ごとの状態を、スコープで置き分けられる"
+    },
+    {
+      "id": "ch25-o4",
+      "text": "Qualifierとイベントで、実装の選択と副作用を主処理から分けられる"
+    }
+  ],
   "libs": [
     "jakarta-cdi"
   ],
@@ -10,6 +28,10 @@
     {
       "id": "25-1",
       "title": "@Injectとコンストラクタ注入",
+      "objectiveIds": [
+        "ch25-o1",
+        "ch25-o2"
+      ],
       "explanation": "## はじめて学ぶ人へ\n\nDIは、クラスが必要な部品を自分で作らず、外側から渡してもらう考え方です。料理人が冷蔵庫を製造せず、設備担当が用意した冷蔵庫を使うのと同じです。\n\n```java\n// 自分で固定する: 交換しにくい\nservice = new OrderService(new RealPaymentClient());\n\n// CDIに渡してもらう: テスト用部品にも交換しやすい\n@Inject\nOrderResource(OrderService service) { this.service = service; }\n```\n\nコンストラクタ注入なら、生成時に必要な部品がそろい、依存関係も引数から読み取れます。まずは「このクラスが仕事をするために必要な相手」をコンストラクタへ並べ、組み立てをCDIコンテナへ任せる、と捉えましょう。\n\n## 組み立てをコンテナへ任せる\n\n第21章では依存を外から渡しました。CDIはその組み立てを自動化します。\n\n```java\n@RequestScoped\nclass OrderService {\n private final OrderRepository repository;\n\n @Inject\n OrderService(OrderRepository repository) {\n   this.repository = repository;\n }\n}\n```\n\nServiceは実装をnewせず、必要な契約だけ宣言します。コンストラクタ注入は依存が必須だと分かり、フィールドをfinalにでき、単体テストでも直接newできます。フィールド注入は短いものの未初期化状態を作れ、コンテナなしのテストが面倒なので、基本はコンストラクタ注入です。\n\n```svg 必要な相手を自分で作ると固定される。コンストラクタで受け取れば差し替えられる\n<svg viewBox=\"0 0 720 252\">\n  <text class=\"fig-t fig-title\" x=\"180\" y=\"22\" text-anchor=\"middle\">自分で new する</text>\n  <text class=\"fig-t fig-title\" x=\"543\" y=\"22\" text-anchor=\"middle\">コンストラクタで受け取る</text>\n\n  <rect class=\"fig-box\" x=\"40\" y=\"44\" width=\"280\" height=\"60\" rx=\"6\"/>\n  <text class=\"fig-t fig-small\" x=\"180\" y=\"64\" text-anchor=\"middle\">OrderService</text>\n  <text class=\"fig-t fig-mono fig-small fig-t-ng\" x=\"180\" y=\"86\" text-anchor=\"middle\">new RealPaymentClient()</text>\n  <line class=\"fig-line\" x1=\"180\" y1=\"104\" x2=\"180\" y2=\"126\" marker-end=\"arrow\"/>\n  <rect class=\"fig-box\" x=\"80\" y=\"130\" width=\"200\" height=\"40\" rx=\"6\"/>\n  <text class=\"fig-t fig-mono fig-small\" x=\"180\" y=\"150\" text-anchor=\"middle\">RealPaymentClient</text>\n  <line class=\"fig-line-ng fig-dashed\" x1=\"180\" y1=\"170\" x2=\"180\" y2=\"188\"/>\n  <line class=\"fig-line-ng\" x1=\"174\" y1=\"176\" x2=\"186\" y2=\"188\"/>\n  <line class=\"fig-line-ng\" x1=\"186\" y1=\"176\" x2=\"174\" y2=\"188\"/>\n  <rect class=\"fig-box-dim\" x=\"80\" y=\"192\" width=\"200\" height=\"34\" rx=\"6\"/>\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"180\" y=\"209\" text-anchor=\"middle\">テスト用の部品に替えられない</text>\n\n  <rect class=\"fig-box-accent\" x=\"406\" y=\"44\" width=\"280\" height=\"60\" rx=\"6\"/>\n  <text class=\"fig-t fig-small\" x=\"546\" y=\"64\" text-anchor=\"middle\">OrderService</text>\n  <text class=\"fig-t fig-mono fig-small fig-t-accent\" x=\"546\" y=\"86\" text-anchor=\"middle\">@Inject OrderService(client)</text>\n  <line class=\"fig-line-ok\" x1=\"460\" y1=\"130\" x2=\"490\" y2=\"108\" marker-end=\"arrow-ok\"/>\n  <line class=\"fig-line-ok\" x1=\"626\" y1=\"130\" x2=\"600\" y2=\"108\" marker-end=\"arrow-ok\"/>\n  <text class=\"fig-t fig-t-ok fig-small\" x=\"546\" y=\"124\" text-anchor=\"middle\">コンテナが渡す</text>\n  <rect class=\"fig-box-ok\" x=\"390\" y=\"134\" width=\"140\" height=\"40\" rx=\"6\"/>\n  <text class=\"fig-t fig-mono fig-small fig-t-ok\" x=\"460\" y=\"154\" text-anchor=\"middle\">本番の実装</text>\n  <rect class=\"fig-box-ok\" x=\"556\" y=\"134\" width=\"140\" height=\"40\" rx=\"6\"/>\n  <text class=\"fig-t fig-mono fig-small fig-t-ok\" x=\"626\" y=\"154\" text-anchor=\"middle\">テスト用の実装</text>\n  <text class=\"fig-t fig-t-ok fig-small\" x=\"380\" y=\"204\">依存が必須だと分かり、フィールドを final にでき、</text>\n  <text class=\"fig-t fig-t-ok fig-small\" x=\"380\" y=\"224\">コンテナ無しでも直接 new してテストできる</text>\n\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"14\" y=\"246\">フィールド注入は短いが、未初期化の状態を作れてしまう。基本はコンストラクタ注入</text>\n</svg>\n```\n\nCDIが管理するオブジェクトをBeanと呼びます。循環依存A→B→Aは設計責務が絡んだ兆候です。この教材のMiniDiは@InjectとApplicationScopedだけを再現し、実務ではJakarta EEコンテナが解決します。",
       "samples": [
         {
@@ -94,6 +116,9 @@
     {
       "id": "25-2",
       "title": "スコープと状態の置き場所",
+      "objectiveIds": [
+        "ch25-o3"
+      ],
       "explanation": "## はじめて学ぶ人へ\n\nスコープは、CDIが作ったオブジェクトを**いつまで、誰と共有するか**という寿命のルールです。ホテルにたとえると、1回の依頼だけ使うメモ、宿泊客ごとの部屋、建物全体で共有する案内板では、置いてよい情報が違います。\n\n- `@RequestScoped`: 1回のHTTPリクエストだけ\n- `@SessionScoped`: 1人の利用者の複数リクエスト\n- `@ApplicationScoped`: アプリ全体で1つを共有\n- `@Dependent`: 注入先に従う\n\n利用者名や編集中データをApplicationScopedのフィールドへ置くと、別の人に見える危険があります。共有範囲が広いほど状態を持たない設計を優先し、必要最小限の寿命を選びます。\n\n## いつ作り、いつ捨てるか\n\nCDIのscopeはBeanの寿命と共有範囲を決めます。\n\n|scope|寿命|主な用途|\n|---|---|---|\n|`@RequestScoped`|1リクエスト|入力・レスポンス組立|\n|`@SessionScoped`|1利用者のセッション|ログイン中の操作状態（Serializableが必要）|\n|`@ApplicationScoped`|アプリ全体|不変設定、スレッドセーフなキャッシュ|\n|`@Dependent`|注入先に従う|軽い部品|\n\nApplicationScopedはSingleton風ですが同時アクセスされます。利用者固有の値を置いてはいけません。RequestScopedをApplicationScopedへ注入しても、CDIはproxyを介し「現在のリクエストの実体」を渡します。scopeを広げるのは性能対策ではなく、共有意味の設計です。",
       "samples": [
         {
@@ -165,6 +190,9 @@
     {
       "id": "25-3",
       "title": "Qualifier・Producer・イベント",
+      "objectiveIds": [
+        "ch25-o4"
+      ],
       "explanation": "## はじめて学ぶ人へ\n\n同じ役割の実装が複数あるとき、CDIには選び方と作り方を伝えます。たとえばカード決済とテスト決済がどちらも `PaymentService` を実装しているなら、Qualifierは**名札**として使う実装を区別します。\n\n- Qualifier: 同じ型の候補から用途に合う1つを選ぶ\n- Producer: 設定値などを使い、生成手順が特殊な部品を作る\n- Event: 発生した出来事を、送り手と受け手を直接結ばず通知する\n\n注文完了イベントを「領収書メール」「分析記録」がそれぞれ受け取る形なら、注文処理は通知先を知る必要がありません。ただし、決済のように成功確認が必須な中心処理までイベントへ隠さず、戻り値が必要な処理は通常のメソッド呼び出しにします。\n\n## 同じ型の候補を区別する\n\n`PaymentGateway` の実装が複数あると型だけでは選べません。`@Qualifier` を付けた独自注釈で意味を指定します。\n\n```java\n@Qualifier @Retention(RUNTIME) @Target({TYPE, FIELD, PARAMETER})\n@interface TestMode {}\n\n@TestMode class FakeGateway implements PaymentGateway { ... }\n@Inject Service(@TestMode PaymentGateway gateway) { ... }\n```\n\n外部ライブラリの型や設定値は `@Produces` メソッドでBean化します。イベントは `event.fire(new OrderCreated(...))` と `void on(@Observes OrderCreated e)` で発行元と通知処理を疎結合にします。ただし処理順序や失敗を厳密に制御する主処理をイベントへ隠すと追いにくくなります。\n\nこの教材のMiniDiはQualifier自動解決を省略しているため、実行問題ではbindで同じ差し替えを体験します。注釈の形は本物と同じです。",
       "samples": [
         {
@@ -285,6 +313,9 @@
     {
       "id": "25-4",
       "title": "章末演習：CDI",
+      "objectiveIds": [
+        "ch25-o1"
+      ],
       "explanation": "## この章の知識を、自分の手で組み合わせよう\n\nここでは、**コンストラクタ注入・差し替え・スコープ・イベント**をまとめて使います。新しい文法は登場しません。分からなくなったら、直前までの解説やサンプルへ戻って確認して大丈夫です。\n\n### 3問の進め方\n\n1. **基本**で、中心となる書き方をもう一度使う\n2. **組み合わせ**で、章内の複数の知識を一緒に使う\n3. **実践**で、少し現実的な入力と条件を整理する\n\nまず入力例と期待される出力を紙に書き、処理を小さな手順へ分けてからコードにすると進めやすくなります。",
       "samples": [
         {
@@ -314,6 +345,9 @@
       "solution": "import jakarta.inject.Inject;\nimport java.util.*;\n\ninterface GreetingRepository {\n    String prefix();\n}\n\nclass JapaneseGreetingRepository implements GreetingRepository {\n    public String prefix() {\n        return \"こんにちは\";\n    }\n}\n\nclass GreetingService {\n    private final GreetingRepository repository;\n\n    @Inject\n    GreetingService(GreetingRepository repository) {\n        this.repository = repository;\n    }\n\n    String greet(String name) {\n        return repository.prefix() + \", \" + name;\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        String name = new Scanner(System.in).next();\n        MiniDi di = MiniDi.container().bind(GreetingRepository.class, JapaneseGreetingRepository.class);\n        System.out.println(di.get(GreetingService.class).greet(name));\n    }\n}\n",
       "extraTasks": [
         {
+          "objectiveIds": [
+            "ch25-o3"
+          ],
           "kind": "drill",
           "task": "【組み合わせ】`@ApplicationScoped` なSequenceを作り、`next()` で1から増える番号を返します。MiniDiからSequenceを2回取得し、同じインスタンスであることと2つの番号を `same=true values=1,2` と表示してください。",
           "starterCode": "import jakarta.enterprise.context.ApplicationScoped;\n\n@ApplicationScoped\nclass Sequence {\n    private int value;\n\n    int next() {\n        return 0;\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        MiniDi di = MiniDi.container();\n        Sequence a = di.get(Sequence.class), b = di.get(Sequence.class);\n        System.out.println(\"same=\" + (a == b) + \" values=\" + a.next() + \",\" + b.next());\n    }\n}\n",
@@ -349,9 +383,12 @@
           "solution": "import jakarta.enterprise.context.ApplicationScoped;\n\n@ApplicationScoped\nclass Sequence {\n    private int value;\n\n    int next() {\n        return++ value;\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        MiniDi di = MiniDi.container();\n        Sequence a = di.get(Sequence.class), b = di.get(Sequence.class);\n        System.out.println(\"same=\" + (a == b) + \" values=\" + a.next() + \",\" + b.next());\n    }\n}\n"
         },
         {
+          "objectiveIds": [
+            "ch25-o2"
+          ],
           "kind": "applied",
           "task": "【実践】PaymentインターフェースにCardPaymentとTestPaymentを用意します。modeが `test` ならTestPayment、それ以外はCardPaymentをMiniDiへbindし、PaymentServiceから `card:金額` または `test:金額` と表示してください。",
-          "starterCode": "import jakarta.inject.Inject;\nimport java.util.*;\n\ninterface Payment {\n    String pay(int amount);\n}\n\nclass CardPayment implements Payment {\n    public String pay(int amount) {\n        return \"card:\" + amount;\n    }\n}\n\nclass TestPayment implements Payment {\n    public String pay(int amount) {\n        return \"test:\" + amount;\n    }\n}\n\nclass PaymentService {\n    private final Payment payment;\n\n    @Inject\n    PaymentService(Payment payment) {\n        this.payment = payment;\n    }\n\n    String execute(int amount) {\n        /* TODO */ return \"\";\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        String mode = s.next();\n        int amount = s.nextInt();\n        Class<? extends Payment> type = mode.equals(\"test\") ? TestPayment.class : CardPayment.class;\n        MiniDi di = MiniDi.container().bind(Payment.class, type);\n        System.out.println(di.get(PaymentService.class).execute(amount));\n    }\n}\n",
+          "starterCode": "import jakarta.inject.Inject;\nimport java.util.*;\n\ninterface Payment {\n    String pay(int amount);\n}\n\nclass CardPayment implements Payment {\n    public String pay(int amount) {\n        return \"card:\" + amount;\n    }\n}\n\nclass TestPayment implements Payment {\n    public String pay(int amount) {\n        return \"test:\" + amount;\n    }\n}\n\nclass PaymentService {\n    private final Payment payment;\n\n    @Inject\n    PaymentService(Payment payment) {\n        this.payment = payment;\n    }\n\n    String execute(int amount) {\n        /* TODO */ return \"\";\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        String mode = sc.next();\n        int amount = sc.nextInt();\n        Class<? extends Payment> type = mode.equals(\"test\") ? TestPayment.class : CardPayment.class;\n        MiniDi di = MiniDi.container().bind(Payment.class, type);\n        System.out.println(di.get(PaymentService.class).execute(amount));\n    }\n}\n",
           "visibleCases": [
             {
               "label": "テスト決済",
@@ -375,7 +412,7 @@
             "Serviceは具体的な実装を知らずPaymentだけを呼びます。",
             "modeに応じた実装Classをbindします。"
           ],
-          "solution": "import jakarta.inject.Inject;\nimport java.util.*;\n\ninterface Payment {\n    String pay(int amount);\n}\n\nclass CardPayment implements Payment {\n    public String pay(int amount) {\n        return \"card:\" + amount;\n    }\n}\n\nclass TestPayment implements Payment {\n    public String pay(int amount) {\n        return \"test:\" + amount;\n    }\n}\n\nclass PaymentService {\n    private final Payment payment;\n\n    @Inject\n    PaymentService(Payment payment) {\n        this.payment = payment;\n    }\n\n    String execute(int amount) {\n        return payment.pay(amount);\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        String mode = s.next();\n        int amount = s.nextInt();\n        Class<? extends Payment> type = mode.equals(\"test\") ? TestPayment.class : CardPayment.class;\n        MiniDi di = MiniDi.container().bind(Payment.class, type);\n        System.out.println(di.get(PaymentService.class).execute(amount));\n    }\n}\n",
+          "solution": "import jakarta.inject.Inject;\nimport java.util.*;\n\ninterface Payment {\n    String pay(int amount);\n}\n\nclass CardPayment implements Payment {\n    public String pay(int amount) {\n        return \"card:\" + amount;\n    }\n}\n\nclass TestPayment implements Payment {\n    public String pay(int amount) {\n        return \"test:\" + amount;\n    }\n}\n\nclass PaymentService {\n    private final Payment payment;\n\n    @Inject\n    PaymentService(Payment payment) {\n        this.payment = payment;\n    }\n\n    String execute(int amount) {\n        return payment.pay(amount);\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        String mode = sc.next();\n        int amount = sc.nextInt();\n        Class<? extends Payment> type = mode.equals(\"test\") ? TestPayment.class : CardPayment.class;\n        MiniDi di = MiniDi.container().bind(Payment.class, type);\n        System.out.println(di.get(PaymentService.class).execute(amount));\n    }\n}\n",
           "sourceChecks": [
             {
               "pattern": "\\bimplements\\s+Payment\\b",

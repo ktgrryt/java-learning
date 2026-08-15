@@ -22,7 +22,13 @@ final class ProcessGroupCommand {
             trap 'exit 143' INT TERM
             "$@" &
             child=$!
-            wait "$child"
+            # set -m は専用プロセスグループを作るために必要だが、有効なままだと
+            # bashがジョブの状態を `[1]+ Done "$@"` としてstderrへ出す。
+            # 学習者にはそれが自分のコードの実行時エラーに見え、検証も失敗扱いになる。
+            # プロセスグループはfork時に決まるので、ここで切ってもcleanupは効く。
+            # wait自身の報告（`Killed: 9` など）も子のstderrではないので捨てる。
+            set +m
+            wait "$child" 2>/dev/null
             status=$?
             exit "$status"
             """;

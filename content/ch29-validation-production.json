@@ -3,6 +3,24 @@
   "title": "Validation・テスト・本番運用",
   "subtitle": "入力から運用までをつないで完成させる",
   "emoji": "✅",
+  "objectives": [
+    {
+      "id": "ch29-o1",
+      "text": "Bean Validationで入力の形式制約を宣言し、違反を一覧で返せる"
+    },
+    {
+      "id": "ch29-o2",
+      "text": "項目間の制約と在庫などの業務ルールを、置く層を分けて検証できる"
+    },
+    {
+      "id": "ch29-o3",
+      "text": "ログから機密値を隠し、外部呼び出しの再試行を実装できる"
+    },
+    {
+      "id": "ch29-o4",
+      "text": "形式・存在・在庫の順に判定して、正しいステータスを返すAPI境界を作れる"
+    }
+  ],
   "libs": [
     "jakarta-validation",
     "jakarta-rest",
@@ -49,6 +67,9 @@
     {
       "id": "29-1",
       "title": "Bean Validationで入力制約を宣言する",
+      "objectiveIds": [
+        "ch29-o1"
+      ],
       "explanation": "## はじめて学ぶ人へ\n\nBean Validationは、入口で確認する項目をJavaの注釈として宣言する仕組みです。申込書に「名前は必須」「年齢は0以上」とチェック欄を付けておくイメージです。\n\n```java\nclass UserRequest {\n    @NotBlank String name;\n    @Min(0) int age;\n}\n```\n\n`name=\"\"`、`age=-1` が届けば、業務処理へ進む前に項目ごとの違反を集められます。これは「形式として受け付けられるか」の検査です。在庫があるか、購入上限を超えていないかといった業務ルールは別の層で確認します。まず入口の単純な条件を注釈へ集めると、処理本体が読みやすくなります。\n\n## 制約をDTOへ集める\n\n```java\nrecord CreateUser(\n @NotBlank @Size(max=100) String name,\n @Email String email,\n @Min(0) int age\n) {}\n```\n\nJakarta Validationは `Validator.validate` やJakarta REST/CDIとの統合で制約を検査します。`@NotNull` はnullだけ、`@NotEmpty` はnullと空、`@NotBlank` はnull・空・空白だけを弾きます。文字列長は`@Size`、数値範囲は`@Min/@Max`。`@Email`だけでは必須にならないので、必須なら`@NotBlank`も付けます。\n\n```svg 形式の検査は入口で、業務ルールは Service で、最後の砦は DB の制約\n<svg viewBox=\"0 0 720 232\">\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"14\" y=\"24\">入口から順に、それぞれの担当で確かめる</text>\n\n  <rect class=\"fig-box\" x=\"14\" y=\"40\" width=\"150\" height=\"72\" rx=\"6\"/>\n  <text class=\"fig-t fig-small\" x=\"89\" y=\"60\" text-anchor=\"middle\">リクエスト</text>\n  <text class=\"fig-t fig-mono fig-small\" x=\"89\" y=\"82\" text-anchor=\"middle\">name = \"\"</text>\n  <text class=\"fig-t fig-mono fig-small\" x=\"89\" y=\"100\" text-anchor=\"middle\">age = -1</text>\n\n  <rect class=\"fig-box-accent\" x=\"190\" y=\"40\" width=\"160\" height=\"72\" rx=\"6\"/>\n  <text class=\"fig-t fig-mono fig-small fig-t-accent\" x=\"270\" y=\"60\" text-anchor=\"middle\">@NotBlank @Min(0)</text>\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"270\" y=\"82\" text-anchor=\"middle\">形式として</text>\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"270\" y=\"100\" text-anchor=\"middle\">受け付けられるか</text>\n\n  <rect class=\"fig-box\" x=\"376\" y=\"40\" width=\"160\" height=\"72\" rx=\"6\"/>\n  <text class=\"fig-t fig-small\" x=\"456\" y=\"60\" text-anchor=\"middle\">Service</text>\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"456\" y=\"82\" text-anchor=\"middle\">在庫はあるか</text>\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"456\" y=\"100\" text-anchor=\"middle\">上限を超えないか</text>\n\n  <rect class=\"fig-box\" x=\"562\" y=\"40\" width=\"144\" height=\"72\" rx=\"6\"/>\n  <text class=\"fig-t fig-small\" x=\"634\" y=\"60\" text-anchor=\"middle\">DB の制約</text>\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"634\" y=\"82\" text-anchor=\"middle\">UNIQUE・外部キー</text>\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"634\" y=\"100\" text-anchor=\"middle\">競合まで守る</text>\n\n  <line class=\"fig-line\" x1=\"168\" y1=\"76\" x2=\"186\" y2=\"76\" marker-end=\"arrow\"/>\n  <line class=\"fig-line\" x1=\"354\" y1=\"76\" x2=\"372\" y2=\"76\" marker-end=\"arrow\"/>\n  <line class=\"fig-line\" x1=\"540\" y1=\"76\" x2=\"558\" y2=\"76\" marker-end=\"arrow\"/>\n\n  <line class=\"fig-line-ng\" x1=\"270\" y1=\"112\" x2=\"270\" y2=\"148\" marker-end=\"arrow-ng\"/>\n  <rect class=\"fig-box-ng\" x=\"190\" y=\"152\" width=\"160\" height=\"40\" rx=\"6\"/>\n  <text class=\"fig-t fig-small fig-t-ng\" x=\"270\" y=\"166\" text-anchor=\"middle\">400 と、項目ごとの</text>\n  <text class=\"fig-t fig-small fig-t-ng\" x=\"270\" y=\"184\" text-anchor=\"middle\">違反の一覧を返す</text>\n  <line class=\"fig-line-ng\" x1=\"456\" y1=\"112\" x2=\"456\" y2=\"148\" marker-end=\"arrow-ng\"/>\n  <rect class=\"fig-box-ng\" x=\"376\" y=\"152\" width=\"160\" height=\"40\" rx=\"6\"/>\n  <text class=\"fig-t fig-small fig-t-ng\" x=\"456\" y=\"172\" text-anchor=\"middle\">業務エラーとして返す</text>\n\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"14\" y=\"222\">@NotNull は null だけ / @NotEmpty は null と空 / @NotBlank は空白だけも弾く。必須なら @Email に @NotBlank も付ける</text>\n</svg>\n```\n\n制約メッセージは利用者向けにし、フィールド名とcodeを持つエラーDTOへ変換します。DBのUNIQUEや外部状態を毎回問い合わせる検査は単純なBean制約にせず、ServiceとDB制約で競合まで守ります。教材のMiniValidatorは頻出制約だけを再現します。",
       "samples": [
         {
@@ -57,7 +78,7 @@
         }
       ],
       "task": "CreateProductのnameを必須かつ1〜20文字、priceを0以上100000以下にし、MiniValidatorのエラーを1行ずつ表示してください。エラーなしは `valid`。入力は `name price` で、`_` は空文字とします。",
-      "starterCode": "import jakarta.validation.constraints.*;\nimport java.util.*;\n\nrecord CreateProduct(/* TODO */ String name, /* TODO */ int price) { }\n\npublic class ValidateProduct {\n    public static void main(String[] a) {\n        Scanner s = new Scanner(System.in);\n        String name = s.next();\n        if (name.equals(\"_\")) name = \"\";\n        CreateProduct p = new CreateProduct(name, s.nextInt());\n        // TODO validate/output\n    }\n}\n",
+      "starterCode": "import jakarta.validation.constraints.*;\nimport java.util.*;\n\nrecord CreateProduct(/* TODO */ String name, /* TODO */ int price) { }\n\npublic class ValidateProduct {\n    public static void main(String[] a) {\n        Scanner sc = new Scanner(System.in);\n        String name = sc.next();\n        if (name.equals(\"_\")) name = \"\";\n        CreateProduct p = new CreateProduct(name, sc.nextInt());\n        // TODO validate/output\n    }\n}\n",
       "visibleCases": [
         {
           "label": "正常",
@@ -92,12 +113,12 @@
         "priceに `@Min(value=0,message=\"価格は0以上です\") @Max(value=100000,message=\"価格は100000以下です\")`。",
         "`List<String> errors=MiniValidator.validate(p)` を取り、空ならvalid、そうでなければforで表示。"
       ],
-      "solution": "import jakarta.validation.constraints.*;\nimport java.util.*;\n\nrecord CreateProduct(@NotBlank(message = \"名前は必須です\") @Size(max = 20, message = \"名前は20文字以内です\") String name, @Min(value = 0, message = \"価格は0以上です\") @Max(value = 100000, message = \"価格は100000以下です\") int price) { }\n\npublic class ValidateProduct {\n    public static void main(String[] a) {\n        Scanner s = new Scanner(System.in);\n        String name = s.next();\n        if (name.equals(\"_\")) name = \"\";\n        CreateProduct p = new CreateProduct(name, s.nextInt());\n        List<String> errors = MiniValidator.validate(p);\n        if (errors.isEmpty()) System.out.println(\"valid\");\n        else errors.forEach(System.out::println);\n    }\n}\n",
+      "solution": "import jakarta.validation.constraints.*;\nimport java.util.*;\n\nrecord CreateProduct(@NotBlank(message = \"名前は必須です\") @Size(max = 20, message = \"名前は20文字以内です\") String name, @Min(value = 0, message = \"価格は0以上です\") @Max(value = 100000, message = \"価格は100000以下です\") int price) { }\n\npublic class ValidateProduct {\n    public static void main(String[] a) {\n        Scanner sc = new Scanner(System.in);\n        String name = sc.next();\n        if (name.equals(\"_\")) name = \"\";\n        CreateProduct p = new CreateProduct(name, sc.nextInt());\n        List<String> errors = MiniValidator.validate(p);\n        if (errors.isEmpty()) System.out.println(\"valid\");\n        else errors.forEach(System.out::println);\n    }\n}\n",
       "extraTasks": [
         {
           "kind": "applied",
           "task": "Signupのemailを必須＋メール形式、passwordを8〜30文字にしてください。入力の `_` は空文字。エラーを順に出し、正常ならvalid。",
-          "starterCode": "import jakarta.validation.constraints.*;\nimport java.util.*;\n\nrecord Signup(/* TODO */ String email, /* TODO */ String password) { }\n\npublic class ValidateSignup {\n    public static void main(String[] a) {\n        Scanner s = new Scanner(System.in);\n        String e = s.next(), p = s.next();\n        if (e.equals(\"_\")) e = \"\";\n        if (p.equals(\"_\")) p = \"\";\n        List<String> errors = MiniValidator.validate(new Signup(e, p));\n        // TODO\n    }\n}\n",
+          "starterCode": "import jakarta.validation.constraints.*;\nimport java.util.*;\n\nrecord Signup(/* TODO */ String email, /* TODO */ String password) { }\n\npublic class ValidateSignup {\n    public static void main(String[] a) {\n        Scanner sc = new Scanner(System.in);\n        String e = sc.next(), p = sc.next();\n        if (e.equals(\"_\")) e = \"\";\n        if (p.equals(\"_\")) p = \"\";\n        List<String> errors = MiniValidator.validate(new Signup(e, p));\n        // TODO\n    }\n}\n",
           "visibleCases": [
             {
               "label": "正常",
@@ -121,7 +142,7 @@
             "emailにNotBlankとEmail。passwordにSize(min=8,max=30)。各messageを期待文言へ。",
             "errorsが空か分岐、なければforEach。"
           ],
-          "solution": "import jakarta.validation.constraints.*;\nimport java.util.*;\n\nrecord Signup(@NotBlank(message = \"メールは必須です\") @Email(message = \"メール形式が不正です\") String email, @Size(min = 8, max = 30, message = \"パスワードは8〜30文字です\") String password) { }\n\npublic class ValidateSignup {\n    public static void main(String[] a) {\n        Scanner s = new Scanner(System.in);\n        String e = s.next(), p = s.next();\n        if (e.equals(\"_\")) e = \"\";\n        if (p.equals(\"_\")) p = \"\";\n        List<String> errors = MiniValidator.validate(new Signup(e, p));\n        if (errors.isEmpty()) System.out.println(\"valid\");\n        else errors.forEach(System.out::println);\n    }\n}\n",
+          "solution": "import jakarta.validation.constraints.*;\nimport java.util.*;\n\nrecord Signup(@NotBlank(message = \"メールは必須です\") @Email(message = \"メール形式が不正です\") String email, @Size(min = 8, max = 30, message = \"パスワードは8〜30文字です\") String password) { }\n\npublic class ValidateSignup {\n    public static void main(String[] a) {\n        Scanner sc = new Scanner(System.in);\n        String e = sc.next(), p = sc.next();\n        if (e.equals(\"_\")) e = \"\";\n        if (p.equals(\"_\")) p = \"\";\n        List<String> errors = MiniValidator.validate(new Signup(e, p));\n        if (errors.isEmpty()) System.out.println(\"valid\");\n        else errors.forEach(System.out::println);\n    }\n}\n",
           "sourceChecks": [
             {
               "pattern": "@NotBlank",
@@ -145,6 +166,9 @@
     {
       "id": "29-2",
       "title": "項目間制約と業務ルール",
+      "objectiveIds": [
+        "ch29-o2"
+      ],
       "explanation": "## はじめて学ぶ人へ\n\n検証には段階があります。1項目だけを見る制約、複数項目の組み合わせを見る制約、現在のDB状態まで見る業務ルールです。\n\n```text\n開始日=8/10、終了日=8/09 → 項目間制約で拒否\n注文数=3、在庫=2          → 業務ルールで拒否\n同じメールアドレスを登録  → DBの一意制約でも最終防衛\n```\n\n在庫確認の直後に別の注文が入るなど、アプリ側チェックと保存の間には競合が起こります。そのため、分かりやすいエラーを返す事前検証に加え、DB制約やトランザクションでも不正な状態を確定させない設計が必要です。\n\n## 1項目だけでは判断できない制約\n\n開始日≤終了日、パスワード確認一致、配送方法と住所の組合せはクラスレベルの独自制約またはDTOの検証メソッドで扱います。作成時と更新時で必須項目が違う場合はValidation Groupsを使えますが、groupが増えすぎるならDTOを用途別に分ける方が読みやすいこともあります。\n\nValidationを通っても「残高が足りる」「商品が存在する」「名前が重複しない」といった現在のDB状態に依存する業務ルールはServiceで確認します。さらに同時実行の競合をDB制約・条件付き更新・トランザクションで止めます。\n\n入力検証・業務ルール・DB制約は重複ではなく防御の層です。Controllerでしか検査しないと、バッチやメッセージ経由でServiceを呼んだときに破れます。",
       "samples": [
         {
@@ -153,7 +177,7 @@
         }
       ],
       "task": "入力 `from to`（yyyy-MM-dd）で期間を検証します。同日を許可し、from>toなら `期間が逆です`、31日を超えるなら `期間は31日以内です`、正常なら日数を含め `valid days=n`（両端の日を数える）。",
-      "starterCode": "import java.time.*;\nimport java.time.temporal.ChronoUnit;\nimport java.util.*;\n\nrecord DateRange(LocalDate from, LocalDate to) {\n    String validate() {\n        // TODO\n        return \"\";\n    }\n}\n\npublic class ValidateRange {\n    public static void main(String[] a) {\n        Scanner s = new Scanner(System.in);\n        System.out.println(new DateRange(LocalDate.parse(s.next()), LocalDate.parse(s.next())).validate());\n    }\n}\n",
+      "starterCode": "import java.time.*;\nimport java.time.temporal.ChronoUnit;\nimport java.util.*;\n\nrecord DateRange(LocalDate from, LocalDate to) {\n    String validate() {\n        // TODO\n        return \"\";\n    }\n}\n\npublic class ValidateRange {\n    public static void main(String[] a) {\n        Scanner sc = new Scanner(System.in);\n        System.out.println(new DateRange(LocalDate.parse(sc.next()), LocalDate.parse(sc.next())).validate());\n    }\n}\n",
       "visibleCases": [
         {
           "label": "同日",
@@ -183,12 +207,12 @@
         "`ChronoUnit.DAYS.between(from,to)+1` で両端を含む日数。",
         "days>31ならエラー、そうでなければvalid。"
       ],
-      "solution": "import java.time.*;\nimport java.time.temporal.ChronoUnit;\nimport java.util.*;\n\nrecord DateRange(LocalDate from, LocalDate to) {\n    String validate() {\n        if (from.isAfter(to)) return \"期間が逆です\";\n        long days = ChronoUnit.DAYS.between(from, to) + 1;\n        if (days > 31) return \"期間は31日以内です\";\n        return \"valid days=\" + days;\n    }\n}\n\npublic class ValidateRange {\n    public static void main(String[] a) {\n        Scanner s = new Scanner(System.in);\n        System.out.println(new DateRange(LocalDate.parse(s.next()), LocalDate.parse(s.next())).validate());\n    }\n}\n",
+      "solution": "import java.time.*;\nimport java.time.temporal.ChronoUnit;\nimport java.util.*;\n\nrecord DateRange(LocalDate from, LocalDate to) {\n    String validate() {\n        if (from.isAfter(to)) return \"期間が逆です\";\n        long days = ChronoUnit.DAYS.between(from, to) + 1;\n        if (days > 31) return \"期間は31日以内です\";\n        return \"valid days=\" + days;\n    }\n}\n\npublic class ValidateRange {\n    public static void main(String[] a) {\n        Scanner sc = new Scanner(System.in);\n        System.out.println(new DateRange(LocalDate.parse(sc.next()), LocalDate.parse(sc.next())).validate());\n    }\n}\n",
       "extraTasks": [
         {
           "kind": "applied",
           "task": "注文入力 `stock count` をServiceで検証します。count<=0は `数量不正`、stock<countは `在庫不足`、成功は `残り=n`。DTOの形式検証を通った後でも業務状態を守る層です。",
-          "starterCode": "import jakarta.transaction.Transactional;\nimport java.util.*;\n\nclass OrderService {\n    @Transactional\n    String order(int stock, int count) {\n        // TODO\n        return \"\";\n    }\n}\n\npublic class ValidateBusiness {\n    public static void main(String[] a) {\n        Scanner s = new Scanner(System.in);\n        System.out.println(new OrderService().order(s.nextInt(), s.nextInt()));\n    }\n}\n",
+          "starterCode": "import jakarta.transaction.Transactional;\nimport java.util.*;\n\nclass OrderService {\n    @Transactional\n    String order(int stock, int count) {\n        // TODO\n        return \"\";\n    }\n}\n\npublic class ValidateBusiness {\n    public static void main(String[] a) {\n        Scanner sc = new Scanner(System.in);\n        System.out.println(new OrderService().order(sc.nextInt(), sc.nextInt()));\n    }\n}\n",
           "visibleCases": [
             {
               "label": "成功",
@@ -222,7 +246,7 @@
             "count<=0を先に判定。",
             "次にstock<count、最後にstock-count。"
           ],
-          "solution": "import jakarta.transaction.Transactional;\nimport java.util.*;\n\nclass OrderService {\n    @Transactional\n    String order(int stock, int count) {\n        if (count <= 0) return \"数量不正\";\n        if (stock < count) return \"在庫不足\";\n        return \"残り=\" + (stock - count);\n    }\n}\n\npublic class ValidateBusiness {\n    public static void main(String[] a) {\n        Scanner s = new Scanner(System.in);\n        System.out.println(new OrderService().order(s.nextInt(), s.nextInt()));\n    }\n}\n",
+          "solution": "import jakarta.transaction.Transactional;\nimport java.util.*;\n\nclass OrderService {\n    @Transactional\n    String order(int stock, int count) {\n        if (count <= 0) return \"数量不正\";\n        if (stock < count) return \"在庫不足\";\n        return \"残り=\" + (stock - count);\n    }\n}\n\npublic class ValidateBusiness {\n    public static void main(String[] a) {\n        Scanner sc = new Scanner(System.in);\n        System.out.println(new OrderService().order(sc.nextInt(), sc.nextInt()));\n    }\n}\n",
           "sourceChecks": [
             {
               "pattern": "@Transactional",
@@ -241,6 +265,9 @@
     {
       "id": "29-3",
       "title": "テスト・設定・可観測性",
+      "objectiveIds": [
+        "ch29-o3"
+      ],
       "explanation": "## はじめて学ぶ人へ\n\n本番で安全に動かす準備は、3つの時間帯で考えると整理できます。\n\n```text\nリリース前: テストで期待する動作を確認\n起動時:     環境ごとの設定を外から与える\n運用中:     ログやメトリクスで状態を観察\n```\n\nテストは変更で壊れていないかを確かめ、外部設定はパスワードや接続先をソースへ埋め込まないために使います。可観測性は体温計や心電図のように、動いているアプリの異常を外から知る手段です。秘密情報はログへ出さず、リクエストID、結果、処理時間など調査に必要な情報を一定の形式で残します。\n\n## 本番で直せるアプリにする\n\n単体テストではServiceへstubを注入して境界値と業務ルールを速く検証します。結合テストでは実DBに近い環境でJPA mapping、制約、トランザクションを確認し、HTTPテストではstatus/header/bodyと認証を通します。mockだけではSQLや設定ミスを見逃すため層を組み合わせます。\n\n設定はコードから外へ出し、環境変数・MicroProfile Config・サーバ設定などで環境差を注入します。秘密値はsecret管理へ置き、既定値で本番が危険に動かないようにします。\n\nログは時刻、level、traceId、処理名、結果を構造化し、パスワード・token・Cookie・カード番号を除外します。metricsで件数/遅延/失敗率、health checkで起動可否と依存先状態、traceでサービス間を追います。タイムアウトを必ず置き、再試行は冪等な処理だけに上限付きで行います。",
       "samples": [
         {
@@ -249,7 +276,7 @@
         }
       ],
       "task": "ログ出力前に機密値をmaskします。入力メールを `先頭1文字***@domain`、tokenは常に `[REDACTED]` とし、`INFO login email=... token=[REDACTED]` を出してください。不正なメールは `***`。",
-      "starterCode": "import java.util.*;\n\npublic class ProductionLog {\n    static String maskEmail(String email) {\n        // TODO\n        return \"\";\n    }\n\n    public static void main(String[] a) {\n        Scanner s = new Scanner(System.in);\n        String email = s.next(), token = s.next();\n        System.out.println(\"INFO login email=\" + maskEmail(email) + \" token=\" + /* TODO */ token);\n    }\n}\n",
+      "starterCode": "import java.util.*;\n\npublic class ProductionLog {\n    static String maskEmail(String email) {\n        // TODO\n        return \"\";\n    }\n\n    public static void main(String[] a) {\n        Scanner sc = new Scanner(System.in);\n        String email = sc.next(), token = sc.next();\n        System.out.println(\"INFO login email=\" + maskEmail(email) + \" token=\" + /* TODO */ token);\n    }\n}\n",
       "visibleCases": [
         {
           "label": "mask",
@@ -273,7 +300,7 @@
         "indexOf('@')が1以上なら先頭文字＋***＋substring(at)。それ以外***。",
         "token変数を連結せず文字列 `[REDACTED]`。"
       ],
-      "solution": "import java.util.*;\n\npublic class ProductionLog {\n    static String maskEmail(String email) {\n        int at = email.indexOf('@');\n        return at < 1 ? \"***\" : email.charAt(0) + \"***\" + email.substring(at);\n    }\n\n    public static void main(String[] a) {\n        Scanner s = new Scanner(System.in);\n        String email = s.next(), token = s.next();\n        System.out.println(\"INFO login email=\" + maskEmail(email) + \" token=[REDACTED]\");\n    }\n}\n",
+      "solution": "import java.util.*;\n\npublic class ProductionLog {\n    static String maskEmail(String email) {\n        int at = email.indexOf('@');\n        return at < 1 ? \"***\" : email.charAt(0) + \"***\" + email.substring(at);\n    }\n\n    public static void main(String[] a) {\n        Scanner sc = new Scanner(System.in);\n        String email = sc.next(), token = sc.next();\n        System.out.println(\"INFO login email=\" + maskEmail(email) + \" token=[REDACTED]\");\n    }\n}\n",
       "extraTasks": [
         {
           "kind": "applied",
@@ -316,6 +343,9 @@
     {
       "id": "29-4",
       "title": "総合演習：安全な注文API",
+      "objectiveIds": [
+        "ch29-o4"
+      ],
       "explanation": "## はじめて学ぶ人へ\n\nこの総合演習では、ここまでの部品を1本の注文処理としてつなぎます。最初から全コードを覚えようとせず、リクエストがどの順番で検査・処理されるかを追いましょう。\n\n```text\n1. JSONを注文DTOとして受け取る\n2. Bean Validationで必須項目や範囲を確認\n3. 認証済み利用者と操作権限を確認\n4. Serviceで在庫などの業務ルールを確認\n5. トランザクション内で注文保存と在庫更新\n6. 成功なら201、入力ミスなら400などへ変換\n7. ログにリクエストIDと結果を記録\n```\n\nResourceはHTTPとの変換、Serviceは業務判断、Repositoryは永続化という役割を守ります。失敗をどこで見つけ、どのステータスへ変えるかまで説明できれば、単に動くだけでなく保守しやすいAPIになります。\n\n## 入口から永続化までを一本につなぐ\n\n実務の1リクエストは、認証・DTO変換・Validation・認可・Service・トランザクション・Repository・DTO応答・ログという複数の責務を通ります。各段を分けると、入力不正400、業務競合409、対象なし404、想定外500を一貫して扱えます。\n\nJakarta EEのWeb ProfileにはServlet、REST、CDI、Validation、Persistence、Transactions、Security、Concurrency、Faces、WebSocketなどがあります。PlatformにはMessaging、Mail、Batchなども加わります。すべてを同時に使う必要はなく、同期HTTPならREST、DBならPersistence/Transactions、非同期連携ならMessaging、定時大量処理ならBatchというように要件で選びます。新規の業務部品は通常CDI Beanを中心にし、EJB固有機能が必要な場合だけEnterprise Beansを検討します。\n\nこの章までの疑似APIは概念とコード形を学ぶためのものです。次は実際のJakarta EEランタイム（WildFly、Open Liberty、Payaraなど）とテスト用DBで小さなCRUDをデプロイし、公式仕様とサーバ文書を確認しながら進めてください。",
       "samples": [
         {
@@ -324,7 +354,7 @@
         }
       ],
       "task": "注文API境界を完成させます。入力 `item count`（`_`は空）。Validationエラーは400とエラー一覧、在庫はbook=3/pen=1で不存在404、不足409、成功201と `OrderDto[id=1, item=..., count=...]`。",
-      "starterCode": "import jakarta.validation.constraints.*;\nimport jakarta.ws.rs.core.*;\nimport jakarta.transaction.Transactional;\nimport java.util.*;\n\nrecord CreateOrder(@NotBlank(message = \"itemは必須です\") String item, @Min(value = 1, message = \"countは1以上です\") int count) { }\n\nrecord OrderDto(long id, String item, int count) { }\n\nrecord ApiError(String code, Object detail) { }\n\nclass OrderService {\n    private final Map<String, Integer> stock = new HashMap<>(Map.of(\"book\", 3, \"pen\", 1));\n\n    @Transactional\n    Response create(CreateOrder in) {\n        // TODO\n        return null;\n    }\n}\n\npublic class FinalOrderApi {\n    public static void main(String[] a) {\n        Scanner s = new Scanner(System.in);\n        String item = s.next();\n        if (item.equals(\"_\")) item = \"\";\n        CreateOrder in = new CreateOrder(item, s.nextInt());\n        Response r = new OrderService().create(in);\n        System.out.println(r.getStatus() + \" \" + r.getEntity());\n    }\n}\n",
+      "starterCode": "import jakarta.validation.constraints.*;\nimport jakarta.ws.rs.core.*;\nimport jakarta.transaction.Transactional;\nimport java.util.*;\n\nrecord CreateOrder(@NotBlank(message = \"itemは必須です\") String item, @Min(value = 1, message = \"countは1以上です\") int count) { }\n\nrecord OrderDto(long id, String item, int count) { }\n\nrecord ApiError(String code, Object detail) { }\n\nclass OrderService {\n    private final Map<String, Integer> stock = new HashMap<>(Map.of(\"book\", 3, \"pen\", 1));\n\n    @Transactional\n    Response create(CreateOrder in) {\n        // TODO\n        return null;\n    }\n}\n\npublic class FinalOrderApi {\n    public static void main(String[] a) {\n        Scanner sc = new Scanner(System.in);\n        String item = sc.next();\n        if (item.equals(\"_\")) item = \"\";\n        CreateOrder in = new CreateOrder(item, sc.nextInt());\n        Response r = new OrderService().create(in);\n        System.out.println(r.getStatus() + \" \" + r.getEntity());\n    }\n}\n",
       "visibleCases": [
         {
           "label": "成功",
@@ -359,71 +389,59 @@
         "stock.getがnullなら404。不足なら409。",
         "成功時だけ在庫を減らし201＋OrderDto。"
       ],
-      "solution": "import jakarta.validation.constraints.*;\nimport jakarta.ws.rs.core.*;\nimport jakarta.transaction.Transactional;\nimport java.util.*;\n\nrecord CreateOrder(@NotBlank(message = \"itemは必須です\") String item, @Min(value = 1, message = \"countは1以上です\") int count) { }\n\nrecord OrderDto(long id, String item, int count) { }\n\nrecord ApiError(String code, Object detail) { }\n\nclass OrderService {\n    private final Map<String, Integer> stock = new HashMap<>(Map.of(\"book\", 3, \"pen\", 1));\n\n    @Transactional\n    Response create(CreateOrder in) {\n        List<String> errors = MiniValidator.validate(in);\n        if (!errors.isEmpty()) return Response.status(400).entity(new ApiError(\"VALIDATION_ERROR\", errors)).build();\n        Integer current = stock.get(in.item());\n        if (current == null) return Response.status(404).entity(new ApiError(\"NOT_FOUND\", \"商品がありません\")).build();\n        if (current < in.count()) return Response.status(409).entity(new ApiError(\"OUT_OF_STOCK\", \"在庫が足りません\")).build();\n        stock.put(in.item(), current - in.count());\n        return Response.status(201).entity(new OrderDto(1, in.item(), in.count())).build();\n    }\n}\n\npublic class FinalOrderApi {\n    public static void main(String[] a) {\n        Scanner s = new Scanner(System.in);\n        String item = s.next();\n        if (item.equals(\"_\")) item = \"\";\n        CreateOrder in = new CreateOrder(item, s.nextInt());\n        Response r = new OrderService().create(in);\n        System.out.println(r.getStatus() + \" \" + r.getEntity());\n    }\n}\n",
+      "solution": "import jakarta.validation.constraints.*;\nimport jakarta.ws.rs.core.*;\nimport jakarta.transaction.Transactional;\nimport java.util.*;\n\nrecord CreateOrder(@NotBlank(message = \"itemは必須です\") String item, @Min(value = 1, message = \"countは1以上です\") int count) { }\n\nrecord OrderDto(long id, String item, int count) { }\n\nrecord ApiError(String code, Object detail) { }\n\nclass OrderService {\n    private final Map<String, Integer> stock = new HashMap<>(Map.of(\"book\", 3, \"pen\", 1));\n\n    @Transactional\n    Response create(CreateOrder in) {\n        List<String> errors = MiniValidator.validate(in);\n        if (!errors.isEmpty()) return Response.status(400).entity(new ApiError(\"VALIDATION_ERROR\", errors)).build();\n        Integer current = stock.get(in.item());\n        if (current == null) return Response.status(404).entity(new ApiError(\"NOT_FOUND\", \"商品がありません\")).build();\n        if (current < in.count()) return Response.status(409).entity(new ApiError(\"OUT_OF_STOCK\", \"在庫が足りません\")).build();\n        stock.put(in.item(), current - in.count());\n        return Response.status(201).entity(new OrderDto(1, in.item(), in.count())).build();\n    }\n}\n\npublic class FinalOrderApi {\n    public static void main(String[] a) {\n        Scanner sc = new Scanner(System.in);\n        String item = sc.next();\n        if (item.equals(\"_\")) item = \"\";\n        CreateOrder in = new CreateOrder(item, sc.nextInt());\n        Response r = new OrderService().create(in);\n        System.out.println(r.getStatus() + \" \" + r.getEntity());\n    }\n}\n",
       "extraTasks": [
         {
           "kind": "applied",
-          "task": "要件に合うJakarta EE API名を答える対応表を完成させます。入力は `http`, `di`, `db`, `tx`, `validate`, `message`, `batch` のどれか。未知はunknown。",
-          "starterCode": "import java.util.*;\n\npublic class JakartaMap {\n    public static void main(String[] a) {\n        String key = new Scanner(System.in).nextLine();\n        Map<String, String> api = Map.of(/* TODO */);\n        System.out.println(api.getOrDefault(key, \"unknown\"));\n    }\n}\n",
+          "task": "1問目の境界へ、解説のパイプラインで飛ばしていた**認可**を足します。入力は1行に `caller role item count`（`caller` と `item` の `_` は空文字）。\n\n次の順に判定し、**最初に外れた理由だけ**を返してください。\n\n1. 形式 … `MiniValidator.validate` の結果が空でなければ `400` と `ApiError(\"VALIDATION_ERROR\", errors)`\n2. 認証 … `caller` が空なら `401` と `ApiError(\"UNAUTHENTICATED\", \"ログインが必要です\")`\n3. 認可 … `role` が `admin` でも `member` でもなければ `403` と `ApiError(\"FORBIDDEN\", \"権限がありません\")`\n4. 存在 … 在庫表に無ければ `404` と `ApiError(\"NOT_FOUND\", \"商品がありません\")`\n5. 在庫 … 足りなければ `409` と `ApiError(\"OUT_OF_STOCK\", \"在庫が足りません\")`\n6. 成功 … 在庫を減らして `201` と `OrderDto(1, item, count)`\n\n**順番が要件です。** とくに認可（3）を存在確認（4）より後に置くと、権限のない相手へ「その商品はある／ない」を教えてしまいます。在庫は `book=3` `pen=1` です。",
+          "starterCode": "import jakarta.validation.constraints.*;\nimport jakarta.ws.rs.core.*;\nimport jakarta.transaction.Transactional;\nimport java.util.*;\n\nrecord CreateOrder(@NotBlank(message = \"itemは必須です\") String item, @Min(value = 1, message = \"countは1以上です\") int count) { }\n\nrecord OrderDto(long id, String item, int count) { }\n\nrecord ApiError(String code, Object detail) { }\n\nclass OrderService {\n    private final Map<String, Integer> stock = new HashMap<>(Map.of(\"book\", 3, \"pen\", 1));\n\n    @Transactional\n    Response create(String caller, String role, CreateOrder in) {\n        // TODO 上から順に判定して、最初に外れた理由だけを返す\n        return null;\n    }\n}\n\npublic class OrderApiWithAuth {\n    public static void main(String[] a) {\n        Scanner sc = new Scanner(System.in);\n        String caller = sc.next();\n        if (caller.equals(\"_\")) caller = \"\";\n        String role = sc.next();\n        String item = sc.next();\n        if (item.equals(\"_\")) item = \"\";\n        CreateOrder in = new CreateOrder(item, sc.nextInt());\n        Response r = new OrderService().create(caller, role, in);\n        System.out.println(r.getStatus() + \" \" + r.getEntity());\n    }\n}\n",
           "visibleCases": [
             {
-              "label": "HTTP",
-              "stdin": "http",
-              "expected": "Jakarta REST"
+              "label": "成功",
+              "stdin": "alice member book 2\n",
+              "expected": "201 OrderDto[id=1, item=book, count=2]"
             },
             {
-              "label": "DB",
-              "stdin": "db",
-              "expected": "Jakarta Persistence"
+              "label": "権限が無い相手には、商品の有無を明かさない",
+              "stdin": "alice guest eraser 1\n",
+              "expected": "403 ApiError[code=FORBIDDEN, detail=権限がありません]"
             }
           ],
           "hiddenCases": [
             {
-              "label": "DI",
-              "stdin": "di",
-              "expected": "Jakarta CDI"
+              "label": "形式が最優先（認証も権限も外れているが400）",
+              "stdin": "_ guest _ 0\n",
+              "expected": "400 ApiError[code=VALIDATION_ERROR, detail=[item: itemは必須です, count: countは1以上です]]"
             },
             {
-              "label": "transaction",
-              "stdin": "tx",
-              "expected": "Jakarta Transactions"
+              "label": "未認証",
+              "stdin": "_ member book 1\n",
+              "expected": "401 ApiError[code=UNAUTHENTICATED, detail=ログインが必要です]"
             },
             {
-              "label": "validation",
-              "stdin": "validate",
-              "expected": "Jakarta Validation"
+              "label": "権限はあるが商品が無い",
+              "stdin": "alice member eraser 1\n",
+              "expected": "404 ApiError[code=NOT_FOUND, detail=商品がありません]"
             },
             {
-              "label": "messaging",
-              "stdin": "message",
-              "expected": "Jakarta Messaging"
+              "label": "在庫不足",
+              "stdin": "alice admin pen 2\n",
+              "expected": "409 ApiError[code=OUT_OF_STOCK, detail=在庫が足りません]"
             },
             {
-              "label": "batch",
-              "stdin": "batch",
-              "expected": "Jakarta Batch"
-            },
-            {
-              "label": "unknown",
-              "stdin": "mail",
-              "expected": "unknown"
+              "label": "境界（在庫と同数）",
+              "stdin": "bob admin pen 1\n",
+              "expected": "201 OrderDto[id=1, item=pen, count=1]"
             }
           ],
           "hints": [
-            "Map.ofEntriesを使うか、7組なのでMap.ofで `key, value` を並べます。"
+            "最初に `MiniValidator.validate(in)`。形式の誤りは、認証や権限より先に `400` へ変えます。",
+            "認可（403）は存在確認（404）より**前**に置きます。あとにすると、権限のない相手へ商品の有無が伝わってしまいます。",
+            "`role` は `admin` と `member` だけ許可します。在庫を減らすのは成功するときだけです。"
           ],
-          "solution": "import java.util.*;\n\npublic class JakartaMap {\n    public static void main(String[] a) {\n        String key = new Scanner(System.in).nextLine();\n        Map<String, String> api = Map.of(\"http\", \"Jakarta REST\", \"di\", \"Jakarta CDI\", \"db\", \"Jakarta Persistence\", \"tx\", \"Jakarta Transactions\", \"validate\", \"Jakarta Validation\", \"message\", \"Jakarta Messaging\", \"batch\", \"Jakarta Batch\");\n        System.out.println(api.getOrDefault(key, \"unknown\"));\n    }\n}\n",
-          "sourceChecks": [
-            {
-              "pattern": "Map\\s*\\.\\s*of\\s*\\(|new\\s+(Hash|LinkedHash|Tree)Map|\\bswitch\\b",
-              "minimum": 1,
-              "message": "対応表は `Map.of` で作ってください（`if` を並べるより、表として読めます）。"
-            },
-            {
-              "pattern": "getOrDefault\\s*\\(",
-              "minimum": 1,
-              "message": "未知のキーは `getOrDefault` で `unknown` にしてください。`get` だと `null` が返ります。"
-            }
+          "solution": "import jakarta.validation.constraints.*;\nimport jakarta.ws.rs.core.*;\nimport jakarta.transaction.Transactional;\nimport java.util.*;\n\nrecord CreateOrder(@NotBlank(message = \"itemは必須です\") String item, @Min(value = 1, message = \"countは1以上です\") int count) { }\n\nrecord OrderDto(long id, String item, int count) { }\n\nrecord ApiError(String code, Object detail) { }\n\nclass OrderService {\n    private final Map<String, Integer> stock = new HashMap<>(Map.of(\"book\", 3, \"pen\", 1));\n\n    @Transactional\n    Response create(String caller, String role, CreateOrder in) {\n        List<String> errors = MiniValidator.validate(in);\n        if (!errors.isEmpty()) return Response.status(400).entity(new ApiError(\"VALIDATION_ERROR\", errors)).build();\n        if (caller.isEmpty()) return Response.status(401).entity(new ApiError(\"UNAUTHENTICATED\", \"ログインが必要です\")).build();\n        if (!role.equals(\"admin\") && !role.equals(\"member\")) return Response.status(403).entity(new ApiError(\"FORBIDDEN\", \"権限がありません\")).build();\n        Integer current = stock.get(in.item());\n        if (current == null) return Response.status(404).entity(new ApiError(\"NOT_FOUND\", \"商品がありません\")).build();\n        if (current < in.count()) return Response.status(409).entity(new ApiError(\"OUT_OF_STOCK\", \"在庫が足りません\")).build();\n        stock.put(in.item(), current - in.count());\n        return Response.status(201).entity(new OrderDto(1, in.item(), in.count())).build();\n    }\n}\n\npublic class OrderApiWithAuth {\n    public static void main(String[] a) {\n        Scanner sc = new Scanner(System.in);\n        String caller = sc.next();\n        if (caller.equals(\"_\")) caller = \"\";\n        String role = sc.next();\n        String item = sc.next();\n        if (item.equals(\"_\")) item = \"\";\n        CreateOrder in = new CreateOrder(item, sc.nextInt());\n        Response r = new OrderService().create(caller, role, in);\n        System.out.println(r.getStatus() + \" \" + r.getEntity());\n    }\n}\n",
+          "objectiveIds": [
+            "ch29-o4"
           ]
         }
       ],
@@ -442,9 +460,9 @@
         {
           "question": "在庫不足の検査を置く中心層は？",
           "choices": [
-            "Cookieに入れた値の検査だけ",
-            "HTML側の入力チェックだけ",
-            "CSSの表示制御だけ",
+            "Cookieへ入れた値を見る、リクエストの境界",
+            "HTML側の入力チェックで済ませる、画面の層",
+            "入力欄の表示を制御する、CSSの層",
             "Serviceの業務ルールとDBの同時実行制御"
           ],
           "answer": 3,
@@ -453,10 +471,10 @@
         {
           "question": "テスト構成として適切なのは？",
           "choices": [
-            "ログを見ればテストは不要になる",
-            "mockを使う単体テストだけでよい",
+            "ログを詳しく残せば、テストは省略できる",
+            "mockを使う単体テストだけで、境界も確認できる",
             "単体・DB結合・HTTP境界を目的別に組み合わせる",
-            "本番環境で初めて動かして試す"
+            "本番環境で初めて動かし、問題が出たら直す"
           ],
           "answer": 2,
           "explanation": "ログは起きたことの記録で、壊れていないことの確認にはなりません。mockだけの単体テストではSQLやHTTPの取り違えが見つからず、本番で初めて動かすのは事故です。単体・DB結合・HTTP境界には、それぞれでしか見つからない不具合があるので、目的別に組み合わせます。"
@@ -464,19 +482,22 @@
         {
           "question": "Jakarta Messagingを選ぶ代表的な要件は？",
           "choices": [
-            "HTMLエスケープ",
+            "利用者が入力したHTMLの無害化",
             "疎結合な非同期連携とメッセージ処理",
-            "同期HTTPの単純GET",
-            "日付計算だけ"
+            "同期的なHTTPでの単純な取得",
+            "日付と時刻の計算だけを行う処理"
           ],
           "answer": 1,
-          "explanation": "HTMLエスケープは出力の話で、単純なGETは同期HTTPで足りますし、日付計算にメッセージングは要りません。送り手と受け手を切り離し、相手が止まっていても後から処理したい——という要件のときに、キューやtopicを介した非同期連携を選びます。"
+          "explanation": "HTMLの無害化は出力の話で、単純な取得は同期HTTPで足りますし、日付と時刻の計算にメッセージングは要りません。送り手と受け手を切り離し、相手が止まっていても後から処理したい——という要件のときに、キューやtopicを介した非同期連携を選びます。"
         }
       ]
     },
     {
       "id": "29-5",
       "title": "章末演習：安全なAPI",
+      "objectiveIds": [
+        "ch29-o1"
+      ],
       "explanation": "## この章の知識を、自分の手で組み合わせよう\n\nここでは、**Bean Validation・業務ルール・エラー設計・テスト・運用**をまとめて使います。新しい文法は登場しません。分からなくなったら、直前までの解説やサンプルへ戻って確認して大丈夫です。\n\n### 3問の進め方\n\n1. **基本**で、中心となる書き方をもう一度使う\n2. **組み合わせ**で、章内の複数の知識を一緒に使う\n3. **実践**で、少し現実的な入力と条件を整理する\n\nまず入力例と期待される出力を紙に書き、処理を小さな手順へ分けてからコードにすると進めやすくなります。",
       "samples": [
         {
@@ -485,7 +506,7 @@
         }
       ],
       "task": "【基本】`Signup` recordのnameへNotBlank、emailへEmail、ageへMin(18)を付けます。`_` は空文字として入力し、エラーがなければ `valid`、あれば検証メッセージを1行ずつ表示してください。",
-      "starterCode": "import jakarta.validation.constraints.*;\nimport java.util.*;\n\nrecord Signup(/* 注釈 */ String name, /* 注釈 */ String email, /* 注釈 */ int age) { }\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        String name = s.next(), email = s.next();\n        int age = s.nextInt();\n        if (name.equals(\"_\")) name = \"\";\n        if (email.equals(\"_\")) email = \"\";\n        List<String> errors = MiniValidator.validate(new Signup(name, email, age));\n        /* TODO */\n    }\n}\n",
+      "starterCode": "import jakarta.validation.constraints.*;\nimport java.util.*;\n\nrecord Signup(/* 注釈 */ String name, /* 注釈 */ String email, /* 注釈 */ int age) { }\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        String name = sc.next(), email = sc.next();\n        int age = sc.nextInt();\n        if (name.equals(\"_\")) name = \"\";\n        if (email.equals(\"_\")) email = \"\";\n        List<String> errors = MiniValidator.validate(new Signup(name, email, age));\n        /* TODO */\n    }\n}\n",
       "visibleCases": [
         {
           "label": "正常",
@@ -514,12 +535,15 @@
         "record componentの直前に制約注釈を書きます。",
         "errorsが空かどうかでvalidとエラー一覧を分けます。"
       ],
-      "solution": "import jakarta.validation.constraints.*;\nimport java.util.*;\n\nrecord Signup(@NotBlank(message = \"nameは必須です\") String name, @Email(message = \"emailの形式が不正です\") String email, @Min(value = 18, message = \"ageは18以上です\") int age) { }\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        String name = s.next(), email = s.next();\n        int age = s.nextInt();\n        if (name.equals(\"_\")) name = \"\";\n        if (email.equals(\"_\")) email = \"\";\n        List<String> errors = MiniValidator.validate(new Signup(name, email, age));\n        if (errors.isEmpty()) System.out.println(\"valid\");\n        else errors.forEach(System.out::println);\n    }\n}\n",
+      "solution": "import jakarta.validation.constraints.*;\nimport java.util.*;\n\nrecord Signup(@NotBlank(message = \"nameは必須です\") String name, @Email(message = \"emailの形式が不正です\") String email, @Min(value = 18, message = \"ageは18以上です\") int age) { }\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        String name = sc.next(), email = sc.next();\n        int age = sc.nextInt();\n        if (name.equals(\"_\")) name = \"\";\n        if (email.equals(\"_\")) email = \"\";\n        List<String> errors = MiniValidator.validate(new Signup(name, email, age));\n        if (errors.isEmpty()) System.out.println(\"valid\");\n        else errors.forEach(System.out::println);\n    }\n}\n",
       "extraTasks": [
         {
+          "objectiveIds": [
+            "ch29-o2"
+          ],
           "kind": "drill",
           "task": "【組み合わせ】予約の開始日startと終了日endを読みます。形式検証後の業務ルールとして、endがstartより前なら `400 END_BEFORE_START`、同日以降なら宿泊日数を `200 nights=...` と表示してください。",
-          "starterCode": "import java.time.*;\nimport java.time.temporal.*;\nimport java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        LocalDate start = LocalDate.parse(s.next()), end = LocalDate.parse(s.next());\n        /* TODO */\n    }\n}\n",
+          "starterCode": "import java.time.*;\nimport java.time.temporal.*;\nimport java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        LocalDate start = LocalDate.parse(sc.next()), end = LocalDate.parse(sc.next());\n        /* TODO */\n    }\n}\n",
           "visibleCases": [
             {
               "label": "2泊",
@@ -548,7 +572,7 @@
             "`end.isBefore(start)` を先に確認します。",
             "正常時はChronoUnit.DAYS.betweenで日数を求めます。"
           ],
-          "solution": "import java.time.*;\nimport java.time.temporal.*;\nimport java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        LocalDate start = LocalDate.parse(s.next()), end = LocalDate.parse(s.next());\n        if (end.isBefore(start)) {\n            System.out.println(\"400 END_BEFORE_START\");\n            return;\n        }\n        System.out.println(\"200 nights=\" + ChronoUnit.DAYS.between(start, end));\n    }\n}\n",
+          "solution": "import java.time.*;\nimport java.time.temporal.*;\nimport java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        LocalDate start = LocalDate.parse(sc.next()), end = LocalDate.parse(sc.next());\n        if (end.isBefore(start)) {\n            System.out.println(\"400 END_BEFORE_START\");\n            return;\n        }\n        System.out.println(\"200 nights=\" + ChronoUnit.DAYS.between(start, end));\n    }\n}\n",
           "sourceChecks": [
             {
               "pattern": "\\.isBefore\\s*\\(|\\.isAfter\\s*\\(",
@@ -563,9 +587,12 @@
           ]
         },
         {
+          "objectiveIds": [
+            "ch29-o4"
+          ],
           "kind": "applied",
           "task": "【実践】商品book=3個、pen=1個の在庫を持つ注文APIを作ります。itemとcountを読み、空itemまたはcount<1なら400、商品なしは404、在庫不足は409、成功なら在庫を減らして `201 item count rest=残数` と表示してください。`_` は空itemです。",
-          "starterCode": "import java.util.*;\n\nrecord CreateOrder(String item, int count) { }\n\nrecord ApiResult(int status, String body) { }\n\nclass OrderService {\n    private final Map<String, Integer> stock = new HashMap<>(Map.of(\"book\", 3, \"pen\", 1));\n\n    ApiResult create(CreateOrder in) {\n        /* TODO */ return null;\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        String item = s.next();\n        if (item.equals(\"_\")) item = \"\";\n        ApiResult r = new OrderService().create(new CreateOrder(item, s.nextInt()));\n        System.out.println(r.status() + \" \" + r.body());\n    }\n}\n",
+          "starterCode": "import java.util.*;\n\nrecord CreateOrder(String item, int count) { }\n\nrecord ApiResult(int status, String body) { }\n\nclass OrderService {\n    private final Map<String, Integer> stock = new HashMap<>(Map.of(\"book\", 3, \"pen\", 1));\n\n    ApiResult create(CreateOrder in) {\n        /* TODO */ return null;\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        String item = sc.next();\n        if (item.equals(\"_\")) item = \"\";\n        ApiResult r = new OrderService().create(new CreateOrder(item, sc.nextInt()));\n        System.out.println(r.status() + \" \" + r.body());\n    }\n}\n",
           "visibleCases": [
             {
               "label": "成功",
@@ -599,7 +626,7 @@
             "入力形式、商品存在、在庫の順で検証します。",
             "成功時だけ在庫を更新し、残数をレスポンスへ含めます。"
           ],
-          "solution": "import java.util.*;\n\nrecord CreateOrder(String item, int count) { }\n\nrecord ApiResult(int status, String body) { }\n\nclass OrderService {\n    private final Map<String, Integer> stock = new HashMap<>(Map.of(\"book\", 3, \"pen\", 1));\n\n    ApiResult create(CreateOrder in) {\n        if (in.item().isBlank() || in.count() < 1) return new ApiResult(400, \"VALIDATION_ERROR\");\n        Integer current = stock.get(in.item());\n        if (current == null) return new ApiResult(404, \"NOT_FOUND\");\n        if (current < in.count()) return new ApiResult(409, \"OUT_OF_STOCK\");\n        int rest = current - in.count();\n        stock.put(in.item(), rest);\n        return new ApiResult(201, in.item() + \" \" + in.count() + \" rest=\" + rest);\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        String item = s.next();\n        if (item.equals(\"_\")) item = \"\";\n        ApiResult r = new OrderService().create(new CreateOrder(item, s.nextInt()));\n        System.out.println(r.status() + \" \" + r.body());\n    }\n}\n",
+          "solution": "import java.util.*;\n\nrecord CreateOrder(String item, int count) { }\n\nrecord ApiResult(int status, String body) { }\n\nclass OrderService {\n    private final Map<String, Integer> stock = new HashMap<>(Map.of(\"book\", 3, \"pen\", 1));\n\n    ApiResult create(CreateOrder in) {\n        if (in.item().isBlank() || in.count() < 1) return new ApiResult(400, \"VALIDATION_ERROR\");\n        Integer current = stock.get(in.item());\n        if (current == null) return new ApiResult(404, \"NOT_FOUND\");\n        if (current < in.count()) return new ApiResult(409, \"OUT_OF_STOCK\");\n        int rest = current - in.count();\n        stock.put(in.item(), rest);\n        return new ApiResult(201, in.item() + \" \" + in.count() + \" rest=\" + rest);\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        String item = sc.next();\n        if (item.equals(\"_\")) item = \"\";\n        ApiResult r = new OrderService().create(new CreateOrder(item, sc.nextInt()));\n        System.out.println(r.status() + \" \" + r.body());\n    }\n}\n",
           "sourceChecks": [
             {
               "pattern": "\\b(400|404|409|201)\\b",
@@ -614,6 +641,10 @@
           ]
         },
         {
+          "objectiveIds": [
+            "ch29-o1",
+            "ch29-o4"
+          ],
           "kind": "applied",
           "type": "runtime-lab",
           "task": "【実行演習】`labs/jakarta-web/validation-exercise`で、**実Open Liberty**へ配備した注文APIの入力検査を完成させます。\n\n編集するのは3ファイルです。「宣言する→有効にする→返す」の3段が揃わないと入力は守れません。\n\n(1)`OrderRequest.java`へ制約を宣言します。品名は空白だけ不可・40文字以内、数量は1〜20、合計は1以上、クーポンは英大文字と数字の4〜10文字です。\n(2)`OrderResource.java`で**宣言した制約を有効にします**。`@NotBlank`を書いても引数に`@Valid`が無ければ**1つも動きません**。ひな形は空白だけの品名・数量0・合計0を201で受け付けてしまいます。コードを読むと守られているように見えるので、実際に送るまで気づけません。\n(3)項目間のルール「クーポンを使うなら合計1000円以上」を宣言します。1項目だけでは判定できないので、`@AssertTrue`を付けたbooleanのメソッド`isCouponUsable()`にしてください（項目名が`couponUsable`になり、採点がそれを見ます）。\n(4)`ValidationErrorMapper.java`で400の本文を`{\"errors\":[{\"field\":\"item\",\"message\":\"...\"}]}`の形にします。`getPropertyPath()`は`create.arg0.quantity`のように内部の作りを含むので、**末尾の項目名だけ**を取り、項目名の昇順に並べます。例外の型名やスタックトレースは入れません。\n\nメッセージの文言は自由です。採点は項目名とステータスコードだけを見ます。",

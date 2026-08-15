@@ -1,10 +1,12 @@
-# Jakarta EE 11 実サーバー演習（第46章 48-5の採点対象）
+# Jakarta EE 11 実サーバー演習
+
+Web・Jakarta EE編『Jakarta EE 11アップデート』の「章末演習：Jakarta EE 11アップデート」が採点に使います。
 
 Jakarta EE 11のAPIが実サーバー上でどう振る舞うかを確かめる演習です。編集するのは
 `src/main/java/cafe/api/UserResource.java` だけで、`reference/` が模範解答です。
 
 `pom.xml`・`server.xml`・`jvm.options`・`RuntimeProbe.java` は変更しません。Feature Managerの
-扱いは第49章（Open Liberty）で行います。ここではEE 11のAPIそのものに集中します。
+扱いは業務フレームワーク編『Open Liberty実践入門』で行います。ここではEE 11のAPIそのものに集中します。
 
 ## 何を確かめるか
 

@@ -1,7 +1,7 @@
 # jshell と jpackage の lab
 
 配布前の確認を `jshell` で行い、配布物を `jpackage` で作ります。
-第23章「JDKの選定・互換性・標準ツール」の `51-3` が採点に使います。
+Java実践・開発基盤編『JDKの選定・互換性・標準ツール』の「JDK付属ツールを使い分ける」が採点に使います。
 
 ```
 sh run-runtime-lab.sh

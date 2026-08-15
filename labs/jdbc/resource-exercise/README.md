@@ -1,7 +1,7 @@
 # JDBCの後始末 lab
 
 実PostgreSQLへ接続して、DAOの値の渡し方と後始末を直します。
-第24章の「章末演習：JDBC」が採点に使います。
+Web・Jakarta EE編『JDBCとデータベース』の「章末演習：JDBC」が採点に使います。
 
 ```
 sh run-runtime-lab.sh

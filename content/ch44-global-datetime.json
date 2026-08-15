@@ -3,10 +3,31 @@
   "title": "実務の日付・時刻",
   "subtitle": "Instant・時差・DST・Clockを正しく使い分ける",
   "emoji": "🌐",
+  "objectives": [
+    {
+      "id": "ch44-o1",
+      "text": "`Instant` と `LocalDateTime` を「機械の時刻」「人の時刻」として使い分けられる"
+    },
+    {
+      "id": "ch44-o2",
+      "text": "`ZoneId` で地域の時刻へ変換し、夏時間の切り替わりを扱える"
+    },
+    {
+      "id": "ch44-o3",
+      "text": "`Clock` を注入して、現在時刻に依存する処理をテストできる形に書ける"
+    },
+    {
+      "id": "ch44-o4",
+      "text": "保存はInstant、表示は地域時刻という境界を決めて実装できる"
+    }
+  ],
   "lessons": [
     {
       "id": "44-1",
       "title": "人の時刻と機械の時刻を分ける",
+      "objectiveIds": [
+        "ch44-o1"
+      ],
       "explanation": "## LocalDateTimeだけでは瞬間が決まらない\n\n`LocalDateTime` は壁時計の表示で、タイムゾーンを持ちません。同じ2026-01-01 09:00でも東京とロンドンでは別の瞬間です。ログ、監査、更新時刻のような世界で一意の時点には `Instant`、利用者の地域で表示・日付計算するなら `ZonedDateTime`、通信形式で固定オフセットを持つなら `OffsetDateTime` を使います。\n\n```svg 同じ瞬間（`Instant`）でも、壁時計（`LocalDateTime`）の表示は地域ごとに違う\n<svg viewBox=\"0 0 720 262\">\n  <path class=\"fig-line-soft\" d=\"M 170 40 L 170 28 L 600 28 L 600 40\"/>\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"385\" y=\"18\" text-anchor=\"middle\">LocalDateTime（ゾーンを持たない壁時計の表示）</text>\n\n  <rect class=\"fig-box\" x=\"170\" y=\"48\" width=\"200\" height=\"56\" rx=\"6\"/>\n  <text class=\"fig-t fig-t-dim fig-small\" x=\"270\" y=\"66\" text-anchor=\"middle\">東京（+09:00）</text>\n  <text class=\"fig-t fig-mono\" x=\"270\" y=\"88\" text-anchor=\"middle\">2026-01-01 09:00</text>\n  <rect class=\"fig-box\" x=\"400\" y=\"48\" width=\"200\" height=\"56\" rx=\"6\"/>\n  <text class=\"fig-t fig-t-dim fig-small\" x=\"500\" y=\"66\" text-anchor=\"middle\">ロンドン（+00:00）</text>\n  <text class=\"fig-t fig-mono\" x=\"500\" y=\"88\" text-anchor=\"middle\">2026-01-01 00:00</text>\n\n  <line class=\"fig-line\" x1=\"270\" y1=\"104\" x2=\"368\" y2=\"142\" marker-end=\"arrow\"/>\n  <line class=\"fig-line\" x1=\"500\" y1=\"104\" x2=\"394\" y2=\"142\" marker-end=\"arrow\"/>\n\n  <line class=\"fig-line\" x1=\"60\" y1=\"152\" x2=\"678\" y2=\"152\" marker-end=\"arrow\"/>\n  <circle class=\"fig-fill-accent\" cx=\"380\" cy=\"152\" r=\"6\"/>\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"672\" y=\"172\" text-anchor=\"end\">時間（UTC の一直線）</text>\n  <text class=\"fig-t fig-mono fig-t-accent\" x=\"380\" y=\"180\" text-anchor=\"middle\">Instant 2026-01-01T00:00:00Z</text>\n  <text class=\"fig-t fig-t-dim fig-small\" x=\"380\" y=\"202\" text-anchor=\"middle\">世界で1つに決まる瞬間 — ログ・監査・更新時刻はこれ</text>\n\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"360\" y=\"238\" text-anchor=\"middle\">ZonedDateTime ＝ 壁時計 ＋ ZoneId。内部は Instant / UTC で持ち、画面の境界で利用者のゾーンへ変換する</text>\n</svg>\n```\n\nDBやAPIの内部時刻はInstant/UTCで保ち、画面境界で利用者のZoneIdへ変換するのが基本です。",
       "samples": [
         {
@@ -15,7 +36,7 @@
         }
       ],
       "task": "ISO形式のInstantとzone IDを読み、その地域の `yyyy-MM-dd HH:mm offset` を表示してください。",
-      "starterCode": "import java.time.*;\nimport java.time.format.*;\nimport java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        Instant instant = Instant.parse(s.next());\n        ZoneId zone = ZoneId.of(s.next());\n        /* TODO */\n    }\n}\n",
+      "starterCode": "import java.time.*;\nimport java.time.format.*;\nimport java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        Instant instant = Instant.parse(sc.next());\n        ZoneId zone = ZoneId.of(sc.next());\n        /* TODO */\n    }\n}\n",
       "visibleCases": [
         {
           "label": "東京",
@@ -54,7 +75,7 @@
         "`instant.atZone(zone)`。",
         "patternは `yyyy-MM-dd HH:mm XXX`。"
       ],
-      "solution": "import java.time.*;\nimport java.time.format.*;\nimport java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        Instant instant = Instant.parse(s.next());\n        ZoneId zone = ZoneId.of(s.next());\n        System.out.println(instant.atZone(zone).format(DateTimeFormatter.ofPattern(\"yyyy-MM-dd HH:mm XXX\")));\n    }\n}\n",
+      "solution": "import java.time.*;\nimport java.time.format.*;\nimport java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        Instant instant = Instant.parse(sc.next());\n        ZoneId zone = ZoneId.of(sc.next());\n        System.out.println(instant.atZone(zone).format(DateTimeFormatter.ofPattern(\"yyyy-MM-dd HH:mm XXX\")));\n    }\n}\n",
       "extraTasks": [
         {
           "kind": "applied",
@@ -119,6 +140,9 @@
     {
       "id": "44-2",
       "title": "ZoneIdと夏時間",
+      "objectiveIds": [
+        "ch44-o2"
+      ],
       "explanation": "## 地域の規則は固定offsetではない\n\n`ZoneId` は `Asia/Tokyo` や `America/New_York` の地域規則を持ちます。夏時間開始時には存在しないローカル時刻（gap）、終了時には2回現れる時刻（overlap）が生じます。`+09:00` のようなZoneOffsetは固定差だけで、将来の地域規則を表しません。\n\n「24時間後」と「翌日の同じ時刻」はDSTをまたぐと異なることがあります。経過時間ならDuration/Instant、暦上の日付操作ならPeriod/ZonedDateTimeを選びます。\n\n### 夏時間の境目には「無い時刻」と「2回ある時刻」がある\n\n固定の時差では表せない例を、実際に動かして見ます。\n\n```java\nZoneId ny = ZoneId.of(\"America/New_York\");\n\n// 2025-03-09 の 02:30 は、この地域には存在しない\nSystem.out.println(LocalDateTime.of(2025, 3, 9, 2, 30).atZone(ny));\n\n// 2025-11-02 の 01:30 は、この地域に2回ある\nSystem.out.println(LocalDateTime.of(2025, 11, 2, 1, 30).atZone(ny));\n```\n\n```\n2025-03-09T03:30-04:00[America/New_York]\n2025-11-02T01:30-04:00[America/New_York]\n```\n\n1つ目は **02:30 と書いたのに 03:30 になっています**。時計が飛ぶので 02:30 は存在せず、\n`atZone` が後ろへずらしました。2つ目は 01:30 が2回あるうちの **先に来るほう**\n（`-04:00`）が選ばれています。例外は出ません。**黙って解釈が決まる** のが怖いところです。\n\n一方、`Instant` は1つの瞬間なので迷いがありません。\n\n```java\nInstant i = Instant.parse(\"2025-03-09T06:30:00Z\");\nSystem.out.println(i.atZone(ny));   // 2025-03-09T01:30-05:00[America/New_York]\n```\n\n> ⚠️ 間違えやすい点 … 「日本は夏時間が無いから関係ない」とは言えません。\n> 利用者や取引先の地域が入れば同じ問題が起きます。保存は `Instant`、\n> 地域の規則が要る計算だけ `ZonedDateTime`、時差を持たない予定は `LocalDateTime` と、\n> 役割で使い分けます。",
       "samples": [
         {
@@ -127,7 +151,7 @@
         }
       ],
       "task": "zone、開始Instant、終了Instantを読み、その地域での開始/終了時刻と実経過時間（時間）を表示してください。",
-      "starterCode": "import java.time.*;\nimport java.time.format.*;\nimport java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        ZoneId zone = ZoneId.of(s.next());\n        Instant from = Instant.parse(s.next()), to = Instant.parse(s.next());\n        /* TODO */\n    }\n}\n",
+      "starterCode": "import java.time.*;\nimport java.time.format.*;\nimport java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        ZoneId zone = ZoneId.of(sc.next());\n        Instant from = Instant.parse(sc.next()), to = Instant.parse(sc.next());\n        /* TODO */\n    }\n}\n",
       "visibleCases": [
         {
           "label": "東京1時間",
@@ -161,12 +185,12 @@
         "InstantをatZoneし `yyyy-MM-dd HH:mm` でformat。",
         "経過時間は `Duration.between(from,to).toHours()`。"
       ],
-      "solution": "import java.time.*;\nimport java.time.format.*;\nimport java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        ZoneId zone = ZoneId.of(s.next());\n        Instant from = Instant.parse(s.next()), to = Instant.parse(s.next());\n        DateTimeFormatter f = DateTimeFormatter.ofPattern(\"yyyy-MM-dd HH:mm\");\n        System.out.println(\"from=\" + from.atZone(zone).format(f));\n        System.out.println(\"to=\" + to.atZone(zone).format(f));\n        System.out.println(\"hours=\" + Duration.between(from, to).toHours());\n    }\n}\n",
+      "solution": "import java.time.*;\nimport java.time.format.*;\nimport java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        ZoneId zone = ZoneId.of(sc.next());\n        Instant from = Instant.parse(sc.next()), to = Instant.parse(sc.next());\n        DateTimeFormatter f = DateTimeFormatter.ofPattern(\"yyyy-MM-dd HH:mm\");\n        System.out.println(\"from=\" + from.atZone(zone).format(f));\n        System.out.println(\"to=\" + to.atZone(zone).format(f));\n        System.out.println(\"hours=\" + Duration.between(from, to).toHours());\n    }\n}\n",
       "extraTasks": [
         {
           "kind": "applied",
           "task": "ローカル日時とzoneを読み、ZonedDateTimeへ変換してoffsetとInstantを表示してください。DST gapではJavaの標準調整後の時刻も表示します。",
-          "starterCode": "import java.time.*;\nimport java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        LocalDateTime local = LocalDateTime.parse(s.next());\n        ZoneId zone = ZoneId.of(s.next());\n        /* TODO */\n    }\n}\n",
+          "starterCode": "import java.time.*;\nimport java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        LocalDateTime local = LocalDateTime.parse(sc.next());\n        ZoneId zone = ZoneId.of(sc.next());\n        /* TODO */\n    }\n}\n",
           "visibleCases": [
             {
               "label": "東京",
@@ -195,7 +219,7 @@
             "`local.atZone(zone)`。",
             "調整後localは `z.toLocalDateTime()`。"
           ],
-          "solution": "import java.time.*;\nimport java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        LocalDateTime local = LocalDateTime.parse(s.next());\n        ZoneId zone = ZoneId.of(s.next());\n        ZonedDateTime z = local.atZone(zone);\n        System.out.println(\"local=\" + z.toLocalDateTime() + \" offset=\" + z.getOffset() + \" instant=\" + z.toInstant());\n    }\n}\n",
+          "solution": "import java.time.*;\nimport java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        LocalDateTime local = LocalDateTime.parse(sc.next());\n        ZoneId zone = ZoneId.of(sc.next());\n        ZonedDateTime z = local.atZone(zone);\n        System.out.println(\"local=\" + z.toLocalDateTime() + \" offset=\" + z.getOffset() + \" instant=\" + z.toInstant());\n    }\n}\n",
           "sourceChecks": [
             {
               "pattern": "\\.atZone\\s*\\(",
@@ -232,6 +256,9 @@
     {
       "id": "44-3",
       "title": "Clockで現在時刻をテスト可能にする",
+      "objectiveIds": [
+        "ch44-o3"
+      ],
       "explanation": "## now()を直接呼ぶ依存を外へ出す\n\n`Instant.now()` や `LocalDate.now()` を業務ロジック内で直接呼ぶと、テストのたびに結果が変わります。Clockをコンストラクタで受け取り、`Instant.now(clock)` とすれば、本番は `Clock.systemUTC()`、テストは `Clock.fixed(...)` に差し替えられます。\n\n時刻依存もDBや外部APIと同じ依存です。期限判定では「ちょうど期限」の境界と、UTC日付か利用者地域の日付かを仕様として決めます。\n\n### 動かして確かめる\n\n`Clock` を渡す形にすると、時刻を **固定できます**。\n\n```java\nClock fixed = Clock.fixed(Instant.parse(\"2025-01-01T00:00:00Z\"), ZoneOffset.UTC);\n\nSystem.out.println(Instant.now(fixed));     // 2025-01-01T00:00:00Z\nSystem.out.println(LocalDate.now(fixed));   // 2025-01-01\n```\n\n何度呼んでも同じ値が返るので、「月末だけ挙動が変わる」「日付が変わる瞬間」のような\n境界を、その日を待たずにテストできます。\n\n時間を進めたいときは `Clock.offset` です。\n\n```java\nClock tomorrow = Clock.offset(fixed, Duration.ofDays(1));\nSystem.out.println(Instant.now(tomorrow));  // 2025-01-02T00:00:00Z\n```\n\n本番では `Clock.systemUTC()`（または `Clock.system(zone)`）を渡します。\n\n```java\nclass Billing {\n    private final Clock clock;\n    Billing(Clock clock) { this.clock = clock; }        // 本番は systemUTC、テストは fixed\n    boolean isMonthEnd() {\n        LocalDate today = LocalDate.now(clock);\n        return today.getDayOfMonth() == today.lengthOfMonth();\n    }\n}\n```\n\n> ⚠️ 間違えやすい点 … クラスの中で `Instant.now()` や `LocalDate.now()` を\n> **引数なしで呼んだ時点で**、そのクラスは「いま」に依存します。テストのために\n> システム時刻を変えるのは他のテストまで壊すので、`Clock` を受け取る形にしておきます。",
       "samples": [
         {
@@ -240,7 +267,7 @@
         }
       ],
       "task": "固定now、期限limitをInstantで読み、Clock.fixedを注入した `ExpiryService` で、nowがlimit以上なら `expired`、未満なら `active` と表示してください。",
-      "starterCode": "import java.time.*;\nimport java.util.*;\n\nclass ExpiryService {\n    private final Clock clock;\n\n    ExpiryService(Clock clock) {\n        this.clock = clock;\n    }\n\n    String status(Instant limit) {\n        return \"\";\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        Instant now = Instant.parse(s.next()), limit = Instant.parse(s.next());\n        Clock clock = Clock.fixed(now, ZoneOffset.UTC);\n        System.out.println(new ExpiryService(clock).status(limit));\n    }\n}\n",
+      "starterCode": "import java.time.*;\nimport java.util.*;\n\nclass ExpiryService {\n    private final Clock clock;\n\n    ExpiryService(Clock clock) {\n        this.clock = clock;\n    }\n\n    String status(Instant limit) {\n        return \"\";\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        Instant now = Instant.parse(sc.next()), limit = Instant.parse(sc.next());\n        Clock clock = Clock.fixed(now, ZoneOffset.UTC);\n        System.out.println(new ExpiryService(clock).status(limit));\n    }\n}\n",
       "visibleCases": [
         {
           "label": "期限前",
@@ -274,12 +301,12 @@
         "`Instant now=Instant.now(clock)`。",
         "`!now.isBefore(limit)` ならexpired。"
       ],
-      "solution": "import java.time.*;\nimport java.util.*;\n\nclass ExpiryService {\n    private final Clock clock;\n\n    ExpiryService(Clock clock) {\n        this.clock = clock;\n    }\n\n    String status(Instant limit) {\n        return !Instant.now(clock).isBefore(limit) ? \"expired\" : \"active\";\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        Instant now = Instant.parse(s.next()), limit = Instant.parse(s.next());\n        Clock clock = Clock.fixed(now, ZoneOffset.UTC);\n        System.out.println(new ExpiryService(clock).status(limit));\n    }\n}\n",
+      "solution": "import java.time.*;\nimport java.util.*;\n\nclass ExpiryService {\n    private final Clock clock;\n\n    ExpiryService(Clock clock) {\n        this.clock = clock;\n    }\n\n    String status(Instant limit) {\n        return !Instant.now(clock).isBefore(limit) ? \"expired\" : \"active\";\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        Instant now = Instant.parse(sc.next()), limit = Instant.parse(sc.next());\n        Clock clock = Clock.fixed(now, ZoneOffset.UTC);\n        System.out.println(new ExpiryService(clock).status(limit));\n    }\n}\n",
       "extraTasks": [
         {
           "kind": "applied",
           "task": "固定Clockとzoneを受けるGreetingServiceを作り、その地域の時刻が5〜11時ならmorning、12〜17時ならafternoon、それ以外nightを返してください。",
-          "starterCode": "import java.time.*;\nimport java.util.*;\n\nclass GreetingService {\n    private final Clock clock;\n    private final ZoneId zone;\n\n    GreetingService(Clock c, ZoneId z) {\n        clock = c;\n        zone = z;\n    }\n\n    String greeting() {\n        return \"\";\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        Instant now = Instant.parse(s.next());\n        ZoneId zone = ZoneId.of(s.next());\n        System.out.println(new GreetingService(Clock.fixed(now, ZoneOffset.UTC), zone).greeting());\n    }\n}\n",
+          "starterCode": "import java.time.*;\nimport java.util.*;\n\nclass GreetingService {\n    private final Clock clock;\n    private final ZoneId zone;\n\n    GreetingService(Clock c, ZoneId z) {\n        clock = c;\n        zone = z;\n    }\n\n    String greeting() {\n        return \"\";\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        Instant now = Instant.parse(sc.next());\n        ZoneId zone = ZoneId.of(sc.next());\n        System.out.println(new GreetingService(Clock.fixed(now, ZoneOffset.UTC), zone).greeting());\n    }\n}\n",
           "visibleCases": [
             {
               "label": "東京朝",
@@ -318,7 +345,7 @@
             "`ZonedDateTime.now(clock.withZone(zone)).getHour()` またはInstant.now(clock).atZone(zone)。",
             "5<=h<12、12<=h<18で分けます。"
           ],
-          "solution": "import java.time.*;\nimport java.util.*;\n\nclass GreetingService {\n    private final Clock clock;\n    private final ZoneId zone;\n\n    GreetingService(Clock c, ZoneId z) {\n        clock = c;\n        zone = z;\n    }\n\n    String greeting() {\n        int h = Instant.now(clock).atZone(zone).getHour();\n        return h >= 5 && h < 12 ? \"morning\" : h < 18 && h >= 12 ? \"afternoon\" : \"night\";\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        Instant now = Instant.parse(s.next());\n        ZoneId zone = ZoneId.of(s.next());\n        System.out.println(new GreetingService(Clock.fixed(now, ZoneOffset.UTC), zone).greeting());\n    }\n}\n",
+          "solution": "import java.time.*;\nimport java.util.*;\n\nclass GreetingService {\n    private final Clock clock;\n    private final ZoneId zone;\n\n    GreetingService(Clock c, ZoneId z) {\n        clock = c;\n        zone = z;\n    }\n\n    String greeting() {\n        int h = Instant.now(clock).atZone(zone).getHour();\n        return h >= 5 && h < 12 ? \"morning\" : h < 18 && h >= 12 ? \"afternoon\" : \"night\";\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        Instant now = Instant.parse(sc.next());\n        ZoneId zone = ZoneId.of(sc.next());\n        System.out.println(new GreetingService(Clock.fixed(now, ZoneOffset.UTC), zone).greeting());\n    }\n}\n",
           "sourceChecks": [
             {
               "pattern": "\\bClock\\b",
@@ -354,6 +381,9 @@
     {
       "id": "44-4",
       "title": "章末演習：時刻の境界設計",
+      "objectiveIds": [
+        "ch44-o1"
+      ],
       "explanation": "## 保存・計算・表示の型を分ける\n\n日時では「同じ瞬間」と「ある地域の時計表示」を分けることが中心です。\n\n- `Instant`：世界で一意に決まる瞬間。保存やサービス間連携の基準\n- `ZonedDateTime`：地域のタイムゾーン規則を使う予定や暦計算\n- `Duration`：2つの瞬間の経過時間\n- `Clock`：現在時刻を外から渡し、テストで固定できるようにする\n\n`LocalDateTime`だけを保存して地域を後から推測する、夏時間を考えず24時間と翌日の同時刻を同じにする、処理の中で直接 `now()` を呼ぶ、という混同が代表的な事故です。章末問題では「保存したいのは瞬間か、地域込みの予定か」を最初に決めてください。",
       "samples": [
         {
@@ -362,7 +392,7 @@
         }
       ],
       "task": "【基本】2つのOffsetDateTimeを読み、同じ瞬間ならsame、前後ならbefore/afterと表示してください。",
-      "starterCode": "import java.time.*;\nimport java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        OffsetDateTime a = OffsetDateTime.parse(s.next()), b = OffsetDateTime.parse(s.next());\n        /* TODO */\n    }\n}\n",
+      "starterCode": "import java.time.*;\nimport java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        OffsetDateTime a = OffsetDateTime.parse(sc.next()), b = OffsetDateTime.parse(sc.next());\n        /* TODO */\n    }\n}\n",
       "visibleCases": [
         {
           "label": "同じ瞬間",
@@ -390,12 +420,16 @@
       "hints": [
         "両方をtoInstantしてcompareTo。"
       ],
-      "solution": "import java.time.*;\nimport java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        Instant a = OffsetDateTime.parse(s.next()).toInstant(), b = OffsetDateTime.parse(s.next()).toInstant();\n        int c = a.compareTo(b);\n        System.out.println(c == 0 ? \"same\" : c < 0 ? \"before\" : \"after\");\n    }\n}\n",
+      "solution": "import java.time.*;\nimport java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        Instant a = OffsetDateTime.parse(sc.next()).toInstant(), b = OffsetDateTime.parse(sc.next()).toInstant();\n        int c = a.compareTo(b);\n        System.out.println(c == 0 ? \"same\" : c < 0 ? \"before\" : \"after\");\n    }\n}\n",
       "extraTasks": [
         {
+          "objectiveIds": [
+            "ch44-o2",
+            "ch44-o4"
+          ],
           "kind": "drill",
           "task": "【組み合わせ】開始Instant、分数、表示zoneを読み、終了Instantと地域時刻を表示してください。",
-          "starterCode": "import java.time.*;\nimport java.time.format.*;\nimport java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        Instant start = Instant.parse(s.next());\n        long minutes = s.nextLong();\n        ZoneId zone = ZoneId.of(s.next());\n        /* TODO */\n    }\n}\n",
+          "starterCode": "import java.time.*;\nimport java.time.format.*;\nimport java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        Instant start = Instant.parse(sc.next());\n        long minutes = sc.nextLong();\n        ZoneId zone = ZoneId.of(sc.next());\n        /* TODO */\n    }\n}\n",
           "visibleCases": [
             {
               "label": "90分後",
@@ -424,7 +458,7 @@
             "`start.plus(Duration.ofMinutes(minutes))`。",
             "atZoneしてformat。"
           ],
-          "solution": "import java.time.*;\nimport java.time.format.*;\nimport java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        Instant start = Instant.parse(s.next());\n        long minutes = s.nextLong();\n        ZoneId zone = ZoneId.of(s.next());\n        Instant end = start.plus(Duration.ofMinutes(minutes));\n        System.out.println(\"instant=\" + end);\n        System.out.println(\"local=\" + end.atZone(zone).format(DateTimeFormatter.ofPattern(\"yyyy-MM-dd HH:mm\")));\n    }\n}\n",
+          "solution": "import java.time.*;\nimport java.time.format.*;\nimport java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        Instant start = Instant.parse(sc.next());\n        long minutes = sc.nextLong();\n        ZoneId zone = ZoneId.of(sc.next());\n        Instant end = start.plus(Duration.ofMinutes(minutes));\n        System.out.println(\"instant=\" + end);\n        System.out.println(\"local=\" + end.atZone(zone).format(DateTimeFormatter.ofPattern(\"yyyy-MM-dd HH:mm\")));\n    }\n}\n",
           "sourceChecks": [
             {
               "pattern": "Duration\\s*\\.\\s*of|plusMinutes",
@@ -444,9 +478,13 @@
           ]
         },
         {
+          "objectiveIds": [
+            "ch44-o3",
+            "ch44-o4"
+          ],
           "kind": "applied",
           "task": "【実践】固定now、zone、期限のローカル日付を読み、その地域で期限日の23:59:59まで有効としactive/expiredを判定してください。",
-          "starterCode": "import java.time.*;\nimport java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        Instant now = Instant.parse(s.next());\n        ZoneId zone = ZoneId.of(s.next());\n        LocalDate date = LocalDate.parse(s.next());\n        /* TODO */\n    }\n}\n",
+          "starterCode": "import java.time.*;\nimport java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        Instant now = Instant.parse(sc.next());\n        ZoneId zone = ZoneId.of(sc.next());\n        LocalDate date = LocalDate.parse(sc.next());\n        /* TODO */\n    }\n}\n",
           "visibleCases": [
             {
               "label": "東京期限内",
@@ -475,7 +513,7 @@
             "期限の次の日0時を `date.plusDays(1).atStartOfDay(zone).toInstant()` とします。",
             "nowがそのInstantより前ならactive。"
           ],
-          "solution": "import java.time.*;\nimport java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        Instant now = Instant.parse(s.next());\n        ZoneId zone = ZoneId.of(s.next());\n        LocalDate date = LocalDate.parse(s.next());\n        Instant endExclusive = date.plusDays(1).atStartOfDay(zone).toInstant();\n        System.out.println(now.isBefore(endExclusive) ? \"active\" : \"expired\");\n    }\n}\n",
+          "solution": "import java.time.*;\nimport java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        Instant now = Instant.parse(sc.next());\n        ZoneId zone = ZoneId.of(sc.next());\n        LocalDate date = LocalDate.parse(sc.next());\n        Instant endExclusive = date.plusDays(1).atStartOfDay(zone).toInstant();\n        System.out.println(now.isBefore(endExclusive) ? \"active\" : \"expired\");\n    }\n}\n",
           "sourceChecks": [
             {
               "pattern": "plusDays\\s*\\(\\s*1\\s*\\)",
@@ -500,9 +538,9 @@
           "question": "LocalDateTimeについて正しいものは？",
           "choices": [
             "タイムゾーンを持たず、それだけでは一意の瞬間にならない",
-            "内部では必ずUTCとして扱われる",
-            "夏時間（DST）の規則を持っている",
-            "`Instant` の別名にすぎない"
+            "時差を持たないので、内部では必ずUTCとして扱われる",
+            "夏時間（DST）の切り替え規則を内部に持っている",
+            "`Instant` の別名で、表示のときだけ書式が変わる"
           ],
           "answer": 0,
           "explanation": "内部でUTCとして扱われることはなく、夏時間の規則も持ちません。`Instant` の別名でもありません。`LocalDateTime` は「2025-06-01 09:00」というカレンダー上の**表記**でしかないので、どの地域の9時なのかが決まらず、それだけでは瞬間になりません。`atZone` で地域を与えて初めて確定します。"
@@ -532,13 +570,13 @@
         {
           "question": "業務ロジックがInstant.now()を直接呼ばない利点は？",
           "choices": [
-            "夏時間の扱いが消える",
-            "時刻の扱いが不要になる",
-            "コンパイルが不要になる",
+            "現在時刻の取得が速くなり、呼び出しの回数を減らせる",
+            "環境の時計がずれていても、正しい時刻へ補正される",
+            "テストで、実際に時間が経つのを待てるようになる",
             "Clockを差し替えて境界を再現できる"
           ],
           "answer": 3,
-          "explanation": "夏時間の扱いが消えることはなく、時刻の扱いが不要になるわけでもなく、コンパイルは必要です。`Instant.now()` をロジックの中で直接呼ぶと、テストから時刻を動かせません。`Clock` を受け取る形にしておけば、`Clock.fixed` を渡して境界の日時を何度でも再現できます。"
+          "explanation": "`Clock` を渡しても現在時刻の取得が速くなるわけではなく、環境の時計のずれを直してくれるわけでもありません。テストで実際に時間が経つのを**待たずに済む**のが利点で、待てるようになるのではありません。`Instant.now()` をロジックの中で直接呼ぶと時刻を動かせないので、`Clock` を受け取る形にして `Clock.fixed` を渡し、境界の日時を何度でも再現します。"
         }
       ]
     }

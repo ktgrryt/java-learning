@@ -3,10 +3,31 @@
   "title": "Java 21の型パターンとメタデータ",
   "subtitle": "sealed・pattern matching・record・annotationを組み合わせる",
   "emoji": "🧬",
+  "objectives": [
+    {
+      "id": "ch43-o1",
+      "text": "`sealed` で継承先を閉じた型の階層を宣言できる"
+    },
+    {
+      "id": "ch43-o2",
+      "text": "`switch` の型パターンで、`null` を含む場合分けを網羅できる"
+    },
+    {
+      "id": "ch43-o3",
+      "text": "record patternで入れ子のデータを分解して取り出せる"
+    },
+    {
+      "id": "ch43-o4",
+      "text": "独自アノテーションを定義し、リフレクションで実行時に読み取れる"
+    }
+  ],
   "lessons": [
     {
       "id": "43-1",
       "title": "sealed classで継承先を閉じる",
+      "objectiveIds": [
+        "ch43-o1"
+      ],
       "explanation": "## 候補が決まっている型では、未知の実装を増やせないようにする\n\n支払い結果が「成功」か「失敗」、注文状態が「受付」「発送」「取消」のように候補が決まっている場合、通常のインターフェースは誰でも新しい実装を追加できます。処理側がその新しい型を知らないと、分岐漏れが実行時まで見つかりません。\n\n`sealed` は、直接継承・実装できる型を限定するための指定です。\n\n```java\nsealed interface Result permits Ok, Error {}\n\nrecord Ok(String value) implements Result {}\nrecord Error(String message) implements Result {}\n```\n\n`permits` に `Ok` と `Error` だけを挙げたため、それ以外の型は `Result` を直接実装できません。同じソースファイルへ直接のサブタイプを宣言する場合など、コンパイラが候補を推論できれば `permits` を省略できます。\n\n許可された直接サブタイプは、その先の継承方針を示します。\n\n- `final`: それ以上継承させない。recordは暗黙にfinal\n- `sealed`: 次のサブタイプも限定する\n- `non-sealed`: そこから先は自由な継承を許す\n\n候補が閉じると、`switch` がすべての型を扱っているかをコンパイラが検査できます。一方、利用者が自由に実装を追加するプラグインAPIには向きません。業務状態や式の構文木など、候補を1か所で管理したいモデルに使います。\n\nsealed class/interfaceはJava 17で正式機能になりました。この章ではJava 21で正式化されたpattern matching for switchやrecord patternsと組み合わせます。今回の演習では、成功と失敗だけを持つ閉じた `Result` 型を作ります。",
       "samples": [
         {
@@ -15,7 +36,7 @@
         }
       ],
       "task": "sealed interface `Result` と、`Ok(String value)`、`Error(String message)` の2つのrecordを作り、入力 `ok/error text` に応じて作った値を表示してください。",
-      "starterCode": "import java.util.*;\n/* TODO types */ public class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        String kind = s.next(), text = s.next();\n        Object r = null;\n        /* TODO */ System.out.println(r);\n    }\n}\n",
+      "starterCode": "import java.util.*;\n/* TODO types */ public class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        String kind = sc.next(), text = sc.next();\n        Object r = null;\n        /* TODO */ System.out.println(r);\n    }\n}\n",
       "visibleCases": [
         {
           "label": "成功",
@@ -44,7 +65,7 @@
         "`sealed interface Result permits Ok, Error {}`。",
         "recordは暗黙にfinalです。"
       ],
-      "solution": "import java.util.*;\n\nsealed interface Result permits Ok, Error { }\n\nrecord Ok(String value) implements Result { }\n\nrecord Error(String message) implements Result { }\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        String kind = s.next(), text = s.next();\n        Result r = kind.equals(\"ok\") ? new Ok(text) : new Error(text);\n        System.out.println(r);\n    }\n}\n",
+      "solution": "import java.util.*;\n\nsealed interface Result permits Ok, Error { }\n\nrecord Ok(String value) implements Result { }\n\nrecord Error(String message) implements Result { }\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        String kind = sc.next(), text = sc.next();\n        Result r = kind.equals(\"ok\") ? new Ok(text) : new Error(text);\n        System.out.println(r);\n    }\n}\n",
       "extraTasks": [
         {
           "kind": "applied",
@@ -115,6 +136,9 @@
     {
       "id": "43-2",
       "title": "pattern matching for switch",
+      "objectiveIds": [
+        "ch43-o2"
+      ],
       "explanation": "## 型の確認・型変換・分岐を1つのcaseへまとめる\n\n型ごとに処理を変えるコードを `instanceof` とキャストで並べると、確認した型と変換する型を間違えたり、新しい候補を追加したときに分岐を直し忘れたりします。\n\nJava 21で正式機能になった **pattern matching for switch** では、型の確認と変数への取り出しを1つのcaseへ書けます。\n\n```java\nstatic String describe(Result result) {\n    return switch (result) {\n        case Ok(String value) -> \"成功: \" + value;\n        case Error(String message) -> \"失敗: \" + message;\n    };\n}\n```\n\n`Result` が `Ok` と `Error` だけのsealed型なので、2つを扱えば `default` は不要です。後で新しいサブタイプを追加すると、このswitchがコンパイルエラーになり、修正箇所を知らせます。\n\n型に加えて値の条件を付けるときは `when` を使います。\n\n```java\ncase Ok(String value) when value.isBlank() -> \"空の成功\";\ncase Ok(String value)                      -> \"成功: \" + value;\n```\n\n条件付きの狭いcaseを、すべての `Ok` に一致する広いcaseより先に置きます。逆にすると後のcaseへ到達できないため、コンパイルエラーになります。\n\n`null` はどの型パターンにも一致しません。nullを許す設計なら `case null` を明示し、許さないならswitchへ渡す前の境界で拒否します。\n\n今回の演習では、`Add` と `Reset` だけを持つCommandをdefaultなしで処理します。短く書くことより、候補追加時に処理漏れをコンパイラへ検出させることが利点です。",
       "samples": [
         {
@@ -123,7 +147,7 @@
         }
       ],
       "task": "sealedな `Command`（`Add(int value)` / `Reset()`）をswitchで処理し、初期値startに対して `add n` は加算、`reset` は0を表示してください。defaultは使いません。",
-      "starterCode": "import java.util.*;\n\nsealed interface Command permits Add, Reset { }\n\nrecord Add(int value) implements Command { }\n\nrecord Reset() implements Command { }\n\npublic class Main {\n    static int apply(int start, Command c) {\n        return 0;\n    }\n\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        int start = s.nextInt();\n        String op = s.next();\n        Command c = op.equals(\"add\") ? new Add(s.nextInt()) : new Reset();\n        System.out.println(apply(start, c));\n    }\n}\n",
+      "starterCode": "import java.util.*;\n\nsealed interface Command permits Add, Reset { }\n\nrecord Add(int value) implements Command { }\n\nrecord Reset() implements Command { }\n\npublic class Main {\n    static int apply(int start, Command c) {\n        return 0;\n    }\n\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int start = sc.nextInt();\n        String op = sc.next();\n        Command c = op.equals(\"add\") ? new Add(sc.nextInt()) : new Reset();\n        System.out.println(apply(start, c));\n    }\n}\n",
       "visibleCases": [
         {
           "label": "加算",
@@ -157,7 +181,7 @@
         "`return switch(c)`。",
         "`case Add(int value) -> start + value; case Reset() -> 0;`。"
       ],
-      "solution": "import java.util.*;\n\nsealed interface Command permits Add, Reset { }\n\nrecord Add(int value) implements Command { }\n\nrecord Reset() implements Command { }\n\npublic class Main {\n    static int apply(int start, Command c) {\n        return switch (c) {\n            case Add(int value) -> start + value;\n            case Reset() -> 0;\n        };\n    }\n\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        int start = s.nextInt();\n        String op = s.next();\n        Command c = op.equals(\"add\") ? new Add(s.nextInt()) : new Reset();\n        System.out.println(apply(start, c));\n    }\n}\n",
+      "solution": "import java.util.*;\n\nsealed interface Command permits Add, Reset { }\n\nrecord Add(int value) implements Command { }\n\nrecord Reset() implements Command { }\n\npublic class Main {\n    static int apply(int start, Command c) {\n        return switch (c) {\n            case Add(int value) -> start + value;\n            case Reset() -> 0;\n        };\n    }\n\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int start = sc.nextInt();\n        String op = sc.next();\n        Command c = op.equals(\"add\") ? new Add(sc.nextInt()) : new Reset();\n        System.out.println(apply(start, c));\n    }\n}\n",
       "sourceChecks": [
         {
           "pattern": "\\bswitch\\s*\\(",
@@ -175,7 +199,7 @@
         {
           "kind": "applied",
           "task": "Objectを `null` / `int 値` / `text 値` として読み、switchパターンで `null`、`positive:n`、`integer:n`、`text:s` のいずれかを表示してください。",
-          "starterCode": "import java.util.*;\n\npublic class Main {\n    static String describe(Object x) {\n        return \"\";\n    }\n\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        String kind = s.next();\n        Object x = switch (kind) {\n            case \"null\" -> null;\n            case \"int\" -> s.nextInt();\n            default -> s.next();\n        };\n        System.out.println(describe(x));\n    }\n}\n",
+          "starterCode": "import java.util.*;\n\npublic class Main {\n    static String describe(Object x) {\n        return \"\";\n    }\n\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        String kind = sc.next();\n        Object x = switch (kind) {\n            case \"null\" -> null;\n            case \"int\" -> sc.nextInt();\n            default -> sc.next();\n        };\n        System.out.println(describe(x));\n    }\n}\n",
           "visibleCases": [
             {
               "label": "正数",
@@ -204,7 +228,7 @@
             "`case Integer n when n > 0` を通常のInteger caseより前に置きます。",
             "case nullも書きます。"
           ],
-          "solution": "import java.util.*;\n\npublic class Main {\n    static String describe(Object x) {\n        return switch (x) {\n            case null -> \"null\";\n            case Integer n when n > 0 -> \"positive:\" + n;\n            case Integer n -> \"integer:\" + n;\n            case String text -> \"text:\" + text;\n            default -> \"other\";\n        };\n    }\n\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        String kind = s.next();\n        Object x = switch (kind) {\n            case \"null\" -> null;\n            case \"int\" -> s.nextInt();\n            default -> s.next();\n        };\n        System.out.println(describe(x));\n    }\n}\n",
+          "solution": "import java.util.*;\n\npublic class Main {\n    static String describe(Object x) {\n        return switch (x) {\n            case null -> \"null\";\n            case Integer n when n > 0 -> \"positive:\" + n;\n            case Integer n -> \"integer:\" + n;\n            case String text -> \"text:\" + text;\n            default -> \"other\";\n        };\n    }\n\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        String kind = sc.next();\n        Object x = switch (kind) {\n            case \"null\" -> null;\n            case \"int\" -> sc.nextInt();\n            default -> sc.next();\n        };\n        System.out.println(describe(x));\n    }\n}\n",
           "sourceChecks": [
             {
               "pattern": "\\bcase\\s+null\\b",
@@ -241,6 +265,9 @@
     {
       "id": "43-3",
       "title": "record patternsで分解する",
+      "objectiveIds": [
+        "ch43-o3"
+      ],
       "explanation": "## recordの形を確かめながら、中の値を取り出す\n\nrecordを型ごとに判定した後、`order.customer().name()` のようにアクセサーを何段も呼ぶ処理があります。**record pattern** を使うと、recordであることの確認と、コンポーネントの取り出しを同時に行えます。\n\n```java\nrecord Customer(String name) {}\nrecord Order(Customer customer, int amount) {}\n\nif (value instanceof Order(Customer(String name), int amount)) {\n    System.out.println(name + \":\" + amount);\n}\n```\n\n`value` が `Order` で、内側の値も `Customer` という形に一致したときだけ処理されます。同時に `name` と `amount` がローカル変数として使えるようになります。途中の型をそのまま使いたければ、分解を浅くできます。\n\n```java\nif (value instanceof Order(Customer customer, int amount)) {\n    System.out.println(customer.name());\n}\n```\n\nrecord patternはswitchのcaseにも書けます。Java 21ではrecord patternsとpattern matching for switchの両方が正式機能なので、`--enable-preview` は不要です。\n\n便利だからと深く分解しすぎると、内側のrecord構造を変えたときに多くの利用箇所が影響を受けます。分岐に必要な値だけを取り出し、複雑な業務判断は意味のあるメソッドへ移します。\n\n今回の演習では、`Order` と内側の `Customer` を分解し、型検査と値の取り出しが同じパターンで行われることを確認します。",
       "samples": [
         {
@@ -249,7 +276,7 @@
         }
       ],
       "task": "record `Customer(String name)` と `Order(Customer customer,int amount)` を作り、record patternで分解して `name:amount` と表示してください。",
-      "starterCode": "import java.util.*;\n\nrecord Customer(String name) { }\n\nrecord Order(Customer customer, int amount) { }\n\npublic class Main {\n    static String label(Object value) {\n        return \"\";\n    }\n\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        System.out.println(label(new Order(new Customer(s.next()), s.nextInt())));\n    }\n}\n",
+      "starterCode": "import java.util.*;\n\nrecord Customer(String name) { }\n\nrecord Order(Customer customer, int amount) { }\n\npublic class Main {\n    static String label(Object value) {\n        return \"\";\n    }\n\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        System.out.println(label(new Order(new Customer(sc.next()), sc.nextInt())));\n    }\n}\n",
       "visibleCases": [
         {
           "label": "注文",
@@ -277,12 +304,12 @@
       "hints": [
         "`if (value instanceof Order(Customer(String name), int amount))`。"
       ],
-      "solution": "import java.util.*;\n\nrecord Customer(String name) { }\n\nrecord Order(Customer customer, int amount) { }\n\npublic class Main {\n    static String label(Object value) {\n        if (value instanceof Order(Customer(String name), int amount)) return name + \":\" + amount;\n        return \"unknown\";\n    }\n\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        System.out.println(label(new Order(new Customer(s.next()), s.nextInt())));\n    }\n}\n",
+      "solution": "import java.util.*;\n\nrecord Customer(String name) { }\n\nrecord Order(Customer customer, int amount) { }\n\npublic class Main {\n    static String label(Object value) {\n        if (value instanceof Order(Customer(String name), int amount)) return name + \":\" + amount;\n        return \"unknown\";\n    }\n\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        System.out.println(label(new Order(new Customer(sc.next()), sc.nextInt())));\n    }\n}\n",
       "extraTasks": [
         {
           "kind": "applied",
           "task": "sealedな式 `Num(int value)` / `Add(Expr left,Expr right)` をrecord patternとswitchで再帰評価してください。入力3整数a,b,cから `(a+b)+c` を作ります。",
-          "starterCode": "import java.util.*;\n\nsealed interface Expr permits Num, Add { }\n\nrecord Num(int value) implements Expr { }\n\nrecord Add(Expr left, Expr right) implements Expr { }\n\npublic class Main {\n    static int eval(Expr e) {\n        return 0;\n    }\n\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        Expr e = new Add(new Add(new Num(s.nextInt()), new Num(s.nextInt())), new Num(s.nextInt()));\n        System.out.println(eval(e));\n    }\n}\n",
+          "starterCode": "import java.util.*;\n\nsealed interface Expr permits Num, Add { }\n\nrecord Num(int value) implements Expr { }\n\nrecord Add(Expr left, Expr right) implements Expr { }\n\npublic class Main {\n    static int eval(Expr e) {\n        return 0;\n    }\n\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        Expr e = new Add(new Add(new Num(sc.nextInt()), new Num(sc.nextInt())), new Num(sc.nextInt()));\n        System.out.println(eval(e));\n    }\n}\n",
           "visibleCases": [
             {
               "label": "加算",
@@ -311,7 +338,7 @@
             "`case Num(int value) -> value`。",
             "`case Add(Expr left, Expr right) -> eval(left)+eval(right)`。"
           ],
-          "solution": "import java.util.*;\n\nsealed interface Expr permits Num, Add { }\n\nrecord Num(int value) implements Expr { }\n\nrecord Add(Expr left, Expr right) implements Expr { }\n\npublic class Main {\n    static int eval(Expr e) {\n        return switch (e) {\n            case Num(int value) -> value;\n            case Add(Expr left, Expr right) -> eval(left) + eval(right);\n        };\n    }\n\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        Expr e = new Add(new Add(new Num(s.nextInt()), new Num(s.nextInt())), new Num(s.nextInt()));\n        System.out.println(eval(e));\n    }\n}\n",
+          "solution": "import java.util.*;\n\nsealed interface Expr permits Num, Add { }\n\nrecord Num(int value) implements Expr { }\n\nrecord Add(Expr left, Expr right) implements Expr { }\n\npublic class Main {\n    static int eval(Expr e) {\n        return switch (e) {\n            case Num(int value) -> value;\n            case Add(Expr left, Expr right) -> eval(left) + eval(right);\n        };\n    }\n\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        Expr e = new Add(new Add(new Num(sc.nextInt()), new Num(sc.nextInt())), new Num(sc.nextInt()));\n        System.out.println(eval(e));\n    }\n}\n",
           "sourceChecks": [
             {
               "pattern": "\\bcase\\s+Num\\s*\\(",
@@ -338,7 +365,7 @@
             "recordを可変にする",
             "GCを停止する",
             "型確認とコンポーネント取り出しを同時に行う",
-            "privateフィールドを書き換える"
+            "privateなフィールドへ直接アクセスして書き換えられる"
           ],
           "answer": 2,
           "explanation": "record patternは可変にする仕組みではなく、GCとも無関係で、privateフィールドを書き換えるものでもありません。`case Point(int x, int y)` と書くと、「Pointか」の判定と「中身をxとyへ取り出す」を一度に行えます。判定・キャスト・呼び出しを別々に書く必要がなくなります。"
@@ -348,6 +375,9 @@
     {
       "id": "43-4",
       "title": "独自アノテーションとリフレクション",
+      "objectiveIds": [
+        "ch43-o4"
+      ],
       "explanation": "## アノテーションは処理ではなく、処理する側へ渡す目印\n\n`@Transactional` や `@Path` を付けると動作が変わりますが、アノテーション自身がトランザクションを開始したりHTTPを受けたりするわけではありません。アノテーションは型やメソッドへ付ける **メタデータ** で、サーバーやフレームワークがそれを読み、対応する処理を行います。\n\n```java\n@Retention(RetentionPolicy.RUNTIME)\n@Target(ElementType.METHOD)\n@interface Command {\n    String value();\n}\n```\n\n`@Retention` は目印をいつまで残すかを指定します。実行中に読みたい場合は `RUNTIME` が必要です。既定の `CLASS` ではクラスファイルには残りますが、実行時の通常のリフレクションからは読めません。`@Target(METHOD)` は、誤ってクラスやフィールドへ付けられないよう、利用場所をメソッドへ限定します。\n\n**リフレクション** は、実行中にクラス、メソッド、フィールド、アノテーションなどプログラム自身の構造を調べるAPIです。\n\n```java\nfor (Method method : Handler.class.getDeclaredMethods()) {\n    Command command = method.getAnnotation(Command.class);\n    if (command != null) {\n        System.out.println(command.value());\n    }\n}\n```\n\nこれにより、特定の注釈が付いた処理を起動時に集める仕組みなどを作れます。一方、メソッド名の誤りやアクセス制限の問題が実行時まで見えにくく、通常のメソッド呼び出しより追跡も難しくなります。アプリの業務処理へ無差別に使わず、フレームワークとの境界や動的な発見が必要な場所へ限定します。\n\n今回の演習では、実行時まで残る `@Command` をメソッドへ付け、リフレクションで目印とメソッド名を読み取ります。",
       "samples": [
         {
@@ -458,6 +488,10 @@
     {
       "id": "43-5",
       "title": "章末演習：閉じた型モデル",
+      "objectiveIds": [
+        "ch43-o1",
+        "ch43-o2"
+      ],
       "explanation": "## 章末では、候補を型で閉じて分岐漏れを防ぐ\n\nsealed型、record、パターンswitchは、別々の短縮構文ではありません。候補が決まった業務状態を型として表し、その処理漏れをコンパイラに確認させるために組み合わせます。\n\n```text\nsealed型       → 許可する候補を決める\nrecord         → 各候補が持つ値を表す\nrecord pattern → 型の確認と値の取り出しを行う\nswitch         → すべての候補を処理する\n```\n\n候補を追加すると、そのsealed型を網羅するswitchがコンパイルエラーになります。これにより、新しい状態を追加したのに画面表示や料金計算だけ直し忘れる事故を減らせます。ただし、外部利用者が自由に実装を追加すべきAPIまで閉じてはいけません。\n\nアノテーションは型階層とは役割が異なり、型だけでは表しにくい付加情報を処理側へ渡します。実行時に読むならRetentionを明示し、リフレクションの利用範囲を限定します。\n\n章末演習では、温度単位、式、配送状態を閉じた型として表し、defaultのないswitchで処理します。コンパイルエラーが出たときはdefaultで隠さず、扱っていない候補がないか確認してください。",
       "samples": [
         {
@@ -466,7 +500,7 @@
         }
       ],
       "task": "【基本】sealedな温度単位 `Celsius(double)` / `Fahrenheit(double)` をswitchで摂氏へ変換し、小数1桁で表示してください。",
-      "starterCode": "import java.util.*;\n\nsealed interface Temperature permits Celsius, Fahrenheit { }\n\nrecord Celsius(double value) implements Temperature { }\n\nrecord Fahrenheit(double value) implements Temperature { }\n\npublic class Main {\n    static double celsius(Temperature t) {\n        return 0;\n    }\n\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        String unit = s.next();\n        double v = s.nextDouble();\n        Temperature t = unit.equals(\"C\") ? new Celsius(v) : new Fahrenheit(v);\n        System.out.printf(Locale.ROOT, \"%.1f%n\", celsius(t));\n    }\n}\n",
+      "starterCode": "import java.util.*;\n\nsealed interface Temperature permits Celsius, Fahrenheit { }\n\nrecord Celsius(double value) implements Temperature { }\n\nrecord Fahrenheit(double value) implements Temperature { }\n\npublic class Main {\n    static double celsius(Temperature t) {\n        return 0;\n    }\n\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        String unit = sc.next();\n        double v = sc.nextDouble();\n        Temperature t = unit.equals(\"C\") ? new Celsius(v) : new Fahrenheit(v);\n        System.out.printf(Locale.ROOT, \"%.1f%n\", celsius(t));\n    }\n}\n",
       "visibleCases": [
         {
           "label": "摂氏",
@@ -499,12 +533,16 @@
       "hints": [
         "Celsiusはそのまま、Fahrenheitは `(value-32)*5/9`。"
       ],
-      "solution": "import java.util.*;\n\nsealed interface Temperature permits Celsius, Fahrenheit { }\n\nrecord Celsius(double value) implements Temperature { }\n\nrecord Fahrenheit(double value) implements Temperature { }\n\npublic class Main {\n    static double celsius(Temperature t) {\n        return switch (t) {\n            case Celsius(double v) -> v;\n            case Fahrenheit(double v) -> (v - 32) * 5 / 9;\n        };\n    }\n\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        String unit = s.next();\n        double v = s.nextDouble();\n        Temperature t = unit.equals(\"C\") ? new Celsius(v) : new Fahrenheit(v);\n        System.out.printf(Locale.ROOT, \"%.1f%n\", celsius(t));\n    }\n}\n",
+      "solution": "import java.util.*;\n\nsealed interface Temperature permits Celsius, Fahrenheit { }\n\nrecord Celsius(double value) implements Temperature { }\n\nrecord Fahrenheit(double value) implements Temperature { }\n\npublic class Main {\n    static double celsius(Temperature t) {\n        return switch (t) {\n            case Celsius(double v) -> v;\n            case Fahrenheit(double v) -> (v - 32) * 5 / 9;\n        };\n    }\n\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        String unit = sc.next();\n        double v = sc.nextDouble();\n        Temperature t = unit.equals(\"C\") ? new Celsius(v) : new Fahrenheit(v);\n        System.out.printf(Locale.ROOT, \"%.1f%n\", celsius(t));\n    }\n}\n",
       "extraTasks": [
         {
+          "objectiveIds": [
+            "ch43-o1",
+            "ch43-o3"
+          ],
           "kind": "drill",
           "task": "【組み合わせ】sealedな通知 `Email(address)` / `Sms(number)` をrecord patternで分解し、それぞれ `email:...` / `sms:...` と表示してください。",
-          "starterCode": "import java.util.*;\n\nsealed interface Notice permits Email, Sms { }\n\nrecord Email(String address) implements Notice { }\n\nrecord Sms(String number) implements Notice { }\n\npublic class Main {\n    static String route(Notice n) {\n        return \"\";\n    }\n\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        Notice n = s.next().equals(\"email\") ? new Email(s.next()) : new Sms(s.next());\n        System.out.println(route(n));\n    }\n}\n",
+          "starterCode": "import java.util.*;\n\nsealed interface Notice permits Email, Sms { }\n\nrecord Email(String address) implements Notice { }\n\nrecord Sms(String number) implements Notice { }\n\npublic class Main {\n    static String route(Notice n) {\n        return \"\";\n    }\n\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        Notice n = sc.next().equals(\"email\") ? new Email(sc.next()) : new Sms(sc.next());\n        System.out.println(route(n));\n    }\n}\n",
           "visibleCases": [
             {
               "label": "email",
@@ -532,7 +570,7 @@
           "hints": [
             "switchで2つのrecord patternを網羅します。"
           ],
-          "solution": "import java.util.*;\n\nsealed interface Notice permits Email, Sms { }\n\nrecord Email(String address) implements Notice { }\n\nrecord Sms(String number) implements Notice { }\n\npublic class Main {\n    static String route(Notice n) {\n        return switch (n) {\n            case Email(String a) -> \"email:\" + a;\n            case Sms(String p) -> \"sms:\" + p;\n        };\n    }\n\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        Notice n = s.next().equals(\"email\") ? new Email(s.next()) : new Sms(s.next());\n        System.out.println(route(n));\n    }\n}\n",
+          "solution": "import java.util.*;\n\nsealed interface Notice permits Email, Sms { }\n\nrecord Email(String address) implements Notice { }\n\nrecord Sms(String number) implements Notice { }\n\npublic class Main {\n    static String route(Notice n) {\n        return switch (n) {\n            case Email(String a) -> \"email:\" + a;\n            case Sms(String p) -> \"sms:\" + p;\n        };\n    }\n\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        Notice n = sc.next().equals(\"email\") ? new Email(sc.next()) : new Sms(sc.next());\n        System.out.println(route(n));\n    }\n}\n",
           "sourceChecks": [
             {
               "pattern": "\\bsealed\\b",
@@ -547,6 +585,9 @@
           ]
         },
         {
+          "objectiveIds": [
+            "ch43-o4"
+          ],
           "kind": "applied",
           "task": "【実践】`@Code` を付けたenum定数のコードをリフレクションで読み、入力名に対して `名前=code` と表示してください。",
           "starterCode": "import java.lang.annotation.*;\nimport java.lang.reflect.*;\nimport java.util.*;\n\n@Retention(RetentionPolicy.RUNTIME)\n@Target(ElementType.FIELD)\n@interface\nCode {\n    int value();\n}\n\nenum Status {\n    @Code(200)\n    OK, @Code(404)\n    NOT_FOUND, @Code(500)\n    ERROR\n}\n\npublic class Main {\n    public static void main(String[] args) throws Exception {\n        Status status = Status.valueOf(new Scanner(System.in).next());\n        /* TODO */\n    }\n}\n",
@@ -625,13 +666,13 @@
         {
           "question": "リフレクションを濫用しない理由は？",
           "choices": [
-            "Javaでは使えないから",
-            "private メンバーへは触れないから",
+            "Javaのモジュールでは使えなくなるから",
+            "privateなメンバーへは触れられないから",
             "型安全性やリファクタリング検出が弱くなりやすいから",
-            "recordだけに限定されるから"
+            "recordにしか使えず、classでは動かないから"
           ],
           "answer": 2,
-          "explanation": "Javaでリフレクションは使えますし、`setAccessible` を使えば private にも触れます。recordに限定されるものでもありません。問題は、名前を文字列で指定するためコンパイラの型検査もIDEの名前変更も効かず、間違いが**実行時まで**見つからないことです。"
+          "explanation": "モジュールでも（`opens` などの条件つきで）リフレクションは使えますし、`setAccessible` を使えば private にも触れます。recordだけに限られるものでもありません。問題は、名前を文字列で指定するためコンパイラの型検査もIDEの名前変更も効かず、間違いが**実行時まで**見つからないことです。"
         }
       ]
     }

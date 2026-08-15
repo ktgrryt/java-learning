@@ -8,8 +8,8 @@
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <quarkus.platform.group-id>io.quarkus.platform</quarkus.platform.group-id>
     <quarkus.platform.artifact-id>quarkus-bom</quarkus.platform.artifact-id>
-    <quarkus.platform.version>3.33.3</quarkus.platform.version>
-    <surefire-plugin.version>3.5.4</surefire-plugin.version>
+    <quarkus.platform.version>3.33.3.1</quarkus.platform.version>
+    <surefire-plugin.version>3.5.6</surefire-plugin.version>
   </properties>
   <dependencyManagement><dependencies><dependency>
     <groupId>${quarkus.platform.group-id}</groupId><artifactId>${quarkus.platform.artifact-id}</artifactId>
@@ -29,4 +29,14 @@
     </plugin>
     <plugin><groupId>org.apache.maven.plugins</groupId><artifactId>maven-surefire-plugin</artifactId><version>${surefire-plugin.version}</version></plugin>
   </plugins></build>
+  <!-- Quarkusが生成するpomと同じ`native`プロファイル。これが無いと `-Dnative` は
+       ただの未使用プロパティになり、**mvnは成功したままJVMのjarだけを作る**（README §7 の
+       コマンドが無反応になる）。 -->
+  <profiles>
+    <profile>
+      <id>native</id>
+      <activation><property><name>native</name></property></activation>
+      <properties><quarkus.native.enabled>true</quarkus.native.enabled></properties>
+    </profile>
+  </profiles>
 </project>

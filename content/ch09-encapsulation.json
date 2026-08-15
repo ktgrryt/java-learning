@@ -3,10 +3,31 @@
   "title": "カプセル化",
   "subtitle": "外から触れる範囲を決める",
   "emoji": "🔒",
+  "objectives": [
+    {
+      "id": "ch09-o1",
+      "text": "フィールドを `private` にし、アクセサ経由で読み書きさせられる"
+    },
+    {
+      "id": "ch09-o2",
+      "text": "`final` で変更不能なクラスを作り、`final` が固定するのは参照だけだと説明できる"
+    },
+    {
+      "id": "ch09-o3",
+      "text": "`public` `protected` `private` とパッケージの見える範囲を選べる"
+    },
+    {
+      "id": "ch09-o4",
+      "text": "値を変える前に検査する順番で、不正な状態にならないクラスを書ける"
+    }
+  ],
   "lessons": [
     {
       "id": "9-1",
       "title": "private とアクセサ",
+      "objectiveIds": [
+        "ch09-o1"
+      ],
       "explanation": "## フィールドを直接触らせない\n\n第8章で作ったクラスは、フィールドを外から自由に書き換えられました。\n\n```java\nclass Person {\n    String name;\n    int age;\n}\n\nPerson p = new Person();\np.age = -100;        // 「年齢がマイナス」を止められない\n```\n\nこれは困ります。ありえない値が入った瞬間ではなく、\nずっと後になって「なぜ年齢がマイナスなのか」と悩むことになるからです。\n\nそこで **フィールドを `private` にして、外から直接触れないようにします**。\n\n```java\nclass Person {\n    private String name;\n    private int age;\n}\n\nPerson p = new Person();\np.age = -100;        // ❌ コンパイルエラー：private なので外からは見えない\n```\n\n`private` を付けたものは **同じクラスの中からしか** 使えません。\n\n## 出入り口を用意する — アクセサ\n\n直接触れないなら、代わりに **メソッド経由** でやりとりします。\n\n- 値を取り出すメソッド … **ゲッター**（`getXxx`）\n- 値を入れるメソッド … **セッター**（`setXxx`）\n\nこの2つをまとめて **アクセサ** と呼びます。\n\n```java\nclass Person {\n    private String name;\n    private int age;\n\n    Person(String name, int age) {\n        this.name = name;\n        this.age = age;\n    }\n\n    String getName() {\n        return name;\n    }\n\n    int getAge() {\n        return age;\n    }\n\n    void setAge(int age) {\n        this.age = age;\n    }\n}\n```\n\n### メソッドを通すと「検査」ができる\n\nこれがカプセル化の本当のねらいです。セッターの中でおかしな値をはじけます。\n\n```java\nvoid setAge(int age) {\n    if (age < 0) {\n        return;              // マイナスは受け付けない（何もせず帰る）\n    }\n    this.age = age;\n}\n```\n\nこうしておけば、このクラスの外で何が起きても\n**「年齢がマイナスの Person は存在しない」と言い切れます**。\nデータと、そのデータを守るルールを1か所にまとめる — これが **カプセル化** です。\n\n> 💡 ゲッターだけ用意してセッターを作らない、という設計もよくあります（外からは読めるが変えられない）。次のレッスンでその形を作ります。\n\n> ⚠️ 間違えやすい点 … `private` は「クラス単位」で効きます。同じクラスの別のインスタンスの private フィールドには **アクセスできます**。\n\n```java\nclass Person {\n    private int age;\n\n    boolean olderThan(Person other) {\n        return this.age > other.age;    // ✅ OK。他人でも同じ Person クラスなら見える\n    }\n}\n```\n\n「インスタンスごとに秘密」ではなく「クラスの外に対して秘密」だと覚えてください。",
       "samples": [
         {
@@ -123,7 +144,10 @@
     {
       "id": "9-2",
       "title": "final と、変わらないクラス",
-      "explanation": "## final — 再代入を禁止する\n\n```java\nfinal int max = 100;\nmax = 200;            // コンパイルエラー\n```\n\n`final` フィールドは宣言時または各コンストラクタで初期化し、その後は再代入できません。\n\n```java\nclass Money {\n    private final int amount;\n    Money(int amount) { this.amount = amount; }\n    int getAmount() { return amount; }\n}\n```\n\nこの `Money` は `int` だけを保持し、状態を書き換える操作もないため、不変な値として扱えます。値を変更する代わりに別の値を返します。\n\n```java\nMoney plus(int n) {\n    return new Money(amount + n);\n}\n```\n\nただし、`final` フィールドだけで一般のクラスが自動的に深い不変になるわけではありません。\n配列や可変オブジェクトへの参照が `final` でも、参照先の中身は変更できます。防御的コピーなどが必要です。\n\n```java\nfinal int[] a = {1, 2, 3};\na[0] = 99;              // OK：配列の要素を変更\na = new int[]{4, 5};    // コンパイルエラー：参照を再代入\n```\n\n`String` は不変です。`toUpperCase()` は元を変更せず、変換結果の `String` を返します。\n結果が元と同じなら同じインスタンスを返すこともあるので、「常に新しいインスタンス」ではありません。\n\n```java\nString s = \"abc\";\ns.toUpperCase();                 // 結果を捨てる\nSystem.out.println(s);           // abc\ns = s.toUpperCase();\nSystem.out.println(s);           // ABC\n```",
+      "objectiveIds": [
+        "ch09-o2"
+      ],
+      "explanation": "## final — 再代入を禁止する\n\n```java\nfinal int max = 100;\nmax = 200;            // コンパイルエラー\n```\n\n`final` フィールドは、まずは宣言時か各コンストラクタで初期化すると覚えてください（初期化子ブロックでも代入できます）。どこで入れても**入れられるのは1回だけ**で、その後は再代入できません。\n\n```java\nclass Money {\n    private final int amount;\n    Money(int amount) { this.amount = amount; }\n    int getAmount() { return amount; }\n}\n```\n\nこの `Money` は `int` だけを保持し、状態を書き換える操作もないため、不変な値として扱えます。値を変更する代わりに別の値を返します。\n\n```java\nMoney plus(int n) {\n    return new Money(amount + n);\n}\n```\n\nただし、`final` フィールドだけで一般のクラスが自動的に深い不変になるわけではありません。\n配列や可変オブジェクトへの参照が `final` でも、参照先の中身は変更できます。防御的コピーなどが必要です。\n\n```java\nfinal int[] a = {1, 2, 3};\na[0] = 99;              // OK：配列の要素を変更\na = new int[]{4, 5};    // コンパイルエラー：参照を再代入\n```\n\n`String` は不変です。`toUpperCase()` は元を変更せず、変換結果の `String` を返します。\n結果が元と同じなら同じインスタンスを返すこともあるので、「常に新しいインスタンス」ではありません。\n\n```java\nString s = \"abc\";\ns.toUpperCase();                 // 結果を捨てる\nSystem.out.println(s);           // abc\ns = s.toUpperCase();\nSystem.out.println(s);           // ABC\n```",
       "samples": [
         {
           "caption": "不変クラスは自分を変えずに新しい実体を返す",
@@ -234,6 +258,9 @@
     {
       "id": "9-3",
       "title": "アクセス修飾子とパッケージ",
+      "objectiveIds": [
+        "ch09-o3"
+      ],
       "explanation": "## 公開範囲は4段階\n\n`private` と、何も付けない状態のほかにもう2つあります。全部で4段階です。\n\n| 修飾子 | 同じクラス | 同じパッケージ | サブクラス（別パッケージ） | どこからでも |\n|---|---|---|---|---|\n| `private` | ✅ | ❌ | ❌ | ❌ |\n| （何も書かない） | ✅ | ✅ | ❌ | ❌ |\n| `protected` | ✅ | ✅ | ✅ | ❌ |\n| `public` | ✅ | ✅ | ✅ | ✅ |\n\n```svg 内側ほど狭い。`private` →（修飾子なし）→ `protected` → `public` の順に届く範囲が広がる\n<svg viewBox=\"0 0 720 278\">\n  <rect class=\"fig-region\" x=\"14\" y=\"34\" width=\"692\" height=\"226\" rx=\"10\"/>\n  <text class=\"fig-t fig-code fig-t-accent\" x=\"30\" y=\"52\">public</text>\n  <text class=\"fig-t fig-t-dim fig-small\" x=\"92\" y=\"52\">… どこからでも使える</text>\n\n  <rect class=\"fig-region\" x=\"44\" y=\"70\" width=\"632\" height=\"174\" rx=\"10\"/>\n  <text class=\"fig-t fig-code fig-t-accent\" x=\"60\" y=\"88\">protected</text>\n  <text class=\"fig-t fig-t-dim fig-small\" x=\"146\" y=\"88\">… 別パッケージのサブクラスからも使える</text>\n\n  <rect class=\"fig-region\" x=\"74\" y=\"106\" width=\"572\" height=\"122\" rx=\"10\"/>\n  <text class=\"fig-t fig-code fig-t-accent\" x=\"90\" y=\"124\">（修飾子なし）</text>\n  <text class=\"fig-t fig-t-dim fig-small\" x=\"190\" y=\"124\">… 同じパッケージの中だけ（パッケージプライベート）</text>\n\n  <rect class=\"fig-box\" x=\"104\" y=\"142\" width=\"512\" height=\"70\" rx=\"8\"/>\n  <text class=\"fig-t fig-code fig-t-accent\" x=\"360\" y=\"166\" text-anchor=\"middle\">private</text>\n  <text class=\"fig-t fig-t-dim fig-small\" x=\"360\" y=\"190\" text-anchor=\"middle\">… 同じクラスの中だけ</text>\n</svg>\n```\n\n何も書かない状態には名前があり、**パッケージプライベート**（またはデフォルトアクセス）と呼びます。\n「同じパッケージの中でだけ使える」という意味です。第8章までフィールドに何も付けていなかったので、\nすべてこれでした。\n\n指針はかんたんです。**フィールドは `private`、外に見せたいメソッドは `public`。**\n迷ったらまず狭くしておいて、必要になったら広げます。\n\n> ⚠️ 間違えやすい点 … 4段階の順序を「`private` → デフォルト → `protected` → `public`」と覚えます。`protected` はデフォルトより **広い**（別パッケージのサブクラスにも見える）ことに注意してください。\n\n## パッケージ — クラスの住所\n\nクラスが増えると名前がぶつかります。`Date` のようなありふれた名前は、\n自分のプロジェクトにもライブラリにもありえます。\nそこでクラスには **パッケージ** という住所を付けます。\n\n```java\npackage com.example.shop;    // ファイルの先頭に1つだけ書く\n\nclass Item { }\n```\n\nこのクラスの本当の名前は `com.example.shop.Item` です。\nこれを **完全修飾名（FQCN）** といいます。\n\n### import は「名前を省略する宣言」\n\n別のパッケージのクラスを短い名前で使うために `import` を書きます。\n\n```java\nimport java.util.Scanner;                      // 名前を短く使う宣言\n\nScanner sc = new Scanner(System.in);\n```\n\n`import` は必須ではありません。**完全修飾名で書けば `import` は不要** です。\n\n```java\njava.util.Scanner sc = new java.util.Scanner(System.in);   // import なしでOK\n```\n\nつまり `import` は「打つ手間を減らすため」だけの機能で、\n何かを読み込んでいるわけではありません。ここはよく誤解されます。\n\n### java.lang は自動で import される\n\n`String` `System` `Math` `Integer` などは `java.lang` パッケージにいます。\nこのパッケージだけは **書かなくても自動で import** されます。\nだから `Math.abs(-5)` がいつでも使えるわけです。\n\n```java\nSystem.out.println(Math.abs(-5));                  // import 不要\nSystem.out.println(java.lang.Math.abs(-5));        // 同じ意味\n```\n\n`import java.util.*;` のように `*` を使うと、そのパッケージの\n**クラス全部** を短い名前で使えるようになります。ただし\n`java.util.*` はサブパッケージ（`java.util.function` など）を含みません。\n\n> 💡 このアプリでは1つのファイルにまとめて書くので、`package` 宣言はありません。すべてのクラスが同じ（名前なしの）パッケージにいる扱いになります。",
       "samples": [
         {
@@ -355,6 +382,9 @@
     {
       "id": "9-4",
       "title": "総合問題：銀行口座を作る",
+      "objectiveIds": [
+        "ch09-o4"
+      ],
       "explanation": "## ここまでを1つにまとめる\n\n第7章から第9章で学んだことを全部使って、`Account`（銀行口座）クラスを作ります。\nカプセル化が効いてくるのは、まさにこういうクラスです。\n\n外から `balance` を直接いじれてしまったら、口座の意味がありません。\n**残高を変えられるのは入金と出金だけ**、というルールをクラスの中に閉じ込めます。\n\n### 設計の考え方\n\n```java\nclass Account {\n    private final String owner;    // 名義は作ったら変わらない → final\n    private int balance;           // 残高は変わる → final にしない\n\n    Account(String owner, int initial) { ... }\n\n    int getBalance() { ... }       // 読むのは自由\n\n    boolean deposit(int amount) { ... }    // 変えるのはメソッド経由だけ\n    boolean withdraw(int amount) { ... }\n}\n```\n\n`deposit` と `withdraw` が `boolean` を返すのは、\n**成功したかどうかを呼び出し元に伝える** ためです。\n「金額がマイナス」「残高不足」のときは何もせず `false` を返します。\n\n```java\nboolean withdraw(int amount) {\n    if (amount <= 0 || amount > balance) {\n        return false;              // 何も変えずに失敗を伝える\n    }\n    balance -= amount;\n    return true;\n}\n```\n\n失敗のときに **残高をいじってから戻る** ようなことがないよう、\n「先に検査して、通ったら変える」順番で書きます。\n\n> 💡 「ありえない状態を作れないようにする」のがカプセル化の目的です。`private` は手段にすぎません。\n\n> ⚠️ 間違えやすい点 … `amount > balance` の境界に注意してください。残高とちょうど同じ額の出金は **成功** です（残高 `0` になります）。",
       "samples": [
         {
@@ -528,6 +558,11 @@
     {
       "id": "9-5",
       "title": "章末演習：カプセル化",
+      "objectiveIds": [
+        "ch09-o1",
+        "ch09-o2",
+        "ch09-o4"
+      ],
       "explanation": "## この章の知識を、自分の手で組み合わせよう\n\nここでは、**private・検証付きメソッド・final・不変オブジェクト**をまとめて使います。新しい文法は登場しません。分からなくなったら、直前までの解説やサンプルへ戻って確認して大丈夫です。\n\n### 3問の進め方\n\n1. **基本**で、中心となる書き方をもう一度使う\n2. **組み合わせ**で、章内の複数の知識を一緒に使う\n3. **実践**で、少し現実的な入力と条件を整理する\n\nまず入力例と期待される出力を紙に書き、処理を小さな手順へ分けてからコードにすると進めやすくなります。",
       "samples": [
         {
@@ -536,7 +571,7 @@
         }
       ],
       "task": "【基本】privateなbalanceを持つAccountを作ります。`withdraw(int amount)` は、amountが正で残高以下なら減算してtrue、それ以外はfalseを返します。初期残高と出金額を読み、`success=... balance=...` と表示してください。",
-      "starterCode": "import java.util.*;\n\nclass Account {\n    private int balance;\n\n    Account(int balance) {\n        this.balance = balance;\n    }\n\n    boolean withdraw(int amount) {\n        return false;\n    }\n\n    int getBalance() {\n        return 0;\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        Account a = new Account(s.nextInt());\n        boolean ok = a.withdraw(s.nextInt());\n        System.out.println(\"success=\" + ok + \" balance=\" + a.getBalance());\n    }\n}\n",
+      "starterCode": "import java.util.*;\n\nclass Account {\n    private int balance;\n\n    Account(int balance) {\n        this.balance = balance;\n    }\n\n    boolean withdraw(int amount) {\n        return false;\n    }\n\n    int getBalance() {\n        return 0;\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        Account a = new Account(sc.nextInt());\n        boolean ok = a.withdraw(sc.nextInt());\n        System.out.println(\"success=\" + ok + \" balance=\" + a.getBalance());\n    }\n}\n",
       "visibleCases": [
         {
           "label": "成功",
@@ -565,7 +600,7 @@
         "balanceはクラス外から直接変更できないprivateにします。",
         "条件を満たさないときは残高を変えずfalseを返します。"
       ],
-      "solution": "import java.util.*;\n\nclass Account {\n    private int balance;\n\n    Account(int balance) {\n        this.balance = balance;\n    }\n\n    boolean withdraw(int amount) {\n        if (amount <= 0 || amount > balance) return false;\n        balance -= amount;\n        return true;\n    }\n\n    int getBalance() {\n        return balance;\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        Account a = new Account(s.nextInt());\n        boolean ok = a.withdraw(s.nextInt());\n        System.out.println(\"success=\" + ok + \" balance=\" + a.getBalance());\n    }\n}\n",
+      "solution": "import java.util.*;\n\nclass Account {\n    private int balance;\n\n    Account(int balance) {\n        this.balance = balance;\n    }\n\n    boolean withdraw(int amount) {\n        if (amount <= 0 || amount > balance) return false;\n        balance -= amount;\n        return true;\n    }\n\n    int getBalance() {\n        return balance;\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        Account a = new Account(sc.nextInt());\n        boolean ok = a.withdraw(sc.nextInt());\n        System.out.println(\"success=\" + ok + \" balance=\" + a.getBalance());\n    }\n}\n",
       "extraTasks": [
         {
           "kind": "drill",
@@ -616,7 +651,7 @@
         {
           "kind": "applied",
           "task": "【実践】finalなamountを持つ変更不能なMoneyクラスを作り、`add(Money other)` は新しいMoneyを返します。2整数a、bを読み、`original=a added=a+b` と表示してください。",
-          "starterCode": "import java.util.*;\n\nfinal class Money {\n    private final int amount;\n\n    Money(int amount) {\n        this.amount = amount;\n    }\n\n    Money add(Money other) {\n        return null;\n    }\n\n    int amount() {\n        return amount;\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        Money original = new Money(s.nextInt());\n        Money added = original.add(new Money(s.nextInt()));\n        System.out.println(\"original=\" + original.amount() + \" added=\" + added.amount());\n    }\n}\n",
+          "starterCode": "import java.util.*;\n\nfinal class Money {\n    private final int amount;\n\n    Money(int amount) {\n        this.amount = amount;\n    }\n\n    Money add(Money other) {\n        return null;\n    }\n\n    int amount() {\n        return amount;\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        Money original = new Money(sc.nextInt());\n        Money added = original.add(new Money(sc.nextInt()));\n        System.out.println(\"original=\" + original.amount() + \" added=\" + added.amount());\n    }\n}\n",
           "visibleCases": [
             {
               "label": "加算",
@@ -645,7 +680,7 @@
             "既存のamountは変更せず、合計を持つ `new Money(...)` を返します。",
             "同じMoneyクラス内ならotherのprivateフィールドも読めます。"
           ],
-          "solution": "import java.util.*;\n\nfinal class Money {\n    private final int amount;\n\n    Money(int amount) {\n        this.amount = amount;\n    }\n\n    Money add(Money other) {\n        return new Money(amount + other.amount);\n    }\n\n    int amount() {\n        return amount;\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        Money original = new Money(s.nextInt());\n        Money added = original.add(new Money(s.nextInt()));\n        System.out.println(\"original=\" + original.amount() + \" added=\" + added.amount());\n    }\n}\n",
+          "solution": "import java.util.*;\n\nfinal class Money {\n    private final int amount;\n\n    Money(int amount) {\n        this.amount = amount;\n    }\n\n    Money add(Money other) {\n        return new Money(amount + other.amount);\n    }\n\n    int amount() {\n        return amount;\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        Money original = new Money(sc.nextInt());\n        Money added = original.add(new Money(sc.nextInt()));\n        System.out.println(\"original=\" + original.amount() + \" added=\" + added.amount());\n    }\n}\n",
           "sourceChecks": [
             {
               "pattern": "return\\s+new\\s+Money\\s*\\(",

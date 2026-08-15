@@ -27,7 +27,8 @@ public record Lesson(
         List<Task> tasks,
         List<Quiz> quizzes,
         List<SourceFile> libSources,
-        PreflightSpec preflight) {
+        PreflightSpec preflight,
+        List<String> objectiveIds) {
 
     public boolean isPreflight() {
         return preflight != null;
@@ -70,6 +71,7 @@ public record Lesson(
         m.put("title", title);
         m.put("explanation", explanation);
         m.put("type", isPreflight() ? "preflight" : "lesson");
+        m.put("objectiveIds", objectiveIds);
         if (isPreflight()) m.put("preflight", preflight.toPublicJson());
 
         List<Object> sampleList = new ArrayList<>();

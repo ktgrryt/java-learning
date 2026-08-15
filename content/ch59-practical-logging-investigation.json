@@ -3,10 +3,35 @@
   "title": "実務ロギングと障害調査",
   "subtitle": "必要な記録を安全に残し、1件の失敗を時系列で追って原因を絞る",
   "emoji": "🔎",
+  "objectives": [
+    {
+      "id": "ch59-o1",
+      "text": "ロガーを使ってレベルごとに出力を切り替えられる"
+    },
+    {
+      "id": "ch59-o2",
+      "text": "イベントに合うレベルを選び、例外のstack traceを残せる"
+    },
+    {
+      "id": "ch59-o3",
+      "text": "構造化ログへ安全な項目だけを残し、MDCを必ず後始末できる"
+    },
+    {
+      "id": "ch59-o4",
+      "text": "出力先とローテーションを設定し、本番でDEBUGを安全に有効にできる"
+    },
+    {
+      "id": "ch59-o5",
+      "text": "1件の失敗を時系列に並べ、最初のERRORと直前の配備から原因候補を絞れる"
+    }
+  ],
   "lessons": [
     {
       "id": "59-1",
       "title": "System.outからロガーへ進む",
+      "objectiveIds": [
+        "ch59-o1"
+      ],
       "explanation": "## ログは、あとから処理を説明するための記録\n\n開発中に値を確かめるだけなら`System.out.println`でも始められます。しかし本番では、多数の利用者の処理が同時に進みます。単なる文字列だけでは、**いつ、どの機能で、どの重要度の、どのリクエストに起きたことか**を探しにくくなります。\n\nロガーを使うと、メッセージと一緒に時刻、ログレベル、ロガー名などを一定の形で残せます。また、プログラムを書き換えずに出すレベルや出力先を設定できます。たとえば通常はINFO以上だけを出し、障害調査中だけ注文機能のDEBUGを有効にできます。これが`System.out`から進む一番の利点です。\n\n## SLF4Jはログの出力先そのものではない\n\n業務アプリでよく使うSLF4Jは、アプリからログ機能を呼ぶための**共通の窓口（logging facade）**です。SLF4J自身がファイルを管理するわけではありません。実際の整形や出力はLogbackなどの**provider（実装。古い資料ではbindingとも呼ばれます）**が担当します。\n\n```text\nアプリのコード\n  ↓ SLF4JのLogger APIで「INFOを記録して」と依頼\nprovider（例: Logback）\n  ↓ 設定に従って整形・選別\nappender\n  ↓\nコンソール / ファイル / ログ収集基盤\n```\n\n- **Logger**: アプリがログを記録するときに呼ぶ窓口\n- **ログレベル**: 記録の重要度。TRACE、DEBUG、INFO、WARN、ERRORの順に高くなる\n- **provider**: SLF4Jの呼び出しを実際に処理する実装\n- **appender**: コンソールやファイルなど、出力先へ届ける部品\n\nたとえば設定がINFOなら、DEBUGは出さず、INFO・WARN・ERRORを出します。不要な詳細ログを普段は抑えつつ、必要な記録を残すためです。\n\n```java\nprivate static final Logger logger = LoggerFactory.getLogger(OrderService.class);\n\nlogger.info(\"event=order_cancelled orderId={}\", orderId);\n```\n\n`Logger`と`LoggerFactory`は`org.slf4j`の型で、SLF4J APIへの依存が必要です。さらに実行時にはLogbackなどのproviderを一つ選びます。Spring BootやJakarta EEサーバーはログ基盤を用意していることがあるので、まずプロジェクトの規約と依存関係を確認し、自己判断で別実装を重ねないでください。\n\nJava標準にも`System.Logger`があります。一方、既存のライブラリやフレームワークを含めて窓口をそろえやすいため、業務アプリではSLF4Jがよく使われます。大切なのは名前を暗記することではなく、**呼び出すAPIと実際に出力する実装は別**だと理解することです。\n\n公式資料: [SLF4J manual](https://www.slf4j.org/manual.html) / [System.Logger](https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/lang/System.Logger.html)",
       "samples": [
         {
@@ -17,7 +42,7 @@
       ],
       "kind": "applied",
       "task": "ログの設定レベルとイベントのレベルを受け取り、出力するか判定してください。入力は`configuredLevel eventLevel`です。レベルは`TRACE`、`DEBUG`、`INFO`、`WARN`、`ERROR`のいずれかで、この順に重要度が高くなります。イベントが設定レベル以上なら`EMIT`、低ければ`SKIP`と表示します。`Level.enabled`のTODOだけを直してください。",
-      "starterCode": "import java.util.*;\n\nenum Level {\n    TRACE(0), DEBUG(1), INFO(2), WARN(3), ERROR(4);\n\n    private final int severity;\n\n    Level(int severity) {\n        this.severity = severity;\n    }\n\n    boolean enabled(Level event) {\n        // TODO: eventが設定レベル以上か判定する\n        return false;\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        Level configured = Level.valueOf(s.next());\n        Level event = Level.valueOf(s.next());\n        System.out.println(configured.enabled(event) ? \"EMIT\" : \"SKIP\");\n    }\n}\n",
+      "starterCode": "import java.util.*;\n\nenum Level {\n    TRACE(0), DEBUG(1), INFO(2), WARN(3), ERROR(4);\n\n    private final int severity;\n\n    Level(int severity) {\n        this.severity = severity;\n    }\n\n    boolean enabled(Level event) {\n        // TODO: eventが設定レベル以上か判定する\n        return false;\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        Level configured = Level.valueOf(sc.next());\n        Level event = Level.valueOf(sc.next());\n        System.out.println(configured.enabled(event) ? \"EMIT\" : \"SKIP\");\n    }\n}\n",
       "visibleCases": [
         {
           "label": "INFO設定でINFO",
@@ -51,7 +76,7 @@
         "`severity`は値が大きいほど重要です。",
         "設定側のseverityと、引数`event`のseverityを比較します。"
       ],
-      "solution": "import java.util.*;\n\nenum Level {\n    TRACE(0), DEBUG(1), INFO(2), WARN(3), ERROR(4);\n\n    private final int severity;\n\n    Level(int severity) {\n        this.severity = severity;\n    }\n\n    boolean enabled(Level event) {\n        return event.severity >= severity;\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        Level configured = Level.valueOf(s.next());\n        Level event = Level.valueOf(s.next());\n        System.out.println(configured.enabled(event) ? \"EMIT\" : \"SKIP\");\n    }\n}\n",
+      "solution": "import java.util.*;\n\nenum Level {\n    TRACE(0), DEBUG(1), INFO(2), WARN(3), ERROR(4);\n\n    private final int severity;\n\n    Level(int severity) {\n        this.severity = severity;\n    }\n\n    boolean enabled(Level event) {\n        return event.severity >= severity;\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        Level configured = Level.valueOf(sc.next());\n        Level event = Level.valueOf(sc.next());\n        System.out.println(configured.enabled(event) ? \"EMIT\" : \"SKIP\");\n    }\n}\n",
       "sourceChecks": [
         {
           "pattern": "event\\s*\\.\\s*severity\\s*>=\\s*severity",
@@ -63,10 +88,10 @@
         {
           "question": "SLF4JとLogbackの関係として適切なのはどれでしょう。",
           "choices": [
-            "SLF4Jが共通の呼び出し窓口で、Logbackは実際に処理・出力する実装の一つ",
-            "LogbackがJavaの文法で、SLF4Jがコンパイラ",
-            "SLF4Jはログファイルだけを保存するデータベース",
-            "二つは必ず同時に別々のログを出す"
+            "SLF4Jが共通の呼び出し窓口で、Logbackはその実装の一つ",
+            "Logbackが共通の呼び出し窓口で、SLF4Jはその実装の一つ",
+            "SLF4Jが出力先を決め、Logbackはレベルの選別だけを行う",
+            "両方を依存へ入れると、同じログが2回出力される"
           ],
           "answer": 0,
           "explanation": "SLF4Jはアプリが呼ぶ共通APIです。Logbackなどのproviderが設定に従って実際のログイベントを処理します。providerは通常、プロジェクトの構成に合うものを一つ選びます。"
@@ -74,10 +99,10 @@
         {
           "question": "本番コードでロガーを使う主な利点はどれでしょう。",
           "choices": [
-            "すべてのログを必ず永久保存できる",
-            "時刻・レベル・出力先などをそろえ、設定で選別や配送を変えられる",
-            "例外が発生しなくなる",
-            "テストが不要になる"
+            "ログの保存期間と欠落しない配送が、実装に任せられる",
+            "時刻・レベル・出力先をそろえ、設定で選別や配送を変えられる",
+            "例外の発生箇所が記録されるので、例外処理を省ける",
+            "出力を見れば動作が分かるので、テストの代わりになる"
           ],
           "answer": 1,
           "explanation": "ロガーは観測しやすい形式と運用時の制御を提供します。保存期間や配送の保証は別途設計が必要で、例外処理やテストを置き換えるものではありません。"
@@ -87,6 +112,9 @@
     {
       "id": "59-2",
       "title": "レベル・メッセージ・例外を使い分ける",
+      "objectiveIds": [
+        "ch59-o2"
+      ],
       "explanation": "## レベルは、運用者に何を求めるかで決める\n\nログレベルはチームの運用契約です。次の区分を出発点にし、プロジェクトで意味をそろえます。\n\n| レベル | 何を残すか | 例 |\n|---|---|---|\n| TRACE | 通常は不要な最も細かい経路 | ループ1回ごとの詳細 |\n| DEBUG | 調査時に必要な内部判断 | 採用した検索条件、状態遷移前の値 |\n| INFO | 正常な業務上の節目 | 注文受付、キャンセル完了 |\n| WARN | 処理は継続・回復したが注意が必要 | リトライで回復、廃止予定設定 |\n| ERROR | 要求を完了できず、調査や対応が必要 | DB接続失敗、予期しない例外 |\n\n入力不正や対象なしを毎回ERRORにすると、利用者の通常操作とシステム障害を区別できません。逆に、要求が失敗したのにDEBUGだけでは本番の通常設定で見えません。HTTPステータスとログレベルは同じものではないため、影響と対応の必要性から決めます。\n\n## 値は文字列連結せず、プレースホルダーへ渡す\n\n```java\nlogger.debug(\"event=cancel_decision orderId={} status={}\", orderId, status);\n```\n\n`{}`へ値を渡す形ならメッセージの形が一定になり、DEBUGが無効なときに不要な文字列連結を避けられます。\n\n```java\n// 文字列だけではなく例外オブジェクトを最後の引数に渡す\nlogger.error(\"event=cancel_failed orderId={}\", orderId, exception);\n```\n\n`exception.getMessage()`だけを記録すると、例外型、呼び出し経路、原因例外を含むスタックトレースを失います。SLF4Jでは例外オブジェクトの共通型であるThrowableを最後の引数として渡せます。ただし同じ例外を各層で何度もERRORにすると重複するため、**その層で回復するのか、呼び出し元へ任せるのか**を決め、責任を持つ境界で十分な文脈と一緒に記録します。\n\n公式資料: [SLF4J FAQ: parameterized loggingと例外](https://www.slf4j.org/faq.html)",
       "samples": [
         {
@@ -96,78 +124,100 @@
         }
       ],
       "kind": "applied",
-      "task": "チームで決めた次のログ方針を`LogPolicy.levelOf`へ実装してください。入力はイベント名1つです。`verbose_state`は`DEBUG`、`request_success`と`validation_rejected`は`INFO`、`retry_recovered`は`WARN`、`dependency_failed`とそれ以外の未知イベントは`ERROR`と表示します。switch式を使ってください。",
-      "starterCode": "import java.util.*;\n\nclass LogPolicy {\n    static String levelOf(String event) {\n        // TODO: チームのログ方針をswitch式で表す\n        return \"TODO\";\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        System.out.println(LogPolicy.levelOf(s.next()));\n    }\n}\n",
+      "task": "ログ方針と、例外の残し方を1本にします。入力は1行に `event orderId failure` です。\n\n**その1. `LogPolicy.levelOf` にチームの方針を書きます**（`switch` 式で）。\n\n| イベント | レベル |\n|---|---|\n| `verbose_state` | `DEBUG` |\n| `request_success` / `validation_rejected` | `INFO` |\n| `retry_recovered` | `WARN` |\n| `dependency_failed` / それ以外の未知イベント | `ERROR` |\n\n**その2. `MiniLogger.log` を書きます。** SLF4Jと同じ約束で動かします。\n\n- `message` の `{}` を、渡された値で順に埋める\n- 1行目は `レベル 埋めたメッセージ` の形（例: `INFO event=request_success orderId=42`）\n- **最後の引数が `Throwable` なら**、それは `{}` へ埋める値ではありません。続けて原因の連鎖を1行ずつ `caused-by=完全修飾のクラス名: メッセージ` の形で出します（`getCause()` が `null` になるまで）\n\n`failure` が `none` なら例外は渡されません。`db` なら原因つきの例外、`illegal` なら原因のない例外がひな形で作られます。\n\n**ここが要点です。** `e.getMessage()` だけを連結して記録すると、例外の型も原因の連鎖も失います。`Throwable` を最後の引数として渡す形なら、`{}` の値と例外を混ぜずに両方を残せます。",
+      "starterCode": "import java.util.*;\n\nclass LogPolicy {\n    static String levelOf(String event) {\n        // TODO: チームのログ方針をswitch式で表す\n        return \"TODO\";\n    }\n}\n\nclass MiniLogger {\n    /**\n     * SLF4Jと同じ約束で1件を記録する。\n     * `{}` へ値を順に埋め、**最後の引数が Throwable なら**その原因の連鎖も残す。\n     */\n    static void log(String level, String message, Object... args) {\n        // TODO: {} を値で埋めて1行出し、Throwable があれば原因の連鎖を続けて出す\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        String event = sc.next();\n        String orderId = sc.next();\n        String failure = sc.next();\n        Throwable error = null;\n        if (failure.equals(\"db\")) {\n            error = new IllegalStateException(\"outbox write failed\",\n                    new RuntimeException(\"connection refused\"));\n        } else if (failure.equals(\"illegal\")) {\n            error = new IllegalArgumentException(\"count must be positive\");\n        }\n        String level = LogPolicy.levelOf(event);\n        if (error == null) {\n            MiniLogger.log(level, \"event={} orderId={}\", event, orderId);\n        } else {\n            MiniLogger.log(level, \"event={} orderId={}\", event, orderId, error);\n        }\n    }\n}\n",
       "visibleCases": [
         {
-          "label": "正常完了",
-          "stdin": "request_success",
-          "expected": "INFO"
+          "label": "正常完了（例外なし）",
+          "stdin": "request_success 42 none\n",
+          "expected": "INFO event=request_success orderId=42"
         },
         {
-          "label": "リトライで回復",
-          "stdin": "retry_recovered",
-          "expected": "WARN"
+          "label": "依存先の失敗（原因つき）",
+          "stdin": "dependency_failed 42 db\n",
+          "expected": "ERROR event=dependency_failed orderId=42\ncaused-by=java.lang.IllegalStateException: outbox write failed\ncaused-by=java.lang.RuntimeException: connection refused"
         }
       ],
       "hiddenCases": [
         {
           "label": "詳細状態",
-          "stdin": "verbose_state",
-          "expected": "DEBUG"
+          "stdin": "verbose_state 7 none\n",
+          "expected": "DEBUG event=verbose_state orderId=7"
         },
         {
-          "label": "入力不正",
-          "stdin": "validation_rejected",
-          "expected": "INFO"
+          "label": "入力不正はINFO（利用者の通常操作）",
+          "stdin": "validation_rejected 7 none\n",
+          "expected": "INFO event=validation_rejected orderId=7"
         },
         {
-          "label": "依存先失敗",
-          "stdin": "dependency_failed",
-          "expected": "ERROR"
+          "label": "リトライで回復",
+          "stdin": "retry_recovered 7 none\n",
+          "expected": "WARN event=retry_recovered orderId=7"
         },
         {
-          "label": "未知の失敗",
-          "stdin": "unknown_failure",
-          "expected": "ERROR"
+          "label": "未知のイベントはERROR",
+          "stdin": "unknown_failure 7 none\n",
+          "expected": "ERROR event=unknown_failure orderId=7"
+        },
+        {
+          "label": "原因のない例外は1行だけ",
+          "stdin": "validation_rejected 9 illegal\n",
+          "expected": "INFO event=validation_rejected orderId=9\ncaused-by=java.lang.IllegalArgumentException: count must be positive"
+        },
+        {
+          "label": "未知のイベントでも例外は残す",
+          "stdin": "unknown_failure 9 db\n",
+          "expected": "ERROR event=unknown_failure orderId=9\ncaused-by=java.lang.IllegalStateException: outbox write failed\ncaused-by=java.lang.RuntimeException: connection refused"
         }
       ],
       "hints": [
-        "複数のラベルで同じ結果にするときは、`case \"a\", \"b\" ->`と書けます。",
-        "未知イベントは`default`でERRORにします。"
+        "方針は `switch` 式で書き、`default -> \"ERROR\"` を必ず置きます。未知のイベントを見落とさないためです。",
+        "`args` の最後が `Throwable` かは `args[args.length - 1] instanceof Throwable t` で調べられます。そのときは `{}` へ埋める値の個数を1つ減らします。",
+        "`{}` は `message.indexOf(\"{}\", from)` で順に探し、見つかった位置までを足してから値を足します。",
+        "原因の連鎖は `for (Throwable t = error; t != null; t = t.getCause())` で辿れます。"
       ],
-      "solution": "import java.util.*;\n\nclass LogPolicy {\n    static String levelOf(String event) {\n        return switch (event) {\n            case \"verbose_state\" -> \"DEBUG\";\n            case \"request_success\", \"validation_rejected\" -> \"INFO\";\n            case \"retry_recovered\" -> \"WARN\";\n            case \"dependency_failed\" -> \"ERROR\";\n            default -> \"ERROR\";\n        };\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        System.out.println(LogPolicy.levelOf(s.next()));\n    }\n}\n",
+      "solution": "import java.util.*;\n\nclass LogPolicy {\n    static String levelOf(String event) {\n        return switch (event) {\n            case \"verbose_state\" -> \"DEBUG\";\n            case \"request_success\", \"validation_rejected\" -> \"INFO\";\n            case \"retry_recovered\" -> \"WARN\";\n            case \"dependency_failed\" -> \"ERROR\";\n            default -> \"ERROR\";\n        };\n    }\n}\n\nclass MiniLogger {\n    /**\n     * SLF4Jと同じ約束で1件を記録する。\n     * `{}` へ値を順に埋め、**最後の引数が Throwable なら**その原因の連鎖も残す。\n     */\n    static void log(String level, String message, Object... args) {\n        Throwable error = null;\n        int valueCount = args.length;\n        if (valueCount > 0 && args[valueCount - 1] instanceof Throwable last) {\n            error = last;\n            valueCount--;\n        }\n        StringBuilder line = new StringBuilder(level).append(' ');\n        int used = 0;\n        int from = 0;\n        int hole;\n        while ((hole = message.indexOf(\"{}\", from)) >= 0) {\n            line.append(message, from, hole);\n            line.append(used < valueCount ? args[used] : \"{}\");\n            used++;\n            from = hole + 2;\n        }\n        line.append(message.substring(from));\n        System.out.println(line);\n        for (Throwable t = error; t != null; t = t.getCause()) {\n            System.out.println(\"caused-by=\" + t.getClass().getName() + \": \" + t.getMessage());\n        }\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        String event = sc.next();\n        String orderId = sc.next();\n        String failure = sc.next();\n        Throwable error = null;\n        if (failure.equals(\"db\")) {\n            error = new IllegalStateException(\"outbox write failed\",\n                    new RuntimeException(\"connection refused\"));\n        } else if (failure.equals(\"illegal\")) {\n            error = new IllegalArgumentException(\"count must be positive\");\n        }\n        String level = LogPolicy.levelOf(event);\n        if (error == null) {\n            MiniLogger.log(level, \"event={} orderId={}\", event, orderId);\n        } else {\n            MiniLogger.log(level, \"event={} orderId={}\", event, orderId, error);\n        }\n    }\n}\n",
       "sourceChecks": [
         {
           "pattern": "\\bswitch\\s*\\(",
           "minimum": 1,
-          "message": "イベントごとの方針をswitch式で明示してください。"
+          "message": "イベントごとの方針はswitch式で明示してください。"
         },
         {
           "pattern": "\\bdefault\\s*->",
           "minimum": 1,
           "message": "未知イベントを見落とさないよう、defaultはERRORにしてください。"
+        },
+        {
+          "pattern": "instanceof\\s+Throwable",
+          "minimum": 1,
+          "message": "最後の引数が例外かどうかは `instanceof Throwable` で判定してください（型を決め打ちすると、別の例外型で動かなくなります）。"
+        },
+        {
+          "pattern": "getCause\\s*\\(",
+          "minimum": 1,
+          "message": "原因の連鎖は `getCause()` で辿ってください。`getMessage()` だけでは原因例外を失います。"
         }
       ],
       "quiz": [
         {
           "question": "SLF4Jで例外のスタックトレースも記録したいとき、適切なのはどれでしょう。",
           "choices": [
-            "logger.error(\"失敗 \" + e.getMessage())だけを使う",
-            "logger.error(\"event=failed orderId={}\", orderId, e)のようにThrowableを最後に渡す",
-            "例外をcatchして何も記録せず捨てる",
-            "すべての層で同じ例外を必ずERRORへ記録する"
+            "メッセージへ`e.getMessage()`を連結して1行にまとめる",
+            "`logger.error(\"...{}\", id, e)` のようにThrowableを最後に渡す",
+            "`e.printStackTrace()`で標準エラーへ直接出す",
+            "例外を包み直して上位へ投げ、各層でERRORへ記録する"
           ],
           "answer": 1,
-          "explanation": "Throwableを最後に渡すと、メッセージだけでなくスタックトレースを実装へ渡せます。重複記録を避け、回復または失敗を確定する適切な境界で文脈と一緒に残します。"
+          "explanation": "Throwableを最後に渡すと、メッセージだけでなくスタックトレースを実装へ渡せます。連結や`printStackTrace`では出力先や形式がそろわず、各層で記録すると重複します。"
         },
         {
           "question": "DEBUGログの値に`{}`プレースホルダーを使う理由として適切なのはどれでしょう。",
           "choices": [
-            "値が自動的に暗号化されるから",
-            "どんなオブジェクトでも個人情報でなくなるから",
-            "メッセージの形をそろえ、無効時の不要な文字列生成を避けやすいから",
-            "ログレベルが自動的にERRORへ上がるから"
+            "値が自動でマスクされ、機密情報を書いても安全になるから",
+            "引数の型を見て、オブジェクトを自動でJSONへ変換するから",
+            "メッセージの形をそろえ、無効時の文字列生成を避けやすいから",
+            "無効なレベルでも、あとから値を復元して出力できるから"
           ],
           "answer": 2,
           "explanation": "パラメータ化は形式と性能に役立ちますが、秘密情報を自動で安全にする機能ではありません。記録する項目は別に選別します。"
@@ -177,6 +227,9 @@
     {
       "id": "59-3",
       "title": "検索できる項目を安全に残す",
+      "objectiveIds": [
+        "ch59-o3"
+      ],
       "explanation": "## 文章ではなく、安定した項目名で記録する\n\n障害時に知りたいのは「何となく失敗した」ではなく、「どの処理が、どの要求で、何に対して、どう終わったか」です。そこで、自由文だけでなく一定の項目名を使います。\n\n```text\nevent=order_cancel_failed\nrequestId=req-81\norderId=420\nresult=database_timeout\ndurationMs=1532\n```\n\n- `event`: 機械的に集計できる安定したイベント名\n- `requestId`または`traceId`: 同じ要求に属する記録を結ぶID\n- 業務ID: `orderId`など対象を絞るID\n- `result`: 成功・失敗理由を表す安定したコード\n- `durationMs`: 遅延を調べる数値\n\n文章の語順を解析するより、項目で検索する方が確実です。これを**構造化ログ**と呼びます。JSONで出す方法もありますが、重要なのは形式より、項目名と意味をチームで固定することです。\n\n## MDCは、同じスレッドのログへ共通項目を添える仕組み\n\nSLF4JのMDC（Mapped Diagnostic Context）は、`requestId`のような文脈を現在のスレッドに関連付け、同じ処理中のログへ付けるための仕組みです。\n\n```java\ntry (MDC.MDCCloseable ignored = MDC.putCloseable(\"requestId\", requestId)) {\n    service.cancel(orderId);\n}\n```\n\nスレッドプールでは同じスレッドが次の要求にも再利用されます。削除し忘れると、別の利用者のログへ古いrequestIdが付くため、`finally`または`putCloseable`で必ず片付けます。非同期処理で実行スレッドが変わる場合、MDCが自動で移ると決めつけず、利用中のフレームワークが提供する文脈伝播を確認します。\n\n## 記録しない情報を先に決める\n\nログは多くの運用者や外部サービスから読めることがあり、バックアップにも残ります。次の値は原則としてそのまま記録しません。\n\n- パスワード、アクセストークン、APIキー\n- `Authorization`やCookieの値\n- クレジットカード番号、秘密の質問\n- 必要性を説明できない氏名、住所、メール、自由入力文\n\n「あとで便利そう」では記録せず、調査に必要な最小項目を**許可リスト**で選ぶ方が安全です。マスクしても元に戻せる情報や、例外メッセージに混ざる入力値にも注意します。メトリクスのラベルには注文IDのように種類が際限なく増える値を入れず、個別IDはログやトレースで検索します。\n\n公式資料: [SLF4J MDC API](https://www.slf4j.org/apidocs/org/slf4j/MDC.html) / [Logback MDC manual](https://logback.qos.ch/manual/mdc.html)",
       "samples": [
         {
@@ -187,7 +240,7 @@
       ],
       "kind": "applied",
       "task": "構造化ログへ安全な項目だけを残してください。1行目に項目数`n`、続く`n`行に`key value`が入ります。許可するキーは`event`、`requestId`、`traceId`、`orderId`、`result`、`durationMs`だけです。許可項目をこの順で`key=value`として1行に空白区切りで表示し、最後に`dropped=除外した項目数`を付けます。`sanitize`のTODOを実装してください。入力キーは重複しません。",
-      "starterCode": "import java.util.*;\n\npublic class Main {\n    static final List<String> SAFE_KEYS = List.of(\n            \"event\", \"requestId\", \"traceId\", \"orderId\", \"result\", \"durationMs\");\n\n    static Map<String, String> sanitize(Map<String, String> input) {\n        // TODO: SAFE_KEYSにある項目だけを、その順番で残す\n        return Map.of();\n    }\n\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        int n = s.nextInt();\n        Map<String, String> input = new LinkedHashMap<>();\n        for (int i = 0; i < n; i++) input.put(s.next(), s.next());\n\n        Map<String, String> safe = sanitize(input);\n        StringJoiner line = new StringJoiner(\" \");\n        safe.forEach((key, value) -> line.add(key + \"=\" + value));\n        line.add(\"dropped=\" + (input.size() - safe.size()));\n        System.out.println(line);\n    }\n}\n",
+      "starterCode": "import java.util.*;\n\npublic class Main {\n    static final List<String> SAFE_KEYS = List.of(\n            \"event\", \"requestId\", \"traceId\", \"orderId\", \"result\", \"durationMs\");\n\n    static Map<String, String> sanitize(Map<String, String> input) {\n        // TODO: SAFE_KEYSにある項目だけを、その順番で残す\n        return Map.of();\n    }\n\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n        Map<String, String> input = new LinkedHashMap<>();\n        for (int i = 0; i < n; i++) input.put(sc.next(), sc.next());\n\n        Map<String, String> safe = sanitize(input);\n        StringJoiner line = new StringJoiner(\" \");\n        safe.forEach((key, value) -> line.add(key + \"=\" + value));\n        line.add(\"dropped=\" + (input.size() - safe.size()));\n        System.out.println(line);\n    }\n}\n",
       "visibleCases": [
         {
           "label": "トークンを除外",
@@ -221,7 +274,7 @@
         "出力順を固定するため、入力Mapではなく`SAFE_KEYS`を順に走査します。",
         "`input.containsKey(key)`のときだけ、新しい`LinkedHashMap`へ追加します。"
       ],
-      "solution": "import java.util.*;\n\npublic class Main {\n    static final List<String> SAFE_KEYS = List.of(\n            \"event\", \"requestId\", \"traceId\", \"orderId\", \"result\", \"durationMs\");\n\n    static Map<String, String> sanitize(Map<String, String> input) {\n        Map<String, String> safe = new LinkedHashMap<>();\n        for (String key : SAFE_KEYS) {\n            if (input.containsKey(key)) safe.put(key, input.get(key));\n        }\n        return safe;\n    }\n\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        int n = s.nextInt();\n        Map<String, String> input = new LinkedHashMap<>();\n        for (int i = 0; i < n; i++) input.put(s.next(), s.next());\n\n        Map<String, String> safe = sanitize(input);\n        StringJoiner line = new StringJoiner(\" \");\n        safe.forEach((key, value) -> line.add(key + \"=\" + value));\n        line.add(\"dropped=\" + (input.size() - safe.size()));\n        System.out.println(line);\n    }\n}\n",
+      "solution": "import java.util.*;\n\npublic class Main {\n    static final List<String> SAFE_KEYS = List.of(\n            \"event\", \"requestId\", \"traceId\", \"orderId\", \"result\", \"durationMs\");\n\n    static Map<String, String> sanitize(Map<String, String> input) {\n        Map<String, String> safe = new LinkedHashMap<>();\n        for (String key : SAFE_KEYS) {\n            if (input.containsKey(key)) safe.put(key, input.get(key));\n        }\n        return safe;\n    }\n\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n        Map<String, String> input = new LinkedHashMap<>();\n        for (int i = 0; i < n; i++) input.put(sc.next(), sc.next());\n\n        Map<String, String> safe = sanitize(input);\n        StringJoiner line = new StringJoiner(\" \");\n        safe.forEach((key, value) -> line.add(key + \"=\" + value));\n        line.add(\"dropped=\" + (input.size() - safe.size()));\n        System.out.println(line);\n    }\n}\n",
       "sourceChecks": [
         {
           "pattern": "for\\s*\\(\\s*String\\s+key\\s*:\\s*SAFE_KEYS\\s*\\)",
@@ -238,10 +291,10 @@
         {
           "question": "スレッドプールでMDCへrequestIdを入れたあと、必ず削除する理由はどれでしょう。",
           "choices": [
-            "削除しないとJavaコードがコンパイルできないから",
+            "MDCの項目数に上限があり、超えると例外になるから",
             "同じスレッドを使う次の要求へ古いrequestIdが混ざるのを防ぐため",
-            "requestIdを毎回0へ戻すため",
-            "ログレベルを自動でINFOへ戻すため"
+            "次の要求で`put`が失敗し、値を入れ直せなくなるから",
+            "スレッドを返すときにMDCが自動で複製され、増え続けるから"
           ],
           "answer": 1,
           "explanation": "MDCはスレッドに関連付いた文脈です。finallyやtry-with-resources相当で片付けないと、再利用されたスレッドで別要求のログを誤って関連付けます。"
@@ -249,19 +302,22 @@
         {
           "question": "構造化ログの項目を選ぶ方法として、より安全なのはどれでしょう。",
           "choices": [
-            "受け取った全項目を記録し、問題が起きたら後で消す",
-            "パスワードだけを除き、ほかは自由入力もすべて記録する",
-            "調査目的を説明できる項目の許可リストを作り、秘密情報や不要な個人情報を入れない",
-            "すべての値を文字列連結すれば安全になる"
+            "受け取った項目をいったん記録し、問題が起きたら後で消す",
+            "パスワードだけを除き、ほかの自由入力はそのまま記録する",
+            "調査目的を説明できる項目の許可リストを作り、それだけ記録する",
+            "値を文字列へ連結してから記録し、構造を持たせない"
           ],
           "answer": 2,
-          "explanation": "許可リストなら、今後入力項目が増えても意図せずログへ流れにくくなります。プレースホルダーやJSON化は秘密情報を自動除去しません。"
+          "explanation": "許可リストなら、今後入力項目が増えても意図せずログへ流れにくくなります。プレースホルダーやJSON化は秘密情報を自動除去せず、あとから消すのも配送済みには間に合いません。"
         }
       ]
     },
     {
       "id": "59-4",
       "title": "出力先・ローテーション・本番設定を知る",
+      "objectiveIds": [
+        "ch59-o4"
+      ],
       "explanation": "## コードはイベントを作り、設定が届け方を決める\n\nアプリのコードは「このレベルで、この項目を記録したい」とログイベントを作ります。その後の選別、整形、出力先はproviderの設定で決まります。Logbackでは出力先を担当する部品を**appender**と呼びます。ConsoleAppenderはコンソールへ、FileAppenderはファイルへ出します。RollingFileAppenderは一定の条件でファイルを切り替えます。\n\n```xml\n<configuration>\n  <appender name=\"CONSOLE\" class=\"ch.qos.logback.core.ConsoleAppender\">\n    <encoder>\n      <pattern>%date %-5level [%thread] %logger - %msg%n</pattern>\n    </encoder>\n  </appender>\n\n  <logger name=\"com.example.orders\" level=\"DEBUG\"/>\n  <root level=\"INFO\">\n    <appender-ref ref=\"CONSOLE\"/>\n  </root>\n</configuration>\n```\n\n`root`は個別設定がない全ロガーに使う既定値です。この例では全体はINFO以上、注文パッケージだけDEBUG以上です。ロガー名は通常クラスの完全修飾名にするため、`com.example.orders`の設定が配下へ継承されます。子のイベントを親の出力先へも渡す設定をadditivityと呼び、出力先の組み合わせによっては同じイベントが二重に出ます。ログが重複したときは、コードだけでなく設定経路を確認します。\n\n## ローテーションと保存期間は別の判断\n\nファイルへ出す場合、無制限に増えるとディスクを使い切ります。そこで日付やサイズで新しいファイルへ切り替える**ローテーション**を設定します。しかし、切り替えるだけでは古いファイルを何日残すか、合計何GBまでかは決まりません。保持期間、圧縮、削除、アクセス権も運用要件から設定します。\n\nコンテナ環境では標準出力・標準エラーへ出し、プラットフォーム側が収集・保存する構成が一般的です。アプリ内ファイルが常に悪いのではなく、配備先の収集方法に合わせます。非同期出力は要求処理を待たせにくい一方、キュー満杯や異常終了時の扱いが増えるため、必要性を計測し、欠落方針も確認します。\n\n## 本番DEBUGは範囲と終了時刻を決める\n\n障害調査でDEBUGを有効にすると、量、費用、機密情報露出、性能への影響が増えます。「注文機能だけ」「15分だけ」のように範囲と期限を決め、元へ戻したことまで確認します。設定変更そのものも変更記録へ残します。\n\n公式資料: [Logback appenders](https://logback.qos.ch/manual/appenders.html)",
       "samples": [
         {
@@ -272,7 +328,7 @@
       ],
       "kind": "applied",
       "task": "ロガー名ごとの設定を適用してください。入力は`rootLevel`、上書き数`n`、`loggerPrefix level`をn組、イベント数`m`、`loggerName eventLevel message`をm組です。レベル順はTRACE、DEBUG、INFO、WARN、ERRORです。ロガー名がprefixと同じか`prefix.`で始まる設定のうち、最も長いprefixを使い、無ければrootを使います。出力対象は`loggerName message`を1行ずつ表示し、1件もなければ`NONE`と表示します。`effectiveLevel`と`enabled`を実装してください。messageに空白は含まれません。",
-      "starterCode": "import java.util.*;\n\nrecord Rule(String prefix, String level) { }\n\npublic class Main {\n    static final List<String> LEVELS = List.of(\"TRACE\", \"DEBUG\", \"INFO\", \"WARN\", \"ERROR\");\n\n    static String effectiveLevel(String logger, String root, List<Rule> rules) {\n        // TODO: 一致する最長prefixのレベルを返す\n        return root;\n    }\n\n    static boolean enabled(String configured, String event) {\n        // TODO: eventがconfigured以上か判定する\n        return false;\n    }\n\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        String root = s.next();\n        int n = s.nextInt();\n        List<Rule> rules = new ArrayList<>();\n        for (int i = 0; i < n; i++) rules.add(new Rule(s.next(), s.next()));\n        int m = s.nextInt();\n        int emitted = 0;\n        for (int i = 0; i < m; i++) {\n            String logger = s.next(), level = s.next(), message = s.next();\n            if (enabled(effectiveLevel(logger, root, rules), level)) {\n                System.out.println(logger + \" \" + message);\n                emitted++;\n            }\n        }\n        if (emitted == 0) System.out.println(\"NONE\");\n    }\n}\n",
+      "starterCode": "import java.util.*;\n\nrecord Rule(String prefix, String level) { }\n\npublic class Main {\n    static final List<String> LEVELS = List.of(\"TRACE\", \"DEBUG\", \"INFO\", \"WARN\", \"ERROR\");\n\n    static String effectiveLevel(String logger, String root, List<Rule> rules) {\n        // TODO: 一致する最長prefixのレベルを返す\n        return root;\n    }\n\n    static boolean enabled(String configured, String event) {\n        // TODO: eventがconfigured以上か判定する\n        return false;\n    }\n\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        String root = sc.next();\n        int n = sc.nextInt();\n        List<Rule> rules = new ArrayList<>();\n        for (int i = 0; i < n; i++) rules.add(new Rule(sc.next(), sc.next()));\n        int m = sc.nextInt();\n        int emitted = 0;\n        for (int i = 0; i < m; i++) {\n            String logger = sc.next(), level = sc.next(), message = sc.next();\n            if (enabled(effectiveLevel(logger, root, rules), level)) {\n                System.out.println(logger + \" \" + message);\n                emitted++;\n            }\n        }\n        if (emitted == 0) System.out.println(\"NONE\");\n    }\n}\n",
       "visibleCases": [
         {
           "label": "注文機能だけDEBUG",
@@ -307,7 +363,7 @@
         "一致したRuleのprefix長が、それまでの最長より大きいときだけ採用します。",
         "レベル比較には`LEVELS.indexOf`を使えます。"
       ],
-      "solution": "import java.util.*;\n\nrecord Rule(String prefix, String level) { }\n\npublic class Main {\n    static final List<String> LEVELS = List.of(\"TRACE\", \"DEBUG\", \"INFO\", \"WARN\", \"ERROR\");\n\n    static String effectiveLevel(String logger, String root, List<Rule> rules) {\n        String selected = root;\n        int longest = -1;\n        for (Rule rule : rules) {\n            boolean matches = logger.equals(rule.prefix())\n                    || logger.startsWith(rule.prefix() + \".\");\n            if (matches && rule.prefix().length() > longest) {\n                selected = rule.level();\n                longest = rule.prefix().length();\n            }\n        }\n        return selected;\n    }\n\n    static boolean enabled(String configured, String event) {\n        return LEVELS.indexOf(event) >= LEVELS.indexOf(configured);\n    }\n\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        String root = s.next();\n        int n = s.nextInt();\n        List<Rule> rules = new ArrayList<>();\n        for (int i = 0; i < n; i++) rules.add(new Rule(s.next(), s.next()));\n        int m = s.nextInt();\n        int emitted = 0;\n        for (int i = 0; i < m; i++) {\n            String logger = s.next(), level = s.next(), message = s.next();\n            if (enabled(effectiveLevel(logger, root, rules), level)) {\n                System.out.println(logger + \" \" + message);\n                emitted++;\n            }\n        }\n        if (emitted == 0) System.out.println(\"NONE\");\n    }\n}\n",
+      "solution": "import java.util.*;\n\nrecord Rule(String prefix, String level) { }\n\npublic class Main {\n    static final List<String> LEVELS = List.of(\"TRACE\", \"DEBUG\", \"INFO\", \"WARN\", \"ERROR\");\n\n    static String effectiveLevel(String logger, String root, List<Rule> rules) {\n        String selected = root;\n        int longest = -1;\n        for (Rule rule : rules) {\n            boolean matches = logger.equals(rule.prefix())\n                    || logger.startsWith(rule.prefix() + \".\");\n            if (matches && rule.prefix().length() > longest) {\n                selected = rule.level();\n                longest = rule.prefix().length();\n            }\n        }\n        return selected;\n    }\n\n    static boolean enabled(String configured, String event) {\n        return LEVELS.indexOf(event) >= LEVELS.indexOf(configured);\n    }\n\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        String root = sc.next();\n        int n = sc.nextInt();\n        List<Rule> rules = new ArrayList<>();\n        for (int i = 0; i < n; i++) rules.add(new Rule(sc.next(), sc.next()));\n        int m = sc.nextInt();\n        int emitted = 0;\n        for (int i = 0; i < m; i++) {\n            String logger = sc.next(), level = sc.next(), message = sc.next();\n            if (enabled(effectiveLevel(logger, root, rules), level)) {\n                System.out.println(logger + \" \" + message);\n                emitted++;\n            }\n        }\n        if (emitted == 0) System.out.println(\"NONE\");\n    }\n}\n",
       "sourceChecks": [
         {
           "pattern": "logger\\s*\\.\\s*startsWith\\s*\\(\\s*rule\\s*\\.\\s*prefix\\s*\\(",
@@ -324,30 +380,33 @@
         {
           "question": "Logbackのappenderは何のための部品でしょう。",
           "choices": [
-            "Javaソースをコンパイルする",
+            "ログの文言を、設定した形式へ整えて組み立てる",
             "ログイベントをコンソールやファイルなどの出力先へ届ける",
-            "HTTPリクエストを認証する",
-            "例外を自動修復する"
+            "ロガー名ごとのレベルを読み、出すかどうかを判定する",
+            "古いログファイルを圧縮して、保存期間を管理する"
           ],
           "answer": 1,
-          "explanation": "appenderは出力先を担当します。レベルによる選別や整形と組み合わせ、コンソール、ファイルなどへログイベントを届けます。"
+          "explanation": "appenderは出力先を担当します。整形はencoder、レベル判定はloggerの設定、ローテーションはappenderに付けるpolicyがそれぞれ受け持ちます。"
         },
         {
           "question": "本番で障害調査のためDEBUGを有効にするとき、適切なのはどれでしょう。",
           "choices": [
-            "全機能で無期限に有効にする",
-            "ログ量や機密情報は変わらないので記録しない",
+            "全機能で有効にし、原因が分かるまで期限を決めずに続ける",
+            "ログ量は変わらないので、出力先の容量は確認しなくてよい",
             "対象ロガーと期限を限定し、影響を監視して元へ戻す",
-            "ERRORログをすべて削除してから有効にする"
+            "既存のERRORログを消してから有効にし、混ざらないようにする"
           ],
           "answer": 2,
-          "explanation": "DEBUGは量・費用・性能・情報露出を増やし得ます。対象、期間、担当者、戻し方を決め、設定変更自体も記録します。"
+          "explanation": "DEBUGは量・費用・性能・情報露出を増やし得ます。ログ量は確実に増えるので、出力先の容量は先に確認します。既存のERRORログを消すのは、比べる基準を自分で捨てる行為です。対象ロガーと期間、担当者、戻し方を決め、設定変更自体も記録します。"
         }
       ]
     },
     {
       "id": "59-5",
       "title": "ログから原因候補を時系列で絞る",
+      "objectiveIds": [
+        "ch59-o5"
+      ],
       "explanation": "## いきなり最後のERRORへ飛びつかない\n\n障害調査では、最も派手な例外や最後のERRORが原因とは限りません。タイムアウトの後に後片付けが失敗するなど、結果として出たエラーもあります。次の順で、事実と推測を分けて進めます。\n\n1. **症状を固定する**: いつから、どの機能で、誰に、何が起きたか\n2. **範囲を決める**: 時刻、環境、URL、requestId・traceId、業務ID\n3. **1件を時系列に並べる**: 受付から失敗まで、サービスをまたいで追う\n4. **最初の異常を読む**: 例外型、`Caused by`、最初の自作コードのフレームを確認\n5. **別の証拠と照合する**: メトリクス、トレース、DB、設定変更、リリース\n6. **仮説を一つずつ検証する**: 再現、反証、修正、回帰テスト\n\n```text\n12:00:01 gateway  request_received\n12:00:02 order    cancel_started\n12:00:03 database connection_timeout   ← 最初の異常\n12:00:04 order    cancel_failed         ← 上の異常を受けた結果\n12:00:04 gateway  response_500          ← 利用者から見た症状\n```\n\nrequestIdが違う行を混ぜると、別利用者の成功と失敗を一つの処理だと誤解します。時計がずれているサービスもあるため、時刻だけを絶対視せず、traceの親子関係やイベントの順序も確認します。\n\n## 変更との近さは仮説であり、原因の証明ではない\n\n「リリース直後に増えた」は重要な手掛かりですが、同じ時刻に負荷や依存サービスが変わった可能性もあります。報告には次のように分けて書きます。\n\n- **事実**: version 2.4配備後、`database_timeout`が3件から120件へ増えた\n- **仮説**: version 2.4の接続プール設定変更が影響した可能性\n- **検証**: 旧設定へ戻した検証環境で再現しないか比較する\n\n相関を原因と断定せず、反証できる確認方法まで書くと、複数人で安全に調査できます。",
       "samples": [
         {
@@ -358,7 +417,7 @@
       ],
       "kind": "applied",
       "task": "対象リクエストのログだけを時系列に並べ、最初のERRORを特定してください。入力は`targetRequestId`、件数`n`、続くn行に`time requestId service level event`です。`time`の昇順、同時刻なら入力順で対象行を`time service level event`と表示します。最後に最初のERRORを`firstError=service:event@time`と表示します。対象行がない場合は先に`timeline=NONE`、ERRORがなければ`firstError=NONE`と表示します。`timeline`を実装してください。",
-      "starterCode": "import java.util.*;\n\nrecord LogEvent(int time, String requestId, String service,\n                String level, String event, int sequence) { }\n\npublic class Main {\n    static List<LogEvent> timeline(String target, List<LogEvent> all) {\n        // TODO: targetだけをtime、sequenceの順に並べる\n        return List.of();\n    }\n\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        String target = s.next();\n        int n = s.nextInt();\n        List<LogEvent> all = new ArrayList<>();\n        for (int i = 0; i < n; i++) {\n            all.add(new LogEvent(s.nextInt(), s.next(), s.next(),\n                    s.next(), s.next(), i));\n        }\n\n        List<LogEvent> events = timeline(target, all);\n        if (events.isEmpty()) System.out.println(\"timeline=NONE\");\n        for (LogEvent e : events) {\n            System.out.println(e.time() + \" \" + e.service() + \" \"\n                    + e.level() + \" \" + e.event());\n        }\n        LogEvent first = events.stream()\n                .filter(e -> e.level().equals(\"ERROR\"))\n                .findFirst().orElse(null);\n        System.out.println(first == null ? \"firstError=NONE\"\n                : \"firstError=\" + first.service() + \":\" + first.event() + \"@\" + first.time());\n    }\n}\n",
+      "starterCode": "import java.util.*;\n\nrecord LogEvent(int time, String requestId, String service,\n                String level, String event, int sequence) { }\n\npublic class Main {\n    static List<LogEvent> timeline(String target, List<LogEvent> all) {\n        // TODO: targetだけをtime、sequenceの順に並べる\n        return List.of();\n    }\n\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        String target = sc.next();\n        int n = sc.nextInt();\n        List<LogEvent> all = new ArrayList<>();\n        for (int i = 0; i < n; i++) {\n            all.add(new LogEvent(sc.nextInt(), sc.next(), sc.next(),\n                    sc.next(), sc.next(), i));\n        }\n\n        List<LogEvent> events = timeline(target, all);\n        if (events.isEmpty()) System.out.println(\"timeline=NONE\");\n        for (LogEvent e : events) {\n            System.out.println(e.time() + \" \" + e.service() + \" \"\n                    + e.level() + \" \" + e.event());\n        }\n        LogEvent first = events.stream()\n                .filter(e -> e.level().equals(\"ERROR\"))\n                .findFirst().orElse(null);\n        System.out.println(first == null ? \"firstError=NONE\"\n                : \"firstError=\" + first.service() + \":\" + first.event() + \"@\" + first.time());\n    }\n}\n",
       "visibleCases": [
         {
           "label": "別リクエストを除いて並べる",
@@ -393,7 +452,7 @@
         "`Comparator.comparingInt(LogEvent::time).thenComparingInt(LogEvent::sequence)`で順番を固定できます。",
         "最後に`toList()`で新しいリストとして返します。"
       ],
-      "solution": "import java.util.*;\n\nrecord LogEvent(int time, String requestId, String service,\n                String level, String event, int sequence) { }\n\npublic class Main {\n    static List<LogEvent> timeline(String target, List<LogEvent> all) {\n        return all.stream()\n                .filter(e -> e.requestId().equals(target))\n                .sorted(Comparator.comparingInt(LogEvent::time)\n                        .thenComparingInt(LogEvent::sequence))\n                .toList();\n    }\n\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        String target = s.next();\n        int n = s.nextInt();\n        List<LogEvent> all = new ArrayList<>();\n        for (int i = 0; i < n; i++) {\n            all.add(new LogEvent(s.nextInt(), s.next(), s.next(),\n                    s.next(), s.next(), i));\n        }\n\n        List<LogEvent> events = timeline(target, all);\n        if (events.isEmpty()) System.out.println(\"timeline=NONE\");\n        for (LogEvent e : events) {\n            System.out.println(e.time() + \" \" + e.service() + \" \"\n                    + e.level() + \" \" + e.event());\n        }\n        LogEvent first = events.stream()\n                .filter(e -> e.level().equals(\"ERROR\"))\n                .findFirst().orElse(null);\n        System.out.println(first == null ? \"firstError=NONE\"\n                : \"firstError=\" + first.service() + \":\" + first.event() + \"@\" + first.time());\n    }\n}\n",
+      "solution": "import java.util.*;\n\nrecord LogEvent(int time, String requestId, String service,\n                String level, String event, int sequence) { }\n\npublic class Main {\n    static List<LogEvent> timeline(String target, List<LogEvent> all) {\n        return all.stream()\n                .filter(e -> e.requestId().equals(target))\n                .sorted(Comparator.comparingInt(LogEvent::time)\n                        .thenComparingInt(LogEvent::sequence))\n                .toList();\n    }\n\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        String target = sc.next();\n        int n = sc.nextInt();\n        List<LogEvent> all = new ArrayList<>();\n        for (int i = 0; i < n; i++) {\n            all.add(new LogEvent(sc.nextInt(), sc.next(), sc.next(),\n                    sc.next(), sc.next(), i));\n        }\n\n        List<LogEvent> events = timeline(target, all);\n        if (events.isEmpty()) System.out.println(\"timeline=NONE\");\n        for (LogEvent e : events) {\n            System.out.println(e.time() + \" \" + e.service() + \" \"\n                    + e.level() + \" \" + e.event());\n        }\n        LogEvent first = events.stream()\n                .filter(e -> e.level().equals(\"ERROR\"))\n                .findFirst().orElse(null);\n        System.out.println(first == null ? \"firstError=NONE\"\n                : \"firstError=\" + first.service() + \":\" + first.event() + \"@\" + first.time());\n    }\n}\n",
       "sourceChecks": [
         {
           "pattern": "requestId\\s*\\(\\s*\\)\\s*\\.\\s*equals\\s*\\(\\s*target\\s*\\)",
@@ -410,10 +469,10 @@
         {
           "question": "障害調査で最初に行うこととして適切なのはどれでしょう。",
           "choices": [
-            "最も長いスタックトレースを原因と断定する",
-            "全サーバーのDEBUGを無期限に有効にする",
+            "いちばん長いスタックトレースを、原因と決めて調べ始める",
+            "全サーバーのDEBUGを有効にし、情報を集めてから絞る",
             "発生時刻・機能・影響・識別子を確認し、調べる範囲を固定する",
-            "証拠を見る前に直前のリリースを取り消す"
+            "証拠を見る前に直前のリリースを取り消し、様子を見る"
           ],
           "answer": 2,
           "explanation": "まず症状と調査範囲を固定します。その後、同じ要求を時系列で追い、最初の異常と別の証拠を照合して仮説を検証します。緊急緩和が必要な場合も、判断根拠を残します。"
@@ -421,13 +480,13 @@
         {
           "question": "配備直後にエラーが増えたことから言えるのはどれでしょう。",
           "choices": [
-            "その配備が原因だと証明された",
-            "配備は原因候補の一つなので、差分・再現・切り戻し結果などで検証する",
-            "ログには意味がない",
-            "利用者の操作が必ず原因である"
+            "時刻が近いので、その配備が原因だと確定できる",
+            "配備は原因候補の一つなので、差分や切り戻しの結果で検証する",
+            "配備とエラーの時刻は無関係なので、ログを見る必要はない",
+            "配備が原因でないなら、利用者の操作が原因だと言える"
           ],
           "answer": 1,
-          "explanation": "時刻が近いことは相関であり、原因の証明ではありません。事実、仮説、検証方法を分け、ほかの変更や負荷も含めて反証します。"
+          "explanation": "時刻が近いことは相関であり、原因の証明ではありません。逆に「無関係だからログを見なくてよい」ことにもならず、配備でないなら利用者の操作だと決められるわけでもありません（負荷やほかの変更も候補です）。事実、仮説、検証方法を分けて、反証していきます。"
         }
       ],
       "rubric": [
@@ -437,6 +496,10 @@
     {
       "id": "59-6",
       "title": "章末演習：注文障害を調査して報告する",
+      "objectiveIds": [
+        "ch59-o3",
+        "ch59-o5"
+      ],
       "explanation": "## 記録・調査・報告を一本につなぐ\n\n実務ロギングは、ログ行を増やすことが目的ではありません。正常時は必要十分な記録を安全に残し、障害時にはその記録から影響と原因候補を絞り、修正後の確認までつなげます。\n\n```text\n設計: event・requestId・業務ID・resultを選ぶ\n  ↓\n実装: プレースホルダー、Throwable、MDCの後片付け\n  ↓\n運用: レベル、出力先、保持期間、アクセス権を設定\n  ↓\n検知: 症状・時刻・影響範囲を固定\n  ↓\n調査: 1件の時系列 → 最初の異常 → 別証拠との照合\n  ↓\n報告: 事実 / 仮説 / 検証 / 緩和 / 恒久対策\n```\n\n章末の3問では、安全なログ行、要求文脈の後片付け、配備情報を含む障害調査を順に扱います。\n\n画面内では1ファイルで考え方を練習します。`labs/logging-investigation`には、複数リクエストが混ざった注文サービスのログと、最初は失敗する解析コードがあります。ログの読み取り、秘密情報の除外、時系列化、原因仮説を含む報告まで完成させてください。",
       "samples": [
         {
@@ -485,9 +548,12 @@
       ],
       "extraTasks": [
         {
+          "objectiveIds": [
+            "ch59-o3"
+          ],
           "kind": "applied",
           "task": "【組み合わせ】スレッドが再利用される状況で、要求文脈を管理します。入力は命令数`n`と、`START requestId`、`LOG event`、`END`のいずれかです。STARTで現在のrequestIdを設定し、LOGで`requestId=<現在値> event=<event>`を表示します。文脈が無ければ現在値は`NONE`です。ENDでは必ず文脈を消し、表示はしません。`RequestContext.end`を実装してください。",
-          "starterCode": "import java.util.*;\n\nclass RequestContext {\n    private String requestId;\n\n    void start(String requestId) {\n        this.requestId = requestId;\n    }\n\n    void end() {\n        // TODO: 次の要求へ古いIDを残さない\n    }\n\n    String current() {\n        return requestId == null ? \"NONE\" : requestId;\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        int n = s.nextInt();\n        RequestContext context = new RequestContext();\n        for (int i = 0; i < n; i++) {\n            switch (s.next()) {\n                case \"START\" -> context.start(s.next());\n                case \"LOG\" -> System.out.println(\"requestId=\" + context.current()\n                        + \" event=\" + s.next());\n                case \"END\" -> context.end();\n                default -> throw new IllegalArgumentException();\n            }\n        }\n    }\n}\n",
+          "starterCode": "import java.util.*;\n\nclass RequestContext {\n    private String requestId;\n\n    void start(String requestId) {\n        this.requestId = requestId;\n    }\n\n    void end() {\n        // TODO: 次の要求へ古いIDを残さない\n    }\n\n    String current() {\n        return requestId == null ? \"NONE\" : requestId;\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n        RequestContext context = new RequestContext();\n        for (int i = 0; i < n; i++) {\n            switch (sc.next()) {\n                case \"START\" -> context.start(sc.next());\n                case \"LOG\" -> System.out.println(\"requestId=\" + context.current()\n                        + \" event=\" + sc.next());\n                case \"END\" -> context.end();\n                default -> throw new IllegalArgumentException();\n            }\n        }\n    }\n}\n",
           "visibleCases": [
             {
               "label": "要求終了後に消える",
@@ -516,7 +582,7 @@
             "MDCのremoveやclearを簡略化した問題です。",
             "`end`でフィールド`requestId`へ`null`を代入します。"
           ],
-          "solution": "import java.util.*;\n\nclass RequestContext {\n    private String requestId;\n\n    void start(String requestId) {\n        this.requestId = requestId;\n    }\n\n    void end() {\n        requestId = null;\n    }\n\n    String current() {\n        return requestId == null ? \"NONE\" : requestId;\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        int n = s.nextInt();\n        RequestContext context = new RequestContext();\n        for (int i = 0; i < n; i++) {\n            switch (s.next()) {\n                case \"START\" -> context.start(s.next());\n                case \"LOG\" -> System.out.println(\"requestId=\" + context.current()\n                        + \" event=\" + s.next());\n                case \"END\" -> context.end();\n                default -> throw new IllegalArgumentException();\n            }\n        }\n    }\n}\n",
+          "solution": "import java.util.*;\n\nclass RequestContext {\n    private String requestId;\n\n    void start(String requestId) {\n        this.requestId = requestId;\n    }\n\n    void end() {\n        requestId = null;\n    }\n\n    String current() {\n        return requestId == null ? \"NONE\" : requestId;\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n        RequestContext context = new RequestContext();\n        for (int i = 0; i < n; i++) {\n            switch (sc.next()) {\n                case \"START\" -> context.start(sc.next());\n                case \"LOG\" -> System.out.println(\"requestId=\" + context.current()\n                        + \" event=\" + sc.next());\n                case \"END\" -> context.end();\n                default -> throw new IllegalArgumentException();\n            }\n        }\n    }\n}\n",
           "sourceChecks": [
             {
               "pattern": "requestId\\s*=\\s*null",
@@ -526,9 +592,12 @@
           ]
         },
         {
+          "objectiveIds": [
+            "ch59-o5"
+          ],
           "kind": "applied",
           "task": "【実践】対象要求の最初のERRORと、その時点より前で最も新しい配備を原因候補として表示します。入力は`targetRequestId`、配備数`d`、続くd行に`time version`、ログ数`n`、続くn行に`time requestId level event`です。対象requestIdのERRORをtime昇順、同時刻なら入力順で探します。無ければ`firstError=NONE`と`hypothesis=NONE`を表示します。あれば`firstError=event@time`を表示し、その時刻以下で最も新しい配備があれば`hypothesis=deploy:version@time`、無ければ`hypothesis=NONE`を表示します。配備はあくまで仮説で、原因の断定ではありません。",
-          "starterCode": "import java.util.*;\n\nrecord Deployment(int time, String version) { }\nrecord IncidentLog(int time, String requestId, String level, String event, int sequence) { }\n\npublic class Main {\n    static IncidentLog firstError(String target, List<IncidentLog> logs) {\n        // TODO: 対象要求の最初のERRORを返す。無ければnull\n        return null;\n    }\n\n    static Deployment latestBefore(int time, List<Deployment> deployments) {\n        // TODO: time以下で最も新しい配備を返す。無ければnull\n        return null;\n    }\n\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        String target = s.next();\n        int d = s.nextInt();\n        List<Deployment> deployments = new ArrayList<>();\n        for (int i = 0; i < d; i++) deployments.add(new Deployment(s.nextInt(), s.next()));\n        int n = s.nextInt();\n        List<IncidentLog> logs = new ArrayList<>();\n        for (int i = 0; i < n; i++) {\n            logs.add(new IncidentLog(s.nextInt(), s.next(), s.next(), s.next(), i));\n        }\n\n        IncidentLog error = firstError(target, logs);\n        if (error == null) {\n            System.out.println(\"firstError=NONE\");\n            System.out.println(\"hypothesis=NONE\");\n            return;\n        }\n        System.out.println(\"firstError=\" + error.event() + \"@\" + error.time());\n        Deployment deployment = latestBefore(error.time(), deployments);\n        System.out.println(deployment == null ? \"hypothesis=NONE\"\n                : \"hypothesis=deploy:\" + deployment.version() + \"@\" + deployment.time());\n    }\n}\n",
+          "starterCode": "import java.util.*;\n\nrecord Deployment(int time, String version) { }\nrecord IncidentLog(int time, String requestId, String level, String event, int sequence) { }\n\npublic class Main {\n    static IncidentLog firstError(String target, List<IncidentLog> logs) {\n        // TODO: 対象要求の最初のERRORを返す。無ければnull\n        return null;\n    }\n\n    static Deployment latestBefore(int time, List<Deployment> deployments) {\n        // TODO: time以下で最も新しい配備を返す。無ければnull\n        return null;\n    }\n\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        String target = sc.next();\n        int d = sc.nextInt();\n        List<Deployment> deployments = new ArrayList<>();\n        for (int i = 0; i < d; i++) deployments.add(new Deployment(sc.nextInt(), sc.next()));\n        int n = sc.nextInt();\n        List<IncidentLog> logs = new ArrayList<>();\n        for (int i = 0; i < n; i++) {\n            logs.add(new IncidentLog(sc.nextInt(), sc.next(), sc.next(), sc.next(), i));\n        }\n\n        IncidentLog error = firstError(target, logs);\n        if (error == null) {\n            System.out.println(\"firstError=NONE\");\n            System.out.println(\"hypothesis=NONE\");\n            return;\n        }\n        System.out.println(\"firstError=\" + error.event() + \"@\" + error.time());\n        Deployment deployment = latestBefore(error.time(), deployments);\n        System.out.println(deployment == null ? \"hypothesis=NONE\"\n                : \"hypothesis=deploy:\" + deployment.version() + \"@\" + deployment.time());\n    }\n}\n",
           "visibleCases": [
             {
               "label": "直前配備を仮説にする",
@@ -568,7 +637,7 @@
             "latestBeforeはtime以下だけに絞り、`Deployment::time`が最大のものを選びます。",
             "近い配備は原因の証明ではないため、出力名もhypothesisです。"
           ],
-          "solution": "import java.util.*;\n\nrecord Deployment(int time, String version) { }\nrecord IncidentLog(int time, String requestId, String level, String event, int sequence) { }\n\npublic class Main {\n    static IncidentLog firstError(String target, List<IncidentLog> logs) {\n        return logs.stream()\n                .filter(log -> log.requestId().equals(target))\n                .filter(log -> log.level().equals(\"ERROR\"))\n                .sorted(Comparator.comparingInt(IncidentLog::time)\n                        .thenComparingInt(IncidentLog::sequence))\n                .findFirst().orElse(null);\n    }\n\n    static Deployment latestBefore(int time, List<Deployment> deployments) {\n        return deployments.stream()\n                .filter(deployment -> deployment.time() <= time)\n                .max(Comparator.comparingInt(Deployment::time))\n                .orElse(null);\n    }\n\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        String target = s.next();\n        int d = s.nextInt();\n        List<Deployment> deployments = new ArrayList<>();\n        for (int i = 0; i < d; i++) deployments.add(new Deployment(s.nextInt(), s.next()));\n        int n = s.nextInt();\n        List<IncidentLog> logs = new ArrayList<>();\n        for (int i = 0; i < n; i++) {\n            logs.add(new IncidentLog(s.nextInt(), s.next(), s.next(), s.next(), i));\n        }\n\n        IncidentLog error = firstError(target, logs);\n        if (error == null) {\n            System.out.println(\"firstError=NONE\");\n            System.out.println(\"hypothesis=NONE\");\n            return;\n        }\n        System.out.println(\"firstError=\" + error.event() + \"@\" + error.time());\n        Deployment deployment = latestBefore(error.time(), deployments);\n        System.out.println(deployment == null ? \"hypothesis=NONE\"\n                : \"hypothesis=deploy:\" + deployment.version() + \"@\" + deployment.time());\n    }\n}\n",
+          "solution": "import java.util.*;\n\nrecord Deployment(int time, String version) { }\nrecord IncidentLog(int time, String requestId, String level, String event, int sequence) { }\n\npublic class Main {\n    static IncidentLog firstError(String target, List<IncidentLog> logs) {\n        return logs.stream()\n                .filter(log -> log.requestId().equals(target))\n                .filter(log -> log.level().equals(\"ERROR\"))\n                .sorted(Comparator.comparingInt(IncidentLog::time)\n                        .thenComparingInt(IncidentLog::sequence))\n                .findFirst().orElse(null);\n    }\n\n    static Deployment latestBefore(int time, List<Deployment> deployments) {\n        return deployments.stream()\n                .filter(deployment -> deployment.time() <= time)\n                .max(Comparator.comparingInt(Deployment::time))\n                .orElse(null);\n    }\n\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        String target = sc.next();\n        int d = sc.nextInt();\n        List<Deployment> deployments = new ArrayList<>();\n        for (int i = 0; i < d; i++) deployments.add(new Deployment(sc.nextInt(), sc.next()));\n        int n = sc.nextInt();\n        List<IncidentLog> logs = new ArrayList<>();\n        for (int i = 0; i < n; i++) {\n            logs.add(new IncidentLog(sc.nextInt(), sc.next(), sc.next(), sc.next(), i));\n        }\n\n        IncidentLog error = firstError(target, logs);\n        if (error == null) {\n            System.out.println(\"firstError=NONE\");\n            System.out.println(\"hypothesis=NONE\");\n            return;\n        }\n        System.out.println(\"firstError=\" + error.event() + \"@\" + error.time());\n        Deployment deployment = latestBefore(error.time(), deployments);\n        System.out.println(deployment == null ? \"hypothesis=NONE\"\n                : \"hypothesis=deploy:\" + deployment.version() + \"@\" + deployment.time());\n    }\n}\n",
           "sourceChecks": [
             {
               "pattern": "requestId\\s*\\(\\s*\\)\\s*\\.\\s*equals\\s*\\(\\s*target\\s*\\)",
@@ -579,11 +648,6 @@
               "pattern": "deployment\\s*->\\s*deployment\\s*\\.\\s*time\\s*\\(\\s*\\)\\s*<=\\s*time",
               "minimum": 1,
               "message": "エラー発生時刻より後の配備を原因候補にしないでください。"
-            },
-            {
-              "pattern": "\\.max\\s*\\(",
-              "minimum": 1,
-              "message": "条件を満たす配備のうち、最も新しいものを選んでください。"
             }
           ],
           "rubric": [

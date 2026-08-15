@@ -1,7 +1,7 @@
 # JPAの問い合わせとロック lab
 
 実PostgreSQLへ接続して、関連の取り方・遅延読み込み・同時更新を直します。
-第26章の「JPQL・関連・N+1とロック」が採点に使います。
+Web・Jakarta EE編『Jakarta Persistence (JPA)』の「JPQL・関連・N+1とロック」が採点に使います。
 
 ```
 sh run-runtime-lab.sh

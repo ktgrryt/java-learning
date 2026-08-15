@@ -12,9 +12,60 @@ public final class JavaRunnerCheck {
 
     public static void main(String[] args) throws Exception {
         standardInputStillWorks();
+        wrapperAddsNothingToStderr();
         normalExitCleansUpChild();
         timeoutCleansUpChild();
         System.out.println("java runner process cleanup: すべて合格");
+    }
+
+    /**
+     * 実行wrapperが自分の出力をstderrへ混ぜないことを確かめる。
+     *
+     * <p>プロセスグループを作るための {@code set -m} を有効なままにすると、bashが
+     * {@code [1]+ Done "$@"} をstderrへ出す。正常なコードが実行時エラーに見え、
+     * 検証も全サンプルを失敗と判定するので、正常終了・stderr出力・異常終了の
+     * どれでもwrapper由来の行が混ざらないことを固定する。
+     */
+    private static void wrapperAddsNothingToStderr() throws Exception {
+        assertStderr("""
+                public class Main {
+                    public static void main(String[] args) {
+                        System.out.println("ok");
+                    }
+                }
+                """, "", 0, "正常終了したコードのstderrにwrapperの出力が混ざっています");
+
+        // 学習者のstderrはそのまま届く必要がある（wrapperが捨ててはいけない）
+        assertStderr("""
+                public class Main {
+                    public static void main(String[] args) {
+                        System.err.println("learner stderr");
+                    }
+                }
+                """, "learner stderr", 0, "コードが書いたstderrが届いていません");
+
+        assertStderr("""
+                public class Main {
+                    public static void main(String[] args) {
+                        System.exit(3);
+                    }
+                }
+                """, "", 3, "異常終了したコードのstderrにwrapperの出力が混ざっています");
+    }
+
+    private static void assertStderr(String source, String expectedStderr,
+                                     int expectedExitCode, String message) throws Exception {
+        JavaRunner runner = new JavaRunner();
+        try (JavaRunner.Compiled compiled = runner.compile(source)) {
+            require(compiled.success(), "stderr検査用コードをコンパイルできませんでした: "
+                    + compiled.diagnostics());
+            RunResult result = runner.run(compiled, "");
+            require(!result.timedOut(), "stderr検査用コードがtimeoutしました: " + result);
+            require(result.exitCode() == expectedExitCode,
+                    "終了コードが " + expectedExitCode + " ではありません: " + result);
+            require(result.stderr().strip().equals(expectedStderr),
+                    message + ": " + result.stderr());
+        }
     }
 
     private static void standardInputStillWorks() throws Exception {

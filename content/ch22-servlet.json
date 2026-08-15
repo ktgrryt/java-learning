@@ -3,6 +3,28 @@
   "title": "サーブレットとHTTP",
   "subtitle": "Webアプリの入口を作る",
   "emoji": "🌐",
+  "objectives": [
+    {
+      "id": "ch22-o1",
+      "text": "`@WebServlet` でURLを担当するサーブレットを作り、`doGet` を書ける"
+    },
+    {
+      "id": "ch22-o2",
+      "text": "リクエストパラメータを1つずつ・複数まとめて受け取れる"
+    },
+    {
+      "id": "ch22-o3",
+      "text": "HTTPメソッドごとに処理を分け、状況に合うステータスコードを返せる"
+    },
+    {
+      "id": "ch22-o4",
+      "text": "サーブレットのフィールドに置いてよいものを見分け、スレッドセーフに書ける"
+    },
+    {
+      "id": "ch22-o5",
+      "text": "利用者入力をHTMLエスケープし、例外の詳細を外へ漏らさずに返せる"
+    }
+  ],
   "libs": [
     "jakarta-servlet",
     "mini-web"
@@ -46,6 +68,9 @@
     {
       "id": "22-1",
       "title": "サーブレットのはじめの一歩",
+      "objectiveIds": [
+        "ch22-o1"
+      ],
       "explanation": "## Webアプリは「聞かれたら答える」だけ\n\nここからは Web アプリを作る話に入ります。難しそうに見えますが、やっていることは単純です。\n\n```\nブラウザ  ──①リクエスト──▶  サーバ\n          ◀─②レスポンス───\n```\n\n**① リクエスト** は「どのやり方で、どこに」の2つが本体です。\n\n```\nGET /hello\n↑    ↑\nメソッド パス\n```\n\n**② レスポンス** は「うまくいったか（ステータスコード）」と「中身（本文）」です。\n\n```\n200 OK          ← ステータスコード\nHello, Java!    ← 本文\n```\n\nHTTP は **1回のやりとりで完結する**（ステートレス）という性質があります。\n「さっき誰が来たか」をサーバは覚えていません。この性質が第23章の話につながります。\n\n## サーブレット＝1つのURLに対する処理\n\nJakarta EE では、この「聞かれたら答える」処理を **サーブレット** というクラスで書きます。\n形は決まっていて、覚えることは3つだけです。\n\n```java\n@WebServlet(\"/hello\")                                  // ① どのURLに応えるか\npublic class HelloServlet extends HttpServlet {        // ② HttpServlet を継承する\n\n    @Override\n    protected void doGet(HttpServletRequest req, HttpServletResponse res)\n            throws ServletException, IOException {     // ③ GET が来たら doGet が呼ばれる\n        res.getWriter().println(\"Hello, Java!\");\n    }\n}\n```\n\n- `@WebServlet(\"/hello\")` … このクラスが `/hello` の担当だと宣言する\n- `extends HttpServlet` … サーブレットの親クラス\n- `doGet(...)` … GET リクエストが来たときに呼ばれるメソッド\n\n`res.getWriter()` で本文を書く先（`PrintWriter`）が取れます。あとは今までどおり\n`println` するだけです。\n\n### 誰が `doGet` を呼ぶのか\n\n自分では呼びません。**アプリサーバ（コンテナ）** が呼びます。\nTomcat や WildFly といったアプリサーバが、リクエストを受け取り、パスを見て、\n担当のサーブレットの `doGet` を呼び出します。\n\nつまりサーブレットは「呼ばれる側」です。`main` から始まる今までのプログラムとは\n呼ばれ方が逆になります。これを **IoC（制御の反転）** と呼びます。\n\n## この教材での動かし方\n\n本物のアプリサーバはネットワークのポートを開いて待ち受けます。この教材では\nそこまではやらず、**`MiniWeb` という学習用の疑似コンテナ** を同梱しています。\n\n```java\npublic static void main(String[] args) {\n    MiniWeb.app()\n           .register(HelloServlet.class)   // このサーブレットを登録する\n           .serve();                       // 標準入力のリクエストを処理する\n}\n```\n\n`serve()` は **標準入力の1行を1リクエストとして** 扱います。\n\n```\n入力:  GET /hello\n出力:  200 OK\n      Hello, Java!\n```\n\n複数行入れれば、その分だけ順番に処理されます。だから「いろいろな入力で試す」ができます。\n\n### 📚 同梱APIリファレンス（この章で使えるもの）\n\n| クラス / メソッド | 意味 |\n|---|---|\n| `@WebServlet(\"/path\")` | 担当するURLの宣言 |\n| `HttpServlet` | 継承する親クラス |\n| `doGet(req, res)` / `doPost(req, res)` | GET / POST が来たときに呼ばれる |\n| `req.getMethod()` | `\"GET\"` / `\"POST\"` など |\n| `req.getRequestURI()` | クエリ文字列を除いたパス |\n| `req.getParameter(name)` | パラメータを1つ。**無ければ `null`** |\n| `req.getParameterValues(name)` | 同じ名前のパラメータを全部。無ければ `null` |\n| `res.getWriter()` | 本文を書く `PrintWriter` |\n| `res.setStatus(int)` | ステータスコードを決める |\n| `res.sendError(int)` / `sendError(int, msg)` | エラーとして返す |\n| `res.setContentType(String)` | `\"text/html; charset=UTF-8\"` など |\n| `res.setHeader(name, value)` | ヘッダを付ける |\n| `HttpServletResponse.SC_NOT_FOUND` など | ステータスコードの定数 |\n\n`MiniWeb` 側の指定はこれだけです。\n\n| 書き方 | 意味 |\n|---|---|\n| `MiniWeb.app()` | 疑似コンテナを作る |\n| `.register(クラス.class)` | サーブレットを登録する（`@WebServlet` からパスを読む） |\n| `.serve()` | 標準入力のリクエストを処理する |\n| `.echoRequests()` | 処理したリクエストを `> GET /hello` の形でも出す |\n\n### ⚠️ ここが本物と違う\n\n`MiniWeb` と同梱の `jakarta.servlet.*` は、**学習用に自分で書いた最小限の再実装**です。\n本物の Jakarta EE ではありません。次の点が違います。\n\n- ネットワークを使わない（ポートを開かない）\n- 本物のアプリサーバは起動時にクラスを走査して `@WebServlet` を自動で見つけるが、\n  この教材では `register(...)` で明示的に登録する\n- リクエストを1つずつ順番に処理する（本物は同時に複数を並行処理する）\n- `HttpServletRequest` のメソッドは、上の表にあるものだけ\n\n**書き方（import 文・アノテーション・メソッド名）は本物と同じ**にしてあるので、\nここで身につけた形はそのまま実務で通用します。\n\n> 💡 本物では、`pom.xml` に `jakarta.jakartaee-api` を **`provided`** で入れ（第21章）、\n> `mvn package` で WAR を作り、アプリサーバに配置します。`@WebServlet` を付けておけば\n> `web.xml` は要りません（昔は `web.xml` に登録するのが必須でした）。\n",
       "samples": [
         {
@@ -149,6 +174,9 @@
     {
       "id": "22-2",
       "title": "リクエストパラメータを受け取る",
+      "objectiveIds": [
+        "ch22-o2"
+      ],
       "explanation": "## パラメータ＝ブラウザから渡される値\n\nURL の `?` より後ろは **クエリ文字列** で、`名前=値` を `&` でつないだものです。\n\n```\n/greet?name=Yamada&age=20\n       └────┬────┘ └──┬──┘\n       name=Yamada   age=20\n```\n\nサーブレットからは `getParameter` で取ります。\n\n```java\nString name = req.getParameter(\"name\");   // \"Yamada\"\n```\n\n## ⚠️ いちばん大事なこと：無いときは `null`\n\n`getParameter` は、そのパラメータが **無ければ `null` を返します**。空文字ではありません。\n\n```java\nString name = req.getParameter(\"name\");\nSystem.out.println(name.length());   // ❌ name が無いと NullPointerException\n```\n\nWebアプリでは、URLは **利用者が自由に書ける** ものです。\n`?name=Yamada` が来る前提で書いたコードには、いつか必ず `?name=` の無いリクエストが来ます。\nだから **必ず `null` を確かめる** のが基本です。\n\n```java\nString name = req.getParameter(\"name\");\nif (name == null || name.isEmpty()) {\n    name = \"ゲスト\";           // 既定値にする\n}\n```\n\n`null` と空文字の両方を見ているのがポイントです。`?name=`（イコールの後ろが空）だと\n`null` ではなく **空文字** が来るので、片方だけでは足りません。\n\n## 数値は必ず変換に失敗しうる\n\nパラメータは **いつも文字列** です。数として使いたければ変換します。\n\n```java\nint age = Integer.parseInt(req.getParameter(\"age\"));   // ❌ 危ない\n```\n\nこれは2通りに壊れます。\n\n- パラメータが無い → `null` を渡すことになり `NumberFormatException`\n- `?age=abc` → 数字でないので `NumberFormatException`\n\n利用者が URL を手で書き換えるだけで、アプリが 500 エラーで落ちます。\nだから変換は必ず囲みます。\n\n```java\nint age = -1;\nString raw = req.getParameter(\"age\");\nif (raw != null) {\n    try {\n        age = Integer.parseInt(raw);\n    } catch (NumberFormatException e) {\n        age = -1;          // 不正な入力として扱う\n    }\n}\n```\n\n## 同じ名前が複数あるとき\n\nチェックボックスのように、同じ名前で複数の値が送られることがあります。\n\n```\n/pick?color=red&color=blue&color=green\n```\n\n- `getParameter(\"color\")` … **最初の1つだけ**（`\"red\"`）\n- `getParameterValues(\"color\")` … 全部（`{\"red\", \"blue\", \"green\"}`）\n\n`getParameterValues` も、無ければ `null` を返します（**空配列ではありません**）。\n\n```java\nString[] colors = req.getParameterValues(\"color\");\nif (colors == null) {\n    colors = new String[0];   // 空配列にしておくと、この後の for が楽になる\n}\n```\n\n### ⚠️ 現場のワナ：パラメータを検証せずに使う\n\nパラメータは **利用者が完全に自由に決められる入力** です。次のことが実際に起こります。\n\n- 数値のはずが文字列（`?age=abc`）\n- 想定より極端に大きい値（`?count=999999999`）\n- そもそも項目が無い\n- 同じ名前が何個も来る\n\n「画面からは正しい値しか送られない」という前提は成立しません。画面の JavaScript で\nチェックしていても、URLを直接叩けば回避できます。**サーバ側で必ず検証する**のが原則です\n（第29章の Bean Validation で、これを宣言的に書く方法を扱います）。\n\n> 💡 POST で送られたフォームの値も、同じ `getParameter` で取れます。\n> GET はURLに、POST は本文に入っている、という違いはコンテナが吸収してくれます。\n",
       "samples": [
         {
@@ -267,6 +295,9 @@
     {
       "id": "22-3",
       "title": "HTTPメソッドとステータスコード",
+      "objectiveIds": [
+        "ch22-o3"
+      ],
       "explanation": "## はじめて学ぶ人へ\n\nHTTPメソッドとステータスコードは、Web上でやり取りするための**動作名**と**結果の合図**です。カフェで「メニューを見せて」「注文を追加して」と頼み、店員が「承りました」「その商品はありません」と返す場面を想像すると理解しやすくなります。\n\n### 具体例で見る流れ\n\n```text\nGET  /books/1     → 本を読むだけ     → 200 OK\nGET  /books/99    → 本が見つからない → 404 Not Found\nPOST /books       → 新しい本を登録   → 201 Created\n```\n\n同じURLでも、`GET` は取得、`POST` は新規作成というように目的が変わります。3桁のステータスコードは、本文を読む前に結果の種類を知らせる短い標識です。まずは「何をしたいかに合うメソッド」「実際の結果に合うステータス」を組み合わせられれば十分です。\n\n## 動詞で目的を表す\n\n同じURLでもHTTPメソッドで処理を分けます。`HttpServlet.service` がGETを `doGet`、POSTを `doPost`、PUTを `doPut`、DELETEを `doDelete` へ振り分けます。上書きしていないメソッドは405です。\n\n|目的|メソッド|代表的な成功|\n|---|---|---|\n|取得|GET|200|\n|新規作成|POST|201|\n|置換・更新|PUT|200 / 204|\n|削除|DELETE|204|\n\n```svg 同じURLでも、メソッドで目的が変わり、結果はステータスコードで伝える\n<svg viewBox=\"0 0 720 250\">\n  <rect class=\"fig-box\" x=\"14\" y=\"40\" width=\"150\" height=\"150\" rx=\"6\"/>\n  <text class=\"fig-t fig-small\" x=\"89\" y=\"62\" text-anchor=\"middle\">ブラウザ / API利用者</text>\n  <text class=\"fig-t fig-mono fig-small\" x=\"30\" y=\"96\">GET /books/1</text>\n  <text class=\"fig-t fig-mono fig-small\" x=\"30\" y=\"128\">GET /books/99</text>\n  <text class=\"fig-t fig-mono fig-small\" x=\"30\" y=\"160\">POST /books</text>\n\n  <rect class=\"fig-box\" x=\"300\" y=\"40\" width=\"150\" height=\"150\" rx=\"6\"/>\n  <text class=\"fig-t fig-small\" x=\"375\" y=\"62\" text-anchor=\"middle\">サーブレット</text>\n  <text class=\"fig-t fig-mono fig-small\" x=\"316\" y=\"96\">doGet</text>\n  <text class=\"fig-t fig-mono fig-small\" x=\"316\" y=\"128\">doGet</text>\n  <text class=\"fig-t fig-mono fig-small\" x=\"316\" y=\"160\">doPost</text>\n\n  <line class=\"fig-line\" x1=\"168\" y1=\"96\" x2=\"296\" y2=\"96\" marker-end=\"arrow\"/>\n  <line class=\"fig-line\" x1=\"168\" y1=\"128\" x2=\"296\" y2=\"128\" marker-end=\"arrow\"/>\n  <line class=\"fig-line\" x1=\"168\" y1=\"160\" x2=\"296\" y2=\"160\" marker-end=\"arrow\"/>\n\n  <rect class=\"fig-box-ok\" x=\"500\" y=\"80\" width=\"206\" height=\"32\" rx=\"6\"/>\n  <text class=\"fig-t fig-mono fig-small fig-t-ok\" x=\"603\" y=\"96\" text-anchor=\"middle\">200 OK</text>\n  <rect class=\"fig-box-ng\" x=\"500\" y=\"112\" width=\"206\" height=\"32\" rx=\"6\"/>\n  <text class=\"fig-t fig-mono fig-small fig-t-ng\" x=\"603\" y=\"128\" text-anchor=\"middle\">404 Not Found</text>\n  <rect class=\"fig-box-ok\" x=\"500\" y=\"144\" width=\"206\" height=\"32\" rx=\"6\"/>\n  <text class=\"fig-t fig-mono fig-small fig-t-ok\" x=\"603\" y=\"160\" text-anchor=\"middle\">201 Created</text>\n  <line class=\"fig-line\" x1=\"454\" y1=\"96\" x2=\"496\" y2=\"96\" marker-end=\"arrow\"/>\n  <line class=\"fig-line-ng\" x1=\"454\" y1=\"128\" x2=\"496\" y2=\"128\" marker-end=\"arrow-ng\"/>\n  <line class=\"fig-line\" x1=\"454\" y1=\"160\" x2=\"496\" y2=\"160\" marker-end=\"arrow\"/>\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"603\" y=\"60\" text-anchor=\"middle\">実際の結果に合わせて返す</text>\n\n  <text class=\"fig-t fig-t-dim fig-small\" x=\"14\" y=\"216\">上書きしていないメソッドで来ると 405。何でも 200 で返すと、監視もクライアントもキャッシュも判断できない</text>\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"14\" y=\"238\">入力不正 400 / 未認証 401 / 権限なし 403 / 見つからない 404 / 競合 409 / 想定外 500</text>\n</svg>\n```\n\n失敗も意味を選びます。入力不正400、未認証401、権限なし403、見つからない404、競合409、想定外500です。何でも200で返すと監視・クライアント・キャッシュが正しく判断できません。`sendError` 後は処理を続けずreturnします。",
       "samples": [
         {
@@ -380,6 +411,9 @@
     {
       "id": "22-4",
       "title": "ライフサイクルとスレッドセーフ",
+      "objectiveIds": [
+        "ch22-o4"
+      ],
       "explanation": "## はじめて学ぶ人へ\n\nサーブレットは、リクエストごとに新品が作られるとは限りません。多くの場合、**1つのサーブレットを複数の利用者が同時に使います**。これは、複数の店員が同じホワイトボードを共有して接客するようなものです。\n\n### 何が危険なのか\n\n```text\n利用者A: フィールド currentName に「田中」を書く\n利用者B: すぐに currentName を「佐藤」で上書きする\n利用者A: currentName を読む → 「佐藤」が返ってしまう\n```\n\nメソッド内のローカル変数は各リクエスト専用のメモなので混ざりません。一方、インスタンスフィールドは全員が触れる共有メモです。最初は「リクエストから受け取った値をフィールドへ保存しない」と覚え、共有が必要な場合だけスレッドセーフな設計を検討しましょう。\n\n## Servletインスタンスは使い回される\n\nコンテナは通常、Servletを1つだけ生成し、`init()` を1回、各リクエストで `service()`、停止時に `destroy()` を呼びます。本物は同じインスタンスへ複数スレッドが同時に入ります。\n\n```java\nclass UnsafeServlet extends HttpServlet {\n private String currentUser; // ❌ 全利用者で共有\n protected void doGet(...) {\n   currentUser = req.getParameter(\"user\");\n }\n}\n```\n\n```svg Servletは1つだけ作られ、同じインスタンスに複数のリクエストスレッドが同時に入る\n<svg viewBox=\"0 0 720 262\">\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"89\" y=\"26\" text-anchor=\"middle\">リクエストごとのスレッド</text>\n  <rect class=\"fig-box\" x=\"14\" y=\"44\" width=\"150\" height=\"42\" rx=\"6\"/>\n  <text class=\"fig-t fig-small\" x=\"89\" y=\"65\" text-anchor=\"middle\">スレッド1（利用者A）</text>\n  <rect class=\"fig-box\" x=\"14\" y=\"100\" width=\"150\" height=\"42\" rx=\"6\"/>\n  <text class=\"fig-t fig-small\" x=\"89\" y=\"121\" text-anchor=\"middle\">スレッド2（利用者B）</text>\n  <rect class=\"fig-box\" x=\"14\" y=\"156\" width=\"150\" height=\"42\" rx=\"6\"/>\n  <text class=\"fig-t fig-small\" x=\"89\" y=\"177\" text-anchor=\"middle\">スレッド3（利用者C）</text>\n\n  <line class=\"fig-line\" x1=\"168\" y1=\"65\" x2=\"276\" y2=\"96\" marker-end=\"arrow\"/>\n  <line class=\"fig-line\" x1=\"168\" y1=\"121\" x2=\"276\" y2=\"110\" marker-end=\"arrow\"/>\n  <line class=\"fig-line\" x1=\"168\" y1=\"177\" x2=\"276\" y2=\"124\" marker-end=\"arrow\"/>\n\n  <rect class=\"fig-box\" x=\"280\" y=\"34\" width=\"420\" height=\"190\" rx=\"8\"/>\n  <text class=\"fig-t fig-title\" x=\"300\" y=\"56\">Servlet のインスタンス（ふつう1つだけ）</text>\n\n  <rect class=\"fig-box-ng\" x=\"300\" y=\"72\" width=\"380\" height=\"52\" rx=\"6\"/>\n  <text class=\"fig-t fig-mono fig-small\" x=\"490\" y=\"92\" text-anchor=\"middle\">private String currentUser;</text>\n  <text class=\"fig-t fig-t-ng fig-small\" x=\"490\" y=\"112\" text-anchor=\"middle\">全スレッドが同じ1つを触る → 上書きされる</text>\n\n  <rect class=\"fig-box-dim\" x=\"300\" y=\"140\" width=\"120\" height=\"40\" rx=\"6\"/>\n  <text class=\"fig-t fig-t-dim fig-small\" x=\"360\" y=\"160\" text-anchor=\"middle\">ローカル変数</text>\n  <rect class=\"fig-box-dim\" x=\"430\" y=\"140\" width=\"120\" height=\"40\" rx=\"6\"/>\n  <text class=\"fig-t fig-t-dim fig-small\" x=\"490\" y=\"160\" text-anchor=\"middle\">ローカル変数</text>\n  <rect class=\"fig-box-dim\" x=\"560\" y=\"140\" width=\"120\" height=\"40\" rx=\"6\"/>\n  <text class=\"fig-t fig-t-dim fig-small\" x=\"620\" y=\"160\" text-anchor=\"middle\">ローカル変数</text>\n  <text class=\"fig-t fig-t-ok fig-small\" x=\"490\" y=\"204\" text-anchor=\"middle\">doGet のローカル変数はスレッドごとに別 → 混ざらない</text>\n\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"360\" y=\"248\" text-anchor=\"middle\">init() は1回、service() / doGet() は毎リクエスト、destroy() は停止時に1回</text>\n</svg>\n```\n\nリクエスト固有値はローカル変数かrequest属性へ置きます。Servletのフィールドに置けるのは、初期化後に変化しない依存先などです。共有する可変データにはDB・セッション・スレッドセーフな構造を使い、`synchronized` だけで無理に解決しません。\n\n`init` で重い準備、`destroy` で解放をします。ただしJDBC Connectionを1本だけフィールド共有するのは危険で、実務ではDataSourceの接続プールから処理ごとに借ります。",
       "samples": [
         {
@@ -457,6 +491,9 @@
     {
       "id": "22-5",
       "title": "レスポンス設計と安全な出力",
+      "objectiveIds": [
+        "ch22-o5"
+      ],
       "explanation": "## はじめて学ぶ人へ\n\nHTTPレスポンスは荷物に似ています。`status` は配送結果、`Content-Type` は中身の種類を書いたラベル、本文は実際の荷物です。受け取る側が迷わないよう、この3つを実際の内容と一致させます。\n\n```text\nstatus: 400 Bad Request\nContent-Type: application/json; charset=UTF-8\nbody: {\"error\":\"nameは必須です\"}\n```\n\n利用者が入力した文字列をHTMLに埋め込むときは特に注意します。たとえば `<script>` をそのまま返すとタグとして解釈されますが、`&lt;script&gt;` のようにエスケープすれば文字として表示できます。エラー本文には、スタックトレースやDB情報など内部事情を載せず、利用者が直せる内容だけを返します。\n\n## 本文だけでなくメタデータも返す\n\nHTMLなら `text/html; charset=UTF-8`、JSONなら `application/json` のようにContent-Typeを明示します。APIでは適切なステータスと一貫したエラー形式が重要です。内部例外のメッセージやスタックトレースを利用者へ返すと、SQLやパスなどを漏らす危険があります。詳細はサーバログへ、利用者には一般化した文言を返します。\n\nHTMLへ利用者入力を埋め込むときはアンパサンド・山括弧・引用符をエスケープします。Servlet/JSPが自動で安全にするとは限りません。SQLには文字列連結ではなくPreparedStatement、状態変更にはCSRF対策、Cookieには適切な属性が必要です。Webの入力は常に信用しない、が原則です。",
       "samples": [
         {
@@ -591,6 +628,10 @@
     {
       "id": "22-6",
       "title": "章末演習：ServletとHTTP",
+      "objectiveIds": [
+        "ch22-o1",
+        "ch22-o3"
+      ],
       "explanation": "## この章の知識を、自分の手で組み合わせよう\n\nここでは、**URL・パラメータ・HTTPメソッド・状態コード・安全な出力**をまとめて使います。新しい文法は登場しません。分からなくなったら、直前までの解説やサンプルへ戻って確認して大丈夫です。\n\n### 3問の進め方\n\n1. **基本**で、中心となる書き方をもう一度使う\n2. **組み合わせ**で、章内の複数の知識を一緒に使う\n3. **実践**で、少し現実的な入力と条件を整理する\n\nまず入力例と期待される出力を紙に書き、処理を小さな手順へ分けてからコードにすると進めやすくなります。",
       "samples": [
         {
@@ -632,6 +673,9 @@
       "solution": "import jakarta.servlet.annotation.WebServlet;\nimport jakarta.servlet.http.*;\nimport java.io.*;\n\n@WebServlet(\"/greet\")\npublic class Main extends HttpServlet {\n    protected void doGet(HttpServletRequest req, HttpServletResponse res) throws IOException {\n        String name = req.getParameter(\"name\");\n        if (name == null || name.isBlank()) {\n            res.sendError(400, \"nameは必須です\");\n            return;\n        }\n        res.getWriter().println(\"Hello, \" + name + \"!\");\n    }\n\n    public static void main(String[] args) {\n        MiniWeb.app().register(Main.class).serve();\n    }\n}\n",
       "extraTasks": [
         {
+          "objectiveIds": [
+            "ch22-o3"
+          ],
           "kind": "drill",
           "task": "【組み合わせ】POST `/notes?text=...` なら201と `created: text` を返します。textが空なら400です。GETなどPOST以外はMiniWebの既定動作で405になるよう、`doPost` だけを実装してください。",
           "starterCode": "import jakarta.servlet.annotation.WebServlet;\nimport jakarta.servlet.http.*;\nimport java.io.*;\n\n@WebServlet(\"/notes\")\npublic class Main extends HttpServlet {\n    protected void doPost(HttpServletRequest req, HttpServletResponse res) throws IOException {\n        /* TODO */\n    }\n\n    public static void main(String[] args) {\n        MiniWeb.app().register(Main.class).serve();\n    }\n}\n",
@@ -679,6 +723,9 @@
           ]
         },
         {
+          "objectiveIds": [
+            "ch22-o5"
+          ],
           "kind": "applied",
           "task": "【実践】GET `/search?q=...` で、qをHTMLエスケープして `検索: q` と返してください。Content-Typeは `text/html; charset=UTF-8` にします。最低限 `&`、`<`、`>` をこの順で変換します。",
           "starterCode": "import jakarta.servlet.annotation.WebServlet;\nimport jakarta.servlet.http.*;\nimport java.io.*;\n\n@WebServlet(\"/search\")\npublic class Main extends HttpServlet {\n    static String escape(String s) {\n        /* TODO */ return \"\";\n    }\n\n    protected void doGet(HttpServletRequest req, HttpServletResponse res) throws IOException {\n        /* TODO */\n    }\n\n    public static void main(String[] args) {\n        MiniWeb.app().register(Main.class).showHeaders().serve();\n    }\n}\n",
@@ -725,6 +772,10 @@
           ]
         },
         {
+          "objectiveIds": [
+            "ch22-o1",
+            "ch22-o3"
+          ],
           "kind": "applied",
           "type": "runtime-lab",
           "task": "【実行演習】`labs/jakarta-web/servlet-exercise`で、**実Open Liberty**へ配備したServletを直します。\n\n採点は`mvn package`でWARを作り、`servlet-6.1`だけを有効にしたLibertyを採点側が確保した動的ポートで起動して、HTTPで実測します。\n\n`src/main/java/cafe/web/OrderServlet.java`はいま1人で試すと動きますが、次の4つで落ちます。\n\n(1)POSTを受けていないのでコンテナが405を返し、無いIDでも200になります。POSTは201と`Location: /orders/<ID>`、無いIDは404にしてください。\n(2)**20本を同時に投げると19本が他の要求の名前を受け取ります。**Servletは1つのインスタンスが複数の要求を同時に処理するので、要求ごとの値をインスタンスフィールドへ置くと混ざります。\n(3)値に混ぜた`<script>`がそのまま本文に出ます。HTMLへ埋め込む前に置き換えてください。\n(4)charsetを指定していないので、応答の日本語が壊れます（サーバー既定はISO-8859-1）。本文を書く前に指定してください。\n\n`sleepQuietly()`は「重い処理」の代わりです。消さないでください（処理に時間がかかる間に他の要求が入ってくるのが通常の状態です）。クラス名と`@WebServlet(\"/orders/*\")`は採点の足場が使うので変えず、`OrderStore.java`・`pom.xml`・`server.xml`は参照専用です。",

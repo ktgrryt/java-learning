@@ -127,9 +127,15 @@ public final class ContentLoader {
         // 章に書いた libs は、その章の全レッスンが受け継ぐ（レッスンごとに書き写さなくてよい）
         List<String> chapterLibs = stringList(raw, "libs");
 
+        List<Objective> objectives = parseObjectives(raw, chapterId);
+        java.util.Set<String> objectiveIds = new java.util.LinkedHashSet<>();
+        for (Objective o : objectives) {
+            objectiveIds.add(o.id());
+        }
+
         List<Lesson> lessons = new ArrayList<>();
         for (Object o : MiniJson.list(raw, "lessons")) {
-            lessons.add(parseLesson(MiniJson.asObj(o), chapterId, chapterLibs, libCache));
+            lessons.add(parseLesson(MiniJson.asObj(o), chapterId, chapterLibs, libCache, objectiveIds));
         }
         if (lessons.isEmpty()) {
             throw new IllegalStateException("章 " + chapterId + " にレッスンがありません");
@@ -142,11 +148,60 @@ public final class ContentLoader {
                 MiniJson.requireStr(raw, "title"),
                 MiniJson.str(raw, "subtitle", ""),
                 MiniJson.str(raw, "emoji", "📘"),
+                List.copyOf(objectives),
                 List.copyOf(lessons));
     }
 
+    /**
+     * 章の到達目標を読む（任意。無ければ空リスト）。
+     *
+     * <p>idの形と重複だけをここで弾く。「測る問題があるか」までは
+     * {@code tools/check-objectives.sh} が見る（サーバーを立てずに数秒で分かるようにするため）。
+     */
+    private List<Objective> parseObjectives(Map<String, Object> raw, String chapterId) {
+        List<Objective> objectives = new ArrayList<>();
+        java.util.Set<String> seen = new java.util.HashSet<>();
+        for (Object entry : MiniJson.list(raw, "objectives")) {
+            Map<String, Object> o = MiniJson.asObj(entry);
+            String id = MiniJson.requireStr(o, "id");
+            // 章のidは `ch03` のほか、旧来の `30` のような形も残っている。
+            // 形を決め打ちせず、その章のid＋`-oM` を要求する。
+            if (!id.matches(java.util.regex.Pattern.quote(chapterId) + "-o\\d+")) {
+                throw new IllegalStateException("章 " + chapterId
+                        + " の到達目標のidは「章のid + -oM」にしてください（例: " + chapterId + "-o1）: " + id);
+            }
+            if (!seen.add(id)) {
+                throw new IllegalStateException("章 " + chapterId + " の到達目標のidが重複しています: " + id);
+            }
+            objectives.add(new Objective(id, MiniJson.requireStr(o, "text")));
+        }
+        return objectives;
+    }
+
+    /**
+     * {@code objectiveIds} を読み、その章に無いIDなら起動時に止める。
+     *
+     * <p>黙って無視すると、画面には目標が出ているのにどの問題からも測られない状態が
+     * 気づかれずに残る。他の不正参照と同じく、起動時に落として気づけるようにする。
+     */
+    private List<String> parseObjectiveIds(Map<String, Object> raw, String where,
+                                           java.util.Set<String> known) {
+        List<String> ids = new ArrayList<>();
+        for (String id : stringList(raw, "objectiveIds")) {
+            if (!known.contains(id)) {
+                throw new IllegalStateException(where + " の objectiveIds が章の到達目標にありません: "
+                        + id + "（章に書いたidは " + known + "）");
+            }
+            if (!ids.contains(id)) {
+                ids.add(id);
+            }
+        }
+        return ids;
+    }
+
     private Lesson parseLesson(Map<String, Object> raw, String chapterId, List<String> chapterLibs,
-                               Map<String, List<SourceFile>> libCache) {
+                               Map<String, List<SourceFile>> libCache,
+                               java.util.Set<String> objectiveIds) {
         String id = MiniJson.requireStr(raw, "id");
         // typeは1問目のartifact/project種別として既に使われているため、
         // レッスン自体の種類はlessonTypeへ分ける。
@@ -172,10 +227,11 @@ public final class ContentLoader {
                 MiniJson.requireStr(raw, "title"),
                 MiniJson.str(raw, "explanation", ""),
                 List.copyOf(samples),
-                preflight == null ? parseTasks(raw, id) : List.of(),
+                preflight == null ? parseTasks(raw, id, objectiveIds) : List.of(),
                 parseQuizzes(raw, id),
                 resolveLibs(chapterLibs, stringList(raw, "libs"), id, libCache),
-                preflight);
+                preflight,
+                List.copyOf(parseObjectiveIds(raw, "レッスン " + id, objectiveIds)));
     }
 
     private PreflightSpec parsePreflight(Map<String, Object> raw, String lessonId) {
@@ -312,16 +368,18 @@ public final class ContentLoader {
      * だから extraTasks は **末尾に足す**（途中に挿入すると連番がずれて、
      * すでにクリアした問題が別の問題として扱われてしまう）。
      */
-    private List<Task> parseTasks(Map<String, Object> raw, String lessonId) {
+    private List<Task> parseTasks(Map<String, Object> raw, String lessonId,
+                                 java.util.Set<String> objectiveIds) {
         List<Task> tasks = new ArrayList<>();
-        tasks.add(parseTask(raw, lessonId, 1, "practice"));
+        tasks.add(parseTask(raw, lessonId, 1, "practice", objectiveIds));
         for (Object o : MiniJson.list(raw, "extraTasks")) {
-            tasks.add(parseTask(MiniJson.asObj(o), lessonId, tasks.size() + 1, "drill"));
+            tasks.add(parseTask(MiniJson.asObj(o), lessonId, tasks.size() + 1, "drill", objectiveIds));
         }
         return List.copyOf(tasks);
     }
 
-    private Task parseTask(Map<String, Object> raw, String lessonId, int number, String defaultKind) {
+    private Task parseTask(Map<String, Object> raw, String lessonId, int number, String defaultKind,
+                           java.util.Set<String> objectiveIds) {
         String id = String.valueOf(number);
         String where = "レッスン " + lessonId + " の問題" + number;
 
@@ -406,7 +464,8 @@ public final class ContentLoader {
                 artifact,
                 project,
                 runtimeLab,
-                List.copyOf(rubric));
+                List.copyOf(rubric),
+                List.copyOf(parseObjectiveIds(raw, where, objectiveIds)));
     }
 
     private RuntimeLabSpec parseRuntimeLab(Map<String, Object> raw, String where) {

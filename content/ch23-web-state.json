@@ -3,6 +3,24 @@
   "title": "画面遷移と状態管理",
   "subtitle": "スコープ・セッション・Cookie・フィルタ",
   "emoji": "🧭",
+  "objectives": [
+    {
+      "id": "ch23-o1",
+      "text": "request属性とforward、redirectを使い分けられる"
+    },
+    {
+      "id": "ch23-o2",
+      "text": "セッションで利用者ごとの状態を持ち、ログアウトで破棄できる"
+    },
+    {
+      "id": "ch23-o3",
+      "text": "Cookieに保存してよいものを見分け、`HttpOnly` や期限を付けて扱える"
+    },
+    {
+      "id": "ch23-o4",
+      "text": "Filterで認証などの共通処理を切り出し、失敗時にchainを止められる"
+    }
+  ],
   "libs": [
     "jakarta-servlet",
     "mini-web"
@@ -46,6 +64,9 @@
     {
       "id": "23-1",
       "title": "request属性とforward",
+      "objectiveIds": [
+        "ch23-o1"
+      ],
       "explanation": "## はじめて学ぶ人へ\n\n`forward` は、同じサーバの中で処理を引き継ぐ**バトン渡し**です。最初の処理が用意した値をrequest属性へ入れ、表示担当へ同じrequestごと渡します。ブラウザから見ると1回のアクセスのままなのでURLも変わりません。\n\n```text\nブラウザ → /user → requestへ userName を保存 → forward → /user-view\n```\n\n`redirect` はブラウザへ「次はこのURLへ行ってください」と返す案内です。そこで新しいリクエストが始まるため、request属性は引き継がれずURLも変わります。検索結果の表示などはforward、登録後の再読み込みによる二重登録を防ぎたいときは `POST → redirect → GET` と使い分けるのが基本です。\n\n## 値を渡して別の処理へ進む\n\nControllerでデータを用意し、ビューへ表示を任せるときはリクエスト属性を使います。\n\n```java\nreq.setAttribute(\"user\", user);\nreq.getRequestDispatcher(\"/view\").forward(req, res);\n```\n\n`getParameter` は利用者から来た文字列、`getAttribute` はサーバ内で置いたObjectです。同名でも別物です。requestスコープは1リクエストだけなので、別の利用者と混ざりません。forwardはサーバ内部で同じrequest/responseを引き継ぎます。\n\n```svg forward はサーバの中でバトンを渡す。redirect はブラウザに行き先を伝えて、新しく始まる\n<svg viewBox=\"0 0 720 262\">\n  <text class=\"fig-t fig-title\" x=\"180\" y=\"22\" text-anchor=\"middle\">forward</text>\n  <text class=\"fig-t fig-title\" x=\"538\" y=\"22\" text-anchor=\"middle\">redirect</text>\n\n  <rect class=\"fig-box\" x=\"14\" y=\"44\" width=\"110\" height=\"40\" rx=\"6\"/>\n  <text class=\"fig-t fig-small\" x=\"69\" y=\"64\" text-anchor=\"middle\">ブラウザ</text>\n  <rect class=\"fig-region\" x=\"150\" y=\"38\" width=\"200\" height=\"120\" rx=\"8\"/>\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"250\" y=\"56\" text-anchor=\"middle\">サーバの中（同じ request）</text>\n  <rect class=\"fig-box\" x=\"166\" y=\"68\" width=\"168\" height=\"34\" rx=\"6\"/>\n  <text class=\"fig-t fig-mono fig-small\" x=\"250\" y=\"85\" text-anchor=\"middle\">/user</text>\n  <line class=\"fig-line-accent\" x1=\"250\" y1=\"102\" x2=\"250\" y2=\"118\" marker-end=\"arrow-accent\"/>\n  <rect class=\"fig-box\" x=\"166\" y=\"120\" width=\"168\" height=\"34\" rx=\"6\"/>\n  <text class=\"fig-t fig-mono fig-small\" x=\"250\" y=\"137\" text-anchor=\"middle\">/user-view</text>\n  <line class=\"fig-line\" x1=\"128\" y1=\"64\" x2=\"162\" y2=\"70\" marker-end=\"arrow\"/>\n  <text class=\"fig-t fig-t-ok fig-small\" x=\"14\" y=\"182\">URL は変わらない</text>\n  <text class=\"fig-t fig-t-ok fig-small\" x=\"14\" y=\"204\">request 属性を引き継ぐ</text>\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"14\" y=\"226\">検索結果の表示などに向く</text>\n\n  <rect class=\"fig-box\" x=\"380\" y=\"44\" width=\"110\" height=\"40\" rx=\"6\"/>\n  <text class=\"fig-t fig-small\" x=\"435\" y=\"64\" text-anchor=\"middle\">ブラウザ</text>\n  <rect class=\"fig-box\" x=\"560\" y=\"44\" width=\"146\" height=\"40\" rx=\"6\"/>\n  <text class=\"fig-t fig-mono fig-small\" x=\"633\" y=\"64\" text-anchor=\"middle\">POST /orders</text>\n  <line class=\"fig-line\" x1=\"494\" y1=\"60\" x2=\"556\" y2=\"60\" marker-end=\"arrow\"/>\n  <line class=\"fig-line-accent\" x1=\"556\" y1=\"96\" x2=\"494\" y2=\"96\" marker-end=\"arrow-accent\"/>\n  <text class=\"fig-t fig-mono fig-small fig-t-accent\" x=\"525\" y=\"114\" text-anchor=\"middle\">302 Location: /done</text>\n  <rect class=\"fig-box\" x=\"560\" y=\"128\" width=\"146\" height=\"40\" rx=\"6\"/>\n  <text class=\"fig-t fig-mono fig-small\" x=\"633\" y=\"148\" text-anchor=\"middle\">GET /done</text>\n  <line class=\"fig-line\" x1=\"494\" y1=\"144\" x2=\"556\" y2=\"144\" marker-end=\"arrow\"/>\n  <text class=\"fig-t fig-t-ng fig-small\" x=\"380\" y=\"182\">URL が変わる</text>\n  <text class=\"fig-t fig-t-ng fig-small\" x=\"380\" y=\"204\">新しい request なので属性は失われる</text>\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"380\" y=\"226\">登録後の二重送信を防ぐ POST → Redirect → GET</text>\n\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"360\" y=\"252\" text-anchor=\"middle\">getParameter は利用者から来た文字列、getAttribute はサーバ内で置いた値。同じ名前でも別物</text>\n</svg>\n```\n\n一方 `sendRedirect(\"/login\")` は302を返し、ブラウザに別リクエストを依頼します。URLは変わりますがrequest属性は失われます。保存成功後は再読み込みによる二重登録を避けるため、POST→Redirect→GET（PRG）を使うのが定石です。",
       "samples": [
         {
@@ -145,6 +166,9 @@
     {
       "id": "23-2",
       "title": "セッションで利用者ごとの状態を持つ",
+      "objectiveIds": [
+        "ch23-o2"
+      ],
       "explanation": "## はじめて学ぶ人へ\n\nHTTPは本来、前回のアクセスを覚えていません。セッションは、受付が利用者ごとに預かり物を保管する**ロッカー**のような仕組みです。ブラウザはロッカー番号を持ち、サーバはその番号に対応する小さなデータを保管します。\n\n```text\n1回目: alice が商品Aを追加 → alice用セッションに保存\n2回目: alice が表示       → 商品Aが残っている\n3回目: bob が表示         → bob用なので空のまま\n```\n\n`getSession()` は無ければ新しいロッカーを作り、`getSession(false)` は既存のものだけを探します。ログアウトでは `invalidate()` で中身を破棄します。パスワードや巨大な一覧ではなく、ログイン中の利用者IDやカートIDなど、次のリクエストに必要な小さな値だけを置きましょう。\n\n## HTTPをまたいで覚える\n\n`req.getSession()` はセッションを取得し、無ければ作ります。属性は同じブラウザの次のリクエストにも残ります。\n\n```java\nHttpSession session = req.getSession();\nsession.setAttribute(\"loginUser\", \"yamada\");\nString user = (String) session.getAttribute(\"loginUser\");\n```\n\n```svg 1回目に渡した番号（`JSESSIONID`）を2回目に持ってくるので、同じロッカーが開く\n<svg viewBox=\"0 0 720 300\">\n  <rect class=\"fig-box\" x=\"40\" y=\"18\" width=\"160\" height=\"32\" rx=\"6\"/>\n  <text class=\"fig-t fig-small\" x=\"120\" y=\"34\" text-anchor=\"middle\">ブラウザ（alice）</text>\n  <rect class=\"fig-box\" x=\"440\" y=\"18\" width=\"160\" height=\"32\" rx=\"6\"/>\n  <text class=\"fig-t fig-small\" x=\"520\" y=\"34\" text-anchor=\"middle\">サーバ</text>\n  <line class=\"fig-line-soft fig-dashed\" x1=\"120\" y1=\"50\" x2=\"120\" y2=\"262\"/>\n  <line class=\"fig-line-soft fig-dashed\" x1=\"520\" y1=\"50\" x2=\"520\" y2=\"262\"/>\n\n  <text class=\"fig-t fig-mono fig-small\" x=\"319\" y=\"74\" text-anchor=\"middle\">GET /cart（Cookie なし）</text>\n  <line class=\"fig-line\" x1=\"122\" y1=\"86\" x2=\"516\" y2=\"86\" marker-end=\"arrow\"/>\n  <text class=\"fig-t fig-mono fig-small\" x=\"319\" y=\"106\" text-anchor=\"middle\">Set-Cookie: JSESSIONID=abc</text>\n  <line class=\"fig-line\" x1=\"518\" y1=\"118\" x2=\"124\" y2=\"118\" marker-end=\"arrow\"/>\n\n  <rect class=\"fig-box-accent\" x=\"556\" y=\"86\" width=\"150\" height=\"56\" rx=\"6\"/>\n  <text class=\"fig-t fig-t-accent fig-small\" x=\"631\" y=\"104\" text-anchor=\"middle\">セッション abc</text>\n  <text class=\"fig-t fig-mono fig-small\" x=\"631\" y=\"124\" text-anchor=\"middle\">cart = [商品A]</text>\n\n  <text class=\"fig-t fig-mono fig-small\" x=\"319\" y=\"164\" text-anchor=\"middle\">GET /cart + Cookie: JSESSIONID=abc</text>\n  <line class=\"fig-line\" x1=\"122\" y1=\"176\" x2=\"516\" y2=\"176\" marker-end=\"arrow\"/>\n  <text class=\"fig-t fig-small\" x=\"319\" y=\"196\" text-anchor=\"middle\">商品A が入ったカートを返す</text>\n  <line class=\"fig-line\" x1=\"518\" y1=\"208\" x2=\"124\" y2=\"208\" marker-end=\"arrow\"/>\n  <text class=\"fig-t fig-t-ok fig-small\" x=\"319\" y=\"236\" text-anchor=\"middle\">番号が一致するので、同じロッカーが開く</text>\n\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"360\" y=\"284\" text-anchor=\"middle\">別のブラウザ（bob）は番号が違うので別のセッション。getSession(false) なら、無いときに作らない</text>\n</svg>\n```\n\n存在確認だけなら `getSession(false)` を使います。これなら未ログイン利用者に空セッションを大量作成しません。ログアウトでは `invalidate()` でセッション全体を破棄します。セッションには認証済みIDやカートIDなど小さな値だけを置き、パスワードや巨大な一覧は置きません。\n\n教材の入力では3つ目の語がブラウザ名です。`GET /count alice` と `GET /count bob` は別セッションになります。",
       "samples": [
         {
@@ -247,6 +271,9 @@
     {
       "id": "23-3",
       "title": "Cookieを安全に使う",
+      "objectiveIds": [
+        "ch23-o3"
+      ],
       "explanation": "## はじめて学ぶ人へ\n\nCookieは、サーバがブラウザへ渡して保管してもらう**小さなカード**です。次のアクセスでブラウザがそのカードを返すため、言語設定やセッション識別子などを覚えられます。\n\n```text\nレスポンス: Set-Cookie: theme=dark\n次のリクエスト: Cookie: theme=dark\n```\n\nCookieの内容は利用者から見たり書き換えたりできるため、「Cookieにあるから正しい」と信用してはいけません。パスワードや権限そのものは保存せず、`HttpOnly`、`Secure`、`SameSite`、有効期限、送信先のPathを目的に合わせて設定します。サーバ側で管理すべき情報と、ブラウザ側に置いてよい設定値を分けることが大切です。\n\n## ブラウザ側に保存する小さな文字列\n\nCookieはレスポンスで渡され、次回からブラウザが送り返します。設定保存やセッションIDに使います。\n\n```java\nCookie c = new Cookie(\"theme\", \"dark\");\nc.setMaxAge(60 * 60 * 24 * 30);\nc.setPath(\"/\");\nc.setHttpOnly(true);\nc.setSecure(true);\nres.addCookie(c);\n```\n\n削除は同名・同PathのCookieを `maxAge=0` で返します。`getCookies()` は無いときnullです。認証情報そのものや個人情報をCookieへ平文保存してはいけません。セッションCookieにはHttpOnly、HTTPS運用ではSecure、状態変更にはSameSiteとCSRF対策が重要です。教材のCookieは学習用でSameSiteまでは再現しません。",
       "samples": [
         {
@@ -340,6 +367,9 @@
     {
       "id": "23-4",
       "title": "Filterで共通処理を切り出す",
+      "objectiveIds": [
+        "ch23-o4"
+      ],
       "explanation": "## はじめて学ぶ人へ\n\nFilterは、各サーブレットの手前に置く**共通の受付ゲート**です。入館証の確認を各部屋で繰り返す代わりに、入口で一度確認するイメージです。認証、文字コード設定、ログ、処理時間の計測など、複数画面に共通する処理を集められます。\n\n```text\nFilterの前処理 → chain.doFilter(...) → Servlet → Filterの後処理\n```\n\n`chain.doFilter` を呼ばないと、その先のサーブレットへ進みません。未ログインなら401を返して止め、問題なければchainへ渡す、という分岐ができます。後処理はサーブレットから戻ったあとに動くため、開始時刻との差から処理時間を測る用途にも向いています。\n\n## 入口を横切る処理\n\n文字コード、認証、ログのように全サーブレット共通の処理はFilterへ置きます。\n\n```java\n@WebFilter(\"/admin/*\")\nclass AuthFilter implements Filter {\n public void doFilter(HttpServletRequest req, HttpServletResponse res, FilterChain chain)\n         throws ServletException, IOException {\n   if (req.getSession(false) == null) {\n     res.sendError(401);\n     return;                 // chainを呼ばない＝ここで止める\n   }\n   chain.doFilter(req, res); // 次のFilter、最後はServlet\n }\n}\n```\n\n```svg `chain.doFilter` を呼ぶと先へ進み、呼ばなければそこで止まる\n<svg viewBox=\"0 0 720 240\">\n  <rect class=\"fig-box\" x=\"14\" y=\"70\" width=\"110\" height=\"52\" rx=\"6\"/>\n  <text class=\"fig-t fig-small\" x=\"69\" y=\"96\" text-anchor=\"middle\">リクエスト</text>\n\n  <rect class=\"fig-box-accent\" x=\"160\" y=\"56\" width=\"200\" height=\"80\" rx=\"6\"/>\n  <text class=\"fig-t fig-mono fig-small fig-t-accent\" x=\"260\" y=\"76\" text-anchor=\"middle\">AuthFilter</text>\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"260\" y=\"98\" text-anchor=\"middle\">前処理（文字コード・認証）</text>\n  <text class=\"fig-t fig-mono fig-small\" x=\"260\" y=\"120\" text-anchor=\"middle\">chain.doFilter(...)</text>\n\n  <rect class=\"fig-box\" x=\"400\" y=\"56\" width=\"180\" height=\"80\" rx=\"6\"/>\n  <text class=\"fig-t fig-small\" x=\"490\" y=\"88\" text-anchor=\"middle\">サーブレット</text>\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"490\" y=\"110\" text-anchor=\"middle\">本来の処理</text>\n\n  <line class=\"fig-line\" x1=\"128\" y1=\"96\" x2=\"156\" y2=\"96\" marker-end=\"arrow\"/>\n  <line class=\"fig-line-ok\" x1=\"364\" y1=\"84\" x2=\"396\" y2=\"84\" marker-end=\"arrow-ok\"/>\n  <text class=\"fig-t fig-t-ok fig-small\" x=\"380\" y=\"66\" text-anchor=\"middle\">通す</text>\n  <line class=\"fig-line fig-dashed\" x1=\"396\" y1=\"116\" x2=\"364\" y2=\"116\" marker-end=\"arrow\"/>\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"706\" y=\"84\" text-anchor=\"end\">戻ったあとに後処理が動く</text>\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"706\" y=\"106\" text-anchor=\"end\">処理時間の計測などに使える</text>\n\n  <line class=\"fig-line-ng\" x1=\"260\" y1=\"136\" x2=\"260\" y2=\"168\" marker-end=\"arrow-ng\"/>\n  <rect class=\"fig-box-ng\" x=\"160\" y=\"172\" width=\"200\" height=\"44\" rx=\"6\"/>\n  <text class=\"fig-t fig-small fig-t-ng\" x=\"260\" y=\"188\" text-anchor=\"middle\">未ログインなら 401 を返す</text>\n  <text class=\"fig-t fig-mono fig-small fig-t-ng\" x=\"260\" y=\"208\" text-anchor=\"middle\">chain を呼ばず return</text>\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"380\" y=\"192\">サーブレットまで届かない</text>\n\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"14\" y=\"236\">Filter は順序が結果に影響する。URLで守るだけでなく、重要な業務操作は Service 層でも守る</text>\n</svg>\n```\n\n前処理はchainより前、後処理はchainから戻った後です。Filterの順序は結果に影響します。認証と権限（誰か／何をしてよいか）を分け、URLだけでなくService層でも重要な業務操作を守ります。",
       "samples": [
         {
@@ -469,6 +499,9 @@
     {
       "id": "23-5",
       "title": "章末演習：Webの状態管理",
+      "objectiveIds": [
+        "ch23-o1"
+      ],
       "explanation": "## この章の知識を、自分の手で組み合わせよう\n\nここでは、**forward・request属性・session・Cookie・Filter**をまとめて使います。新しい文法は登場しません。分からなくなったら、直前までの解説やサンプルへ戻って確認して大丈夫です。\n\n### 3問の進め方\n\n1. **基本**で、中心となる書き方をもう一度使う\n2. **組み合わせ**で、章内の複数の知識を一緒に使う\n3. **実践**で、少し現実的な入力と条件を整理する\n\nまず入力例と期待される出力を紙に書き、処理を小さな手順へ分けてからコードにすると進めやすくなります。",
       "samples": [
         {
@@ -505,6 +538,9 @@
       "solution": "import jakarta.servlet.*;\nimport jakarta.servlet.annotation.WebServlet;\nimport jakarta.servlet.http.*;\nimport java.io.*;\n\n@WebServlet(\"/profile\")\npublic class Main extends HttpServlet {\n    protected void doGet(HttpServletRequest req, HttpServletResponse res) throws ServletException, IOException {\n        String name = req.getParameter(\"name\");\n        if (name == null || name.isBlank()) {\n            res.sendError(400, \"nameは必須です\");\n            return;\n        }\n        req.setAttribute(\"displayName\", name);\n        req.getRequestDispatcher(\"/profile-view\").forward(req, res);\n    }\n\n    public static void main(String[] args) {\n        MiniWeb.app().register(Main.class).register(ProfileView.class).serve();\n    }\n}\n\n@WebServlet(\"/profile-view\")\nclass ProfileView extends HttpServlet {\n    protected void doGet(HttpServletRequest req, HttpServletResponse res) throws IOException {\n        res.getWriter().println(\"利用者: \" + req.getAttribute(\"displayName\"));\n    }\n}\n",
       "extraTasks": [
         {
+          "objectiveIds": [
+            "ch23-o2"
+          ],
           "kind": "drill",
           "task": "【組み合わせ】GET `/visits` のたびにセッション属性countを1増やし、`visits=n` と表示してください。3つ目の入力語が異なるブラウザ名なら別に数えられます。",
           "starterCode": "import jakarta.servlet.annotation.WebServlet;\nimport jakarta.servlet.http.*;\nimport java.io.*;\n\n@WebServlet(\"/visits\")\npublic class Main extends HttpServlet {\n    protected void doGet(HttpServletRequest req, HttpServletResponse res) throws IOException {\n        /* TODO */\n    }\n\n    public static void main(String[] args) {\n        MiniWeb.app().register(Main.class).serve();\n    }\n}\n",
@@ -534,7 +570,7 @@
           "solution": "import jakarta.servlet.annotation.WebServlet;\nimport jakarta.servlet.http.*;\nimport java.io.*;\n\n@WebServlet(\"/visits\")\npublic class Main extends HttpServlet {\n    protected void doGet(HttpServletRequest req, HttpServletResponse res) throws IOException {\n        HttpSession session = req.getSession();\n        Integer count = (Integer) session.getAttribute(\"count\");\n        count = count == null ? 1 : count + 1;\n        session.setAttribute(\"count\", count);\n        res.getWriter().println(\"visits=\" + count);\n    }\n\n    public static void main(String[] args) {\n        MiniWeb.app().register(Main.class).serve();\n    }\n}\n",
           "sourceChecks": [
             {
-              "pattern": "\\bgetSession\\s*\\(\\s*\\)",
+              "pattern": "\\bgetSession\\s*\\(\\s*(?:true\\s*)?\\)",
               "minimum": 1,
               "message": "数を持ち回すのでセッションを使います。無ければ作りたいので、引数なしの `getSession()` です。"
             },
@@ -551,6 +587,9 @@
           ]
         },
         {
+          "objectiveIds": [
+            "ch23-o3"
+          ],
           "kind": "applied",
           "task": "【実践】GET `/theme?set=dark` またはlightでCookie `theme` を保存し、`theme=値` と表示します。setがないときはCookieを読み、未保存ならlightを使います。不正なsetは400です。CookieのPathは `/` にしてください。",
           "starterCode": "import jakarta.servlet.annotation.WebServlet;\nimport jakarta.servlet.http.*;\nimport java.io.*;\n\n@WebServlet(\"/theme\")\npublic class Main extends HttpServlet {\n    protected void doGet(HttpServletRequest req, HttpServletResponse res) throws IOException {\n        /* TODO */\n    }\n\n    public static void main(String[] args) {\n        MiniWeb.app().register(Main.class).showCookies().serve();\n    }\n}\n",
@@ -602,6 +641,9 @@
           ]
         },
         {
+          "objectiveIds": [
+            "ch23-o2"
+          ],
           "kind": "applied",
           "type": "runtime-lab",
           "task": "【実行演習】`labs/jakarta-web/session-exercise`で、**実Open Liberty**へ配備した買い物かごを直します。\n\n採点は`mvn package`でWARを作り、Libertyを動的ポートで起動して、**Cookieの入れ物を分けた2つのHTTP client**（＝別々のブラウザ）で実測します。\n\n`src/main/java/cafe/web/CartServlet.java`はかごをServletのフィールドに持っているので、**全員が同じかごを見ます**。直すのは(2)〜(4)の3つです。\n\n(1)同じブラウザで追加したものが次の要求にも残ること。**これはいまも通っています。**直す対象ではなく、他を直すときに壊さないための見張りです（かごを要求属性へ移すと、この検査が落ちます）。\n(2)**別のブラウザから他人のかごが見えないこと。**利用者ごとの状態はセッションへ持ちます。\n(3)`POST /cart/login?user=X`で**セッションIDを作り直す**こと。ログイン前のIDを使い続けると、攻撃者が先に取得させたIDでログイン後のセッションへ入れます（セッション固定攻撃）。検査はログイン前のIDを提示する第三者が入れないことまで確かめます。\n(4)`visitor` Cookieに`HttpOnly`と`SameSite`を付けること。`Secure`はHTTPSでだけ送る属性なので、この演習（HTTP）では付けません。\n\nURLは`GET /cart`・`POST /cart?item=X`・`POST /cart/login?user=X`・`POST /cart/logout`です。応答の形（`user=<名前> cart=[品名, 品名]`）とマッピングは採点の足場が読むので変えないでください。",

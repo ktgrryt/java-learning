@@ -1,6 +1,8 @@
 # Jakarta Data の lab
 
-Jakarta Data 1.0 のリポジトリを宣言します。第24章「Jakarta EE 11アップデート」の `48-5` が採点に使います。
+Jakarta Data 1.0 のリポジトリを宣言します。
+Web・Jakarta EE編『Jakarta EE 11アップデート』の「章末演習：Jakarta EE 11アップデート」が
+採点に使います。
 
 ```
 sh run-runtime-lab.sh

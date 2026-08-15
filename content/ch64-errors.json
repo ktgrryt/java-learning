@@ -1,0 +1,470 @@
+{
+  "id": "ch64",
+  "title": "エラーを読む",
+  "subtitle": "止まったときに自分で戻れるようにする",
+  "emoji": "🔎",
+  "objectives": [
+    {
+      "id": "ch64-o1",
+      "text": "コンパイルエラーの1行目から、直す場所と原因の種類を読める"
+    },
+    {
+      "id": "ch64-o2",
+      "text": "stack traceの `at` の行から、自分が書いた場所を見つけられる"
+    },
+    {
+      "id": "ch64-o3",
+      "text": "コンパイルも実行も通るのに答えが違うコードを、原因を絞って直せる"
+    },
+    {
+      "id": "ch64-o4",
+      "text": "例外が出る入力を自分で確かめ、落ちないように直せる"
+    }
+  ],
+  "lessons": [
+    {
+      "id": "64-1",
+      "title": "エラーメッセージを読む",
+      "objectiveIds": [
+        "ch64-o1",
+        "ch64-o3"
+      ],
+      "explanation": "## 赤い文字が出たら、まず1行目を読む\n\nプログラムが動かないとき、画面にはエラーが出ます。**エラーは失敗の報告ではなく、\nどこを直せばよいかを教えてくれる案内**です。読み方には順番があります。\n\nエラーは大きく2種類あります。\n\n| 種類 | いつ出るか | 例 |\n|---|---|---|\n| コンパイルエラー | 実行する前。文法や型が合わないとき | `';' expected` |\n| 実行時エラー | 動かしている途中で困ったとき | `ArithmeticException` |\n\nこの章ではまずコンパイルエラーを読み、次のレッスンで実行時エラーを読みます。\n\n### たくさん出ても、直すのは最初の1つ\n\n`;` を1つ忘れただけで、エラーが10行以上出ることがあります。\n最初のエラーが原因で、後ろのエラーはその**とばっちり**であることが多いからです。\n\n```text\nMain.java:5: error: ';' expected\n        int x = 10\n                  ^\nMain.java:6: error: cannot find symbol\n        System.out.println(x);\n                           ^\n  symbol:   variable x\n2 errors\n```\n\n2件出ていますが、直すのは1つです。5行目に `;` を付ければ、6行目の「`x` が見つからない」も消えます。\n**下から読んだり、件数に驚いたりせず、いちばん上の1件だけを見ます。**\n\n### エラーの行はこう読む\n\n```text\nMain.java:5: error: ';' expected\n   ^^^^^^^^^ ^      ^^^^^^^^^^^\n   ファイル名 行番号  何が問題か\n```\n\n次の行に問題のコードが表示され、その下の `^` が**列の位置**を指します。\n\n### よく出る3つ\n\n| メッセージ | 意味 | よくある原因 |\n|---|---|---|\n| `';' expected` | `;` が足りない | 行末の `;` 忘れ |\n| `cannot find symbol` | その名前が見つからない | 変数名の打ち間違い、宣言し忘れ、大文字小文字の違い |\n| `incompatible types` | 型が合わない | `int` へ小数を入れた、キャストし忘れ |\n\n`cannot find symbol` は `symbol:` の行に**探している名前**が書いてあります。そこを見ると、\n打ち間違いなのか宣言し忘れなのかが分かります。\n\n### コンパイルは通るのに、答えが違うとき\n\nエラーが出ないのに結果が違うこともあります。この場合、**エラーメッセージは助けてくれません**。\n自分で「入力」「期待した結果」「実際の結果」を並べて、どこから違うのかを探します。\n\nよくある原因は次の3つです。この章の問題で実際に直します。\n\n- 整数どうしの割り算で小数が消える（`7 / 2` は `3`）\n- 文字列を `==` で比べている（`equals` を使う）\n- 境界が1つずれている（`<` と `<=` の取り違え）\n\n> 💡 直したら、**直す前と同じ入力でもう一度動かして**確かめます。\n> 「たぶん直った」で次へ進むと、別の入力で同じ失敗に戻ります。\n",
+      "samples": [
+        {
+          "caption": "整数どうしの割り算では小数が消える（入力は 7 と 2）",
+          "code": "import java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n\n        int a = sc.nextInt();\n        int b = sc.nextInt();\n\n        // int どうしの割り算なので、小数点以下が切り捨てられる\n        double wrong = a / b;\n        // 先に double へ変えると小数が残る\n        double right = (double) a / b;\n\n        System.out.println(wrong);\n        System.out.println(right);\n    }\n}\n",
+          "stdin": "7 2"
+        },
+        {
+          "caption": "文字列は == ではなく equals で比べる（入力は yes）",
+          "code": "import java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n\n        String answer = sc.next();\n\n        // == は「同じ入れ物か」を見るので、入力された文字列では false になりやすい\n        System.out.println(answer == \"yes\");\n        // equals は「中身が同じか」を見る\n        System.out.println(answer.equals(\"yes\"));\n    }\n}\n",
+          "stdin": "yes"
+        }
+      ],
+      "task": "平均点を出すプログラムがありますが、**答えが合っていません**。\n\n2つの整数を読み、平均を小数で表示するつもりのコードです。`7` と `2` を入れると\n`3.5` になるはずが、いまは `3.0` と表示されます。エラーは出ません。\n\n原因を見つけて直してください。**入力の読み方や表示の形は変えません。**\n",
+      "starterCode": "import java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n\n        int a = sc.nextInt();\n        int b = sc.nextInt();\n\n        double average = a / b;\n\n        System.out.println(average);\n    }\n}\n",
+      "visibleCases": [
+        {
+          "label": "7 と 2 のとき",
+          "stdin": "7 2",
+          "expected": "3.5"
+        },
+        {
+          "label": "9 と 3 のとき（割り切れる）",
+          "stdin": "9 3",
+          "expected": "3.0"
+        }
+      ],
+      "hiddenCases": [
+        {
+          "label": "1 と 4 のとき（1未満になる）",
+          "stdin": "1 4",
+          "expected": "0.25"
+        },
+        {
+          "label": "-7 と 2 のとき（負の数）",
+          "stdin": "-7 2",
+          "expected": "-3.5"
+        },
+        {
+          "label": "5 と 1 のとき",
+          "stdin": "5 1",
+          "expected": "5.0"
+        },
+        {
+          "label": "0 と 8 のとき",
+          "stdin": "0 8",
+          "expected": "0.0"
+        }
+      ],
+      "hints": [
+        "`int` どうしの割り算は、答えも `int` になります。小数点以下はその時点で切り捨てられます。",
+        "割り算をする**前に**片方を `double` にします。`(double) a / b` と書くと、`a` が小数になってから割られます。"
+      ],
+      "solution": "import java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n\n        int a = sc.nextInt();\n        int b = sc.nextInt();\n\n        double average = (double) a / b;\n\n        System.out.println(average);\n    }\n}\n",
+      "extraTasks": [
+        {
+          "kind": "drill",
+          "task": "合格判定のプログラムですが、**境界のときだけ答えが違います**。\n\n点数を読み、`60` 点以上なら `合格`、それ未満なら `不合格` と表示するつもりのコードです。\nいまは `60` を入れると `不合格` になります。エラーは出ません。\n\n原因を見つけて直してください。**表示する文字は変えません。**\n",
+          "starterCode": "import java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n\n        int score = sc.nextInt();\n\n        if (score > 60) {\n            System.out.println(\"合格\");\n        } else {\n            System.out.println(\"不合格\");\n        }\n    }\n}\n",
+          "visibleCases": [
+            {
+              "label": "60 のとき（境界）",
+              "stdin": "60",
+              "expected": "合格"
+            },
+            {
+              "label": "59 のとき",
+              "stdin": "59",
+              "expected": "不合格"
+            }
+          ],
+          "hiddenCases": [
+            {
+              "label": "61 のとき",
+              "stdin": "61",
+              "expected": "合格"
+            },
+            {
+              "label": "0 のとき",
+              "stdin": "0",
+              "expected": "不合格"
+            },
+            {
+              "label": "100 のとき",
+              "stdin": "100",
+              "expected": "合格"
+            },
+            {
+              "label": "-5 のとき",
+              "stdin": "-5",
+              "expected": "不合格"
+            }
+          ],
+          "hints": [
+            "`60` 点のときにどちらへ入るかを、いまの条件で確かめてみます。",
+            "「以上」は `>=` です。`>` だと `60` そのものが含まれません。"
+          ],
+          "solution": "import java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n\n        int score = sc.nextInt();\n\n        if (score >= 60) {\n            System.out.println(\"合格\");\n        } else {\n            System.out.println(\"不合格\");\n        }\n    }\n}\n"
+        }
+      ],
+      "quiz": [
+        {
+          "question": "次のエラーが出ました。まず直すのはどこでしょう。\n\n```text\nMain.java:5: error: ';' expected\n        int x = 10\n                  ^\nMain.java:6: error: cannot find symbol\n        System.out.println(x);\n                           ^\n  symbol:   variable x\n2 errors\n```\n",
+          "choices": [
+            "5行目に `;` を付ける",
+            "6行目の `x` を別の名前に変える",
+            "2件とも別の原因なので両方を直す",
+            "6行目で `x` を宣言し直す"
+          ],
+          "answer": 0,
+          "explanation": "**最初のエラーだけを見ます。** 5行目の `;` が無いために `int x = 10` の宣言が完成せず、6行目では `x` が存在しないことになって2件目が出ています。5行目を直せば2件とも消えます。エラーの件数は、原因の数ではありません。"
+        },
+        {
+          "question": "`cannot find symbol` が出たとき、原因を絞る手がかりとして最も役に立つのはどれでしょう。",
+          "choices": [
+            "エラーの総件数",
+            "`symbol:` の行に書かれている名前",
+            "コンパイルにかかった時間",
+            "ファイルの行数"
+          ],
+          "answer": 1,
+          "explanation": "`symbol:` の行に**探している名前**が書かれています。そこを見れば、打ち間違い（`socre` と `score`）なのか、宣言し忘れなのか、大文字小文字の違いなのかを判断できます。件数や時間は原因を教えてくれません。"
+        },
+        {
+          "question": "次のコードはコンパイルできません。エラーの種類はどれでしょう。\n\n```java\nint count = 3.5;\n```\n",
+          "choices": [
+            "`';' expected`",
+            "`cannot find symbol`",
+            "`incompatible types`",
+            "エラーにならず 3 が入る"
+          ],
+          "answer": 2,
+          "explanation": "`int` へ小数を入れようとしているので **型が合いません**（`incompatible types`）。小数を切り捨てて入れたいなら `(int) 3.5` とキャストを書きます。**勝手に切り捨ててはくれません。** 値が変わる変換は、書いた人が明示する決まりです。"
+        },
+        {
+          "question": "コンパイルも実行も通るのに答えが違うとき、最初にすることはどれでしょう。",
+          "choices": [
+            "例外が出ていないか、ログをもう一度探す",
+            "コードを上から書き直し、同じ結果になるか見る",
+            "入力・期待した結果・実際の結果を並べて比べる",
+            "入力の数値を変えて何度か実行し、傾向を見る"
+          ],
+          "answer": 2,
+          "explanation": "まず事実をそろえます。どの入力で、何を期待し、実際に何が出たのかを並べると、どの段階から食い違ったのかが絞れます。値を変えて試すのは、そのあとです。"
+        }
+      ]
+    },
+    {
+      "id": "64-2",
+      "title": "実行時エラーとstack traceを読む",
+      "objectiveIds": [
+        "ch64-o2",
+        "ch64-o4"
+      ],
+      "explanation": "## 動かしている途中で止まったとき\n\nコンパイルが通っても、動かしている途中で困ることがあります。\nそのときJavaは**どこで、何に困ったか**を報告します。これが実行時エラーです。\n\n```text\nException in thread \"main\" java.lang.ArithmeticException: ゼロ除算\n\tat Main.main(Main.java:8)\n```\n\n読む順番は3つです。\n\n| 見るもの | 上の例 | 分かること |\n|---|---|---|\n| 例外の名前 | `ArithmeticException` | 計算で困った |\n| `:` の後ろのメッセージ | `ゼロ除算` | 0で割った |\n| `at` の行 | `Main.java:8` | 8行目で起きた |\n\n**名前とメッセージで「何が」、`at` の行で「どこで」が分かります。** この2つが分かれば、\nあとはその行を読むだけです。\n\n### at の行が何行も出るとき\n\n`at` の行は、**呼ばれた順の逆**に並びます。いちばん上が実際に止まった場所です。\n\n```text\nException in thread \"main\" java.lang.NumberFormatException: For input string: \"abc\"\n\tat java.base/java.lang.Integer.parseInt(Integer.java:652)\n\tat java.base/java.lang.Integer.parseInt(Integer.java:770)\n\tat Main.main(Main.java:9)\n```\n\n上の2行は `java.base/...` で始まっています。これは**Javaが用意した部分**なので、\n直す場所ではありません。探すのは**自分のファイル名が出ている行**（`Main.java:9`）です。\n\n> 💡 上から順に見て、**最初に出てくる自分のファイルの行**を探します。\n> そこが、自分のコードから見た原因の場所です。\n\n### よく出る3つ\n\n| 例外 | 意味 | よくある原因 |\n|---|---|---|\n| `ArithmeticException: ゼロ除算` | 整数を0で割った | 割る数が0になる場合を考えていない |\n| `NumberFormatException` | 文字列を数へ変えられない | 数字でない文字が混ざっている |\n| `InputMismatchException` | 入力の形が期待と違う | `nextInt()` に数字以外が来た |\n\n`ゼロ除算` は整数の割り算だけで起きます（英語環境では `/ by zero` と出ます）。`double` の割り算は例外にならず `Infinity` になります。\n**同じ「0で割る」でも、型によって結果が違います。**\n\n### 落ちる前に確かめる\n\n実行時エラーは、多くの場合**入力を確かめれば防げます**。\n0で割る前に「割る数が0か」を確かめる、変換する前に「数字か」を確かめる、という形です。\n\n> ⚠️ 間違えやすい点 … エラーが出た行を消せば「動くように」なりますが、それは直したことに\n> なりません。**その入力が来たときに何を返すべきか**を決めてから書きます。\n",
+      "samples": [
+        {
+          "caption": "整数の0除算は例外、小数の0除算はInfinity（入力は 10 と 0）",
+          "code": "import java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n\n        int a = sc.nextInt();\n        int b = sc.nextInt();\n\n        // 割る数が0かどうかを先に確かめる\n        if (b == 0) {\n            System.out.println(\"0では割れません\");\n        } else {\n            System.out.println(a / b);\n        }\n\n        // 小数の割り算は例外にならない\n        System.out.println((double) a / b);\n    }\n}\n",
+          "stdin": "10 0"
+        }
+      ],
+      "task": "割り算のプログラムですが、**ある入力で落ちます**。\n\n2つの整数を読み、`a / b` の商を表示します。`10` と `0` を入れると、いまは\n`ArithmeticException: ゼロ除算` で止まります。\n\n割る数が `0` のときは、計算せずに `0では割れません` と表示するように直してください。\nそれ以外のときは、いまと同じように商を表示します。\n",
+      "starterCode": "import java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n\n        int a = sc.nextInt();\n        int b = sc.nextInt();\n\n        System.out.println(a / b);\n    }\n}\n",
+      "visibleCases": [
+        {
+          "label": "10 と 0 のとき（落ちていた入力）",
+          "stdin": "10 0",
+          "expected": "0では割れません"
+        },
+        {
+          "label": "10 と 2 のとき",
+          "stdin": "10 2",
+          "expected": "5"
+        }
+      ],
+      "hiddenCases": [
+        {
+          "label": "0 と 0 のとき",
+          "stdin": "0 0",
+          "expected": "0では割れません"
+        },
+        {
+          "label": "7 と 2 のとき（切り捨て）",
+          "stdin": "7 2",
+          "expected": "3"
+        },
+        {
+          "label": "-9 と 3 のとき",
+          "stdin": "-9 3",
+          "expected": "-3"
+        },
+        {
+          "label": "0 と 5 のとき",
+          "stdin": "0 5",
+          "expected": "0"
+        }
+      ],
+      "hints": [
+        "`ArithmeticException: ゼロ除算` は、整数を0で割ったときに出ます。`at` の行が指している行を見てください。",
+        "割り算をする**前に** `b` が0かどうかを `if` で確かめます。0のときは割り算をせず、決められた文字を表示します。"
+      ],
+      "solution": "import java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n\n        int a = sc.nextInt();\n        int b = sc.nextInt();\n\n        if (b == 0) {\n            System.out.println(\"0では割れません\");\n        } else {\n            System.out.println(a / b);\n        }\n    }\n}\n",
+      "extraTasks": [
+        {
+          "kind": "drill",
+          "task": "年齢を読んで区分を表示するプログラムですが、**数字以外を入れると落ちます**。\n\n1行を読んで整数に変え、`18` 以上なら `大人`、それ未満なら `子ども` と表示します。\n`abc` を入れると、いまは `NumberFormatException: For input string: \"abc\"` で止まります。\n\n数字に変えられない入力のときは `数字を入れてください` と表示するように直してください。\n\n> `String` が数字だけで出来ているかは、**変換する前**に確かめられます。\n> ここでは1文字ずつ調べる方法は使わず、`Integer.parseInt` を使ってよいかどうかを\n> 先に判断する形にします。ヒントを見てください。\n",
+          "starterCode": "import java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n\n        String input = sc.nextLine().trim();\n\n        int age = Integer.parseInt(input);\n\n        if (age >= 18) {\n            System.out.println(\"大人\");\n        } else {\n            System.out.println(\"子ども\");\n        }\n    }\n}\n",
+          "visibleCases": [
+            {
+              "label": "abc のとき（落ちていた入力）",
+              "stdin": "abc",
+              "expected": "数字を入れてください"
+            },
+            {
+              "label": "20 のとき",
+              "stdin": "20",
+              "expected": "大人"
+            }
+          ],
+          "hiddenCases": [
+            {
+              "label": "17 のとき",
+              "stdin": "17",
+              "expected": "子ども"
+            },
+            {
+              "label": "18 のとき（境界）",
+              "stdin": "18",
+              "expected": "大人"
+            },
+            {
+              "label": "空行のとき（Enterだけ）",
+              "stdin": "\n",
+              "expected": "数字を入れてください"
+            },
+            {
+              "label": "-5 のとき（負の数は数字として扱う）",
+              "stdin": "-5",
+              "expected": "子ども"
+            }
+          ],
+          "hints": [
+            "`NumberFormatException` のメッセージ `For input string: \"abc\"` に、変換できなかった文字列がそのまま出ています。",
+            "`input.matches(\"-?[0-9]+\")` は、文字列が「（マイナスがあってもよい）数字だけ」かどうかを `true` / `false` で返します。これで確かめてから `Integer.parseInt` を呼びます。"
+          ],
+          "solution": "import java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n\n        String input = sc.nextLine().trim();\n\n        if (!input.matches(\"-?[0-9]+\")) {\n            System.out.println(\"数字を入れてください\");\n        } else {\n            int age = Integer.parseInt(input);\n            if (age >= 18) {\n                System.out.println(\"大人\");\n            } else {\n                System.out.println(\"子ども\");\n            }\n        }\n    }\n}\n"
+        }
+      ],
+      "quiz": [
+        {
+          "question": "次のstack traceで、自分が直すべき場所はどれでしょう。\n\n```text\nException in thread \"main\" java.lang.NumberFormatException: For input string: \"abc\"\n\tat java.base/java.lang.Integer.parseInt(Integer.java:652)\n\tat java.base/java.lang.Integer.parseInt(Integer.java:770)\n\tat Main.main(Main.java:9)\n```\n",
+          "choices": [
+            "`Integer.java` の652行目",
+            "`Integer.java` の770行目",
+            "`Main.java` の9行目",
+            "どこも直せない"
+          ],
+          "answer": 2,
+          "explanation": "`java.base/` で始まる行は**Javaが用意した部分**なので直す場所ではありません。上から順に見て、**最初に出てくる自分のファイルの行**（`Main.java:9`）が原因の場所です。そこで `parseInt` に `\"abc\"` を渡していることになります。"
+        },
+        {
+          "question": "`at` の行が複数あるとき、実際に止まったのはどれでしょう。",
+          "choices": [
+            "いちばん上",
+            "いちばん下",
+            "真ん中",
+            "順番は決まっていない"
+          ],
+          "answer": 0,
+          "explanation": "`at` の行は**呼ばれた順の逆**に並びます。いちばん上が実際に止まった場所で、下へ行くほど「それを呼んだ側」になります。だから原因の場所を探すときは上から読み、直す場所を探すときは「最初に出てくる自分のコードの行」を見ます。"
+        },
+        {
+          "question": "次の2行を実行すると、どうなるでしょう。\n\n```java\nSystem.out.println(10 / 0);\nSystem.out.println(10.0 / 0);\n```\n",
+          "choices": [
+            "どちらも例外で止まる",
+            "どちらも `Infinity` と表示される",
+            "1行目で例外が出て止まる（2行目は実行されない）",
+            "1行目は `Infinity`、2行目で例外が出る"
+          ],
+          "answer": 2,
+          "explanation": "整数の `10 / 0` は `ArithmeticException: ゼロ除算` で止まります。**そこで実行が終わるので2行目は動きません。** なお `10.0 / 0` は小数の割り算なので例外にならず `Infinity` になります。同じ「0で割る」でも型によって結果が違います。"
+        },
+        {
+          "question": "実行時エラーが出た行を消したら、エラーが出なくなりました。この対応の評価はどれでしょう。",
+          "choices": [
+            "例外が出なくなったので、原因は取り除けている",
+            "エラーは消えたが、その入力に何を返すか決めていない",
+            "出力が変わっても、例外が出ないなら直っている",
+            "コンパイルと実行が通るので、仕様どおりに動いている"
+          ],
+          "answer": 1,
+          "explanation": "例外が出なくなっても、その入力に対して何を返すべきかを決めていなければ直したことになりません。0で割る入力なら、断ってメッセージを出すのか、別の値を返すのかを決めます。"
+        }
+      ]
+    },
+    {
+      "id": "64-3",
+      "title": "章末演習：エラーを読んで直す",
+      "objectiveIds": [
+        "ch64-o3",
+        "ch64-o4"
+      ],
+      "explanation": "エラーの読み方を、3つの問題で通して使います。\n\nどれも**動くけれど正しくない**コードが与えられます。エラーが出るものは、\nまず例外の名前・メッセージ・`at` の行を読んでください。エラーが出ないものは、\n入力・期待した結果・実際の結果を並べて、どこから違うかを探してください。\n",
+      "samples": [],
+      "task": "【基本】消費税を含む金額を出すプログラムですが、**答えが合っていません**。\n\n税抜き価格を読み、税率10%を足した金額を**小数第1位まで**表示します。\n`100` を入れると `110.0` になるはずが、いまは `100.0` と表示されます。\n\n原因を見つけて直してください。表示の形（`printf` の書式）は変えません。\n",
+      "starterCode": "import java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n\n        int price = sc.nextInt();\n\n        double total = price * (1 + 10 / 100);\n\n        System.out.printf(\"%.1f%n\", total);\n    }\n}\n",
+      "visibleCases": [
+        {
+          "label": "100 のとき",
+          "stdin": "100",
+          "expected": "110.0"
+        },
+        {
+          "label": "0 のとき",
+          "stdin": "0",
+          "expected": "0.0"
+        }
+      ],
+      "hiddenCases": [
+        {
+          "label": "1 のとき（小数が出る）",
+          "stdin": "1",
+          "expected": "1.1"
+        },
+        {
+          "label": "250 のとき",
+          "stdin": "250",
+          "expected": "275.0"
+        },
+        {
+          "label": "999 のとき",
+          "stdin": "999",
+          "expected": "1098.9"
+        }
+      ],
+      "hints": [
+        "`10 / 100` は `int` どうしの割り算なので `0` になります。式全体が `1 + 0` です。",
+        "片方を小数にすると割り算の結果が小数になります。`100` を `100.0` と書きます。"
+      ],
+      "solution": "import java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n\n        int price = sc.nextInt();\n\n        double total = price * (1 + 10 / 100.0);\n\n        System.out.printf(\"%.1f%n\", total);\n    }\n}\n",
+      "extraTasks": [
+        {
+          "kind": "drill",
+          "task": "【組み合わせ】商品の単価と個数から合計を出すプログラムですが、**ある入力で落ちます**。\n\n単価と個数を読み、`合計=金額` と表示します。さらに、1個あたりの単価を確かめるために\n`単価=金額` も表示します（合計を個数で割ります）。\n\n`500` と `0` を入れると、いまは `ArithmeticException: ゼロ除算` で止まります。\n個数が `0` のときは、合計を `合計=0` と表示し、単価の行は `単価=不明` と表示するように\n直してください。個数が1以上のときの表示はいまと同じです。\n",
+          "starterCode": "import java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n\n        int unit = sc.nextInt();\n        int count = sc.nextInt();\n\n        int total = unit * count;\n\n        System.out.println(\"合計=\" + total);\n        System.out.println(\"単価=\" + total / count);\n    }\n}\n",
+          "visibleCases": [
+            {
+              "label": "500 と 0 のとき（落ちていた入力）",
+              "stdin": "500 0",
+              "expected": "合計=0\n単価=不明"
+            },
+            {
+              "label": "300 と 2 のとき",
+              "stdin": "300 2",
+              "expected": "合計=600\n単価=300"
+            }
+          ],
+          "hiddenCases": [
+            {
+              "label": "0 と 0 のとき",
+              "stdin": "0 0",
+              "expected": "合計=0\n単価=不明"
+            },
+            {
+              "label": "100 と 3 のとき（割り切れない）",
+              "stdin": "100 3",
+              "expected": "合計=300\n単価=100"
+            },
+            {
+              "label": "1 と 1 のとき",
+              "stdin": "1 1",
+              "expected": "合計=1\n単価=1"
+            },
+            {
+              "label": "0 と 5 のとき",
+              "stdin": "0 5",
+              "expected": "合計=0\n単価=0"
+            }
+          ],
+          "hints": [
+            "落ちているのは2つ目の `println` です。`at` の行が指す行番号を確かめてください。",
+            "合計の行は個数に関係なく表示します。単価の行だけを `if` で分けます。"
+          ],
+          "solution": "import java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n\n        int unit = sc.nextInt();\n        int count = sc.nextInt();\n\n        int total = unit * count;\n\n        System.out.println(\"合計=\" + total);\n        if (count == 0) {\n            System.out.println(\"単価=不明\");\n        } else {\n            System.out.println(\"単価=\" + total / count);\n        }\n    }\n}\n"
+        },
+        {
+          "kind": "applied",
+          "task": "【実践】会員の割引を判定するプログラムですが、**2か所おかしいところがあります**。\n\n会員種別（`gold` / `silver` / それ以外）と購入金額を読み、次を表示します。\n\n- `gold` なら `割引=20`\n- `silver` で購入金額が `1000` **以上**なら `割引=10`\n- それ以外は `割引=0`\n\nいまは `gold 500` を入れても `割引=0`、`silver 1000` を入れても `割引=0` になります。\nエラーは出ません。2つの原因を見つけて直してください。\n",
+          "starterCode": "import java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n\n        String rank = sc.next();\n        int amount = sc.nextInt();\n\n        int discount = 0;\n\n        if (rank == \"gold\") {\n            discount = 20;\n        } else if (rank.equals(\"silver\") && amount > 1000) {\n            discount = 10;\n        }\n\n        System.out.println(\"割引=\" + discount);\n    }\n}\n",
+          "visibleCases": [
+            {
+              "label": "gold 500 のとき",
+              "stdin": "gold 500",
+              "expected": "割引=20"
+            },
+            {
+              "label": "silver 1000 のとき（境界）",
+              "stdin": "silver 1000",
+              "expected": "割引=10"
+            }
+          ],
+          "hiddenCases": [
+            {
+              "label": "silver 999 のとき",
+              "stdin": "silver 999",
+              "expected": "割引=0"
+            },
+            {
+              "label": "bronze 5000 のとき",
+              "stdin": "bronze 5000",
+              "expected": "割引=0"
+            },
+            {
+              "label": "gold 0 のとき（金額は関係ない）",
+              "stdin": "gold 0",
+              "expected": "割引=20"
+            },
+            {
+              "label": "silver 2000 のとき",
+              "stdin": "silver 2000",
+              "expected": "割引=10"
+            },
+            {
+              "label": "GOLD 500 のとき（大文字は別の文字列）",
+              "stdin": "GOLD 500",
+              "expected": "割引=0"
+            }
+          ],
+          "hints": [
+            "1つ目は文字列の比べ方です。`sc.next()` で読んだ文字列を `==` で比べると、中身が同じでも `false` になります。",
+            "2つ目は境界です。「`1000` 以上」は `>=` で書きます。"
+          ],
+          "solution": "import java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n\n        String rank = sc.next();\n        int amount = sc.nextInt();\n\n        int discount = 0;\n\n        if (rank.equals(\"gold\")) {\n            discount = 20;\n        } else if (rank.equals(\"silver\") && amount >= 1000) {\n            discount = 10;\n        }\n\n        System.out.println(\"割引=\" + discount);\n    }\n}\n"
+        }
+      ]
+    }
+  ]
+}

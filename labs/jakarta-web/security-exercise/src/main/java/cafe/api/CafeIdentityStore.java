@@ -22,7 +22,7 @@ import java.util.Set;
  *   <tr><td>bob</td><td>bob-pass</td><td>（役割なし）</td></tr>
  * </table>
  *
- * <p>本番でパスワードを平文で持つことはありません（第48章で保存方式を扱います）。
+ * <p>本番でパスワードを平文で持つことはありません（Web・Jakarta EE編『Jakarta EE 11アップデート』で保存方式を扱います）。
  * ここは認可の練習に集中するための固定データです。
  */
 @ApplicationScoped

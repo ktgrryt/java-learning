@@ -3,10 +3,31 @@
   "title": "ラッパークラス",
   "subtitle": "基本型をオブジェクトとして扱う",
   "emoji": "🎁",
+  "objectives": [
+    {
+      "id": "ch15-o1",
+      "text": "ラッパークラスで基本型を包み、`MAX_VALUE` などの定数や道具メソッドを使える"
+    },
+    {
+      "id": "ch15-o2",
+      "text": "文字列と数を相互に変換し、変換できない入力を例外で受け止められる"
+    },
+    {
+      "id": "ch15-o3",
+      "text": "オートボクシングで `null` のアンボクシングが起きる場所を見つけられる"
+    },
+    {
+      "id": "ch15-o4",
+      "text": "ラッパー同士の比較に `==` を使わず値で比べられる"
+    }
+  ],
   "lessons": [
     {
       "id": "15-1",
       "title": "ラッパークラスとは",
+      "objectiveIds": [
+        "ch15-o1"
+      ],
       "explanation": "## 基本型はオブジェクトではない\n\n`int` や `double` は **基本型（プリミティブ型）** で、オブジェクトではありません（`2-5` で見た8つの型です）。\nだからメソッドを持たず、`null` も入れられません。\n\nところが世の中には「オブジェクトしか受け取れない」場所があります。\nたとえば `ArrayList`（第16章）には `int` を直接入れられません。\n\nそこで、基本型を **包んでオブジェクトにするクラス** が用意されています。\nこれが **ラッパークラス**（包み紙クラス）です。\n\n| 基本型 | ラッパークラス |\n|---|---|\n| `byte` | `Byte` |\n| `short` | `Short` |\n| `int` | **`Integer`** |\n| `long` | `Long` |\n| `float` | `Float` |\n| `double` | **`Double`** |\n| `char` | **`Character`** |\n| `boolean` | `Boolean` |\n\n**すべて頭が大文字** です。そして `int` → `Integer`、`char` → `Character` の2つだけ\n名前が単純な大文字化になっていないので、必ず問われます。\n\nこれらはすべて `java.lang` にあるので `import` は不要です（第9章）。\n\n## 包む・取り出す\n\n```java\nInteger boxed = Integer.valueOf(10);     // int を包む\nint raw = boxed.intValue();              // 取り出す\n```\n\nいまはどちらも自動でやってくれるので（15-3のオートボクシング）、\n`Integer boxed = 10;` と書けます。仕組みとして知っておいてください。\n\n## 便利な定数と static メソッド\n\nラッパークラスは「その型に関する道具箱」でもあります。\n\n| 使い方 | 意味 |\n|---|---|\n| `Integer.MAX_VALUE` | `int` の最大値 `2147483647` |\n| `Integer.MIN_VALUE` | `int` の最小値 `-2147483648` |\n| `Integer.parseInt(\"12\")` | 文字列を `int` にする |\n| `Integer.valueOf(\"12\")` | 文字列を `Integer` にする |\n| `Integer.toString(12)` | `int` を文字列にする |\n| `Integer.toBinaryString(5)` | 2進数の文字列 `101` |\n| `Character.isDigit(c)` | 数字の文字か |\n| `Boolean.parseBoolean(\"true\")` | 文字列を `boolean` にする |\n\n`int` の最大値を覚えておくと、桁あふれ（オーバーフロー）の問題に強くなります。\n`Integer.MAX_VALUE + 1` は `Integer.MIN_VALUE` になります。ぐるっと回るのです。\n\n> ⚠️ 間違えやすい点 … ラッパークラスは **不変** です。`Integer` の中身を書き換えることはできません。`i++` のように見える操作も、実は新しい `Integer` を作って入れ直しています。\n\n> 💡 `Integer` は `Number` クラスを継承しています（`Double` なども同じ）。だから `Number` 型の変数に `Integer` も `Double` も入れられます。",
       "samples": [
         {
@@ -143,6 +164,9 @@
     {
       "id": "15-2",
       "title": "文字列と数の変換",
+      "objectiveIds": [
+        "ch15-o2"
+      ],
       "explanation": "## 文字列を数にする\n\nキーボードやファイルから読んだ値は文字列です。計算するには数に変える必要があります。\n\n```java\nint n = Integer.parseInt(\"123\");           // 123（int）\ndouble d = Double.parseDouble(\"1.5\");      // 1.5（double）\n```\n\n`parseXxx` は **基本型** を返します。ラッパーが欲しいときは `valueOf` です。\n\n| メソッド | 返すもの |\n|---|---|\n| `Integer.parseInt(\"12\")` | `int`（基本型） |\n| `Integer.valueOf(\"12\")` | `Integer`（ラッパー） |\n\nどちらも文字列から作れます。ふだんは `parseInt` で十分です。\n\n## 数を文字列にする\n\n```java\nString a = Integer.toString(12);      // \"12\"\nString b = String.valueOf(12);        // \"12\"\nString c = \"\" + 12;                   // \"12\"（手軽だがおすすめしない）\n```\n\n`String.valueOf` はどんな型でも渡せるので便利です。\n\n## 変換できないときは例外\n\n数として読めない文字列を渡すと **`NumberFormatException`** が投げられます。\nこれは `RuntimeException` のサブクラスなので、`try-catch` は強制されません（第13章）。\nでも外部からの入力を扱うなら、受け止めておくのが安全です。\n\n```java\ntry {\n    int n = Integer.parseInt(text);\n    System.out.println(n * 2);\n} catch (NumberFormatException e) {\n    System.out.println(\"変換できません\");\n}\n```\n\n### 何が「変換できない」のか\n\n| 文字列 | `Integer.parseInt` の結果 |\n|---|---|\n| `\"123\"` | `123` |\n| `\"-5\"` | `-5` |\n| `\"007\"` | `7`（先頭の `0` は無視される） |\n| `\"abc\"` | ❌ 例外 |\n| `\"1.5\"` | ❌ 例外（**小数点は受け付けない**） |\n| `\"12a\"` | ❌ 例外 |\n| `\" 12\"` | ❌ 例外（**空白が入っているとダメ**） |\n| `\"\"` | ❌ 例外 |\n| `\"2147483648\"` | ❌ 例外（`int` の範囲を超えている） |\n\n> ⚠️ 間違えやすい点 … `\"1.5\"` を `Integer.parseInt` に渡すと例外です。「小数を切り捨てて `1` になる」わけではありません。小数として読みたいなら `Double.parseDouble` を使います。\n\n> ⚠️ 間違えやすい点 … `\" 12\"` のように空白が混じっても例外です。必要なら `text.trim()` で落としてから渡します。\n\n> 💡 `Integer.parseInt` の中身は「1文字ずつ数字か確かめて組み立てる」処理です。だから桁があふれても検出できて、例外にしてくれます。",
       "samples": [
         {
@@ -284,6 +308,10 @@
     {
       "id": "15-3",
       "title": "オートボクシングの罠",
+      "objectiveIds": [
+        "ch15-o3",
+        "ch15-o4"
+      ],
       "explanation": "## 自動で包まれ、自動で取り出される\n\n```java\nInteger boxed = 10;        // オートボクシング\nint raw = boxed;           // アンボクシング\nint sum = boxed + 5;\n```\n\n便利ですが、`Integer` は参照型です。両側が `Integer` の `==` は数値ではなく**同じインスタンスか**を比較します。\n\n## キャッシュの保証を正確に区別する\n\nJava言語仕様は、`Integer a = 127;` のような**定数式**を複数回ボクシングした場合、`-128`〜`127` では\n同一インスタンスになることを保証します。一方、定数式でない値のボクシングについて、同一性を一般に仮定してはいけません。\n\n```java\nInteger a = 127, b = 127;\nSystem.out.println(a == b);        // true が言語仕様で保証される\n```\n\n別に、JDK APIの `Integer.valueOf(int)` は `-128`〜`127` を常にキャッシュし、範囲外もキャッシュする可能性があります。\nこの教材で使うコンパイラと実行環境ではオートボクシングに `Integer.valueOf` が使われるため、入力値でもその挙動を観察できます。\nただし、範囲外が必ず別インスタンスになるとは限らず、ボクシングした値の比較をキャッシュへ依存させるべきではありません。\n\n```java\nInteger c = 128, d = 128;\nSystem.out.println(c == d);        // この環境ではfalse。移植可能な前提ではない\nSystem.out.println(c.equals(d));   // true\n```\n\n**値は `equals`、またはアンボクシングした基本型どうしで比較します。**\n\n```svg `Integer` どうしの `==` は同じインスタンスかを見る。小さい値はキャッシュを共有する\n<svg viewBox=\"0 0 720 268\">\n  <rect class=\"fig-box\" x=\"30\" y=\"42\" width=\"180\" height=\"34\" rx=\"6\"/>\n  <text class=\"fig-t fig-mono fig-small\" x=\"44\" y=\"60\">Integer a = 127;</text>\n  <rect class=\"fig-box\" x=\"30\" y=\"86\" width=\"180\" height=\"34\" rx=\"6\"/>\n  <text class=\"fig-t fig-mono fig-small\" x=\"44\" y=\"104\">Integer b = 127;</text>\n\n  <rect class=\"fig-region\" x=\"380\" y=\"30\" width=\"326\" height=\"100\" rx=\"8\"/>\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"543\" y=\"48\" text-anchor=\"middle\">キャッシュ（-128 〜 127）</text>\n  <rect class=\"fig-box-accent\" x=\"430\" y=\"62\" width=\"226\" height=\"44\" rx=\"6\"/>\n  <text class=\"fig-t fig-mono fig-t-accent\" x=\"543\" y=\"84\" text-anchor=\"middle\">Integer 127</text>\n  <line class=\"fig-line-accent\" x1=\"214\" y1=\"58\" x2=\"426\" y2=\"76\" marker-end=\"arrow-accent\"/>\n  <line class=\"fig-line-accent\" x1=\"214\" y1=\"104\" x2=\"426\" y2=\"92\" marker-end=\"arrow-accent\"/>\n  <text class=\"fig-t fig-t-ok fig-small\" x=\"30\" y=\"146\"><tspan class=\"fig-mono\">a == b</tspan> は true … 同じインスタンスを指している</text>\n\n  <rect class=\"fig-box\" x=\"30\" y=\"168\" width=\"180\" height=\"34\" rx=\"6\"/>\n  <text class=\"fig-t fig-mono fig-small\" x=\"44\" y=\"186\">Integer c = 128;</text>\n  <rect class=\"fig-box\" x=\"30\" y=\"212\" width=\"180\" height=\"34\" rx=\"6\"/>\n  <text class=\"fig-t fig-mono fig-small\" x=\"44\" y=\"230\">Integer d = 128;</text>\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"380\" y=\"160\">キャッシュの外 — それぞれ別のインスタンスになりうる</text>\n  <rect class=\"fig-box\" x=\"430\" y=\"170\" width=\"226\" height=\"32\" rx=\"6\"/>\n  <text class=\"fig-t fig-mono fig-small\" x=\"543\" y=\"186\" text-anchor=\"middle\">Integer 128</text>\n  <rect class=\"fig-box\" x=\"430\" y=\"212\" width=\"226\" height=\"32\" rx=\"6\"/>\n  <text class=\"fig-t fig-mono fig-small\" x=\"543\" y=\"228\" text-anchor=\"middle\">Integer 128</text>\n  <line class=\"fig-line-ng\" x1=\"214\" y1=\"186\" x2=\"426\" y2=\"186\" marker-end=\"arrow-ng\"/>\n  <line class=\"fig-line-ng\" x1=\"214\" y1=\"228\" x2=\"426\" y2=\"228\" marker-end=\"arrow-ng\"/>\n  <text class=\"fig-t fig-t-ng fig-small\" x=\"30\" y=\"262\"><tspan class=\"fig-mono\">c == d</tspan> は false。値を比べるなら <tspan class=\"fig-mono\">equals</tspan> か、int に取り出してから比べる</text>\n</svg>\n```\n\n## null のアンボクシング\n\n```java\nInteger n = null;\nint x = n;              // 実行時に NullPointerException\n```\n\nアンボクシングは実質的に `n.intValue()` を呼ぶため、`null` では例外になります。計算式の中でも同じです。\n`n == null` は参照と `null` の比較なのでアンボクシングせず、安全です。",
       "samples": [
         {
@@ -431,7 +459,7 @@
         {
           "question": "次のコードはどうなるでしょう。\n\n```java\nInteger n = null;\nint x = n;\n```",
           "choices": [
-            "実行時に `NullPointerException` になる",
+            "必ず実行時に `NullPointerException` になる",
             "アンボクシングできないのでコンパイルエラーになる",
             "`x` に `null` がそのまま入る",
             "`x` に既定値の `0` が入る"
@@ -466,6 +494,11 @@
     {
       "id": "15-4",
       "title": "章末演習：ラッパークラス",
+      "objectiveIds": [
+        "ch15-o2",
+        "ch15-o3",
+        "ch15-o4"
+      ],
       "explanation": "## この章の知識を、自分の手で組み合わせよう\n\nここでは、**文字列変換・ボクシング・null・equals**をまとめて使います。新しい文法は登場しません。分からなくなったら、直前までの解説やサンプルへ戻って確認して大丈夫です。\n\n### 3問の進め方\n\n1. **基本**で、中心となる書き方をもう一度使う\n2. **組み合わせ**で、章内の複数の知識を一緒に使う\n3. **実践**で、少し現実的な入力と条件を整理する\n\nまず入力例と期待される出力を紙に書き、処理を小さな手順へ分けてからコードにすると進めやすくなります。",
       "samples": [
         {
@@ -474,7 +507,7 @@
         }
       ],
       "task": "【基本】個数nとn個の文字列を読みます。整数へ変換できるものだけ合計し、`sum=... invalid=...` と表示してください。",
-      "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        int n = s.nextInt(), sum = 0, invalid = 0;\n        for (int i = 0; i < n; i++) {\n            String text = s.next();\n            /* TODO */\n        }\n        System.out.println(\"sum=\" + sum + \" invalid=\" + invalid);\n    }\n}\n",
+      "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt(), sum = 0, invalid = 0;\n        for (int i = 0; i < n; i++) {\n            String text = sc.next();\n            /* TODO */\n        }\n        System.out.println(\"sum=\" + sum + \" invalid=\" + invalid);\n    }\n}\n",
       "visibleCases": [
         {
           "label": "混在",
@@ -503,12 +536,12 @@
         "各文字列を `Integer.parseInt` します。",
         "NumberFormatExceptionならinvalidを増やします。"
       ],
-      "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        int n = s.nextInt(), sum = 0, invalid = 0;\n        for (int i = 0; i < n; i++) {\n            String text = s.next();\n            try {\n                sum += Integer.parseInt(text);\n            } catch (NumberFormatException e) {\n                invalid++;\n            }\n        }\n        System.out.println(\"sum=\" + sum + \" invalid=\" + invalid);\n    }\n}\n",
+      "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt(), sum = 0, invalid = 0;\n        for (int i = 0; i < n; i++) {\n            String text = sc.next();\n            try {\n                sum += Integer.parseInt(text);\n            } catch (NumberFormatException e) {\n                invalid++;\n            }\n        }\n        System.out.println(\"sum=\" + sum + \" invalid=\" + invalid);\n    }\n}\n",
       "extraTasks": [
         {
           "kind": "drill",
           "task": "【組み合わせ】n個のトークンを読み、`_` はnull、それ以外はIntegerへ変換して配列へ入れます。nullでない値の個数と合計を `count=... sum=...` と表示してください。",
-          "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        int n = s.nextInt();\n        Integer[] values = new Integer[n];\n        for (int i = 0; i < n; i++) {\n            String t = s.next();\n            values[i] = null;\n            /* TODO: _ と数を分ける */\n        }\n        /* TODO: 集計 */\n    }\n}\n",
+          "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n        Integer[] values = new Integer[n];\n        for (int i = 0; i < n; i++) {\n            String t = sc.next();\n            values[i] = null;\n            /* TODO: _ と数を分ける */\n        }\n        /* TODO: 集計 */\n    }\n}\n",
           "visibleCases": [
             {
               "label": "null混在",
@@ -537,7 +570,7 @@
             "`_` ならnull、そうでなければ `Integer.valueOf(t)` です。",
             "アンボクシング前に `v != null` を確認します。"
           ],
-          "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        int n = s.nextInt();\n        Integer[] values = new Integer[n];\n        for (int i = 0; i < n; i++) {\n            String t = s.next();\n            values[i] = t.equals(\"_\") ? null : Integer.valueOf(t);\n        }\n        int count = 0, sum = 0;\n        for (Integer v : values) if (v != null) {\n            count++;\n            sum += v;\n        }\n        System.out.println(\"count=\" + count + \" sum=\" + sum);\n    }\n}\n",
+          "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n        Integer[] values = new Integer[n];\n        for (int i = 0; i < n; i++) {\n            String t = sc.next();\n            values[i] = t.equals(\"_\") ? null : Integer.valueOf(t);\n        }\n        int count = 0, sum = 0;\n        for (Integer v : values) if (v != null) {\n            count++;\n            sum += v;\n        }\n        System.out.println(\"count=\" + count + \" sum=\" + sum);\n    }\n}\n",
           "sourceChecks": [
             {
               "pattern": "\\bInteger\\s*\\[\\s*\\]",
@@ -552,9 +585,12 @@
           ]
         },
         {
+          "objectiveIds": [
+            "ch15-o4"
+          ],
           "kind": "applied",
           "task": "【実践】2整数を読み、それぞれ `Integer.valueOf` でIntegerにします。値が同じなら `same`、違えば `different` と表示してください。参照ではなく値を比較します。",
-          "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        Integer a = Integer.valueOf(s.nextInt());\n        Integer b = Integer.valueOf(s.nextInt());\n        /* TODO */\n    }\n}\n",
+          "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        Integer a = Integer.valueOf(sc.nextInt());\n        Integer b = Integer.valueOf(sc.nextInt());\n        /* TODO */\n    }\n}\n",
           "visibleCases": [
             {
               "label": "小さい同値",
@@ -583,7 +619,7 @@
             "Integer同士の値比較はequalsを使います。",
             "`==` はキャッシュ範囲によって偶然結果が変わるため使いません。"
           ],
-          "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        Integer a = Integer.valueOf(s.nextInt());\n        Integer b = Integer.valueOf(s.nextInt());\n        System.out.println(a.equals(b) ? \"same\" : \"different\");\n    }\n}\n",
+          "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        Integer a = Integer.valueOf(sc.nextInt());\n        Integer b = Integer.valueOf(sc.nextInt());\n        System.out.println(a.equals(b) ? \"same\" : \"different\");\n    }\n}\n",
           "sourceChecks": [
             {
               "pattern": "\\.equals\\s*\\(",

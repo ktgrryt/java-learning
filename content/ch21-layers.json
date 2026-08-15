@@ -3,10 +3,35 @@
   "title": "業務アプリの骨格",
   "subtitle": "層に分けて組み立てる",
   "emoji": "🏛️",
+  "objectives": [
+    {
+      "id": "ch21-o1",
+      "text": "業務ルールをServiceへ、文言をControllerへ置き分けて3層に組み立てられる"
+    },
+    {
+      "id": "ch21-o2",
+      "text": "Repositoryをインターフェースにして、実装を差し替えられる形に書ける"
+    },
+    {
+      "id": "ch21-o3",
+      "text": "EntityとDTOを分け、外へ出してはいけない項目を落として詰め替えられる"
+    },
+    {
+      "id": "ch21-o4",
+      "text": "業務例外とシステム例外を層ごとに扱い分け、原因を保持して包み直せる"
+    },
+    {
+      "id": "ch21-o5",
+      "text": "MavenのscopeとWAR/JARの違い、推移的依存の解決を説明できる"
+    }
+  ],
   "lessons": [
     {
       "id": "21-1",
       "title": "3層アーキテクチャ",
+      "objectiveIds": [
+        "ch21-o1"
+      ],
       "explanation": "## 1つのクラスに全部書くと、何が起きるか\n\nここまでの章では、1つの `Main` クラスに処理をまとめて書いてきました。学習用の小さな\nプログラムならそれで困りません。でも業務のアプリを同じ書き方で作ると、すぐに行き詰まります。\n\nたとえば「商品の在庫を調べて画面に出す」処理を1つのメソッドに書くと、その中に\n\n- 入力を受け取る処理\n- 在庫があるかどうかを決める**業務ルール**\n- データベースから在庫数を取ってくる処理\n- 画面に出す文字を組み立てる処理\n\nの4つが混ざります。すると次のことが起きます。\n\n- **テストできない** … 業務ルールだけを試したいのに、動かすとデータベースまで必要になる\n- **使い回せない** … 同じ業務ルールをバッチ処理でも使いたいのに、画面の処理とくっついている\n- **変更が広がる** … 画面の文言を直すだけのつもりが、業務ルールのコードに触ることになる\n\n## 3つの層に分ける\n\nそこで業務アプリでは、役割ごとに層（レイヤ）へ分けます。名前は現場によって少し違いますが、\nだいたいこの3つです。\n\n| 層 | 責務 | 知っていてよいこと |\n|---|---|---|\n| **Controller** | 受け取って、返す | 画面やHTTPの都合。表示する文言 |\n| **Service** | 業務ルールを決める | 「在庫0なら在庫切れ」のような業務の決まり |\n| **Repository** | データの出入り | テーブルの形、SQL |\n\n### 大事なのは「依存の向き」\n\n```svg 矢印は「使う側 → 使われる側」。この向きは絶対に逆にしない\n<svg viewBox=\"0 0 720 226\">\n  <text class=\"fig-t fig-t-accent fig-small\" x=\"199\" y=\"40\" text-anchor=\"middle\">使う</text>\n  <text class=\"fig-t fig-t-accent fig-small\" x=\"399\" y=\"40\" text-anchor=\"middle\">使う</text>\n  <text class=\"fig-t fig-t-accent fig-small\" x=\"599\" y=\"40\" text-anchor=\"middle\">使う</text>\n\n  <rect class=\"fig-box\" x=\"14\" y=\"50\" width=\"170\" height=\"80\" rx=\"6\"/>\n  <text class=\"fig-t fig-title\" x=\"99\" y=\"72\" text-anchor=\"middle\">Controller</text>\n  <text class=\"fig-t fig-t-dim fig-small\" x=\"99\" y=\"94\" text-anchor=\"middle\">受け取って、返す</text>\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"99\" y=\"114\" text-anchor=\"middle\">画面やHTTPの都合・文言</text>\n\n  <rect class=\"fig-box-accent\" x=\"214\" y=\"50\" width=\"170\" height=\"80\" rx=\"6\"/>\n  <text class=\"fig-t fig-title fig-t-accent\" x=\"299\" y=\"72\" text-anchor=\"middle\">Service</text>\n  <text class=\"fig-t fig-t-dim fig-small\" x=\"299\" y=\"94\" text-anchor=\"middle\">業務ルールを決める</text>\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"299\" y=\"114\" text-anchor=\"middle\">在庫0なら在庫切れ</text>\n\n  <rect class=\"fig-box\" x=\"414\" y=\"50\" width=\"170\" height=\"80\" rx=\"6\"/>\n  <text class=\"fig-t fig-title\" x=\"499\" y=\"72\" text-anchor=\"middle\">Repository</text>\n  <text class=\"fig-t fig-t-dim fig-small\" x=\"499\" y=\"94\" text-anchor=\"middle\">データの出入り</text>\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"499\" y=\"114\" text-anchor=\"middle\">テーブルの形・SQL</text>\n\n  <rect class=\"fig-box-dim\" x=\"614\" y=\"50\" width=\"90\" height=\"80\" rx=\"6\"/>\n  <text class=\"fig-t fig-t-dim\" x=\"659\" y=\"90\" text-anchor=\"middle\">DB</text>\n\n  <line class=\"fig-line\" x1=\"188\" y1=\"90\" x2=\"210\" y2=\"90\" marker-end=\"arrow\"/>\n  <line class=\"fig-line\" x1=\"388\" y1=\"90\" x2=\"410\" y2=\"90\" marker-end=\"arrow\"/>\n  <line class=\"fig-line\" x1=\"588\" y1=\"90\" x2=\"610\" y2=\"90\" marker-end=\"arrow\"/>\n\n  <line class=\"fig-line-ng fig-dashed\" x1=\"250\" y1=\"158\" x2=\"180\" y2=\"158\" marker-end=\"arrow-ng\"/>\n  <text class=\"fig-t fig-t-ng fig-small\" x=\"262\" y=\"158\">この向きは作らない — Service は Controller を知らない</text>\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"360\" y=\"200\" text-anchor=\"middle\">だから Service は「どの画面から呼ばれるか」を知らずに動く。バッチからも呼べて、単体でテストできる</text>\n</svg>\n```\n\n矢印は「使う側 → 使われる側」です。**この向きは絶対に逆にしません。**\n\n- Controller は Service を使う。Service は Controller を知らない\n- Service は Repository を使う。Repository は Service を知らない\n\nだから Service は「どんな画面から呼ばれるか」を知らずに動きます。これが\n「業務ルールだけをテストできる」「バッチからも呼べる」の正体です。\n\n### Service は表示の文言を知らない\n\nよくやってしまう失敗が、Service に画面の文字を作らせることです。\n\n```java\n// ❌ Service が「在庫あり」という表示の文言を知ってしまっている\nString check(String name) {\n    return count > 0 ? \"在庫あり\" : \"在庫切れ\";\n}\n```\n\nこう書くと、英語版の画面を作るときに Service を直すことになります。Service は\n**「状態」だけ**を返し、文言は Controller が決めます。状態を表すには `enum` が向いています。\n\n```java\n// ✅ Service は状態だけ返す。文言は Controller の仕事\nenum StockStatus { IN_STOCK, SOLD_OUT, NOT_HANDLED }\n```\n\n> 💡 「この処理はどの層に置くべきか」で迷ったら、**「画面が変わったら直る必要があるか？」**\n> と考えてみてください。はいなら Controller、いいえなら Service です。\n",
       "samples": [
         {
@@ -109,6 +134,9 @@
     {
       "id": "21-2",
       "title": "インターフェースで差し替えられるようにする",
+      "objectiveIds": [
+        "ch21-o2"
+      ],
       "explanation": "## 「実装」に依存すると、テストが動かなくなる\n\n前のレッスンで層を分けました。でもまだ1つ問題が残っています。`ItemService` が\n`ItemRepository` という **具体的なクラス** を直接持っていることです。\n\n```java\nclass ItemService {\n    private final ItemRepository repository;   // ← 具体的なクラスそのもの\n}\n```\n\nいまは `Map` を使った練習用の実装なので動きますが、本番では `ItemRepository` の中身は\nデータベースへの接続になります。すると `ItemService` を試したいだけなのに、\n\n- データベースが起動していないと動かない\n- テスト用のデータを毎回入れ直さないといけない\n- 「在庫0のとき」を試すために、わざわざDBのデータを0にしないといけない\n\nという状態になります。**業務ルールをテストしたいだけなのに、DBに振り回される**わけです。\n\n## インターフェースにして、「何ができるか」だけに依存させる\n\n解決策は、`ItemRepository` を **インターフェース** にすることです。\n\n```java\n/** 「在庫数を引ける」という約束だけを決める */\ninterface ItemRepository {\n    Integer findStock(String name);\n}\n```\n\nそして実装を複数用意します。\n\n```java\n/** 本番用：本当のデータを持っている */\nclass InMemoryItemRepository implements ItemRepository {\n    public Integer findStock(String name) { ... }\n}\n\n/** テスト用：いつでも同じ答えを返す */\nclass StubItemRepository implements ItemRepository {\n    public Integer findStock(String name) { return 99; }\n}\n```\n\n`ItemService` の中身は **1行も変えません**。型がインターフェースになっただけです。\n\n```java\nclass ItemService {\n    private final ItemRepository repository;   // ← インターフェース型になった\n\n    ItemService(ItemRepository repository) {   // ← 受け取る型もインターフェース\n        this.repository = repository;\n    }\n}\n```\n\nこれで、どちらの実装を渡すかは **外から決められる** ようになりました。\n\n```java\nnew ItemService(new InMemoryItemRepository());   // 本番\nnew ItemService(new StubItemRepository());       // テスト\n```\n\n### これが「依存性の注入（DI）」の入口\n\nいま `ItemService` は「自分が使う相手を自分で `new` しない」形になっています。\n外から渡してもらう（＝注入してもらう）ので、**依存性の注入（Dependency Injection, DI）** と\n呼びます。第25章でやる CDI の `@Inject` は、この受け渡しを自動でやる仕組みです。\n\n仕組みは後回しでよいので、まず **「なぜ外から渡すのか」** を押さえてください。\n答えは「差し替えられるようにするため」で、いちばん効くのがテストです。\n\n### ⚠️ 現場のワナ：Service の中で `new` してしまう\n\n```java\n// ❌ これをやると差し替えられない\nclass ItemService {\n    private final ItemRepository repository = new InMemoryItemRepository();\n}\n```\n\nインターフェースにしても、中で `new` したら意味がありません。テストのときに\n別の実装へ差し替える余地が消えます。**依存は必ず外から受け取る**、が原則です。\n\n> 💡 インターフェースの実装クラスには、`InMemory...` `Jdbc...` `Stub...` のように\n> 「どうやって実現しているか」を名前に出すのが一般的です。逆にインターフェース側には\n> 実現方法を入れません（`ItemRepository` であって `ItemDbRepository` ではない）。\n",
       "samples": [
         {
@@ -211,6 +239,9 @@
     {
       "id": "21-3",
       "title": "Entity と DTO を分ける",
+      "objectiveIds": [
+        "ch21-o3"
+      ],
       "explanation": "## DBの形をそのまま外に出すと事故になる\n\n`Repository` が返してくるのは、**データベースの1行に対応したオブジェクト**です。\nこれを **エンティティ（Entity）** と呼びます。\n\n```java\nrecord User(int id, String name, String email, String passwordHash) { }\n```\n\nこのまま画面やAPIに返すと、何が起きるでしょうか。\n\n- **パスワードのハッシュが漏れる**。JSONに変換して返すと `passwordHash` まで出てしまう\n- **内部のIDが漏れる**。連番のIDが見えると、値を変えて他人のデータを覗く手がかりになる\n- **DBを直すと画面が壊れる**。列名を `email` から `mail_address` に変えた瞬間、\n  画面のコードも直さないといけなくなる\n\n## 境界で「詰め替える」\n\nそこで、外に見せる用の別のクラスを用意します。**DTO（Data Transfer Object）** です。\n\n```java\n/** 外へ渡す形。見せてよいものだけを持つ */\nrecord UserDto(String name, String maskedEmail) { }\n```\n\nエンティティから DTO へ **詰め替える** のは Service の仕事です。\n\n```java\nUserDto findDto(int id) {\n    User user = repository.findById(id);\n    if (user == null) {\n        return null;\n    }\n    return new UserDto(user.name(), mask(user.email()));   // ← ここで passwordHash を落とす\n}\n```\n\nこうすると、**「見せてよいもの」を書いた場所が1か所に決まります**。\n`UserDto` に `passwordHash` が無い以上、どうやっても外へは出ていきません。\n\n```svg 境界で詰め替えると、「見せてよいもの」を書いた場所が1か所に決まる\n<svg viewBox=\"0 0 720 240\">\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"105\" y=\"26\" text-anchor=\"middle\">DBの1行に対応</text>\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"600\" y=\"26\" text-anchor=\"middle\">外へ渡す形</text>\n\n  <rect class=\"fig-box\" x=\"14\" y=\"44\" width=\"200\" height=\"130\" rx=\"6\"/>\n  <text class=\"fig-t fig-mono fig-small\" x=\"114\" y=\"64\" text-anchor=\"middle\">User（Entity）</text>\n  <text class=\"fig-t fig-mono fig-small\" x=\"32\" y=\"92\">id</text>\n  <text class=\"fig-t fig-mono fig-small\" x=\"32\" y=\"114\">name</text>\n  <text class=\"fig-t fig-mono fig-small\" x=\"32\" y=\"136\">email</text>\n  <text class=\"fig-t fig-mono fig-small fig-t-ng\" x=\"32\" y=\"158\">passwordHash</text>\n\n  <rect class=\"fig-box-accent\" x=\"270\" y=\"60\" width=\"180\" height=\"98\" rx=\"6\"/>\n  <text class=\"fig-t fig-t-accent fig-small\" x=\"360\" y=\"82\" text-anchor=\"middle\">Service で詰め替える</text>\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"360\" y=\"106\" text-anchor=\"middle\">見せてよいものだけ選ぶ</text>\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"360\" y=\"128\" text-anchor=\"middle\">メールはマスクする</text>\n\n  <rect class=\"fig-box-ok\" x=\"500\" y=\"44\" width=\"206\" height=\"130\" rx=\"6\"/>\n  <text class=\"fig-t fig-mono fig-small fig-t-ok\" x=\"603\" y=\"64\" text-anchor=\"middle\">UserDto</text>\n  <text class=\"fig-t fig-mono fig-small\" x=\"518\" y=\"92\">name</text>\n  <text class=\"fig-t fig-mono fig-small\" x=\"518\" y=\"114\">maskedEmail</text>\n  <text class=\"fig-t fig-t-ok fig-small\" x=\"518\" y=\"148\">passwordHash は</text>\n  <text class=\"fig-t fig-t-ok fig-small\" x=\"518\" y=\"166\">そもそも持っていない</text>\n\n  <line class=\"fig-line\" x1=\"218\" y1=\"100\" x2=\"266\" y2=\"100\" marker-end=\"arrow\"/>\n  <line class=\"fig-line-ok\" x1=\"454\" y1=\"100\" x2=\"496\" y2=\"100\" marker-end=\"arrow-ok\"/>\n  <line class=\"fig-line-ng fig-dashed\" x1=\"218\" y1=\"158\" x2=\"240\" y2=\"158\"/>\n  <line class=\"fig-line-ng\" x1=\"248\" y1=\"152\" x2=\"260\" y2=\"164\"/>\n  <line class=\"fig-line-ng\" x1=\"260\" y1=\"152\" x2=\"248\" y2=\"164\"/>\n\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"14\" y=\"212\">Entity をそのまま返す設計は「毎回気をつける」が必要。DTO なら項目が無いこと自体が保証になる</text>\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"14\" y=\"232\">DTO は運ぶ箱なので、判定や計算は入れず Service に置く</text>\n</svg>\n```\n\n### 面倒に見えるが、これがいちばん効く\n\n「同じような項目を2回書くのは無駄では？」と感じるはずです。実際、書く量は増えます。\nそれでもこうするのは、**うっかり漏らす事故を、仕組みで防げる**からです。\n\nエンティティをそのまま返す設計だと、「漏らさないように気をつける」が毎回必要になります。\nDTO なら、`UserDto` に項目が無いことがそのまま保証になります。\n**気をつけて防ぐより、書けないようにして防ぐほうが強い**わけです。\n\n### ⚠️ 現場のワナ：DTO に業務ルールを書き始める\n\nDTO は「運ぶための箱」です。判定や計算を入れ始めると、Service との境界が溶けて\n「どっちに書いてあるか分からない」状態になります。DTO は素直な `record` のままにして、\n判断は Service に置きます。\n\n> 💡 呼び方は現場によって違い、DTO のほかに「レスポンスクラス」「ビューモデル」\n> 「フォームクラス」とも呼ばれます。名前は違っても\n> **「DBの形と、外に見せる形を分ける」** という狙いは同じです。\n",
       "samples": [
         {
@@ -318,6 +349,9 @@
     {
       "id": "21-4",
       "title": "例外を層で扱い分ける",
+      "objectiveIds": [
+        "ch21-o4"
+      ],
       "explanation": "## 「想定内の失敗」と「想定外の失敗」を分ける\n\n| 種類 | 例 | 利用者への応答 | 内部で行うこと |\n|---|---|---|---|\n| **業務例外**（想定内） | 在庫切れ、残高不足 | 次に取れる行動が分かる理由を示す | 必要に応じて監査する |\n| **システム例外**（想定外） | DB接続失敗、予期しない不具合 | 内部詳細を隠した一般的なエラー | causeと相関IDをログへ残して調査する |\n\n業務例外には共通の親を作ると、Controllerでまとめて扱えます。\n\n```java\nclass BusinessException extends Exception {\n    BusinessException(String message) { super(message); }\n}\nclass OutOfStockException extends BusinessException { ... }\n```\n\n## 層をまたいでも例外の種類を変えない\n\nRepositoryの`DataAccessException`を上位層の例外へ包み直すと、ServiceがDB固有の詳細へ依存せずに済みます。ただし、**包み直すことと業務例外へ変えることは別**です。DB接続失敗は、名前を「在庫を確認できない」に変えてもシステム障害のままです。\n\n```java\nclass InventoryUnavailableException extends RuntimeException {\n    InventoryUnavailableException(String message, Throwable cause) {\n        super(message, cause);\n    }\n}\n\ntry {\n    return repository.findStock(name);\n} catch (DataAccessException e) {\n    throw new InventoryUnavailableException(\"在庫を確認できませんでした\", e);\n}\n```\n\n元の例外を第2引数へ渡せば、ログでは`getCause()`から調査できます。一方、HTTP応答や画面へ`DataAccessException`、接続先、SQL、stack traceなどを出してはいけません。\n\n```java\ncatch (InventoryUnavailableException e) {\n    logger.error(\"inventory lookup failed\", e);  // 内部ログ\n    return \"システムエラー: 処理を完了できませんでした\"; // 利用者向け\n}\n```\n\n例外を空のcatchで握りつぶしたり、causeを落として新しい例外を作ったりすると調査できなくなります。検査例外と非検査例外の選択は設計方針によりますが、この教材では業務例外を検査例外、回復不能なシステム例外を非検査例外として区別します。",
       "samples": [
         {
@@ -430,6 +464,9 @@
     {
       "id": "21-5",
       "title": "Maven とプロジェクトの形",
+      "objectiveIds": [
+        "ch21-o5"
+      ],
       "explanation": "## Mavenで依存関係とビルドを管理する\n\nMavenは `pom.xml` にプロジェクト情報、成果物の種類、依存ライブラリなどを記述します。\n\n```xml\n<project>\n  <groupId>com.example</groupId>\n  <artifactId>inventory</artifactId>\n  <version>1.0.0</version>\n  <packaging>war</packaging>\n\n  <dependencies>\n    <dependency>\n      <groupId>jakarta.platform</groupId>\n      <artifactId>jakarta.jakartaee-api</artifactId>\n      <version>11.0.0</version>\n      <scope>provided</scope>\n    </dependency>\n  </dependencies>\n</project>\n```\n\n`groupId`、`artifactId`、`version` の組をGAVと呼びます。依存ライブラリがさらに必要とする依存も、\nMavenが推移的依存として解決します。実際に選ばれた構成は `mvn dependency:tree` で確認できます。\n\n## scope\n\n| scope | 主な意味 |\n|---|---|\n| `compile`（既定） | コンパイル時と実行時に必要 |\n| `provided` | コンパイルには必要だが、実行環境から提供されるので成果物へ通常同梱しない |\n| `runtime` | コンパイルには不要だが実行時に必要 |\n| `test` | テストのコンパイル・実行だけで必要 |\n\n### Jakarta EEサーバーとTomcatを区別する\n\nWildFly、Open Liberty、Payaraなど、対象のJakarta EE Platform/Profileに対応するサーバーへ\n従来型WARを配置する場合、そのサーバーが提供するAPIは `provided` にするのが一般的です。\n完全なJakarta EE APIを使うなら、配置先も対応するJakarta EEランタイムでなければなりません。\n\n**TomcatはJakarta EEフルプラットフォームのサーバーではなく、Servletコンテナです。**\nTomcatへ配置するアプリでは、Tomcatが実装するServlet等のAPIには `jakarta.servlet-api` を `provided` で使えますが、\nCDI、JPA、Jakarta RESTなどは別の実装を追加するか、それらを提供する互換サーバーを選びます。\n`jakarta.jakartaee-api` を宣言しただけでは、Tomcatに各仕様の実装が追加されるわけではありません。\n\nまた、`provided` が常に正解とは限りません。組み込みサーバーや自己完結型アプリでは、実行に必要な実装を\n実行可能JARなどへ含める構成があります。**配置先が何を提供するか**に合わせてscopeとパッケージを決めます。\n\n## Mavenの標準ディレクトリ\n\n```\ninventory/\n├── pom.xml\n└── src/\n    ├── main/\n    │   ├── java/\n    │   ├── resources/\n    │   └── webapp/\n    └── test/\n        ├── java/\n        └── resources/\n```\n\n`src/main/resources` はビルド後にクラスパスへ置かれます。WARではWeb資源を `src/main/webapp` に置きます。\n\n## JARとWAR\n\n| | JAR | WAR |\n|---|---|---|\n| 形式 | クラスやリソースをまとめる一般的な形式 | Webアプリ向けで `WEB-INF` などの構造を持つ |\n| 代表例 | ライブラリ、バッチ、実行可能Webアプリ | 外部Servlet/Jakarta EEサーバーへ配置するWebアプリ |\n\nJARはライブラリやバッチに限らず、組み込みWebサーバーを含む実行可能アプリにも使われます。\nWARは通常、対応する外部コンテナやサーバーへ配置します。`WEB-INF/classes` にアプリのクラス、\n`WEB-INF/lib` に同梱する依存JARが入ります。\n\n## よく使うコマンド\n\n| コマンド | 何をするか |\n|---|---|\n| `mvn compile` | コンパイル |\n| `mvn test` | テスト |\n| `mvn package` | JAR/WARを作成 |\n| `mvn clean package` | 生成物を消してから再ビルド |\n| `mvn dependency:tree` | 解決された依存関係を表示 |\n\n依存のバージョン競合はコンパイル時に見えず、実行時の `NoSuchMethodError` などで現れることがあります。\nバージョン番号も単純な文字列比較ではなく、使用するエコシステムの規則に従って扱います。",
       "samples": [
         {
@@ -556,10 +593,10 @@
         {
           "question": "Jakarta EE のアプリをWARにして、対応するJakarta EEサーバーへ置くとき、`jakarta.jakartaee-api` を `provided` にする主な理由は何でしょう。",
           "choices": [
-            "アプリサーバが同じAPIを持つので、同梱すると重複して事故になるから",
-            "同梱しない分だけコンパイルが速くなるから",
-            "`provided` にしないとコンパイルが通らないから",
-            "テストのときだけ必要になるライブラリだから"
+            "サーバが同じAPIを持つので、同梱すると重複して事故になるから",
+            "同梱しない分だけ、WARが小さくコンパイルも速くなるから",
+            "`provided` にしないと、コンパイルが通らないから",
+            "テストのときだけ必要で、実行時には使わないから"
           ],
           "answer": 0,
           "explanation": "`provided` は、コンパイルには必要でも配置先が提供するAPIを成果物へ通常同梱しない指定です。対象のJakarta EEサーバーが提供するAPIとの重複を避けます。TomcatはフルJakarta EEサーバーではないため、Servlet以外の仕様には別実装または対応サーバーが必要です。"
@@ -605,6 +642,9 @@
     {
       "id": "21-6",
       "title": "章末演習：業務アプリの設計",
+      "objectiveIds": [
+        "ch21-o2"
+      ],
       "explanation": "## この章の知識を、自分の手で組み合わせよう\n\nここでは、**Controller・Service・Repository・DTO・例外変換**をまとめて使います。新しい文法は登場しません。分からなくなったら、直前までの解説やサンプルへ戻って確認して大丈夫です。\n\n### 3問の進め方\n\n1. **基本**で、中心となる書き方をもう一度使う\n2. **組み合わせ**で、章内の複数の知識を一緒に使う\n3. **実践**で、少し現実的な入力と条件を整理する\n\nまず入力例と期待される出力を紙に書き、処理を小さな手順へ分けてからコードにすると進めやすくなります。",
       "samples": [
         {
@@ -645,9 +685,12 @@
       "solution": "import java.util.*;\n\ninterface UserRepository {\n    String findName(int id);\n}\n\nclass MemoryUserRepository implements UserRepository {\n    private final Map<Integer, String> users = Map.of(1, \"山田\", 2, \"佐藤\");\n\n    public String findName(int id) {\n        return users.get(id);\n    }\n}\n\nclass UserService {\n    private final UserRepository repository;\n\n    UserService(UserRepository repository) {\n        this.repository = repository;\n    }\n\n    String show(int id) {\n        String name = repository.findName(id);\n        return name == null ? \"not found\" : \"user=\" + name;\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        int id = new Scanner(System.in).nextInt();\n        System.out.println(new UserService(new MemoryUserRepository()).show(id));\n    }\n}\n",
       "extraTasks": [
         {
+          "objectiveIds": [
+            "ch21-o3"
+          ],
           "kind": "drill",
           "task": "【組み合わせ】UserEntityはid・name・passwordHashを持ちます。画面へ返すUserDtoはid・nameだけにし、Serviceの `toDto` で変換してください。3値を読み、DTOだけを表示します。",
-          "starterCode": "import java.util.*;\n\nrecord UserEntity(int id, String name, String passwordHash) { }\n\nrecord UserDto(int id, String name) { }\n\nclass UserService {\n    UserDto toDto(UserEntity entity) {\n        return null;\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        UserEntity e = new UserEntity(s.nextInt(), s.next(), s.next());\n        System.out.println(new UserService().toDto(e));\n    }\n}\n",
+          "starterCode": "import java.util.*;\n\nrecord UserEntity(int id, String name, String passwordHash) { }\n\nrecord UserDto(int id, String name) { }\n\nclass UserService {\n    UserDto toDto(UserEntity entity) {\n        return null;\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        UserEntity e = new UserEntity(sc.nextInt(), sc.next(), sc.next());\n        System.out.println(new UserService().toDto(e));\n    }\n}\n",
           "visibleCases": [
             {
               "label": "利用者",
@@ -671,7 +714,7 @@
             "DTOのコンストラクタへidとnameだけを渡します。",
             "passwordHashをDTOへ含めないことが目的です。"
           ],
-          "solution": "import java.util.*;\n\nrecord UserEntity(int id, String name, String passwordHash) { }\n\nrecord UserDto(int id, String name) { }\n\nclass UserService {\n    UserDto toDto(UserEntity entity) {\n        return new UserDto(entity.id(), entity.name());\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        UserEntity e = new UserEntity(s.nextInt(), s.next(), s.next());\n        System.out.println(new UserService().toDto(e));\n    }\n}\n",
+          "solution": "import java.util.*;\n\nrecord UserEntity(int id, String name, String passwordHash) { }\n\nrecord UserDto(int id, String name) { }\n\nclass UserService {\n    UserDto toDto(UserEntity entity) {\n        return new UserDto(entity.id(), entity.name());\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        UserEntity e = new UserEntity(sc.nextInt(), sc.next(), sc.next());\n        System.out.println(new UserService().toDto(e));\n    }\n}\n",
           "sourceChecks": [
             {
               "pattern": "\\brecord\\s+UserDto\\s*\\(\\s*int\\s+id\\s*,\\s*String\\s+name\\s*\\)",
@@ -686,6 +729,9 @@
           ]
         },
         {
+          "objectiveIds": [
+            "ch21-o4"
+          ],
           "kind": "applied",
           "task": "【実践】ServiceはIDが0以下ならIllegalArgumentException、登録がなければUserNotFoundExceptionを投げます。Controllerでそれぞれ `400 Bad Request`、`404 Not Found`、成功なら `200 名前` へ変換してください。登録は1=山田、2=佐藤です。",
           "starterCode": "import java.util.*;\n\nclass UserNotFoundException extends RuntimeException { }\n\nclass UserService {\n    private final Map<Integer, String> users = Map.of(1, \"山田\", 2, \"佐藤\");\n\n    String find(int id) {\n        /* TODO */ return \"\";\n    }\n}\n\nclass UserController {\n    private final UserService service = new UserService();\n\n    String get(int id) {\n        /* TODO */ return \"\";\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        System.out.println(new UserController().get(new Scanner(System.in).nextInt()));\n    }\n}\n",

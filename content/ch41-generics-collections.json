@@ -3,10 +3,35 @@
   "title": "ジェネリクスとコレクション設計",
   "subtitle": "再利用できる型と用途に合う入れ物を選ぶ",
   "emoji": "🧰",
+  "objectives": [
+    {
+      "id": "ch41-o1",
+      "text": "型引数を取るクラスとメソッドを定義して使える"
+    },
+    {
+      "id": "ch41-o2",
+      "text": "`? extends` と `? super` を読み書きの向きで使い分けられる"
+    },
+    {
+      "id": "ch41-o3",
+      "text": "型消去のためにできないことを見分けられる"
+    },
+    {
+      "id": "ch41-o4",
+      "text": "`Queue` `Deque` `Iterator` と Sequenced Collection を用途で選べる"
+    },
+    {
+      "id": "ch41-o5",
+      "text": "static nested class と inner class を、外側との結び付きで使い分けられる"
+    }
+  ],
   "lessons": [
     {
       "id": "41-1",
       "title": "ジェネリックなクラスとメソッド",
+      "objectiveIds": [
+        "ch41-o1"
+      ],
       "explanation": "## ジェネリクスは、間違った型を入れる事故をコンパイル時に防ぐ\n\n複数の種類の値を入れられる箱を `Object` だけで作ると、取り出すたびに型変換が必要です。さらに、文字列の箱へ誤って整数を入れてもコンパイルが通り、取り出した場所で `ClassCastException` になることがあります。原因と失敗場所が離れるため、調査しにくい設計です。\n\n```java\nclass Box<T> {\n    private T value;\n    void set(T value) { this.value = value; }\n    T get() { return value; }\n}\n\nBox<String> box = new Box<>();\nbox.set(\"Java\");\nString name = box.get(); // 型変換が不要\n```\n\n`T` は **型パラメータ** です。「このクラスを使うときに具体的な型を指定する場所」を表します。`Box<String>` と書くと、この箱の `set` と `get` は一貫して `String` を扱います。誤って `box.set(10)` と書けば、実行前にコンパイラが知らせます。`new Box<>()` の `<>` は、左辺から型を推論する **ダイヤモンド演算子** です。\n\nクラス全体ではなく、1つのメソッドだけ型を受け取ることもできます。\n\n```java\nstatic <T> T first(List<T> values) {\n    return values.get(0);\n}\n```\n\n`static` の後、戻り値の前にある `<T>` が「このメソッドで使う型パラメータの宣言」です。なお `Box<int>` のようにプリミティブ型は指定できないため、`Box<Integer>` を使います。\n\nジェネリクスの利点はコードを短くすることだけではありません。**同じ処理を再利用しながら、型の約束をコンパイラに検査させる**ことが中心です。今回の演習では、自分で `Box<T>` を作り、この約束が `set` と `get` の両方へ伝わることを確認します。",
       "samples": [
         {
@@ -15,7 +40,7 @@
         }
       ],
       "task": "汎用的な `Box<T>` を作り、入力文字列と整数をそれぞれBoxへ入れて `text=... number=...` と表示してください。Boxは値を返す `get()` を持ちます。",
-      "starterCode": "import java.util.*;\n\nclass Box<T> {\n    /* TODO */\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        /* TODO */\n    }\n}\n",
+      "starterCode": "import java.util.*;\n\nclass Box<T> {\n    /* TODO */\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        /* TODO */\n    }\n}\n",
       "visibleCases": [
         {
           "label": "基本",
@@ -44,12 +69,12 @@
         "Boxに `private final T value`、コンストラクタ、`T get()` を書きます。",
         "`Box<String>` と `Box<Integer>` を作ります。"
       ],
-      "solution": "import java.util.*;\n\nclass Box<T> {\n    private final T value;\n\n    Box(T value) {\n        this.value = value;\n    }\n\n    T get() {\n        return value;\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        Box<String> text = new Box<>(s.next());\n        Box<Integer> number = new Box<>(s.nextInt());\n        System.out.println(\"text=\" + text.get() + \" number=\" + number.get());\n    }\n}\n",
+      "solution": "import java.util.*;\n\nclass Box<T> {\n    private final T value;\n\n    Box(T value) {\n        this.value = value;\n    }\n\n    T get() {\n        return value;\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        Box<String> text = new Box<>(sc.next());\n        Box<Integer> number = new Box<>(sc.nextInt());\n        System.out.println(\"text=\" + text.get() + \" number=\" + number.get());\n    }\n}\n",
       "extraTasks": [
         {
           "kind": "applied",
           "task": "`static <T> T second(List<T> list)` を作り、2番目の単語と2番目の整数を表示してください。入力は必ず各2件以上です。",
-          "starterCode": "import java.util.*;\n\npublic class Main {\n    static<T> T second(List<T> list) {\n        /* TODO */ return null;\n    }\n\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        List<String> words = List.of(s.next(), s.next());\n        List<Integer> nums = List.of(s.nextInt(), s.nextInt());\n        System.out.println(second(words));\n        System.out.println(second(nums));\n    }\n}\n",
+          "starterCode": "import java.util.*;\n\npublic class Main {\n    static<T> T second(List<T> list) {\n        /* TODO */ return null;\n    }\n\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        List<String> words = List.of(sc.next(), sc.next());\n        List<Integer> nums = List.of(sc.nextInt(), sc.nextInt());\n        System.out.println(second(words));\n        System.out.println(second(nums));\n    }\n}\n",
           "visibleCases": [
             {
               "label": "2型",
@@ -78,7 +103,7 @@
             "宣言は `static <T> T second(...)`。",
             "`return list.get(1);`。"
           ],
-          "solution": "import java.util.*;\n\npublic class Main {\n    static<T> T second(List<T> list) {\n        return list.get(1);\n    }\n\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        List<String> words = List.of(s.next(), s.next());\n        List<Integer> nums = List.of(s.nextInt(), s.nextInt());\n        System.out.println(second(words));\n        System.out.println(second(nums));\n    }\n}\n",
+          "solution": "import java.util.*;\n\npublic class Main {\n    static<T> T second(List<T> list) {\n        return list.get(1);\n    }\n\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        List<String> words = List.of(sc.next(), sc.next());\n        List<Integer> nums = List.of(sc.nextInt(), sc.nextInt());\n        System.out.println(second(words));\n        System.out.println(second(nums));\n    }\n}\n",
           "sourceChecks": [
             {
               "pattern": "<\\s*T\\s*>\\s*T\\s+second\\s*\\(",
@@ -105,6 +130,9 @@
     {
       "id": "41-2",
       "title": "境界とワイルドカード",
+      "objectiveIds": [
+        "ch41-o2"
+      ],
       "explanation": "## 読むリストと書くリストでは、必要な型の約束が違う\n\n`Integer` は `Number` の一種ですが、`List<Integer>` は `List<Number>` の一種ではありません。もし代入できると、次の事故が起きるからです。\n\n```java\nList<Integer> integers = new ArrayList<>();\n// List<Number> numbers = integers; // 許されると仮定\n// numbers.add(3.14);              // IntegerのリストへDoubleが入ってしまう\n```\n\nこの制約を保ったまま、複数の数値リストを同じメソッドで扱うために **ワイルドカード** `?` を使います。`?` は「具体的な型は呼び出し側が決める」という印です。\n\n### 値を読むなら `? extends`\n\n```java\nstatic double sum(List<? extends Number> values) {\n    double total = 0;\n    for (Number value : values) total += value.doubleValue();\n    return total;\n}\n```\n\n`? extends Number` は「要素型は分からないが、少なくとも `Number` の派生型」という意味です。`List<Integer>` も `List<Double>` も渡せて、取り出した値は `Number` として読めます。一方、実際の要素型が不明なので、`null` 以外を安全に追加できません。\n\n### 値を書き込むなら `? super`\n\n```java\nstatic void addDefaults(List<? super Integer> out) {\n    out.add(0);\n    out.add(1);\n}\n```\n\n`? super Integer` は「`Integer` またはその親型のリスト」です。`Integer` を安全に追加できますが、取り出すときに保証できる型は `Object` までです。\n\nこの使い分けは、具体例を先に覚えると簡単です。**値の提供元から読むなら `extends`、値の受け取り先へ書くなら `super`**。後からPECS（Producer Extends, Consumer Super）という略語に結び付ければ十分です。今回の演習は数値リストを読むだけなので、`List<? extends Number>` を使います。",
       "samples": [
         {
@@ -113,7 +141,7 @@
         }
       ],
       "task": "`sum(List<? extends Number>)` を完成させ、整数3個と小数2個の合計をそれぞれ表示してください。",
-      "starterCode": "import java.util.*;\n\npublic class Main {\n    static double sum(List<? extends Number> xs) {\n        return 0;\n    }\n\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        var a = List.of(s.nextInt(), s.nextInt(), s.nextInt());\n        var b = List.of(s.nextDouble(), s.nextDouble());\n        System.out.printf(Locale.ROOT, \"%.1f%n%.1f%n\", sum(a), sum(b));\n    }\n}\n",
+      "starterCode": "import java.util.*;\n\npublic class Main {\n    static double sum(List<? extends Number> xs) {\n        return 0;\n    }\n\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        var a = List.of(sc.nextInt(), sc.nextInt(), sc.nextInt());\n        var b = List.of(sc.nextDouble(), sc.nextDouble());\n        System.out.printf(Locale.ROOT, \"%.1f%n%.1f%n\", sum(a), sum(b));\n    }\n}\n",
       "visibleCases": [
         {
           "label": "整数と小数",
@@ -142,7 +170,7 @@
         "`double total=0;`。",
         "`for (Number n : xs) total += n.doubleValue();`。"
       ],
-      "solution": "import java.util.*;\n\npublic class Main {\n    static double sum(List<? extends Number> xs) {\n        double total = 0;\n        for (Number n : xs) total += n.doubleValue();\n        return total;\n    }\n\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        var a = List.of(s.nextInt(), s.nextInt(), s.nextInt());\n        var b = List.of(s.nextDouble(), s.nextDouble());\n        System.out.printf(Locale.ROOT, \"%.1f%n%.1f%n\", sum(a), sum(b));\n    }\n}\n",
+      "solution": "import java.util.*;\n\npublic class Main {\n    static double sum(List<? extends Number> xs) {\n        double total = 0;\n        for (Number n : xs) total += n.doubleValue();\n        return total;\n    }\n\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        var a = List.of(sc.nextInt(), sc.nextInt(), sc.nextInt());\n        var b = List.of(sc.nextDouble(), sc.nextDouble());\n        System.out.printf(Locale.ROOT, \"%.1f%n%.1f%n\", sum(a), sum(b));\n    }\n}\n",
       "extraTasks": [
         {
           "kind": "applied",
@@ -186,6 +214,9 @@
     {
       "id": "41-3",
       "title": "型消去とジェネリクスの制限",
+      "objectiveIds": [
+        "ch41-o3"
+      ],
       "explanation": "## コンパイル時の型情報と、実行時に残る情報を分ける\n\nジェネリクスは主にコンパイラが型の安全性を確認する仕組みです。Javaは既存のライブラリとの互換性を保つため、多くの型パラメータ情報をコンパイル時に検査した後、実行用のバイトコードでは共通の形へ変換します。これを **型消去** と呼びます。\n\nそのため、実行時のJVMからは `List<String>` と `List<Integer>` を完全には見分けられません。次のようなコードは書けません。\n\n```java\n// new T();\n// T.class;\n// value instanceof List<String>;\n```\n\n`T` の具体的な型が実行時には分からないためです。実行時にも型が必要なら、`Class<T>` を引数として明示的に受け取ります。\n\n```java\nstatic <T> boolean matches(Object value, Class<T> type) {\n    return type.isInstance(value);\n}\n\nboolean ok = matches(\"Java\", String.class);\n```\n\n`String.class` は実行時の型を表す **Classオブジェクト** です。`Class<T>` と組み合わせると、型の検査結果と戻り値の型をコンパイラにも伝えられます。\n\n型引数を省いた `List` のような書き方は **raw型** と呼ばれます。古いコードとの互換性のため残っていますが、コンパイラの検査を弱め、誤った型が入り込む **ヒープ汚染** を招くことがあります。警告を消すために型変換を増やすのではなく、まずraw型を `List<String>` などへ直すのが基本です。\n\n今回の演習では `Class<?>` と `isInstance` を使います。`?` は「型は不明だがClassオブジェクトである」ことを表し、実行時検査に必要な情報を呼び出し側から渡す方法を確認します。",
       "samples": [
         {
@@ -194,7 +225,7 @@
         }
       ],
       "task": "値の種類 `string` / `integer` と値を読み、`Class<?>` と `isInstance` を使って `type=型名 match=true` と表示してください。",
-      "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        String kind = s.next();\n        String raw = s.next();\n        Object value;\n        Class<?> type;\n        /* TODO */\n    }\n}\n",
+      "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        String kind = sc.next();\n        String raw = sc.next();\n        Object value;\n        Class<?> type;\n        /* TODO */\n    }\n}\n",
       "visibleCases": [
         {
           "label": "String",
@@ -228,7 +259,7 @@
         "stringならvalue=raw、type=String.class。integerならparseIntしてInteger.class。",
         "`type.isInstance(value)`。"
       ],
-      "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        String kind = s.next();\n        String raw = s.next();\n        Object value;\n        Class<?> type;\n        if (kind.equals(\"integer\")) {\n            value = Integer.parseInt(raw);\n            type = Integer.class;\n        } else {\n            value = raw;\n            type = String.class;\n        }\n        System.out.println(\"type=\" + type.getSimpleName() + \" match=\" + type.isInstance(value));\n    }\n}\n",
+      "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        String kind = sc.next();\n        String raw = sc.next();\n        Object value;\n        Class<?> type;\n        if (kind.equals(\"integer\")) {\n            value = Integer.parseInt(raw);\n            type = Integer.class;\n        } else {\n            value = raw;\n            type = String.class;\n        }\n        System.out.println(\"type=\" + type.getSimpleName() + \" match=\" + type.isInstance(value));\n    }\n}\n",
       "extraTasks": [
         {
           "kind": "applied",
@@ -273,7 +304,10 @@
     {
       "id": "41-4",
       "title": "Queue・Deque・Iterator・Sequenced Collection",
-      "explanation": "## コレクションは「保存できるか」ではなく「どう取り出すか」で選ぶ\n\n`ArrayList` だけでも多くの値は保存できますが、先頭の削除を繰り返す待ち行列や、両端を使う履歴には目的に合いません。操作の意図が型に表れるコレクションを選ぶと、コードを読む人にも順序の規則が伝わります。\n\n- **Queue**: 先に入れた値を先に取り出すFIFO（First In, First Out）の待ち行列。受付順の処理に向く\n- **Deque**: 先頭と末尾の両方へ追加・削除できる入れ物。Queueとしても、後から入れた値を先に戻すスタックとしても使える\n- **Iterator**: コレクションを順に走査するための窓口。走査中に削除するなら `iterator.remove()` を使う\n- **SequencedCollection**: Java 21で導入された、先頭・末尾・逆順という共通操作を表すインターフェース\n\n```java\nDeque<String> history = new ArrayDeque<>();\nhistory.addLast(\"A\");\nhistory.addLast(\"B\");\nSystem.out.println(history.removeLast()); // B: スタックとして使う\n```\n\n`ArrayDeque` は通常、待ち行列やスタックに適した実装です。古い `Stack` より `Deque` が推奨されます。ただし `null` は追加できず、複数スレッドから同時に使うための同期も提供しません。並行処理では `BlockingQueue` など、別の目的に合う型を検討します。\n\n拡張for文で走査中に元のコレクションを直接変更すると、`ConcurrentModificationException` になることがあります。削除が目的なら `removeIf`、細かく制御するなら `Iterator` と、操作に合うAPIを選びます。\n\n今回の演習では `ArrayDeque` をスタックとして使います。追加する側と取り出す側を `addLast` / `removeLast` のように同じ端へそろえると、LIFO（Last In, First Out）がコードから読み取れます。",
+      "objectiveIds": [
+        "ch41-o4"
+      ],
+      "explanation": "## コレクションは「保存できるか」ではなく「どう取り出すか」で選ぶ\n\n`ArrayList` だけでも多くの値は保存できますが、先頭の削除を繰り返す待ち行列や、両端を使う履歴には目的に合いません。操作の意図が型に表れるコレクションを選ぶと、コードを読む人にも順序の規則が伝わります。\n\n- **Queue**: 先に入れた値を先に取り出すFIFO（First In, First Out）の待ち行列。受付順の処理に向く\n- **Deque**: 先頭と末尾の両方へ追加・削除できる入れ物。Queueとしても、後から入れた値を先に戻すスタックとしても使える\n- **Iterator**: コレクションを順に走査するための窓口。走査中に削除するなら `iterator.remove()` を使う\n- **SequencedCollection**: Java 21で導入された、先頭・末尾・逆順という共通操作を表すインターフェース\n\n```java\nDeque<String> history = new ArrayDeque<>();\nhistory.addLast(\"A\");\nhistory.addLast(\"B\");\nSystem.out.println(history.removeLast()); // B: スタックとして使う\n```\n\n`ArrayDeque` は通常、待ち行列やスタックに適した実装です。古い `Stack` より `Deque` が推奨されます。ただし `null` は追加できず、複数スレッドから同時に使うための同期も提供しません。並行処理では `BlockingQueue` など、別の目的に合う型を検討します。\n\n拡張for文で走査中に元のコレクションを直接変更すると、`ConcurrentModificationException` になることがあります。削除が目的なら `removeIf`、細かく制御するなら `Iterator` と、操作に合うAPIを選びます。\n\n今回の演習では `ArrayDeque` をスタックとして使います。追加する側と取り出す側を `addLast` / `removeLast` のように同じ端へそろえると、LIFO（Last In, First Out）がコードから読み取れます。\n\n## 拡張for が回せるのは Iterable だから\n\n第7章から `for (String s : names)` と書いてきました。これが書けるのは、`names` の型が\n`Iterable` を実装しているからです。コンパイラはこれを `Iterator` の呼び出しへ置き換えます。\n\n```java\nfor (String s : names) { ... }\n\n// コンパイラが作るのは、これに近い形\nfor (Iterator<String> it = names.iterator(); it.hasNext(); ) {\n    String s = it.next();\n    ...\n}\n```\n\nだから **自分のクラスも `Iterable<T>` を実装すれば拡張forで回せます。**\n`iterator()` が `Iterator<T>` を返すようにします。\n\n```java\nclass Box implements Iterable<String> {\n    private final List<String> items = new ArrayList<>();\n\n    void add(String item) { items.add(item); }\n\n    @Override\n    public Iterator<String> iterator() {\n        return items.iterator();   // 中の List に任せるのがいちばん簡単\n    }\n}\n\nBox box = new Box();\nbox.add(\"a\");\nfor (String s : box) { ... }   // これが書けるようになる\n```\n\n> 💡 `hasNext()` と `next()` を自分で書き起こすことは実務ではあまりなく、内部の `List` の\n> `iterator()` をそのまま返す形が多いです。`Iterable` にするかどうかは「この型を**並び**として\n> 見せたいか」で決めます。単に中身を渡したいだけなら、`List` を返すメソッドで足ります\n> （そのほうが、受け取った側が件数や添字も使えます）。",
       "samples": [
         {
           "caption": "Dequeをキューとして使う",
@@ -281,7 +315,7 @@
         }
       ],
       "task": "n個の命令 `push 値` / `pop` を読み、ArrayDequeをスタックとして処理します。popごとに値、空なら `empty` を表示し、最後に `rest=[...]` を先頭がスタック上端の順で表示してください。",
-      "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        int n = s.nextInt();\n        Deque<String> stack = new ArrayDeque<>();\n        for (int i = 0; i < n; i++) {\n            String op = s.next();\n            /* TODO */\n        }\n        System.out.println(\"rest=\" + stack);\n    }\n}\n",
+      "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n        Deque<String> stack = new ArrayDeque<>();\n        for (int i = 0; i < n; i++) {\n            String op = sc.next();\n            /* TODO */\n        }\n        System.out.println(\"rest=\" + stack);\n    }\n}\n",
       "visibleCases": [
         {
           "label": "push/pop",
@@ -310,12 +344,12 @@
         "スタック上端には `addFirst`。",
         "popは `pollFirst()` なら空でnullを返します。"
       ],
-      "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        int n = s.nextInt();\n        Deque<String> stack = new ArrayDeque<>();\n        for (int i = 0; i < n; i++) {\n            String op = s.next();\n            if (op.equals(\"push\")) stack.addFirst(s.next());\n            else {\n                String v = stack.pollFirst();\n                System.out.println(v == null ? \"empty\" : v);\n            }\n        }\n        System.out.println(\"rest=\" + stack);\n    }\n}\n",
+      "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n        Deque<String> stack = new ArrayDeque<>();\n        for (int i = 0; i < n; i++) {\n            String op = sc.next();\n            if (op.equals(\"push\")) stack.addFirst(sc.next());\n            else {\n                String v = stack.pollFirst();\n                System.out.println(v == null ? \"empty\" : v);\n            }\n        }\n        System.out.println(\"rest=\" + stack);\n    }\n}\n",
       "extraTasks": [
         {
           "kind": "applied",
           "task": "n個の整数をArrayListへ入れ、Iteratorを使って負数だけを安全に削除し、残ったリストとJava 21の `getFirst/getLast` を表示してください。空ならfirst/lastはnone。",
-          "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        int n = s.nextInt();\n        List<Integer> xs = new ArrayList<>();\n        for (int i = 0; i < n; i++) xs.add(s.nextInt());\n        /* TODO */\n    }\n}\n",
+          "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n        List<Integer> xs = new ArrayList<>();\n        for (int i = 0; i < n; i++) xs.add(sc.nextInt());\n        /* TODO */\n    }\n}\n",
           "visibleCases": [
             {
               "label": "削除",
@@ -344,7 +378,7 @@
             "`Iterator<Integer> it=xs.iterator()` とwhile(hasNext)。",
             "負数なら `it.remove()`。"
           ],
-          "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        int n = s.nextInt();\n        List<Integer> xs = new ArrayList<>();\n        for (int i = 0; i < n; i++) xs.add(s.nextInt());\n        Iterator<Integer> it = xs.iterator();\n        while (it.hasNext()) if (it.next() < 0) it.remove();\n        System.out.println(xs);\n        if (xs.isEmpty()) System.out.println(\"first=none last=none\");\n        else System.out.println(\"first=\" + xs.getFirst() + \" last=\" + xs.getLast());\n    }\n}\n",
+          "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n        List<Integer> xs = new ArrayList<>();\n        for (int i = 0; i < n; i++) xs.add(sc.nextInt());\n        Iterator<Integer> it = xs.iterator();\n        while (it.hasNext()) if (it.next() < 0) it.remove();\n        System.out.println(xs);\n        if (xs.isEmpty()) System.out.println(\"first=none last=none\");\n        else System.out.println(\"first=\" + xs.getFirst() + \" last=\" + xs.getLast());\n    }\n}\n",
           "sourceChecks": [
             {
               "pattern": "\\.remove\\s*\\(\\s*\\)",
@@ -381,6 +415,9 @@
     {
       "id": "41-5",
       "title": "ネストしたクラスと設計上の配置",
+      "objectiveIds": [
+        "ch41-o5"
+      ],
       "explanation": "## 関連する型を近くに置き、不要な外側オブジェクトとの結び付きを避ける\n\n1つのクラスだけで使う補助型を別ファイルに置くと、公開範囲が広がり、どこで使う型かも分かりにくくなります。このようなときは、クラスの中にクラスやrecordを宣言する **ネストした型** が役立ちます。\n\n```java\nclass ReportService {\n    static record Row(String name, int total) {}\n\n    Row summarize(String name, int total) {\n        return new Row(name, total);\n    }\n}\n```\n\n`static` なネスト型は、外側の `ReportService` インスタンスを持たなくても作れます。外側のオブジェクトへの隠れた参照も持ちません。補助的なDTO、設定値、結果型など、「外側のクラスと概念上は関係するが、個々の外側オブジェクトの状態は不要」という場合に向きます。\n\n`static` を付けない **内部クラス** は、特定の外側インスタンスと結び付き、そのフィールドへ直接アクセスできます。便利な反面、外側オブジェクトを意図せず長く保持したり、単独で生成しにくくなったりします。外側の状態が本当に必要な場合だけ選びます。\n\nほかにも、メソッド内だけで使う **ローカルクラス**、その場で1つの実装を作る **匿名クラス** があります。ラムダで表せる単一メソッドの処理なら、匿名クラスよりラムダの方が意図を短く示せることもあります。\n\n判断基準は「短く書けるか」ではありません。利用範囲、外側の状態への依存、単独テストのしやすさを見ます。今回の演習では、外側の状態を必要としない結果データを `static record` として配置します。",
       "samples": [
         {
@@ -389,7 +426,7 @@
         }
       ],
       "task": "`Catalog` のstatic nested record `Item(String name,int price)` を作り、入力からItemを作って `name=price` と表示してください。",
-      "starterCode": "import java.util.*;\n\nclass Catalog {\n    /* TODO */\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        /* TODO */\n    }\n}\n",
+      "starterCode": "import java.util.*;\n\nclass Catalog {\n    /* TODO */\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        /* TODO */\n    }\n}\n",
       "visibleCases": [
         {
           "label": "商品",
@@ -418,12 +455,12 @@
         "Catalog内に `static record Item(...) {}`。",
         "`new Catalog.Item(...)` で作ります。"
       ],
-      "solution": "import java.util.*;\n\nclass Catalog {\n    static record Item(String name, int price) { }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        Catalog.Item item = new Catalog.Item(s.next(), s.nextInt());\n        System.out.println(item.name() + \"=\" + item.price());\n    }\n}\n",
+      "solution": "import java.util.*;\n\nclass Catalog {\n    static record Item(String name, int price) { }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        Catalog.Item item = new Catalog.Item(sc.next(), sc.nextInt());\n        System.out.println(item.name() + \"=\" + item.price());\n    }\n}\n",
       "extraTasks": [
         {
           "kind": "applied",
           "task": "外側のCounterと結び付くinner class `Step` を作ります。Step.add(n)が外側のvalueを増やすようにし、2回加算した結果を表示してください。",
-          "starterCode": "import java.util.*;\n\nclass Counter {\n    private int value;\n\n    class Step {\n        void add(int n) {\n            /* TODO */\n        }\n    }\n\n    int value() {\n        return value;\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        Counter c = new Counter();\n        Counter.Step step = c.new Step();\n        step.add(s.nextInt());\n        step.add(s.nextInt());\n        System.out.println(c.value());\n    }\n}\n",
+          "starterCode": "import java.util.*;\n\nclass Counter {\n    private int value;\n\n    class Step {\n        void add(int n) {\n            /* TODO */\n        }\n    }\n\n    int value() {\n        return value;\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        Counter c = new Counter();\n        Counter.Step step = c.new Step();\n        step.add(sc.nextInt());\n        step.add(sc.nextInt());\n        System.out.println(c.value());\n    }\n}\n",
           "visibleCases": [
             {
               "label": "加算",
@@ -452,7 +489,7 @@
             "inner classから外側のvalueを直接変更できます。",
             "生成は `c.new Step()`。"
           ],
-          "solution": "import java.util.*;\n\nclass Counter {\n    private int value;\n\n    class Step {\n        void add(int n) {\n            value += n;\n        }\n    }\n\n    int value() {\n        return value;\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        Counter c = new Counter();\n        Counter.Step step = c.new Step();\n        step.add(s.nextInt());\n        step.add(s.nextInt());\n        System.out.println(c.value());\n    }\n}\n",
+          "solution": "import java.util.*;\n\nclass Counter {\n    private int value;\n\n    class Step {\n        void add(int n) {\n            value += n;\n        }\n    }\n\n    int value() {\n        return value;\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        Counter c = new Counter();\n        Counter.Step step = c.new Step();\n        step.add(sc.nextInt());\n        step.add(sc.nextInt());\n        System.out.println(c.value());\n    }\n}\n",
           "sourceChecks": [
             {
               "pattern": "\\bclass\\s+Step\\b",
@@ -485,6 +522,9 @@
     {
       "id": "41-6",
       "title": "章末演習：型と入れ物の選択",
+      "objectiveIds": [
+        "ch41-o1"
+      ],
       "explanation": "## 章末では、型の安全性と操作の意図を同時に表す\n\nこの章で学んだ仕組みは、すべて「実行するまで分からない間違い」を減らし、コードに意図を残すためにあります。\n\n- ジェネリクスは、入れてよい型と取り出せる型をコンパイラに検査させる\n- `? extends` は主に読み取り元、`? super` は主に書き込み先を柔軟に受け取る\n- 型消去で実行時の型が必要な場合は、`Class<T>` などの型情報を明示的に渡す\n- QueueやDequeは、値の保存方法だけでなく取り出し順の規則を表す\n- ネストした型は、利用範囲と外側オブジェクトへの依存を考えて配置する\n\nコレクションを選ぶときは、最初に「何を入れるか」、次に「どの順番で取り出すか」、最後に「読むのか書くのか」を確認します。型を複雑にすることが目的ではなく、誤用できる範囲を狭めることが目的です。\n\n章末演習では、型付きの入れ物、ワイルドカード、列挙型をキーにした集計、Dequeの順序を組み合わせます。コンパイルエラーが出たら無理にキャストせず、読み取り側と書き込み側が要求している型の約束を見直してください。",
       "samples": [
         {
@@ -493,7 +533,7 @@
         }
       ],
       "task": "【基本】`Pair<K,V>` recordを作り、単語と整数のペアn件を読み、`key=value` を入力順に表示してください。",
-      "starterCode": "import java.util.*;\n/* TODO: Pair recordを宣言する */ public class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        int n = s.nextInt();\n        /* TODO */\n    }\n}\n",
+      "starterCode": "import java.util.*;\n/* TODO: Pair recordを宣言する */ public class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n        /* TODO */\n    }\n}\n",
       "visibleCases": [
         {
           "label": "2件",
@@ -522,12 +562,15 @@
         "`record Pair<K,V>(K key,V value){}`。",
         "読み込みと表示をそれぞれループします。"
       ],
-      "solution": "import java.util.*;\n\nrecord Pair<K, V>(K key, V value) { }\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        int n = s.nextInt();\n        List<Pair<String, Integer>> xs = new ArrayList<>();\n        for (int i = 0; i < n; i++) xs.add(new Pair<>(s.next(), s.nextInt()));\n        for (var p : xs) System.out.println(p.key() + \"=\" + p.value());\n    }\n}\n",
+      "solution": "import java.util.*;\n\nrecord Pair<K, V>(K key, V value) { }\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n        List<Pair<String, Integer>> xs = new ArrayList<>();\n        for (int i = 0; i < n; i++) xs.add(new Pair<>(sc.next(), sc.nextInt()));\n        for (var p : xs) System.out.println(p.key() + \"=\" + p.value());\n    }\n}\n",
       "extraTasks": [
         {
+          "objectiveIds": [
+            "ch41-o2"
+          ],
           "kind": "drill",
           "task": "【組み合わせ】`copy(List<? extends T>, List<? super T>)` を完成させ、IntegerリストをNumberリストへ追加してください。",
-          "starterCode": "import java.util.*;\n\npublic class Main {\n    static<T> void copy(List<? extends T> src, List<? super T> dst) {\n        /* TODO */\n    }\n\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        int n = s.nextInt();\n        List<Integer> src = new ArrayList<>();\n        for (int i = 0; i < n; i++) src.add(s.nextInt());\n        List<Number> dst = new ArrayList<>(List.of(0.5));\n        copy(src, dst);\n        System.out.println(dst);\n    }\n}\n",
+          "starterCode": "import java.util.*;\n\npublic class Main {\n    static<T> void copy(List<? extends T> src, List<? super T> dst) {\n        /* TODO */\n    }\n\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n        List<Integer> src = new ArrayList<>();\n        for (int i = 0; i < n; i++) src.add(sc.nextInt());\n        List<Number> dst = new ArrayList<>(List.of(0.5));\n        copy(src, dst);\n        System.out.println(dst);\n    }\n}\n",
           "visibleCases": [
             {
               "label": "copy",
@@ -555,7 +598,7 @@
           "hints": [
             "拡張forでsrcからTを読み、dst.addします。"
           ],
-          "solution": "import java.util.*;\n\npublic class Main {\n    static<T> void copy(List<? extends T> src, List<? super T> dst) {\n        for (T v : src) dst.add(v);\n    }\n\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        int n = s.nextInt();\n        List<Integer> src = new ArrayList<>();\n        for (int i = 0; i < n; i++) src.add(s.nextInt());\n        List<Number> dst = new ArrayList<>(List.of(0.5));\n        copy(src, dst);\n        System.out.println(dst);\n    }\n}\n",
+          "solution": "import java.util.*;\n\npublic class Main {\n    static<T> void copy(List<? extends T> src, List<? super T> dst) {\n        for (T v : src) dst.add(v);\n    }\n\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n        List<Integer> src = new ArrayList<>();\n        for (int i = 0; i < n; i++) src.add(sc.nextInt());\n        List<Number> dst = new ArrayList<>(List.of(0.5));\n        copy(src, dst);\n        System.out.println(dst);\n    }\n}\n",
           "sourceChecks": [
             {
               "pattern": "\\?\\s*extends\\s+T",
@@ -570,9 +613,12 @@
           ]
         },
         {
+          "objectiveIds": [
+            "ch41-o4"
+          ],
           "kind": "applied",
           "task": "【実践】容量capacityのFIFOキューに `add 値` / `take` 命令を処理します。満杯のaddは `rejected 値`、空のtakeは `empty`、成功takeは値を表示し、最後にqueueを表示してください。",
-          "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        int capacity = s.nextInt(), n = s.nextInt();\n        Deque<String> q = new ArrayDeque<>();\n        /* TODO */\n    }\n}\n",
+          "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int capacity = sc.nextInt(), n = sc.nextInt();\n        Deque<String> q = new ArrayDeque<>();\n        /* TODO */\n    }\n}\n",
           "visibleCases": [
             {
               "label": "満杯と取得",
@@ -601,7 +647,7 @@
             "add時に `q.size() >= capacity` を確認します。",
             "takeはpollFirst、addはaddLast。"
           ],
-          "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        int capacity = s.nextInt(), n = s.nextInt();\n        Deque<String> q = new ArrayDeque<>();\n        for (int i = 0; i < n; i++) {\n            String op = s.next();\n            if (op.equals(\"add\")) {\n                String v = s.next();\n                if (q.size() >= capacity) System.out.println(\"rejected \" + v);\n                else q.addLast(v);\n            } else {\n                String v = q.pollFirst();\n                System.out.println(v == null ? \"empty\" : v);\n            }\n        }\n        System.out.println(\"queue=\" + q);\n    }\n}\n",
+          "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int capacity = sc.nextInt(), n = sc.nextInt();\n        Deque<String> q = new ArrayDeque<>();\n        for (int i = 0; i < n; i++) {\n            String op = sc.next();\n            if (op.equals(\"add\")) {\n                String v = sc.next();\n                if (q.size() >= capacity) System.out.println(\"rejected \" + v);\n                else q.addLast(v);\n            } else {\n                String v = q.pollFirst();\n                System.out.println(v == null ? \"empty\" : v);\n            }\n        }\n        System.out.println(\"queue=\" + q);\n    }\n}\n",
           "sourceChecks": [
             {
               "pattern": "\\bnew\\s+ArrayDeque\\b",

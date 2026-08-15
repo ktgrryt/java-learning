@@ -3,6 +3,24 @@
   "title": "3製品の設計思想と選定",
   "subtitle": "Spring Boot・Open Liberty・Quarkusの違いを整理し、各実践章へ進む",
   "emoji": "🧩",
+  "objectives": [
+    {
+      "id": "ch53-o1",
+      "text": "起動時間・メモリ・準拠する標準の実測から、要件を満たす製品を選べる"
+    },
+    {
+      "id": "ch53-o2",
+      "text": "フレームワークに依存しない形で業務ロジックを置ける"
+    },
+    {
+      "id": "ch53-o3",
+      "text": "同じ要件をSpring Boot・Open Liberty・Quarkusでどう書くかを対応づけられる"
+    },
+    {
+      "id": "ch53-o4",
+      "text": "3製品を実際にビルドして、成果物と起動の違いを示せる"
+    }
+  ],
   "lessons": [
     {
       "id": "53-0",
@@ -56,6 +74,9 @@
     {
       "id": "53-1",
       "title": "フレームワークを選ぶ軸",
+      "objectiveIds": [
+        "ch53-o1"
+      ],
       "explanation": "## フレームワークは何を代わりにしてくれるのか\n\nWebアプリを標準Javaだけで一から作ると、HTTPを受ける処理、JSON変換、オブジェクトの組み立て、設定の読み込み、テスト、本番監視まで自分でつなぐ必要があります。**フレームワーク**は、こうした共通処理とアプリの組み立て方を提供し、開発者が業務ルールへ集中できるようにする土台です。\n\nこの章では、代表的な3つを比べます。\n\n- **Spring Boot** — Springの部品を、規約と自動設定で素早く組み立てる\n- **Open Liberty** — Jakarta EEやMicroProfileという標準仕様を実行するサーバー\n- **Quarkus** — 起動時に行う処理をビルド時へ移し、速い起動や小さいメモリ使用量を狙う\n\n名前だけで優劣は決まりません。たとえば、起動が少し速くても、社内の認証基盤が使えない、障害時に調べられる人がいない、必要なライブラリが動かないなら適切な選択ではありません。\n\n### 比較で使う言葉\n\n- **標準への準拠** — Jakarta EEなど、製品をまたいで共通するAPIに沿っているか\n- **既存資産** — すでにあるコード、ライブラリ、運用手順、チームの経験\n- **スループット** — 一定時間に処理できる件数\n- **p95 / p99** — 遅い側から5%・1%に入る応答時間。平均では隠れる遅い利用者を見る\n- **RSS** — OSから見たプロセス全体のおおよそのメモリ使用量\n- **ADR** — 候補、比較条件、選んだ理由を残す設計判断の記録\n\n性能の数字は、JDK、依存、CPU・メモリ上限、入力、ウォームアップ時間で変わります。同じ小さなAPIを候補ごとに作り、同じ条件で測ります。ただし測る前に、必須条件を満たさない候補を除外します。\n\n### 選ぶ順番\n\n1. 必要なAPI、JDK、セキュリティ、サポート条件を満たすか\n2. 既存コードと社内運用を無理なく移せるか\n3. 開発・テスト・障害調査をチームで続けられるか\n4. 本番に近い条件で起動時間、メモリ、応答時間、処理件数を測る\n5. 選んだ理由と見直す条件をADRへ残す\n\nこのレッスンの点数計算は比較方法の小さなモデルです。実際には、どれか一つでも必須条件を満たさない候補を、合計点だけで選ばないようにします。\n\nこの章は**選定の入口**です。続く「Spring Boot実践入門」「Open Liberty実践入門」「Quarkus実践入門」では、各製品を独立して起動・設定・テスト・運用するところまで学びます。比較だけで製品を分かったつもりにせず、候補の実践章と`labs/frameworks`を少なくとも1つ完了してから選定してください。",
       "samples": [
         {
@@ -63,32 +84,58 @@
           "code": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] a) {\n        Map<String, Integer> score = Map.of(\"standards\", 5, \"operations\", 5, \"startup\", 3);\n        System.out.println(score.values().stream().mapToInt(Integer::intValue).sum());\n    }\n}\n"
         }
       ],
-      "task": "候補n件を `name standards operations performance` の点数で読み、合計が最大のnameを表示してください。同点は先に入力された候補です。",
-      "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] a) {\n        Scanner s = new Scanner(System.in);\n        int n = s.nextInt(), best = - 1;\n        String selected = \"\";\n        for (int i = 0; i < n; i++) {\n            String name = s.next();\n            int total = s.nextInt() + s.nextInt() + s.nextInt();\n            /* TODO */\n        }\n        System.out.println(selected);\n    }\n}\n",
+      "task": "実測値と制約を読んで、**要件を満たす製品を選んでください**。\n\n1行目に制約を `起動上限ms メモリ上限MB 必要な標準` の形で読みます（必要な標準は `jakarta-ee` / `microprofile` / `none`）。2行目に候補数nを読み、n行を `name 起動ms メモリMB 対応標準` の形で読みます。対応標準はカンマ区切りで、無い場合は `-` です。\n\n```\n500 256 jakarta-ee\n3\nliberty 900 300 jakarta-ee,microprofile\nquarkus-native 30 120 jakarta-ee\nspring 2500 400 -\n```\n\n候補ごとに、入力順で `name OK` または `name NG <外れた項目>` を表示してください。外れた項目は **`startup` → `memory` → `standard` の順に調べ、最初に外れたもの1つ**だけ出します。\n\n| 項目 | 外れる条件 |\n|---|---|\n| `startup` | 起動msが上限より大きい |\n| `memory` | メモリMBが上限より大きい |\n| `standard` | 必要な標準が対応標準に含まれない（`none` のときは常に満たす） |\n\n最後の行に、`OK` が1件以上あれば `CANDIDATE <その中で最も起動が速いname>`、1件も無ければ `NONE` と表示します。起動msが同じなら入力順で先の候補を選びます。\n\n上の例の答えはこうなります。\n\n```\nliberty NG startup\nquarkus-native OK\nspring NG startup\nCANDIDATE quarkus-native\n```\n\n> 点数を付けて合計するより、**測った値と満たすべき制約**で比べるほうが再現性があります。「速い」「軽い」ではなく、上限を決めてから測ります。",
+      "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] a) {\n        Scanner sc = new Scanner(System.in);\n        String[] limits = sc.nextLine().trim().split(\"\\\\s+\");\n        long maxStartup = Long.parseLong(limits[0]);\n        long maxMemory = Long.parseLong(limits[1]);\n        String required = limits[2];\n        int n = Integer.parseInt(sc.nextLine().trim());\n        for (int i = 0; i < n; i++) {\n            String[] row = sc.nextLine().trim().split(\"\\\\s+\");\n            /* TODO startup → memory → standard の順に調べ、最初に外れた項目を出す */\n            /* TODO OKだったものの中で最も起動が速いものを覚える */\n        }\n        /* TODO CANDIDATE か NONE を表示する */\n    }\n}\n",
       "visibleCases": [
         {
-          "label": "要件で比較",
-          "stdin": "3 SpringBoot 3 5 4 OpenLiberty 5 4 3 Quarkus 4 3 5",
-          "expected": "SpringBoot"
+          "label": "起動で2件が外れ、1件だけ残る",
+          "stdin": "500 256 jakarta-ee\n3\nliberty 900 300 jakarta-ee,microprofile\nquarkus-native 30 120 jakarta-ee\nspring 2500 400 -\n",
+          "expected": "liberty NG startup\nquarkus-native OK\nspring NG startup\nCANDIDATE quarkus-native"
+        },
+        {
+          "label": "制約が緩く2件とも満たす",
+          "stdin": "3000 512 none\n2\nspring 2500 400 -\nliberty 900 300 jakarta-ee\n",
+          "expected": "spring OK\nliberty OK\nCANDIDATE liberty"
         }
       ],
       "hiddenCases": [
         {
-          "label": "最大値",
-          "stdin": "2 A 1 1 1 B 5 5 5",
-          "expected": "B"
+          "label": "どれも満たさない",
+          "stdin": "10 64 jakarta-ee\n1\nliberty 900 300 jakarta-ee\n",
+          "expected": "liberty NG startup\nNONE"
+        },
+        {
+          "label": "起動は満たすがメモリで外れる",
+          "stdin": "1000 128 jakarta-ee\n1\nliberty 900 300 jakarta-ee\n",
+          "expected": "liberty NG memory\nNONE"
+        },
+        {
+          "label": "起動とメモリは満たすが標準で外れる",
+          "stdin": "3000 512 microprofile\n1\nspring 2500 400 -\n",
+          "expected": "spring NG standard\nNONE"
+        },
+        {
+          "label": "起動msが同じなら先に読んだもの",
+          "stdin": "1000 512 none\n2\nb 100 100 -\na 100 100 -\n",
+          "expected": "b OK\na OK\nCANDIDATE b"
+        },
+        {
+          "label": "上限とちょうど同じ値",
+          "stdin": "500 256 jakarta-ee\n1\nx 500 256 jakarta-ee\n",
+          "expected": "x OK\nCANDIDATE x"
         }
       ],
       "hints": [
-        "`total>best` のときだけ更新すると同点は先着です。"
+        "判定には順番があります。`startup` から順に調べ、最初に外れたところで理由を決めて、残りは調べません。`if / else if` で素直に書けます。",
+        "「上限より大きい」が外れる条件なので、上限と同じ値は満たします。必要な標準が `none` のときは、対応標準を見る必要がありません。"
       ],
-      "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] a) {\n        Scanner s = new Scanner(System.in);\n        int n = s.nextInt(), best = - 1;\n        String selected = \"\";\n        for (int i = 0; i < n; i++) {\n            String name = s.next();\n            int total = s.nextInt() + s.nextInt() + s.nextInt();\n            if (total > best) {\n                best = total;\n                selected = name;\n            }\n        }\n        System.out.println(selected);\n    }\n}\n",
+      "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] a) {\n        Scanner sc = new Scanner(System.in);\n        String[] limits = sc.nextLine().trim().split(\"\\\\s+\");\n        long maxStartup = Long.parseLong(limits[0]);\n        long maxMemory = Long.parseLong(limits[1]);\n        String required = limits[2];\n\n        int n = Integer.parseInt(sc.nextLine().trim());\n        String best = null;\n        long bestStartup = Long.MAX_VALUE;\n        for (int i = 0; i < n; i++) {\n            String[] row = sc.nextLine().trim().split(\"\\\\s+\");\n            String name = row[0];\n            long startup = Long.parseLong(row[1]);\n            long memory = Long.parseLong(row[2]);\n            Set<String> standards = new HashSet<>(Arrays.asList(row[3].split(\",\")));\n\n            String failed = null;\n            if (startup > maxStartup) failed = \"startup\";\n            else if (memory > maxMemory) failed = \"memory\";\n            else if (!required.equals(\"none\") && !standards.contains(required)) failed = \"standard\";\n\n            if (failed == null) {\n                System.out.println(name + \" OK\");\n                if (startup < bestStartup) {          // 同じなら先に読んだものを残す\n                    bestStartup = startup;\n                    best = name;\n                }\n            } else {\n                System.out.println(name + \" NG \" + failed);\n            }\n        }\n        System.out.println(best == null ? \"NONE\" : \"CANDIDATE \" + best);\n    }\n}\n",
       "quiz": [
         {
           "question": "フレームワーク選定で最も再現性のある方法は？",
           "choices": [
             "世の中の知名度だけを見て決める",
-            "将来のバージョンアップを考えずに決める",
+            "将来のバージョンアップの手順を考えずに、いま動くもので決める",
             "短いhello worldの起動時間だけで決める",
             "本番相当の条件でプロトタイプを測り、判断の記録を残す"
           ],
@@ -97,12 +144,16 @@
         }
       ],
       "rubric": [
+        "implement",
         "decide"
       ]
     },
     {
       "id": "53-2",
       "title": "共通のWebアプリ設計",
+      "objectiveIds": [
+        "ch53-o2"
+      ],
       "explanation": "## Webリクエストを役割ごとに分ける\n\nフレームワークが変わっても、Webアプリが行う仕事は大きく変わりません。たとえば「注文を1件登録する」処理には、次の仕事があります。\n\n```text\nHTTPリクエストを読む\n  → 入力の形を検査する\n  → 在庫があるか判断する\n  → DBへ保存する\n  → HTTPステータスとJSONを返す\n```\n\nこれを一つのクラスへ書くと、在庫ルールを試すだけでもHTTPやDBが必要になり、画面の変更が業務処理まで広がります。そこで役割を分けます。\n\n| 役割 | すること | 例 |\n|---|---|---|\n| HTTPアダプター / Controller | HTTPとJavaの値を変換する | JSONをDTOへ変換し、201を返す |\n| Application Service | 一つの利用手順を進行する | 在庫確認と保存を順に呼ぶ |\n| Domain | 業務上の判断を持つ | 在庫0なら注文不可 |\n| Repository / Client | DBや外部APIとの通信を隠す | 注文を保存する |\n\n**アダプター**は、外部の形式をアプリ内部の形式へつなぐ部品です。**ドメイン**は、フレームワークやHTTPとは無関係な業務ルールです。外側から内側へ依存させ、ドメイン側からSpringやJakarta RESTのクラスを参照しないようにすると、業務ルールを速い単体テストで確認できます。\n\n### 契約としてテストする\n\nAPI利用者にとって重要なのは内部クラス名ではなく、次のような外から見える約束です。これを**API契約**と呼びます。\n\n- どのURLとHTTPメソッドを使うか\n- 受け取るJSONの項目と制約\n- 成功・失敗時のステータスとJSON\n- 認証・認可が必要か\n- 何秒でタイムアウトするか\n\nフレームワークを変更しても、この契約が同じなら利用側への影響を小さくできます。ただし、将来の移行だけを理由にインターフェースを大量に作る必要はありません。DB、HTTP、時刻のように、実際に交換・試験したい境界へ置きます。\n\nこのレッスンの問題では、名前の検査とHTTP結果の対応を小さく表します。入力不正を業務処理へ進めず、同じ失敗には同じエラーを返すことが狙いです。",
       "samples": [
         {
@@ -110,50 +161,77 @@
           "code": "record Greeting(String message) { }\n\nfinal class Greet {\n    Greeting execute(String name) {\n        if (name == null || name.isBlank()) throw new IllegalArgumentException();\n        return new Greeting(\"Hello, \" + name);\n    }\n}\n\npublic class Main {\n    public static void main(String[] a) {\n        System.out.println(new Greet().execute(\"Java\").message());\n    }\n}\n"
         }
       ],
-      "task": "名前を1語読み、長さが1〜20なら `200 Hello, name`、それ以外なら `400 INVALID_NAME` と表示してください。`-` は空文字扱いです。",
-      "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] a) {\n        String name = new Scanner(System.in).next();\n        if (name.equals(\"-\")) name = \"\";\n        /* TODO */\n    }\n}\n",
+      "task": "**同じ業務ルールを、2つの外側から使います。** 入力は1行に `item count`（`item` の `_` は空文字）。\n\n`OrderDomain.check` に業務ルールを書きます。上から順に判定してください（在庫は `book=3` `pen=1`）。\n\n1. `item` が空 … `EMPTY_ITEM`\n2. `count` が `1`〜`10` の外 … `INVALID_COUNT`\n3. 在庫に無い、または足りない … `OUT_OF_STOCK`\n4. それ以外 … `OK`\n\n次に、同じ `OrderResult` を2つのアダプターへ渡し、**2行**出力します。\n\n| 判断 | `HttpAdapter` | `CliAdapter` |\n|---|---|---|\n| `OK` | `200 OK` | `注文を受け付けました` |\n| `EMPTY_ITEM` | `400 INVALID_ITEM` | `商品を指定してください` |\n| `INVALID_COUNT` | `400 INVALID_COUNT` | `個数は1〜10で指定してください` |\n| `OUT_OF_STOCK` | `409 OUT_OF_STOCK` | `在庫が足りません` |\n\n**ここが要点です。** `OrderDomain` の戻り値は `OrderResult` なので、ステータスコードや日本語の文言をドメインへ書くことはできません。だから外側をHTTPから画面へ替えても、業務ルールは1文字も変わりません。逆に、判定をアダプター側へ書くと同じルールを2か所へ書くことになります。",
+      "starterCode": "import java.util.*;\n\n/** 業務の判断の結果。HTTPもCLIも知らない。 */\nenum OrderResult { OK, EMPTY_ITEM, INVALID_COUNT, OUT_OF_STOCK }\n\n/** 業務ルールだけを持つ。戻り値が OrderResult なので、HTTPのことは書けない。 */\nclass OrderDomain {\n    private final Map<String, Integer> stock = new HashMap<>(Map.of(\"book\", 3, \"pen\", 1));\n\n    OrderResult check(String item, int count) {\n        /* TODO 上から順に判定する */\n        return OrderResult.OK;\n    }\n}\n\n/** 業務の判断をHTTPの応答へ翻訳する。ここに業務ルールは書かない。 */\nclass HttpAdapter {\n    String render(OrderResult result) {\n        /* TODO */\n        return \"\";\n    }\n}\n\n/** 同じ判断を、画面向けの文へ翻訳する。 */\nclass CliAdapter {\n    String render(OrderResult result) {\n        /* TODO */\n        return \"\";\n    }\n}\n\npublic class Main {\n    public static void main(String[] a) {\n        Scanner sc = new Scanner(System.in);\n        String item = sc.next();\n        if (item.equals(\"_\")) item = \"\";\n        int count = sc.nextInt();\n        OrderResult result = new OrderDomain().check(item, count);\n        System.out.println(new HttpAdapter().render(result));\n        System.out.println(new CliAdapter().render(result));\n    }\n}\n",
       "visibleCases": [
         {
-          "label": "正常",
-          "stdin": "Java",
-          "expected": "200 Hello, Java"
+          "label": "在庫のある注文",
+          "stdin": "book 2\n",
+          "expected": "200 OK\n注文を受け付けました"
         },
         {
-          "label": "空",
-          "stdin": "-",
-          "expected": "400 INVALID_NAME"
+          "label": "商品が空",
+          "stdin": "_ 2\n",
+          "expected": "400 INVALID_ITEM\n商品を指定してください"
         }
       ],
       "hiddenCases": [
         {
-          "label": "長すぎる",
-          "stdin": "abcdefghijklmnopqrstu",
-          "expected": "400 INVALID_NAME"
+          "label": "個数が0",
+          "stdin": "book 0\n",
+          "expected": "400 INVALID_COUNT\n個数は1〜10で指定してください"
+        },
+        {
+          "label": "個数が上限を超える",
+          "stdin": "book 11\n",
+          "expected": "400 INVALID_COUNT\n個数は1〜10で指定してください"
+        },
+        {
+          "label": "在庫に無い商品",
+          "stdin": "eraser 1\n",
+          "expected": "409 OUT_OF_STOCK\n在庫が足りません"
+        },
+        {
+          "label": "在庫が足りない",
+          "stdin": "pen 2\n",
+          "expected": "409 OUT_OF_STOCK\n在庫が足りません"
+        },
+        {
+          "label": "境界（在庫と同数）",
+          "stdin": "pen 1\n",
+          "expected": "200 OK\n注文を受け付けました"
+        },
+        {
+          "label": "空の商品と不正な個数（先に当たるのは商品）",
+          "stdin": "_ 0\n",
+          "expected": "400 INVALID_ITEM\n商品を指定してください"
         }
       ],
       "hints": [
-        "`!name.isEmpty() && name.length()<=20`。"
+        "`OrderDomain.check` は `OrderResult` を返します。ここで `\"400 ...\"` のような文字列を作ろうとすると、戻り値の型が合いません。",
+        "アダプターは `switch` 式で `OrderResult` を文へ対応づけるだけです。在庫の有無をアダプターで調べ直す必要はありません。",
+        "判定の順番は上から。`_ 0` のように2つ外れているときは、先に当たった `EMPTY_ITEM` を返します。"
       ],
-      "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] a) {\n        String name = new Scanner(System.in).next();\n        if (name.equals(\"-\")) name = \"\";\n        System.out.println(!name.isEmpty() && name.length() <= 20 ? \"200 Hello, \" + name : \"400 INVALID_NAME\");\n    }\n}\n",
+      "solution": "import java.util.*;\n\n/** 業務の判断の結果。HTTPもCLIも知らない。 */\nenum OrderResult { OK, EMPTY_ITEM, INVALID_COUNT, OUT_OF_STOCK }\n\n/** 業務ルールだけを持つ。戻り値が OrderResult なので、HTTPのことは書けない。 */\nclass OrderDomain {\n    private final Map<String, Integer> stock = new HashMap<>(Map.of(\"book\", 3, \"pen\", 1));\n\n    OrderResult check(String item, int count) {\n        if (item.isEmpty()) return OrderResult.EMPTY_ITEM;\n        if (count < 1 || count > 10) return OrderResult.INVALID_COUNT;\n        Integer current = stock.get(item);\n        if (current == null || current < count) return OrderResult.OUT_OF_STOCK;\n        return OrderResult.OK;\n    }\n}\n\n/** 業務の判断をHTTPの応答へ翻訳する。ここに業務ルールは書かない。 */\nclass HttpAdapter {\n    String render(OrderResult result) {\n        return switch (result) {\n            case OK -> \"200 OK\";\n            case EMPTY_ITEM -> \"400 INVALID_ITEM\";\n            case INVALID_COUNT -> \"400 INVALID_COUNT\";\n            case OUT_OF_STOCK -> \"409 OUT_OF_STOCK\";\n        };\n    }\n}\n\n/** 同じ判断を、画面向けの文へ翻訳する。 */\nclass CliAdapter {\n    String render(OrderResult result) {\n        return switch (result) {\n            case OK -> \"注文を受け付けました\";\n            case EMPTY_ITEM -> \"商品を指定してください\";\n            case INVALID_COUNT -> \"個数は1〜10で指定してください\";\n            case OUT_OF_STOCK -> \"在庫が足りません\";\n        };\n    }\n}\n\npublic class Main {\n    public static void main(String[] a) {\n        Scanner sc = new Scanner(System.in);\n        String item = sc.next();\n        if (item.equals(\"_\")) item = \"\";\n        int count = sc.nextInt();\n        OrderResult result = new OrderDomain().check(item, count);\n        System.out.println(new HttpAdapter().render(result));\n        System.out.println(new CliAdapter().render(result));\n    }\n}\n",
       "quiz": [
         {
           "question": "フレームワークからドメインを分離する効果は？",
           "choices": [
             "業務ロジックを単体テストしやすく、影響範囲を限定できる",
-            "DIコンテナを使わずに済むようになる",
-            "HTTPのステータス設計が不要になる",
-            "DBのトランザクションが自動で完全になる"
+            "DIコンテナを使わずに、依存を解決できるようになる",
+            "HTTPの状態コードの設計が、不要になる",
+            "DBのトランザクション境界が、自動で決まる"
           ],
           "answer": 0,
-          "explanation": "DIコンテナが不要になるわけではなく、HTTPのステータス設計も必要です。トランザクションが自動で完全になることもありません。業務ロジックがフレームワークの型に依存しなくなるので、普通に `new` してテストでき、フレームワークの版を上げたときの影響も入出力の層に限定できます。"
+          "explanation": "DIコンテナを使わずに依存を解決できるようになるわけではなく、HTTPの状態コードの設計も引き続き必要です。トランザクション境界が自動で決まることもありません。効果は、業務ロジックがフレームワークの型に依存しなくなることです。普通に `new` してテストでき、フレームワークの版を上げたときの影響も入出力の層に限定できます。"
         },
         {
           "question": "シングルトン相当のコンポーネントへリクエストごとの可変状態を持たせると、何が起きやすいでしょう。",
           "choices": [
-            "起動時に追加のインスタンスが作られる",
+            "起動時にインスタンスが追加で作られ、メモリが増える",
             "複数のリクエストがインスタンスを共有し、値が混在する",
-            "起動が少し遅くなるだけで害はない",
-            "DIの解決に失敗して起動しない"
+            "起動が少し遅くなるだけで、動作に影響は出ない",
+            "DIの解決に失敗し、起動時にエラーで止まる"
           ],
           "answer": 1,
           "explanation": "DIコンテナのスコープとライフサイクルを理解し、リクエストごとの状態はリクエストスコープか引数で持ちます。競合も起きます。"
@@ -163,6 +241,9 @@
     {
       "id": "53-3",
       "title": "Spring Bootで構成する",
+      "objectiveIds": [
+        "ch53-o3"
+      ],
       "explanation": "## Spring Bootは何を簡単にするのか\n\nSpringでWebアプリを作るには、HTTPを受ける部品、JSON変換、入力検証、サーバー、ログなどを組み合わせます。すべてを一つずつ設定すると自由度は高い一方、必要な部品の版や接続方法を毎回決めなければなりません。\n\n**Spring Boot**は、よく使う組み合わせと既定設定を用意し、少ない設定でSpringアプリを起動できるようにする仕組みです。主な助けは次の3つです。\n\n1. 関連ライブラリの互換性があるバージョンをそろえる\n2. プロジェクトの状態を見て、必要な設定を自動で追加する\n3. Webサーバーをアプリへ組み込み、JARを直接起動できるようにする\n\n### 自動構成とは\n\n**auto-configuration（自動構成）**は、条件がそろったときにSpring Bootが設定やBeanを追加する仕組みです。\n\n- **classpath** — 実行時に利用できるクラスやライブラリの一覧\n- **property** — `application.properties`などに書く設定値\n- **Bean** — Springが作成・管理するオブジェクト\n\nたとえばWeb用ライブラリがclasspathにあり、必要なpropertyが設定され、利用者が同じ役割のBeanを定義していなければ、Spring Bootが既定のBeanを作ります。利用者が自分のBeanを用意すると、自動構成は引き下がります。これを**back off**と呼びます。\n\n自動構成の利点は定型設定が減ることです。代償は、条件を理解していないと「なぜこのBeanが作られたか」が見えにくいことです。起動ログや条件レポートのPositive matches / Negative matchesで、成立した条件と成立しなかった条件を確認します。\n\n### 開発と運用を助ける部品\n\n- **Spring MVC** — 通常のServlet方式でHTTPを扱う\n- **WebFlux** — 非同期・リアクティブ方式でHTTPを扱う。必要性がなければMVCと混ぜない\n- **Spring Data** — データアクセスの定型処理を減らす\n- **Spring Security** — 認証と認可を組み込む\n- **Actuator** — 稼働状態やメトリクスを見る運用用エンドポイントを提供する\n\nテストは、Javaだけで動く単体テスト、Web層など一部分だけを起動する**slice test**、アプリ全体を起動する`@SpringBootTest`に分けます。すべてを全体テストにすると遅くなるため、確認したい範囲だけを起動します。\n\nこのレッスンの問題は、自動構成が「条件がそろえば追加し、利用者の定義があれば引き下がる」動きを表しています。",
       "samples": [
         {
@@ -171,7 +252,7 @@
         }
       ],
       "task": "クラスパス上の条件を3つ `web json userBean` の0/1で読みます。webとjsonが1でuserBeanが0なら `AUTO_CONFIGURE`、userBeanが1なら `BACK_OFF`、それ以外は `NO_MATCH` と表示してください。",
-      "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] a) {\n        Scanner s = new Scanner(System.in);\n        boolean web = s.nextInt() == 1, json = s.nextInt() == 1, user = s.nextInt() == 1;\n        /* TODO */\n    }\n}\n",
+      "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] a) {\n        Scanner sc = new Scanner(System.in);\n        boolean web = sc.nextInt() == 1, json = sc.nextInt() == 1, user = sc.nextInt() == 1;\n        /* TODO */\n    }\n}\n",
       "visibleCases": [
         {
           "label": "条件一致",
@@ -194,18 +275,18 @@
       "hints": [
         "userを最初に判定し、次にwebとjsonを判定します。"
       ],
-      "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] a) {\n        Scanner s = new Scanner(System.in);\n        boolean web = s.nextInt() == 1, json = s.nextInt() == 1, user = s.nextInt() == 1;\n        System.out.println(user ? \"BACK_OFF\" : web && json ? \"AUTO_CONFIGURE\" : \"NO_MATCH\");\n    }\n}\n",
+      "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] a) {\n        Scanner sc = new Scanner(System.in);\n        boolean web = sc.nextInt() == 1, json = sc.nextInt() == 1, user = sc.nextInt() == 1;\n        System.out.println(user ? \"BACK_OFF\" : web && json ? \"AUTO_CONFIGURE\" : \"NO_MATCH\");\n    }\n}\n",
       "quiz": [
         {
           "question": "Spring Bootの自動構成（auto-configuration）を調べる観点は？",
           "choices": [
             "クラスパス・プロパティ・Beanなどの条件を見る",
-            "常に無条件で有効になると考える",
-            "本番環境では起動ログを消す",
-            "アノテーションの名前だけを暗記する"
+            "依存へ入れた時点で有効になるものとして読む",
+            "本番では起動ログを切り、判定の記録を残さない",
+            "アノテーションの名前と対応する機能を覚える"
           ],
           "answer": 0,
-          "explanation": "無条件で有効になると考えるのは、自動構成でいちばん多い誤解です。起動ログを消すと調べる手がかりを失います。名前の暗記では、なぜ有効になったのか分かりません。自動構成は「クラスパスに何があるか」「どのプロパティが設定されているか」「その型のBeanが既にあるか」で決まるので、その一致と不一致を見ます。"
+          "explanation": "依存へ入れれば有効になると考えるのは、自動構成でいちばん多い誤解です。起動ログを切ると判定の記録が残らず、調べる手がかりを失います。名前と機能を覚えるだけでは、なぜ有効になったのかは分かりません。自動構成は「クラスパスに何があるか」「どのプロパティが設定されているか」「その型のBeanが既にあるか」で決まるので、その一致と不一致を見ます。"
         },
         {
           "question": "意図しないBeanが有効になっている原因を調べる手がかりとして適切なものはどれでしょう。",
@@ -213,7 +294,7 @@
             "クラスパス・プロパティ・既存Beanの条件と起動ログを読む",
             "`@SpringBootTest` を全テストへ付ける",
             "フレームワーク名を変えてみる",
-            "Actuatorのエンドポイントを外部へ公開する"
+            "Actuatorのエンドポイントを外部へ公開し、外から一覧する"
           ],
           "answer": 0,
           "explanation": "自動構成は魔法ではなく条件で動きます。条件を読めば理由が分かります。条件レポートも使えます。"
@@ -223,6 +304,9 @@
     {
       "id": "53-4",
       "title": "Open Libertyで構成する",
+      "objectiveIds": [
+        "ch53-o3"
+      ],
       "explanation": "## Open Libertyは何をしてくれるのか\n\n`@Path`、`@Inject`、`@Entity`などのアノテーションは、「このクラスをHTTPで呼びたい」「このオブジェクトを注入したい」という宣言です。アノテーションを書いただけでは処理は動きません。クラスを見つけ、オブジェクトを作り、HTTPやDBとつなぐ実装が必要です。\n\n**アプリケーションサーバー**は、その実装を提供してWebアプリを動かすプログラムです。**Open Liberty**は、Jakarta EEとMicroProfileの仕様を実装するアプリケーションサーバーの一つです。\n\n- **Jakarta EE** — REST、CDI、Persistenceなど、業務Webアプリを作るための標準API群\n- **MicroProfile** — Health、設定、耐障害性など、サービスの運用を補う標準仕様群\n- **runtime（ランタイム）** — アプリを実際に読み込んで動かしている実行環境\n\n標準APIを中心に書くと、対応する別のJakarta EEサーバーへ移すときも、独自APIだけで書いた場合より変更を小さくしやすくなります。\n\n### feature managerとは\n\nOpen Libertyでは、サーバーに持たせる機能を`server.xml`へ書きます。その中でfeatureを並べる設定欄が`<featureManager>`です。別の管理画面や製品ではなく、Open Libertyが起動時に読むXML要素です。\n\n```xml\n<featureManager>\n  <feature>restfulWS-4.0</feature>   <!-- @PathなどのREST API -->\n  <feature>jsonb-3.0</feature>       <!-- JavaとJSONの変換 -->\n  <feature>cdi-4.1</feature>         <!-- @Injectによる依存性注入 -->\n  <feature>mpHealth-4.0</feature>    <!-- /health/readyなど -->\n</featureManager>\n```\n\nfeatureは、Open Libertyが読み込む機能の単位です。設定に追加すると、必要な実装と関連機能が読み込まれます。書き忘れると、コードが正しくても404になったり、`@Inject`が働かなかったりします。ログの`CWWKF0012I`を見ると、実際に有効になったfeatureを確認できます。\n\n### 一括指定と個別指定\n\n`jakartaee-11.0`はJakarta EE 11の機能をまとめて有効にする**convenience feature**です。広い範囲を使うアプリでは設定が簡単です。必要なfeatureだけを個別に書くと、設定から使用機能と仕様版が分かり、不要な機能を読み込まない構成にできます。その代わり、必要なfeatureと互換性を管理する手間が増えます。\n\n```xml\n<featureManager>\n  <feature>jakartaee-11.0</feature>\n  <feature>mpHealth-4.0</feature>\n</featureManager>\n```\n\n開発中は`mvn liberty:dev`で起動すると、変更を反映しながら確認できます。`labs/frameworks/open-liberty`では、REST APIに必要なfeature、起動ログ、`/health/ready`の応答を対応付けてください。\n\nこのレッスンの問題では、`rest`や`health`という要件を、実際のfeature IDへ変換します。XMLを並べることではなく、**アプリが必要とする機能を設定へ結び付けること**が目的です。",
       "samples": [
         {
@@ -266,71 +350,93 @@
         {
           "question": "Open Libertyで、`jakartaee-11.0`のような一括指定ではなく、REST・CDIなど必要なfeatureを個別に宣言する主な狙いはどれでしょう。",
           "choices": [
-            "Jakarta EE仕様に準拠しなくて済む",
-            "MicroProfileの機能が自動で全部入る",
-            "使う機能の範囲を明示し、起動するランタイムを必要な分に絞れる",
-            "`server.xml` が不要になる"
+            "Jakarta EE仕様への準拠を気にせず設定できる",
+            "MicroProfileの機能が、指定なしで全部有効になる",
+            "使う機能の範囲を明示し、ランタイムを必要な分に絞れる",
+            "`server.xml` を書かずに、既定の構成で起動できる"
           ],
           "answer": 2,
-          "explanation": "個別指定では、使用する機能と仕様版を設定から確認でき、不要な機能を読み込まない構成にできます。その代わり、必要なfeatureの書き忘れや版の互換性を自分で管理する必要があります。"
+          "explanation": "Jakarta EE仕様への準拠は個別指定でも変わらず、MicroProfileの機能が指定なしで有効になることもありません。`server.xml` は個別指定のときこそ必要です。個別指定の狙いは、使用する機能と仕様版を設定から確認でき、不要な機能を読み込まない構成にできることです。その代わり、必要なfeatureの書き忘れや版の互換性を自分で管理することになります。"
         }
       ]
     },
     {
       "id": "53-5",
       "title": "Quarkusで構成する",
-      "explanation": "## Quarkusはどんな困りごとを解決するのか\n\nJavaのフレームワークは、起動時にclasspathを調べ、アノテーションを探し、依存関係や設定を組み立てることがあります。常に動き続ける大きなサーバーでは問題にならなくても、短時間で新しいインスタンスを増やす環境では、起動時間と起動直後のメモリが負担になります。\n\n**Quarkus**は、起動時に行う調査や組み立ての多くをビルド時へ移し、起動時の仕事を減らすフレームワークです。Jakarta RESTやCDIなどのAPIを使いながら、コンテナや短時間で増減するサービスでの利用を意識しています。\n\n### extensionとは\n\nQuarkusでは、REST、DB、Healthなどの機能を**extension（拡張）**として追加します。単にJARをclasspathへ置くだけでなく、Quarkusがそのライブラリをビルド時に解析・設定するための統合情報も含む単位です。\n\n- RESTEasy Reactive — HTTP/REST API\n- Hibernate ORM — DBとJavaオブジェクトの対応\n- SmallRye Health — Healthエンドポイント\n\n**SmallRye**は、MicroProfile仕様の実装を提供するプロジェクト群です。**BOM**は、同時に使えるextensionのバージョンをそろえる一覧です。\n\n### JVM実行とnative実行\n\n通常の**JVMモード**はビルドが速く、Javaのライブラリとの互換性や調査のしやすさに優れます。**native executable**は、アプリと必要な実行機能を事前に機械語へ変えた成果物で、起動時間や初期メモリで有利になる場合があります。\n\nただしnative化には時間がかかり、実行中にクラスを調べる**リフレクション**、動的プロキシ、追加リソースを使うライブラリには登録や対応extensionが必要です。nativeが常に速いわけでもなく、長時間動かしたときの最大処理性能はJVMが有利な場合があります。\n\n### 何が嬉しい場面か\n\n- インスタンスを頻繁に起動・停止する\n- 小さいメモリ上限で多くのサービスを動かす\n- Jakarta APIを使いながらビルド時検査を増やしたい\n\n一方、既存ライブラリがQuarkusやnative buildへ対応していない場合、移行コストが大きくなります。まずJVMモードで正しく動かし、起動時間やメモリが実際の課題であることを測ってからnativeを候補にします。\n\nこのレッスンの問題は、ビルドの速さと起動の速さが別の評価軸であることを確認します。",
+      "objectiveIds": [
+        "ch53-o3"
+      ],
+      "explanation": "## Quarkusはどんな困りごとを解決するのか\n\nJavaのフレームワークは、起動時にclasspathを調べ、アノテーションを探し、依存関係や設定を組み立てることがあります。常に動き続ける大きなサーバーでは問題にならなくても、短時間で新しいインスタンスを増やす環境では、起動時間と起動直後のメモリが負担になります。\n\n**Quarkus**は、起動時に行う調査や組み立ての多くをビルド時へ移し、起動時の仕事を減らすフレームワークです。Jakarta RESTやCDIなどのAPIを使いながら、コンテナや短時間で増減するサービスでの利用を意識しています。\n\n### extensionとは\n\nQuarkusでは、REST、DB、Healthなどの機能を**extension（拡張）**として追加します。単にJARをclasspathへ置くだけでなく、Quarkusがそのライブラリをビルド時に解析・設定するための統合情報も含む単位です。\n\n- RESTEasy Reactive — HTTP/REST API\n- Hibernate ORM — DBとJavaオブジェクトの対応\n- SmallRye Health — Healthエンドポイント\n\n**SmallRye**は、MicroProfile仕様の実装を提供するプロジェクト群です。**BOM**は、同時に使えるextensionのバージョンをそろえる一覧です。\n\nextensionは `pom.xml` の依存として宣言します。`<version>` は書きません（BOMが決めます）。\n\n```xml\n<dependency>\n  <groupId>io.quarkus</groupId>\n  <artifactId>quarkus-rest</artifactId>\n</dependency>\n```\n\n| 要件 | extension |\n|---|---|\n| REST API | `quarkus-rest` |\n| JSONとの変換 | `quarkus-rest-jackson` |\n| 依存性注入（CDI） | `quarkus-arc` |\n| 入力の検証 | `quarkus-hibernate-validator` |\n| ヘルスチェック | `quarkus-smallrye-health` |\n\nOpen Libertyが `server.xml` の `<feature>` で機能を選ぶのに対し、Quarkusは**依存の宣言**で選びます。同じ要件が、製品によって別の場所・別の書き方になる点がこの章の見どころです。\n\n### JVM実行とnative実行\n\n通常の**JVMモード**はビルドが速く、Javaのライブラリとの互換性や調査のしやすさに優れます。**native executable**は、アプリと必要な実行機能を事前に機械語へ変えた成果物で、起動時間や初期メモリで有利になる場合があります。\n\nただしnative化には時間がかかり、実行中にクラスを調べる**リフレクション**、動的プロキシ、追加リソースを使うライブラリには登録や対応extensionが必要です。nativeが常に速いわけでもなく、長時間動かしたときの最大処理性能はJVMが有利な場合があります。\n\n### 何が嬉しい場面か\n\n- インスタンスを頻繁に起動・停止する\n- 小さいメモリ上限で多くのサービスを動かす\n- Jakarta APIを使いながらビルド時検査を増やしたい\n\n一方、既存ライブラリがQuarkusやnative buildへ対応していない場合、移行コストが大きくなります。まずJVMモードで正しく動かし、起動時間やメモリが実際の課題であることを測ってからnativeを候補にします。\n\nこのレッスンの問題は、ビルドの速さと起動の速さが別の評価軸であることを確認します。",
       "samples": [
         {
           "caption": "ビルド時に決まる情報を固定しておく模型",
           "code": "import java.util.*;\n\npublic class Main {\n    static final Set<String> ROUTES = Set.of(\"/api/greeting\", \"/q/health\");\n\n    public static void main(String[] a) {\n        System.out.println(ROUTES.contains(a.length == 0 ? \"/q/health\" : a[0]));\n    }\n}\n"
         }
       ],
-      "task": "ビルド方式 `jvm` / `native` と、優先したい要件 `fast-build` / `fast-start` を読みます。fast-buildなら `jvm`、fast-startかつnativeなら `native-candidate`、それ以外は `measure` と表示してください。",
-      "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] a) {\n        Scanner s = new Scanner(System.in);\n        String mode = s.next(), goal = s.next();\n        /* TODO */\n    }\n}\n",
+      "task": "Quarkusで同じ要件を満たすため、**`pom.xml` へ書くExtensionの行**を作ってください。Open Libertyでは `<feature>` を並べましたが、Quarkusでは依存としてExtensionを宣言します。\n\n最初に要件の数nを読み、続けてn個の要件を読みます。要件を対応するExtensionへ変換し、**重複を除いて名前順**に `      <artifactId>ID</artifactId>` の形で表示してください（先頭は半角スペース6個）。\n\n| 要件 | Extension | 役割 |\n|---|---|---|\n| `rest` | `quarkus-rest` | `@Path` などのREST API |\n| `json` | `quarkus-rest-jackson` | JSONとの変換（RESTも含む） |\n| `cdi` | `quarkus-arc` | `@Inject` による依存性注入 |\n| `validation` | `quarkus-hibernate-validator` | 入力の検証 |\n| `health` | `quarkus-smallrye-health` | readiness / liveness |\n\n対応表に無い要件は、Extensionを出さずに**最後**へ辞書順で `UNKNOWN <要件>` と表示してください。書き間違えた要件が黙って消えると、必要な機能が入らないまま進んでしまいます。\n\n```\n4\nrest\ncdi\nrest\nhealth\n```\n\nこの例の答えはこうなります。\n\n```\n      <artifactId>quarkus-arc</artifactId>\n      <artifactId>quarkus-rest</artifactId>\n      <artifactId>quarkus-smallrye-health</artifactId>\n```\n\n> `<version>` を書かない点はOpen Libertyのfeatureと似ています。Quarkusでは**BOM**が版を決めるので、個別に書くと食い違いの原因になります。",
+      "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] a) {\n        Scanner sc = new Scanner(System.in);\n        int n = Integer.parseInt(sc.nextLine().trim());\n        Set<String> extensions = new TreeSet<>();\n        Set<String> unknown = new TreeSet<>();\n        for (int i = 0; i < n; i++) {\n            String requirement = sc.nextLine().trim();\n            /* TODO 要件をExtensionへ変換する。対応表に無ければ unknown へ */\n        }\n        /* TODO Extensionの行を名前順に出し、続けて UNKNOWN を辞書順に出す */\n    }\n}\n",
       "visibleCases": [
         {
-          "label": "build速度優先",
-          "stdin": "native fast-build",
-          "expected": "jvm"
+          "label": "重複した要件をまとめる",
+          "stdin": "4\nrest\ncdi\nrest\nhealth\n",
+          "expected": "      <artifactId>quarkus-arc</artifactId>\n      <artifactId>quarkus-rest</artifactId>\n      <artifactId>quarkus-smallrye-health</artifactId>"
         },
         {
-          "label": "起動速度候補",
-          "stdin": "native fast-start",
-          "expected": "native-candidate"
+          "label": "2要件で名前順に並ぶ",
+          "stdin": "2\njson\nvalidation\n",
+          "expected": "      <artifactId>quarkus-hibernate-validator</artifactId>\n      <artifactId>quarkus-rest-jackson</artifactId>"
         }
       ],
       "hiddenCases": [
         {
-          "label": "JVMも測定",
-          "stdin": "jvm fast-start",
-          "expected": "measure"
+          "label": "未知の要件を最後に報告",
+          "stdin": "2\nrest\nbatch\n",
+          "expected": "      <artifactId>quarkus-rest</artifactId>\nUNKNOWN batch"
+        },
+        {
+          "label": "未知が複数なら辞書順",
+          "stdin": "2\nzebra\napple\n",
+          "expected": "UNKNOWN apple\nUNKNOWN zebra"
+        },
+        {
+          "label": "同じ未知の要件が2回",
+          "stdin": "3\nkafka\nkafka\ncdi\n",
+          "expected": "      <artifactId>quarkus-arc</artifactId>\nUNKNOWN kafka"
+        },
+        {
+          "label": "5つすべてで名前順",
+          "stdin": "5\nhealth\nvalidation\ncdi\njson\nrest\n",
+          "expected": "      <artifactId>quarkus-arc</artifactId>\n      <artifactId>quarkus-hibernate-validator</artifactId>\n      <artifactId>quarkus-rest</artifactId>\n      <artifactId>quarkus-rest-jackson</artifactId>\n      <artifactId>quarkus-smallrye-health</artifactId>"
         }
       ],
       "hints": [
-        "goalがfast-buildかを先に判定します。"
+        "`TreeSet` へ入れると、重複除去と名前順が同時にできます。Extensionと未知の要件は別の集合にします。",
+        "出力の先頭は半角スペース6個です。`pom.xml` の `<dependencies>` の中の字下げに合わせています。"
       ],
-      "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] a) {\n        Scanner s = new Scanner(System.in);\n        String mode = s.next(), goal = s.next();\n        System.out.println(goal.equals(\"fast-build\") ? \"jvm\" : goal.equals(\"fast-start\") && mode.equals(\"native\") ? \"native-candidate\" : \"measure\");\n    }\n}\n",
+      "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] a) {\n        Scanner sc = new Scanner(System.in);\n        Map<String, String> forRequirement = Map.of(\n                \"rest\", \"quarkus-rest\",\n                \"json\", \"quarkus-rest-jackson\",\n                \"cdi\", \"quarkus-arc\",\n                \"validation\", \"quarkus-hibernate-validator\",\n                \"health\", \"quarkus-smallrye-health\");\n\n        int n = Integer.parseInt(sc.nextLine().trim());\n        Set<String> extensions = new TreeSet<>();\n        Set<String> unknown = new TreeSet<>();\n        for (int i = 0; i < n; i++) {\n            String requirement = sc.nextLine().trim();\n            String extension = forRequirement.get(requirement);\n            if (extension == null) unknown.add(requirement);\n            else extensions.add(extension);\n        }\n        for (String extension : extensions) {\n            System.out.println(\"      <artifactId>\" + extension + \"</artifactId>\");\n        }\n        for (String requirement : unknown) {\n            System.out.println(\"UNKNOWN \" + requirement);\n        }\n    }\n}\n",
       "quiz": [
         {
           "question": "ネイティブ実行ファイルを採用する前に確認することは？",
           "choices": [
-            "JVMモードより速いものとして見積もる",
-            "extensionをBOMから外す",
-            "リフレクションを無制限に使えると仮定する",
+            "JVMモードより速いものとして、測らずに見積もる",
+            "extensionをBOMから外し、版を個別に指定し直す",
+            "リフレクションを、追加の設定なしで使える前提で設計する",
             "ビルド時間・互換性・デバッグ・メモリ・実負荷での性能を測る"
           ],
           "answer": 3,
-          "explanation": "JVMモードより速いものとして見積もるのは、確かめずに決める行為そのものです。BOMから extension を外すのは関係ありません。ネイティブではリフレクションに設定が必要なので、無制限に使える前提は危険です。ビルド時間・互換性・デバッグ・メモリ・実負荷の性能を、同じ条件で測って比べます。"
+          "explanation": "JVMモードより速いものとして測らずに見積もるのは、確かめずに決める行為そのものです。BOMから extension を外すのは関係ありません。ネイティブではリフレクションに追加の設定が必要なので、設定なしで使える前提は危険です。ビルド時間・互換性・デバッグ・メモリ・実負荷の性能を、同じ条件で測って比べます。"
         }
       ],
       "rubric": [
-        "decide"
+        "implement"
       ]
     },
     {
       "id": "53-6",
       "title": "章末演習：業務フレームワークの選択肢",
+      "objectiveIds": [
+        "ch53-o1"
+      ],
       "explanation": "## この章で比較できるようになったこと\n\nこの章では製品名を暗記するのではなく、同じWebアプリをどう組み立て、どこに違いが現れるかを学びました。\n\n- 共通設計では、HTTP、業務ルール、外部I/Oの境界を分ける\n- Spring Bootでは、条件に応じた自動構成とback offを理解する\n- Open Libertyでは、必要な標準機能を`featureManager`へ宣言する\n- Quarkusでは、ビルド時処理とJVM/native実行の違いを理解する\n- 選定では、必須条件を満たした候補を同じ条件で測る\n\n章末問題は、重み付きの比較、契約の検査、自動構成の条件、feature選択、実行方式の判断を小さなJavaプログラムで確認します。合計点が高いだけで選ばず、対応JDK、必要なAPI、社内運用などの必須条件を先に確認してください。\n\n`labs/frameworks`では3製品で同じAPIを動かし、次を記録します。\n\n1. 起動コマンドと設定ファイル\n2. HTTP成功・入力不正の応答\n3. Healthエンドポイント\n4. テストの起動範囲\n5. 成果物の形式と大きさ\n6. 起動時間と定常時のメモリ\n\n数字だけでなく、「設定を見て動作理由を説明できるか」「障害時にどこを調べるか」も比較結果に含めます。",
       "samples": [
         {
@@ -340,7 +446,7 @@
         }
       ],
       "task": "【基本】評価軸の重みを `wStandards wOperations wPerformance` の形で読み、続けてどの軸にも必要な最低点 minEach と候補数nを読みます。さらにn件を `name standards operations performance` の形で読みます。\n\nどれか1つの軸でも minEach 未満の候補は失格です。読んだ順に、失格なら `name DISQUALIFIED`、そうでなければ `name 合計点` と表示してください。合計点は各軸の点数に重みを掛けて足した値です。\n\n最後に、失格でない候補のうち合計点が最大のものを `PICK name 合計点` と表示します。同点のときは先に入力された候補にします。失格でない候補が無ければ `PICK NONE` と表示します。",
-      "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        int ws = s.nextInt(), wo = s.nextInt(), wp = s.nextInt(), minEach = s.nextInt(), n = s.nextInt();\n        String best = \"NONE\";\n        int top = - 1;\n        for (int i = 0; i < n; i++) {\n            String name = s.next();\n            int standards = s.nextInt(), operations = s.nextInt(), performance = s.nextInt();\n            /* TODO 失格の判定と合計点 */\n        }\n        /* TODO PICK の表示 */\n    }\n}\n",
+      "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int ws = sc.nextInt(), wo = sc.nextInt(), wp = sc.nextInt(), minEach = sc.nextInt(), n = sc.nextInt();\n        String best = \"NONE\";\n        int top = - 1;\n        for (int i = 0; i < n; i++) {\n            String name = sc.next();\n            int standards = sc.nextInt(), operations = sc.nextInt(), performance = sc.nextInt();\n            /* TODO 失格の判定と合計点 */\n        }\n        /* TODO PICK の表示 */\n    }\n}\n",
       "visibleCases": [
         {
           "label": "重みで順位が変わる",
@@ -385,12 +491,15 @@
         "最大の更新は `>` で行います。`>=` にすると同点のときに後から来た候補へ入れ替わってしまいます。",
         "重みを外から受け取る形にしておくと、「起動時間を重く見る」「標準準拠を重く見る」といった方針の違いを、同じコードで比べられます。"
       ],
-      "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        int ws = s.nextInt(), wo = s.nextInt(), wp = s.nextInt(), minEach = s.nextInt(), n = s.nextInt();\n        String best = \"NONE\";\n        int top = - 1;\n        for (int i = 0; i < n; i++) {\n            String name = s.next();\n            int standards = s.nextInt(), operations = s.nextInt(), performance = s.nextInt();\n            if (standards < minEach || operations < minEach || performance < minEach) {\n                System.out.println(name + \" DISQUALIFIED\");\n                continue;\n            }\n            int total = standards * ws + operations * wo + performance * wp;\n            System.out.println(name + \" \" + total);\n            if (total > top) {\n                top = total;\n                best = name;\n            }\n        }\n        System.out.println(top < 0 ? \"PICK NONE\" : \"PICK \" + best + \" \" + top);\n    }\n}\n",
+      "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int ws = sc.nextInt(), wo = sc.nextInt(), wp = sc.nextInt(), minEach = sc.nextInt(), n = sc.nextInt();\n        String best = \"NONE\";\n        int top = - 1;\n        for (int i = 0; i < n; i++) {\n            String name = sc.next();\n            int standards = sc.nextInt(), operations = sc.nextInt(), performance = sc.nextInt();\n            if (standards < minEach || operations < minEach || performance < minEach) {\n                System.out.println(name + \" DISQUALIFIED\");\n                continue;\n            }\n            int total = standards * ws + operations * wo + performance * wp;\n            System.out.println(name + \" \" + total);\n            if (total > top) {\n                top = total;\n                best = name;\n            }\n        }\n        System.out.println(top < 0 ? \"PICK NONE\" : \"PICK \" + best + \" \" + top);\n    }\n}\n",
       "extraTasks": [
         {
+          "objectiveIds": [
+            "ch53-o2"
+          ],
           "kind": "drill",
           "task": "【組み合わせ】同じAPIを3つのフレームワークで作り、境界の契約が一致しているかを確かめます。観測結果をn件 `name framework status` の形で読みます（`framework` は `spring` / `liberty` / `quarkus`）。\n\n期待するstatusは `name` から決まります。`-` は空文字を表し、長さが1〜20文字なら `200`、それ以外は `400` です。読んだ順に `行番号 framework expected=期待 actual=実測 PASS` または `... FAIL` と表示してください（行番号は1から）。\n\n続けて、フレームワークごとの失敗件数を `spring` → `liberty` → `quarkus` の固定順で `framework 件数` と表示します。最後に、失敗が1件でもあれば `CONTRACT_BROKEN`、無ければ `CONTRACT_OK` と表示します。",
-          "starterCode": "import java.util.*;\n\npublic class Main {\n    static int expected(String name) {\n        /* TODO -は空文字。1〜20文字なら200 */ return 200;\n    }\n\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        int n = s.nextInt();\n        List<String> frameworks = List.of(\"spring\", \"liberty\", \"quarkus\");\n        Map<String, Integer> fails = new LinkedHashMap<>();\n        for (String f : frameworks) fails.put(f, 0);\n        for (int k = 1; k <= n; k++) {\n            String name = s.next(), framework = s.next();\n            int actual = s.nextInt();\n            /* TODO 比較と表示 */\n        }\n        /* TODO 件数とまとめ */\n    }\n}\n",
+          "starterCode": "import java.util.*;\n\npublic class Main {\n    static int expected(String name) {\n        /* TODO -は空文字。1〜20文字なら200 */ return 200;\n    }\n\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n        List<String> frameworks = List.of(\"spring\", \"liberty\", \"quarkus\");\n        Map<String, Integer> fails = new LinkedHashMap<>();\n        for (String f : frameworks) fails.put(f, 0);\n        for (int k = 1; k <= n; k++) {\n            String name = sc.next(), framework = sc.next();\n            int actual = sc.nextInt();\n            /* TODO 比較と表示 */\n        }\n        /* TODO 件数とまとめ */\n    }\n}\n",
           "visibleCases": [
             {
               "label": "1つだけ食い違う",
@@ -435,65 +544,73 @@
             "件数は `fails.merge(framework,1,Integer::sum)` で足せます。表示は `frameworks` の順に回します。",
             "契約テストは、フレームワークが違っても同じ入力へ同じ答えを返すことを確かめるものです。だからフレームワークごとに期待値を変えません。"
           ],
-          "solution": "import java.util.*;\n\npublic class Main {\n    static int expected(String name) {\n        String v = name.equals(\"-\") ? \"\" : name;\n        return !v.isEmpty() && v.length() <= 20 ? 200 : 400;\n    }\n\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        int n = s.nextInt();\n        List<String> frameworks = List.of(\"spring\", \"liberty\", \"quarkus\");\n        Map<String, Integer> fails = new LinkedHashMap<>();\n        for (String f : frameworks) fails.put(f, 0);\n        boolean broken = false;\n        for (int k = 1; k <= n; k++) {\n            String name = s.next(), framework = s.next();\n            int actual = s.nextInt(), want = expected(name);\n            boolean pass = want == actual;\n            if (!pass) {\n                fails.merge(framework, 1, Integer::sum);\n                broken = true;\n            }\n            System.out.println(k + \" \" + framework + \" expected=\" + want + \" actual=\" + actual + \" \" + (pass ? \"PASS\" : \"FAIL\"));\n        }\n        for (String f : frameworks) System.out.println(f + \" \" + fails.get(f));\n        System.out.println(broken ? \"CONTRACT_BROKEN\" : \"CONTRACT_OK\");\n    }\n}\n",
+          "solution": "import java.util.*;\n\npublic class Main {\n    static int expected(String name) {\n        String v = name.equals(\"-\") ? \"\" : name;\n        return !v.isEmpty() && v.length() <= 20 ? 200 : 400;\n    }\n\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n        List<String> frameworks = List.of(\"spring\", \"liberty\", \"quarkus\");\n        Map<String, Integer> fails = new LinkedHashMap<>();\n        for (String f : frameworks) fails.put(f, 0);\n        boolean broken = false;\n        for (int k = 1; k <= n; k++) {\n            String name = sc.next(), framework = sc.next();\n            int actual = sc.nextInt(), want = expected(name);\n            boolean pass = want == actual;\n            if (!pass) {\n                fails.merge(framework, 1, Integer::sum);\n                broken = true;\n            }\n            System.out.println(k + \" \" + framework + \" expected=\" + want + \" actual=\" + actual + \" \" + (pass ? \"PASS\" : \"FAIL\"));\n        }\n        for (String f : frameworks) System.out.println(f + \" \" + fails.get(f));\n        System.out.println(broken ? \"CONTRACT_BROKEN\" : \"CONTRACT_OK\");\n    }\n}\n",
           "rubric": [
             "diagnose"
           ]
         },
         {
+          "objectiveIds": [
+            "ch53-o3"
+          ],
           "kind": "applied",
-          "task": "【実践】同じ要件から3つの構成を組み立てます。まず必要な機能の数nを読み、続けてn個の機能名を読みます。次にclasspathの条件を `web json userBean` の順に `0` / `1` で読み、最後にQuarkusの `mode goal` を読みます（`mode` は `jvm` / `native`、`goal` は `fast-build` / `fast-start`）。\n\n1. Open Libertyの `server.xml` 断片として、機能名の重複を除いて名前順に `  <feature>名前</feature>` と1行ずつ表示してください（先頭は半角空白2つです）。機能が0件なら何も表示しません。\n2. Spring Bootのauto-configurationの判定を1行で表示します。`userBean` が1なら `BACK_OFF`、そうでなく `web` と `json` がどちらも1なら `AUTO_CONFIGURE`、それ以外は `NO_MATCH` です。\n3. Quarkusのビルド方式を1行で表示します。`goal` が `fast-build` なら `jvm`、`goal` が `fast-start` で `mode` が `native` なら `native-candidate`、それ以外は `measure` です。",
-          "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        int n = s.nextInt();\n        Set<String> features = new TreeSet<>();\n        for (int i = 0; i < n; i++) features.add(s.next());\n        boolean web = s.nextInt() == 1, json = s.nextInt() == 1, userBean = s.nextInt() == 1;\n        String mode = s.next(), goal = s.next();\n        /* TODO featureの表示 */ /* TODO auto-configurationの判定 */ /* TODO ビルド方式の判定 */\n    }\n}\n",
+          "task": "【実践】**同じ要件が3製品でどう表現されるか**を並べてください。この章の総まとめです。\n\n1行目に要件の数nを読み、続けてn個の要件を読みます。要件を**辞書順**（重複は除く）に、1行ずつ `要件 spring:<書き方> liberty:<書き方> quarkus:<書き方>` の形で表示してください。\n\n| 要件 | Spring Boot | Open Liberty | Quarkus |\n|---|---|---|---|\n| `rest` | `spring-boot-starter-web` | `restfulWS-4.0` | `quarkus-rest` |\n| `json` | `spring-boot-starter-web` | `jsonb-3.0` | `quarkus-rest-jackson` |\n| `cdi` | `built-in` | `cdi-4.1` | `quarkus-arc` |\n| `validation` | `spring-boot-starter-validation` | `validation-3.1` | `quarkus-hibernate-validator` |\n| `health` | `spring-boot-starter-actuator` | `mpHealth-4.0` | `quarkus-smallrye-health` |\n\n最後の行に、製品ごとに**追加が必要な依存/featureの種類数**を `EXTRA spring=<数> liberty=<数> quarkus=<数>` と表示してください。`built-in`（追加不要）は数えず、同じ名前が複数の要件で使われる場合は1つとして数えます。\n\n```\n3\nrest\njson\ncdi\n```\n\nこの例の答えはこうなります。`rest` と `json` はSpring Bootではどちらも `spring-boot-starter-web` なので1種類、`cdi` は追加不要です。\n\n```\ncdi spring:built-in liberty:cdi-4.1 quarkus:quarkus-arc\njson spring:spring-boot-starter-web liberty:jsonb-3.0 quarkus:quarkus-rest-jackson\nrest spring:spring-boot-starter-web liberty:restfulWS-4.0 quarkus:quarkus-rest\nEXTRA spring=1 liberty=3 quarkus=3\n```\n\n> **同じ要件でも、必要な追加の数は製品で違います。** 少ないほうが良いという話ではなく、「何が最初から入っていて、何を選んで足すのか」が製品ごとに違う、という設計思想の差です。",
+          "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] a) {\n        Scanner sc = new Scanner(System.in);\n        int n = Integer.parseInt(sc.nextLine().trim());\n        Set<String> requirements = new TreeSet<>();\n        for (int i = 0; i < n; i++) requirements.add(sc.nextLine().trim());\n        /* TODO 要件ごとに3製品の書き方を1行で出す */\n        /* TODO built-in を除いた種類数を製品ごとに数えて EXTRA 行を出す */\n    }\n}\n",
           "visibleCases": [
             {
-              "label": "標準準拠と起動速度",
-              "stdin": "5 rest cdi health rest persistence 1 1 0 native fast-start",
-              "expected": "  <feature>cdi</feature>\n  <feature>health</feature>\n  <feature>persistence</feature>\n  <feature>rest</feature>\nAUTO_CONFIGURE\nnative-candidate"
+              "label": "restとjsonでSpringは1種類",
+              "stdin": "3\nrest\njson\ncdi\n",
+              "expected": "cdi spring:built-in liberty:cdi-4.1 quarkus:quarkus-arc\njson spring:spring-boot-starter-web liberty:jsonb-3.0 quarkus:quarkus-rest-jackson\nrest spring:spring-boot-starter-web liberty:restfulWS-4.0 quarkus:quarkus-rest\nEXTRA spring=1 liberty=3 quarkus=3"
             },
             {
-              "label": "利用者定義beanとビルド速度",
-              "stdin": "2 rest rest 1 1 1 native fast-build",
-              "expected": "  <feature>rest</feature>\nBACK_OFF\njvm"
+              "label": "1要件で3製品とも追加が必要",
+              "stdin": "1\nvalidation\n",
+              "expected": "validation spring:spring-boot-starter-validation liberty:validation-3.1 quarkus:quarkus-hibernate-validator\nEXTRA spring=1 liberty=1 quarkus=1"
             }
           ],
           "hiddenCases": [
             {
-              "label": "機能0件で条件も合わない",
-              "stdin": "0 0 1 0 jvm fast-start",
-              "expected": "NO_MATCH\nmeasure"
+              "label": "cdiだけならSpringは0種類",
+              "stdin": "1\ncdi\n",
+              "expected": "cdi spring:built-in liberty:cdi-4.1 quarkus:quarkus-arc\nEXTRA spring=0 liberty=1 quarkus=1"
             },
             {
-              "label": "JVMモードでは候補にしない",
-              "stdin": "1 cdi 1 1 0 jvm fast-start",
-              "expected": "  <feature>cdi</feature>\nAUTO_CONFIGURE\nmeasure"
+              "label": "重複した要件は1つとして扱う",
+              "stdin": "3\nrest\nrest\nrest\n",
+              "expected": "rest spring:spring-boot-starter-web liberty:restfulWS-4.0 quarkus:quarkus-rest\nEXTRA spring=1 liberty=1 quarkus=1"
             },
             {
-              "label": "利用者定義beanが常に勝つ",
-              "stdin": "1 rest 0 0 1 native fast-start",
-              "expected": "  <feature>rest</feature>\nBACK_OFF\nnative-candidate"
+              "label": "5つすべて（Springはwebを共有）",
+              "stdin": "5\nrest\njson\ncdi\nvalidation\nhealth\n",
+              "expected": "cdi spring:built-in liberty:cdi-4.1 quarkus:quarkus-arc\nhealth spring:spring-boot-starter-actuator liberty:mpHealth-4.0 quarkus:quarkus-smallrye-health\njson spring:spring-boot-starter-web liberty:jsonb-3.0 quarkus:quarkus-rest-jackson\nrest spring:spring-boot-starter-web liberty:restfulWS-4.0 quarkus:quarkus-rest\nvalidation spring:spring-boot-starter-validation liberty:validation-3.1 quarkus:quarkus-hibernate-validator\nEXTRA spring=3 liberty=5 quarkus=5"
             },
             {
-              "label": "ビルド速度優先はJVM",
-              "stdin": "1 rest 1 1 0 jvm fast-build",
-              "expected": "  <feature>rest</feature>\nAUTO_CONFIGURE\njvm"
+              "label": "辞書順（cdi < health < rest）",
+              "stdin": "3\nrest\nhealth\ncdi\n",
+              "expected": "cdi spring:built-in liberty:cdi-4.1 quarkus:quarkus-arc\nhealth spring:spring-boot-starter-actuator liberty:mpHealth-4.0 quarkus:quarkus-smallrye-health\nrest spring:spring-boot-starter-web liberty:restfulWS-4.0 quarkus:quarkus-rest\nEXTRA spring=2 liberty=3 quarkus=3"
             },
             {
-              "label": "機能名を名前順に並べる",
-              "stdin": "3 zeta alpha mid 1 1 0 native fast-start",
-              "expected": "  <feature>alpha</feature>\n  <feature>mid</feature>\n  <feature>zeta</feature>\nAUTO_CONFIGURE\nnative-candidate"
+              "label": "health1件で3製品とも1種類",
+              "stdin": "1\nhealth\n",
+              "expected": "health spring:spring-boot-starter-actuator liberty:mpHealth-4.0 quarkus:quarkus-smallrye-health\nEXTRA spring=1 liberty=1 quarkus=1"
             }
           ],
           "hints": [
-            "`TreeSet` へ入れるだけで、重複が消えて名前順になります。",
-            "auto-configurationは「利用者が自分でbeanを定義していたら手を引く」条件が最優先です。判定の順番をそのまま書きます。",
-            "3つの出力はどれも同じ要件から導いています。同じ要件を3つの形へ写せるかが、フレームワークを比較できる状態です。"
+            "要件を鍵に、3製品の書き方を並べた配列を値にしたMapを作ると、出力は1行ずつ組み立てるだけになります。",
+            "`EXTRA` は**種類数**です。製品ごとに集合へ入れて数えると、同じ依存が複数の要件で使われても1つとして数えられます。`built-in` は入れません。",
+            "1行の形は `要件 spring:… liberty:… quarkus:…` で、区切りは半角スペース1つです。製品名と書き方の間はコロンで、空白を入れません。最後の `EXTRA` の行も同じ区切りです。"
           ],
-          "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        int n = s.nextInt();\n        Set<String> features = new TreeSet<>();\n        for (int i = 0; i < n; i++) features.add(s.next());\n        boolean web = s.nextInt() == 1, json = s.nextInt() == 1, userBean = s.nextInt() == 1;\n        String mode = s.next(), goal = s.next();\n        for (String f : features) System.out.println(\"  <feature>\" + f + \"</feature>\");\n        System.out.println(userBean ? \"BACK_OFF\" : web && json ? \"AUTO_CONFIGURE\" : \"NO_MATCH\");\n        System.out.println(goal.equals(\"fast-build\") ? \"jvm\" : goal.equals(\"fast-start\") && mode.equals(\"native\") ? \"native-candidate\" : \"measure\");\n    }\n}\n",
+          "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] a) {\n        Scanner sc = new Scanner(System.in);\n        Map<String, String[]> table = new HashMap<>();\n        //                       spring                            liberty          quarkus\n        table.put(\"rest\",       new String[] {\"spring-boot-starter-web\", \"restfulWS-4.0\", \"quarkus-rest\"});\n        table.put(\"json\",       new String[] {\"spring-boot-starter-web\", \"jsonb-3.0\", \"quarkus-rest-jackson\"});\n        table.put(\"cdi\",        new String[] {\"built-in\", \"cdi-4.1\", \"quarkus-arc\"});\n        table.put(\"validation\", new String[] {\"spring-boot-starter-validation\", \"validation-3.1\",\n                                              \"quarkus-hibernate-validator\"});\n        table.put(\"health\",     new String[] {\"spring-boot-starter-actuator\", \"mpHealth-4.0\",\n                                              \"quarkus-smallrye-health\"});\n\n        int n = Integer.parseInt(sc.nextLine().trim());\n        Set<String> requirements = new TreeSet<>();\n        for (int i = 0; i < n; i++) requirements.add(sc.nextLine().trim());\n\n        List<Set<String>> extra = List.of(new TreeSet<>(), new TreeSet<>(), new TreeSet<>());\n        String[] products = {\"spring\", \"liberty\", \"quarkus\"};\n        for (String requirement : requirements) {\n            String[] row = table.get(requirement);\n            StringBuilder line = new StringBuilder(requirement);\n            for (int p = 0; p < 3; p++) {\n                line.append(' ').append(products[p]).append(':').append(row[p]);\n                if (!row[p].equals(\"built-in\")) extra.get(p).add(row[p]);\n            }\n            System.out.println(line);\n        }\n        System.out.println(\"EXTRA spring=\" + extra.get(0).size()\n                + \" liberty=\" + extra.get(1).size()\n                + \" quarkus=\" + extra.get(2).size());\n    }\n}\n",
           "rubric": [
+            "implement",
             "decide"
           ]
         },
         {
+          "objectiveIds": [
+            "ch53-o1",
+            "ch53-o4"
+          ],
           "kind": "applied",
           "type": "runtime-lab",
           "task": "【実build比較演習】`labs/frameworks/comparison-exercise`には、同じ注文APIをSpring Boot・Open Liberty・Quarkusで用意してあります。3つを実際にbuildし、出来た成果物を見比べて`exercise/comparison.properties`を埋めてください。\n\n埋めるのは3つです。\n\n1. `runtime.*` — 実行時の実装をどこから得るか（`bundled` = 成果物に同梱 / `server` = サーバーが提供）\n2. `artifact.*` — 本番へ運ぶ成果物の形（`single-jar` / `war` / `directory`）\n3. `decision.rejected` と `decision.reason` — 先頭に書かれた必須条件（実装をサーバー側が提供すること）を**先に適用**したとき候補から外れる製品と、その根拠\n\n**時間やメモリは測りません。** build時間や起動時間は機械の性能で大きく変わるので、合否の条件にすると「速いマシンなら合格」になってしまいます。ここでは成果物の構造だけを見ます。\n\n提出すると3製品を`mvn package`でbuildし、`BOOT-INF/lib`、`WEB-INF/lib`と`server.xml`、`quarkus-app/lib`を実際に読んで、あなたの回答と一致するかを確かめます。採点は答えを表示せず、見るところだけを示します。初回は依存の取得に時間がかかります。",

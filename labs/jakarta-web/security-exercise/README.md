@@ -1,7 +1,7 @@
 # REST APIの認可 lab
 
 実Open Libertyへ配備して、「誰が呼べるか」と「何を返すか」を直します。
-第28章の「章末演習：REST API」が採点に使います。
+Web・Jakarta EE編『REST APIとセキュリティ』の「章末演習：REST API」が採点に使います。
 
 ```
 sh run-runtime-lab.sh
@@ -30,7 +30,7 @@ sh run-runtime-lab.sh
 | `mgr` | `mgr-pass` | staff, manager |
 | `bob` | `bob-pass` | （役割なし） |
 
-本番でパスワードを平文で持つことはありません（保存方式は第48章で扱います）。
+本番でパスワードを平文で持つことはありません（保存方式はWeb・Jakarta EE編『Jakarta EE 11アップデート』で扱います）。
 ここは認可の練習に集中するための固定データです。
 
 ## 401と403は違う

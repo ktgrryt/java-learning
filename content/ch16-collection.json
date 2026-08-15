@@ -3,10 +3,35 @@
   "title": "コレクション",
   "subtitle": "伸び縮みする入れ物を使う",
   "emoji": "📚",
+  "objectives": [
+    {
+      "id": "ch16-o1",
+      "text": "`List` に要素を追加・取得・削除し、伸び縮みする入れ物として使える"
+    },
+    {
+      "id": "ch16-o2",
+      "text": "ジェネリクスで要素の型を決め、型の合わない代入をコンパイル時に防げる"
+    },
+    {
+      "id": "ch16-o3",
+      "text": "`remove(int)` と `remove(Object)` の違いを見分け、回しながら削除する書き方を選べる"
+    },
+    {
+      "id": "ch16-o4",
+      "text": "`Map` で数を集計し、`HashMap` と `TreeMap` を並び順で使い分けられる"
+    },
+    {
+      "id": "ch16-o5",
+      "text": "`Set` で重複を除き、変更できないリストとの違いを説明できる"
+    }
+  ],
   "lessons": [
     {
       "id": "16-1",
       "title": "ArrayList を使う",
+      "objectiveIds": [
+        "ch16-o1"
+      ],
       "explanation": "## 配列の不便なところ\n\n配列は **長さを最初に決めたら変えられません**。\n\n```java\nString[] names = new String[3];\n// 4つ目を入れたい → 作り直すしかない\n```\n\n「あとから増える」データを扱うたびに作り直すのは大変です。\nそこでJavaには **伸び縮みする入れ物** が用意されています。その代表が **`ArrayList`** です。\n\n```java\nimport java.util.ArrayList;\nimport java.util.List;\n\nList<String> names = new ArrayList<>();\nnames.add(\"田中\");\nnames.add(\"佐藤\");\nSystem.out.println(names.size());      // 2\n```\n\n`java.util` にあるので **`import` が必要** です（第9章）。\n\n## 書き方の決まり\n\n```java\nList<String> names = new ArrayList<>();\n//  ↑型     ↑中身の型            ↑ここは空でよい\n```\n\n- `<String>` … 「中に入れるのは `String` です」という宣言（**ジェネリクス**。次のレッスンで扱います）\n- 左辺の型は **`List`**（インターフェース）にするのが作法です\n- 右辺の `<>` は左辺から分かるので空にできます（**ダイヤモンド演算子**）\n\n`List` は第12章で学んだインターフェースです。`ArrayList` はその実装クラスの1つ。\nだから `List` 型で受けておくと、あとで別の実装（`LinkedList` など）に差し替えられます。\n\n## よく使うメソッド\n\n| メソッド | すること |\n|---|---|\n| `add(x)` | 末尾に追加する |\n| `add(i, x)` | `i` の位置に挿入する |\n| `get(i)` | `i` 番目を取り出す |\n| `set(i, x)` | `i` 番目を差し替える |\n| `size()` | 要素数（配列の `length` にあたる） |\n| `remove(i)` | `i` 番目を削除する |\n| `contains(x)` | 含むか（`boolean`） |\n| `indexOf(x)` | 位置。なければ `-1` |\n| `isEmpty()` | 空か |\n| `clear()` | 全部消す |\n\n配列との対応で覚えると楽です。\n\n| | 配列 | List |\n|---|---|---|\n| 個数 | `arr.length` | `list.size()` |\n| 取り出す | `arr[i]` | `list.get(i)` |\n| 入れる | `arr[i] = x` | `list.set(i, x)` |\n| 追加 | できない | `list.add(x)` |\n\n## 回し方\n\n拡張for がそのまま使えます。\n\n```java\nfor (String name : names) {\n    System.out.println(name);\n}\n```\n\n`println` にそのまま渡すと、`[田中, 佐藤]` の形で出力されます\n（`toString()` が上書きされているからです。第10章）。\n\n```java\nSystem.out.println(names);      // [田中, 佐藤]\n```\n\n> ⚠️ 間違えやすい点 … 配列は `length`（フィールド）、`String` は `length()`（メソッド）、`List` は `size()`（メソッド）。3つとも違います。\n\n> 💡 `ArrayList` の中身は実は配列です。いっぱいになったら自動で大きい配列を作り直してくれます。「作り直しを代わりにやってくれる配列」と考えると分かりやすいです。",
       "samples": [
         {
@@ -143,6 +168,9 @@
     {
       "id": "16-2",
       "title": "ジェネリクスと型安全",
+      "objectiveIds": [
+        "ch16-o2"
+      ],
       "explanation": "## <> の中身は「入れるものの型」\n\n`List<String>` の `<String>` を **型引数** といい、この仕組みを **ジェネリクス** と呼びます。\n「この入れ物には `String` しか入れません」という約束です。\n\n約束があると、コンパイラが間違いを見つけてくれます。\n\n```java\nList<String> list = new ArrayList<>();\nlist.add(\"abc\");\nlist.add(123);        // ❌ コンパイルエラー：String ではない\n```\n\n取り出すときもキャストが要りません。\n\n```java\nString s = list.get(0);       // String と分かっているのでそのまま受け取れる\n```\n\n### 型を書かないと（raw type）\n\n`<>` を省略しても書けますが、そうすると **何でも入る** 入れ物になります。\n\n```java\nList list = new ArrayList();      // raw type（型を指定していない）\nlist.add(\"abc\");\nlist.add(123);                    // 通ってしまう\n\nString s = (String) list.get(1);  // 実行時に ClassCastException\n```\n\nコンパイルは通り、**実行してから落ちます**。ジェネリクスは\n「実行時のエラーをコンパイル時に前倒しする」ための仕組みです。必ず型を書きましょう。\n\n## 基本型は入れられない\n\nここが第15章とつながります。型引数には **参照型しか書けません**。\n\n```java\nList<int> list = new ArrayList<>();          // ❌ コンパイルエラー\nList<Integer> list = new ArrayList<>();      // ✅ ラッパークラスを使う\n```\n\n`int` を入れたければ `Integer` を指定します。オートボクシングのおかげで、\n出し入れは `int` のまま書けます。\n\n```java\nList<Integer> numbers = new ArrayList<>();\nnumbers.add(10);                     // int → Integer（オートボクシング）\nint first = numbers.get(0);           // Integer → int（アンボクシング）\nint sum = numbers.get(0) + 5;         // 計算もそのまま\n```\n\n> ⚠️ 間違えやすい点 … `List<Integer>` から `get` した値を `int` に入れるとき、要素が `null` だと `NullPointerException` です（第15章のアンボクシング）。`List` には `null` も入れられるので注意してください。\n\n## 型引数は「ぴったり一致」\n\n`List<Object>` と `List<String>` は **別の型** です。継承関係があっても代入できません。\n\n```java\nList<String> strings = new ArrayList<>();\nList<Object> objects = strings;      // ❌ コンパイルエラー\n```\n\n配列（第11章）では `Object[] a = new String[3];` が書けたので混乱しますが、\nジェネリクスでは許されません。`String` は `Object` ですが、\n**`List<String>` は `List<Object>` ではない** のです。\n\n> 💡 自分でジェネリクスなクラスを作ることもできます（`class Box<T> { ... }`）。まずは `List<Integer>` を自在に扱えるようにしましょう。",
       "samples": [
         {
@@ -274,6 +302,9 @@
     {
       "id": "16-3",
       "title": "remove の罠",
+      "objectiveIds": [
+        "ch16-o3"
+      ],
       "explanation": "## remove は2種類ある\n\n`List` の `remove` には **オーバーロードされた2つの版** があります。\n\n```java\nremove(int index)        // 「その位置」の要素を削除する\nremove(Object o)         // 「その値」を探して最初の1つを削除する\n```\n\n`List<String>` なら迷いません。`remove(0)` は位置、`remove(\"a\")` は値です。\nところが **`List<Integer>` だと見分けがつかなくなります**。\n\n```java\nList<Integer> list = new ArrayList<>();\nlist.add(10);\nlist.add(20);\nlist.add(30);\n\nlist.remove(1);        // ← 位置1（20）が消える。値の 1 ではない！\n```\n\n第7章のオーバーロード解決を思い出してください。`1` は `int` なので、\n**キャストの要らない `remove(int)` が選ばれます**。`remove(Object)` を選ぶには\nオートボクシングが必要で、そちらは後回しにされるからです。\n\n### 値で消したいときは Integer にする\n\n```java\nlist.remove(Integer.valueOf(1));      // 値 1 を探して消す\n```\n\nこう書けば引数の型が `Integer` になるので、`remove(Object)` が呼ばれます。\n\n> ⚠️ 間違えやすい点 … `List<Integer>` に対する `remove(1)` は「位置」です。「値」で消したいなら `Integer.valueOf(1)` を渡します。ここは毎回出ます。\n\n`remove(Object)` は消せたかどうかを `boolean` で返し、\n`remove(int)` は **消した要素** を返します。戻り値の型まで違います。\n\n## すべての出現を消す\n\n`remove(Object)` は **最初に見つかった1つだけ** を消します。\n全部消したいならくり返します。\n\n```java\nwhile (list.contains(v)) {\n    list.remove(Integer.valueOf(v));\n}\n```\n\n## ループの中で削除してはいけない\n\n添字を進めながら削除すると、**要素がずれて飛ばされます**。\n\n```java\nfor (int i = 0; i < list.size(); i++) {\n    if (list.get(i) == 1) {\n        list.remove(i);        // 消した分だけ後ろが前にずれる\n    }\n}\n```\n\n`[1, 1, 2]` に対してこれを実行すると、位置0を消した瞬間に\n2つ目の `1` が位置0へ移動しますが、`i` は `1` に進んでしまいます。\n結果として1つ残ります。\n\n```svg 前から回しながら削除すると、後ろが前にずれる一方で添字は進むので取りこぼす\n<svg viewBox=\"0 0 720 274\">\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"14\" y=\"24\"><tspan class=\"fig-mono\">List&lt;Integer&gt;</tspan> の remove(1) は「位置」</text>\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"176\" y=\"42\" text-anchor=\"middle\">[0]</text>\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"250\" y=\"42\" text-anchor=\"middle\">[1]</text>\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"324\" y=\"42\" text-anchor=\"middle\">[2]</text>\n  <rect class=\"fig-box\" x=\"142\" y=\"50\" width=\"68\" height=\"38\" rx=\"6\"/>\n  <text class=\"fig-t fig-mono fig-small\" x=\"176\" y=\"69\" text-anchor=\"middle\">10</text>\n  <rect class=\"fig-box-ng\" x=\"216\" y=\"50\" width=\"68\" height=\"38\" rx=\"6\"/>\n  <text class=\"fig-t fig-mono fig-small fig-t-ng\" x=\"250\" y=\"69\" text-anchor=\"middle\">20</text>\n  <rect class=\"fig-box\" x=\"290\" y=\"50\" width=\"68\" height=\"38\" rx=\"6\"/>\n  <text class=\"fig-t fig-mono fig-small\" x=\"324\" y=\"69\" text-anchor=\"middle\">30</text>\n  <text class=\"fig-t fig-mono fig-small fig-t-ng\" x=\"14\" y=\"69\">remove(1)</text>\n  <text class=\"fig-t fig-t-ng fig-small\" x=\"386\" y=\"60\">消えるのは位置1の 20。値の 1 ではない</text>\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"386\" y=\"82\">値で消すなら <tspan class=\"fig-mono\">Integer.valueOf(1)</tspan></text>\n\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"14\" y=\"128\">前から回して 1 を消していくと</text>\n  <text class=\"fig-t fig-mono fig-small\" x=\"130\" y=\"170\" text-anchor=\"end\">i = 0</text>\n  <rect class=\"fig-box-ng\" x=\"142\" y=\"150\" width=\"68\" height=\"38\" rx=\"6\"/>\n  <text class=\"fig-t fig-mono fig-small fig-t-ng\" x=\"176\" y=\"169\" text-anchor=\"middle\">1</text>\n  <rect class=\"fig-box\" x=\"216\" y=\"150\" width=\"68\" height=\"38\" rx=\"6\"/>\n  <text class=\"fig-t fig-mono fig-small\" x=\"250\" y=\"169\" text-anchor=\"middle\">1</text>\n  <rect class=\"fig-box\" x=\"290\" y=\"150\" width=\"68\" height=\"38\" rx=\"6\"/>\n  <text class=\"fig-t fig-mono fig-small\" x=\"324\" y=\"169\" text-anchor=\"middle\">2</text>\n  <text class=\"fig-t fig-t-ng fig-small\" x=\"386\" y=\"169\">位置0の 1 を消す</text>\n\n  <text class=\"fig-t fig-mono fig-small\" x=\"130\" y=\"230\" text-anchor=\"end\">i = 1</text>\n  <rect class=\"fig-box-dim\" x=\"142\" y=\"210\" width=\"68\" height=\"38\" rx=\"6\"/>\n  <text class=\"fig-t fig-mono fig-small fig-t-faint\" x=\"176\" y=\"229\" text-anchor=\"middle\">1</text>\n  <rect class=\"fig-box-accent\" x=\"216\" y=\"210\" width=\"68\" height=\"38\" rx=\"6\"/>\n  <text class=\"fig-t fig-mono fig-small fig-t-accent\" x=\"250\" y=\"229\" text-anchor=\"middle\">2</text>\n  <line class=\"fig-line\" x1=\"250\" y1=\"192\" x2=\"200\" y2=\"206\" marker-end=\"arrow\"/>\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"386\" y=\"222\">後ろが前にずれるのに、i は 1 に進む</text>\n  <text class=\"fig-t fig-t-ng fig-small\" x=\"386\" y=\"244\">→ 位置0に来た 1 は調べられず残る</text>\n  <text class=\"fig-t fig-t-ok fig-small\" x=\"14\" y=\"266\">後ろから回す・while で繰り返す・removeIf のどれかにする</text>\n</svg>\n```\n\n対策は3つあります。\n\n1. **後ろから** 回す（`for (int i = list.size() - 1; i >= 0; i--)`）\n2. `while (list.contains(v))` でくり返す\n3. `list.removeIf(...)` を使う（第17章で扱います）\n\n> ⚠️ 間違えやすい点 … 拡張for の中で `add` や `remove` をすると `ConcurrentModificationException` が投げられます。「回している最中に構造を変えるな」というルールです。\n\n```java\nfor (Integer n : list) {\n    list.remove(n);       // ❌ 実行時に ConcurrentModificationException\n}\n```",
       "samples": [
         {
@@ -410,6 +441,9 @@
     {
       "id": "16-4",
       "title": "Map で数える",
+      "objectiveIds": [
+        "ch16-o4"
+      ],
       "explanation": "## キーと値のペアを持つ入れ物\n\n`List` は「順番に並んだもの」でしたが、`Map` は **キーから値を引く** 入れ物です。\n辞書のように使えます。\n\n```java\nimport java.util.HashMap;\nimport java.util.Map;\n\nMap<String, Integer> counts = new HashMap<>();\ncounts.put(\"apple\", 3);\ncounts.put(\"banana\", 1);\n\nSystem.out.println(counts.get(\"apple\"));      // 3\n```\n\n型引数は2つです。`Map<キーの型, 値の型>` と書きます。\n\n## よく使うメソッド\n\n| メソッド | すること |\n|---|---|\n| `put(k, v)` | 登録する。**同じキーなら上書き** |\n| `get(k)` | 値を取り出す。**キーがなければ `null`** |\n| `getOrDefault(k, d)` | 値を取り出す。なければ `d` を返す |\n| `containsKey(k)` | そのキーがあるか |\n| `containsValue(v)` | その値があるか |\n| `remove(k)` | キーごと削除する |\n| `size()` | ペアの数 |\n| `keySet()` | キーの一覧（`Set`） |\n| `values()` | 値の一覧 |\n| `entrySet()` | ペアの一覧（`getKey()` / `getValue()`） |\n\n**キーは重複しません。** 同じキーで `put` すると、前の値は上書きされて消えます。\n\n```java\ncounts.put(\"apple\", 3);\ncounts.put(\"apple\", 5);\nSystem.out.println(counts.size());       // 1（2つにはならない）\nSystem.out.println(counts.get(\"apple\")); // 5\n```\n\n## 数を数える定番の書き方\n\n「単語がいくつ出てきたか」を数えるのが `Map` の典型的な使い道です。\n\n```java\nMap<String, Integer> counts = new HashMap<>();\nfor (String word : words) {\n    counts.put(word, counts.getOrDefault(word, 0) + 1);\n}\n```\n\n`getOrDefault(word, 0)` が効いています。まだ登録されていなければ `0` を返すので、\n「初回かどうか」の分岐を書かずに済みます。\n\n`get` を使うとこう書かなければなりません。\n\n```java\nif (counts.containsKey(word)) {\n    counts.put(word, counts.get(word) + 1);\n} else {\n    counts.put(word, 1);\n}\n```\n\n> ⚠️ 間違えやすい点 … `get` は キーがないとき **`null`** を返します。`int` で受けるとアンボクシングで `NullPointerException` です（第15章）。\n\n```java\nMap<String, Integer> m = new HashMap<>();\nint n = m.get(\"なにか\");        // ❌ 実行時に NullPointerException\nint n = m.getOrDefault(\"なにか\", 0);   // ✅ 安全\n```\n\n## 並び順は保証されない\n\n`HashMap` は **並び順を約束しません**。`keySet()` で取り出す順番は\n登録した順とは限らず、実行するたびに変わることもあります。\n\n順番が必要なときは実装を選びます。\n\n| クラス | 並び順 |\n|---|---|\n| `HashMap` | 保証なし（速い） |\n| `LinkedHashMap` | **登録した順** |\n| `TreeMap` | **キーの順**（辞書順・数値順） |\n\n> 💡 どれも `Map` インターフェースの実装なので、`Map<String, Integer> m = new TreeMap<>();` と差し替えるだけで並び順を変えられます。第12章のインターフェースの利点がここでも効いています。",
       "samples": [
         {
@@ -556,7 +590,10 @@
     {
       "id": "16-5",
       "title": "Set と、変更できないリスト",
-      "explanation": "## 重複を持たない入れ物 — Set\n\n`Set` は **同じものを2つ持てない** 入れ物です。「集合」という意味です。\n\n```java\nimport java.util.HashSet;\nimport java.util.Set;\n\nSet<String> set = new HashSet<>();\nset.add(\"a\");\nset.add(\"b\");\nset.add(\"a\");                  // すでにある → 何も起きない\n\nSystem.out.println(set.size());     // 2\n```\n\n`add` は **追加できたかどうか** を `boolean` で返します。\nこれを使えば「初めて出てきたか」を1行で判定できます。\n\n```java\nif (set.add(word)) {\n    System.out.println(\"初めて見た単語です\");\n}\n```\n\n`List` にあった `get(i)` はありません。位置という概念がないからです。\n中身を見るには拡張for か `contains` を使います。\n\n```svg 3つの入れ物の違い。並び順があるか、重複を持てるか、何で引くか\n<svg viewBox=\"0 0 720 196\">\n  <text class=\"fig-t fig-title\" x=\"127\" y=\"20\" text-anchor=\"middle\">List</text>\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"127\" y=\"40\" text-anchor=\"middle\">並び順がある／重複できる</text>\n  <rect class=\"fig-box\" x=\"30\" y=\"54\" width=\"64\" height=\"40\" rx=\"6\"/>\n  <text class=\"fig-t\" x=\"62\" y=\"74\" text-anchor=\"middle\">田中</text>\n  <rect class=\"fig-box\" x=\"96\" y=\"54\" width=\"64\" height=\"40\" rx=\"6\"/>\n  <text class=\"fig-t\" x=\"128\" y=\"74\" text-anchor=\"middle\">佐藤</text>\n  <rect class=\"fig-box\" x=\"162\" y=\"54\" width=\"64\" height=\"40\" rx=\"6\"/>\n  <text class=\"fig-t\" x=\"194\" y=\"74\" text-anchor=\"middle\">田中</text>\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"62\" y=\"110\" text-anchor=\"middle\">[0]</text>\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"128\" y=\"110\" text-anchor=\"middle\">[1]</text>\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"194\" y=\"110\" text-anchor=\"middle\">[2]</text>\n  <text class=\"fig-t fig-t-dim fig-small\" x=\"30\" y=\"142\">添字で取り出す <tspan class=\"fig-mono\">get(0)</tspan></text>\n  <text class=\"fig-t fig-t-dim fig-small\" x=\"30\" y=\"166\">末尾に足す <tspan class=\"fig-mono\">add(x)</tspan></text>\n\n  <text class=\"fig-t fig-title\" x=\"360\" y=\"20\" text-anchor=\"middle\">Set</text>\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"360\" y=\"40\" text-anchor=\"middle\">重複しない／並び順は当てにしない</text>\n  <rect class=\"fig-region\" x=\"262\" y=\"50\" width=\"196\" height=\"48\" rx=\"10\"/>\n  <rect class=\"fig-box\" x=\"272\" y=\"60\" width=\"54\" height=\"28\" rx=\"14\"/>\n  <text class=\"fig-t fig-small\" x=\"299\" y=\"74\" text-anchor=\"middle\">田中</text>\n  <rect class=\"fig-box\" x=\"334\" y=\"60\" width=\"54\" height=\"28\" rx=\"14\"/>\n  <text class=\"fig-t fig-small\" x=\"361\" y=\"74\" text-anchor=\"middle\">佐藤</text>\n  <rect class=\"fig-box\" x=\"396\" y=\"60\" width=\"54\" height=\"28\" rx=\"14\"/>\n  <text class=\"fig-t fig-small\" x=\"423\" y=\"74\" text-anchor=\"middle\">鈴木</text>\n  <text class=\"fig-t fig-t-ng fig-small\" x=\"360\" y=\"112\" text-anchor=\"middle\">同じ 田中 を add しても増えない</text>\n  <text class=\"fig-t fig-t-dim fig-small\" x=\"262\" y=\"142\">位置が無いので <tspan class=\"fig-mono\">get(i)</tspan> は無い</text>\n  <text class=\"fig-t fig-t-dim fig-small\" x=\"262\" y=\"166\">含むかを調べる <tspan class=\"fig-mono\">contains(x)</tspan></text>\n\n  <text class=\"fig-t fig-title\" x=\"593\" y=\"20\" text-anchor=\"middle\">Map</text>\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"593\" y=\"40\" text-anchor=\"middle\">鍵から値を引く</text>\n  <rect class=\"fig-box\" x=\"492\" y=\"54\" width=\"80\" height=\"34\" rx=\"6\"/>\n  <text class=\"fig-t fig-small\" x=\"532\" y=\"71\" text-anchor=\"middle\">\"田中\"</text>\n  <line class=\"fig-line\" x1=\"576\" y1=\"71\" x2=\"602\" y2=\"71\" marker-end=\"arrow\"/>\n  <rect class=\"fig-box-accent\" x=\"606\" y=\"54\" width=\"90\" height=\"34\" rx=\"6\"/>\n  <text class=\"fig-t fig-mono fig-t-accent\" x=\"651\" y=\"71\" text-anchor=\"middle\">2</text>\n  <rect class=\"fig-box\" x=\"492\" y=\"94\" width=\"80\" height=\"34\" rx=\"6\"/>\n  <text class=\"fig-t fig-small\" x=\"532\" y=\"111\" text-anchor=\"middle\">\"佐藤\"</text>\n  <line class=\"fig-line\" x1=\"576\" y1=\"111\" x2=\"602\" y2=\"111\" marker-end=\"arrow\"/>\n  <rect class=\"fig-box-accent\" x=\"606\" y=\"94\" width=\"90\" height=\"34\" rx=\"6\"/>\n  <text class=\"fig-t fig-mono fig-t-accent\" x=\"651\" y=\"111\" text-anchor=\"middle\">1</text>\n  <text class=\"fig-t fig-t-dim fig-small\" x=\"492\" y=\"142\">鍵で引く <tspan class=\"fig-mono\">get(\"田中\")</tspan></text>\n  <text class=\"fig-t fig-t-dim fig-small\" x=\"492\" y=\"166\">同じ鍵に put すると上書き</text>\n</svg>\n```\n\n## 3種類の Set\n\n`Map` と同じように、並び順で使い分けます。\n\n| クラス | 並び順 |\n|---|---|\n| `HashSet` | 保証なし（速い） |\n| `LinkedHashSet` | **追加した順** |\n| `TreeSet` | **自然順**（辞書順・数値順） |\n\n```java\nSet<String> ordered = new LinkedHashSet<>();   // 入力順に並ぶ\nSet<String> sorted = new TreeSet<>();          // 辞書順に並ぶ\n```\n\n「重複を消したいが順番は保ちたい」なら `LinkedHashSet`、\n「並べ替えたい」なら `TreeSet` です。\n\n> ⚠️ 間違えやすい点 … `TreeSet` の辞書順は **文字コード順** です。大文字が小文字より前に来ます（`Banana` → `Cherry` → `apple`）。\n\n## 変更できないコレクション\n\n`List.of(...)` や `Set.of(...)` で作ったコレクションは **不変** です。\n追加や削除をしようとすると **`UnsupportedOperationException`** が投げられます。\n\n```java\nList<String> fixed = List.of(\"a\", \"b\");\nfixed.add(\"c\");            // 実行時に UnsupportedOperationException\n```\n\nコンパイルは通ります。`List` インターフェースには `add` があるので、\n呼ぶことはできてしまい、**実行時に断られる** という形です。\n\n変更したいなら、可変なリストに詰め替えます。\n\n```java\nList<String> mutable = new ArrayList<>(List.of(\"a\", \"b\"));\nmutable.add(\"c\");          // ✅ OK\n```\n\n`Arrays.asList(...)` も似ていますが少し違います。\n\n| 作り方 | 要素の差し替え | 追加・削除 |\n|---|---|---|\n| `new ArrayList<>()` | できる | できる |\n| `Arrays.asList(...)` | **できる** | できない（固定長） |\n| `List.of(...)` | できない | できない（完全に不変） |\n\n> 💡 「変更されない」と分かっているコレクションは安心して他のメソッドに渡せます。第9章の不変クラスと同じ発想です。",
+      "objectiveIds": [
+        "ch16-o5"
+      ],
+      "explanation": "## 重複を持たない入れ物 — Set\n\n`Set` は **同じものを2つ持てない** 入れ物です。「集合」という意味です。\n\n```java\nimport java.util.HashSet;\nimport java.util.Set;\n\nSet<String> set = new HashSet<>();\nset.add(\"a\");\nset.add(\"b\");\nset.add(\"a\");                  // すでにある → 何も起きない\n\nSystem.out.println(set.size());     // 2\n```\n\n`add` は **追加できたかどうか** を `boolean` で返します。\nこれを使えば「初めて出てきたか」を1行で判定できます。\n\n```java\nif (set.add(word)) {\n    System.out.println(\"初めて見た単語です\");\n}\n```\n\n`List` にあった `get(i)` はありません。位置という概念がないからです。\n中身を見るには拡張for か `contains` を使います。\n\n```svg 3つの入れ物の違い。並び順があるか、重複を持てるか、何で引くか\n<svg viewBox=\"0 0 720 196\">\n  <text class=\"fig-t fig-title\" x=\"127\" y=\"20\" text-anchor=\"middle\">List</text>\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"127\" y=\"40\" text-anchor=\"middle\">並び順がある／重複できる</text>\n  <rect class=\"fig-box\" x=\"30\" y=\"54\" width=\"64\" height=\"40\" rx=\"6\"/>\n  <text class=\"fig-t\" x=\"62\" y=\"74\" text-anchor=\"middle\">田中</text>\n  <rect class=\"fig-box\" x=\"96\" y=\"54\" width=\"64\" height=\"40\" rx=\"6\"/>\n  <text class=\"fig-t\" x=\"128\" y=\"74\" text-anchor=\"middle\">佐藤</text>\n  <rect class=\"fig-box\" x=\"162\" y=\"54\" width=\"64\" height=\"40\" rx=\"6\"/>\n  <text class=\"fig-t\" x=\"194\" y=\"74\" text-anchor=\"middle\">田中</text>\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"62\" y=\"110\" text-anchor=\"middle\">[0]</text>\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"128\" y=\"110\" text-anchor=\"middle\">[1]</text>\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"194\" y=\"110\" text-anchor=\"middle\">[2]</text>\n  <text class=\"fig-t fig-t-dim fig-small\" x=\"30\" y=\"142\">添字で取り出す <tspan class=\"fig-mono\">get(0)</tspan></text>\n  <text class=\"fig-t fig-t-dim fig-small\" x=\"30\" y=\"166\">末尾に足す <tspan class=\"fig-mono\">add(x)</tspan></text>\n\n  <text class=\"fig-t fig-title\" x=\"360\" y=\"20\" text-anchor=\"middle\">Set</text>\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"360\" y=\"40\" text-anchor=\"middle\">重複しない／並び順は当てにしない</text>\n  <rect class=\"fig-region\" x=\"262\" y=\"50\" width=\"196\" height=\"48\" rx=\"10\"/>\n  <rect class=\"fig-box\" x=\"272\" y=\"60\" width=\"54\" height=\"28\" rx=\"14\"/>\n  <text class=\"fig-t fig-small\" x=\"299\" y=\"74\" text-anchor=\"middle\">田中</text>\n  <rect class=\"fig-box\" x=\"334\" y=\"60\" width=\"54\" height=\"28\" rx=\"14\"/>\n  <text class=\"fig-t fig-small\" x=\"361\" y=\"74\" text-anchor=\"middle\">佐藤</text>\n  <rect class=\"fig-box\" x=\"396\" y=\"60\" width=\"54\" height=\"28\" rx=\"14\"/>\n  <text class=\"fig-t fig-small\" x=\"423\" y=\"74\" text-anchor=\"middle\">鈴木</text>\n  <text class=\"fig-t fig-t-ng fig-small\" x=\"360\" y=\"112\" text-anchor=\"middle\">同じ 田中 を add しても増えない</text>\n  <text class=\"fig-t fig-t-dim fig-small\" x=\"262\" y=\"142\">位置が無いので <tspan class=\"fig-mono\">get(i)</tspan> は無い</text>\n  <text class=\"fig-t fig-t-dim fig-small\" x=\"262\" y=\"166\">含むかを調べる <tspan class=\"fig-mono\">contains(x)</tspan></text>\n\n  <text class=\"fig-t fig-title\" x=\"593\" y=\"20\" text-anchor=\"middle\">Map</text>\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"593\" y=\"40\" text-anchor=\"middle\">鍵から値を引く</text>\n  <rect class=\"fig-box\" x=\"492\" y=\"54\" width=\"80\" height=\"34\" rx=\"6\"/>\n  <text class=\"fig-t fig-small\" x=\"532\" y=\"71\" text-anchor=\"middle\">\"田中\"</text>\n  <line class=\"fig-line\" x1=\"576\" y1=\"71\" x2=\"602\" y2=\"71\" marker-end=\"arrow\"/>\n  <rect class=\"fig-box-accent\" x=\"606\" y=\"54\" width=\"90\" height=\"34\" rx=\"6\"/>\n  <text class=\"fig-t fig-mono fig-t-accent\" x=\"651\" y=\"71\" text-anchor=\"middle\">2</text>\n  <rect class=\"fig-box\" x=\"492\" y=\"94\" width=\"80\" height=\"34\" rx=\"6\"/>\n  <text class=\"fig-t fig-small\" x=\"532\" y=\"111\" text-anchor=\"middle\">\"佐藤\"</text>\n  <line class=\"fig-line\" x1=\"576\" y1=\"111\" x2=\"602\" y2=\"111\" marker-end=\"arrow\"/>\n  <rect class=\"fig-box-accent\" x=\"606\" y=\"94\" width=\"90\" height=\"34\" rx=\"6\"/>\n  <text class=\"fig-t fig-mono fig-t-accent\" x=\"651\" y=\"111\" text-anchor=\"middle\">1</text>\n  <text class=\"fig-t fig-t-dim fig-small\" x=\"492\" y=\"142\">鍵で引く <tspan class=\"fig-mono\">get(\"田中\")</tspan></text>\n  <text class=\"fig-t fig-t-dim fig-small\" x=\"492\" y=\"166\">同じ鍵に put すると上書き</text>\n</svg>\n```\n\n## 3種類の Set\n\n`Map` と同じように、並び順で使い分けます。\n\n| クラス | 並び順 |\n|---|---|\n| `HashSet` | 保証なし（速い） |\n| `LinkedHashSet` | **追加した順** |\n| `TreeSet` | **自然順**（辞書順・数値順） |\n\n```java\nSet<String> ordered = new LinkedHashSet<>();   // 入力順に並ぶ\nSet<String> sorted = new TreeSet<>();          // 辞書順に並ぶ\n```\n\n「重複を消したいが順番は保ちたい」なら `LinkedHashSet`、\n「並べ替えたい」なら `TreeSet` です。\n\n> ⚠️ 間違えやすい点 … `TreeSet` が並べるのは要素の **自然順序**（`Comparator` を渡した場合はその順）です。`String` の自然順序は `compareTo` による1文字ずつの比較なので、大文字が小文字より前に来ます（`Banana` → `Cherry` → `apple`）。**人間が使う辞書の順とは違います。**日本語や大文字小文字を言語のルールで並べたいときは、`Collator` のような照合用の道具が必要です。\n\n## 変更できないコレクション\n\n`List.of(...)` や `Set.of(...)` で作ったコレクションは、**要素の追加・削除・差し替えができません**。\nやろうとすると **`UnsupportedOperationException`** が投げられます。\n\n```java\nList<String> fixed = List.of(\"a\", \"b\");\nfixed.add(\"c\");            // 実行時に UnsupportedOperationException\n```\n\nコンパイルは通ります。`List` インターフェースには `add` があるので、\n呼ぶことはできてしまい、**実行時に断られる** という形です。\n\n変更したいなら、可変なリストに詰め替えます。\n\n```java\nList<String> mutable = new ArrayList<>(List.of(\"a\", \"b\"));\nmutable.add(\"c\");          // ✅ OK\n```\n\n`Arrays.asList(...)` も似ていますが少し違います。\n\n| 作り方 | 要素の差し替え | 追加・削除 |\n|---|---|---|\n| `new ArrayList<>()` | できる | できる |\n| `Arrays.asList(...)` | **できる** | できない（固定長） |\n| `List.of(...)` | できない | できない（構造を変えられない） |\n\n変更できないのは **コレクションの構造** だけです。入れた要素そのものが可変なら、中身は変わります。\n\n```java\nList<StringBuilder> notes = List.of(new StringBuilder(\"a\"));\nnotes.add(new StringBuilder());   // ✗ UnsupportedOperationException\nnotes.get(0).append(\"b\");         // ✅ 通る。中身は \"ab\" になる\n```\n\n「入れ替えられない」ことと「中身まで変わらない」ことは別です。第9章で見た\n「参照が `final` でも参照先は変えられる」と同じ関係です。\n\n> ⚠️ 間違えやすい点 … `List.of` と `Set.of` は `null` を受け付けません（`NullPointerException`）。\n> `Arrays.asList` は受け付けます。\n\n> 💡 「構造が変わらない」と分かっているコレクションは安心して他のメソッドに渡せます。第9章の不変クラスと同じ発想です。\n\n## 自作クラスを Set や Map のキーにするとき\n\nここまでの `Set` には `String` や `Integer` を入れてきました。これらは `equals` と `hashCode` が\n最初から正しく用意されています。自分で作ったクラスを入れるときは、**両方を上書きしていないと\n重複を取り除けません。**\n\n第10章で「`equals` を上書きしたら `hashCode` も上書きする」と決めた理由がここです。\n`HashSet` と `HashMap` は、まずハッシュ値で入れる場所を決め、**同じ場所に来たものだけ**\n`equals` で比べます。`hashCode` を上書きしないとインスタンスごとに違う値になるので、\n中身が同じ2つは別の場所へ入り、`equals` は一度も呼ばれません。\n\n```java\n// equals だけ上書きしたクラス\nSet<Tag> set = new HashSet<>();\nset.add(new Tag(\"java\"));\nset.add(new Tag(\"java\"));\nSystem.out.println(set.size());   // 2 … 重複を取り除けていない\n\nMap<Tag, String> map = new HashMap<>();\nmap.put(new Tag(\"java\"), \"A\");\nSystem.out.println(map.get(new Tag(\"java\")));   // null … 入れたのに引けない\n```\n\n`equals` が `true` を返すのに引けないので、原因が分かりにくい種類の不具合です。\n\n> ⚠️ 間違えやすい点 … 逆向きの決まりはありません。**中身が違うものが同じハッシュ値でも構いません**\n> （同じ場所に来て、`equals` で区別されます）。ですから `return 0;` と書いても*動きます*が、\n> 全部が同じ場所に集まるので探すのが遅くなります。ふつうは `Objects.hash(...)` を使います。\n\n> 💡 `record` は `equals` と `hashCode` を自動で用意します。値を運ぶだけのクラスなら\n> `record` にしておくと、この間違いが起きません（第18章）。",
       "samples": [
         {
           "caption": "3種類の Set で並び順を比べる",
@@ -686,6 +723,54 @@
               "message": "`Arrays.asList` で作ったリストの「差し替えはできるが追加はできない」を確かめてください。"
             }
           ]
+        },
+        {
+          "kind": "applied",
+          "objectiveIds": [
+            "ch16-o5"
+          ],
+          "task": "第10章で「`equals` を上書きしたら `hashCode` も上書きする」と決めました。その理由を、実際に `HashSet` と `HashMap` で確かめます。\n\nひな形には2つのクラスがあります。\n\n- `BadTag` … `equals` だけを上書き（**このままにしておきます**）\n- `GoodTag` … `equals` と `hashCode` の両方を上書き（**ここを書きます**）\n\nタグ名が2つ、`name1 name2` の順で入力されます。次の**7行**を出力してください。\n\n1. `BadTag equals ` … 同じ名前で作った2つの `BadTag` を `equals` で比べた結果\n2. `BadTag 件数 ` … その2つを `HashSet` へ入れたあとの `size()`\n3. `BadTag 取り出し ` … 一方をキーに `\"A\"` を入れた `HashMap` から、**もう一方で** `get` した結果\n4. `GoodTag equals ` … 同じ名前で作った2つの `GoodTag` を `equals` で比べた結果\n5. `GoodTag 件数 ` … その2つを `HashSet` へ入れたあとの `size()`\n6. `GoodTag 取り出し ` … 3と同じことを `GoodTag` で行った結果\n7. `GoodTag 別名も入れた件数 ` … 5のSetへ `new GoodTag(name2)` を足したあとの `size()`\n\n`equals` はどちらも `true` になるのに、`BadTag` は重複を取り除けず、入れたのに引けません。`hashCode` を上書きしないと、中身が同じ2つが違う場所へ入って`equals` が一度も呼ばれないためです。",
+          "starterCode": "import java.util.*;\n\n/** equals だけを上書きし、hashCode は上書きしていないクラス（わざとこのままにしてあります） */\nclass BadTag {\n    private final String name;\n\n    BadTag(String name) {\n        this.name = name;\n    }\n\n    @Override\n    public boolean equals(Object o) {\n        if (!(o instanceof BadTag)) {\n            return false;\n        }\n        BadTag other = (BadTag) o;\n        return this.name.equals(other.name);\n    }\n}\n\n/** equals と hashCode の両方を上書きするクラス */\nclass GoodTag {\n    private final String name;\n\n    GoodTag(String name) {\n        this.name = name;\n    }\n\n    @Override\n    public boolean equals(Object o) {\n        // TODO 名前が同じなら true\n        return false;\n    }\n\n    @Override\n    public int hashCode() {\n        // TODO equals が true になる2つで、必ず同じ値を返す\n        return 0;\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        String name1 = sc.next();\n        String name2 = sc.next();\n        // TODO BadTag と GoodTag を、それぞれ HashSet と HashMap で試して7行を出力する\n    }\n}\n",
+          "visibleCases": [
+            {
+              "label": "違う名前を足すと2件",
+              "stdin": "java kotlin\n",
+              "expected": "BadTag equals true\nBadTag 件数 2\nBadTag 取り出し null\nGoodTag equals true\nGoodTag 件数 1\nGoodTag 取り出し A\nGoodTag 別名も入れた件数 2"
+            },
+            {
+              "label": "同じ名前を足しても1件",
+              "stdin": "java java\n",
+              "expected": "BadTag equals true\nBadTag 件数 2\nBadTag 取り出し null\nGoodTag equals true\nGoodTag 件数 1\nGoodTag 取り出し A\nGoodTag 別名も入れた件数 1"
+            }
+          ],
+          "hiddenCases": [
+            {
+              "label": "1文字の名前",
+              "stdin": "a b\n",
+              "expected": "BadTag equals true\nBadTag 件数 2\nBadTag 取り出し null\nGoodTag equals true\nGoodTag 件数 1\nGoodTag 取り出し A\nGoodTag 別名も入れた件数 2"
+            },
+            {
+              "label": "日本語の名前",
+              "stdin": "タグ 別タグ\n",
+              "expected": "BadTag equals true\nBadTag 件数 2\nBadTag 取り出し null\nGoodTag equals true\nGoodTag 件数 1\nGoodTag 取り出し A\nGoodTag 別名も入れた件数 2"
+            },
+            {
+              "label": "文字を並べ替えただけの別名",
+              "stdin": "ab ba\n",
+              "expected": "BadTag equals true\nBadTag 件数 2\nBadTag 取り出し null\nGoodTag equals true\nGoodTag 件数 1\nGoodTag 取り出し A\nGoodTag 別名も入れた件数 2"
+            },
+            {
+              "label": "同じ名前を大文字にした別名",
+              "stdin": "java JAVA\n",
+              "expected": "BadTag equals true\nBadTag 件数 2\nBadTag 取り出し null\nGoodTag equals true\nGoodTag 件数 1\nGoodTag 取り出し A\nGoodTag 別名も入れた件数 2"
+            }
+          ],
+          "hints": [
+            "`GoodTag.equals` は `BadTag` と同じ形で書けます（`instanceof` で型を確かめ、キャストして名前を比べる）。",
+            "`hashCode` は `name.hashCode()` を返すだけで足ります。**要件は「equals が true なら同じ値」だけ**です。逆向き（違えば違う値）は要りません。",
+            "`BadTag` は直しません。直さないままの結果を見るのがこの問題の目的です。"
+          ],
+          "solution": "import java.util.*;\n\n/** equals だけを上書きし、hashCode は上書きしていないクラス（わざとこのままにしてあります） */\nclass BadTag {\n    private final String name;\n\n    BadTag(String name) {\n        this.name = name;\n    }\n\n    @Override\n    public boolean equals(Object o) {\n        if (!(o instanceof BadTag)) {\n            return false;\n        }\n        BadTag other = (BadTag) o;\n        return this.name.equals(other.name);\n    }\n}\n\n/** equals と hashCode の両方を上書きするクラス */\nclass GoodTag {\n    private final String name;\n\n    GoodTag(String name) {\n        this.name = name;\n    }\n\n    @Override\n    public boolean equals(Object o) {\n        if (!(o instanceof GoodTag)) {\n            return false;\n        }\n        GoodTag other = (GoodTag) o;\n        return this.name.equals(other.name);\n    }\n\n    @Override\n    public int hashCode() {\n        return name.hashCode();\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        String name1 = sc.next();\n        String name2 = sc.next();\n        BadTag bad1 = new BadTag(name1);\n        BadTag bad2 = new BadTag(name1);\n        Set<BadTag> badSet = new HashSet<>();\n        badSet.add(bad1);\n        badSet.add(bad2);\n        Map<BadTag, String> badMap = new HashMap<>();\n        badMap.put(bad1, \"A\");\n\n        GoodTag good1 = new GoodTag(name1);\n        GoodTag good2 = new GoodTag(name1);\n        Set<GoodTag> goodSet = new HashSet<>();\n        goodSet.add(good1);\n        goodSet.add(good2);\n        Map<GoodTag, String> goodMap = new HashMap<>();\n        goodMap.put(good1, \"A\");\n\n        System.out.println(\"BadTag equals \" + bad1.equals(bad2));\n        System.out.println(\"BadTag 件数 \" + badSet.size());\n        System.out.println(\"BadTag 取り出し \" + badMap.get(bad2));\n        System.out.println(\"GoodTag equals \" + good1.equals(good2));\n        System.out.println(\"GoodTag 件数 \" + goodSet.size());\n        System.out.println(\"GoodTag 取り出し \" + goodMap.get(good2));\n        goodSet.add(new GoodTag(name2));\n        System.out.println(\"GoodTag 別名も入れた件数 \" + goodSet.size());\n    }\n}\n"
         }
       ],
       "quiz": [
@@ -726,7 +811,7 @@
           "question": "`List<String> fixed = List.of(\"a\", \"b\");` に対して `fixed.add(\"c\")` を実行するとどうなるでしょう。",
           "choices": [
             "`c` が末尾に追加されてサイズが3になる",
-            "実行時に `UnsupportedOperationException` になる",
+            "実行時に必ず `UnsupportedOperationException` になる",
             "`add` が定義されていないのでコンパイルエラーになる",
             "実行時に `IllegalStateException` になる"
           ],
@@ -738,6 +823,11 @@
     {
       "id": "16-6",
       "title": "章末演習：コレクション",
+      "objectiveIds": [
+        "ch16-o3",
+        "ch16-o4",
+        "ch16-o5"
+      ],
       "explanation": "## この章の知識を、自分の手で組み合わせよう\n\nここでは、**List・Map・Set・ジェネリクス**をまとめて使います。新しい文法は登場しません。分からなくなったら、直前までの解説やサンプルへ戻って確認して大丈夫です。\n\n### 3問の進め方\n\n1. **基本**で、中心となる書き方をもう一度使う\n2. **組み合わせ**で、章内の複数の知識を一緒に使う\n3. **実践**で、少し現実的な入力と条件を整理する\n\nまず入力例と期待される出力を紙に書き、処理を小さな手順へ分けてからコードにすると進めやすくなります。",
       "samples": [
         {
@@ -746,7 +836,7 @@
         }
       ],
       "task": "【基本】n個の単語を読み、出現回数をTreeMapで集計して `単語=回数` をキー順に1行ずつ表示してください。",
-      "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        int n = s.nextInt();\n        Map<String, Integer> counts = new TreeMap<>();\n        for (int i = 0; i < n; i++) {\n            String word = s.next();\n            /* TODO */\n        }\n        for (Map.Entry<String, Integer> e : counts.entrySet()) {\n            System.out.println(e.getKey() + \"=\" + e.getValue());\n        }\n    }\n}\n",
+      "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n        Map<String, Integer> counts = new TreeMap<>();\n        for (int i = 0; i < n; i++) {\n            String word = sc.next();\n            /* TODO */\n        }\n        for (Map.Entry<String, Integer> e : counts.entrySet()) {\n            System.out.println(e.getKey() + \"=\" + e.getValue());\n        }\n    }\n}\n",
       "visibleCases": [
         {
           "label": "重複あり",
@@ -775,12 +865,12 @@
         "TreeMapならキーが自然順に並びます。",
         "`merge(word, 1, Integer::sum)` で件数を増やせます。"
       ],
-      "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        int n = s.nextInt();\n        Map<String, Integer> counts = new TreeMap<>();\n        for (int i = 0; i < n; i++) {\n            String word = s.next();\n            counts.put(word, counts.getOrDefault(word, 0) + 1);\n        }\n        for (Map.Entry<String, Integer> e : counts.entrySet()) {\n            System.out.println(e.getKey() + \"=\" + e.getValue());\n        }\n    }\n}\n",
+      "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n        Map<String, Integer> counts = new TreeMap<>();\n        for (int i = 0; i < n; i++) {\n            String word = sc.next();\n            counts.put(word, counts.getOrDefault(word, 0) + 1);\n        }\n        for (Map.Entry<String, Integer> e : counts.entrySet()) {\n            System.out.println(e.getKey() + \"=\" + e.getValue());\n        }\n    }\n}\n",
       "extraTasks": [
         {
           "kind": "drill",
           "task": "【組み合わせ】n個の整数を読み、重複を除いて小さい順に半角スペースで表示してください。TreeSetを使います。",
-          "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        int n = s.nextInt();\n        Set<Integer> values = new TreeSet<>();\n        /* TODO */\n    }\n}\n",
+          "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n        Set<Integer> values = new TreeSet<>();\n        /* TODO */\n    }\n}\n",
           "visibleCases": [
             {
               "label": "重複",
@@ -809,7 +899,7 @@
             "入力値をTreeSetへaddします。",
             "拡張forで順番に表示し、2個目から空白を付けます。"
           ],
-          "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        int n = s.nextInt();\n        Set<Integer> values = new TreeSet<>();\n        for (int i = 0; i < n; i++) values.add(s.nextInt());\n        int i = 0;\n        for (int v : values) {\n            if (i++ > 0) System.out.print(\" \");\n            System.out.print(v);\n        }\n        System.out.println();\n    }\n}\n",
+          "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n        Set<Integer> values = new TreeSet<>();\n        for (int i = 0; i < n; i++) values.add(sc.nextInt());\n        int i = 0;\n        for (int v : values) {\n            if (i++ > 0) System.out.print(\" \");\n            System.out.print(v);\n        }\n        System.out.println();\n    }\n}\n",
           "sourceChecks": [
             {
               "pattern": "\\bnew\\s+TreeSet\\s*<",
@@ -827,7 +917,7 @@
         {
           "kind": "applied",
           "task": "【実践】`n` 個の整数を `ArrayList` へ入れ、**負数を削除** します。\n\n`removeIf` は第17章で学ぶので、ここでは使いません。16-3 で見た\n「**添字を後ろから回す**」か「`while` でくり返す」で削除してください。\n\n次の **2行** を出力します。\n\n1. 削除後のリストをそのまま `println`（`[3, 2, 0, 2]` の形）\n2. `削除 ` + 削除した個数\n\n`6 3 -1 2 -5 0 2` が入力されたときの出力はこうです。\n\n```\n[3, 2, 0, 2]\n削除 2\n```\n\n- 残った値は **並べ替えず**、読んだ順のままにします\n- 前から `i++` で回しながら削除すると、消した分だけ後ろが前へずれて **見落とし** が出ます。\n  負数が2つ続く入力で試すとすぐ分かります\n- 負数が1つも無ければ `削除 0` です",
-          "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        int n = s.nextInt();\n        List<Integer> values = new ArrayList<>();\n        for (int i = 0; i < n; i++) values.add(s.nextInt());\n\n        // 後ろから回して負数を削除し、消した個数を数えよう\n\n        System.out.println(values);\n        // 削除した個数も出力しよう\n    }\n}\n",
+          "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n        List<Integer> values = new ArrayList<>();\n        for (int i = 0; i < n; i++) values.add(sc.nextInt());\n\n        // 後ろから回して負数を削除し、消した個数を数えよう\n\n        System.out.println(values);\n        // 削除した個数も出力しよう\n    }\n}\n",
           "visibleCases": [
             {
               "label": "混在",
@@ -872,13 +962,13 @@
             "`values.remove(i)` は **添字** で消します（値で消したいときは `remove(Integer.valueOf(v))` です）。",
             "消した回数はループの外に変数を用意して、`remove` のたびに1つ増やします。"
           ],
-          "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        int n = s.nextInt();\n        List<Integer> values = new ArrayList<>();\n        for (int i = 0; i < n; i++) values.add(s.nextInt());\n\n        int removed = 0;\n        for (int i = values.size() - 1; i >= 0; i--) {\n            if (values.get(i) < 0) {\n                values.remove(i);\n                removed++;\n            }\n        }\n\n        System.out.println(values);\n        System.out.println(\"削除 \" + removed);\n    }\n}\n",
+          "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n        List<Integer> values = new ArrayList<>();\n        for (int i = 0; i < n; i++) values.add(sc.nextInt());\n\n        int removed = 0;\n        for (int i = values.size() - 1; i >= 0; i--) {\n            if (values.get(i) < 0) {\n                values.remove(i);\n                removed++;\n            }\n        }\n\n        System.out.println(values);\n        System.out.println(\"削除 \" + removed);\n    }\n}\n",
           "sourceChecks": [
             {
               "pattern": "removeIf",
               "minimum": 0,
               "maximum": 0,
-              "message": "`removeIf` は第17章で学びます。ここは16-3で見た「後ろから回す」か「`while` でくり返す」で削除してください。"
+              "message": "`removeIf` は「ラムダ式」の章で学びます。ここはこの章で見た「後ろから回す」か「`while` でくり返す」で削除してください。"
             },
             {
               "pattern": "\\.remove\\s*\\(",

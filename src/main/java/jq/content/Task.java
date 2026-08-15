@@ -24,6 +24,7 @@ import java.util.Map;
  * @param project project問題の対象と実行方法。それ以外ではnull
  * @param runtimeLab runtime-lab問題の対象、必要環境、実行時検査。それ以外ではnull
  * @param rubric   この問題が測る実務能力（省略可）。空なら型から導く（{@link #rubricDimensions()}）
+ * @param objectiveIds この問題が測る章の到達目標（省略可）。空ならレッスンの指定を使う
  */
 public record Task(
         String id,
@@ -39,7 +40,8 @@ public record Task(
         ArtifactSpec artifact,
         ProjectSpec project,
         RuntimeLabSpec runtimeLab,
-        List<String> rubric) {
+        List<String> rubric,
+        List<String> objectiveIds) {
 
     /**
      * 実務rubricの5軸。§8.4の項目に対応する。
@@ -113,6 +115,7 @@ public record Task(
         m.put("required", required);
         m.put("type", type);
         m.put("label", label());
+        m.put("objectiveIds", objectiveIds);
         m.put("task", task);
         m.put("starterCode", isArtifact() || isMultiFile()
                 ? starterCode

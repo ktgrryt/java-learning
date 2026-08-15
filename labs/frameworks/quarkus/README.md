@@ -129,7 +129,13 @@ DockerまたはPodmanがあれば、GraalVMをローカルへ導入せずコン�
 
 ```bash
 mvn package -Dnative -Dquarkus.native.container-build=true
+# Podmanのとき
+mvn package -Dnative -Dquarkus.native.container-build=true -Dquarkus.native.container-runtime=podman
 ```
+
+`-Dnative` は `pom.xml` の `native` プロファイルを起こすための名前です。プロファイルが無いpomで
+これを渡すと**mvnは成功したままJVMのjarだけを作り**、Native executableができません。
+自分で作ったプロジェクトで無反応に見えるときは、まずプロファイルの有無を確かめてください。
 
 Native Imageはcold startと初期メモリを小さくしやすい一方、build時間、動的Reflection、resource、
 利用ライブラリ、障害調査に追加確認が必要です。Nativeを本番採用するならNative実行ファイルを対象にした

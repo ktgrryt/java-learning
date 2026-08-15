@@ -3,10 +3,32 @@
   "title": "スレッドとスレッドセーフ",
   "subtitle": "共有メモリの三つの問題を知り、ロック・atomic・並行コレクションで守る",
   "emoji": "🧵",
+  "objectives": [
+    {
+      "id": "32-o1",
+      "text": "原子性・可視性・順序性の3つの問題を見分けられる"
+    },
+    {
+      "id": "32-o2",
+      "text": "atomicクラスと並行コレクションで、共有カウンタを安全に更新できる"
+    },
+    {
+      "id": "32-o3",
+      "text": "`synchronized` で不変条件ごと守り、ロックの順序をそろえてデッドロックを防げる"
+    },
+    {
+      "id": "32-o4",
+      "text": "`join` と `CountDownLatch` でスレッドの完了を待てる（`sleep` で待たない）"
+    }
+  ],
   "lessons": [
     {
       "id": "32-1",
       "title": "原子性・可視性・順序性",
+      "objectiveIds": [
+        "32-o1",
+        "32-o4"
+      ],
       "explanation": "## はじめて学ぶ人へ\n\n複数スレッドが同じ値を扱うときは、2人の店員が同じ売上表を同時に更新する場面を想像してください。`count++` は1動作に見えても、実際は「読む→1足す→書く」の3段階です。\n\n```svg `count++` は「読む → 1足す → 書く」の3段階。割り込まれると1回ぶん消える\n<svg viewBox=\"0 0 720 292\">\n  <text class=\"fig-t fig-title\" x=\"150\" y=\"26\" text-anchor=\"middle\">スレッドA</text>\n  <text class=\"fig-t fig-title\" x=\"360\" y=\"26\" text-anchor=\"middle\">count（共有）</text>\n  <text class=\"fig-t fig-title\" x=\"570\" y=\"26\" text-anchor=\"middle\">スレッドB</text>\n\n  <rect class=\"fig-box\" x=\"30\" y=\"44\" width=\"240\" height=\"36\" rx=\"6\"/>\n  <text class=\"fig-t fig-small\" x=\"150\" y=\"62\" text-anchor=\"middle\">count を読む</text>\n  <rect class=\"fig-box\" x=\"300\" y=\"44\" width=\"120\" height=\"36\" rx=\"6\"/>\n  <text class=\"fig-t fig-mono\" x=\"360\" y=\"62\" text-anchor=\"middle\">0</text>\n  <line class=\"fig-line\" x1=\"296\" y1=\"62\" x2=\"274\" y2=\"62\" marker-end=\"arrow\"/>\n\n  <rect class=\"fig-box\" x=\"450\" y=\"88\" width=\"240\" height=\"36\" rx=\"6\"/>\n  <text class=\"fig-t fig-small\" x=\"570\" y=\"106\" text-anchor=\"middle\">count を読む</text>\n  <rect class=\"fig-box\" x=\"300\" y=\"88\" width=\"120\" height=\"36\" rx=\"6\"/>\n  <text class=\"fig-t fig-mono\" x=\"360\" y=\"106\" text-anchor=\"middle\">0</text>\n  <line class=\"fig-line\" x1=\"424\" y1=\"106\" x2=\"446\" y2=\"106\" marker-end=\"arrow\"/>\n\n  <rect class=\"fig-box\" x=\"30\" y=\"132\" width=\"240\" height=\"36\" rx=\"6\"/>\n  <text class=\"fig-t fig-small\" x=\"150\" y=\"150\" text-anchor=\"middle\">0 + 1 = 1 を書く</text>\n  <rect class=\"fig-box\" x=\"300\" y=\"132\" width=\"120\" height=\"36\" rx=\"6\"/>\n  <text class=\"fig-t fig-mono\" x=\"360\" y=\"150\" text-anchor=\"middle\">1</text>\n  <line class=\"fig-line\" x1=\"274\" y1=\"150\" x2=\"296\" y2=\"150\" marker-end=\"arrow\"/>\n\n  <rect class=\"fig-box\" x=\"450\" y=\"176\" width=\"240\" height=\"36\" rx=\"6\"/>\n  <text class=\"fig-t fig-small\" x=\"570\" y=\"194\" text-anchor=\"middle\">0 + 1 = 1 を書く</text>\n  <rect class=\"fig-box-ng\" x=\"300\" y=\"176\" width=\"120\" height=\"36\" rx=\"6\"/>\n  <text class=\"fig-t fig-mono fig-t-ng\" x=\"360\" y=\"194\" text-anchor=\"middle\">1</text>\n  <line class=\"fig-line-ng\" x1=\"446\" y1=\"194\" x2=\"424\" y2=\"194\" marker-end=\"arrow-ng\"/>\n\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"16\" y=\"62\">①</text>\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"16\" y=\"106\">②</text>\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"16\" y=\"150\">③</text>\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"16\" y=\"194\">④</text>\n\n  <text class=\"fig-t fig-t-ng fig-small\" x=\"360\" y=\"242\" text-anchor=\"middle\">2回足したのに count は 1。Bは「足す前の 0」を持ったまま書いてしまった</text>\n  <text class=\"fig-t fig-t-ok fig-small\" x=\"360\" y=\"270\" text-anchor=\"middle\">AtomicInteger や synchronized なら、この3段階が途中で割り込まれない</text>\n</svg>\n```\n\n原子性は途中で割り込まれないこと、可視性は他スレッドの更新が見えること、順序性は処理が期待する順で観測されることです。`synchronized` や `AtomicInteger` は必要なhappens-before関係を作り、これらの問題を避けます。\n\n## `count++` は一操作ではない\n\n並行は複数タスクが重なって進むこと、並列は同じ瞬間に複数CPUコアで実行されることです。共有変数では、読み書きが割り込まれない**原子性**、他スレッドの更新が見える**可視性**、処理順が保証される**順序性**を考えます。`count++` は読取・加算・書込なので競合します。\n\n`Thread.start()` より前の書込みは開始したスレッドから見え、スレッド内の処理は `join()` 成功後のスレッドから見える、というhappens-before関係があります。単にsleepして待つのは完了保証ではありません。\n\n単一値の原子的な更新には `AtomicInteger`、複数の値を一緒に守るときはロック、完了待ちには `join`、`CountDownLatch`、`Future`など目的に合う道具を使います。",
       "samples": [
         {
@@ -15,7 +37,7 @@
         }
       ],
       "task": "スレッド数workersと各スレッドの反復回数iterationsを読み、全スレッドで共有するAtomicIntegerをincrementAndGetしてください。全スレッドをstartしてからjoinし、最終値を表示します。",
-      "starterCode": "import java.util.*;\nimport java.util.concurrent.atomic.AtomicInteger;\n\npublic class Main {\n    public static void main(String[] args) throws Exception {\n        Scanner s = new Scanner(System.in);\n        int workers = s.nextInt(), iterations = s.nextInt();\n        AtomicInteger count = new AtomicInteger();\n        // TODO\n        System.out.println(count.get());\n    }\n}\n",
+      "starterCode": "import java.util.*;\nimport java.util.concurrent.atomic.AtomicInteger;\n\npublic class Main {\n    public static void main(String[] args) throws Exception {\n        Scanner sc = new Scanner(System.in);\n        int workers = sc.nextInt(), iterations = sc.nextInt();\n        AtomicInteger count = new AtomicInteger();\n        // TODO\n        System.out.println(count.get());\n    }\n}\n",
       "visibleCases": [
         {
           "label": "4スレッド",
@@ -44,12 +66,12 @@
         "ThreadをListに追加し、ラムダ内でiterations回 `count.incrementAndGet()` します。",
         "最初のループで全Threadをstartし、次のループで全Threadをjoinします。"
       ],
-      "solution": "import java.util.*;\nimport java.util.concurrent.atomic.AtomicInteger;\n\npublic class Main {\n    public static void main(String[] args) throws Exception {\n        Scanner s = new Scanner(System.in);\n        int workers = s.nextInt(), iterations = s.nextInt();\n        AtomicInteger count = new AtomicInteger();\n        List<Thread> threads = new ArrayList<>();\n        for (int w = 0; w < workers; w++) threads.add(new Thread(() -> {\n            for (int i = 0; i < iterations; i++) count.incrementAndGet();\n        }));\n        threads.forEach(Thread::start);\n        for (Thread t : threads) t.join();\n        System.out.println(count.get());\n    }\n}\n",
+      "solution": "import java.util.*;\nimport java.util.concurrent.atomic.AtomicInteger;\n\npublic class Main {\n    public static void main(String[] args) throws Exception {\n        Scanner sc = new Scanner(System.in);\n        int workers = sc.nextInt(), iterations = sc.nextInt();\n        AtomicInteger count = new AtomicInteger();\n        List<Thread> threads = new ArrayList<>();\n        for (int w = 0; w < workers; w++) threads.add(new Thread(() -> {\n            for (int i = 0; i < iterations; i++) count.incrementAndGet();\n        }));\n        threads.forEach(Thread::start);\n        for (Thread t : threads) t.join();\n        System.out.println(count.get());\n    }\n}\n",
       "extraTasks": [
         {
           "kind": "applied",
           "task": "n個の整数を読み、各整数の平方を別スレッドでAtomicLongへ加算します。CountDownLatchをnで作り、各スレッドはfinallyでcountDown、mainはawaitしてから合計を表示してください。",
-          "starterCode": "import java.util.*;\nimport java.util.concurrent.*;\nimport java.util.concurrent.atomic.*;\n\npublic class Main {\n    public static void main(String[] args) throws Exception {\n        Scanner s = new Scanner(System.in);\n        int n = s.nextInt();\n        long[] values = new long[n];\n        for (int i = 0; i < n; i++) values[i] = s.nextLong();\n        // TODO\n    }\n}\n",
+          "starterCode": "import java.util.*;\nimport java.util.concurrent.*;\nimport java.util.concurrent.atomic.*;\n\npublic class Main {\n    public static void main(String[] args) throws Exception {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n        long[] values = new long[n];\n        for (int i = 0; i < n; i++) values[i] = sc.nextLong();\n        // TODO\n    }\n}\n",
           "visibleCases": [
             {
               "label": "1,2,3",
@@ -78,7 +100,7 @@
             "`CountDownLatch latch = new CountDownLatch(n)` と `AtomicLong sum` を用意します。",
             "ラムダ内をtry-finallyにし、finallyで `latch.countDown()` します。"
           ],
-          "solution": "import java.util.*;\nimport java.util.concurrent.*;\nimport java.util.concurrent.atomic.*;\n\npublic class Main {\n    public static void main(String[] args) throws Exception {\n        Scanner s = new Scanner(System.in);\n        int n = s.nextInt();\n        long[] values = new long[n];\n        for (int i = 0; i < n; i++) values[i] = s.nextLong();\n        CountDownLatch latch = new CountDownLatch(n);\n        AtomicLong sum = new AtomicLong();\n        for (long v : values) new Thread(() -> {\n            try {\n                sum.addAndGet(v * v);\n            } finally {\n                latch.countDown();\n            }\n        }).start();\n        latch.await();\n        System.out.println(sum.get());\n    }\n}\n",
+          "solution": "import java.util.*;\nimport java.util.concurrent.*;\nimport java.util.concurrent.atomic.*;\n\npublic class Main {\n    public static void main(String[] args) throws Exception {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n        long[] values = new long[n];\n        for (int i = 0; i < n; i++) values[i] = sc.nextLong();\n        CountDownLatch latch = new CountDownLatch(n);\n        AtomicLong sum = new AtomicLong();\n        for (long v : values) new Thread(() -> {\n            try {\n                sum.addAndGet(v * v);\n            } finally {\n                latch.countDown();\n            }\n        }).start();\n        latch.await();\n        System.out.println(sum.get());\n    }\n}\n",
           "sourceChecks": [
             {
               "pattern": "\\bnew\\s+AtomicLong\\b",
@@ -113,9 +135,9 @@
           "question": "count++が競合する理由は？",
           "choices": [
             "読取・加算・書込の複数操作だから",
-            "intが不変だから",
-            "一つの原子的命令だから",
-            "joinを内包するから"
+            "`int` は不変なので値が壊れないから",
+            "`++` はひとつの原子的な命令だから",
+            "`++` が内部で `join` を呼ぶから"
           ],
           "answer": 0,
           "explanation": "`int` は不変ではありませんし、`count++` は1つの原子的な命令でもありません（そう見えるのが落とし穴です）。`join` とも無関係です。`count++` は「読む→足す→書く」の3段階なので、2つのスレッドが同じ古い値を読むと、片方の更新がそのまま消えます。"
@@ -123,10 +145,10 @@
         {
           "question": "Thread.joinの主な意味は？",
           "choices": [
-            "優先度を最大化",
+            "対象スレッドの優先度を最大にする",
             "対象スレッドの終了を待つ",
-            "ロックを破棄",
-            "スレッドを複製"
+            "対象スレッドが持つロックを破棄する",
+            "対象スレッドを複製して並列に動かす"
           ],
           "answer": 1,
           "explanation": "終了待ちに加え、join後に結果が見えるhappens-before関係を作ります。"
@@ -158,6 +180,10 @@
     {
       "id": "32-2",
       "title": "共有状態を不変条件ごと守る",
+      "objectiveIds": [
+        "32-o2",
+        "32-o3"
+      ],
       "explanation": "## はじめて学ぶ人へ\n\nスレッドセーフとは、共有データの**守るべき条件（不変条件）**が同時実行でも壊れないことです。残高が0円未満にならない口座から、2人が同時に800円ずつ引き出す例を考えます。\n\n```text\n残高1000円\nA: 1000円あると確認\nB: 1000円あると確認\nA/Bとも800円を引く → 条件が壊れる\n```\n\n確認と更新を別々ではなく、1本の鍵でまとめて守る必要があります。`synchronized` は部屋の鍵、`Lock` は期限付き取得などもできる高機能な鍵です。`volatile` は最新値を見えやすくしますが、「確認してから更新」の複合操作を原子的にはしません。\n\n## ロックはデータの不変条件を守る\n\n`synchronized` は同じモニタを使う区間を一度に1スレッドへ限定し、可視性も保証します。残高確認と減算のような複数操作は一つの臨界区間にします。`volatile` は最新値を見せますが、複合操作を原子的にはしません。\n\n`ConcurrentHashMap` は並行アクセス向けですが、`get`して計算して`put`という組合せ全体が自動で原子的になるわけではありません。`merge`、`compute`、`putIfAbsent`などの複合APIを使います。複数ロックを取る場合は順序を統一し、ロック中に遅いI/Oや外部コールをしないことがデッドロックと詰まりを避ける基本です。",
       "samples": [
         {
@@ -166,7 +192,7 @@
         }
       ],
       "task": "単語数nとn個の単語を読み、単語ごとに1本のThreadを作ってConcurrentHashMap.mergeで件数を加算してください。全Threadをjoin後、TreeMapへ移して `単語=件数` を1行ずつ表示します。",
-      "starterCode": "import java.util.*;\nimport java.util.concurrent.*;\n\npublic class Main {\n    public static void main(String[] args) throws Exception {\n        Scanner s = new Scanner(System.in);\n        int n = s.nextInt();\n        String[] words = new String[n];\n        for (int i = 0; i < n; i++) words[i] = s.next();\n        // TODO\n    }\n}\n",
+      "starterCode": "import java.util.*;\nimport java.util.concurrent.*;\n\npublic class Main {\n    public static void main(String[] args) throws Exception {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n        String[] words = new String[n];\n        for (int i = 0; i < n; i++) words[i] = sc.next();\n        // TODO\n    }\n}\n",
       "visibleCases": [
         {
           "label": "重複あり",
@@ -196,12 +222,12 @@
         "各Threadで `counts.merge(word, 1, Integer::sum)` を呼び、joinします。",
         "`new TreeMap<>(counts).forEach((k,v) -> ...)` で順序を固定します。"
       ],
-      "solution": "import java.util.*;\nimport java.util.concurrent.*;\n\npublic class Main {\n    public static void main(String[] args) throws Exception {\n        Scanner s = new Scanner(System.in);\n        int n = s.nextInt();\n        String[] words = new String[n];\n        for (int i = 0; i < n; i++) words[i] = s.next();\n        Map<String, Integer> counts = new ConcurrentHashMap<>();\n        List<Thread> ts = new ArrayList<>();\n        for (String w : words) ts.add(new Thread(() -> counts.merge(w, 1, Integer::sum)));\n        ts.forEach(Thread::start);\n        for (Thread t : ts) t.join();\n        new TreeMap<>(counts).forEach((k, v) -> System.out.println(k + \"=\" + v));\n    }\n}\n",
+      "solution": "import java.util.*;\nimport java.util.concurrent.*;\n\npublic class Main {\n    public static void main(String[] args) throws Exception {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n        String[] words = new String[n];\n        for (int i = 0; i < n; i++) words[i] = sc.next();\n        Map<String, Integer> counts = new ConcurrentHashMap<>();\n        List<Thread> ts = new ArrayList<>();\n        for (String w : words) ts.add(new Thread(() -> counts.merge(w, 1, Integer::sum)));\n        ts.forEach(Thread::start);\n        for (Thread t : ts) t.join();\n        new TreeMap<>(counts).forEach((k, v) -> System.out.println(k + \"=\" + v));\n    }\n}\n",
       "extraTasks": [
         {
           "kind": "applied",
           "task": "初期残高balance、同額の出金要求数requests、1回の金額amountを読みます。`synchronized boolean withdraw(int amount)` を持つAccountを作り、各要求を別Threadで実行してください。成功数はAtomicIntegerで数え、全join後に `balance=残高` と `success=成功数` を表示します。",
-          "starterCode": "import java.util.*;\nimport java.util.concurrent.atomic.*;\n\nclass Account {\n    private int balance;\n\n    Account(int balance) {\n        this.balance = balance;\n    }\n\n    synchronized boolean withdraw(int amount) {\n        return false;\n    }\n\n    synchronized int balance() {\n        return balance;\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) throws Exception {\n        Scanner s = new Scanner(System.in);\n        int initial = s.nextInt(), requests = s.nextInt(), amount = s.nextInt();\n        // TODO\n    }\n}\n",
+          "starterCode": "import java.util.*;\nimport java.util.concurrent.atomic.*;\n\nclass Account {\n    private int balance;\n\n    Account(int balance) {\n        this.balance = balance;\n    }\n\n    synchronized boolean withdraw(int amount) {\n        return false;\n    }\n\n    synchronized int balance() {\n        return balance;\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) throws Exception {\n        Scanner sc = new Scanner(System.in);\n        int initial = sc.nextInt(), requests = sc.nextInt(), amount = sc.nextInt();\n        // TODO\n    }\n}\n",
           "visibleCases": [
             {
               "label": "一部成功",
@@ -230,7 +256,7 @@
             "withdraw内で残高不足ならfalse、そうでなければ減算してtrueを返します。",
             "成功したThreadだけAtomicIntegerをincrementします。"
           ],
-          "solution": "import java.util.*;\nimport java.util.concurrent.atomic.*;\n\nclass Account {\n    private int balance;\n\n    Account(int balance) {\n        this.balance = balance;\n    }\n\n    synchronized boolean withdraw(int amount) {\n        if (balance < amount) return false;\n        balance -= amount;\n        return true;\n    }\n\n    synchronized int balance() {\n        return balance;\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) throws Exception {\n        Scanner s = new Scanner(System.in);\n        int initial = s.nextInt(), requests = s.nextInt(), amount = s.nextInt();\n        Account a = new Account(initial);\n        AtomicInteger success = new AtomicInteger();\n        List<Thread> ts = new ArrayList<>();\n        for (int i = 0; i < requests; i++) ts.add(new Thread(() -> {\n            if (a.withdraw(amount)) success.incrementAndGet();\n        }));\n        ts.forEach(Thread::start);\n        for (Thread t : ts) t.join();\n        System.out.println(\"balance=\" + a.balance());\n        System.out.println(\"success=\" + success.get());\n    }\n}\n",
+          "solution": "import java.util.*;\nimport java.util.concurrent.atomic.*;\n\nclass Account {\n    private int balance;\n\n    Account(int balance) {\n        this.balance = balance;\n    }\n\n    synchronized boolean withdraw(int amount) {\n        if (balance < amount) return false;\n        balance -= amount;\n        return true;\n    }\n\n    synchronized int balance() {\n        return balance;\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) throws Exception {\n        Scanner sc = new Scanner(System.in);\n        int initial = sc.nextInt(), requests = sc.nextInt(), amount = sc.nextInt();\n        Account a = new Account(initial);\n        AtomicInteger success = new AtomicInteger();\n        List<Thread> ts = new ArrayList<>();\n        for (int i = 0; i < requests; i++) ts.add(new Thread(() -> {\n            if (a.withdraw(amount)) success.incrementAndGet();\n        }));\n        ts.forEach(Thread::start);\n        for (Thread t : ts) t.join();\n        System.out.println(\"balance=\" + a.balance());\n        System.out.println(\"success=\" + success.get());\n    }\n}\n",
           "sourceChecks": [
             {
               "pattern": "\\bsynchronized\\s+boolean\\s+withdraw\\s*\\(",
@@ -359,6 +385,10 @@
     {
       "id": "32-3",
       "title": "章末演習：スレッドとスレッドセーフ",
+      "objectiveIds": [
+        "32-o2",
+        "32-o4"
+      ],
       "explanation": "## この章の知識を、自分の手で組み合わせよう\n\nここでは、**原子性・可視性・`CountDownLatch` での待ち合わせ・`synchronized` で守る不変条件・ロック順序をそろえたデッドロック回避**をまとめて使います。新しい文法は登場しません。分からなくなったら、直前までの解説やサンプルへ戻って確認して大丈夫です。\n\n### 3問の進め方\n\n1. **基本**で、中心となる書き方をもう一度使う\n2. **組み合わせ**で、章内の複数の知識を一緒に使う\n3. **実践**で、少し現実的な入力と条件を整理する\n\n3問とも、**結果が実行のたびに変わらない**ように作ってあります。並行処理の問題は「たまたま通る」ことがあるので、答え合わせができる形にしてから確かめるのが大事です。",
       "samples": [
         {
@@ -368,7 +398,7 @@
         }
       ],
       "task": "【基本】整数をn件読み、値ごとに1本のスレッドを作ります。各スレッドは共有の `AtomicInteger` へ値そのものを、共有の `AtomicLong` へ値の2乗を加算してください。`CountDownLatch` をnで作り、各スレッドは `finally` で `countDown`、mainは `await` してから `sum=合計 squareSum=2乗の合計` と表示します。",
-      "starterCode": "import java.util.*;\nimport java.util.concurrent.*;\nimport java.util.concurrent.atomic.*;\n\npublic class Main {\n    public static void main(String[] args) throws Exception {\n        Scanner s = new Scanner(System.in);\n        int n = s.nextInt();\n        AtomicInteger sum = new AtomicInteger();\n        AtomicLong squareSum = new AtomicLong();\n        CountDownLatch latch = new CountDownLatch(n);\n        for (int i = 0; i < n; i++) {\n            int value = s.nextInt();\n            /* TODO スレッドを作って start */\n        }\n        /* TODO await して表示 */\n    }\n}\n",
+      "starterCode": "import java.util.*;\nimport java.util.concurrent.*;\nimport java.util.concurrent.atomic.*;\n\npublic class Main {\n    public static void main(String[] args) throws Exception {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n        AtomicInteger sum = new AtomicInteger();\n        AtomicLong squareSum = new AtomicLong();\n        CountDownLatch latch = new CountDownLatch(n);\n        for (int i = 0; i < n; i++) {\n            int value = sc.nextInt();\n            /* TODO スレッドを作って start */\n        }\n        /* TODO await して表示 */\n    }\n}\n",
       "visibleCases": [
         {
           "label": "3件",
@@ -408,12 +438,15 @@
         "2乗は `(long)value*value` と書きます。`value*value` のままだと int で計算してから long へ入れるので溢れます。",
         "`countDown` は `finally` に置きます。途中で例外が起きても待ち合わせが解けるようにするためです。"
       ],
-      "solution": "import java.util.*;\nimport java.util.concurrent.*;\nimport java.util.concurrent.atomic.*;\n\npublic class Main {\n    public static void main(String[] args) throws Exception {\n        Scanner s = new Scanner(System.in);\n        int n = s.nextInt();\n        AtomicInteger sum = new AtomicInteger();\n        AtomicLong squareSum = new AtomicLong();\n        CountDownLatch latch = new CountDownLatch(n);\n        for (int i = 0; i < n; i++) {\n            int value = s.nextInt();\n            new Thread(() -> {\n                try {\n                    sum.addAndGet(value);\n                    squareSum.addAndGet((long) value * value);\n                } finally {\n                    latch.countDown();\n                }\n            }).start();\n        }\n        latch.await();\n        System.out.println(\"sum=\" + sum.get() + \" squareSum=\" + squareSum.get());\n    }\n}\n",
+      "solution": "import java.util.*;\nimport java.util.concurrent.*;\nimport java.util.concurrent.atomic.*;\n\npublic class Main {\n    public static void main(String[] args) throws Exception {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n        AtomicInteger sum = new AtomicInteger();\n        AtomicLong squareSum = new AtomicLong();\n        CountDownLatch latch = new CountDownLatch(n);\n        for (int i = 0; i < n; i++) {\n            int value = sc.nextInt();\n            new Thread(() -> {\n                try {\n                    sum.addAndGet(value);\n                    squareSum.addAndGet((long) value * value);\n                } finally {\n                    latch.countDown();\n                }\n            }).start();\n        }\n        latch.await();\n        System.out.println(\"sum=\" + sum.get() + \" squareSum=\" + squareSum.get());\n    }\n}\n",
       "extraTasks": [
         {
+          "objectiveIds": [
+            "32-o3"
+          ],
           "kind": "drill",
           "task": "【組み合わせ】在庫stock、単価price、要求数n、1回に買う数量amountを読みます。`Shop` クラスに `synchronized boolean buy(int amount)` を作り、**在庫と売上を1つの `synchronized` の中でまとめて更新**してください。在庫が足りなければ何も変えずに `false`、足りれば在庫を amount 減らし、売上に `amount*price` を足して `true` を返します。\n\nn本のスレッドがそれぞれ1回ずつ `buy` を呼びます。成功数は共有の `AtomicInteger` で数え、全スレッドを `join` したあとに `ok=成功数 sold=売れた数量 revenue=売上 rest=残り在庫` と表示してください。\n\n最後に、`sold*price == revenue` と `sold == 初期在庫-rest` の両方が成り立っていれば `INVARIANT_OK`、どちらかが崩れていれば `INVARIANT_BROKEN` と表示します（在庫と売上を別々に更新すると、ここが崩れます）。",
-          "starterCode": "import java.util.*;\nimport java.util.concurrent.atomic.*;\n\nclass Shop {\n    private int rest;\n    private long revenue;\n    private final int price;\n\n    Shop(int rest, int price) {\n        this.rest = rest;\n        this.price = price;\n    }\n\n    synchronized boolean buy(int amount) {\n        /* TODO 在庫と売上をまとめて更新する */ return false;\n    }\n\n    synchronized int rest() {\n        return rest;\n    }\n\n    synchronized long revenue() {\n        return revenue;\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) throws Exception {\n        Scanner s = new Scanner(System.in);\n        int stock = s.nextInt(), price = s.nextInt(), n = s.nextInt(), amount = s.nextInt();\n        Shop shop = new Shop(stock, price);\n        AtomicInteger ok = new AtomicInteger();\n        List<Thread> threads = new ArrayList<>();\n        /* TODO スレッドを作って start し、join する */ int sold = stock - shop.rest();\n        System.out.println(\"ok=\" + ok.get() + \" sold=\" + sold + \" revenue=\" + shop.revenue() + \" rest=\" + shop.rest());\n        /* TODO 不変条件の検算 */\n    }\n}\n",
+          "starterCode": "import java.util.*;\nimport java.util.concurrent.atomic.*;\n\nclass Shop {\n    private int rest;\n    private long revenue;\n    private final int price;\n\n    Shop(int rest, int price) {\n        this.rest = rest;\n        this.price = price;\n    }\n\n    synchronized boolean buy(int amount) {\n        /* TODO 在庫と売上をまとめて更新する */ return false;\n    }\n\n    synchronized int rest() {\n        return rest;\n    }\n\n    synchronized long revenue() {\n        return revenue;\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) throws Exception {\n        Scanner sc = new Scanner(System.in);\n        int stock = sc.nextInt(), price = sc.nextInt(), n = sc.nextInt(), amount = sc.nextInt();\n        Shop shop = new Shop(stock, price);\n        AtomicInteger ok = new AtomicInteger();\n        List<Thread> threads = new ArrayList<>();\n        /* TODO スレッドを作って start し、join する */ int sold = stock - shop.rest();\n        System.out.println(\"ok=\" + ok.get() + \" sold=\" + sold + \" revenue=\" + shop.revenue() + \" rest=\" + shop.rest());\n        /* TODO 不変条件の検算 */\n    }\n}\n",
           "visibleCases": [
             {
               "label": "在庫が足りる",
@@ -458,7 +491,7 @@
             "先に全スレッドを `start` し、そのあとで全部を `join` します。成功数は複数スレッドから触るので `AtomicInteger` です。",
             "在庫を減らすメソッドと売上を足すメソッドを別々に `synchronized` にすると、片方だけ済んだ状態が他のスレッドから見えてしまいます。それが `INVARIANT_BROKEN` の正体です。"
           ],
-          "solution": "import java.util.*;\nimport java.util.concurrent.atomic.*;\n\nclass Shop {\n    private int rest;\n    private long revenue;\n    private final int price;\n\n    Shop(int rest, int price) {\n        this.rest = rest;\n        this.price = price;\n    }\n\n    synchronized boolean buy(int amount) {\n        if (rest < amount) return false;\n        rest -= amount;\n        revenue += (long) amount * price;\n        return true;\n    }\n\n    synchronized int rest() {\n        return rest;\n    }\n\n    synchronized long revenue() {\n        return revenue;\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) throws Exception {\n        Scanner s = new Scanner(System.in);\n        int stock = s.nextInt(), price = s.nextInt(), n = s.nextInt(), amount = s.nextInt();\n        Shop shop = new Shop(stock, price);\n        AtomicInteger ok = new AtomicInteger();\n        List<Thread> threads = new ArrayList<>();\n        for (int i = 0; i < n; i++) {\n            Thread t = new Thread(() -> {\n                if (shop.buy(amount)) ok.incrementAndGet();\n            });\n            threads.add(t);\n            t.start();\n        }\n        for (Thread t : threads) t.join();\n        int sold = stock - shop.rest();\n        System.out.println(\"ok=\" + ok.get() + \" sold=\" + sold + \" revenue=\" + shop.revenue() + \" rest=\" + shop.rest());\n        System.out.println((long) sold * price == shop.revenue() && sold == stock - shop.rest() ? \"INVARIANT_OK\" : \"INVARIANT_BROKEN\");\n    }\n}\n",
+          "solution": "import java.util.*;\nimport java.util.concurrent.atomic.*;\n\nclass Shop {\n    private int rest;\n    private long revenue;\n    private final int price;\n\n    Shop(int rest, int price) {\n        this.rest = rest;\n        this.price = price;\n    }\n\n    synchronized boolean buy(int amount) {\n        if (rest < amount) return false;\n        rest -= amount;\n        revenue += (long) amount * price;\n        return true;\n    }\n\n    synchronized int rest() {\n        return rest;\n    }\n\n    synchronized long revenue() {\n        return revenue;\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) throws Exception {\n        Scanner sc = new Scanner(System.in);\n        int stock = sc.nextInt(), price = sc.nextInt(), n = sc.nextInt(), amount = sc.nextInt();\n        Shop shop = new Shop(stock, price);\n        AtomicInteger ok = new AtomicInteger();\n        List<Thread> threads = new ArrayList<>();\n        for (int i = 0; i < n; i++) {\n            Thread t = new Thread(() -> {\n                if (shop.buy(amount)) ok.incrementAndGet();\n            });\n            threads.add(t);\n            t.start();\n        }\n        for (Thread t : threads) t.join();\n        int sold = stock - shop.rest();\n        System.out.println(\"ok=\" + ok.get() + \" sold=\" + sold + \" revenue=\" + shop.revenue() + \" rest=\" + shop.rest());\n        System.out.println((long) sold * price == shop.revenue() && sold == stock - shop.rest() ? \"INVARIANT_OK\" : \"INVARIANT_BROKEN\");\n    }\n}\n",
           "sourceChecks": [
             {
               "pattern": "\\bsynchronized\\s+boolean\\s+buy\\s*\\(",
@@ -473,9 +506,12 @@
           ]
         },
         {
+          "objectiveIds": [
+            "32-o3"
+          ],
           "kind": "applied",
           "task": "【実践】口座間の送金を並行に行います。口座数m（口座IDは0から）、続けてm件の初期残高、送金件数n、続けてn件の `from to amount` を読みます。各口座から出ていく合計は、その口座の初期残高を超えません。\n\n送金1件ごとに1本のスレッドを作り、`from` の残高を減らして `to` の残高を増やしてください。2つの口座を両方ロックする必要がありますが、**必ずIDの小さい口座から順に** `synchronized` を取ります。取る順番をスレッドごとに変えると、互いのロックを待ち合ってデッドロックになります。\n\n全スレッドを `join` したあと、口座ごとの残高をID昇順に `id=残高` と表示し、最後に全口座の合計を `total=合計` と表示してください（送金では総額が変わらないので、検算になります）。",
-          "starterCode": "import java.util.*;\n\nclass Account {\n    final int id;\n    private long balance;\n\n    Account(int id, long balance) {\n        this.id = id;\n        this.balance = balance;\n    }\n\n    void add(long amount) {\n        balance += amount;\n    }\n\n    long balance() {\n        return balance;\n    }\n}\n\npublic class Main {\n    static void transfer(Account from, Account to, long amount) {\n        /* TODO IDの小さい方から順にロックして動かす */\n    }\n\n    public static void main(String[] args) throws Exception {\n        Scanner s = new Scanner(System.in);\n        int m = s.nextInt();\n        List<Account> accounts = new ArrayList<>();\n        for (int i = 0; i < m; i++) accounts.add(new Account(i, s.nextLong()));\n        int n = s.nextInt();\n        List<Thread> threads = new ArrayList<>();\n        for (int i = 0; i < n; i++) {\n            Account from = accounts.get(s.nextInt()), to = accounts.get(s.nextInt());\n            long amount = s.nextLong();\n            /* TODO スレッドを作って start */\n        }\n        for (Thread t : threads) t.join();\n        /* TODO 残高と合計の表示 */\n    }\n}\n",
+          "starterCode": "import java.util.*;\n\nclass Account {\n    final int id;\n    private long balance;\n\n    Account(int id, long balance) {\n        this.id = id;\n        this.balance = balance;\n    }\n\n    void add(long amount) {\n        balance += amount;\n    }\n\n    long balance() {\n        return balance;\n    }\n}\n\npublic class Main {\n    static void transfer(Account from, Account to, long amount) {\n        /* TODO IDの小さい方から順にロックして動かす */\n    }\n\n    public static void main(String[] args) throws Exception {\n        Scanner sc = new Scanner(System.in);\n        int m = sc.nextInt();\n        List<Account> accounts = new ArrayList<>();\n        for (int i = 0; i < m; i++) accounts.add(new Account(i, sc.nextLong()));\n        int n = sc.nextInt();\n        List<Thread> threads = new ArrayList<>();\n        for (int i = 0; i < n; i++) {\n            Account from = accounts.get(sc.nextInt()), to = accounts.get(sc.nextInt());\n            long amount = sc.nextLong();\n            /* TODO スレッドを作って start */\n        }\n        for (Thread t : threads) t.join();\n        /* TODO 残高と合計の表示 */\n    }\n}\n",
           "visibleCases": [
             {
               "label": "2口座で行き違いに送る",
@@ -520,7 +556,7 @@
             "全スレッドが同じ順序でロックを取れば、待ち合いの輪ができません。`from` → `to` の順で取ると、逆向きの送金と組んだときにデッドロックします。",
             "残高を読むのは全スレッドを `join` したあとです。`join` には happens-before があるので、mainから最新の値が見えます。"
           ],
-          "solution": "import java.util.*;\n\nclass Account {\n    final int id;\n    private long balance;\n\n    Account(int id, long balance) {\n        this.id = id;\n        this.balance = balance;\n    }\n\n    void add(long amount) {\n        balance += amount;\n    }\n\n    long balance() {\n        return balance;\n    }\n}\n\npublic class Main {\n    static void transfer(Account from, Account to, long amount) {\n        Account first = from.id < to.id ? from : to, second = from.id < to.id ? to : from;\n        synchronized (first) {\n            synchronized (second) {\n                from.add(- amount);\n                to.add(amount);\n            }\n        }\n    }\n\n    public static void main(String[] args) throws Exception {\n        Scanner s = new Scanner(System.in);\n        int m = s.nextInt();\n        List<Account> accounts = new ArrayList<>();\n        for (int i = 0; i < m; i++) accounts.add(new Account(i, s.nextLong()));\n        int n = s.nextInt();\n        List<Thread> threads = new ArrayList<>();\n        for (int i = 0; i < n; i++) {\n            Account from = accounts.get(s.nextInt()), to = accounts.get(s.nextInt());\n            long amount = s.nextLong();\n            Thread t = new Thread(() -> transfer(from, to, amount));\n            threads.add(t);\n            t.start();\n        }\n        for (Thread t : threads) t.join();\n        long total = 0;\n        for (Account a : accounts) {\n            System.out.println(a.id + \"=\" + a.balance());\n            total += a.balance();\n        }\n        System.out.println(\"total=\" + total);\n    }\n}\n",
+          "solution": "import java.util.*;\n\nclass Account {\n    final int id;\n    private long balance;\n\n    Account(int id, long balance) {\n        this.id = id;\n        this.balance = balance;\n    }\n\n    void add(long amount) {\n        balance += amount;\n    }\n\n    long balance() {\n        return balance;\n    }\n}\n\npublic class Main {\n    static void transfer(Account from, Account to, long amount) {\n        Account first = from.id < to.id ? from : to, second = from.id < to.id ? to : from;\n        synchronized (first) {\n            synchronized (second) {\n                from.add(- amount);\n                to.add(amount);\n            }\n        }\n    }\n\n    public static void main(String[] args) throws Exception {\n        Scanner sc = new Scanner(System.in);\n        int m = sc.nextInt();\n        List<Account> accounts = new ArrayList<>();\n        for (int i = 0; i < m; i++) accounts.add(new Account(i, sc.nextLong()));\n        int n = sc.nextInt();\n        List<Thread> threads = new ArrayList<>();\n        for (int i = 0; i < n; i++) {\n            Account from = accounts.get(sc.nextInt()), to = accounts.get(sc.nextInt());\n            long amount = sc.nextLong();\n            Thread t = new Thread(() -> transfer(from, to, amount));\n            threads.add(t);\n            t.start();\n        }\n        for (Thread t : threads) t.join();\n        long total = 0;\n        for (Account a : accounts) {\n            System.out.println(a.id + \"=\" + a.balance());\n            total += a.balance();\n        }\n        System.out.println(\"total=\" + total);\n    }\n}\n",
           "sourceChecks": [
             {
               "pattern": "\\bsynchronized\\b",

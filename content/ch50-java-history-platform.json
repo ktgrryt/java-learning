@@ -3,10 +3,31 @@
   "title": "Javaの成り立ちとプラットフォーム",
   "subtitle": "OakからOpenJDKまで、設計思想と仕組みをつなぐ",
   "emoji": "🌳",
+  "objectives": [
+    {
+      "id": "ch50-o1",
+      "text": "class fileのメジャー版とJVMのリリース番号を突き合わせ、実行できるかを判定できる"
+    },
+    {
+      "id": "ch50-o2",
+      "text": "Javaの設計目標（移植性・堅牢性・安全性・性能）が何を保証し何を保証しないかを説明できる"
+    },
+    {
+      "id": "ch50-o3",
+      "text": "JDK・JRE・JVMとSE・EE・MEを、目的に応じて使い分けられる"
+    },
+    {
+      "id": "ch50-o4",
+      "text": "Javaを誰がどう進めてきたか（時代の区切り、JCP・JSR・OpenJDK・JEP）を見分けられる"
+    }
+  ],
   "lessons": [
     {
       "id": "50-1",
       "title": "OakからJavaへ",
+      "objectiveIds": [
+        "ch50-o1"
+      ],
       "explanation": "## 歴史を知ると、Javaの設計理由が見える\n\nJavaの歴史は年号を覚えるためのものではありません。現在も使う「JVM」「バイトコード」「互換性」が、どんな困りごとを解決するために生まれたのかを理解するために学びます。\n\n1990年代初め、家電や携帯端末は製品ごとにCPUやOSが異なり、同じプログラムを機種ごとに作り直す必要がありました。ここでいう **CPU** は命令を実行する部品、**OS** はハードウェアを管理する基本ソフトです。Sun MicrosystemsのGreenプロジェクトでは、この違いをプログラムから隠すためにOakという言語が作られました。Oakは後にJavaへ改名され、1995年に公開されます。\n\nJavaはソースコードを、特定のCPUの命令へ直接変換せず、まず **バイトコード** という中間形式へ変換します。そのバイトコードを、各OS向けに用意された **JVM（Java Virtual Machine）** が実行します。\n\n```text\nJavaのソースコード\n       ↓ コンパイル\n共通のバイトコード\n       ↓ 各環境のJVMが実行\nWindows / Linux / macOS\n```\n\nこの分担により、同じバイトコードを複数の環境で動かしやすくなりました。これが「Write Once, Run Anywhere」の考え方です。ただし、OS固有のファイルパスやネイティブライブラリへ依存すれば差は残ります。「何も考えなくても必ず同じ」ではなく、**共通仕様に沿って作れば移植しやすい**という意味です。\n\nまた、不要になったオブジェクトのメモリをJVMが回収する **GC（ガベージコレクション）** も、安全性を高める重要な仕組みです。\n\n## 「どのJVMでも動く」には版の条件がある\n\nバイトコードが共通でも、**新しいJDKで作ったclass fileは、古いJVMでは動きません**。\nclass fileの先頭には作られた版が入っていて、JVMは自分より新しい版を読むことを拒否します。\n\n```text\njava.lang.UnsupportedClassVersionError:\n  Main has been compiled by a more recent version of the Java Runtime\n  (class file version 65.0), this version of the Java Runtime only recognizes\n  class file versions up to 61.0\n```\n\n版の対応は計算できます。**メジャー版 = リリース番号 + 44** です。\n\n| リリース | メジャー版 |\n|---:|---:|\n| 8 | 52 |\n| 11 | 55 |\n| 17 | 61 |\n| 21 | 65 |\n\nJVMは「自分のメジャー版**以下**」なら読めます。古いclass fileは新しいJVMで動きます（後方互換）。\n逆はできません。だから配布するときは、**動かす環境のいちばん古いJVM**に合わせて\n`javac --release` で作ります。今回の演習では、この判定を実際に計算します。",
       "samples": [
         {
@@ -72,7 +93,7 @@
           "question": "同じJARが異なるOSで動く一方、実行にはそのOS向けのJVMが必要です。この関係の説明として正しいものはどれでしょう。",
           "choices": [
             "JARの中にOSごとの機械語が含まれている",
-            "JVMはOSに依存しない単一の実行ファイルである",
+            "JVMはOSに依存しない単一の実行ファイルなので、どこでも同じものが動く",
             "入っているのは共通のバイトコードで、環境差はJVMが吸収する",
             "バイトコードは実行時にOSごとに再生成される"
           ],
@@ -84,6 +105,9 @@
     {
       "id": "50-2",
       "title": "Javaの設計目標",
+      "objectiveIds": [
+        "ch50-o2"
+      ],
       "explanation": "## Javaは、実行環境の違いと危険なメモリ操作を減らすために設計された\n\nプログラムを別のOSへ移すたびに書き直したり、誤ったメモリ操作で突然停止したりすると、開発と運用に大きな負担がかかります。Javaの設計目標は、こうした問題を言語と実行環境の両方で減らすことです。\n\n- **移植性**: ソースをバイトコードへ変換し、環境ごとのJVMで実行することで、OSやCPUへの依存を小さくする\n- **堅牢性**: 配列の範囲検査、型検査、例外、GCにより、壊れた状態のまま処理が進む危険を減らす\n- **安全性**: 任意のメモリアドレスを直接操作するポインタ演算を提供せず、読み込んだクラスもJVMが検査する\n- **実用的な性能**: 実行中によく使われるコードを機械語へ変換する **JITコンパイラ** により、繰り返し処理を高速化する\n\nJITは *Just-In-Time* の略で、「実行の直前・実行中に必要な部分をコンパイルする」という意味です。最初からすべてを機械語にする方式と、1命令ずつ解釈する方式の中間にあたります。\n\nこれらは個別の機能ではなく、組み合わせて効果を発揮します。たとえば配列外アクセスを検出して例外にすることで、別のデータを誤って破壊する代わりに、失敗した場所を追跡できます。一方で、GCの停止時間やJITのウォームアップなど、JVMが管理するからこそ生じる特性もあります。安全性や移植性と性能のバランスを取る設計だと理解してください。\n\n今回の演習では、設計目標を表す語を数えます。英単語の暗記ではなく、それぞれがどの困りごとに対応するかを意識して分類しましょう。",
       "samples": [
         {
@@ -93,7 +117,7 @@
         }
       ],
       "task": "設計上の要求n件を `portable/robust/secure/performance` のいずれかで読み、それぞれの件数を固定順で表示してください。",
-      "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] a) {\n        Scanner s = new Scanner(System.in);\n        int n = s.nextInt();\n        Map<String, Integer> m = new LinkedHashMap<>();\n        for (String k : List.of(\"portable\", \"robust\", \"secure\", \"performance\")) m.put(k, 0);\n        for (int i = 0; i < n; i++) {\n            String k = s.next();\n            /* TODO */\n        }\n        m.forEach((k, v) -> System.out.println(k + \"=\" + v));\n    }\n}\n",
+      "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] a) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n        Map<String, Integer> m = new LinkedHashMap<>();\n        for (String k : List.of(\"portable\", \"robust\", \"secure\", \"performance\")) m.put(k, 0);\n        for (int i = 0; i < n; i++) {\n            String k = sc.next();\n            /* TODO */\n        }\n        m.forEach((k, v) -> System.out.println(k + \"=\" + v));\n    }\n}\n",
       "visibleCases": [
         {
           "label": "分類",
@@ -121,7 +145,7 @@
       "hints": [
         "既存キーへ `merge(k,1,Integer::sum)`。"
       ],
-      "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] a) {\n        Scanner s = new Scanner(System.in);\n        int n = s.nextInt();\n        Map<String, Integer> m = new LinkedHashMap<>();\n        for (String k : List.of(\"portable\", \"robust\", \"secure\", \"performance\")) m.put(k, 0);\n        for (int i = 0; i < n; i++) {\n            String k = s.next();\n            m.merge(k, 1, Integer::sum);\n        }\n        m.forEach((k, v) -> System.out.println(k + \"=\" + v));\n    }\n}\n",
+      "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] a) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n        Map<String, Integer> m = new LinkedHashMap<>();\n        for (String k : List.of(\"portable\", \"robust\", \"secure\", \"performance\")) m.put(k, 0);\n        for (int i = 0; i < n; i++) {\n            String k = sc.next();\n            m.merge(k, 1, Integer::sum);\n        }\n        m.forEach((k, v) -> System.out.println(k + \"=\" + v));\n    }\n}\n",
       "quiz": [
         {
           "question": "Javaが安全性と性能を両立する仕組みの組み合わせは？",
@@ -138,7 +162,7 @@
           "question": "Javaが配列の範囲外アクセスで例外を投げるのは、どの設計方針の結果でしょう。",
           "choices": [
             "動的型付けを採用する方針",
-            "手動でメモリを解放する前提の方針",
+            "メモリの確保と解放を、プログラマが手動で行う前提の方針",
             "実行速度を最優先する方針",
             "不正なメモリ操作を必ず防ぐ堅牢性・安全性の方針"
           ],
@@ -213,6 +237,9 @@
     {
       "id": "50-3",
       "title": "JDK・JRE・JVMとSE・EE・ME",
+      "objectiveIds": [
+        "ch50-o3"
+      ],
       "explanation": "## 「何を入れれば動くのか」を、役割で分ける\n\nJavaを学び始めると、JVM・JRE・JDK・Java SEなど似た名前が続きます。これらは同じものの別名ではありません。まず「実行する仕組み」「開発用の道具」「APIの仕様」に分けると整理できます。\n\n### 実行と開発の道具\n\n- **JVM**: バイトコードを実行するエンジン。メモリ管理やGCも担当する\n- **JRE**: JVMと、実行に必要な標準ライブラリをまとめた「実行環境」という考え方\n- **JDK**: JVMと標準ライブラリに加え、`javac`（コンパイラ）、`java`（起動）、`javadoc`、診断ツールなどを含む開発キット\n\n古い資料では「JDKの中にJREが入る」と図示されます。概念の理解には役立ちますが、現在はベンダーが単独のJRE製品を必ず配布するとは限りません。開発者は通常JDKを入れ、配布時はJDKそのもの、コンテナイメージ、または必要なモジュールから作った実行環境を使います。\n\n### APIの範囲を定める仕様\n\n- **Java SE**: 言語、JVM、コレクション、入出力など、Javaの土台となる標準仕様\n- **Jakarta EE**: Java SEの上で、Web、REST、データベース、トランザクションなど業務サーバー向けAPIを定める仕様群\n- **Java ME**: 組み込み機器など、資源が限られた環境向けの仕様\n\n仕様は「どんなAPIや動作を提供するか」という約束で、JDKやアプリケーションサーバーはその約束を動く形にした **実装** です。たとえばJava SEは製品名ではなく、複数ベンダーのJDKが実装できる共通仕様です。\n\n今回の演習では、コンパイルや実行といった操作をJDKとJVMへ対応付けます。`javac`が必要なら開発用のJDK、すでにあるバイトコードを動かす中心はJVM、と目的から判断してください。",
       "samples": [
         {
@@ -221,7 +248,7 @@
         }
       ],
       "task": "必要な操作を読み、`run`ならJVM、`compile`/`javadoc`/`jar`ならJDKと表示してください。n件処理します。",
-      "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] a) {\n        Scanner s = new Scanner(System.in);\n        int n = s.nextInt();\n        for (int i = 0; i < n; i++) {\n            String op = s.next();\n            /* TODO */\n        }\n    }\n}\n",
+      "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] a) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n        for (int i = 0; i < n; i++) {\n            String op = sc.next();\n            /* TODO */\n        }\n    }\n}\n",
       "visibleCases": [
         {
           "label": "道具の範囲",
@@ -249,7 +276,7 @@
       "hints": [
         "runだけをJVM、それ以外をJDKとします。"
       ],
-      "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] a) {\n        Scanner s = new Scanner(System.in);\n        int n = s.nextInt();\n        for (int i = 0; i < n; i++) {\n            String op = s.next();\n            System.out.println(op.equals(\"run\") ? \"JVM\" : \"JDK\");\n        }\n    }\n}\n",
+      "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] a) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n        for (int i = 0; i < n; i++) {\n            String op = sc.next();\n            System.out.println(op.equals(\"run\") ? \"JVM\" : \"JDK\");\n        }\n    }\n}\n",
       "quiz": [
         {
           "question": "javacやjarを含むものは？",
@@ -266,9 +293,9 @@
           "question": "自分のアプリを動かすだけの配布物を小さく作りたいとき、JDK全体を同梱する代わりに使えるものはどれでしょう。",
           "choices": [
             "jlinkで必要なモジュールだけを含めたランタイムイメージ",
-            "jarで作ったソースのアーカイブ",
-            "javadocで生成したAPI文書",
-            "Jakarta EE の API JAR 一式"
+            "jarでクラスとリソースをまとめた配布用アーカイブ",
+            "javadocで生成したAPI文書のHTML一式",
+            "Jakarta EE の API JAR をまとめた依存の一式"
           ],
           "answer": 0,
           "explanation": "独立したJREの配布を前提にせず、jlinkのランタイムイメージを使う構成が一般的です。"
@@ -278,6 +305,9 @@
     {
       "id": "50-4",
       "title": "JCP・JSR・OpenJDK・JEP",
+      "objectiveIds": [
+        "ch50-o4"
+      ],
       "explanation": "## 似た略語を「手続き・提案・実装・検査」に分ける\n\nJavaの新機能の記事にはJCP、JSR、OpenJDK、JEP、TCKが一度に出てきます。役割を混同すると、「提案された」だけなのか「標準仕様になった」のか「製品で使える」のかを誤って判断します。\n\n| 名前 | 何のためのものか | たとえるなら |\n|---|---|---|\n| **JCP** | Java技術の仕様を審議・承認する手続き | 標準を決める会議のルール |\n| **JSR** | 新しい仕様や大きな仕様変更を提案し、仕様書・参照実装・TCKを作る作業単位 | 標準化する案件 |\n| **OpenJDK** | JDKをオープンソースで開発するコミュニティとプロジェクト群 | 実際の製品の土台を作る開発現場 |\n| **JEP** | OpenJDKで大きなJDK変更を提案し、目的・設計・進捗を追跡する文書 | 開発計画書 |\n| **TCK** | 実装が仕様へ適合するかを確かめるテスト、道具、文書の一式 | 共通ルールへの適合試験 |\n\n大切なのは、**JEPは実装そのものではない**という点です。JEPは変更の提案と計画を表し、採用後のコードはOpenJDKなどで実装されます。また、JEPの中にはJDK内部の変更もあり、すべてがJava SEの標準API変更になるわけではありません。標準仕様に影響する変更は、JCP側の仕様策定とも整合させます。\n\nたとえばrecordsでは、JEP 395がJDKへの変更目的と設計を記録し、OpenJDKにコードが実装され、Java SE仕様にも言語機能として反映されました。ここには「提案」「実装」「標準仕様」という別の段階があります。\n\n```text\nJEPで変更を提案・追跡\n        ↓\nOpenJDKで実装・検証\n        ↓ 仕様に影響する場合は整合\nJCP / JSRによる標準仕様\n        ↓\nTCKなどで実装の適合性を確認\n```\n\n同じJava SEの版でも、JDK配布物はベンダーごとに更新期間、サポート、ライセンス、追加構成が異なります。採用時は「Java 21」のような版だけでなく、ベンダーと更新方針も確認します。今回の演習では、識別子を提案・仕様・適合試験・実装プロジェクトへ分類し、略語の役割を確かめます。",
       "samples": [
         {
@@ -286,7 +316,7 @@
         }
       ],
       "task": "識別子n件を読み、`JEP`で始まれば `proposal`、`JSR`で始まれば `specification-request`、`TCK`で始まれば `compatibility-test`、`OpenJDK`で始まれば `implementation-project`、それ以外は `unknown` と表示してください。大文字と小文字は区別します。",
-      "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] a) {\n        Scanner s = new Scanner(System.in);\n        int n = s.nextInt();\n        for (int i = 0; i < n; i++) {\n            String id = s.next();\n            /* TODO */\n        }\n    }\n}\n",
+      "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] a) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n        for (int i = 0; i < n; i++) {\n            String id = sc.next();\n            /* TODO */\n        }\n    }\n}\n",
       "visibleCases": [
         {
           "label": "提案の区別",
@@ -314,13 +344,13 @@
       "hints": [
         "`startsWith` を使い、JEP・JSR・TCK・OpenJDKの4種類を順に判定します。"
       ],
-      "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] a) {\n        Scanner s = new Scanner(System.in);\n        int n = s.nextInt();\n        for (int i = 0; i < n; i++) {\n            String id = s.next();\n            String role;\n            if (id.startsWith(\"JEP\")) role = \"proposal\";\n            else if (id.startsWith(\"JSR\")) role = \"specification-request\";\n            else if (id.startsWith(\"TCK\")) role = \"compatibility-test\";\n            else if (id.startsWith(\"OpenJDK\")) role = \"implementation-project\";\n            else role = \"unknown\";\n            System.out.println(role);\n        }\n    }\n}\n",
+      "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] a) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n        for (int i = 0; i < n; i++) {\n            String id = sc.next();\n            String role;\n            if (id.startsWith(\"JEP\")) role = \"proposal\";\n            else if (id.startsWith(\"JSR\")) role = \"specification-request\";\n            else if (id.startsWith(\"TCK\")) role = \"compatibility-test\";\n            else if (id.startsWith(\"OpenJDK\")) role = \"implementation-project\";\n            else role = \"unknown\";\n            System.out.println(role);\n        }\n    }\n}\n",
       "quiz": [
         {
           "question": "OpenJDKについて適切な説明は？",
           "choices": [
             "Java SEのオープンソース実装を共同開発するプロジェクト",
-            "特定の企業が非公開で開発しているJDK実装",
+            "特定の企業が非公開で開発し、そこだけが配布するJDK実装",
             "IDEに付属するデバッガの呼び名",
             "Jakarta EEのREST仕様の別名"
           ],
@@ -331,9 +361,9 @@
           "question": "「JEPでJDK変更が提案された」と「JSRで仕様策定が進められた」の違いを説明したものはどれでしょう。",
           "choices": [
             "JEPは主にOpenJDKでの変更提案、JSRはJCPでの仕様策定の単位",
-            "JEPはJakarta EE専用、JSRはJava SE専用",
-            "どちらも同じ意味",
-            "JEPは廃止済みの制度"
+            "JEPはJakarta EE向けの提案で、JSRはJava SE向けの仕様策定の制度",
+            "どちらも同じ意味で、呼び名だけが違う制度",
+            "JEPは廃止済みで、いまはJSRへ統合された制度"
           ],
           "answer": 0,
           "explanation": "仕様を策定する枠組みと、実装側での変更提案は、別の単位です。画面内問題もこの区別を扱っています。"
@@ -343,6 +373,9 @@
     {
       "id": "50-5",
       "title": "章末演習：Javaの成り立ちとプラットフォーム",
+      "objectiveIds": [
+        "ch50-o4"
+      ],
       "explanation": "## 章末では、名称ではなく役割から判断する\n\nこの章では、Javaが異なるOSやCPUで同じプログラムを動かしやすくするために、ソースコード・バイトコード・JVMを分けたことを学びました。さらに、実行エンジンのJVM、開発道具を含むJDK、APIの約束であるJava SE、標準化と実装を支えるJCP・JSR・OpenJDK・JEP・TCKを区別しました。\n\n迷ったときは、次の順で問い直します。\n\n1. これはプログラムを **実行するもの** か、仕様を **決めるもの** か、コードを **実装するもの** か\n2. 「提案済み」「実装済み」「標準化済み」「製品で利用可能」のどの段階か\n3. 移植性や安全性を支える仕組みと、OS・ベンダー・設定によって残る差は何か\n\n章末演習では、歴史上の出来事の順序、設計目標、JDKとJVMの役割、標準化に関わる識別子を組み合わせます。略語だけを暗記せず、「何のために存在するか」を一文で説明できる状態を目指してください。",
       "samples": [
         {
@@ -352,7 +385,7 @@
         }
       ],
       "task": "【基本】出来事をn件 `year name` の形で読みます。まず年の昇順（同じ年なら名前の辞書順）に `year:name` と表示してください。続けて、1995年より前を `oak`、1995年から2005年までを `sun`、2006年以降を `openjdk` として、それぞれの件数を `oak=件数` → `sun=件数` → `openjdk=件数` の固定順で表示します。",
-      "starterCode": "import java.util.*;\n\nrecord Event(int year, String name) { }\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        int n = s.nextInt();\n        List<Event> events = new ArrayList<>();\n        for (int i = 0; i < n; i++) events.add(new Event(s.nextInt(), s.next()));\n        /* TODO 並べ替えと表示 */ /* TODO 時代ごとの件数 */\n    }\n}\n",
+      "starterCode": "import java.util.*;\n\nrecord Event(int year, String name) { }\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n        List<Event> events = new ArrayList<>();\n        for (int i = 0; i < n; i++) events.add(new Event(sc.nextInt(), sc.next()));\n        /* TODO 並べ替えと表示 */ /* TODO 時代ごとの件数 */\n    }\n}\n",
       "visibleCases": [
         {
           "label": "Javaの節目",
@@ -392,12 +425,15 @@
         "件数は3つの `int` でも `LinkedHashMap` でも構いません。表示の順番を固定できる形にします。",
         "区切りは `year<1995`、`year<=2005`、それ以外の3つです。境界の年をどちらへ入れるかを先に決めます。"
       ],
-      "solution": "import java.util.*;\n\nrecord Event(int year, String name) { }\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        int n = s.nextInt();\n        List<Event> events = new ArrayList<>();\n        for (int i = 0; i < n; i++) events.add(new Event(s.nextInt(), s.next()));\n        events.sort(Comparator.comparingInt(Event::year).thenComparing(Event::name));\n        for (Event e : events) System.out.println(e.year() + \":\" + e.name());\n        int oak = 0, sun = 0, openjdk = 0;\n        for (Event e : events) {\n            if (e.year() < 1995) oak++;\n            else if (e.year() <= 2005) sun++;\n            else openjdk++;\n        }\n        System.out.println(\"oak=\" + oak);\n        System.out.println(\"sun=\" + sun);\n        System.out.println(\"openjdk=\" + openjdk);\n    }\n}\n",
+      "solution": "import java.util.*;\n\nrecord Event(int year, String name) { }\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n        List<Event> events = new ArrayList<>();\n        for (int i = 0; i < n; i++) events.add(new Event(sc.nextInt(), sc.next()));\n        events.sort(Comparator.comparingInt(Event::year).thenComparing(Event::name));\n        for (Event e : events) System.out.println(e.year() + \":\" + e.name());\n        int oak = 0, sun = 0, openjdk = 0;\n        for (Event e : events) {\n            if (e.year() < 1995) oak++;\n            else if (e.year() <= 2005) sun++;\n            else openjdk++;\n        }\n        System.out.println(\"oak=\" + oak);\n        System.out.println(\"sun=\" + sun);\n        System.out.println(\"openjdk=\" + openjdk);\n    }\n}\n",
       "extraTasks": [
         {
+          "objectiveIds": [
+            "ch50-o4"
+          ],
           "kind": "drill",
           "task": "【組み合わせ】用語をn件読み、次のように分類して読んだ順に `用語=分類` と表示してください。上から順に当てはめます。\n\n1. `JSR` で始まる → `specification-request`\n2. `JEP` で始まる → `proposal`\n3. `javac` / `java` / `jar` / `javadoc` / `jlink` / `jshell` のいずれか → `jdk-tool`\n4. `SpringBoot` / `Quarkus` のいずれか → `framework`\n5. `OpenLiberty` → `runtime`\n6. それ以外 → `unknown`\n\n最後に、分類ごとの件数を `specification-request` → `proposal` → `jdk-tool` → `framework` → `runtime` → `unknown` の固定順で `分類=件数` と表示します。",
-          "starterCode": "import java.util.*;\n\npublic class Main {\n    static String classify(String term) {\n        /* TODO 上から順に判定 */ return \"unknown\";\n    }\n\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        int n = s.nextInt();\n        List<String> kinds = List.of(\"specification-request\", \"proposal\", \"jdk-tool\", \"framework\", \"runtime\", \"unknown\");\n        Map<String, Integer> count = new LinkedHashMap<>();\n        for (String k : kinds) count.put(k, 0);\n        for (int i = 0; i < n; i++) {\n            String term = s.next();\n            /* TODO 表示と集計 */\n        }\n        /* TODO 件数の表示 */\n    }\n}\n",
+          "starterCode": "import java.util.*;\n\npublic class Main {\n    static String classify(String term) {\n        /* TODO 上から順に判定 */ return \"unknown\";\n    }\n\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n        List<String> kinds = List.of(\"specification-request\", \"proposal\", \"jdk-tool\", \"framework\", \"runtime\", \"unknown\");\n        Map<String, Integer> count = new LinkedHashMap<>();\n        for (String k : kinds) count.put(k, 0);\n        for (int i = 0; i < n; i++) {\n            String term = sc.next();\n            /* TODO 表示と集計 */\n        }\n        /* TODO 件数の表示 */\n    }\n}\n",
           "visibleCases": [
             {
               "label": "5種類が1つずつ",
@@ -437,12 +473,16 @@
             "道具とフレームワークは `Set.of(...).contains(term)` で判定できます。",
             "JSRは標準化する仕様の要求、JEPはOpenJDKでの変更提案です。Open Libertyはフレームワークではなく、Jakarta EEアプリを動かすサーバー実装です。"
           ],
-          "solution": "import java.util.*;\n\npublic class Main {\n    static String classify(String term) {\n        if (term.startsWith(\"JSR\")) return \"specification-request\";\n        if (term.startsWith(\"JEP\")) return \"proposal\";\n        if (Set.of(\"javac\", \"java\", \"jar\", \"javadoc\", \"jlink\", \"jshell\").contains(term)) return \"jdk-tool\";\n        if (Set.of(\"SpringBoot\", \"Quarkus\").contains(term)) return \"framework\";\n        if (term.equals(\"OpenLiberty\")) return \"runtime\";\n        return \"unknown\";\n    }\n\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        int n = s.nextInt();\n        List<String> kinds = List.of(\"specification-request\", \"proposal\", \"jdk-tool\", \"framework\", \"runtime\", \"unknown\");\n        Map<String, Integer> count = new LinkedHashMap<>();\n        for (String k : kinds) count.put(k, 0);\n        for (int i = 0; i < n; i++) {\n            String term = s.next(), kind = classify(term);\n            System.out.println(term + \"=\" + kind);\n            count.merge(kind, 1, Integer::sum);\n        }\n        for (String k : kinds) System.out.println(k + \"=\" + count.get(k));\n    }\n}\n"
+          "solution": "import java.util.*;\n\npublic class Main {\n    static String classify(String term) {\n        if (term.startsWith(\"JSR\")) return \"specification-request\";\n        if (term.startsWith(\"JEP\")) return \"proposal\";\n        if (Set.of(\"javac\", \"java\", \"jar\", \"javadoc\", \"jlink\", \"jshell\").contains(term)) return \"jdk-tool\";\n        if (Set.of(\"SpringBoot\", \"Quarkus\").contains(term)) return \"framework\";\n        if (term.equals(\"OpenLiberty\")) return \"runtime\";\n        return \"unknown\";\n    }\n\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n        List<String> kinds = List.of(\"specification-request\", \"proposal\", \"jdk-tool\", \"framework\", \"runtime\", \"unknown\");\n        Map<String, Integer> count = new LinkedHashMap<>();\n        for (String k : kinds) count.put(k, 0);\n        for (int i = 0; i < n; i++) {\n            String term = sc.next(), kind = classify(term);\n            System.out.println(term + \"=\" + kind);\n            count.merge(kind, 1, Integer::sum);\n        }\n        for (String k : kinds) System.out.println(k + \"=\" + count.get(k));\n    }\n}\n"
         },
         {
+          "objectiveIds": [
+            "ch50-o1",
+            "ch50-o3"
+          ],
           "kind": "applied",
           "task": "【実践】JDKの台帳を点検します。基準年 thisYear、必要な最低フィーチャーバージョン minVersion、件数nを読み、続けてn件を `vendor version endYear` の形で読みます（`endYear` は更新の提供が終わる年）。各行について次を上から順に確かめ、最初に当てはまった状態を読んだ順に `vendor STATUS` と表示してください。\n\n1. `version` が minVersion 未満 → `OUTDATED`\n2. `endYear` が thisYear より前 → `UNSUPPORTED`\n3. `endYear` が thisYear と同じ → `EXPIRING`\n4. どれでもない → `OK`\n\n続けて、`OK` 以外が1件でもあれば `ACTION_REQUIRED`、全件が `OK`（0件のときも含む）なら `ALL_OK` と表示します。最後に、台帳に出てきたフィーチャーバージョンを昇順に `version ベンダー数` の形で表示します。",
-          "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        int thisYear = s.nextInt(), minVersion = s.nextInt(), n = s.nextInt();\n        Map<Integer, Integer> byVersion = new TreeMap<>();\n        boolean action = false;\n        for (int i = 0; i < n; i++) {\n            String vendor = s.next();\n            int version = s.nextInt(), endYear = s.nextInt();\n            /* TODO 状態の判定と表示、版ごとの数え上げ */\n        }\n        /* TODO ACTION_REQUIRED か ALL_OK */ /* TODO 版ごとのベンダー数 */\n    }\n}\n",
+          "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int thisYear = sc.nextInt(), minVersion = sc.nextInt(), n = sc.nextInt();\n        Map<Integer, Integer> byVersion = new TreeMap<>();\n        boolean action = false;\n        for (int i = 0; i < n; i++) {\n            String vendor = sc.next();\n            int version = sc.nextInt(), endYear = sc.nextInt();\n            /* TODO 状態の判定と表示、版ごとの数え上げ */\n        }\n        /* TODO ACTION_REQUIRED か ALL_OK */ /* TODO 版ごとのベンダー数 */\n    }\n}\n",
           "visibleCases": [
             {
               "label": "古い版が混ざる",
@@ -487,7 +527,7 @@
             "版ごとのベンダー数は `TreeMap` に `merge` で足すと、そのまま昇順で取り出せます。",
             "同じフィーチャーバージョンでも、ベンダーによって更新期間やライセンスは違います。だから台帳では version と vendor を組で持ちます。"
           ],
-          "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        int thisYear = s.nextInt(), minVersion = s.nextInt(), n = s.nextInt();\n        Map<Integer, Integer> byVersion = new TreeMap<>();\n        boolean action = false;\n        for (int i = 0; i < n; i++) {\n            String vendor = s.next();\n            int version = s.nextInt(), endYear = s.nextInt();\n            String status = version < minVersion ? \"OUTDATED\" : endYear < thisYear ? \"UNSUPPORTED\" : endYear == thisYear ? \"EXPIRING\" : \"OK\";\n            if (!status.equals(\"OK\")) action = true;\n            System.out.println(vendor + \" \" + status);\n            byVersion.merge(version, 1, Integer::sum);\n        }\n        System.out.println(action ? \"ACTION_REQUIRED\" : \"ALL_OK\");\n        for (Map.Entry<Integer, Integer> e : byVersion.entrySet()) System.out.println(e.getKey() + \" \" + e.getValue());\n    }\n}\n",
+          "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int thisYear = sc.nextInt(), minVersion = sc.nextInt(), n = sc.nextInt();\n        Map<Integer, Integer> byVersion = new TreeMap<>();\n        boolean action = false;\n        for (int i = 0; i < n; i++) {\n            String vendor = sc.next();\n            int version = sc.nextInt(), endYear = sc.nextInt();\n            String status = version < minVersion ? \"OUTDATED\" : endYear < thisYear ? \"UNSUPPORTED\" : endYear == thisYear ? \"EXPIRING\" : \"OK\";\n            if (!status.equals(\"OK\")) action = true;\n            System.out.println(vendor + \" \" + status);\n            byVersion.merge(version, 1, Integer::sum);\n        }\n        System.out.println(action ? \"ACTION_REQUIRED\" : \"ALL_OK\");\n        for (Map.Entry<Integer, Integer> e : byVersion.entrySet()) System.out.println(e.getKey() + \" \" + e.getValue());\n    }\n}\n",
           "rubric": [
             "decide"
           ]

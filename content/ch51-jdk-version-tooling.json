@@ -3,6 +3,24 @@
   "title": "JDKの選定・互換性・標準ツール",
   "subtitle": "バージョンを選び、調べ、配布するための実務知識",
   "emoji": "🧰",
+  "objectives": [
+    {
+      "id": "ch51-o1",
+      "text": "LTSと更新期間を踏まえて、条件を満たすJDKの版を選べる"
+    },
+    {
+      "id": "ch51-o2",
+      "text": "compile・target・実行環境の版の組み合わせから、動くかどうかを判定できる"
+    },
+    {
+      "id": "ch51-o3",
+      "text": "`jshell` `javap` `jdeps` `jlink` `jpackage` を目的に応じて使い分けられる"
+    },
+    {
+      "id": "ch51-o4",
+      "text": "プレビュー機能を使うための条件と、本番で採用する際の注意を説明できる"
+    }
+  ],
   "lessons": [
     {
       "id": "51-0",
@@ -34,6 +52,9 @@
     {
       "id": "51-1",
       "title": "フィーチャーリリースとLTSを選ぶ",
+      "objectiveIds": [
+        "ch51-o1"
+      ],
       "explanation": "## JDKは「一番新しい版」ではなく、更新し続けられる組み合わせを選ぶ\n\n本番で使うJDKを選ぶときは、Javaの版だけでなく、配布するベンダー、更新の提供期間、利用製品の対応状況を一緒に決めます。\n\n**フィーチャーバージョン** はJava 17、21、25のような機能の世代を示す番号です。同じフィーチャーバージョンでも、脆弱性修正や不具合修正を含む更新版が継続して提供されます。本番では最初に入れた版を固定するのではなく、更新を安全に適用する手順が必要です。\n\n**LTS（Long-Term Support）** は、Java言語で機能が増える特別な版という意味ではありません。特定のJDKベンダーが、あるフィーチャーバージョンへ長期の更新や有償・無償サポートを提供する運用上の区分です。期間と条件はベンダーや配布物ごとに確認します。\n\n選定では次を順に確認します。\n\n1. フレームワークやアプリケーションサーバーが、そのJDKとJava版をサポートしているか\n2. 本番OS、CPU、コンテナ基盤で利用できる配布物か\n3. 無償更新・有償サポート・ライセンスが組織の運用期間に合うか\n4. 開発、CI、本番で同じベンダーと更新版を再現できるか\n5. パッチ更新、性能確認、障害時の切り戻しを誰が行うか\n\n`java -version` で実行中の版と配布物を確認できます。さらに `java.vendor`、`java.home`、CPUアーキテクチャなども台帳へ残すと、「Java 21は同じだが配布物が違う」という差を追跡できます。\n\n今回の演習では、`supported=yes` を「上の条件をすでに確認済み」と単純化し、その候補から新しい版を選びます。実務ではyes/noの根拠となる製品対応表、更新期限、検証結果も一緒に保存します。",
       "samples": [
         {
@@ -42,7 +63,7 @@
         }
       ],
       "task": "候補をn件 `version supported` の形で読みます。この問題の `supported=yes` は、製品対応・OS/CPU・更新期間など組織の条件を確認済みという意味です。条件を満たす候補のうち最大のバージョンを表示し、1件も無ければ `NONE` と表示してください。",
-      "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] a) {\n        Scanner s = new Scanner(System.in);\n        int n = s.nextInt(), best = - 1;\n        for (int i = 0; i < n; i++) {\n            int v = s.nextInt();\n            String ok = s.next();\n            /* TODO */\n        }\n        System.out.println(best < 0 ? \"NONE\" : best);\n    }\n}\n",
+      "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] a) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt(), best = - 1;\n        for (int i = 0; i < n; i++) {\n            int v = sc.nextInt();\n            String ok = sc.next();\n            /* TODO */\n        }\n        System.out.println(best < 0 ? \"NONE\" : best);\n    }\n}\n",
       "visibleCases": [
         {
           "label": "認証済みから選ぶ",
@@ -75,23 +96,23 @@
       "hints": [
         "`ok.equals(\"yes\")` のときだけ `Math.max`。"
       ],
-      "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] a) {\n        Scanner s = new Scanner(System.in);\n        int n = s.nextInt(), best = - 1;\n        for (int i = 0; i < n; i++) {\n            int v = s.nextInt();\n            String ok = s.next();\n            if (ok.equals(\"yes\")) best = Math.max(best, v);\n        }\n        System.out.println(best < 0 ? \"NONE\" : best);\n    }\n}\n",
+      "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] a) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt(), best = - 1;\n        for (int i = 0; i < n; i++) {\n            int v = sc.nextInt();\n            String ok = sc.next();\n            if (ok.equals(\"yes\")) best = Math.max(best, v);\n        }\n        System.out.println(best < 0 ? \"NONE\" : best);\n    }\n}\n",
       "quiz": [
         {
           "question": "LTSについて正しい説明は？",
           "choices": [
-            "Jakarta EE専用版",
-            "無料の更新が永久に続く版",
-            "Java言語から機能が削られた版",
+            "Jakarta EE を動かすための専用の版",
+            "無料の更新が期限なく続くと決まった版",
+            "言語機能を絞って軽くした、実行専用の版",
             "ベンダーの長期サポート方針に関わる運用上の区分"
           ],
           "answer": 3,
-          "explanation": "Jakarta EE専用の版ではなく、機能が削られた版でもありません。無料の更新が永久に続くわけでもなく、ここがいちばんの誤解です。LTSは「長くサポートする」という**ベンダーの運用上の区分**なので、期間と条件は提供元ごとに確認し、使う製品の対応状況と合わせて選びます。"
+          "explanation": "Jakarta EE専用の版ではなく、機能を絞った実行専用の版でもありません。無料の更新が期限なく続くわけでもなく、ここがいちばんの誤解です。LTSは「長くサポートする」という**ベンダーの運用上の区分**なので、期間と条件は提供元ごとに確認し、使う製品の対応状況と合わせて選びます。"
         },
         {
           "question": "本番と開発でどちらも「Java 21」なのに、無償更新の期限や暗号の条件が違いました。確認すべきものはどれでしょう。",
           "choices": [
-            "ソースファイルの文字コード設定",
+            "ソースファイルの文字コードと、改行コードをそろえる設定",
             "ベンダーと配布物（更新期間・サポート・対応OSなど）",
             "ビルドに使うMavenのバージョン",
             "バージョン番号だけをもう一度確認する"
@@ -107,6 +128,9 @@
     {
       "id": "51-2",
       "title": "ソース・バイトコード・実行環境の互換性",
+      "objectiveIds": [
+        "ch51-o2"
+      ],
       "explanation": "## ソース、クラスファイル、実行環境の3つの版をそろえる\n\n「新しいJDKでコンパイルできた」ことと、「配備先のJVMで動く」ことは別です。互換性を考えるときは、次の3つを分けます。\n\n- **ソースの版**: どのJava文法を使えるか\n- **クラスファイルの版**: コンパイル後のバイトコードを、どの世代のJVMが読めるか\n- **標準APIの版**: どの版までのクラスやメソッドを参照できるか\n\n新しいJDKから古い実行環境向けに作る場合は、通常 `javac --release 17` のように指定します。`--release` は文法とクラスファイルだけでなく、コンパイル時に見える標準APIも指定版へ制限します。\n\n`-source 17 -target 17` だけでは、手元の新しいJDKにしかない標準APIを誤って呼べる場合があります。するとコンパイルは通っても、Java 17の実行環境で `NoSuchMethodError` などが起こります。`--release 17` はこの誤りをコンパイル時に止めます。\n\n配備先より新しいクラスファイルを実行すると、JVMは読み込み時に `UnsupportedClassVersionError` を出します。メッセージのclass file versionから、ビルド対象と実行環境の不一致を調べられます。\n\n新しいJVMは古いクラスファイルを多くの場合実行できますが、無条件ではありません。削除されたAPI、強くなったモジュール境界、リフレクション、文字コードやGCの既定値、外部ライブラリの対応によって動作が変わることがあります。\n\nそのため、ビルドツールのtoolchainと `--release` を設定として固定し、サポート対象の最小JDKと本番同等JDKでテストします。今回の演習では、コンパイラ、対象版、実行環境の大小関係を確認します。",
       "samples": [
         {
@@ -115,7 +139,7 @@
         }
       ],
       "task": "`compile target runtime` の3整数を読みます。compileよりtargetが大きければ `INVALID_TARGET`、runtimeがtarget未満なら `RUNTIME_TOO_OLD`、それ以外は `OK` と表示してください。",
-      "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] a) {\n        Scanner s = new Scanner(System.in);\n        int compile = s.nextInt(), target = s.nextInt(), runtime = s.nextInt();\n        /* TODO */\n    }\n}\n",
+      "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] a) {\n        Scanner sc = new Scanner(System.in);\n        int compile = sc.nextInt(), target = sc.nextInt(), runtime = sc.nextInt();\n        /* TODO */\n    }\n}\n",
       "visibleCases": [
         {
           "label": "実行環境が古い",
@@ -158,7 +182,7 @@
       "hints": [
         "先に `target` の妥当性を判定し、そのあと実行環境を見ます。"
       ],
-      "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] a) {\n        Scanner s = new Scanner(System.in);\n        int compile = s.nextInt(), target = s.nextInt(), runtime = s.nextInt();\n        System.out.println(target > compile ? \"INVALID_TARGET\" : runtime < target ? \"RUNTIME_TOO_OLD\" : \"OK\");\n    }\n}\n",
+      "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] a) {\n        Scanner sc = new Scanner(System.in);\n        int compile = sc.nextInt(), target = sc.nextInt(), runtime = sc.nextInt();\n        System.out.println(target > compile ? \"INVALID_TARGET\" : runtime < target ? \"RUNTIME_TOO_OLD\" : \"OK\");\n    }\n}\n",
       "quiz": [
         {
           "question": "`javac --release 17` の主な利点は？",
@@ -174,10 +198,10 @@
         {
           "question": "Java 21でビルドしたクラスファイルを、Java 17のJVMで実行するとどうなるでしょう。",
           "choices": [
-            "自動的に17向けへ変換されて動く",
-            "警告は出るがそのまま動く",
+            "実行時に17向けへ変換されて、そのまま動く",
+            "非対応の警告は出るが、そのまま実行できる",
             "クラスファイルの形式が新しく、読み込めずに失敗する",
-            "ビルドの時点で必ず検出される"
+            "ビルドの時点で必ず検出され、実行までいかない"
           ],
           "answer": 2,
           "explanation": "古いJVMは新しいクラスファイルを読めません。17向けにしたいなら `--release 17` でビルドします。"
@@ -187,6 +211,9 @@
     {
       "id": "51-3",
       "title": "JDK付属ツールを使い分ける",
+      "objectiveIds": [
+        "ch51-o3"
+      ],
       "explanation": "## 目的を先に決めて、JDK付属ツールを選ぶ\n\nJDKにはコンパイラと起動コマンド以外にも、コードの確認、依存分析、配布、実行中JVMの調査に使う道具が含まれます。名前を暗記するより、「何を知りたいか」から選びます。\n\n| 目的 | ツール | 得られるもの |\n|---|---|---|\n| Java文を短く試す | `jshell` | 宣言や式を対話的に実行した結果 |\n| クラスファイルの構造を見る | `javap` | メソッド情報や逆アセンブルしたバイトコード |\n| 依存するモジュールを調べる | `jdeps` | クラス・JARが参照するパッケージやJDKモジュール |\n| 実行環境を組み立てる | `jlink` | 指定したモジュールと依存モジュールを含むカスタムランタイムイメージ |\n| OS向けに配布する | `jpackage` | アプリと必要な依存物をまとめたプラットフォーム固有パッケージ |\n| 非推奨APIを探す | `jdeprscan` | 利用している非推奨APIの候補 |\n| 動いているJVMを調べる | `jcmd` | スレッド情報、JFR操作、ヒープ関連情報などJVMが対応する診断結果 |\n\n`jlink` で作るイメージの大きさは、含めるモジュール、JDK配布物、OS、圧縮設定などで変わります。「必ず何MBになる」とは言えないため、`jdeps` の結果を入口に構成を作り、実際の配布物でサイズと起動を測ります。JDK配布物によっては必要なJMODファイルを含まず、同じ手順が使えない場合もあります。\n\n`jcmd` は実行中プロセスへ診断要求を送ります。コマンドによって負荷や停止時間が異なるため、対象PID、実行権限、保存先、ディスク容量、機密情報、想定される影響を本番手順で確認します。利用可能な診断コマンドはJVM実装や版によって異なるので、`jcmd <PID> help` でも確認します。\n\n今回の演習では、実験・バイトコード・依存・ランタイム・インストーラーという目的を対応するツールへ結び付けます。",
       "samples": [
         {
@@ -195,7 +222,7 @@
         }
       ],
       "task": "目的n件を読み、`experiment→jshell`、`bytecode→javap`、`dependencies→jdeps`、`runtime→jlink`、`installer→jpackage` と表示してください。",
-      "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] a) {\n        Map<String, String> tools = Map.of(\"experiment\", \"jshell\", \"bytecode\", \"javap\", \"dependencies\", \"jdeps\", \"runtime\", \"jlink\", \"installer\", \"jpackage\");\n        Scanner s = new Scanner(System.in);\n        int n = s.nextInt();\n        for (int i = 0; i < n; i++) {\n            /* TODO */\n        }\n    }\n}\n",
+      "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] a) {\n        Map<String, String> tools = Map.of(\"experiment\", \"jshell\", \"bytecode\", \"javap\", \"dependencies\", \"jdeps\", \"runtime\", \"jlink\", \"installer\", \"jpackage\");\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n        for (int i = 0; i < n; i++) {\n            /* TODO */\n        }\n    }\n}\n",
       "visibleCases": [
         {
           "label": "道具を選ぶ",
@@ -223,7 +250,7 @@
       "hints": [
         "読んだ文字列を `Map` のキーとして使います。"
       ],
-      "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] a) {\n        Map<String, String> tools = Map.of(\"experiment\", \"jshell\", \"bytecode\", \"javap\", \"dependencies\", \"jdeps\", \"runtime\", \"jlink\", \"installer\", \"jpackage\");\n        Scanner s = new Scanner(System.in);\n        int n = s.nextInt();\n        for (int i = 0; i < n; i++) System.out.println(tools.get(s.next()));\n    }\n}\n",
+      "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] a) {\n        Map<String, String> tools = Map.of(\"experiment\", \"jshell\", \"bytecode\", \"javap\", \"dependencies\", \"jdeps\", \"runtime\", \"jlink\", \"installer\", \"jpackage\");\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n        for (int i = 0; i < n; i++) System.out.println(tools.get(sc.next()));\n    }\n}\n",
       "extraTasks": [
         {
           "kind": "applied",
@@ -442,7 +469,7 @@
           "question": "本番のプロセスから `jcmd` でスレッドダンプやJFRを取るとき、事前に確認すべきこととして適切なものはどれでしょう。",
           "choices": [
             "同じホストでIDEを起動しておくこと",
-            "取得は負荷をかけないので事前の確認はいらない",
+            "取得そのものは負荷をかけないので、事前の確認も記録もいらない",
             "対象のアプリを再起動してから取得すること",
             "負荷と必要な権限、本番の手順を確認し、取得の記録を残すこと"
           ],
@@ -454,6 +481,9 @@
     {
       "id": "51-4",
       "title": "プレビュー機能・非推奨化・移行",
+      "objectiveIds": [
+        "ch51-o4"
+      ],
       "explanation": "## 機能の成熟段階と、採用判断を分ける\n\nJavaの機能には、正式機能になる前の評価段階や、将来の削除へ向かう段階があります。機能名だけでなく状態を確認すると、更新時の手戻りを見積もれます。\n\n- **標準・正式機能**: 対象のJava SE/JDKで正式に利用できる。ただし、要件に合うかを評価して採用する\n- **プレビュー機能**: 実際の利用者からフィードバックを得るための暫定機能。後の版で変更・再プレビュー・撤回される可能性がある\n- **インキュベーターモジュール**: 確定前のAPIや道具をモジュールとして試す仕組み。利用にはモジュールの追加指定が必要\n- **非推奨API**: 利用を減らし、代替へ移行することが推奨されるAPI。`forRemoval=true` は将来削除予定の強い合図\n- **削除済み**: 対象JDKには存在せず、そのままではビルド・実行できない\n\nプレビュー言語機能やAPIを使う場合、コンパイルと実行の両方で `--enable-preview` が必要です。プレビュー機能はリリースごとに定義されるため、コンパイル時と実行時のフィーチャーバージョンもそろえます。IDE、CI、コンテナの起動設定などすべてへ同じ前提が必要です。\n\nJEPはJDK変更を提案・追跡する文書です。JEPが提出されたこと、JDKへ取り込まれたこと、Java SEの標準仕様へ反映されたことは同じ意味ではありません。採用時は、利用するJDK版のリリースノート、JEPの状態と対象版、API仕様、必要ならJava SE仕様を確認します。\n\n移行では `jdeprscan`、コンパイラ警告、依存ライブラリの対応表を使い、版の差を小さくして段階的に上げます。コンパイルだけでなく、単体・結合・性能テスト、本番相当の起動、監視、切り戻しまで確認します。\n\n## プレビュー機能は「版がぴったり合う」ことを要求する\n\nプレビュー機能でいちばん詰まるのは、**版の一致**です。通常のclass fileは古い版でも\n新しいJVMで動きます（後方互換）。ところが `--enable-preview` で作ったclass fileは違います。\n\n```text\njava.lang.UnsupportedClassVersionError:\n  Preview features are not enabled for Main (class file version 65.65535).\n  Try running with '--enable-preview'\n```\n\n規則は3つです。\n\n1. **コンパイルできるのは、その機能がプレビューになったリリース以降。** それより前の\n   `--release` を指定するとコンパイルできません。\n2. **プレビューのあいだは、コンパイルにも実行にも `--enable-preview` が必要。** 片方だけでは動きません。\n3. **プレビューで作ったclass fileは、作った版のJVMでしか動かない。** 21で作ったものは22でも動きません。\n   後方互換の保証が無いからです。正式機能になれば、この制約は消えます。\n\nつまり「プレビューを使う」判断は、動かす環境のJVMを1つの版に固定できるかどうかと同じ意味になります。\nCI、コンテナ、開発者の手元がばらついていると使えません。\n\n今回の演習では、この判定を実際に計算します。",
       "samples": [
         {
@@ -531,6 +561,9 @@
     {
       "id": "51-5",
       "title": "章末演習：JDKの選定・互換性・標準ツール",
+      "objectiveIds": [
+        "ch51-o1"
+      ],
       "explanation": "## 章末では、選定・ビルド・配布・移行を1つの経路として確認する\n\nJDKの運用では、版を1回選んで終わりではありません。開発から本番まで同じ前提を再現し、更新を続けられる状態を作ります。\n\n```text\n対応製品・運用期間からJDK候補を選ぶ\n        ↓\ntoolchainと--releaseでビルド条件を固定する\n        ↓\n最小JDK・本番同等JDKでテストする\n        ↓\njdeps / jlink / jpackageなどで配布物を作る\n        ↓\n本番で版とベンダーを記録し、パッチ更新を続ける\n```\n\nLTSは候補を絞る運用上の情報であり、それだけで製品対応や安全性を保証しません。プレビューや非推奨も別の軸です。「LTSだからプレビューも安定」「正式機能だから必ず採用」とは判断しません。\n\n互換性の問題が起きたら、ソース文法、標準API、クラスファイル、JVM、外部ライブラリのどこが不一致かを分けます。診断ツールを使うときも、目的と本番への影響を確認します。\n\n章末演習では、対応済み候補の選定、対象版と実行環境の互換判定、JDK付属ツールと機能状態の分類を組み合わせます。候補一覧には、版だけでなくベンダー、LTSの有無、対応確認の根拠、更新期限を残す習慣を付けてください。",
       "samples": [
         {
@@ -540,7 +573,7 @@
         }
       ],
       "task": "【基本】必要な最低版 minVersion と候補数nを読み、続けてn件を `version vendor supported lts` の形で読みます（`supported` と `lts` は `yes` / `no`）。この問題の `supported=yes` は組織の対応条件を確認済みという意味です。`supported` が `yes` で、かつ `version` が minVersion 以上の候補だけを採用できるものとして、versionの降順（同じversionならvendorの辞書順）に `version vendor LTS表示` と表示してください。LTS表示は `lts` が `yes` なら `LTS`、そうでなければ `-` です。採用できる候補が無ければ `NONE` と表示します。\n\nこの演習では「条件を満たすLTSを優先する」という組織方針を仮定します。採用できる候補の中から、LTSが1件でもあればその中の最大version、LTSが無ければ全体の最大versionを選び、`PICK version vendor` と表示してください。同じversionが並ぶときはvendorの辞書順で先のものにします。候補が無ければ `PICK NONE` と表示します。",
-      "starterCode": "import java.util.*;\n\nrecord Candidate(int version, String vendor, boolean lts) { }\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        int minVersion = s.nextInt(), n = s.nextInt();\n        List<Candidate> ok = new ArrayList<>();\n        for (int i = 0; i < n; i++) {\n            int version = s.nextInt();\n            String vendor = s.next();\n            boolean supported = s.next().equals(\"yes\"), lts = s.next().equals(\"yes\");\n            /* TODO 採用できるものだけ ok へ */\n        }\n        /* TODO 並べ替えと一覧の表示 */ /* TODO PICK の決定 */\n    }\n}\n",
+      "starterCode": "import java.util.*;\n\nrecord Candidate(int version, String vendor, boolean lts) { }\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int minVersion = sc.nextInt(), n = sc.nextInt();\n        List<Candidate> ok = new ArrayList<>();\n        for (int i = 0; i < n; i++) {\n            int version = sc.nextInt();\n            String vendor = sc.next();\n            boolean supported = sc.next().equals(\"yes\"), lts = sc.next().equals(\"yes\");\n            /* TODO 採用できるものだけ ok へ */\n        }\n        /* TODO 並べ替えと一覧の表示 */ /* TODO PICK の決定 */\n    }\n}\n",
       "visibleCases": [
         {
           "label": "LTSを優先する",
@@ -580,12 +613,15 @@
         "LTSだけを集めたリストを作り、空だったら全体のリストに切り替えてから先頭を採ります。",
         "LTSは言語仕様の区分ではなく、ベンダーが長期サポートを出すという運用上の区分です。だから `supported` と `lts` を別の項目として持っています。"
       ],
-      "solution": "import java.util.*;\n\nrecord Candidate(int version, String vendor, boolean lts) { }\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        int minVersion = s.nextInt(), n = s.nextInt();\n        List<Candidate> ok = new ArrayList<>();\n        for (int i = 0; i < n; i++) {\n            int version = s.nextInt();\n            String vendor = s.next();\n            boolean supported = s.next().equals(\"yes\"), lts = s.next().equals(\"yes\");\n            if (supported && version >= minVersion) ok.add(new Candidate(version, vendor, lts));\n        }\n        ok.sort(Comparator.comparingInt(Candidate::version).reversed().thenComparing(Candidate::vendor));\n        if (ok.isEmpty()) System.out.println(\"NONE\");\n        else for (Candidate c : ok) System.out.println(c.version() + \" \" + c.vendor() + \" \" + (c.lts() ? \"LTS\" : \"-\"));\n        List<Candidate> pool = new ArrayList<>();\n        for (Candidate c : ok) if (c.lts()) pool.add(c);\n        if (pool.isEmpty()) pool = ok;\n        System.out.println(pool.isEmpty() ? \"PICK NONE\" : \"PICK \" + pool.get(0).version() + \" \" + pool.get(0).vendor());\n    }\n}\n",
+      "solution": "import java.util.*;\n\nrecord Candidate(int version, String vendor, boolean lts) { }\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int minVersion = sc.nextInt(), n = sc.nextInt();\n        List<Candidate> ok = new ArrayList<>();\n        for (int i = 0; i < n; i++) {\n            int version = sc.nextInt();\n            String vendor = sc.next();\n            boolean supported = sc.next().equals(\"yes\"), lts = sc.next().equals(\"yes\");\n            if (supported && version >= minVersion) ok.add(new Candidate(version, vendor, lts));\n        }\n        ok.sort(Comparator.comparingInt(Candidate::version).reversed().thenComparing(Candidate::vendor));\n        if (ok.isEmpty()) System.out.println(\"NONE\");\n        else for (Candidate c : ok) System.out.println(c.version() + \" \" + c.vendor() + \" \" + (c.lts() ? \"LTS\" : \"-\"));\n        List<Candidate> pool = new ArrayList<>();\n        for (Candidate c : ok) if (c.lts()) pool.add(c);\n        if (pool.isEmpty()) pool = ok;\n        System.out.println(pool.isEmpty() ? \"PICK NONE\" : \"PICK \" + pool.get(0).version() + \" \" + pool.get(0).vendor());\n    }\n}\n",
       "extraTasks": [
         {
+          "objectiveIds": [
+            "ch51-o2"
+          ],
           "kind": "drill",
           "task": "【組み合わせ】ビルドに使うJDKの版 compile、本番の実行環境の版 runtime、モジュール数nを読み、続けてn件を `module release` の形で読みます（`release` は `javac --release` に渡した版）。各モジュールについて次を上から順に確かめ、読んだ順に `module STATUS` と表示してください。\n\n1. `release` が compile より大きい → `INVALID_RELEASE`（そのJDKではコンパイルできません）\n2. `release` が runtime より大きい → `TOO_NEW`（古いJVMは新しいclass fileを読めません）\n3. どちらでもない → `OK`\n\n続けて、`INVALID_RELEASE` が1件でもあれば `FIX_BUILD`、無くて `TOO_NEW` があれば `NEED_RUNTIME` に続けて `TOO_NEW` になった `release` の最大値を表示、どちらも無ければ `ALL_OK` と表示します。",
-          "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        int compile = s.nextInt(), runtime = s.nextInt(), n = s.nextInt();\n        boolean invalid = false;\n        int need = - 1;\n        for (int i = 0; i < n; i++) {\n            String module = s.next();\n            int release = s.nextInt();\n            /* TODO 3つの判定 */\n        }\n        /* TODO まとめの1行 */\n    }\n}\n",
+          "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int compile = sc.nextInt(), runtime = sc.nextInt(), n = sc.nextInt();\n        boolean invalid = false;\n        int need = - 1;\n        for (int i = 0; i < n; i++) {\n            String module = sc.next();\n            int release = sc.nextInt();\n            /* TODO 3つの判定 */\n        }\n        /* TODO まとめの1行 */\n    }\n}\n",
           "visibleCases": [
             {
               "label": "実行環境が追いつかない",
@@ -630,12 +666,15 @@
             "`NEED_RUNTIME` に出すのは `TOO_NEW` になった `release` の最大値だけです。`Math.max` で更新していきます。",
             "`--release` はclassの対象版と、コンパイル時に見える標準APIの両方を揃えます。`-source` と `-target` だけでは新しいAPIを参照できてしまいます。"
           ],
-          "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        int compile = s.nextInt(), runtime = s.nextInt(), n = s.nextInt();\n        boolean invalid = false;\n        int need = - 1;\n        for (int i = 0; i < n; i++) {\n            String module = s.next();\n            int release = s.nextInt();\n            String status;\n            if (release > compile) {\n                status = \"INVALID_RELEASE\";\n                invalid = true;\n            } else if (release > runtime) {\n                status = \"TOO_NEW\";\n                need = Math.max(need, release);\n            } else status = \"OK\";\n            System.out.println(module + \" \" + status);\n        }\n        System.out.println(invalid ? \"FIX_BUILD\" : need >= 0 ? \"NEED_RUNTIME \" + need : \"ALL_OK\");\n    }\n}\n"
+          "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int compile = sc.nextInt(), runtime = sc.nextInt(), n = sc.nextInt();\n        boolean invalid = false;\n        int need = - 1;\n        for (int i = 0; i < n; i++) {\n            String module = sc.next();\n            int release = sc.nextInt();\n            String status;\n            if (release > compile) {\n                status = \"INVALID_RELEASE\";\n                invalid = true;\n            } else if (release > runtime) {\n                status = \"TOO_NEW\";\n                need = Math.max(need, release);\n            } else status = \"OK\";\n            System.out.println(module + \" \" + status);\n        }\n        System.out.println(invalid ? \"FIX_BUILD\" : need >= 0 ? \"NEED_RUNTIME \" + need : \"ALL_OK\");\n    }\n}\n"
         },
         {
+          "objectiveIds": [
+            "ch51-o3"
+          ],
           "kind": "applied",
           "task": "【実践】作業をn件 `goal state` の形で読みます。`goal` は `experiment` / `bytecode` / `dependencies` / `runtime` / `installer` のいずれかで、それぞれ `jshell` / `javap` / `jdeps` / `jlink` / `jpackage` を使います。`state` は `standard` / `preview` / `deprecated` / `removed` のいずれかで、それぞれ `CONSIDER` / `EVALUATE` / `MIGRATE` / `BLOCK` の判断になります。\n\n各作業を読んだ順に `行番号 ツール名 判断` と表示してください（行番号は1から）。ただし `state` が `removed` のときは、ツールを動かす前に止めるので `行番号 BLOCK` だけを表示します。\n\n続けて、`--enable-preview` が必要な件数（`state` が `preview` の件数）を `PREVIEW 件数`、先に移行を済ませるべき件数（`state` が `deprecated` または `removed` の件数）を `MIGRATE 件数` の形で表示します。",
-          "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        Map<String, String> tools = Map.of(\"experiment\", \"jshell\", \"bytecode\", \"javap\", \"dependencies\", \"jdeps\", \"runtime\", \"jlink\", \"installer\", \"jpackage\");\n        Map<String, String> actions = Map.of(\"standard\", \"CONSIDER\", \"preview\", \"EVALUATE\", \"deprecated\", \"MIGRATE\", \"removed\", \"BLOCK\");\n        int n = s.nextInt(), preview = 0, migrate = 0;\n        for (int k = 1; k <= n; k++) {\n            String goal = s.next(), state = s.next();\n            /* TODO 表示と集計 */\n        }\n        /* TODO PREVIEW と MIGRATE の表示 */\n    }\n}\n",
+          "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        Map<String, String> tools = Map.of(\"experiment\", \"jshell\", \"bytecode\", \"javap\", \"dependencies\", \"jdeps\", \"runtime\", \"jlink\", \"installer\", \"jpackage\");\n        Map<String, String> actions = Map.of(\"standard\", \"CONSIDER\", \"preview\", \"EVALUATE\", \"deprecated\", \"MIGRATE\", \"removed\", \"BLOCK\");\n        int n = sc.nextInt(), preview = 0, migrate = 0;\n        for (int k = 1; k <= n; k++) {\n            String goal = sc.next(), state = sc.next();\n            /* TODO 表示と集計 */\n        }\n        /* TODO PREVIEW と MIGRATE の表示 */\n    }\n}\n",
           "visibleCases": [
             {
               "label": "4つの状態が混ざる",
@@ -680,7 +719,7 @@
             "`removed` の行はツール名を出しません。表示の形が変わる場合を先に片づけると読みやすくなります。",
             "`preview` は仕様が変わり得る暫定機能なので、`--enable-preview` の件数を別に数えます。`deprecated` は即時削除ではありませんが、`removed` と同じく移行の対象です。"
           ],
-          "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        Map<String, String> tools = Map.of(\"experiment\", \"jshell\", \"bytecode\", \"javap\", \"dependencies\", \"jdeps\", \"runtime\", \"jlink\", \"installer\", \"jpackage\");\n        Map<String, String> actions = Map.of(\"standard\", \"CONSIDER\", \"preview\", \"EVALUATE\", \"deprecated\", \"MIGRATE\", \"removed\", \"BLOCK\");\n        int n = s.nextInt(), preview = 0, migrate = 0;\n        for (int k = 1; k <= n; k++) {\n            String goal = s.next(), state = s.next();\n            if (state.equals(\"removed\")) System.out.println(k + \" BLOCK\");\n            else System.out.println(k + \" \" + tools.get(goal) + \" \" + actions.get(state));\n            if (state.equals(\"preview\")) preview++;\n            if (state.equals(\"deprecated\") || state.equals(\"removed\")) migrate++;\n        }\n        System.out.println(\"PREVIEW \" + preview);\n        System.out.println(\"MIGRATE \" + migrate);\n    }\n}\n"
+          "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        Map<String, String> tools = Map.of(\"experiment\", \"jshell\", \"bytecode\", \"javap\", \"dependencies\", \"jdeps\", \"runtime\", \"jlink\", \"installer\", \"jpackage\");\n        Map<String, String> actions = Map.of(\"standard\", \"CONSIDER\", \"preview\", \"EVALUATE\", \"deprecated\", \"MIGRATE\", \"removed\", \"BLOCK\");\n        int n = sc.nextInt(), preview = 0, migrate = 0;\n        for (int k = 1; k <= n; k++) {\n            String goal = sc.next(), state = sc.next();\n            if (state.equals(\"removed\")) System.out.println(k + \" BLOCK\");\n            else System.out.println(k + \" \" + tools.get(goal) + \" \" + actions.get(state));\n            if (state.equals(\"preview\")) preview++;\n            if (state.equals(\"deprecated\") || state.equals(\"removed\")) migrate++;\n        }\n        System.out.println(\"PREVIEW \" + preview);\n        System.out.println(\"MIGRATE \" + migrate);\n    }\n}\n"
         }
       ],
       "rubric": [

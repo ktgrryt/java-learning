@@ -1,6 +1,7 @@
 # SQLラボ
 
-第46章の必須`runtime-lab`です。画面から提出すると、一時的なPostgreSQL 16 containerへ
+Java実践・開発基盤編『SQLとリレーショナルデータベース』の必須`runtime-lab`です。
+画面から提出すると、一時的なPostgreSQL 16 containerへ
 学習者が編集したDDLとSQLを適用し、制約・JOIN・集約・HAVING・実行計画を直接検証します。
 実行ごとに一意なcontainer名と動的なlocalhost portを使い、終了時にcontainerを削除します。
 

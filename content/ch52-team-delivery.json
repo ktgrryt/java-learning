@@ -3,47 +3,88 @@
   "title": "チーム開発・ビルド・品質管理",
   "subtitle": "再現でき、レビューでき、継続的に届けられるコードへ",
   "emoji": "🤝",
+  "objectives": [
+    {
+      "id": "ch52-o1",
+      "text": "変更の大きさを見て、レビューを頼める単位へ分けられる"
+    },
+    {
+      "id": "ch52-o2",
+      "text": "依存関係の版の衝突を見つけ、再現できるビルドへ直せる"
+    },
+    {
+      "id": "ch52-o3",
+      "text": "テストの層の割合を見て、実DBを使う結合テストの置き場所を決められる"
+    },
+    {
+      "id": "ch52-o4",
+      "text": "stack traceと静的解析の指摘を突き合わせ、計算量まで含めて原因を絞れる"
+    },
+    {
+      "id": "ch52-o5",
+      "text": "CIのログとゲートから、成果物を出してよいかを判断できる"
+    }
+  ],
   "lessons": [
     {
       "id": "52-1",
       "title": "Gitとレビュー可能な変更",
-      "explanation": "## なぜ変更を小さく分けるのか\n\n業務のコードは、書いた本人だけでなく、レビューする人、あとで不具合を調べる人、次に機能を直す人も読みます。たとえば「在庫表示を直す」という変更に、名前変更、整形、別機能の修正まで混ざっていると、どの行が目的に必要なのか分からず、見落としが増えます。\n\nそこで、作業を次の単位に分けます。\n\n- **issue（課題）** — 何を解決するかと、完了と判断する条件を書く\n- **branch（ブランチ）** — その課題の変更を本流から分けて作業する場所\n- **commit（コミット）** — 意味のまとまりごとに残す変更の記録\n- **pull request / PR** — 変更を本流へ入れる前に、目的・内容・検証結果を共有して確認を頼む場\n\n### 小さい変更は、何が嬉しいのか\n\n小さいPRは、単に行数が少ないことが目的ではありません。変更の理由とコードの対応が見えるため、レビューする人が「この条件で要件を満たすか」「関係ない場所を壊していないか」に集中できます。不具合が出たときも、どの変更で入ったかを絞りやすく、必要ならその変更だけを戻せます。\n\nたとえば、DB列の追加と画面変更が必要なら、次のように順序を付けます。\n\n1. 既存アプリと両立する列を追加する\n2. 新しい列も扱えるコードを追加する\n3. データを移す\n4. 古い列への依存を削除する\n\n一度に全部を切り替えるより、各段階でテストでき、途中で止めたり戻したりしやすくなります。ただし、強く結び付いた数行を無理に別PRへ分ける必要はありません。基準は行数ではなく、**一つの目的を一つの説明でレビューできるか**です。\n\n### PRに書くこと\n\n- 何を直し、なぜ必要か\n- どこを見てほしいか\n- 実行したテストと結果\n- API・DB・設定への影響\n- 配備や切り戻しで必要な手順\n\n生成物、IDEだけが使う設定、パスワードやAPIキーはコミットしません。`.gitignore`で生成物を除外し、機密情報の検査も自動化します。秘密を一度Gitへ入れると、後で行を消しても履歴に残るため、値の無効化と再発行が必要です。\n\n> このレッスンの問題では、変更の大きさからレビュー可能かを判断します。実務では件数だけで機械的に決めず、「目的が一つか」「安全に確認・切り戻しできるか」も合わせて判断します。",
+      "objectiveIds": [
+        "ch52-o1"
+      ],
+      "explanation": "## なぜ変更を小さく分けるのか\n\n業務のコードは、書いた本人だけでなく、レビューする人、あとで不具合を調べる人、次に機能を直す人も読みます。たとえば「在庫表示を直す」という変更に、名前変更、整形、別機能の修正まで混ざっていると、どの行が目的に必要なのか分からず、見落としが増えます。\n\nそこで、作業を次の単位に分けます。\n\n- **issue（課題）** — 何を解決するかと、完了と判断する条件を書く\n- **branch（ブランチ）** — その課題の変更を本流から分けて作業する場所\n- **commit（コミット）** — 意味のまとまりごとに残す変更の記録\n- **pull request / PR** — 変更を本流へ入れる前に、目的・内容・検証結果を共有して確認を頼む場\n\n### 小さい変更は、何が嬉しいのか\n\n小さいPRは、単に行数が少ないことが目的ではありません。変更の理由とコードの対応が見えるため、レビューする人が「この条件で要件を満たすか」「関係ない場所を壊していないか」に集中できます。不具合が出たときも、どの変更で入ったかを絞りやすく、必要ならその変更だけを戻せます。\n\nたとえば、DB列の追加と画面変更が必要なら、次のように順序を付けます。\n\n1. 既存アプリと両立する列を追加する\n2. 新しい列も扱えるコードを追加する\n3. データを移す\n4. 古い列への依存を削除する\n\n一度に全部を切り替えるより、各段階でテストでき、途中で止めたり戻したりしやすくなります。ただし、強く結び付いた数行を無理に別PRへ分ける必要はありません。基準は行数ではなく、**一つの目的を一つの説明でレビューできるか**です。\n\n### 変更の大きさは `--stat` で見る\n\n`git diff --stat` は、どのファイルが何行変わったかを一覧にします。\n\n```text\n src/main/java/cafe/Order.java | 12 ++++++++---\n src/main/java/cafe/Stock.java |  4 +--\n pom.xml                       |  2 +-\n 3 files changed, 14 insertions(+), 4 deletions(-)\n```\n\n`|` の右の数が、そのファイルの変更行数（追加＋削除）です。`+` と `-` の並びは割合の目安で、最後の行が全体の要約です。削除が0行のときは `deletions` の部分が出ません。\n\nレビューを頼む前にこれを見て、目的と関係ないファイルが混ざっていないかを確かめます。\n\n### PRに書くこと\n\n- 何を直し、なぜ必要か\n- どこを見てほしいか\n- 実行したテストと結果\n- API・DB・設定への影響\n- 配備や切り戻しで必要な手順\n\n生成物、IDEだけが使う設定、パスワードやAPIキーはコミットしません。`.gitignore`で生成物を除外し、機密情報の検査も自動化します。秘密を一度Gitへ入れると、後で行を消しても履歴に残るため、値の無効化と再発行が必要です。\n\n> このレッスンの問題では、変更の大きさからレビュー可能かを判断します。実務では件数だけで機械的に決めず、「目的が一つか」「安全に確認・切り戻しできるか」も合わせて判断します。",
       "samples": [
         {
           "caption": "変更理由をコード上にも残す",
           "code": "record Change(String scope, String reason) { }\n\npublic class Main {\n    public static void main(String[] a) {\n        System.out.println(new Change(\"order\", \"reject negative quantity\"));\n    }\n}\n"
         }
       ],
-      "task": "変更ファイル数filesと追加削除行数linesを読み、filesが10以下かつlinesが300以下なら `REVIEWABLE`、それ以外は `SPLIT` と表示してください。",
-      "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] a) {\n        Scanner s = new Scanner(System.in);\n        int files = s.nextInt(), lines = s.nextInt();\n        /* TODO */\n    }\n}\n",
+      "task": "`git diff --stat` の出力を読んで、レビューを頼める大きさかを判断してください。\n\n1行目に出力の行数nを読み、続けてn行が与えられます。最後の1行は要約です。\n\n```\n4\n src/main/java/cafe/Order.java | 12 ++++++++---\n src/main/java/cafe/Stock.java |  4 +--\n pom.xml                       |  2 +-\n 3 files changed, 14 insertions(+), 4 deletions(-)\n```\n\n1行目に判定を表示します。要約の**変更ファイル数が10以下**かつ**追加と削除の合計が300以下**なら `REVIEWABLE`、それ以外は `SPLIT` です。\n\n続けて、ファイルごとの変更行数を**多い順**に `パス 変更行数` と表示してください。同じ行数のときはパスの辞書順にします。変更行数は `|` の右にある数です。\n\n上の例の答えはこうなります。\n\n```\nREVIEWABLE\nsrc/main/java/cafe/Order.java 12\nsrc/main/java/cafe/Stock.java 4\npom.xml 2\n```\n\n要約に `deletions` が出ないことがあります（削除が0行のとき）。その場合は追加だけを数えます。\n\n> 行数は目安にすぎません。この章の説明どおり、本当の基準は「一つの目的を一つの説明でレビューできるか」です。ここで測るのは`--stat` を読み取れることと、どのファイルが大きいかを見つけられることです。",
+      "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] a) {\n        Scanner sc = new Scanner(System.in);\n        int n = Integer.parseInt(sc.nextLine().trim());\n        List<String> lines = new ArrayList<>();\n        for (int i = 0; i < n; i++) lines.add(sc.nextLine());\n        String summary = lines.remove(lines.size() - 1);\n        /* TODO 要約から変更ファイル数と、追加・削除の合計を取り出す */\n        /* TODO REVIEWABLE か SPLIT を表示する */\n        /* TODO 各行から「パス」と「変更行数」を取り出し、多い順（同数はパス順）に表示する */\n    }\n}\n",
       "visibleCases": [
         {
-          "label": "小さい変更",
-          "stdin": "4 120",
-          "expected": "REVIEWABLE"
+          "label": "3ファイル・14行の変更",
+          "stdin": "4\n src/main/java/cafe/Order.java | 12 ++++++++---\n src/main/java/cafe/Stock.java |  4 +--\n pom.xml                       |  2 +-\n 3 files changed, 14 insertions(+), 4 deletions(-)\n",
+          "expected": "REVIEWABLE\nsrc/main/java/cafe/Order.java 12\nsrc/main/java/cafe/Stock.java 4\npom.xml 2"
         },
         {
-          "label": "大きい変更",
-          "stdin": "8 450",
-          "expected": "SPLIT"
+          "label": "削除が0行（deletionsが出ない）",
+          "stdin": "2\n docs/guide.md | 5 +++++\n 1 file changed, 5 insertions(+)\n",
+          "expected": "REVIEWABLE\ndocs/guide.md 5"
         }
       ],
       "hiddenCases": [
         {
-          "label": "境界値",
-          "stdin": "10 300",
-          "expected": "REVIEWABLE"
+          "label": "合計が300を超える",
+          "stdin": "3\n src/A.java | 250 +++\n src/B.java |  60 +--\n 2 files changed, 250 insertions(+), 60 deletions(-)\n",
+          "expected": "SPLIT\nsrc/A.java 250\nsrc/B.java 60"
+        },
+        {
+          "label": "ちょうど300行",
+          "stdin": "2\n src/A.java | 300 +++\n 1 file changed, 200 insertions(+), 100 deletions(-)\n",
+          "expected": "REVIEWABLE\nsrc/A.java 300"
+        },
+        {
+          "label": "ファイル数が10を超える",
+          "stdin": "2\n src/A.java | 1 +\n 11 files changed, 11 insertions(+)\n",
+          "expected": "SPLIT\nsrc/A.java 1"
+        },
+        {
+          "label": "同じ変更行数はパスの辞書順",
+          "stdin": "4\n src/z.java | 3 +\n src/a.java | 3 +\n src/m.java | 9 +\n 3 files changed, 15 insertions(+)\n",
+          "expected": "REVIEWABLE\nsrc/m.java 9\nsrc/a.java 3\nsrc/z.java 3"
         }
       ],
       "hints": [
-        "両方の条件を `&&` で結びます。"
+        "要約の行だけは形が違います。先に最後の1行を取り分けてから、残りをファイルの行として扱います。",
+        "`|` はパスの区切りです。`lastIndexOf('|')` で切ると、左がパス、右が「12 ++++---」の形になります。右側の先頭の数字だけを読み取ります。"
       ],
-      "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] a) {\n        Scanner s = new Scanner(System.in);\n        int files = s.nextInt(), lines = s.nextInt();\n        System.out.println(files <= 10 && lines <= 300 ? \"REVIEWABLE\" : \"SPLIT\");\n    }\n}\n",
+      "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] a) {\n        Scanner sc = new Scanner(System.in);\n        int n = Integer.parseInt(sc.nextLine().trim());\n        List<String> lines = new ArrayList<>();\n        for (int i = 0; i < n; i++) lines.add(sc.nextLine());\n        String summary = lines.remove(lines.size() - 1);\n\n        int files = firstNumberBefore(summary, \"file\");\n        int changed = firstNumberBefore(summary, \"insertion\") + firstNumberBefore(summary, \"deletion\");\n        System.out.println(files <= 10 && changed <= 300 ? \"REVIEWABLE\" : \"SPLIT\");\n\n        List<String[]> rows = new ArrayList<>();\n        for (String line : lines) {\n            int bar = line.lastIndexOf('|');\n            String path = line.substring(0, bar).trim();\n            String rest = line.substring(bar + 1).trim();\n            int end = 0;\n            while (end < rest.length() && Character.isDigit(rest.charAt(end))) end++;\n            rows.add(new String[] {path, rest.substring(0, end)});\n        }\n        rows.sort(Comparator.comparingInt((String[] r) -> Integer.parseInt(r[1])).reversed()\n                .thenComparing(r -> r[0]));\n        for (String[] row : rows) System.out.println(row[0] + \" \" + row[1]);\n    }\n\n    /** 「3 files changed」のように、語の直前にある数を取り出す。無ければ0。 */\n    static int firstNumberBefore(String summary, String word) {\n        int at = summary.indexOf(word);\n        if (at < 0) return 0;\n        int end = at;\n        while (end > 0 && !Character.isDigit(summary.charAt(end - 1))) end--;\n        int start = end;\n        while (start > 0 && Character.isDigit(summary.charAt(start - 1))) start--;\n        return start == end ? 0 : Integer.parseInt(summary.substring(start, end));\n    }\n}\n",
       "quiz": [
         {
           "question": "レビューしやすいpull requestは？",
           "choices": [
-            "失敗したときの挙動を隠している",
+            "失敗したときの挙動を隠し、成功する例だけを載せている",
             "秘密鍵をそのまま添付している",
             "受入条件・変更理由・テスト結果があり、範囲が小さい",
             "目的と無関係な整形も大量に含んでいる"
@@ -67,33 +108,52 @@
     {
       "id": "52-2",
       "title": "Maven・Gradleと依存管理",
-      "explanation": "## なぜビルドツールと依存管理が必要なのか\n\nJavaアプリは、自分が書いたコードだけではできていません。テスト用ライブラリ、Webフレームワーク、DBドライバなど、多くの外部部品を使います。開発者ごとに手作業でJARを集めると、Aさんの環境では動くのにBさんやCIでは動かない、という状態になります。\n\n**ビルドツール**は、ソースのコンパイル、テスト、ライブラリの取得、配布物の作成を、決めた手順で繰り返す道具です。代表例がMavenとGradleです。\n\n- **Maven** — `pom.xml`に必要な部品と処理を宣言し、`test`や`package`など決まった段階で実行する\n- **Gradle** — タスクとその前後関係を、専用の書き方（DSL）で定義する\n- **wrapper（ラッパー）** — プロジェクトが指定した版のMaven/Gradleを実行する小さな起動スクリプト\n- **JDK toolchain** — コンパイルやテストに使うJDKの版を指定する仕組み\n\nラッパーとJDKの版を固定すると、開発PCとCIで同じ条件を作りやすくなります。\n\n### 依存関係で起きる問題\n\n自分が直接追加したライブラリを**直接依存**、そのライブラリが内部で必要として連れてくるものを**推移的依存**と呼びます。\n\n```text\n自分のアプリ → web-library 2.0 → json-library 3.0\n             → db-library 1.5  → json-library 2.4\n```\n\nこの例では、同じJSONライブラリの別バージョンが要求されています。ビルドツールはいずれか一つを選びますが、選ばれた版に必要なメソッドがなければ、実行時に`NoSuchMethodError`などが起きます。\n\n### BOMとロックファイル\n\n**BOM（Bill of Materials）**は、一緒に使えるライブラリのバージョンをセットで定義した一覧です。SpringやQuarkusなどが公開するBOMを使うと、関連部品を個別に推測せず、検証された組み合わせへそろえられます。\n\n**ロックファイル**は、実際に選ばれた依存の版を記録するファイルです。次回も同じ版を取得できるため、「昨日と同じコードなのに違う依存が選ばれた」という事故を防ぎます。Mavenでは`dependency:tree`、Gradleでは`dependencies`などで、最終的に何が選ばれたかを確認します。\n\n大切なのはツール名を覚えることではなく、**誰が、どこで実行しても、同じ入力から同じ成果物を作れる状態にすること**です。依存を追加したときは、目的、選ばれた版、ライセンス、既知の脆弱性、不要になった依存が残っていないかまで確認します。",
+      "objectiveIds": [
+        "ch52-o2"
+      ],
+      "explanation": "## なぜビルドツールと依存管理が必要なのか\n\nJavaアプリは、自分が書いたコードだけではできていません。テスト用ライブラリ、Webフレームワーク、DBドライバなど、多くの外部部品を使います。開発者ごとに手作業でJARを集めると、Aさんの環境では動くのにBさんやCIでは動かない、という状態になります。\n\n**ビルドツール**は、ソースのコンパイル、テスト、ライブラリの取得、配布物の作成を、決めた手順で繰り返す道具です。代表例がMavenとGradleです。\n\n- **Maven** — `pom.xml`に必要な部品と処理を宣言し、`test`や`package`など決まった段階で実行する\n- **Gradle** — タスクとその前後関係を、専用の書き方（DSL）で定義する\n- **wrapper（ラッパー）** — プロジェクトが指定した版のMaven/Gradleを実行する小さな起動スクリプト\n- **JDK toolchain** — コンパイルやテストに使うJDKの版を指定する仕組み\n\nラッパーとJDKの版を固定すると、開発PCとCIで同じ条件を作りやすくなります。\n\n### 依存関係で起きる問題\n\n自分が直接追加したライブラリを**直接依存**、そのライブラリが内部で必要として連れてくるものを**推移的依存**と呼びます。\n\n```text\n自分のアプリ → web-library 2.0 → json-library 3.0\n             → db-library 1.5  → json-library 2.4\n```\n\n`mvn dependency:tree` は、これを次の形で出します。採用されなかった版には理由が付きます。\n\n```text\n[INFO] com.example:app:jar:1.0.0\n[INFO] +- org.example:web-library:jar:2.0:compile\n[INFO] |  \\- org.example:json-library:jar:3.0:compile\n[INFO] \\- org.example:db-library:jar:1.5:compile\n[INFO]    \\- org.example:json-library:jar:2.4:compile - omitted for conflict with 3.0\n```\n\nこの例では、同じJSONライブラリの別バージョンが要求されています。ビルドツールはいずれか一つを選びますが、選ばれた版に必要なメソッドがなければ、実行時に`NoSuchMethodError`などが起きます。\n\n### BOMとロックファイル\n\n**BOM（Bill of Materials）**は、一緒に使えるライブラリのバージョンをセットで定義した一覧です。SpringやQuarkusなどが公開するBOMを使うと、関連部品を個別に推測せず、検証された組み合わせへそろえられます。\n\n**ロックファイル**は、実際に選ばれた依存の版を記録するファイルです。次回も同じ版を取得できるため、「昨日と同じコードなのに違う依存が選ばれた」という事故を防ぎます。Mavenでは`dependency:tree`、Gradleでは`dependencies`などで、最終的に何が選ばれたかを確認します。\n\n大切なのはツール名を覚えることではなく、**誰が、どこで実行しても、同じ入力から同じ成果物を作れる状態にすること**です。依存を追加したときは、目的、選ばれた版、ライセンス、既知の脆弱性、不要になった依存が残っていないかまで確認します。",
       "samples": [
         {
           "caption": "循環しないモジュールの順序を表す",
           "code": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] a) {\n        System.out.println(String.join(\" -> \", List.of(\"domain\", \"application\", \"adapter\")));\n    }\n}\n"
         }
       ],
-      "task": "依存 `module dependency` をn件読みます。自分自身への依存があれば `SELF_CYCLE`、なければ `OK` と表示してください。",
-      "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] a) {\n        Scanner s = new Scanner(System.in);\n        int n = s.nextInt();\n        boolean bad = false;\n        for (int i = 0; i < n; i++) {\n            String m = s.next(), d = s.next();\n            /* TODO */\n        }\n        System.out.println(bad ? \"SELF_CYCLE\" : \"OK\");\n    }\n}\n",
+      "task": "`mvn dependency:tree` の出力を読んで、同じライブラリの版が衝突している箇所を報告してください。\n\n1行目に出力の行数nを読み、続けてn行が与えられます。座標は `groupId:artifactId:種類:版:範囲` の形です。\n\n```\n5\n[INFO] com.example:app:jar:1.0.0\n[INFO] +- org.example:web-library:jar:2.0:compile\n[INFO] |  \\- org.example:json-library:jar:3.0:compile\n[INFO] \\- org.example:db-library:jar:1.5:compile\n[INFO]    \\- org.example:json-library:jar:2.4:compile - omitted for conflict with 3.0\n```\n\n`omitted for conflict with X` と書かれた行は、**その版が採用されず X が選ばれた**ことを表します。該当する行を、`CONFLICT artifactId 採用された版 除外された版` の形で表示してください。artifactIdの辞書順、同じartifactIdなら除外された版の辞書順に並べます。1件も無ければ `OK` と表示します。\n\n上の例の答えはこうなります。\n\n```\nCONFLICT json-library 3.0 2.4\n```\n\n`omitted for duplicate` は同じ版が二重に出てきただけなので、衝突ではありません。報告しません。\n\n> ここで読み取るのはツールの出力です。実際に依存を解決させて「コンパイルは通るのに実行時に落ちる」状態を再現するのは、このレッスンの`runtime-lab`が担当します。",
+      "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] a) {\n        Scanner sc = new Scanner(System.in);\n        int n = Integer.parseInt(sc.nextLine().trim());\n        List<String> found = new ArrayList<>();\n        for (int i = 0; i < n; i++) {\n            String line = sc.nextLine();\n            /* TODO 「omitted for conflict with」がある行だけを扱う */\n            /* TODO 座標から artifactId と除外された版を取り出す */\n            /* TODO 「conflict with」の後ろから採用された版を取り出す */\n        }\n        /* TODO 並べ替えて表示する。1件も無ければ OK */\n    }\n}\n",
       "visibleCases": [
         {
-          "label": "正常",
-          "stdin": "3 api domain web api batch domain",
-          "expected": "OK"
+          "label": "json-libraryの版が衝突",
+          "stdin": "5\n[INFO] com.example:app:jar:1.0.0\n[INFO] +- org.example:web-library:jar:2.0:compile\n[INFO] |  \\- org.example:json-library:jar:3.0:compile\n[INFO] \\- org.example:db-library:jar:1.5:compile\n[INFO]    \\- org.example:json-library:jar:2.4:compile - omitted for conflict with 3.0\n",
+          "expected": "CONFLICT json-library 3.0 2.4"
         }
       ],
       "hiddenCases": [
         {
-          "label": "自己依存",
-          "stdin": "2 api domain web web",
-          "expected": "SELF_CYCLE"
+          "label": "衝突なし",
+          "stdin": "3\n[INFO] com.example:app:jar:1.0.0\n[INFO] +- org.example:web-library:jar:2.0:compile\n[INFO] \\- org.example:json-library:jar:3.0:compile\n",
+          "expected": "OK"
+        },
+        {
+          "label": "omitted for duplicateは報告しない",
+          "stdin": "3\n[INFO] com.example:app:jar:1.0.0\n[INFO] +- org.example:a:jar:1.0:compile\n[INFO] \\- org.example:a:jar:1.0:compile - omitted for duplicate\n",
+          "expected": "OK"
+        },
+        {
+          "label": "2つのartifactが衝突（辞書順）",
+          "stdin": "5\n[INFO] com.example:app:jar:1.0.0\n[INFO] +- org.example:zlib:jar:9.0:compile\n[INFO] |  \\- org.example:zlib:jar:8.0:compile - omitted for conflict with 9.0\n[INFO] \\- org.example:alib:jar:2.0:compile\n[INFO]    \\- org.example:alib:jar:1.0:compile - omitted for conflict with 2.0\n",
+          "expected": "CONFLICT alib 2.0 1.0\nCONFLICT zlib 9.0 8.0"
+        },
+        {
+          "label": "同じartifactが2回衝突",
+          "stdin": "4\n[INFO] com.example:app:jar:1.0.0\n[INFO] +- org.example:json-library:jar:2.5:compile - omitted for conflict with 3.0\n[INFO] +- org.example:json-library:jar:2.4:compile - omitted for conflict with 3.0\n[INFO] \\- org.example:json-library:jar:3.0:compile\n",
+          "expected": "CONFLICT json-library 3.0 2.4\nCONFLICT json-library 3.0 2.5"
         }
       ],
       "hints": [
-        "`m.equals(d)` を記録します。"
+        "座標は `groupId:artifactId:jar:版:範囲` です。空白で区切ってから、`:` で4つ以上に分かれる語を探すと、木の枝の記号（`+-` や `\\-`）に惑わされずに取り出せます。",
+        "採用された版は `omitted for conflict with ` の後ろにあります。`omitted for duplicate` の行と混ざらないよう、`conflict` を含む行だけを対象にします。"
       ],
-      "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] a) {\n        Scanner s = new Scanner(System.in);\n        int n = s.nextInt();\n        boolean bad = false;\n        for (int i = 0; i < n; i++) {\n            String m = s.next(), d = s.next();\n            if (m.equals(d)) bad = true;\n        }\n        System.out.println(bad ? \"SELF_CYCLE\" : \"OK\");\n    }\n}\n",
+      "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] a) {\n        Scanner sc = new Scanner(System.in);\n        int n = Integer.parseInt(sc.nextLine().trim());\n        String mark = \"omitted for conflict with \";\n        List<String[]> conflicts = new ArrayList<>();\n        for (int i = 0; i < n; i++) {\n            String line = sc.nextLine();\n            int at = line.indexOf(mark);\n            if (at < 0) continue;                       // duplicate や通常の行は対象外\n            String winner = line.substring(at + mark.length()).trim();\n            String[] parts = coordinate(line).split(\":\");\n            conflicts.add(new String[] {parts[1], winner, parts[3]});\n        }\n        if (conflicts.isEmpty()) {\n            System.out.println(\"OK\");\n            return;\n        }\n        conflicts.sort(Comparator.<String[], String>comparing(c -> c[0]).thenComparing(c -> c[2]));\n        for (String[] c : conflicts) {\n            System.out.println(\"CONFLICT \" + c[0] + \" \" + c[1] + \" \" + c[2]);\n        }\n    }\n\n    /** 行の中から `groupId:artifactId:jar:版:範囲` の形の語を取り出す。 */\n    static String coordinate(String line) {\n        for (String token : line.split(\"\\\\s+\")) {\n            if (token.split(\":\").length >= 4) return token;\n        }\n        throw new IllegalArgumentException(line);\n    }\n}\n",
       "extraTasks": [
         {
           "kind": "applied",
@@ -154,7 +214,7 @@
         {
           "question": "再現できるビルドに有効なのは？",
           "choices": [
-            "ローカルにしか無いJARを直接参照する",
+            "ローカルにしか無いJARを、パスを書いて直接参照する",
             "各自が最新バージョンを手で書き入れる",
             "推移的依存はとくに確認しない",
             "ラッパーとツールチェーン・依存バージョンを管理する"
@@ -167,97 +227,131 @@
     {
       "id": "52-3",
       "title": "テスト戦略と実DBの結合テスト",
-      "explanation": "## なぜテストを何種類にも分けるのか\n\nすべての確認を、ブラウザからDBまで本物につないだ一つのテストで行うと、実行に時間がかかり、失敗した場所も分かりにくくなります。反対に、すべてをモックへ置き換えた単体テストだけでは、SQLや設定、部品どうしの接続ミスを見逃します。\n\nそこで、確認したい範囲に合わせてテストを分けます。\n\n| 種類 | 確かめるもの | 特徴 |\n|---|---|---|\n| 単体テスト | 1クラスや業務ルール | 速い。入力の境界を多く試せる |\n| コンポーネントテスト | HTTPや永続化など一つの境界 | 設定や変換も含めて確かめる |\n| 結合テスト | DBなど実際の外部部品との接続 | 製品固有の挙動を確認できる |\n| E2Eテスト | 利用者の代表的な操作全体 | 信頼性は高いが遅く、原因を絞りにくい |\n\nたとえば「在庫が0なら注文できない」は単体テストで速く確認できます。一方、「同じ商品番号をDBが重複登録させない」は実DBを使わなければ確認できません。\n\n### なぜ本番と同系統のDBを使うのか\n\nインメモリDBは高速ですが、本番DBとSQLの方言、日時型、文字列比較、ロック、制約の評価時期が違うことがあります。テスト用コンテナなどで本番と同じ製品・近い版を起動すると、「テストでは通ったSQLが本番で失敗する」差を減らせます。\n\n### テストダブルは境界だけに置く\n\n外部APIなどをテスト中だけ置き換える部品を**テストダブル**と呼びます。\n\n- **stub** — 決めた入力に決めた結果を返す\n- **mock** — 返すだけでなく、期待した呼び出しが行われたかも確認する\n- **fake** — メモリ上の簡易リポジトリなど、軽量に動く実装\n\n内部の細かなメソッド呼び出しまで固定すると、利用者から見た動作が同じでもリファクタリングでテストが壊れます。テストは実装手順ではなく、公開された振る舞いを中心に確認します。\n\n速い下位テストを多く、遅い上位テストを重要な経路に絞ることで、変更を早く検知しながら実際の接続にも確信を持てます。",
+      "objectiveIds": [
+        "ch52-o3"
+      ],
+      "explanation": "## なぜテストを何種類にも分けるのか\n\nすべての確認を、ブラウザからDBまで本物につないだ一つのテストで行うと、実行に時間がかかり、失敗した場所も分かりにくくなります。反対に、すべてをモックへ置き換えた単体テストだけでは、SQLや設定、部品どうしの接続ミスを見逃します。\n\nそこで、確認したい範囲に合わせてテストを分けます。\n\n| 種類 | 確かめるもの | 特徴 |\n|---|---|---|\n| 単体テスト | 1クラスや業務ルール | 速い。入力の境界を多く試せる |\n| コンポーネントテスト | HTTPや永続化など一つの境界 | 設定や変換も含めて確かめる |\n| 結合テスト | DBなど実際の外部部品との接続 | 製品固有の挙動を確認できる |\n| E2Eテスト | 利用者の代表的な操作全体 | 信頼性は高いが遅く、原因を絞りにくい |\n\nたとえば「在庫が0なら注文できない」は単体テストで速く確認できます。一方、「同じ商品番号をDBが重複登録させない」は実DBを使わなければ確認できません。\n\n### 実行レポートで今の形を確かめる\n\nどの種類がどれだけあるかは、テストの実行レポートで分かります。\n\n```text\nTests run: 42, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.412 s -- in cafe.OrderRuleTest\nTests run: 6, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 1.500 s -- in cafe.OrderApiComponentTest\nTests run: 1, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 20.000 s -- in cafe.CheckoutE2ETest\n```\n\nクラス名の末尾で種類を分ける決まりを置くことが多く、`*Test` は単体、`*ComponentTest` はコンポーネント、`*IT` は結合（integration test）、`*E2ETest` はE2Eという形です。こうしておくと、CIで「速いものだけ先に流す」といった分け方ができます。\n\n遅い種類の件数が速い種類より多いときは、ピラミッドが逆さまになっている状態です。\n\n### なぜ本番と同系統のDBを使うのか\n\nインメモリDBは高速ですが、本番DBとSQLの方言、日時型、文字列比較、ロック、制約の評価時期が違うことがあります。テスト用コンテナなどで本番と同じ製品・近い版を起動すると、「テストでは通ったSQLが本番で失敗する」差を減らせます。\n\n### テストダブルは境界だけに置く\n\n外部APIなどをテスト中だけ置き換える部品を**テストダブル**と呼びます。\n\n- **stub** — 決めた入力に決めた結果を返す\n- **mock** — 返すだけでなく、期待した呼び出しが行われたかも確認する\n- **fake** — メモリ上の簡易リポジトリなど、軽量に動く実装\n\n内部の細かなメソッド呼び出しまで固定すると、利用者から見た動作が同じでもリファクタリングでテストが壊れます。テストは実装手順ではなく、公開された振る舞いを中心に確認します。\n\n速い下位テストを多く、遅い上位テストを重要な経路に絞ることで、変更を早く検知しながら実際の接続にも確信を持てます。",
       "samples": [
         {
           "caption": "時計を注入して決定的にする",
           "code": "import java.time.*;\n\nclass Greeting {\n    static String part(Clock c) {\n        return LocalTime.now(c).getHour() < 12 ? \"AM\" : \"PM\";\n    }\n}\n\npublic class Main {\n    public static void main(String[] a) {\n        Clock c = Clock.fixed(Instant.parse(\"2025-01-01T01:00:00Z\"), ZoneOffset.UTC);\n        System.out.println(Greeting.part(c));\n    }\n}\n"
         }
       ],
-      "task": "テストの種別をn件読み、`unit` は1秒、`component` は5秒、`e2e` は20秒として、合計の見積りを表示してください。",
-      "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] a) {\n        Map<String, Integer> cost = Map.of(\"unit\", 1, \"component\", 5, \"e2e\", 20);\n        Scanner s = new Scanner(System.in);\n        int n = s.nextInt(), sum = 0;\n        for (int i = 0; i < n; i++) {\n            /* TODO */\n        }\n        System.out.println(sum);\n    }\n}\n",
+      "task": "テストの実行レポートを読んで、種類ごとの内訳とテストピラミッドの形を報告してください。\n\n1行目に行数nを読み、続けてn行が与えられます。各行の末尾 `-- in <クラス名>` がテストクラスです。\n\n```\n3\nTests run: 42, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 412 ms -- in cafe.OrderRuleTest\nTests run: 6, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 1500 ms -- in cafe.OrderApiComponentTest\nTests run: 1, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 20000 ms -- in cafe.CheckoutE2ETest\n```\n\nクラス名の**末尾**で種類を決めます。上から順に当てはめてください（`OrderApiComponentTest` は `Test` でも終わりますが `ComponentTest` が先に当たります）。\n\n| 末尾 | 種類 |\n|---|---|\n| `E2ETest` | `e2e` |\n| `ComponentTest` | `component` |\n| `IT` | `integration` |\n| `Test` | `unit` |\n\n`unit` `component` `integration` `e2e` の順に、`種類 テスト数 合計ミリ秒` を表示してください。1件も無い種類も `0 0` として出します。最後の行に、`e2e` のテスト数が `unit` のテスト数**より多ければ** `INVERTED`、そうでなければ `OK` と表示します。\n\n上の例の答えはこうなります。\n\n```\nunit 42 412\ncomponent 6 1500\nintegration 0 0\ne2e 1 20000\nOK\n```\n\n> 実際のレポートは `Time elapsed: 0.412 s` のように秒で出ます。ここでは端数の扱いで答えが割れないよう、ミリ秒の整数に整えてあります。\n\n> ここで確かめるのは実行レポートの読み取りと種類の分け方です。実DBを起動して結合テストを走らせることは、1ファイル・標準入力だけのこの画面では扱えません。本物は第45章の実JUnit演習と、第54章の本番同等DBで検証するlabが担当します。",
+      "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] a) {\n        Scanner sc = new Scanner(System.in);\n        int n = Integer.parseInt(sc.nextLine().trim());\n        Map<String, int[]> totals = new LinkedHashMap<>();\n        for (String kind : List.of(\"unit\", \"component\", \"integration\", \"e2e\")) {\n            totals.put(kind, new int[2]);           // {テスト数, 合計ミリ秒}\n        }\n        for (int i = 0; i < n; i++) {\n            String line = sc.nextLine();\n            /* TODO 「Tests run:」の数と「Time elapsed:」のミリ秒を取り出す */\n            /* TODO 「-- in 」の後ろのクラス名から種類を決める */\n            /* TODO totals へ足す */\n        }\n        /* TODO 4行の内訳と、最後にOK / INVERTEDを表示する */\n    }\n}\n",
       "visibleCases": [
         {
-          "label": "テスト一式",
-          "stdin": "5 unit unit component e2e unit",
-          "expected": "28"
+          "label": "unit・component・e2eが1つずつ",
+          "stdin": "3\nTests run: 42, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 412 ms -- in cafe.OrderRuleTest\nTests run: 6, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 1500 ms -- in cafe.OrderApiComponentTest\nTests run: 1, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 20000 ms -- in cafe.CheckoutE2ETest\n",
+          "expected": "unit 42 412\ncomponent 6 1500\nintegration 0 0\ne2e 1 20000\nOK"
         }
       ],
       "hiddenCases": [
         {
-          "label": "単体のみ",
-          "stdin": "3 unit unit unit",
-          "expected": "3"
+          "label": "e2eがunitより多い（逆ピラミッド）",
+          "stdin": "2\nTests run: 2, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 100 ms -- in cafe.RuleTest\nTests run: 5, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 30000 ms -- in cafe.FlowE2ETest\n",
+          "expected": "unit 2 100\ncomponent 0 0\nintegration 0 0\ne2e 5 30000\nINVERTED"
+        },
+        {
+          "label": "ITが2つ（同じ種類を合計する）",
+          "stdin": "3\nTests run: 3, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 900 ms -- in cafe.StockRepositoryIT\nTests run: 4, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 1100 ms -- in cafe.OrderRepositoryIT\nTests run: 10, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 200 ms -- in cafe.PriceTest\n",
+          "expected": "unit 10 200\ncomponent 0 0\nintegration 7 2000\ne2e 0 0\nOK"
+        },
+        {
+          "label": "unitとe2eが同数の境界",
+          "stdin": "2\nTests run: 1, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 10 ms -- in cafe.ATest\nTests run: 1, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 10 ms -- in cafe.BE2ETest\n",
+          "expected": "unit 1 10\ncomponent 0 0\nintegration 0 0\ne2e 1 10\nOK"
+        },
+        {
+          "label": "ComponentTestをunitと数えないか",
+          "stdin": "2\nTests run: 8, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 120 ms -- in cafe.CartTest\nTests run: 2, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 2400 ms -- in cafe.CartApiComponentTest\n",
+          "expected": "unit 8 120\ncomponent 2 2400\nintegration 0 0\ne2e 0 0\nOK"
         }
       ],
       "hints": [
-        "種別を読み、`cost` から引いた値を加算します。"
+        "`Tests run: ` と `Time elapsed: ` の直後の数字を読みます。行の途中に `Failures: 0` など似た形があるので、探す語を含めて位置を決めます。",
+        "種類は末尾で決めます。`ComponentTest` も `E2ETest` も `Test` で終わるので、長いものから先に判定しないと全部 `unit` になります。"
       ],
-      "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] a) {\n        Map<String, Integer> cost = Map.of(\"unit\", 1, \"component\", 5, \"e2e\", 20);\n        Scanner s = new Scanner(System.in);\n        int n = s.nextInt(), sum = 0;\n        for (int i = 0; i < n; i++) sum += cost.get(s.next());\n        System.out.println(sum);\n    }\n}\n",
+      "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] a) {\n        Scanner sc = new Scanner(System.in);\n        int n = Integer.parseInt(sc.nextLine().trim());\n        List<String> order = List.of(\"unit\", \"component\", \"integration\", \"e2e\");\n        Map<String, int[]> totals = new LinkedHashMap<>();\n        for (String kind : order) totals.put(kind, new int[2]);\n\n        for (int i = 0; i < n; i++) {\n            String line = sc.nextLine();\n            int tests = numberAfter(line, \"Tests run: \");\n            int millis = numberAfter(line, \"Time elapsed: \");\n            String className = line.substring(line.indexOf(\"-- in \") + \"-- in \".length()).trim();\n            int[] slot = totals.get(kindOf(className));\n            slot[0] += tests;\n            slot[1] += millis;\n        }\n        for (String kind : order) {\n            int[] slot = totals.get(kind);\n            System.out.println(kind + \" \" + slot[0] + \" \" + slot[1]);\n        }\n        System.out.println(totals.get(\"e2e\")[0] > totals.get(\"unit\")[0] ? \"INVERTED\" : \"OK\");\n    }\n\n    /** 末尾で種類を決める。ComponentTest は Test より先に当てる。 */\n    static String kindOf(String className) {\n        if (className.endsWith(\"E2ETest\")) return \"e2e\";\n        if (className.endsWith(\"ComponentTest\")) return \"component\";\n        if (className.endsWith(\"IT\")) return \"integration\";\n        return \"unit\";\n    }\n\n    static int numberAfter(String line, String key) {\n        int from = line.indexOf(key) + key.length();\n        int to = from;\n        while (to < line.length() && Character.isDigit(line.charAt(to))) to++;\n        return Integer.parseInt(line.substring(from, to));\n    }\n}\n",
       "quiz": [
         {
           "question": "本番がPostgreSQLのとき、実DBを使う結合テストが特に見つけやすい問題は？",
           "choices": [
-            "Javaの予約語の違い",
-            "純粋な関数の足し算の結果",
+            "Javaのバージョン差による、文法の非互換",
+            "単体テストでも見つかる、計算ロジックの誤り",
             "SQLの方言・制約・トランザクションの挙動の差",
-            "READMEの誤字や表記ゆれ"
+            "HTTPの状態コードの選び方の誤り"
           ],
           "answer": 2,
-          "explanation": "Javaの予約語はDBによって変わりません。純粋な関数の計算はDBと無関係で、READMEの誤字はテストの対象ではありません。実DBでしか出ないのは、SQLの方言の違い、制約の効き方、分離レベルによる見え方——といったDB固有の意味の部分です。"
+          "explanation": "Javaのバージョン差による文法の非互換はコンパイルで分かり、計算ロジックの誤りは単体テストで足ります。HTTPの状態コードの選び方はDBと無関係です。実DBでしか出ないのは、SQLの方言の違い、制約の効き方、分離レベルによる見え方——といったDB固有の意味の部分です。"
         },
         {
           "question": "再実行すると通ってしまう不安定なテストへの対応として、適切なものはどれでしょう。",
           "choices": [
             "競合・時刻依存・共有状態などの原因を特定して直す",
-            "そのテストに `@Disabled` を付けて外す",
+            "そのテストに `@Disabled` を付けて、実行から外す",
             "CIで自動的に再実行して緑にする",
             "検証条件をゆるめて通るようにする"
           ],
           "answer": 0,
           "explanation": "再実行で隠すと、同じ原因が本番の不具合として残ります。時刻や外部I/Oは注入できるようにします。"
         }
-      ],
-      "rubric": [
-        "test",
-        "decide"
       ]
     },
     {
       "id": "52-4",
       "title": "デバッグ・計算量・静的解析",
-      "explanation": "## 不具合調査は「推測」ではなく「観測」で進める\n\n不具合を見つけたとき、いきなりコードを書き換えると、原因を隠したり別の問題を増やしたりします。まず入力、環境、実行手順、実際の結果をそろえ、同じ失敗を再現できるようにします。\n\n基本の流れは次の通りです。\n\n1. 期待した結果と実際の結果を書く\n2. 再現する最小の入力を作る\n3. ログ、例外、デバッガで「どこまでは正しいか」を観測する\n4. 原因の仮説を一つ立てる\n5. 仮説を区別できる確認を一つ行う\n6. 修正後に再現テストと周辺テストを残す\n\n**デバッガ**は処理を一時停止し、変数の値や呼び出し順を観察する道具です。**静的解析**はプログラムを実行せず、到達しないコード、nullの危険、資源の閉じ忘れなどを規則で探します。どちらも答えを自動で保証するものではなく、原因を絞る材料です。\n\n### 計算量は「入力が増えたときの伸び方」\n\n100件では速い処理でも、100万件で急に使えなくなることがあります。入力数を`n`として、1回ずつ見る処理はおおむね`n`回、全組み合わせを見る二重ループはおおむね`n × n`回です。\n\n```text\nn = 1,000\n線形処理 O(n)     → 約1,000回\n二乗処理 O(n²)    → 約1,000,000回\n```\n\n`O(n)`などの表記は正確な実行時間ではなく、入力が増えたときの伸び方を比較する目安です。二重ループを見ただけで悪いと決めず、最大入力、実測時間、読みやすさを合わせて判断します。\n\nログへ値を大量に出すだけの調査は、重要な情報を埋もれさせ、パスワードや個人情報を漏らす危険があります。調査用の観測にも、目的、期間、出してよい情報を決めます。",
+      "objectiveIds": [
+        "ch52-o4"
+      ],
+      "explanation": "## 不具合調査は「推測」ではなく「観測」で進める\n\n不具合を見つけたとき、いきなりコードを書き換えると、原因を隠したり別の問題を増やしたりします。まず入力、環境、実行手順、実際の結果をそろえ、同じ失敗を再現できるようにします。\n\n基本の流れは次の通りです。\n\n1. 期待した結果と実際の結果を書く\n2. 再現する最小の入力を作る\n3. ログ、例外、デバッガで「どこまでは正しいか」を観測する\n4. 原因の仮説を一つ立てる\n5. 仮説を区別できる確認を一つ行う\n6. 修正後に再現テストと周辺テストを残す\n\n**デバッガ**は処理を一時停止し、変数の値や呼び出し順を観察する道具です。**静的解析**はプログラムを実行せず、到達しないコード、nullの危険、資源の閉じ忘れなどを規則で探します。どちらも答えを自動で保証するものではなく、原因を絞る材料です。\n\n### 2つの材料を突き合わせる\n\n例外のstack traceは、**実際に落ちた場所**を上から順に教えます。\n\n```text\nException in thread \"main\" java.lang.NullPointerException\n\tat cafe.Stock.remaining(Stock.java:42)\n\tat cafe.Order.place(Order.java:17)\n\tat cafe.Main.main(Main.java:8)\n```\n\n静的解析は、**実行しなくても危なそうな場所**を一覧にします。\n\n```text\ncafe/Stock.java:42 NP_NULL_ON_SOME_PATH remaining() may return null\ncafe/Report.java:88 DM_DEFAULT_ENCODING platform encoding used\n```\n\nこの2つは別のことを言っています。片方だけでは決まりませんが、**両方が同じ場所を指しているなら、そこから調べる**のが早いです。逆に、静的解析の指摘が多くても落ちた経路に無い場所は、今回の調査では後回しにできます。\n\n### 計算量は「入力が増えたときの伸び方」\n\n100件では速い処理でも、100万件で急に使えなくなることがあります。入力数を`n`として、1回ずつ見る処理はおおむね`n`回、全組み合わせを見る二重ループはおおむね`n × n`回です。\n\n```text\nn = 1,000\n線形処理 O(n)     → 約1,000回\n二乗処理 O(n²)    → 約1,000,000回\n```\n\n`O(n)`などの表記は正確な実行時間ではなく、入力が増えたときの伸び方を比較する目安です。二重ループを見ただけで悪いと決めず、最大入力、実測時間、読みやすさを合わせて判断します。\n\nログへ値を大量に出すだけの調査は、重要な情報を埋もれさせ、パスワードや個人情報を漏らす危険があります。調査用の観測にも、目的、期間、出してよい情報を決めます。",
       "samples": [
         {
           "caption": "Setを使って線形時間で重複を探す",
           "code": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] a) {\n        Set<Integer> seen = new HashSet<>();\n        for (int x : new int[] {2, 3, 2}) if (!seen.add(x)) System.out.println(x);\n    }\n}\n"
         }
       ],
-      "task": "要素数nと方式 `linear` または `quadratic` を読み、おおよその操作回数（`n` または `n*n`）を `long` で表示してください。",
-      "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] a) {\n        Scanner s = new Scanner(System.in);\n        long n = s.nextLong();\n        String kind = s.next();\n        /* TODO */\n    }\n}\n",
+      "task": "例外のstack traceと静的解析の指摘を突き合わせて、原因の候補を絞ってください。\n\n1行目にstack traceの行数tを読み、t行を読みます。次に静的解析の指摘件数fを読み、f行を読みます。指摘の行は `パス:行 種別 説明` の形です。\n\n```\n4\nException in thread \"main\" java.lang.NullPointerException\n\tat cafe.Stock.remaining(Stock.java:42)\n\tat cafe.Order.place(Order.java:17)\n\tat cafe.Main.main(Main.java:8)\n2\ncafe/Stock.java:42 NP_NULL_ON_SOME_PATH remaining() may return null\ncafe/Report.java:88 DM_DEFAULT_ENCODING platform encoding used\n```\n\nstack traceの**上から順**に、そのファイルと行が静的解析でも指摘されているものだけを `SUSPECT ファイル名:行` と表示してください。1つも一致しなければ `NO_MATCH` と表示します。\n\n上の例では `Stock.java:42` が両方に出てくるので、答えはこうなります。\n\n```\nSUSPECT Stock.java:42\n```\n\n静的解析はパスで、stack traceはファイル名だけで場所を示します。比べるときはパスの最後の要素（`/` より後ろ）だけを見ます。`at ` で始まらない行は枠組みの行なので飛ばします。\n\n> 静的解析の指摘は「危ないかもしれない場所」で、例外が実際に起きた場所とは別ものです。両方に出てくる場所は**先に調べる価値が高い**というだけで、原因だと決まったわけではありません。この章の説明どおり、仮説は1つずつ確認します。",
+      "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] a) {\n        Scanner sc = new Scanner(System.in);\n        int t = Integer.parseInt(sc.nextLine().trim());\n        List<String> frames = new ArrayList<>();\n        for (int i = 0; i < t; i++) {\n            String line = sc.nextLine().trim();\n            /* TODO 「at 」で始まる行だけから、ファイル名と行番号を取り出す */\n        }\n        int f = Integer.parseInt(sc.nextLine().trim());\n        Set<String> flagged = new HashSet<>();\n        for (int i = 0; i < f; i++) {\n            String line = sc.nextLine().trim();\n            /* TODO パスの最後の要素と行番号を取り出して flagged へ入れる */\n        }\n        /* TODO stack traceの上から順に、flagged にあるものを表示する。無ければ NO_MATCH */\n    }\n}\n",
       "visibleCases": [
         {
-          "label": "線形",
-          "stdin": "1000 linear",
-          "expected": "1000"
+          "label": "stack traceと指摘が同じ場所",
+          "stdin": "4\nException in thread \"main\" java.lang.NullPointerException\n\tat cafe.Stock.remaining(Stock.java:42)\n\tat cafe.Order.place(Order.java:17)\n\tat cafe.Main.main(Main.java:8)\n2\ncafe/Stock.java:42 NP_NULL_ON_SOME_PATH remaining() may return null\ncafe/Report.java:88 DM_DEFAULT_ENCODING platform encoding used\n",
+          "expected": "SUSPECT Stock.java:42"
         },
         {
-          "label": "二乗",
-          "stdin": "1000 quadratic",
-          "expected": "1000000"
+          "label": "指摘が落ちた経路の外にもある",
+          "stdin": "3\nException in thread \"main\" java.lang.ArithmeticException: / by zero\n\tat cafe.Price.rate(Price.java:12)\n\tat cafe.Main.main(Main.java:5)\n2\ncafe/Cache.java:60 EQ msg\ncafe/Price.java:12 DIV msg\n",
+          "expected": "SUSPECT Price.java:12"
         }
       ],
       "hiddenCases": [
         {
-          "label": "longで計算",
-          "stdin": "100000 quadratic",
-          "expected": "10000000000"
+          "label": "一致なし",
+          "stdin": "2\nException in thread \"main\" java.lang.IllegalStateException\n\tat cafe.A.run(A.java:3)\n1\ncafe/B.java:9 X msg\n",
+          "expected": "NO_MATCH"
+        },
+        {
+          "label": "行番号が違えば一致しない",
+          "stdin": "2\nException in thread \"main\" java.lang.NullPointerException\n\tat cafe.A.run(A.java:3)\n1\ncafe/A.java:4 X msg\n",
+          "expected": "NO_MATCH"
+        },
+        {
+          "label": "複数一致（stack traceの上から順）",
+          "stdin": "4\nException in thread \"main\" java.lang.RuntimeException\n\tat cafe.Zeta.deep(Zeta.java:10)\n\tat cafe.Alpha.mid(Alpha.java:20)\n\tat cafe.Main.main(Main.java:1)\n3\ncafe/Alpha.java:20 A msg\ncafe/Zeta.java:10 B msg\ncafe/Other.java:5 C msg\n",
+          "expected": "SUSPECT Zeta.java:10\nSUSPECT Alpha.java:20"
+        },
+        {
+          "label": "Caused byと... moreが混ざる",
+          "stdin": "5\nException in thread \"main\" java.lang.RuntimeException: wrapped\n\tat cafe.Outer.call(Outer.java:7)\nCaused by: java.lang.NullPointerException\n\tat cafe.Inner.load(Inner.java:31)\n\t... 3 more\n2\ncafe/Inner.java:31 NP msg\ncafe/Outer.java:99 NP msg\n",
+          "expected": "SUSPECT Inner.java:31"
         }
       ],
       "hints": [
-        "`n` が `long` なので、`n*n` も `long` で計算されます。"
+        "`at cafe.Stock.remaining(Stock.java:42)` のかっこの中が「ファイル名:行」です。`lastIndexOf('(')` と `lastIndexOf(')')` で切り出せます。",
+        "静的解析の `cafe/Stock.java:42` はパス付きなので、`/` より後ろだけを取るとstack traceの形と揃います。`Caused by:` や `... 3 more` は `at ` で始まらないので飛ばします。"
       ],
-      "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] a) {\n        Scanner s = new Scanner(System.in);\n        long n = s.nextLong();\n        String kind = s.next();\n        System.out.println(kind.equals(\"linear\") ? n : n * n);\n    }\n}\n",
+      "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] a) {\n        Scanner sc = new Scanner(System.in);\n        int t = Integer.parseInt(sc.nextLine().trim());\n        List<String> frames = new ArrayList<>();\n        for (int i = 0; i < t; i++) {\n            String line = sc.nextLine().trim();\n            if (!line.startsWith(\"at \")) continue;          // 例外名の行などは飛ばす\n            int open = line.lastIndexOf('(');\n            frames.add(line.substring(open + 1, line.lastIndexOf(')')));\n        }\n        int f = Integer.parseInt(sc.nextLine().trim());\n        Set<String> flagged = new HashSet<>();\n        for (int i = 0; i < f; i++) {\n            String where = sc.nextLine().trim().split(\"\\\\s+\")[0];\n            flagged.add(where.substring(where.lastIndexOf('/') + 1));\n        }\n        boolean any = false;\n        for (String frame : frames) {\n            if (flagged.contains(frame)) {\n                System.out.println(\"SUSPECT \" + frame);\n                any = true;\n            }\n        }\n        if (!any) System.out.println(\"NO_MATCH\");\n    }\n}\n",
       "quiz": [
         {
           "question": "小さな処理の性能測定にJMHを使う主な理由は？",
@@ -273,49 +367,85 @@
         {
           "question": "手元では速いのに本番で遅い処理を、`System.nanoTime()` で1回測って結論づけるのが危険なのはなぜでしょう。",
           "choices": [
-            "本番環境では計測そのものが禁止されているため",
+            "本番環境では、性能の計測そのものが禁止されているため",
             "`nanoTime` はミリ秒しか測れないため",
             "ウォームアップ前のJITの状態や1回分のばらつきを含むため",
             "`nanoTime` は実装されていないため"
           ],
           "answer": 2,
           "explanation": "ベンチマークはJMHのウォームアップとforkを使い、想定する最大のnと実測から判断します。定常状態の性能を表しません。"
+        },
+        {
+          "question": "1,000件で0.5秒かかる二重ループの処理があります。件数が10倍の10,000件になったとき、おおよその目安として正しいのはどれでしょう。",
+          "choices": [
+            "処理時間も10倍の約5秒になる",
+            "処理時間は約100倍の50秒になる",
+            "二重ループでも件数に比例するので約5秒のままになる",
+            "計算量の表記からは実際の秒数を必ず正確に予測できる"
+          ],
+          "answer": 1,
+          "explanation": "二重ループはおおむね `n × n` 回なので、nが10倍になると回数は100倍へ伸びます。比例して10倍になるのは `n` 回の処理です。ただし `O(n²)` は**伸び方**の目安で、実際の秒数はキャッシュやGC、他の処理の影響を受けます。最大件数で実測してから判断します。"
         }
       ],
       "rubric": [
+        "implement",
         "diagnose"
       ]
     },
     {
       "id": "52-5",
       "title": "CI/CDと供給網を管理する",
-      "explanation": "## コードを届けるまでを同じ手順にする\n\n開発者のPCで手作業すると、「テストを忘れた」「違うJDKで作った」「本番だけ別のファイルになった」といった差が生まれます。これを防ぐため、変更が共有されたら機械が同じ確認を行うようにします。\n\n**CI（継続的インテグレーション）**は、変更のたびにコンパイル、テスト、静的解析などを自動実行し、統合してよい状態かを確かめる仕組みです。**CD**は、その確認を通った成果物を検証環境や本番へ届ける手順を自動化します。\n\n```text\ncommit → compile → test → scan → package → deploy\n                               ↑\n                    ここで作った同じ成果物を各環境へ運ぶ\n```\n\n本番用にもう一度ビルドすると、検証したものと本番で動くものが別物になる可能性があります。環境ごとの差は接続先や秘密情報などの設定として外から与え、JARやコンテナイメージ自体は作り直しません。\n\n### ソフトウェア供給網とは\n\nアプリには、ソース、依存ライブラリ、ビルドツール、CI、配布先まで多くの経路があります。この一連を**ソフトウェア供給網**と呼びます。途中で偽の依存や改ざんされた成果物が混ざらないよう、次を記録・検査します。\n\n- **checksum** — ファイル内容から計算する値。内容が変わっていないかを見る\n- **署名** — 誰が作った成果物かを暗号的に確認する\n- **SBOM** — 成果物に含まれる部品とバージョンの一覧表\n- **provenance（出自情報）** — どのソースを、どの手順・環境でビルドしたかの記録\n\nSBOMがあれば、あるライブラリの脆弱性が公表されたとき、どの成果物に含まれるかを検索できます。\n\n### 安全に配備する\n\n一度に全台を新しい版へ替えるのではなく、一部だけへ出して観測する方法を**カナリアリリース**、新旧の環境を並べて切り替える方法を**ブルーグリーンデプロイ**と呼びます。どちらも、エラー率や応答時間が基準を超えたら止めて元へ戻す条件を、配備前に決めます。\n\nCI/CDの目的は工程を増やすことではありません。**同じ確認を毎回行い、何を本番へ出したかを追跡でき、問題時に安全に止められる状態を作ること**です。",
+      "objectiveIds": [
+        "ch52-o5"
+      ],
+      "explanation": "## コードを届けるまでを同じ手順にする\n\n開発者のPCで手作業すると、「テストを忘れた」「違うJDKで作った」「本番だけ別のファイルになった」といった差が生まれます。これを防ぐため、変更が共有されたら機械が同じ確認を行うようにします。\n\n**CI（継続的インテグレーション）**は、変更のたびにコンパイル、テスト、静的解析などを自動実行し、統合してよい状態かを確かめる仕組みです。**CD**は、その確認を通った成果物を検証環境や本番へ届ける手順を自動化します。\n\n```text\ncommit → compile → test → scan → package → deploy\n                               ↑\n                    ここで作った同じ成果物を各環境へ運ぶ\n```\n\n本番用にもう一度ビルドすると、検証したものと本番で動くものが別物になる可能性があります。環境ごとの差は接続先や秘密情報などの設定として外から与え、JARやコンテナイメージ自体は作り直しません。\n\nCIのログは、段階ごとに結果が並びます。どこで止まったかは、この並びを読めば分かります。\n\n```text\n[10:00:01] compile SUCCESS 12s\n[10:00:13] test FAILED 45s\n[10:00:58] scan SKIPPED 0s\n[10:00:58] package SKIPPED 0s\n[10:00:58] deploy SKIPPED 0s\n```\n\n失敗した段階より後ろは実行されず `SKIPPED` になります。「テストが落ちたのに成果物ができている」ログは、順序か設定が壊れているということなので、結果だけでなく**並び**も見ます。\n\n### ソフトウェア供給網とは\n\nアプリには、ソース、依存ライブラリ、ビルドツール、CI、配布先まで多くの経路があります。この一連を**ソフトウェア供給網**と呼びます。途中で偽の依存や改ざんされた成果物が混ざらないよう、次を記録・検査します。\n\n- **checksum** — ファイル内容から計算する値。内容が変わっていないかを見る\n- **署名** — 誰が作った成果物かを暗号的に確認する\n- **SBOM** — 成果物に含まれる部品とバージョンの一覧表\n- **provenance（出自情報）** — どのソースを、どの手順・環境でビルドしたかの記録\n\nSBOMがあれば、あるライブラリの脆弱性が公表されたとき、どの成果物に含まれるかを検索できます。\n\n### 安全に配備する\n\n一度に全台を新しい版へ替えるのではなく、一部だけへ出して観測する方法を**カナリアリリース**、新旧の環境を並べて切り替える方法を**ブルーグリーンデプロイ**と呼びます。どちらも、エラー率や応答時間が基準を超えたら止めて元へ戻す条件を、配備前に決めます。\n\nCI/CDの目的は工程を増やすことではありません。**同じ確認を毎回行い、何を本番へ出したかを追跡でき、問題時に安全に止められる状態を作ること**です。",
       "samples": [
         {
           "caption": "品質の関門をすべて満たすか",
           "code": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] a) {\n        System.out.println(List.of(true, true, true).stream().allMatch(Boolean::booleanValue) ? \"PASS\" : \"BLOCK\");\n    }\n}\n"
         }
       ],
-      "task": "`compile test scan package` の成否を0/1で読み、すべて1なら `RELEASE`、一つでも0なら `BLOCK` と表示してください。",
-      "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] a) {\n        Scanner s = new Scanner(System.in);\n        boolean ok = true;\n        for (int i = 0; i < 4; i++) {\n            /* TODO */\n        }\n        System.out.println(ok ? \"RELEASE\" : \"BLOCK\");\n    }\n}\n",
+      "task": "CIのログを読んで、成果物を出してよいかを判断してください。\n\n1行目に行数nを読み、続けてn行が実行順に与えられます。各行は `[時刻] 段階 状態 所要` の形で、状態は `SUCCESS` / `FAILED` / `SKIPPED` のいずれかです。\n\n```\n5\n[10:00:01] compile SUCCESS 12s\n[10:00:13] test FAILED 45s\n[10:00:58] scan SKIPPED 0s\n[10:00:58] package SKIPPED 0s\n[10:00:58] deploy SKIPPED 0s\n```\n\nすべての段階が `SUCCESS` なら `RELEASE` と表示します。1つでも `FAILED` があれば、**最初に失敗した段階**と、そのあと実行されなかった段階の数を `BLOCK 段階 SKIPPED=個数` の形で表示してください。\n\n上の例の答えはこうなります。\n\n```\nBLOCK test SKIPPED=3\n```\n\n`SKIPPED` は数えるだけで、失敗としては扱いません。1つ目の失敗より前に `SKIPPED` があることもあります（その段階が今回は不要だった場合）。数えるのはログ全体の `SKIPPED` です。",
+      "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] a) {\n        Scanner sc = new Scanner(System.in);\n        int n = Integer.parseInt(sc.nextLine().trim());\n        String firstFailed = null;\n        int skipped = 0;\n        for (int i = 0; i < n; i++) {\n            String[] parts = sc.nextLine().trim().split(\"\\\\s+\");\n            /* TODO parts から段階と状態を取り出す（時刻が先頭にあることに注意） */\n            /* TODO 最初のFAILEDを覚え、SKIPPEDを数える */\n        }\n        /* TODO 失敗が無ければ RELEASE、あれば BLOCK 段階 SKIPPED=個数 */\n    }\n}\n",
       "visibleCases": [
         {
-          "label": "すべて通過",
-          "stdin": "1 1 1 1",
+          "label": "testで失敗し、以降がSKIPPED",
+          "stdin": "5\n[10:00:01] compile SUCCESS 12s\n[10:00:13] test FAILED 45s\n[10:00:58] scan SKIPPED 0s\n[10:00:58] package SKIPPED 0s\n[10:00:58] deploy SKIPPED 0s\n",
+          "expected": "BLOCK test SKIPPED=3"
+        },
+        {
+          "label": "全段階がSUCCESS",
+          "stdin": "5\n[09:00:00] compile SUCCESS 10s\n[09:00:10] test SUCCESS 40s\n[09:00:50] scan SUCCESS 8s\n[09:00:58] package SUCCESS 6s\n[09:01:04] deploy SUCCESS 20s\n",
           "expected": "RELEASE"
         }
       ],
       "hiddenCases": [
         {
-          "label": "脆弱性検査で失敗",
-          "stdin": "1 1 0 1",
-          "expected": "BLOCK"
+          "label": "供給網の検査で止まる",
+          "stdin": "5\n[10:00:00] compile SUCCESS 9s\n[10:00:09] test SUCCESS 30s\n[10:00:39] scan FAILED 5s\n[10:00:44] package SKIPPED 0s\n[10:00:44] deploy SKIPPED 0s\n",
+          "expected": "BLOCK scan SKIPPED=2"
+        },
+        {
+          "label": "失敗が2つ（最初のものを報告）",
+          "stdin": "4\n[11:00:00] compile FAILED 3s\n[11:00:03] test FAILED 1s\n[11:00:04] scan SKIPPED 0s\n[11:00:04] package SKIPPED 0s\n",
+          "expected": "BLOCK compile SKIPPED=2"
+        },
+        {
+          "label": "失敗より前にSKIPPEDがある",
+          "stdin": "4\n[12:00:00] compile SUCCESS 8s\n[12:00:08] scan SKIPPED 0s\n[12:00:08] test FAILED 12s\n[12:00:20] package SKIPPED 0s\n",
+          "expected": "BLOCK test SKIPPED=2"
+        },
+        {
+          "label": "SKIPPEDが1つも無い失敗",
+          "stdin": "2\n[13:00:00] compile SUCCESS 5s\n[13:00:05] test FAILED 7s\n",
+          "expected": "BLOCK test SKIPPED=0"
         }
       ],
       "hints": [
-        "いまの `ok` と `s.nextInt()==1` を `&&` で結んで更新します。"
+        "行を空白で分けると `[10:00:13]` `test` `FAILED` `45s` の4つになります。段階は2番目、状態は3番目です。",
+        "最初の失敗だけを覚えるので、すでに覚えているときは上書きしません。`SKIPPED` はログ全体で数えます。"
       ],
-      "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] a) {\n        Scanner s = new Scanner(System.in);\n        boolean ok = true;\n        for (int i = 0; i < 4; i++) ok = ok && s.nextInt() == 1;\n        System.out.println(ok ? \"RELEASE\" : \"BLOCK\");\n    }\n}\n",
+      "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] a) {\n        Scanner sc = new Scanner(System.in);\n        int n = Integer.parseInt(sc.nextLine().trim());\n        String firstFailed = null;\n        int skipped = 0;\n        for (int i = 0; i < n; i++) {\n            String[] parts = sc.nextLine().trim().split(\"\\\\s+\");\n            String stage = parts[1];               // parts[0] は [時刻]\n            String status = parts[2];\n            if (status.equals(\"FAILED\") && firstFailed == null) firstFailed = stage;\n            if (status.equals(\"SKIPPED\")) skipped++;\n        }\n        if (firstFailed == null) {\n            System.out.println(\"RELEASE\");\n        } else {\n            System.out.println(\"BLOCK \" + firstFailed + \" SKIPPED=\" + skipped);\n        }\n    }\n}\n",
       "extraTasks": [
         {
           "kind": "applied",
@@ -382,6 +512,9 @@
     {
       "id": "52-6",
       "title": "章末演習：チーム開発・ビルド・品質管理",
+      "objectiveIds": [
+        "ch52-o1"
+      ],
       "explanation": "## この章で身につける判断\n\nこの章では、GitやCIのコマンドを暗記するのではなく、複数人が安全に変更を届けるための判断を学びました。\n\n- 一つの目的としてレビューできる大きさに変更を分ける\n- JDK、ビルドツール、依存の版を固定して再現できるビルドを作る\n- 単体・結合・E2Eテストを、確認したい境界に合わせて使い分ける\n- 推測で修正せず、再現と観測から原因を絞る\n- CIで同じ検査を通し、検証済みの同じ成果物を本番まで運ぶ\n- SBOMや出自情報を残し、成果物の中身を追跡できるようにする\n\n章末問題は、レビュー判定、依存関係、テスト時間、リリース条件をJavaの小さな判定処理として表します。現実のチームでは数値だけで決められないため、「何を守るための判定か」も言葉で説明できることを目標にしてください。\n\n`labs/delivery`ではビルドとCIの実例を確認します。画面内問題で判断の意味を理解してから、設定ファイルのどの行がその判断を自動化しているかを対応付けてください。",
       "samples": [
         {
@@ -391,7 +524,7 @@
         }
       ],
       "task": "【基本】レビューの上限を `maxFiles maxLines` の形で読み、続けてpull requestをn件 `pr files lines secrets` の形で読みます（`secrets` は混ざってしまった秘密情報の件数）。各pull requestについて次を上から順に確かめ、読んだ順に `pr STATUS` と表示してください。\n\n1. `secrets` が1件以上 → `BLOCK_SECRET`\n2. `files` が maxFiles を超える → `SPLIT_FILES`\n3. `lines` が maxLines を超える → `SPLIT_LINES`\n4. どれでもない → `REVIEWABLE`\n\n最後に、そのままレビューできる件数を `REVIEWABLE 件数/全件数` の形で表示します。",
-      "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        int maxFiles = s.nextInt(), maxLines = s.nextInt(), n = s.nextInt(), ok = 0;\n        for (int i = 0; i < n; i++) {\n            String pr = s.next();\n            int files = s.nextInt(), lines = s.nextInt(), secrets = s.nextInt();\n            /* TODO 4つの判定 */\n        }\n        System.out.println(\"REVIEWABLE \" + ok + \"/\" + n);\n    }\n}\n",
+      "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int maxFiles = sc.nextInt(), maxLines = sc.nextInt(), n = sc.nextInt(), ok = 0;\n        for (int i = 0; i < n; i++) {\n            String pr = sc.next();\n            int files = sc.nextInt(), lines = sc.nextInt(), secrets = sc.nextInt();\n            /* TODO 4つの判定 */\n        }\n        System.out.println(\"REVIEWABLE \" + ok + \"/\" + n);\n    }\n}\n",
       "visibleCases": [
         {
           "label": "大きすぎる変更",
@@ -431,12 +564,15 @@
         "「超える」なので、上限とちょうど同じ値は通します。境界の向きを取り違えないよう、テストケースで確かめます。",
         "秘密情報は大きさに関係なく最優先で止めます。混ざったcommitは履歴に残るので、分割の相談より先に対処が必要です。"
       ],
-      "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        int maxFiles = s.nextInt(), maxLines = s.nextInt(), n = s.nextInt(), ok = 0;\n        for (int i = 0; i < n; i++) {\n            String pr = s.next();\n            int files = s.nextInt(), lines = s.nextInt(), secrets = s.nextInt();\n            String status = secrets > 0 ? \"BLOCK_SECRET\" : files > maxFiles ? \"SPLIT_FILES\" : lines > maxLines ? \"SPLIT_LINES\" : \"REVIEWABLE\";\n            if (status.equals(\"REVIEWABLE\")) ok++;\n            System.out.println(pr + \" \" + status);\n        }\n        System.out.println(\"REVIEWABLE \" + ok + \"/\" + n);\n    }\n}\n",
+      "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int maxFiles = sc.nextInt(), maxLines = sc.nextInt(), n = sc.nextInt(), ok = 0;\n        for (int i = 0; i < n; i++) {\n            String pr = sc.next();\n            int files = sc.nextInt(), lines = sc.nextInt(), secrets = sc.nextInt();\n            String status = secrets > 0 ? \"BLOCK_SECRET\" : files > maxFiles ? \"SPLIT_FILES\" : lines > maxLines ? \"SPLIT_LINES\" : \"REVIEWABLE\";\n            if (status.equals(\"REVIEWABLE\")) ok++;\n            System.out.println(pr + \" \" + status);\n        }\n        System.out.println(\"REVIEWABLE \" + ok + \"/\" + n);\n    }\n}\n",
       "extraTasks": [
         {
+          "objectiveIds": [
+            "ch52-o2"
+          ],
           "kind": "drill",
           "task": "【組み合わせ】モジュールの依存をn件 `module dependency` の形で読みます。まず、自分自身へ依存しているモジュールを名前の辞書順に `SELF module` と表示してください（同じモジュールが何度出てきても1行だけ）。次に、互いに依存し合っている2つのモジュールを `CYCLE 名前1 名前2`（名前の辞書順、組が複数あれば組も辞書順）と表示します。どちらも1件も無ければ `ACYCLIC` と表示します。\n\n最後に、他のモジュールから最も多く依存されているモジュールを `MOST_DEPENDED module 件数` の形で表示します。同じ依存が複数回書かれていればその回数だけ数え、自分自身への依存は数えません。同じ件数が並ぶときは名前の辞書順で先のものにします。依存が1件も無ければ `MOST_DEPENDED NONE 0` と表示します。",
-          "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        int n = s.nextInt();\n        Set<String> selfs = new TreeSet<>();\n        Set<String> edges = new LinkedHashSet<>();\n        Map<String, Integer> depended = new TreeMap<>();\n        for (int i = 0; i < n; i++) {\n            String module = s.next(), dependency = s.next();\n            /* TODO 自己依存・辺・被依存数の記録 */\n        }\n        /* TODO SELF の表示 */ /* TODO CYCLE の表示と ACYCLIC の判定 */ /* TODO MOST_DEPENDED の表示 */\n    }\n}\n",
+          "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n        Set<String> selfs = new TreeSet<>();\n        Set<String> edges = new LinkedHashSet<>();\n        Map<String, Integer> depended = new TreeMap<>();\n        for (int i = 0; i < n; i++) {\n            String module = sc.next(), dependency = sc.next();\n            /* TODO 自己依存・辺・被依存数の記録 */\n        }\n        /* TODO SELF の表示 */ /* TODO CYCLE の表示と ACYCLIC の判定 */ /* TODO MOST_DEPENDED の表示 */\n    }\n}\n",
           "visibleCases": [
             {
               "label": "相互依存",
@@ -486,15 +622,19 @@
             "相互依存を1組につき1行だけ出すには、辞書順で先の側から見たときにだけ表示します。",
             "`TreeSet` と `TreeMap` を使うと、取り出すときに名前の辞書順になります。件数の最大は、辞書順にたどって「より大きいときだけ」更新すると同数の先勝ちになります。"
           ],
-          "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        int n = s.nextInt();\n        Set<String> selfs = new TreeSet<>();\n        Set<String> edges = new LinkedHashSet<>();\n        Map<String, Integer> depended = new TreeMap<>();\n        List<String[]> pairs = new ArrayList<>();\n        for (int i = 0; i < n; i++) {\n            String module = s.next(), dependency = s.next();\n            if (module.equals(dependency)) {\n                selfs.add(module);\n                continue;\n            }\n            edges.add(module + \">\" + dependency);\n            pairs.add(new String[] {module, dependency});\n            depended.merge(dependency, 1, Integer::sum);\n        }\n        for (String m : selfs) System.out.println(\"SELF \" + m);\n        Set<String> shown = new TreeSet<>();\n        for (String[] p : pairs) if (edges.contains(p[1] + \">\" + p[0])) {\n            String a = p[0].compareTo(p[1]) <= 0 ? p[0] : p[1], b = p[0].compareTo(p[1]) <= 0 ? p[1] : p[0];\n            shown.add(a + \" \" + b);\n        }\n        for (String c : shown) System.out.println(\"CYCLE \" + c);\n        if (selfs.isEmpty() && shown.isEmpty()) System.out.println(\"ACYCLIC\");\n        String best = \"NONE\";\n        int bestCount = 0;\n        for (Map.Entry<String, Integer> e : depended.entrySet()) if (e.getValue() > bestCount) {\n            best = e.getKey();\n            bestCount = e.getValue();\n        }\n        System.out.println(\"MOST_DEPENDED \" + best + \" \" + bestCount);\n    }\n}\n",
+          "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n        Set<String> selfs = new TreeSet<>();\n        Set<String> edges = new LinkedHashSet<>();\n        Map<String, Integer> depended = new TreeMap<>();\n        List<String[]> pairs = new ArrayList<>();\n        for (int i = 0; i < n; i++) {\n            String module = sc.next(), dependency = sc.next();\n            if (module.equals(dependency)) {\n                selfs.add(module);\n                continue;\n            }\n            edges.add(module + \">\" + dependency);\n            pairs.add(new String[] {module, dependency});\n            depended.merge(dependency, 1, Integer::sum);\n        }\n        for (String m : selfs) System.out.println(\"SELF \" + m);\n        Set<String> shown = new TreeSet<>();\n        for (String[] p : pairs) if (edges.contains(p[1] + \">\" + p[0])) {\n            String a = p[0].compareTo(p[1]) <= 0 ? p[0] : p[1], b = p[0].compareTo(p[1]) <= 0 ? p[1] : p[0];\n            shown.add(a + \" \" + b);\n        }\n        for (String c : shown) System.out.println(\"CYCLE \" + c);\n        if (selfs.isEmpty() && shown.isEmpty()) System.out.println(\"ACYCLIC\");\n        String best = \"NONE\";\n        int bestCount = 0;\n        for (Map.Entry<String, Integer> e : depended.entrySet()) if (e.getValue() > bestCount) {\n            best = e.getKey();\n            bestCount = e.getValue();\n        }\n        System.out.println(\"MOST_DEPENDED \" + best + \" \" + bestCount);\n    }\n}\n",
           "rubric": [
             "diagnose"
           ]
         },
         {
+          "objectiveIds": [
+            "ch52-o3",
+            "ch52-o5"
+          ],
           "kind": "applied",
           "task": "【実践】CIの制限時間 budgetSeconds とテスト数nを読み、続けてn件のテスト種別を `unit` / `component` / `e2e` のいずれかで読みます。さらに最後に、ゲートの結果を `compile test scan package` の順で4つ、`1`（成功）か `0`（失敗）で読みます。\n\n1行目に、テストの合計見積り時間を `ESTIMATE 秒` の形で表示してください（`unit` は1秒、`component` は5秒、`e2e` は20秒）。2行目に、合計が budgetSeconds 以内なら `WITHIN_BUDGET 残り秒`、超えていれば `OVER_BUDGET 超過秒` と表示します。続けて、失敗したゲートを読んだ順に `FAILED ゲート名` と表示します。最後に、4つのゲートすべてが成功し、かつ制限時間以内なら `RELEASE`、そうでなければ `BLOCK` と表示します（テストが制限時間に収まらないとCIが完走しないので、これもリリースを止める条件です）。",
-          "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        Map<String, Integer> cost = Map.of(\"unit\", 1, \"component\", 5, \"e2e\", 20);\n        int budget = s.nextInt(), n = s.nextInt(), estimate = 0;\n        for (int i = 0; i < n; i++) estimate += cost.get(s.next());\n        List<String> gates = List.of(\"compile\", \"test\", \"scan\", \"package\");\n        /* TODO ESTIMATE と予算の表示 */ /* TODO ゲートの読み取りと FAILED の表示 */ /* TODO RELEASE か BLOCK */\n    }\n}\n",
+          "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        Map<String, Integer> cost = Map.of(\"unit\", 1, \"component\", 5, \"e2e\", 20);\n        int budget = sc.nextInt(), n = sc.nextInt(), estimate = 0;\n        for (int i = 0; i < n; i++) estimate += cost.get(sc.next());\n        List<String> gates = List.of(\"compile\", \"test\", \"scan\", \"package\");\n        /* TODO ESTIMATE と予算の表示 */ /* TODO ゲートの読み取りと FAILED の表示 */ /* TODO RELEASE か BLOCK */\n    }\n}\n",
           "visibleCases": [
             {
               "label": "すべて通る",
@@ -539,7 +679,7 @@
             "残りと超過はどちらも差の絶対値です。`estimate<=budget` かどうかで表示を切り替えます。",
             "ゲートは `gates` の順に読み、`0` のものだけ `FAILED` を出しつつ、1つでもあったことを `boolean` で覚えておきます。上位の判定（`RELEASE`）は最後にまとめて決めます。"
           ],
-          "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        Map<String, Integer> cost = Map.of(\"unit\", 1, \"component\", 5, \"e2e\", 20);\n        int budget = s.nextInt(), n = s.nextInt(), estimate = 0;\n        for (int i = 0; i < n; i++) estimate += cost.get(s.next());\n        List<String> gates = List.of(\"compile\", \"test\", \"scan\", \"package\");\n        System.out.println(\"ESTIMATE \" + estimate);\n        boolean within = estimate <= budget;\n        System.out.println(within ? \"WITHIN_BUDGET \" + (budget - estimate) : \"OVER_BUDGET \" + (estimate - budget));\n        boolean allPass = true;\n        for (String gate : gates) if (s.nextInt() == 0) {\n            System.out.println(\"FAILED \" + gate);\n            allPass = false;\n        }\n        System.out.println(allPass && within ? \"RELEASE\" : \"BLOCK\");\n    }\n}\n",
+          "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        Map<String, Integer> cost = Map.of(\"unit\", 1, \"component\", 5, \"e2e\", 20);\n        int budget = sc.nextInt(), n = sc.nextInt(), estimate = 0;\n        for (int i = 0; i < n; i++) estimate += cost.get(sc.next());\n        List<String> gates = List.of(\"compile\", \"test\", \"scan\", \"package\");\n        System.out.println(\"ESTIMATE \" + estimate);\n        boolean within = estimate <= budget;\n        System.out.println(within ? \"WITHIN_BUDGET \" + (budget - estimate) : \"OVER_BUDGET \" + (estimate - budget));\n        boolean allPass = true;\n        for (String gate : gates) if (sc.nextInt() == 0) {\n            System.out.println(\"FAILED \" + gate);\n            allPass = false;\n        }\n        System.out.println(allPass && within ? \"RELEASE\" : \"BLOCK\");\n    }\n}\n",
           "rubric": [
             "decide"
           ]

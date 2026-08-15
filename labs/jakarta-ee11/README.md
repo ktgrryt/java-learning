@@ -11,7 +11,8 @@ Jakarta EE 11対応サーバーで確認する最小WARです。
 - 初回のみ、依存をダウンロードするためのネットワーク
 
 > このWAR単体のデプロイ後の応答は未確認です。`mvn clean package` までは同じ構成で通ります。
-> 実サーバーでの応答は `runtime-exercise/` で確認できます（第46章 48-5の採点対象）。
+> 実サーバーでの応答は `runtime-exercise/` で確認できます。
+> Web・Jakarta EE編『Jakarta EE 11アップデート』の章末演習が採点に使います。
 > そちらはOpen Liberty 26を一時領域へ準備し、動的portへ配備してHTTPまで検証します。
 
 API JARは `provided` であり、実装はサーバーが提供します。Tomcatは

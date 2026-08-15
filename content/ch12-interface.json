@@ -3,10 +3,31 @@
   "title": "インターフェース",
   "subtitle": "「できること」を型にする",
   "emoji": "🔌",
+  "objectives": [
+    {
+      "id": "ch12-o1",
+      "text": "インターフェースを実装したクラスを作り、インターフェース型で受け取れる"
+    },
+    {
+      "id": "ch12-o2",
+      "text": "複数のインターフェースを1つのクラスへ実装できる"
+    },
+    {
+      "id": "ch12-o3",
+      "text": "`default` と `static` メソッドを持つインターフェースを書ける"
+    },
+    {
+      "id": "ch12-o4",
+      "text": "抽象クラスとインターフェースのどちらを使うかを選べる"
+    }
+  ],
   "lessons": [
     {
       "id": "12-1",
       "title": "インターフェースの基本",
+      "objectiveIds": [
+        "ch12-o1"
+      ],
       "explanation": "## 中身のない約束だけを書く\n\n抽象クラスは「共通の実装＋未完成のメソッド」でした。\nでは **共通の実装が1つもない** ときはどうでしょう。\n\n「挨拶できる」という性質を表したいだけなら、フィールドも共通処理も要りません。\n必要なのは「`greet` というメソッドがある」という約束だけです。\nそれを書くのが **インターフェース** です。\n\n```java\ninterface Greeter {\n    String greet(String name);      // 中身は書かない。セミコロンで終わる\n}\n```\n\n`class` ではなく `interface` と書きます。使う側は `implements` で「約束を守ります」と宣言します。\n\n```java\nclass JapaneseGreeter implements Greeter {\n    @Override\n    public String greet(String name) {\n        return \"こんにちは、\" + name + \"さん\";\n    }\n}\n\nclass EnglishGreeter implements Greeter {\n    @Override\n    public String greet(String name) {\n        return \"Hello, \" + name + \"!\";\n    }\n}\n```\n\n`implements` したクラスは、**約束したメソッドを全部実装する義務** があります。\n1つでも足りなければコンパイルエラーです（抽象クラスと同じ考え方）。\n\n## インターフェースは型になる\n\nインターフェース自体は `new` できませんが、**変数の型として使えます**。\n\n```java\nGreeter g = new JapaneseGreeter();\nSystem.out.println(g.greet(\"田中\"));      // こんにちは、田中さん\n\ng = new EnglishGreeter();                 // 入れ替えられる\nSystem.out.println(g.greet(\"田中\"));      // Hello, 田中さん\n```\n\n第11章のポリモーフィズムがそのまま効きます。\n`Greeter` として受け取る側は、**中身が日本語版か英語版かを知らなくてよい** わけです。\n\n```java\nstatic void hello(Greeter g, String name) {     // どの実装でも受け取れる\n    System.out.println(g.greet(name));\n}\n```\n\n## 省略されているもの\n\nインターフェースの中の宣言には、書かなくても付く修飾子があります。\n\n```java\ninterface Greeter {\n    String greet(String name);              // 実は public abstract\n    int MAX = 100;                          // 実は public static final（定数）\n}\n```\n\n- メソッドは自動で **`public abstract`**\n- フィールドは自動で **`public static final`**（つまり **定数**。値の代入が必須）\n\nだからインターフェースに「状態」は持たせられません。持てるのは定数だけです。\n\n> ⚠️ 間違えやすい点 … 実装するメソッドに `public` を付け忘れるとコンパイルエラーです。\n\n```java\nclass JapaneseGreeter implements Greeter {\n    String greet(String name) { ... }       // ❌ public がない＝狭くなっている\n}\n```\n\nインターフェースのメソッドは `public` なので、オーバーライドの条件\n「アクセス修飾子を狭くできない」に引っかかります。**実装側には必ず `public`** を付けてください。\n\n> 💡 抽象クラスとの違いは次のレッスンから順に見ていきます。ひとまず「継承は1つだけ、`implements` は何個でも」と覚えておいてください。",
       "samples": [
         {
@@ -133,6 +154,9 @@
     {
       "id": "12-2",
       "title": "いくつでも実装できる",
+      "objectiveIds": [
+        "ch12-o2"
+      ],
       "explanation": "## 継承は1つだけ、実装は何個でも\n\n第10章で見たように、`extends` に書けるクラスは1つだけです。\nけれど `implements` は **カンマで区切っていくつでも並べられます**。\n\n```java\ninterface Flyable {\n    String fly();\n}\n\ninterface Swimmable {\n    String swim();\n}\n\nclass Duck implements Flyable, Swimmable {      // 両方の約束を守る\n    private String name;\n\n    Duck(String name) { this.name = name; }\n\n    @Override\n    public String fly() { return name + \"は飛ぶ\"; }\n\n    @Override\n    public String swim() { return name + \"は泳ぐ\"; }\n}\n\nclass Fish implements Swimmable {               // 泳げるだけ\n    private String name;\n\n    Fish(String name) { this.name = name; }\n\n    @Override\n    public String swim() { return name + \"は泳ぐ\"; }\n}\n```\n\n`Duck` は「飛べる」も「泳げる」も持っています。\nクラスの継承では表せなかった「複数の性質」が、インターフェースなら自然に書けます。\n\nこれがインターフェースの存在理由の1つです。\n実装を複数受け継ぐと「どちらの実装が動くのか」で困りますが、\n**約束だけなら何個でも重ねられる** からです。\n\n```svg 実装（中身）を複数受け継ぐと衝突するが、約束だけなら何個でも重ねられる\n<svg viewBox=\"0 0 720 256\">\n  <text class=\"fig-t fig-title\" x=\"177\" y=\"22\" text-anchor=\"middle\">クラスの継承は1つだけ</text>\n  <text class=\"fig-t fig-title\" x=\"543\" y=\"22\" text-anchor=\"middle\">インターフェースは何個でも</text>\n\n  <rect class=\"fig-box\" x=\"40\" y=\"44\" width=\"130\" height=\"40\" rx=\"6\"/>\n  <text class=\"fig-t fig-mono fig-small\" x=\"105\" y=\"64\" text-anchor=\"middle\">Animal</text>\n  <rect class=\"fig-box-dim\" x=\"200\" y=\"44\" width=\"130\" height=\"40\" rx=\"6\"/>\n  <text class=\"fig-t fig-mono fig-small fig-t-faint\" x=\"265\" y=\"64\" text-anchor=\"middle\">Pet</text>\n  <rect class=\"fig-box\" x=\"112\" y=\"150\" width=\"130\" height=\"40\" rx=\"6\"/>\n  <text class=\"fig-t fig-mono fig-small\" x=\"177\" y=\"170\" text-anchor=\"middle\">Dog</text>\n  <line class=\"fig-line-ok\" x1=\"150\" y1=\"148\" x2=\"112\" y2=\"88\" marker-end=\"arrow-ok\"/>\n  <line class=\"fig-line-ng fig-dashed\" x1=\"216\" y1=\"148\" x2=\"252\" y2=\"92\"/>\n  <line class=\"fig-line-ng\" x1=\"228\" y1=\"112\" x2=\"240\" y2=\"124\"/>\n  <line class=\"fig-line-ng\" x1=\"240\" y1=\"112\" x2=\"228\" y2=\"124\"/>\n  <text class=\"fig-t fig-t-ng fig-small\" x=\"177\" y=\"214\" text-anchor=\"middle\">2つの親は持てない</text>\n\n  <rect class=\"fig-box-accent\" x=\"390\" y=\"44\" width=\"140\" height=\"40\" rx=\"6\"/>\n  <text class=\"fig-t fig-mono fig-small fig-t-accent\" x=\"460\" y=\"64\" text-anchor=\"middle\">Flyable</text>\n  <rect class=\"fig-box-accent\" x=\"556\" y=\"44\" width=\"140\" height=\"40\" rx=\"6\"/>\n  <text class=\"fig-t fig-mono fig-small fig-t-accent\" x=\"626\" y=\"64\" text-anchor=\"middle\">Swimmable</text>\n  <rect class=\"fig-box\" x=\"400\" y=\"150\" width=\"130\" height=\"40\" rx=\"6\"/>\n  <text class=\"fig-t fig-mono fig-small\" x=\"465\" y=\"170\" text-anchor=\"middle\">Duck</text>\n  <rect class=\"fig-box\" x=\"566\" y=\"150\" width=\"130\" height=\"40\" rx=\"6\"/>\n  <text class=\"fig-t fig-mono fig-small\" x=\"631\" y=\"170\" text-anchor=\"middle\">Fish</text>\n  <line class=\"fig-line-ok\" x1=\"440\" y1=\"148\" x2=\"440\" y2=\"88\" marker-end=\"arrow-ok\"/>\n  <line class=\"fig-line-ok\" x1=\"500\" y1=\"148\" x2=\"590\" y2=\"88\" marker-end=\"arrow-ok\"/>\n  <line class=\"fig-line-ok\" x1=\"640\" y1=\"148\" x2=\"640\" y2=\"88\" marker-end=\"arrow-ok\"/>\n  <text class=\"fig-t fig-t-ok fig-small\" x=\"465\" y=\"214\" text-anchor=\"middle\">両方の約束を守る</text>\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"631\" y=\"214\" text-anchor=\"middle\">泳げるだけ</text>\n\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"360\" y=\"244\" text-anchor=\"middle\">Duck と Fish に継承関係は無い。それでも「泳げる」の一点で <tspan class=\"fig-mono\">Swimmable[]</tspan> にまとめられる</text>\n</svg>\n```\n\n## インターフェース型でまとめる\n\n「泳げるもの」だけを集めたいなら、`Swimmable` を型にします。\n\n```java\nSwimmable[] swimmers = { new Duck(\"カモ\"), new Fish(\"コイ\") };\n\nfor (Swimmable s : swimmers) {\n    System.out.println(s.swim());\n}\n```\n\n`Duck` と `Fish` に **継承関係はまったくありません**。\nそれでも「泳げる」という一点で同じ配列に入れられます。\n共通の親クラスを無理に作らなくてよいのが、インターフェースの使いやすさです。\n\n## instanceof はインターフェースにも使える\n\n`Swimmable` として持っているものが、飛べるかどうかを調べられます。\n\n```java\nfor (Swimmable s : swimmers) {\n    if (s instanceof Flyable f) {\n        System.out.println(f.fly());\n    }\n    System.out.println(s.swim());\n}\n```\n\n`Duck` は `Flyable` でもあるので `true`、`Fish` は `false` です。\n\n## インターフェースどうしの継承\n\nインターフェースは `extends` で別のインターフェースを継承できます。\nこちらは **複数書けます**（実装がないので衝突しないため）。\n\n```java\ninterface Amphibious extends Flyable, Swimmable { }\n```\n\n`Amphibious` を実装するクラスは、`fly()` と `swim()` の両方を実装する必要があります。\n\n> ⚠️ 間違えやすい点 … クラスがインターフェースを実装するときは `implements`、インターフェースが別のインターフェースを継承するときは `extends` です。逆に書くとコンパイルエラーです。\n\n> 💡 `extends` と `implements` を両方書くときは、**`extends` が先** です。`class A extends B implements C, D` の順番は決まっています。",
       "samples": [
         {
@@ -259,6 +283,9 @@
     {
       "id": "12-3",
       "title": "default・static・private メソッド",
+      "objectiveIds": [
+        "ch12-o3"
+      ],
       "explanation": "## インターフェースにも実装を書ける\n\nインターフェースのメソッドは抽象メソッドだけではありません。Java 8で `default` と `static`、\nJava 9で `private` と `private static` メソッドが使えるようになりました。\n\n### default メソッド — 既定の実装\n\n```java\ninterface Greeter {\n    String name();\n\n    default String greet() {\n        return \"こんにちは、\" + name() + \"さん\";\n    }\n}\n```\n\n実装クラスは `name()` だけを実装して `greet()` をそのまま使うことも、`greet()` を上書きすることもできます。\n既定実装付きでメソッドを追加できるため、既存の実装クラスを壊さずにインターフェースを拡張しやすくなります。\n\n### static メソッド — インターフェース名から呼ぶ\n\n```java\ninterface Greeter {\n    static String rule() {\n        return \"挨拶は大事\";\n    }\n}\n\nSystem.out.println(Greeter.rule());\n```\n\nインターフェースの `static` メソッドは実装クラスへ継承されません。`Greeter.rule()` と呼びます。\n\n### private メソッド — 内部の共通処理\n\n`private` メソッドは、複数の `default` メソッドなどから使う内部ヘルパーです。実装クラスからは呼べず、上書きもできません。\n\n```java\ninterface Greeter {\n    String name();\n\n    private String decoratedName() {\n        return \"【\" + name() + \"】\";\n    }\n\n    default String greet() {\n        return \"こんにちは、\" + decoratedName();\n    }\n}\n```\n\n`private static` メソッドも定義でき、インスタンスに依存しない内部処理を共有できます。\n\n## まとめ\n\n| 種類 | 中身 | 実装クラスでの扱い |\n|---|---|---|\n| 暗黙に `public abstract` なメソッド | なし | 実装する義務がある |\n| `default` | あり | 継承され、上書きできる |\n| `static` | あり | 継承されず、インターフェース名から呼ぶ |\n| `private` / `private static` | あり | インターフェース内部だけで使う |\n\n> 💡 `default` から抽象メソッドを呼べます。実行時には実装クラス側の処理が選ばれます。",
       "samples": [
         {
@@ -380,6 +407,9 @@
     {
       "id": "12-4",
       "title": "抽象クラスとインターフェースの使い分け",
+      "objectiveIds": [
+        "ch12-o4"
+      ],
       "explanation": "## どちらを使えばいいのか\n\n抽象クラスとインターフェースには次の違いがあります。\n\n| | 抽象クラス | インターフェース |\n|---|---|---|\n| いくつ使えるか | 直接継承は1つ（`extends`） | 複数実装できる（`implements`） |\n| インスタンスの状態 | フィールドを持てる | インスタンスフィールドは持てない。宣言したフィールドは定数 |\n| コンストラクタ | 持てる | 持てない |\n| 実装のあるメソッド | アクセス修飾子を含め自由に書ける | `default`、`static`、`private`、`private static` を書ける |\n| 抽象メソッド | 任意の可視性（`private` を除く）を選べる | 暗黙に `public abstract` |\n\n`private` なインターフェースメソッドは内部ヘルパーであり、実装クラスへ公開されません。\n外部へ見せるインスタンスメソッドは、基本的に `public` な抽象メソッドまたは `default` メソッドです。\n\n判断の目安は次のとおりです。\n\n- **共通の状態や基底実装を共有する密接な型階層** → 抽象クラス\n- **実装クラスをまたいで能力や契約を表す** → インターフェース\n\n## 両方を同時に使う\n\n```java\nabstract class Employee {\n    protected final String name;\n    protected final int salary;\n\n    Employee(String name, int salary) {\n        this.name = name;\n        this.salary = salary;\n    }\n\n    abstract String role();\n}\n\ninterface Bonusable {\n    int bonus();\n}\n\nclass Manager extends Employee implements Bonusable {\n    Manager(String name, int salary) { super(name, salary); }\n    @Override String role() { return \"管理職\"; }\n    @Override public int bonus() { return salary / 10; }\n}\n```\n\n`Manager` は共通の状態を `Employee` から受け継ぎ、賞与を計算できるという契約を `Bonusable` で表します。\n\n```java\nfor (Employee e : employees) {\n    int total = e.salary;\n    if (e instanceof Bonusable b) {\n        total += b.bonus();\n    }\n    System.out.println(e.name + \" \" + e.role() + \" 支給 \" + total);\n}\n```\n\n> ⚠️ クラス宣言では `extends` を先、`implements` を後に書きます。",
       "samples": [
         {
@@ -548,6 +578,11 @@
     {
       "id": "12-5",
       "title": "章末演習：インターフェース",
+      "objectiveIds": [
+        "ch12-o1",
+        "ch12-o2",
+        "ch12-o3"
+      ],
       "explanation": "## この章の知識を、自分の手で組み合わせよう\n\nここでは、**implements・複数実装・defaultメソッド**をまとめて使います。新しい文法は登場しません。分からなくなったら、直前までの解説やサンプルへ戻って確認して大丈夫です。\n\n### 3問の進め方\n\n1. **基本**で、中心となる書き方をもう一度使う\n2. **組み合わせ**で、章内の複数の知識を一緒に使う\n3. **実践**で、少し現実的な入力と条件を整理する\n\nまず入力例と期待される出力を紙に書き、処理を小さな手順へ分けてからコードにすると進めやすくなります。",
       "samples": [
         {
@@ -556,7 +591,7 @@
         }
       ],
       "task": "【基本】`Formatter` インターフェースに `String format(String text)` を定義します。modeが `upper` ならUpperFormatter、`bracket`ならBracketFormatterを使い、入力文字列を変換してください。",
-      "starterCode": "import java.util.*;\n\ninterface Formatter {\n    String format(String text);\n}\n\nclass UpperFormatter implements Formatter {\n    public String format(String text) {\n        return \"\";\n    }\n}\n\nclass BracketFormatter implements Formatter {\n    public String format(String text) {\n        return \"\";\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        String mode = s.next(), text = s.next();\n        Formatter f = mode.equals(\"upper\") ? new UpperFormatter() : new BracketFormatter();\n        System.out.println(f.format(text));\n    }\n}\n",
+      "starterCode": "import java.util.*;\n\ninterface Formatter {\n    String format(String text);\n}\n\nclass UpperFormatter implements Formatter {\n    public String format(String text) {\n        return \"\";\n    }\n}\n\nclass BracketFormatter implements Formatter {\n    public String format(String text) {\n        return \"\";\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        String mode = sc.next(), text = sc.next();\n        Formatter f = mode.equals(\"upper\") ? new UpperFormatter() : new BracketFormatter();\n        System.out.println(f.format(text));\n    }\n}\n",
       "visibleCases": [
         {
           "label": "大文字",
@@ -585,12 +620,12 @@
         "実装メソッドはpublicにします。",
         "UpperはtoUpperCase、Bracketは文字列連結を使います。"
       ],
-      "solution": "import java.util.*;\n\ninterface Formatter {\n    String format(String text);\n}\n\nclass UpperFormatter implements Formatter {\n    public String format(String text) {\n        return text.toUpperCase();\n    }\n}\n\nclass BracketFormatter implements Formatter {\n    public String format(String text) {\n        return \"[\" + text + \"]\";\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        String mode = s.next(), text = s.next();\n        Formatter f = mode.equals(\"upper\") ? new UpperFormatter() : new BracketFormatter();\n        System.out.println(f.format(text));\n    }\n}\n",
+      "solution": "import java.util.*;\n\ninterface Formatter {\n    String format(String text);\n}\n\nclass UpperFormatter implements Formatter {\n    public String format(String text) {\n        return text.toUpperCase();\n    }\n}\n\nclass BracketFormatter implements Formatter {\n    public String format(String text) {\n        return \"[\" + text + \"]\";\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        String mode = sc.next(), text = sc.next();\n        Formatter f = mode.equals(\"upper\") ? new UpperFormatter() : new BracketFormatter();\n        System.out.println(f.format(text));\n    }\n}\n",
       "extraTasks": [
         {
           "kind": "drill",
           "task": "【組み合わせ】`Named` と `Priced` の2つのインターフェースをProductに実装します。商品名と価格を読み、それぞれのメソッド経由で `name:price円` と表示してください。",
-          "starterCode": "import java.util.*;\n\ninterface Named {\n    String name();\n}\n\ninterface Priced {\n    int price();\n}\n\nclass Product implements Named, Priced {\n    private String name;\n    private int price;\n\n    Product(String n, int p) {\n        name = n;\n        price = p;\n    }\n\n    public String name() {\n        return \"\";\n    }\n\n    public int price() {\n        return 0;\n    }\n\n    /* TODO: 2つのメソッドを完成させる */\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        Product p = new Product(s.next(), s.nextInt());\n        System.out.println(p.name() + \":\" + p.price() + \"円\");\n    }\n}\n",
+          "starterCode": "import java.util.*;\n\ninterface Named {\n    String name();\n}\n\ninterface Priced {\n    int price();\n}\n\nclass Product implements Named, Priced {\n    private String name;\n    private int price;\n\n    Product(String n, int p) {\n        name = n;\n        price = p;\n    }\n\n    public String name() {\n        return \"\";\n    }\n\n    public int price() {\n        return 0;\n    }\n\n    /* TODO: 2つのメソッドを完成させる */\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        Product p = new Product(sc.next(), sc.nextInt());\n        System.out.println(p.name() + \":\" + p.price() + \"円\");\n    }\n}\n",
           "visibleCases": [
             {
               "label": "商品",
@@ -614,7 +649,7 @@
             "implementsの後ろへ2つのインターフェースをカンマ区切りで書きます。",
             "両方のメソッドをpublicで実装します。"
           ],
-          "solution": "import java.util.*;\n\ninterface Named {\n    String name();\n}\n\ninterface Priced {\n    int price();\n}\n\nclass Product implements Named, Priced {\n    private String name;\n    private int price;\n\n    Product(String n, int p) {\n        name = n;\n        price = p;\n    }\n\n    public String name() {\n        return name;\n    }\n\n    public int price() {\n        return price;\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        Product p = new Product(s.next(), s.nextInt());\n        System.out.println(p.name() + \":\" + p.price() + \"円\");\n    }\n}\n",
+          "solution": "import java.util.*;\n\ninterface Named {\n    String name();\n}\n\ninterface Priced {\n    int price();\n}\n\nclass Product implements Named, Priced {\n    private String name;\n    private int price;\n\n    Product(String n, int p) {\n        name = n;\n        price = p;\n    }\n\n    public String name() {\n        return name;\n    }\n\n    public int price() {\n        return price;\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        Product p = new Product(sc.next(), sc.nextInt());\n        System.out.println(p.name() + \":\" + p.price() + \"円\");\n    }\n}\n",
           "sourceChecks": [
             {
               "pattern": "\\binterface\\s+(Named|Priced)\\b",

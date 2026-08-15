@@ -3,10 +3,35 @@
   "title": "計算とキーボード入力",
   "subtitle": "入力を受け取って計算する",
   "emoji": "🧮",
+  "objectives": [
+    {
+      "id": "ch03-o1",
+      "text": "整数どうしの除算と `%` の結果を予測して書ける"
+    },
+    {
+      "id": "ch03-o2",
+      "text": "`Scanner` でキーボードから数や文字列を受け取り、計算に使える"
+    },
+    {
+      "id": "ch03-o3",
+      "text": "整数と小数が混ざる計算で、必要な位置にキャストを書ける"
+    },
+    {
+      "id": "ch03-o4",
+      "text": "`printf` と `String.format` で桁や小数点をそろえて表示できる"
+    },
+    {
+      "id": "ch03-o5",
+      "text": "`++` と `+=` の使いどころを選べる"
+    }
+  ],
   "lessons": [
     {
       "id": "3-1",
       "title": "計算のきほんと、割り算の落とし穴",
+      "objectiveIds": [
+        "ch03-o1"
+      ],
       "explanation": "## 5つの演算子\n\n```java\nSystem.out.println(17 + 5);   // 22   足す\nSystem.out.println(17 - 5);   // 12   引く\nSystem.out.println(17 * 5);   // 85   かける（× ではなく *）\nSystem.out.println(17 / 5);   // 3    わる  ← 3.4 ではない！\nSystem.out.println(17 % 5);   // 2    余り  （17 = 5×3 + 2）\n```\n\nかける記号は `×` ではなく **`*`**（アスタリスク）、わる記号は `÷` ではなく **`/`** です。\n\n## 落とし穴: 整数どうしの割り算は切り捨てられる\n\n`17 / 5` は `3.4` ではなく **`3`** になります。\nJavaでは **整数 ÷ 整数 の答えは整数** で、小数点以下は捨てられます（四捨五入ではなく切り捨て）。\n\n```java\nSystem.out.println(7 / 2);      // 3     3.5 ではない\nSystem.out.println(1 / 2);      // 0     0.5 ではない！\nSystem.out.println(9 / 10);     // 0\n```\n\n小数の答えが欲しいときは、**どちらかを小数にします**。\n\n```java\nSystem.out.println(7.0 / 2);    // 3.5\nSystem.out.println(7 / 2.0);    // 3.5\n```\n\n## % は「余り」\n\n`%` は割り算の余りです。地味ですが、とてもよく使います。\n\n```java\nSystem.out.println(10 % 3);   // 1\nSystem.out.println(10 % 2);   // 0    ← 割り切れた\nSystem.out.println(7 % 2);    // 1    ← 割り切れない\n```\n\n`n % 2 == 0` なら偶数、というのが定番の使い方です。第4章で使います。\n\n```svg 整数どうしの `/` は「何グループ作れたか」、`%` は「余ったいくつか」\n<svg viewBox=\"0 0 720 216\">\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"14\" y=\"22\">17 個を 5 個ずつに分ける</text>\n  <rect class=\"fig-region\" x=\"26\" y=\"40\" width=\"114\" height=\"34\" rx=\"6\"/>\n  <rect class=\"fig-region\" x=\"136\" y=\"40\" width=\"114\" height=\"34\" rx=\"6\"/>\n  <rect class=\"fig-region\" x=\"246\" y=\"40\" width=\"114\" height=\"34\" rx=\"6\"/>\n  <rect class=\"fig-fill-dim\" x=\"30\" y=\"48\" width=\"18\" height=\"18\" rx=\"3\"/>\n  <rect class=\"fig-fill-dim\" x=\"52\" y=\"48\" width=\"18\" height=\"18\" rx=\"3\"/>\n  <rect class=\"fig-fill-dim\" x=\"74\" y=\"48\" width=\"18\" height=\"18\" rx=\"3\"/>\n  <rect class=\"fig-fill-dim\" x=\"96\" y=\"48\" width=\"18\" height=\"18\" rx=\"3\"/>\n  <rect class=\"fig-fill-dim\" x=\"118\" y=\"48\" width=\"18\" height=\"18\" rx=\"3\"/>\n  <rect class=\"fig-fill-dim\" x=\"140\" y=\"48\" width=\"18\" height=\"18\" rx=\"3\"/>\n  <rect class=\"fig-fill-dim\" x=\"162\" y=\"48\" width=\"18\" height=\"18\" rx=\"3\"/>\n  <rect class=\"fig-fill-dim\" x=\"184\" y=\"48\" width=\"18\" height=\"18\" rx=\"3\"/>\n  <rect class=\"fig-fill-dim\" x=\"206\" y=\"48\" width=\"18\" height=\"18\" rx=\"3\"/>\n  <rect class=\"fig-fill-dim\" x=\"228\" y=\"48\" width=\"18\" height=\"18\" rx=\"3\"/>\n  <rect class=\"fig-fill-dim\" x=\"250\" y=\"48\" width=\"18\" height=\"18\" rx=\"3\"/>\n  <rect class=\"fig-fill-dim\" x=\"272\" y=\"48\" width=\"18\" height=\"18\" rx=\"3\"/>\n  <rect class=\"fig-fill-dim\" x=\"294\" y=\"48\" width=\"18\" height=\"18\" rx=\"3\"/>\n  <rect class=\"fig-fill-dim\" x=\"316\" y=\"48\" width=\"18\" height=\"18\" rx=\"3\"/>\n  <rect class=\"fig-fill-dim\" x=\"338\" y=\"48\" width=\"18\" height=\"18\" rx=\"3\"/>\n  <rect class=\"fig-fill-ng\" x=\"366\" y=\"48\" width=\"18\" height=\"18\" rx=\"3\"/>\n  <rect class=\"fig-fill-ng\" x=\"388\" y=\"48\" width=\"18\" height=\"18\" rx=\"3\"/>\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"193\" y=\"90\" text-anchor=\"middle\">5個ずつ 3グループ</text>\n  <text class=\"fig-t fig-t-ng fig-small\" x=\"384\" y=\"90\" text-anchor=\"middle\">余り2</text>\n  <text class=\"fig-t fig-mono fig-t-accent fig-small\" x=\"440\" y=\"52\">17 / 5 → 3</text>\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"560\" y=\"52\">グループの数</text>\n  <text class=\"fig-t fig-mono fig-t-ng fig-small\" x=\"440\" y=\"76\">17 % 5 → 2</text>\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"560\" y=\"76\">余った数</text>\n\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"14\" y=\"130\">小数は出てこない</text>\n  <text class=\"fig-t fig-code\" x=\"14\" y=\"162\">7 / 2</text>\n  <line class=\"fig-line\" x1=\"80\" y1=\"162\" x2=\"112\" y2=\"162\" marker-end=\"arrow\"/>\n  <rect class=\"fig-box-dim\" x=\"116\" y=\"146\" width=\"90\" height=\"32\" rx=\"6\"/>\n  <text class=\"fig-t fig-mono fig-t-faint\" x=\"161\" y=\"162\" text-anchor=\"middle\">3.5</text>\n  <line class=\"fig-line-ng\" x1=\"210\" y1=\"162\" x2=\"242\" y2=\"162\" marker-end=\"arrow-ng\"/>\n  <rect class=\"fig-box-ng\" x=\"246\" y=\"146\" width=\"90\" height=\"32\" rx=\"6\"/>\n  <text class=\"fig-t fig-mono fig-t-ng\" x=\"291\" y=\"162\" text-anchor=\"middle\">3</text>\n  <text class=\"fig-t fig-t-ng fig-small\" x=\"350\" y=\"162\">小数部は切り捨て（四捨五入ではない）</text>\n\n  <text class=\"fig-t fig-code\" x=\"14\" y=\"198\">7.0 / 2</text>\n  <line class=\"fig-line-ok\" x1=\"90\" y1=\"198\" x2=\"242\" y2=\"198\" marker-end=\"arrow-ok\"/>\n  <rect class=\"fig-box-ok\" x=\"246\" y=\"182\" width=\"90\" height=\"32\" rx=\"6\"/>\n  <text class=\"fig-t fig-mono fig-t-ok\" x=\"291\" y=\"198\" text-anchor=\"middle\">3.5</text>\n  <text class=\"fig-t fig-t-ok fig-small\" x=\"350\" y=\"198\">どちらかを小数にすれば、小数のまま残る</text>\n</svg>\n```\n\n## 計算の順番\n\n算数と同じで `*` `/` `%` が先、`+` `-` が後です。順番を変えたいときはかっこを使います。\n\n```java\nSystem.out.println(2 + 3 * 4);     // 14   （3*4 が先）\nSystem.out.println((2 + 3) * 4);   // 20   （かっこが先）\n```",
       "samples": [
         {
@@ -71,6 +96,9 @@
     {
       "id": "3-2",
       "title": "キーボードから数を受け取る",
+      "objectiveIds": [
+        "ch03-o2"
+      ],
       "explanation": "## 入力を受け取ると、プログラムが「道具」になる\n\nここまでは値をコードに直接書いていました。入力を受け取れるようになると、\n**同じプログラムがどんな値にも使える** ようになります。\n\nJavaでは `Scanner` を使います。準備は2ステップです。\n\n```java\nimport java.util.Scanner;                          // ① いちばん上に書く\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);       // ② 入力を読む係を用意する\n\n        int n = sc.nextInt();                      // ③ 整数を1つ読む\n        System.out.println(n * 2);\n    }\n}\n```\n\n- `import java.util.Scanner;` … 「Scanner という道具を使います」という宣言。**class より上**に書きます\n- `new Scanner(System.in)` … キーボード（標準入力）から読む Scanner を作る\n- `sc.nextInt()` … 整数を1つ読んで返す\n\n### 読み方は型で変わる\n\n| 書き方 | 読むもの |\n|---|---|\n| `sc.nextInt()` | 整数 |\n| `sc.nextDouble()` | 小数 |\n| `sc.next()` | 単語（スペースまで） |\n| `sc.nextLine()` | 1行まるごと |\n\n### このアプリでの入力の与え方\n\n練習問題では、下の「試されること」の表にある **入力** が自動でプログラムに渡されます。\n自分でキーボードを打つ必要はありません。\n\n> 💡 `nextInt()` は呼ぶたびに次の数を読みます。1つの数を2回使いたいときは、\n> 2回呼ぶのではなく **変数に入れて** から使いましょう。",
       "samples": [
         {
@@ -174,6 +202,9 @@
     {
       "id": "3-3",
       "title": "小数と型変換（キャスト）",
+      "objectiveIds": [
+        "ch03-o3"
+      ],
       "explanation": "## int と double を行き来する\n\n整数どうしを割ると、小数部分が切り捨てられます。\n\n```java\nint n = 7;\nSystem.out.println(n / 2);      // 3\n```\n\n小数の答えが欲しいときは、割る前にどちらかを `double` に変えます。\n\n```java\nSystem.out.println((double) n / 2);    // 3.5\n```\n\n`(double) n` のように、値の前へ変えたい型を書く操作を **キャスト** と呼びます。\nこの式の中だけで `n` を小数として扱い、変数 `n` 自体は `int` のままです。\n\n### かっこの位置が重要\n\n```java\nSystem.out.println((double) n / 2);      // 3.5（変えてから割る）\nSystem.out.println((double) (n / 2));    // 3.0（整数で割った後に変える）\n```\n\n2行目は、先に `n / 2` が `3` になったあとで `double` へ変わるため、失われた小数部分は\n戻りません。**割る前に変える**のが要点です。\n\n## double から int へ変える\n\n`double` を `int` へキャストすると、小数部分が取り除かれます。四捨五入ではありません。\n\n```java\ndouble d = 3.9;\nSystem.out.println((int) d);      // 3\nSystem.out.println((int) -3.9);   // -3\n```\n\n0に近づく向きへ小数部分を取り除くため、`-3.9` は `-3` になります。\n\n最も近い整数へ丸めたいときは `Math.round` を使います。\n\n```java\nSystem.out.println(Math.round(3.9));     // 4\nSystem.out.println(Math.round(2.5));     // 3\nSystem.out.println(Math.round(-2.5));    // -2\n```\n\nちょうど `.5` のときは大きい数の方向へ進むため、`2.5` は `3`、`-2.5` は `-2` です。\n\n## printf で小数の表示桁をそろえる\n\n`println` は計算結果をそのまま表示します。\n\n```java\nSystem.out.println(1.0 / 3);      // 0.3333333333333333\n```\n\n「小数第2位まで」のように表示する形を決めたいときは `printf` を使います。\n\n```java\nSystem.out.printf(\"%.2f%n\", 1.0 / 3);    // 0.33\n```\n\n最初の文字列が表示のひな形で、`%` から始まる部分へ、後ろに書いた値が入ります。\n\n| 書き方 | 意味 |\n|---|---|\n| `%.1f` | 小数第1位まで |\n| `%.2f` | 小数第2位まで |\n| `%d` | 整数 |\n| `%s` | 文字列 |\n| `%n` | 改行 |\n\n`printf` は自動では改行しないため、通常は最後に `%n` を付けます。\n\n```java\nSystem.out.printf(\"平均 %.1f%n\", 3.456);   // 平均 3.5\n```\n\nここでは、キャストは「計算に使う型を変える」、`printf` は「表示する形だけを変える」と\n区別してください。`%.2f` で表示しても、変数に入っている元の値は変わりません。",
       "samples": [
         {
@@ -286,6 +317,10 @@
     {
       "id": "3-4",
       "title": "いくつもの値を読む",
+      "objectiveIds": [
+        "ch03-o2",
+        "ch03-o4"
+      ],
       "explanation": "## nextInt() は呼ぶたびに次を読む\n\n`sc.nextInt()` を続けて呼ぶと、入力を順番に読み進めます。\n\n```java\nint a = sc.nextInt();   // 1つ目\nint b = sc.nextInt();   // 2つ目\nint c = sc.nextInt();   // 3つ目\n```\n\n入力が\n```\n10\n20\n30\n```\nなら、`a` に 10、`b` に 20、`c` に 30 が入ります。\n\n### 区切りは改行でもスペースでもよい\n\n`nextInt()` は「空白（スペース・改行・タブ）で区切られた次の数」を読みます。\nだから次の2つの入力は、プログラムから見て**まったく同じ**です。\n\n```\n10 20 30\n```\n```\n10\n20\n30\n```\n\n### 読む回数と入力の数が合わないと落ちる\n\n入力が2つしかないのに3回 `nextInt()` を呼ぶと、\n`NoSuchElementException` というエラーで止まります。\n「あと何個読むのか」を意識して書きましょう。\n\n## 大きい / 小さいを比べる Math.max と Math.min\n\n`if` はまだ習っていませんが、2つの数の大きいほうを取るだけなら\n`Math.max` が使えます。\n\n```java\nSystem.out.println(Math.max(3, 8));         // 8\nSystem.out.println(Math.min(3, 8));         // 3\n```\n\n3つ以上を比べたいときは、**入れ子にする** のがコツです。\n\n```java\nint biggest = Math.max(a, Math.max(b, c));\n```\n\n内側の `Math.max(b, c)` が先に計算され、その結果と `a` を比べます。\n\n> 💡 `Math.abs(-5)` は絶対値（`5`）、`Math.pow(2, 10)` はべき乗（`1024.0`）です。\n> 「こんな計算あるかな？」と思ったら `Math.` の後ろを探してみましょう。",
       "samples": [
         {
@@ -394,6 +429,9 @@
     {
       "id": "3-5",
       "title": "1つ増やす（++）と複合代入（+=）",
+      "objectiveIds": [
+        "ch03-o5"
+      ],
       "explanation": "## 1つ増やす、1つ減らす\n\n「変数を1つ増やす」はプログラムで最もよく出てくる操作なので、専用の書き方があります。\n\n```java\nint n = 5;\nn++;    // n = n + 1 と同じ。6 になる\nn--;    // n = n - 1 と同じ。5 に戻る\n```\n\n### 前に付けるか、後ろに付けるか\n\n`n++`（後置）と `++n`（前置）で、**変数が1増える**ことは同じです。\n違うのは **式そのものの値** です。\n\n- `n++` … 式の値は「**増える前**の値」（使ってから増える）\n- `++n` … 式の値は「**増えた後**の値」（増えてから使う）\n\n```java\nint a = 5;\nSystem.out.println(a++);   // 5 が出る。このあと a は 6\nSystem.out.println(a);     // 6\n\nint b = 5;\nSystem.out.println(++b);   // 6 が出る。b も 6\nSystem.out.println(b);     // 6\n```\n\n`n++;` と単独の文で書くだけなら、前置でも後置でも結果は変わりません。\n差が出るのは「同じ式の中でその値を使う」ときだけです。\n\n> ⚠️ 間違えやすい点 … `int i = 1; int x = i++ + i++;` の `x` はいくつでしょう。\n\n左から順に読み解きます。1つ目の `i++` は **1** を返して `i` は 2 になり、\n2つ目の `i++` は **2** を返して `i` は 3 になります。\nつまり `x` は `1 + 2` で **3**、`i` は **3** です。あわてず順番に追えば必ず解けます。\n\n## 複合代入 — `+=` の仲間\n\n「自分の値を使って計算して、自分に代入し直す」も短く書けます。\n\n| 短い書き方 | 同じ意味 |\n|---|---|\n| `n += 3` | `n = n + 3` |\n| `n -= 3` | `n = n - 3` |\n| `n *= 2` | `n = n * 2` |\n| `n /= 2` | `n = n / 2` |\n| `n %= 3` | `n = n % 3` |\n\n文字列にも使えます。`s += \"!\"` は `s = s + \"!\"` と同じです。\n\n> ⚠️ 間違えやすい点 … 複合代入には **キャストが隠れています**。次の2行は同じではありません。\n> （`byte` は `2-5` で出てきた「`int` より狭い整数の型」です。）\n\n```java\nbyte b = 10;\nb = b + 5;   // ❌ コンパイルエラー：b + 5 は int なので byte に戻せない\nb += 5;      // ✅ OK：(byte)(b + 5) が自動で入る\n```\n\n`+=` は「短く書ける」だけでなく「型を自動で戻してくれる」点も違うわけです。\nこの2行は見た目が似ていますが、コンパイル結果が異なるので注意してください。",
       "samples": [
         {
@@ -556,6 +594,11 @@
     {
       "id": "3-6",
       "title": "章末演習：計算と入力",
+      "objectiveIds": [
+        "ch03-o1",
+        "ch03-o2",
+        "ch03-o3"
+      ],
       "explanation": "## この章の知識を、自分の手で組み合わせよう\n\nここでは、**Scanner・四則演算・型変換・複合代入**をまとめて使います。新しい文法は登場しません。分からなくなったら、直前までの解説やサンプルへ戻って確認して大丈夫です。\n\n### 3問の進め方\n\n1. **基本**で、中心となる書き方をもう一度使う\n2. **組み合わせ**で、章内の複数の知識を一緒に使う\n3. **実践**で、少し現実的な入力と条件を整理する\n\nまず入力例と期待される出力を紙に書き、処理を小さな手順へ分けてからコードにすると進めやすくなります。",
       "samples": [
         {
@@ -644,6 +687,9 @@
         },
         {
           "kind": "applied",
+          "objectiveIds": [
+            "ch03-o4"
+          ],
           "task": "【実践】3つの整数を読み、平均を小数第1位まで `average=...` と表示してください。整数同士の割り算にならないよう型変換します。",
           "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int a = sc.nextInt(), b = sc.nextInt(), c = sc.nextInt();\n        /* TODO */\n    }\n}\n",
           "visibleCases": [

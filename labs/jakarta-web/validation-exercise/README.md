@@ -1,7 +1,7 @@
 # Bean Validation lab
 
 実Open Libertyへ配備して、入力の検査と400の返し方を直します。
-第29章の「章末演習：安全なAPI」が採点に使います。
+Web・Jakarta EE編『Validation・テスト・本番運用』の「章末演習：安全なAPI」が採点に使います。
 
 ```
 sh run-runtime-lab.sh

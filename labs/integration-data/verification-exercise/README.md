@@ -1,7 +1,7 @@
 # 本番同等DBで検証する lab
 
 後片付けの方式（ロールバック / truncate）を、テストの内容に合わせて選びます。
-第52章「実DB・スキーマ移行・非同期連携」の `54-1` が採点に使います。
+本番運用・セキュリティ編『実DB・スキーマ移行・非同期連携』の「本番同等DBで検証する」が採点に使います。
 
 ```
 JQ_LAB_PORT=15432 JQ_LAB_RUN_ID=manual JQ_CONTAINER_RUNTIME=podman sh run-runtime-lab.sh

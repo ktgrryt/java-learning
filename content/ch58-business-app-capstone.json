@@ -3,10 +3,35 @@
   "title": "業務アプリ総合演習：既存コードを改修する",
   "subtitle": "注文キャンセル機能を題材に、調査・実装・DB変更・テスト・引き継ぎを一続きで行う",
   "emoji": "🧑‍💻",
+  "objectives": [
+    {
+      "id": "ch58-o1",
+      "text": "既存コードの処理経路と影響範囲を調べてから手を入れられる"
+    },
+    {
+      "id": "ch58-o2",
+      "text": "要件を受け入れ条件へ分け、形式の検証と業務状態の検証を分けて実装できる"
+    },
+    {
+      "id": "ch58-o3",
+      "text": "層をまたぐ変更を小さく分け、結果ごとに正しいステータスを返せる"
+    },
+    {
+      "id": "ch58-o4",
+      "text": "outboxと冪等キーで、DB変更と再送を安全に設計できる"
+    },
+    {
+      "id": "ch58-o5",
+      "text": "テスト・ログ・PRの証拠をそろえて変更を引き継げる"
+    }
+  ],
   "lessons": [
     {
       "id": "58-1",
       "title": "既存コードの処理経路をたどる",
+      "objectiveIds": [
+        "ch58-o1"
+      ],
       "explanation": "## 最初にコードを書かず、変更が通る道を見つける\n\n業務では、何もない場所へ新しくプログラムを書くより、すでに動いているアプリへ小さな変更を加える仕事が多くあります。最初に必要なのは、すべてのコードを読むことではありません。今回の要件が通る経路を入口から順にたどります。\n\n```text\nHTTPリクエスト\n  ↓ Controller: 入力をJavaの値へ変換する\n  ↓ Service: 認可と業務ルールを判断する\n  ↓ Repository: 注文を読み書きする\n  ↓ Database: 状態を保存する\n```\n\n注文キャンセルなら、まずURLを受けるControllerを探し、呼び出しているService、そのServiceが使うRepository、保存先のテーブルへ進みます。クラス名だけで役割を決めつけず、実際の呼び出しとテストも確認します。\n\n### 変更前に記録すること\n\n- 入口はどのメソッドか\n- 正常時にどのクラスを順番に通るか\n- 入力不正、対象なし、権限なしを今はどこで扱うか\n- 状態を書き換える場所とトランザクション境界はどこか\n- 既存テストは何を約束しているか\n\nこのメモを**影響範囲**と呼びます。ファイルをたくさん挙げることが目的ではなく、「なぜそこを変える必要があるか」を説明できることが重要です。検索結果に出た全ファイルを直す必要はありません。\n\n```svg 注文キャンセルの変更経路。入口から保存先までを細い一本の線として追う\n<svg viewBox=\"0 0 720 150\">\n  <rect class=\"fig-box-accent\" x=\"18\" y=\"48\" width=\"120\" height=\"48\" rx=\"6\"/>\n  <text class=\"fig-t fig-small fig-t-accent\" x=\"78\" y=\"72\" text-anchor=\"middle\">Controller</text>\n  <rect class=\"fig-box\" x=\"174\" y=\"48\" width=\"120\" height=\"48\" rx=\"6\"/>\n  <text class=\"fig-t fig-small\" x=\"234\" y=\"72\" text-anchor=\"middle\">Service</text>\n  <rect class=\"fig-box\" x=\"330\" y=\"48\" width=\"120\" height=\"48\" rx=\"6\"/>\n  <text class=\"fig-t fig-small\" x=\"390\" y=\"72\" text-anchor=\"middle\">Repository</text>\n  <rect class=\"fig-box\" x=\"486\" y=\"48\" width=\"100\" height=\"48\" rx=\"6\"/>\n  <text class=\"fig-t fig-small\" x=\"536\" y=\"72\" text-anchor=\"middle\">DB</text>\n  <rect class=\"fig-box-ok\" x=\"620\" y=\"48\" width=\"82\" height=\"48\" rx=\"6\"/>\n  <text class=\"fig-t fig-small fig-t-ok\" x=\"661\" y=\"72\" text-anchor=\"middle\">テスト</text>\n  <line class=\"fig-line\" x1=\"142\" y1=\"72\" x2=\"170\" y2=\"72\" marker-end=\"arrow\"/>\n  <line class=\"fig-line\" x1=\"298\" y1=\"72\" x2=\"326\" y2=\"72\" marker-end=\"arrow\"/>\n  <line class=\"fig-line\" x1=\"454\" y1=\"72\" x2=\"482\" y2=\"72\" marker-end=\"arrow\"/>\n  <line class=\"fig-line\" x1=\"590\" y1=\"72\" x2=\"616\" y2=\"72\" marker-end=\"arrow\"/>\n  <text class=\"fig-t fig-small fig-t-faint\" x=\"18\" y=\"124\">横断検索で候補を見つけ、呼び出しとテストで本当の経路を確かめる</text>\n</svg>\n```\n\nこのレッスンの問題では、すでにあるRepositoryとServiceを読み、キャンセル処理だけを完成させます。新しい構成へ作り直すのではなく、既存の責務分担へ合わせて最小限を変更してください。",
       "samples": [
         {
@@ -17,7 +42,7 @@
       ],
       "kind": "applied",
       "task": "既存の注文キャンセル処理を完成させてください。入力は `exists storedId ownerId status requestedId actorId` です。`exists` は注文が保存されていれば1、無ければ0です。`status` は `NEW` / `PAID` / `CANCELLED` のいずれかです。\n\n`OrderService.cancel`を次の順で実装します。\n\n1. `requestedId`の注文が無ければ`NOT_FOUND`\n2. 注文の`ownerId`と`actorId`が異なれば`FORBIDDEN`\n3. `PAID`なら`CONFLICT:PAID`\n4. すでに`CANCELLED`なら保存せず`NO_CHANGE`\n5. `NEW`なら状態を`CANCELLED`にした注文を保存して`CANCELLED`\n\nMainは結果、保存回数、最後の状態を3行表示します。既存のクラス構成は変えず、ServiceのTODOだけを直してください。",
-      "starterCode": "import java.util.*;\n\nenum OrderStatus { NEW, PAID, CANCELLED }\n\nrecord Order(long id, long ownerId, OrderStatus status) {\n    Order cancelled() {\n        return new Order(id, ownerId, OrderStatus.CANCELLED);\n    }\n}\n\ninterface OrderRepository {\n    Optional<Order> findById(long id);\n    void save(Order order);\n}\n\nclass InMemoryOrderRepository implements OrderRepository {\n    private Order order;\n    private int saveCount;\n\n    InMemoryOrderRepository(Order order) {\n        this.order = order;\n    }\n\n    public Optional<Order> findById(long id) {\n        return order != null && order.id() == id ? Optional.of(order) : Optional.empty();\n    }\n\n    public void save(Order order) {\n        this.order = order;\n        saveCount++;\n    }\n\n    int saveCount() { return saveCount; }\n    Optional<Order> current() { return Optional.ofNullable(order); }\n}\n\nclass OrderService {\n    private final OrderRepository repository;\n\n    OrderService(OrderRepository repository) {\n        this.repository = repository;\n    }\n\n    String cancel(long orderId, long actorId) {\n        // TODO: 既存のRepositoryを使い、仕様の順番で判断する\n        return \"TODO\";\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        boolean exists = s.nextInt() == 1;\n        long storedId = s.nextLong();\n        long ownerId = s.nextLong();\n        OrderStatus status = OrderStatus.valueOf(s.next());\n        long requestedId = s.nextLong();\n        long actorId = s.nextLong();\n        Order initial = exists ? new Order(storedId, ownerId, status) : null;\n        InMemoryOrderRepository repository = new InMemoryOrderRepository(initial);\n        String result = new OrderService(repository).cancel(requestedId, actorId);\n        String current = repository.current().map(o -> o.status().name()).orElse(\"NONE\");\n        System.out.println(\"result=\" + result);\n        System.out.println(\"saved=\" + repository.saveCount());\n        System.out.println(\"status=\" + current);\n    }\n}\n",
+      "starterCode": "import java.util.*;\n\nenum OrderStatus { NEW, PAID, CANCELLED }\n\nrecord Order(long id, long ownerId, OrderStatus status) {\n    Order cancelled() {\n        return new Order(id, ownerId, OrderStatus.CANCELLED);\n    }\n}\n\ninterface OrderRepository {\n    Optional<Order> findById(long id);\n    void save(Order order);\n}\n\nclass InMemoryOrderRepository implements OrderRepository {\n    private Order order;\n    private int saveCount;\n\n    InMemoryOrderRepository(Order order) {\n        this.order = order;\n    }\n\n    public Optional<Order> findById(long id) {\n        return order != null && order.id() == id ? Optional.of(order) : Optional.empty();\n    }\n\n    public void save(Order order) {\n        this.order = order;\n        saveCount++;\n    }\n\n    int saveCount() { return saveCount; }\n    Optional<Order> current() { return Optional.ofNullable(order); }\n}\n\nclass OrderService {\n    private final OrderRepository repository;\n\n    OrderService(OrderRepository repository) {\n        this.repository = repository;\n    }\n\n    String cancel(long orderId, long actorId) {\n        // TODO: 既存のRepositoryを使い、仕様の順番で判断する\n        return \"TODO\";\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        boolean exists = sc.nextInt() == 1;\n        long storedId = sc.nextLong();\n        long ownerId = sc.nextLong();\n        OrderStatus status = OrderStatus.valueOf(sc.next());\n        long requestedId = sc.nextLong();\n        long actorId = sc.nextLong();\n        Order initial = exists ? new Order(storedId, ownerId, status) : null;\n        InMemoryOrderRepository repository = new InMemoryOrderRepository(initial);\n        String result = new OrderService(repository).cancel(requestedId, actorId);\n        String current = repository.current().map(o -> o.status().name()).orElse(\"NONE\");\n        System.out.println(\"result=\" + result);\n        System.out.println(\"saved=\" + repository.saveCount());\n        System.out.println(\"status=\" + current);\n    }\n}\n",
       "visibleCases": [
         {
           "label": "本人が未処理注文をキャンセル",
@@ -57,7 +82,7 @@
         "見つかった注文について、所有者、状態の順に確認します。",
         "保存するのは`NEW`から`CANCELLED`へ変わる場合だけです。"
       ],
-      "solution": "import java.util.*;\n\nenum OrderStatus { NEW, PAID, CANCELLED }\n\nrecord Order(long id, long ownerId, OrderStatus status) {\n    Order cancelled() {\n        return new Order(id, ownerId, OrderStatus.CANCELLED);\n    }\n}\n\ninterface OrderRepository {\n    Optional<Order> findById(long id);\n    void save(Order order);\n}\n\nclass InMemoryOrderRepository implements OrderRepository {\n    private Order order;\n    private int saveCount;\n\n    InMemoryOrderRepository(Order order) {\n        this.order = order;\n    }\n\n    public Optional<Order> findById(long id) {\n        return order != null && order.id() == id ? Optional.of(order) : Optional.empty();\n    }\n\n    public void save(Order order) {\n        this.order = order;\n        saveCount++;\n    }\n\n    int saveCount() { return saveCount; }\n    Optional<Order> current() { return Optional.ofNullable(order); }\n}\n\nclass OrderService {\n    private final OrderRepository repository;\n\n    OrderService(OrderRepository repository) {\n        this.repository = repository;\n    }\n\n    String cancel(long orderId, long actorId) {\n        Optional<Order> found = repository.findById(orderId);\n        if (found.isEmpty()) return \"NOT_FOUND\";\n        Order order = found.get();\n        if (order.ownerId() != actorId) return \"FORBIDDEN\";\n        if (order.status() == OrderStatus.PAID) return \"CONFLICT:PAID\";\n        if (order.status() == OrderStatus.CANCELLED) return \"NO_CHANGE\";\n        repository.save(order.cancelled());\n        return \"CANCELLED\";\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        boolean exists = s.nextInt() == 1;\n        long storedId = s.nextLong();\n        long ownerId = s.nextLong();\n        OrderStatus status = OrderStatus.valueOf(s.next());\n        long requestedId = s.nextLong();\n        long actorId = s.nextLong();\n        Order initial = exists ? new Order(storedId, ownerId, status) : null;\n        InMemoryOrderRepository repository = new InMemoryOrderRepository(initial);\n        String result = new OrderService(repository).cancel(requestedId, actorId);\n        String current = repository.current().map(o -> o.status().name()).orElse(\"NONE\");\n        System.out.println(\"result=\" + result);\n        System.out.println(\"saved=\" + repository.saveCount());\n        System.out.println(\"status=\" + current);\n    }\n}\n",
+      "solution": "import java.util.*;\n\nenum OrderStatus { NEW, PAID, CANCELLED }\n\nrecord Order(long id, long ownerId, OrderStatus status) {\n    Order cancelled() {\n        return new Order(id, ownerId, OrderStatus.CANCELLED);\n    }\n}\n\ninterface OrderRepository {\n    Optional<Order> findById(long id);\n    void save(Order order);\n}\n\nclass InMemoryOrderRepository implements OrderRepository {\n    private Order order;\n    private int saveCount;\n\n    InMemoryOrderRepository(Order order) {\n        this.order = order;\n    }\n\n    public Optional<Order> findById(long id) {\n        return order != null && order.id() == id ? Optional.of(order) : Optional.empty();\n    }\n\n    public void save(Order order) {\n        this.order = order;\n        saveCount++;\n    }\n\n    int saveCount() { return saveCount; }\n    Optional<Order> current() { return Optional.ofNullable(order); }\n}\n\nclass OrderService {\n    private final OrderRepository repository;\n\n    OrderService(OrderRepository repository) {\n        this.repository = repository;\n    }\n\n    String cancel(long orderId, long actorId) {\n        Optional<Order> found = repository.findById(orderId);\n        if (found.isEmpty()) return \"NOT_FOUND\";\n        Order order = found.get();\n        if (order.ownerId() != actorId) return \"FORBIDDEN\";\n        if (order.status() == OrderStatus.PAID) return \"CONFLICT:PAID\";\n        if (order.status() == OrderStatus.CANCELLED) return \"NO_CHANGE\";\n        repository.save(order.cancelled());\n        return \"CANCELLED\";\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        boolean exists = sc.nextInt() == 1;\n        long storedId = sc.nextLong();\n        long ownerId = sc.nextLong();\n        OrderStatus status = OrderStatus.valueOf(sc.next());\n        long requestedId = sc.nextLong();\n        long actorId = sc.nextLong();\n        Order initial = exists ? new Order(storedId, ownerId, status) : null;\n        InMemoryOrderRepository repository = new InMemoryOrderRepository(initial);\n        String result = new OrderService(repository).cancel(requestedId, actorId);\n        String current = repository.current().map(o -> o.status().name()).orElse(\"NONE\");\n        System.out.println(\"result=\" + result);\n        System.out.println(\"saved=\" + repository.saveCount());\n        System.out.println(\"status=\" + current);\n    }\n}\n",
       "sourceChecks": [
         {
           "pattern": "repository\\s*\\.\\s*findById\\s*\\(",
@@ -74,10 +99,10 @@
         {
           "question": "既存アプリへ注文キャンセルを追加するとき、最初に行う調査として適切なのはどれでしょう。",
           "choices": [
-            "全クラスを名前順に最初から最後まで読む",
-            "新しい構成へ全面的に書き直してから既存コードと比較する",
+            "クラスを名前順に並べ、上から順に全部読む",
+            "新しい構成へ書き直してから、既存コードと見比べる",
             "HTTPの入口からService・Repository・DBまで呼び出しをたどる",
-            "テストは実装後まで見ず、コードだけから仕様を推測する"
+            "既存テストは実装後に見て、コードから仕様を推測する"
           ],
           "answer": 2,
           "explanation": "全コードを読む必要はなく、まず変更要求が通る一本の経路を追います。全面的な書き直しは影響を広げます。既存テストは現在の契約を知る重要な手掛かりなので、実装前に確認します。"
@@ -85,10 +110,10 @@
         {
           "question": "影響範囲を調べる目的として最も適切なのはどれでしょう。",
           "choices": [
-            "検索結果に出たファイルをすべて変更するため",
-            "変更理由、確認すべき境界、必要なテストを説明できるようにするため",
-            "できるだけ多くの設計パターンを同時に導入するため",
-            "既存の責務分担を無視して変更を一つのクラスへ集めるため"
+            "検索でヒットしたファイルを、もれなく変更するため",
+            "変更理由、確認する境界、必要なテストを説明できるようにするため",
+            "使える設計パターンを、この機会にまとめて導入するため",
+            "既存の責務分担を見直し、変更を1つのクラスへ集めるため"
           ],
           "answer": 1,
           "explanation": "影響範囲は変更ファイル数を増やす作業ではありません。要件がどこを通り、何を壊す可能性があり、どこを確認するかを説明するためのものです。"
@@ -98,6 +123,9 @@
     {
       "id": "58-2",
       "title": "要件を受け入れ条件へ分ける",
+      "objectiveIds": [
+        "ch58-o2"
+      ],
       "explanation": "## 曖昧な文章を、確認できる例へ変える\n\n「注文をキャンセルできるようにする」だけでは、実装を一つに決められません。誰が、どの状態で、何を入力し、成功と失敗をどう返すかを決める必要があります。実装とテストの両方で確認できる形にしたものが**受け入れ条件**です。\n\n今回の変更では、次のように分けます。\n\n| 条件 | 期待する結果 |\n|---|---|\n| 本人・NEW・理由あり | キャンセル成功 |\n| 注文が無い | 404相当 |\n| 他人の注文 | 403相当 |\n| PAID | 409相当 |\n| 理由が空または100文字超 | 400相当 |\n| 同じ依頼を再送 | 二重更新・二重通知をしない |\n\n### 入力の形と業務ルールを分ける\n\nキャンセル理由が空、長すぎるという判断は、注文を取得しなくてもできます。これは入力の形を確認する**入力検証**です。一方、支払い済みか、操作した人が所有者かという判断には保存済みの注文が必要で、これは**業務ルール・認可**です。\n\nこの二つを混ぜると、入力の誤りなのにDBを読んだり、Controllerごとに業務判断が重複したりします。\n\n```text\nController: JSONの欠落、文字数、形式を検査\nService:    所有者、注文状態、重複依頼を判断\nDatabase:   制約と同時更新で最後に整合性を守る\n```\n\n検査の順序も契約の一部です。たとえば理由が空で注文も存在しないとき、400と404のどちらを返すかを決めておかないと、実装者や環境によって結果が変わります。この章では、外部入力を先に検査してから注文を取得します。\n\n問題では、理由を`strip()`してから空と長さを調べます。空白だけの文字列も未入力です。元の入力をそのまま保存せず、検査に使った正規化後の値を保存することで、判定と保存結果の食い違いを防ぎます。",
       "samples": [
         {
@@ -165,10 +193,10 @@
         {
           "question": "キャンセル理由が空かどうかの確認と、注文が支払い済みかの確認を分ける理由は？",
           "choices": [
-            "入力の形は境界で、保存済み状態に依存する判断はServiceで扱うため",
-            "入力検証は必ずDatabaseだけで行う必要があるため",
-            "ControllerからServiceを呼べなくするため",
-            "業務ルールをブラウザだけへ置くため"
+            "入力の形は境界で、保存済み状態の判断はServiceで扱うため",
+            "入力の形の検証は、DBの制約だけに任せるため",
+            "ControllerからServiceを直接呼べないようにするため",
+            "業務ルールをブラウザ側へ移し、通信を減らすため"
           ],
           "answer": 0,
           "explanation": "理由の文字数はDBを読まずに確認できますが、支払い状態や所有者は保存済み注文が必要です。ブラウザの検証は利用者を助けますが、回避できるためサーバー側の検証を置き換えません。DB制約も最後の防波堤として別に必要です。"
@@ -176,10 +204,10 @@
         {
           "question": "受け入れ条件を書く主な目的はどれでしょう。",
           "choices": [
-            "実装クラスの名前を先に固定すること",
-            "すべての失敗を同じエラーへまとめること",
+            "実装するクラスとメソッドの名前を、先に決めておくこと",
+            "失敗の種類をまとめ、返すエラーを1つに統一すること",
             "実装とテストで成功・失敗を確認できる具体例へ要件を分けること",
-            "仕様の判断を実装者ごとに変えられるようにすること"
+            "仕様の細部を実装者の判断に委ね、後から調整できるようにすること"
           ],
           "answer": 2,
           "explanation": "受け入れ条件は内部クラス名を決めるものではなく、外から確認できる振る舞いを具体化します。成功だけでなく、対象なし・権限なし・状態不正・入力不正も決めます。"
@@ -189,6 +217,9 @@
     {
       "id": "58-3",
       "title": "層をまたぐ変更を小さく実装する",
+      "objectiveIds": [
+        "ch58-o3"
+      ],
       "explanation": "## 同じ失敗でも、層ごとに表し方が違う\n\nServiceはHTTPを知らなくても使えるように、業務上の結果を戻り値や例外で表します。ControllerはそれをAPI契約のステータスとエラーコードへ変換します。\n\n| Serviceで起きたこと | HTTPの例 | 利用者へ返すコード |\n|---|---:|---|\n| 入力不正 | 400 | `invalid_reason` |\n| 注文なし | 404 | `order_not_found` |\n| 所有者ではない | 403 | `forbidden` |\n| 状態が許可しない | 409 | `order_not_cancellable` |\n| 成功 | 204 | 本文なし |\n\n**404**は対象が見つからない、**403**は身元が分かった上で操作を許可しない、**409**は現在の注文状態と要求が衝突していることを表します。組織のAPI規約があればそれに合わせます。\n\n### 予期しない失敗を利用者へ漏らさない\n\nDB障害や実装ミスを`500`として返すとき、例外メッセージやスタックトレースを本文へ入れてはいけません。SQL、接続先、秘密値など内部情報が含まれる可能性があります。利用者へは安定した`internal_error`のようなコードだけを返し、詳細はアクセス制御されたログへ、リクエストIDとともに記録します。\n\n### 小さい変更に保つ\n\nこの機能のために全Controllerの例外処理を書き換える必要があるなら、共通の例外マッパーを追加する別変更へ分けられないか考えます。一つのPRでは、変更理由を一つの説明で追える範囲に保ちます。ただし、API、Service、テストのように同じ振る舞いを完成させるため不可分な変更は一緒にします。\n\n問題では、既存UseCaseが投げる例外をControllerでHTTP相当の応答へ変換します。例外の文字列をそのまま本文へ返さない点も確認します。",
       "samples": [
         {
@@ -257,9 +288,9 @@
           "question": "支払い済み注文をキャンセルできない場合に409を使う理由として最も近いものは？",
           "choices": [
             "現在の注文状態と要求が衝突しているため",
-            "利用者のログイン情報が常に無効だから",
-            "注文IDの形式が必ず間違っているため",
-            "サーバー内部の例外をすべて409にするため"
+            "利用者のログイン情報が期限切れになっているため",
+            "注文IDの形式が要求どおりでないため",
+            "サーバー内部で予期しない例外が起きたため"
           ],
           "answer": 0,
           "explanation": "注文は存在し、入力形式も正しくても、現在のPAIDという状態では操作できません。404は対象なし、403は認可拒否、400は入力不正です。予期しない内部障害を409へまとめるものでもありません。"
@@ -267,9 +298,9 @@
         {
           "question": "予期しない例外を500へ変換するとき、利用者へ返す本文として適切なのはどれでしょう。",
           "choices": [
-            "例外のスタックトレース全体",
-            "DB接続先を含む例外メッセージ",
-            "SQLとパラメーターの完全な内容",
+            "例外のクラス名と発生行を含めたメッセージ",
+            "DBの接続先を含む、例外のメッセージ全文",
+            "実行したSQLと、渡したパラメーターの内容",
             "固定した`internal_error`と追跡用の安全なID"
           ],
           "answer": 3,
@@ -280,6 +311,9 @@
     {
       "id": "58-4",
       "title": "DB変更・トランザクション・再送を設計する",
+      "objectiveIds": [
+        "ch58-o4"
+      ],
       "explanation": "## Javaコードだけ直しても、業務データは完成しない\n\nキャンセル理由と日時を保存するなら、JavaのフィールドだけでなくDB列も必要です。本番のテーブルを直接手作業で変えず、変更を番号付きSQLとして保存する**スキーママイグレーション**を使います。\n\n稼働中のアプリを止めずに変更する場合、最初は既存コードでも扱える変更にします。\n\n1. **expand** — `cancel_reason`と`cancelled_at`をNULL許可で追加する\n2. **migrate** — 新コードを配備し、必要なら既存データを移す\n3. **contract** — 全インスタンス移行後に古い列や一時的な互換処理を削除する\n\n最初からNOT NULL列を既定値なしで追加すると、既存行や旧版アプリが書けなくなる可能性があります。制約を強めるのは、値がそろったことを確認してからです。\n\n### 注文更新とイベント保存を一緒に成功させる\n\n注文をCANCELLEDへ更新した後、別のメッセージブローカーへ直接通知し、通知だけ失敗すると状態が食い違います。そこで、注文更新と同じDBトランザクションで**outbox**テーブルへイベントを書き、コミット後に別処理が送信します。\n\n```text\n同じDBトランザクション\n  ├─ ordersをCANCELLEDへ更新\n  └─ outboxへOrderCancelledを追加\n       ↓ commit後\n     送信処理が再試行する\n```\n\n### 再送を通常ケースとして扱う\n\nHTTPの応答が利用者へ届かなければ、成功していても同じ要求が再送されます。**冪等キー**は、同じ操作を識別するIDです。処理済みキーと結果を保存し、同じキーなら更新やイベント追加を繰り返さず、前回の結果を返します。キーをメモリだけに置くと再起動や複数インスタンスで失われるため、本番ではDBの一意制約などで守ります。\n\n本番では、キーを利用者・APIなど適切な範囲に区切り、最初の要求内容の要約も保存します。同じキーで別の注文や別の理由が届いた場合は、前回結果を誤って返さず競合として拒否します。この章の問題とラボは、同じキーなら同一内容の再送という前提へ簡略化しています。\n\nこの画面の問題は、更新を確定する直前まで元の状態へ触れない簡略モデルです。本物のDBトランザクション、行ロック、一意制約を再現しているわけではありません。対応する実コードの判断は`labs/business-app-capstone`で確認します。",
       "samples": [
         {
@@ -290,7 +324,7 @@
       ],
       "kind": "applied",
       "task": "注文状態、outbox、処理済み冪等キーを持つ簡略モデルを完成させてください。入力は`initialStatus eventWriteFails n key...`です。`eventWriteFails`は0なら正常、1ならoutbox書き込み失敗を表します。各キーを順に`cancel`へ渡し、結果をカンマ区切りで表示します。\n\n`cancel`は次の順で判断します。\n\n1. キーが処理済みなら`DUPLICATE`で、何も変更しない\n2. 状態が`CANCELLED`なら`ALREADY_CANCELLED`、`PAID`なら`CONFLICT`\n3. outbox書き込みが失敗する設定なら`ROLLBACK`とし、状態も処理済みキーも変更しない\n4. 正常なら状態を`CANCELLED`へ変え、outboxへ1件、処理済みキーへ結果を追加して`CANCELLED`\n\n最後に状態、イベント数、処理済みキー数を表示します。",
-      "starterCode": "import java.util.*;\n\nenum OrderStatus { NEW, PAID, CANCELLED }\n\nclass State {\n    OrderStatus status;\n    final List<String> outbox = new ArrayList<>();\n    final Map<String, String> processed = new HashMap<>();\n\n    State(OrderStatus status) {\n        this.status = status;\n    }\n}\n\nclass CancelApplication {\n    String cancel(State state, String key, boolean eventWriteFails) {\n        // TODO: 確定前に失敗条件を調べ、成功時だけ3つの状態を変える\n        return \"TODO\";\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        State state = new State(OrderStatus.valueOf(s.next()));\n        boolean eventWriteFails = s.nextInt() == 1;\n        int n = s.nextInt();\n        CancelApplication app = new CancelApplication();\n        List<String> results = new ArrayList<>();\n        for (int i = 0; i < n; i++) {\n            results.add(app.cancel(state, s.next(), eventWriteFails));\n        }\n        System.out.println(\"results=\" + String.join(\",\", results));\n        System.out.println(\"status=\" + state.status);\n        System.out.println(\"events=\" + state.outbox.size());\n        System.out.println(\"processed=\" + state.processed.size());\n    }\n}\n",
+      "starterCode": "import java.util.*;\n\nenum OrderStatus { NEW, PAID, CANCELLED }\n\nclass State {\n    OrderStatus status;\n    final List<String> outbox = new ArrayList<>();\n    final Map<String, String> processed = new HashMap<>();\n\n    State(OrderStatus status) {\n        this.status = status;\n    }\n}\n\nclass CancelApplication {\n    String cancel(State state, String key, boolean eventWriteFails) {\n        // TODO: 確定前に失敗条件を調べ、成功時だけ3つの状態を変える\n        return \"TODO\";\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        State state = new State(OrderStatus.valueOf(sc.next()));\n        boolean eventWriteFails = sc.nextInt() == 1;\n        int n = sc.nextInt();\n        CancelApplication app = new CancelApplication();\n        List<String> results = new ArrayList<>();\n        for (int i = 0; i < n; i++) {\n            results.add(app.cancel(state, sc.next(), eventWriteFails));\n        }\n        System.out.println(\"results=\" + String.join(\",\", results));\n        System.out.println(\"status=\" + state.status);\n        System.out.println(\"events=\" + state.outbox.size());\n        System.out.println(\"processed=\" + state.processed.size());\n    }\n}\n",
       "visibleCases": [
         {
           "label": "同じキーを再送",
@@ -325,7 +359,7 @@
         "状態不正と`eventWriteFails`を確認し終わるまで、stateを変更しません。",
         "成功時だけstatus、outbox、processedの3つを続けて更新します。"
       ],
-      "solution": "import java.util.*;\n\nenum OrderStatus { NEW, PAID, CANCELLED }\n\nclass State {\n    OrderStatus status;\n    final List<String> outbox = new ArrayList<>();\n    final Map<String, String> processed = new HashMap<>();\n\n    State(OrderStatus status) {\n        this.status = status;\n    }\n}\n\nclass CancelApplication {\n    String cancel(State state, String key, boolean eventWriteFails) {\n        if (state.processed.containsKey(key)) return \"DUPLICATE\";\n        if (state.status == OrderStatus.CANCELLED) return \"ALREADY_CANCELLED\";\n        if (state.status == OrderStatus.PAID) return \"CONFLICT\";\n        if (eventWriteFails) return \"ROLLBACK\";\n        state.status = OrderStatus.CANCELLED;\n        state.outbox.add(\"OrderCancelled:\" + key);\n        state.processed.put(key, \"CANCELLED\");\n        return \"CANCELLED\";\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        State state = new State(OrderStatus.valueOf(s.next()));\n        boolean eventWriteFails = s.nextInt() == 1;\n        int n = s.nextInt();\n        CancelApplication app = new CancelApplication();\n        List<String> results = new ArrayList<>();\n        for (int i = 0; i < n; i++) {\n            results.add(app.cancel(state, s.next(), eventWriteFails));\n        }\n        System.out.println(\"results=\" + String.join(\",\", results));\n        System.out.println(\"status=\" + state.status);\n        System.out.println(\"events=\" + state.outbox.size());\n        System.out.println(\"processed=\" + state.processed.size());\n    }\n}\n",
+      "solution": "import java.util.*;\n\nenum OrderStatus { NEW, PAID, CANCELLED }\n\nclass State {\n    OrderStatus status;\n    final List<String> outbox = new ArrayList<>();\n    final Map<String, String> processed = new HashMap<>();\n\n    State(OrderStatus status) {\n        this.status = status;\n    }\n}\n\nclass CancelApplication {\n    String cancel(State state, String key, boolean eventWriteFails) {\n        if (state.processed.containsKey(key)) return \"DUPLICATE\";\n        if (state.status == OrderStatus.CANCELLED) return \"ALREADY_CANCELLED\";\n        if (state.status == OrderStatus.PAID) return \"CONFLICT\";\n        if (eventWriteFails) return \"ROLLBACK\";\n        state.status = OrderStatus.CANCELLED;\n        state.outbox.add(\"OrderCancelled:\" + key);\n        state.processed.put(key, \"CANCELLED\");\n        return \"CANCELLED\";\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        State state = new State(OrderStatus.valueOf(sc.next()));\n        boolean eventWriteFails = sc.nextInt() == 1;\n        int n = sc.nextInt();\n        CancelApplication app = new CancelApplication();\n        List<String> results = new ArrayList<>();\n        for (int i = 0; i < n; i++) {\n            results.add(app.cancel(state, sc.next(), eventWriteFails));\n        }\n        System.out.println(\"results=\" + String.join(\",\", results));\n        System.out.println(\"status=\" + state.status);\n        System.out.println(\"events=\" + state.outbox.size());\n        System.out.println(\"processed=\" + state.processed.size());\n    }\n}\n",
       "sourceChecks": [
         {
           "pattern": "processed\\s*\\.\\s*containsKey\\s*\\(",
@@ -347,10 +381,10 @@
         {
           "question": "outboxパターンで、注文更新とイベントを同じDBトランザクションへ入れる目的は？",
           "choices": [
-            "イベント本文をHTTP応答へ必ず含めるため",
-            "注文だけ更新、またはイベントだけ保存される食い違いを防ぐため",
-            "メッセージ送信が一度も失敗しないよう保証するため",
-            "すべてのテーブルを一つへ統合するため"
+            "保存したイベント本文を、HTTP応答へそのまま返すため",
+            "注文だけ更新、またはイベントだけ保存される食い違いを防ぐ",
+            "ブローカーへの送信が一度も失敗しないようにするため",
+            "注文とイベントを1つのテーブルへまとめるため"
           ],
           "answer": 1,
           "explanation": "outboxはDB内の注文更新とイベント保存を原子的にします。コミット後のブローカー送信は失敗し得るので再試行します。そのため重複配送を考慮した消費側の設計も必要です。"
@@ -371,6 +405,9 @@
     {
       "id": "58-5",
       "title": "テスト・ログ・PRで変更を引き継ぐ",
+      "objectiveIds": [
+        "ch58-o5"
+      ],
       "explanation": "## 実装完了は「自分の環境で一度動いた」ではない\n\n業務の変更は、別の人が内容と安全性を確認し、本番で問題が起きたときに追跡できて初めて引き継げます。そのため、コードと一緒に検証結果と運用情報を残します。\n\n### テストを失敗の種類から選ぶ\n\n- **単体テスト** — 理由の境界値、状態遷移、所有者判定を速く確認する\n- **DB結合テスト** — マッピング、制約、マイグレーション、トランザクションを実DBで確認する\n- **HTTPテスト** — status、body、認証情報から取得した利用者との認可を確認する\n- **回帰テスト** — 既存の注文参照や支払いが壊れていないことを確認する\n\n成功ケースだけでは不十分です。空理由、100文字と101文字、注文なし、他人、PAID、再送、イベント保存失敗を受け入れ条件から選びます。\n\n### ログは調査のための事実を残す\n\nキャンセル成功時には、時刻、`requestId`、`orderId`、`actorId`、結果を構造化して残します。理由の全文、Cookie、トークン、個人情報は必要性を検討し、既定では記録しません。例外はスタックトレースを残しますが、利用者向け応答には出しません。\n\n### PRは変更の取扱説明書\n\nPRには次を短く書きます。\n\n1. 何を、なぜ変更したか\n2. API、DB、設定への影響\n3. 実行したテストと結果\n4. 配備順序とマイグレーション手順\n5. 監視するログ・メトリクス\n6. 問題時の切り戻し方法\n\n「テスト済み」だけでは、何をどの環境で確認したか分かりません。コマンド、対象、結果を記録します。自動テストがすべて通っても、マイグレーションや切り戻しが未準備なら、本番へ安全に届ける準備は完了していません。\n\n問題では、変更を引き継ぐために必要な証拠がそろっているかを判定します。これは実際の承認手続きの代わりではなく、見落としを防ぐ小さなチェックリストです。",
       "samples": [
         {
@@ -381,7 +418,7 @@
       ],
       "kind": "applied",
       "task": "変更を引き継ぐための証拠がそろっているか判定してください。入力は`unit integration migration logSafe rollback`の5個で、1は確認済み、0は未確認です。未確認項目を次の固定順でカンマ区切り表示します。\n\n`unit,integration,migration,log-safety,rollback`\n\nすべて確認済みなら`missing=NONE`と`decision=READY`、一つでも未確認なら`missing=...`と`decision=BLOCKED`を表示してください。",
-      "starterCode": "import java.util.*;\n\nrecord ReleaseEvidence(boolean unit, boolean integration, boolean migration,\n                       boolean logSafe, boolean rollback) {\n    List<String> missing() {\n        // TODO: 固定順で未確認項目を集める\n        return List.of(\"TODO\");\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        ReleaseEvidence evidence = new ReleaseEvidence(\n                s.nextInt() == 1, s.nextInt() == 1, s.nextInt() == 1,\n                s.nextInt() == 1, s.nextInt() == 1);\n        List<String> missing = evidence.missing();\n        System.out.println(\"missing=\" + (missing.isEmpty() ? \"NONE\" : String.join(\",\", missing)));\n        System.out.println(\"decision=\" + (missing.isEmpty() ? \"READY\" : \"BLOCKED\"));\n    }\n}\n",
+      "starterCode": "import java.util.*;\n\nrecord ReleaseEvidence(boolean unit, boolean integration, boolean migration,\n                       boolean logSafe, boolean rollback) {\n    List<String> missing() {\n        // TODO: 固定順で未確認項目を集める\n        return List.of(\"TODO\");\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        ReleaseEvidence evidence = new ReleaseEvidence(\n                sc.nextInt() == 1, sc.nextInt() == 1, sc.nextInt() == 1,\n                sc.nextInt() == 1, sc.nextInt() == 1);\n        List<String> missing = evidence.missing();\n        System.out.println(\"missing=\" + (missing.isEmpty() ? \"NONE\" : String.join(\",\", missing)));\n        System.out.println(\"decision=\" + (missing.isEmpty() ? \"READY\" : \"BLOCKED\"));\n    }\n}\n",
       "visibleCases": [
         {
           "label": "すべて確認済み",
@@ -416,14 +453,14 @@
         "項目を仕様に書かれた順番でif判定すれば、表示順も固定できます。",
         "空ならREADY、一つでも入っていればBLOCKEDです。"
       ],
-      "solution": "import java.util.*;\n\nrecord ReleaseEvidence(boolean unit, boolean integration, boolean migration,\n                       boolean logSafe, boolean rollback) {\n    List<String> missing() {\n        List<String> missing = new ArrayList<>();\n        if (!unit) missing.add(\"unit\");\n        if (!integration) missing.add(\"integration\");\n        if (!migration) missing.add(\"migration\");\n        if (!logSafe) missing.add(\"log-safety\");\n        if (!rollback) missing.add(\"rollback\");\n        return missing;\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        ReleaseEvidence evidence = new ReleaseEvidence(\n                s.nextInt() == 1, s.nextInt() == 1, s.nextInt() == 1,\n                s.nextInt() == 1, s.nextInt() == 1);\n        List<String> missing = evidence.missing();\n        System.out.println(\"missing=\" + (missing.isEmpty() ? \"NONE\" : String.join(\",\", missing)));\n        System.out.println(\"decision=\" + (missing.isEmpty() ? \"READY\" : \"BLOCKED\"));\n    }\n}\n",
+      "solution": "import java.util.*;\n\nrecord ReleaseEvidence(boolean unit, boolean integration, boolean migration,\n                       boolean logSafe, boolean rollback) {\n    List<String> missing() {\n        List<String> missing = new ArrayList<>();\n        if (!unit) missing.add(\"unit\");\n        if (!integration) missing.add(\"integration\");\n        if (!migration) missing.add(\"migration\");\n        if (!logSafe) missing.add(\"log-safety\");\n        if (!rollback) missing.add(\"rollback\");\n        return missing;\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        ReleaseEvidence evidence = new ReleaseEvidence(\n                sc.nextInt() == 1, sc.nextInt() == 1, sc.nextInt() == 1,\n                sc.nextInt() == 1, sc.nextInt() == 1);\n        List<String> missing = evidence.missing();\n        System.out.println(\"missing=\" + (missing.isEmpty() ? \"NONE\" : String.join(\",\", missing)));\n        System.out.println(\"decision=\" + (missing.isEmpty() ? \"READY\" : \"BLOCKED\"));\n    }\n}\n",
       "quiz": [
         {
           "question": "変更PRの検証欄として、最も再確認しやすい記述はどれでしょう。",
           "choices": [
-            "一通り確認しました",
-            "たぶん既存機能にも影響しません",
-            "テスト済みです",
+            "手元の環境で一通り動かし、気になる点はありませんでした",
+            "既存の機能への影響は無いと考えています。確認済みです",
+            "追加したテストは通っています。既存のテストもひととおり動かしました",
             "`./run-tests.sh`をJDK 21で実行し、8件すべて成功。PAID・他人・再送を含む"
           ],
           "answer": 3,
@@ -432,13 +469,13 @@
         {
           "question": "注文キャンセルの監査ログへ既定で残す項目として適切なのはどれでしょう。",
           "choices": [
-            "Authorizationヘッダー全体",
-            "CookieとセッションID",
+            "Authorizationヘッダーの値と、復号した中身",
+            "Cookieの全項目と、発行したセッションID",
             "requestId・orderId・actorId・結果",
-            "利用者が入力した理由全文とパスワード"
+            "利用者が入力した理由の全文と、本人確認に使った値"
           ],
           "answer": 2,
-          "explanation": "調査に必要な識別子と結果を構造化して残します。トークン、Cookie、パスワードは記録しません。理由には個人情報が入り得るため、必要性と保持方針を決めずに全文を出しません。"
+          "explanation": "調査に必要な識別子と結果を構造化して残します。Authorizationヘッダーやその中身、Cookieやセッションは、盗まれればなりすませる値なので記録しません。理由や本人確認に使った値には個人情報が入り得るため、必要性と保持方針を決めずに残しません。"
         }
       ],
       "rubric": [
@@ -448,6 +485,11 @@
     {
       "id": "58-6",
       "title": "章末演習：注文キャンセル機能を完成させる",
+      "objectiveIds": [
+        "ch58-o3",
+        "ch58-o4",
+        "ch58-o5"
+      ],
       "explanation": "## 調査から引き継ぎまでを一本につなぐ\n\nここまで、既存の注文アプリへキャンセル機能を追加する流れを分けて確認しました。\n\n```text\n要件を受け入れ条件へ分ける\n  ↓\nController → Service → Repository → DBをたどる\n  ↓\n入力検証・認可・状態遷移を責務ごとに実装する\n  ↓\n注文更新・outbox・冪等性を整合させる\n  ↓\n単体・結合・HTTP・回帰テストで確認する\n  ↓\nログ・移行・切り戻しと一緒にPRで引き継ぐ\n```\n\n章末の3問は、この流れを三つの断面から確認します。\n\n1. **基本** — 入力、存在、認可、状態を決めた順で判定する\n2. **組み合わせ** — 再送、同時更新、イベント失敗でも状態を壊さない\n3. **実践** — テストと運用情報を、レビュー可能な完了報告へまとめる\n\n画面内の問題は、一つのJavaファイルと標準入力で動くように簡略化されています。本物の改修では複数ファイル、DBマイグレーション、テスト、PR文面を実際に変更する必要があります。`labs/business-app-capstone`には、最初は一部テストが失敗する既存アプリを用意しています。まず`requirements.md`とテストを読み、TODOを直し、全テストを通してください。",
       "samples": [
         {
@@ -500,9 +542,12 @@
       ],
       "extraTasks": [
         {
+          "objectiveIds": [
+            "ch58-o4"
+          ],
           "kind": "applied",
           "task": "【組み合わせ】注文の更新競合と再送を判定します。入力は`knownKey version expectedVersion status eventWriteFails`です。`knownKey`と`eventWriteFails`は0/1です。次の順で結果を決めます。\n\n1. 同じ冪等キーが処理済み → `200 duplicate`\n2. 現在versionとexpectedVersionが異なる → `409 version_conflict`\n3. statusがNEW以外 → `409 order_not_cancellable`\n4. イベント保存失敗 → `500 rollback`\n5. 成功 → `204 cancelled`、versionを1増やし、outboxを1件にする\n\n1行目に結果、2行目に`version=...`、3行目に`outbox=...`を表示します。失敗と重複ではversionとoutboxを変更しません。",
-          "starterCode": "import java.util.*;\n\nrecord ChangeResult(int status, String code, int version, int outbox) { }\n\npublic class Main {\n    static ChangeResult change(boolean knownKey, int version, int expectedVersion,\n                               String status, boolean eventWriteFails) {\n        // TODO: 確定前にすべての失敗条件を判定する\n        return new ChangeResult(500, \"TODO\", version, 0);\n    }\n\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        ChangeResult result = change(s.nextInt() == 1, s.nextInt(), s.nextInt(),\n                s.next(), s.nextInt() == 1);\n        System.out.println(result.status() + \" \" + result.code());\n        System.out.println(\"version=\" + result.version());\n        System.out.println(\"outbox=\" + result.outbox());\n    }\n}\n",
+          "starterCode": "import java.util.*;\n\nrecord ChangeResult(int status, String code, int version, int outbox) { }\n\npublic class Main {\n    static ChangeResult change(boolean knownKey, int version, int expectedVersion,\n                               String status, boolean eventWriteFails) {\n        // TODO: 確定前にすべての失敗条件を判定する\n        return new ChangeResult(500, \"TODO\", version, 0);\n    }\n\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        ChangeResult result = change(sc.nextInt() == 1, sc.nextInt(), sc.nextInt(),\n                sc.next(), sc.nextInt() == 1);\n        System.out.println(result.status() + \" \" + result.code());\n        System.out.println(\"version=\" + result.version());\n        System.out.println(\"outbox=\" + result.outbox());\n    }\n}\n",
           "visibleCases": [
             {
               "label": "正常更新",
@@ -542,7 +587,7 @@
             "失敗時は入力されたversionをそのまま返し、outboxは0です。",
             "成功する最後のreturnだけが`version + 1`とoutbox 1を返します。"
           ],
-          "solution": "import java.util.*;\n\nrecord ChangeResult(int status, String code, int version, int outbox) { }\n\npublic class Main {\n    static ChangeResult change(boolean knownKey, int version, int expectedVersion,\n                               String status, boolean eventWriteFails) {\n        if (knownKey) return new ChangeResult(200, \"duplicate\", version, 0);\n        if (version != expectedVersion) return new ChangeResult(409, \"version_conflict\", version, 0);\n        if (!status.equals(\"NEW\")) return new ChangeResult(409, \"order_not_cancellable\", version, 0);\n        if (eventWriteFails) return new ChangeResult(500, \"rollback\", version, 0);\n        return new ChangeResult(204, \"cancelled\", version + 1, 1);\n    }\n\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        ChangeResult result = change(s.nextInt() == 1, s.nextInt(), s.nextInt(),\n                s.next(), s.nextInt() == 1);\n        System.out.println(result.status() + \" \" + result.code());\n        System.out.println(\"version=\" + result.version());\n        System.out.println(\"outbox=\" + result.outbox());\n    }\n}\n",
+          "solution": "import java.util.*;\n\nrecord ChangeResult(int status, String code, int version, int outbox) { }\n\npublic class Main {\n    static ChangeResult change(boolean knownKey, int version, int expectedVersion,\n                               String status, boolean eventWriteFails) {\n        if (knownKey) return new ChangeResult(200, \"duplicate\", version, 0);\n        if (version != expectedVersion) return new ChangeResult(409, \"version_conflict\", version, 0);\n        if (!status.equals(\"NEW\")) return new ChangeResult(409, \"order_not_cancellable\", version, 0);\n        if (eventWriteFails) return new ChangeResult(500, \"rollback\", version, 0);\n        return new ChangeResult(204, \"cancelled\", version + 1, 1);\n    }\n\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        ChangeResult result = change(sc.nextInt() == 1, sc.nextInt(), sc.nextInt(),\n                sc.next(), sc.nextInt() == 1);\n        System.out.println(result.status() + \" \" + result.code());\n        System.out.println(\"version=\" + result.version());\n        System.out.println(\"outbox=\" + result.outbox());\n    }\n}\n",
           "sourceChecks": [
             {
               "pattern": "version\\s*!=\\s*expectedVersion",
@@ -557,9 +602,12 @@
           ]
         },
         {
+          "objectiveIds": [
+            "ch58-o5"
+          ],
           "kind": "applied",
           "task": "【実践】PRへ残す検証結果を組み立てます。入力は`unitPassed unitTotal integrationPassed integrationTotal migration logSafe rollback`です。最後の3項目は0/1です。次の5行を表示してください。\n\n- `tests=unit 合格/総数 integration 合格/総数`\n- `migration=OK`または`NG`\n- `log-safety=OK`または`NG`\n- `rollback=OK`または`NG`\n- `decision=READY`または`BLOCKED`\n\nREADYになるのは、単体・結合テストの総数がどちらも1以上ですべて合格し、残り3項目もすべて1の場合だけです。",
-          "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        int unitPassed = s.nextInt(), unitTotal = s.nextInt();\n        int integrationPassed = s.nextInt(), integrationTotal = s.nextInt();\n        boolean migration = s.nextInt() == 1;\n        boolean logSafe = s.nextInt() == 1;\n        boolean rollback = s.nextInt() == 1;\n        // TODO: 証拠と判定を5行で表示する\n    }\n}\n",
+          "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int unitPassed = sc.nextInt(), unitTotal = sc.nextInt();\n        int integrationPassed = sc.nextInt(), integrationTotal = sc.nextInt();\n        boolean migration = sc.nextInt() == 1;\n        boolean logSafe = sc.nextInt() == 1;\n        boolean rollback = sc.nextInt() == 1;\n        // TODO: 証拠と判定を5行で表示する\n    }\n}\n",
           "visibleCases": [
             {
               "label": "すべて完了",
@@ -594,7 +642,7 @@
             "各booleanの表示は、三項演算子でOK/NGを選べます。",
             "READYは5つの条件を`&&`でつなぎます。"
           ],
-          "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner s = new Scanner(System.in);\n        int unitPassed = s.nextInt(), unitTotal = s.nextInt();\n        int integrationPassed = s.nextInt(), integrationTotal = s.nextInt();\n        boolean migration = s.nextInt() == 1;\n        boolean logSafe = s.nextInt() == 1;\n        boolean rollback = s.nextInt() == 1;\n        boolean unitOk = unitTotal > 0 && unitPassed == unitTotal;\n        boolean integrationOk = integrationTotal > 0 && integrationPassed == integrationTotal;\n        boolean ready = unitOk && integrationOk && migration && logSafe && rollback;\n        System.out.println(\"tests=unit \" + unitPassed + \"/\" + unitTotal\n                + \" integration \" + integrationPassed + \"/\" + integrationTotal);\n        System.out.println(\"migration=\" + (migration ? \"OK\" : \"NG\"));\n        System.out.println(\"log-safety=\" + (logSafe ? \"OK\" : \"NG\"));\n        System.out.println(\"rollback=\" + (rollback ? \"OK\" : \"NG\"));\n        System.out.println(\"decision=\" + (ready ? \"READY\" : \"BLOCKED\"));\n    }\n}\n",
+          "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int unitPassed = sc.nextInt(), unitTotal = sc.nextInt();\n        int integrationPassed = sc.nextInt(), integrationTotal = sc.nextInt();\n        boolean migration = sc.nextInt() == 1;\n        boolean logSafe = sc.nextInt() == 1;\n        boolean rollback = sc.nextInt() == 1;\n        boolean unitOk = unitTotal > 0 && unitPassed == unitTotal;\n        boolean integrationOk = integrationTotal > 0 && integrationPassed == integrationTotal;\n        boolean ready = unitOk && integrationOk && migration && logSafe && rollback;\n        System.out.println(\"tests=unit \" + unitPassed + \"/\" + unitTotal\n                + \" integration \" + integrationPassed + \"/\" + integrationTotal);\n        System.out.println(\"migration=\" + (migration ? \"OK\" : \"NG\"));\n        System.out.println(\"log-safety=\" + (logSafe ? \"OK\" : \"NG\"));\n        System.out.println(\"rollback=\" + (rollback ? \"OK\" : \"NG\"));\n        System.out.println(\"decision=\" + (ready ? \"READY\" : \"BLOCKED\"));\n    }\n}\n",
           "rubric": [
             "decide",
             "test"
