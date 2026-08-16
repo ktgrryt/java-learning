@@ -1,7 +1,7 @@
 {
   "id": "ch42",
-  "title": "正確な数値とテキスト処理",
-  "subtitle": "金額・巨大整数・正規表現・国際化を安全に扱う",
+  "title": "正確な数値の計算",
+  "subtitle": "金額を1円もずらさず、桁あふれに気づく",
   "emoji": "🧮",
   "objectives": [
     {
@@ -11,14 +11,6 @@
     {
       "id": "ch42-o2",
       "text": "オーバーフローを `Math.addExact` で検出し、`BigInteger` で桁の制限を外せる"
-    },
-    {
-      "id": "ch42-o3",
-      "text": "`Pattern` と `Matcher` で全体一致と部分抽出を書き分けられる"
-    },
-    {
-      "id": "ch42-o4",
-      "text": "`Locale` `NumberFormat` `ResourceBundle` で表示を地域ごとに切り替えられる"
     }
   ],
   "lessons": [
@@ -269,465 +261,192 @@
       ]
     },
     {
-      "id": "42-3",
-      "title": "正規表現 Pattern と Matcher",
-      "objectiveIds": [
-        "ch42-o3"
-      ],
-      "explanation": "## 文字列の形を宣言する\n\n正規表現は文字列の検索・検証・抽出を表す小さな言語です。Java文字列と正規表現の両方でバックスラッシュを使うため、数字を表す `\\d` はJavaコードで `\"\\\\d\"` と書きます。\n\n`matches()` は文字列全体、`find()` は部分一致を探します。繰り返し使う式は `Pattern.compile` し、入力ごとに `Matcher` を作ります。値の意味や業務ルールまで巨大な正規表現へ詰め込まず、形を確認した後は通常のJavaコードで検証します。外部由来の複雑な正規表現は極端なバックトラックによるDoSにも注意します。\n\n### 動かして確かめる\n\n```java\nPattern p = Pattern.compile(\"(\\\\d{4})-(\\\\d{2})\");\nMatcher m = p.matcher(\"納期 2025-03 と 2026-01\");\n\nwhile (m.find()) {\n    System.out.println(m.group() + \" year=\" + m.group(1) + \" month=\" + m.group(2));\n}\n```\n\n出力はこうなります。\n\n```\n2025-03 year=2025 month=03\n2026-01 year=2026 month=01\n```\n\n`find()` は **見つかるたびに `true`** を返すので、`while` で回して全部拾えます。\n`group()` が一致した全体、`group(1)` `group(2)` が丸かっこで囲んだ部分です。\n\n`matches()` は **文字列全体** が形に一致するかを見ます。\n\n```java\np.matcher(\"2025-03\").matches();      // true\np.matcher(\"納期 2025-03\").matches();  // false（前後に余分があるので）\n```\n\n> ⚠️ 間違えやすい点 … `Pattern.compile` はコストのかかる処理です。ループの中で毎回\n> コンパイルすると遅くなります。使い回す正規表現は `static final` の定数として\n> 1回だけコンパイルしておきます。\n> また、利用者が入力した文字列をそのまま正規表現として使わないこと（`.` や `*` が\n> 意味を持ってしまいます）。ただの文字として扱うなら `Pattern.quote` を通します。",
-      "samples": [
-        {
-          "caption": "注文番号を抽出",
-          "code": "import java.util.regex.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Matcher m = Pattern.compile(\"ORD-(\\\\d{4})\").matcher(\"id=ORD-2024\");\n        if (m.find()) System.out.println(m.group(1));\n    }\n}\n"
-        }
-      ],
-      "task": "1行を読み、全体が `ABC-1234` のような英大文字3文字、ハイフン、数字4桁なら `valid`、それ以外は `invalid` と表示してください。",
-      "starterCode": "import java.util.*;\nimport java.util.regex.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        String text = new Scanner(System.in).nextLine();\n        /* TODO */\n    }\n}\n",
-      "visibleCases": [
-        {
-          "label": "正しい",
-          "stdin": "ABC-1234",
-          "expected": "valid"
-        },
-        {
-          "label": "小文字",
-          "stdin": "AbC-1234",
-          "expected": "invalid"
-        }
-      ],
-      "hiddenCases": [
-        {
-          "label": "前後文字",
-          "stdin": "xABC-1234y",
-          "expected": "invalid"
-        },
-        {
-          "label": "数字が3桁",
-          "stdin": "ABC-123",
-          "expected": "invalid"
-        },
-        {
-          "label": "英字が4文字",
-          "stdin": "ABCD-1234",
-          "expected": "invalid"
-        },
-        {
-          "label": "すべて0",
-          "stdin": "ZZZ-0000",
-          "expected": "valid"
-        }
-      ],
-      "hints": [
-        "式は `[A-Z]{3}-\\d{4}`。Java文字列ではバックスラッシュを2つ書きます。",
-        "`Pattern.compile(...).matcher(text).matches()`。"
-      ],
-      "solution": "import java.util.*;\nimport java.util.regex.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        String text = new Scanner(System.in).nextLine();\n        boolean ok = Pattern.compile(\"[A-Z]{3}-\\\\d{4}\").matcher(text).matches();\n        System.out.println(ok ? \"valid\" : \"invalid\");\n    }\n}\n",
-      "extraTasks": [
-        {
-          "kind": "applied",
-          "task": "1行の文章から `#` に続く英数字・アンダースコアのタグをすべて抽出し、`タグ` を1行ずつ表示してください。`#` 自体は出しません。",
-          "starterCode": "import java.util.*;\nimport java.util.regex.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        String text = new Scanner(System.in).nextLine();\n        Matcher m = Pattern.compile(\"#([A-Za-z0-9_]+)\").matcher(text);\n        /* TODO */\n    }\n}\n",
-          "visibleCases": [
-            {
-              "label": "2件",
-              "stdin": "learn #Java and #jdk21",
-              "expected": "Java\njdk21"
-            }
-          ],
-          "hiddenCases": [
-            {
-              "label": "無し",
-              "stdin": "no tags",
-              "expected": ""
-            },
-            {
-              "label": "連続したタグ",
-              "stdin": "#a#b",
-              "expected": "a\nb"
-            },
-            {
-              "label": "単独の#は拾わない",
-              "stdin": "# notag #ok_1",
-              "expected": "ok_1"
-            },
-            {
-              "label": "英数字以外は拾わない",
-              "stdin": "#日本語",
-              "expected": ""
-            }
-          ],
-          "hints": [
-            "`while (m.find())`。",
-            "括弧の中は `m.group(1)`。"
-          ],
-          "solution": "import java.util.*;\nimport java.util.regex.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        String text = new Scanner(System.in).nextLine();\n        Matcher m = Pattern.compile(\"#([A-Za-z0-9_]+)\").matcher(text);\n        while (m.find()) System.out.println(m.group(1));\n    }\n}\n",
-          "sourceChecks": [
-            {
-              "pattern": "Pattern\\s*\\.\\s*compile\\s*\\(",
-              "minimum": 1,
-              "message": "正規表現は `Pattern.compile` で用意してください。"
-            },
-            {
-              "pattern": "\\.find\\s*\\(",
-              "minimum": 1,
-              "message": "複数を取り出すので `find()` を繰り返します（`matches()` は文字列全体が一致するかの判定です）。"
-            },
-            {
-              "pattern": "\\.group\\s*\\(\\s*1\\s*\\)|substring\\s*\\(\\s*1",
-              "minimum": 1,
-              "message": "`#` は出さないので、丸かっこで囲んだ `group(1)` を取るか、先頭1文字を落としてください。"
-            }
-          ]
-        }
-      ],
-      "quiz": [
-        {
-          "question": "Matcher.find()とmatches()の違いは？",
-          "choices": [
-            "`find` は `Pattern` を作らずに呼び出せる",
-            "`matches` だけが `group` で部分を取り出せる",
-            "どちらも同じ判定で、戻り値の型だけが違う",
-            "findは部分一致を順に探し、matchesは全体一致を調べる"
-          ],
-          "answer": 3,
-          "explanation": "`find` でも `Pattern` は必要で、`group` は `find` のあとでも使えます。両者は同じではありません。`matches` は入力**全体**が式に一致するかを見るので形式の検証に向き、`find` は部分一致を順に探すので抽出に向きます。検証に `find` を使うと、一部が合うだけで通ってしまいます。"
-        }
-      ]
-    },
-    {
-      "id": "42-4",
-      "title": "Locale・NumberFormat・ResourceBundle",
-      "objectiveIds": [
-        "ch42-o4"
-      ],
-      "explanation": "## 表示と言語をコードから分離する\n\n同じ値でも表示は地域で変わります。`NumberFormat` は数値・通貨・百分率をLocaleに合わせて整形します。内部計算値までローカライズされた文字列で持たず、境界でだけ変換します。\n\n```java\nNumberFormat nf = NumberFormat.getNumberInstance(Locale.US);\nSystem.out.println(nf.format(1234567)); // 1,234,567\n```\n\nメッセージは `ResourceBundle` へ分けると、コードを変えずに言語を切り替えられます。実プロジェクトでは `messages_ja.properties`、`messages_en.properties` のようなresourcesを使います。`MessageFormat` は `{0}` へ値を埋め込みます。大文字小文字変換のように言語非依存の機械処理では `Locale.ROOT` を明示します。\n\n### 同じ値が、地域で違う見た目になる\n\n```java\ndouble amount = 1234567.891;\nfor (Locale loc : List.of(Locale.JAPAN, Locale.US, Locale.GERMANY)) {\n    System.out.println(loc + \" \" + NumberFormat.getNumberInstance(loc).format(amount)\n            + \"  \" + NumberFormat.getCurrencyInstance(loc).format(amount));\n}\n```\n\n```\nja_JP 1,234,567.891  ￥1,234,568\nen_US 1,234,567.891  $1,234,567.89\nde_DE 1.234.567,891  1.234.567,89 €\n```\n\nドイツ語圏では **小数点がカンマ、桁区切りがピリオド** です。日本の通貨表示は\n小数を持たないので、`1,234,568` へ丸められています。同じ `double` でも、\nどう見せるかは地域の規則で決まります。\n\nパーセントも既定では整数に丸められます。\n\n```java\nNumberFormat.getPercentInstance(Locale.JAPAN).format(0.075);   // 8%\n```\n\n### 大文字化にも地域がある\n\n```java\n\"istanbul\".toUpperCase(Locale.forLanguageTag(\"tr\"));   // İNSTANBUL（点付きのI）\n\"istanbul\".toUpperCase(Locale.ROOT);                   // INSTANBUL\n```\n\nトルコ語では `i` の大文字が `İ` です。だから **識別子の比較を\n`toUpperCase()`（引数なし）でやると、地域によって結果が変わります**。\n\n> ⚠️ 間違えやすい点 … 引数なしの `toUpperCase()` / `toLowerCase()` は既定ロケールに\n> 依存します。**表示のためなら利用者のロケール、比較や識別のためなら `Locale.ROOT`** を\n> 明示的に渡します。\n> 文言そのものは `ResourceBundle`（`messages_ja.properties` など）へ出し、\n> コードに埋め込まないようにします。",
-      "samples": [
-        {
-          "caption": "地域別の数値表示",
-          "code": "import java.text.*;\nimport java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        System.out.println(NumberFormat.getNumberInstance(Locale.US).format(1234567));\n        System.out.println(NumberFormat.getNumberInstance(Locale.GERMANY).format(1234567));\n    }\n}\n"
-        }
-      ],
-      "task": "locale `us` / `de` と整数を読み、対応LocaleのNumberFormatで桁区切りして表示してください。",
-      "starterCode": "import java.text.*;\nimport java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        String key = sc.next();\n        long value = sc.nextLong();\n        /* TODO */\n    }\n}\n",
-      "visibleCases": [
-        {
-          "label": "US",
-          "stdin": "us 1234567",
-          "expected": "1,234,567"
-        },
-        {
-          "label": "Germany",
-          "stdin": "de 1234567",
-          "expected": "1.234.567"
-        }
-      ],
-      "hiddenCases": [
-        {
-          "label": "負数",
-          "stdin": "us -1000",
-          "expected": "-1,000"
-        },
-        {
-          "label": "ドイツ語の負数",
-          "stdin": "de -1000",
-          "expected": "-1.000"
-        },
-        {
-          "label": "0",
-          "stdin": "us 0",
-          "expected": "0"
-        },
-        {
-          "label": "区切り不要の3桁",
-          "stdin": "de 999",
-          "expected": "999"
-        }
-      ],
-      "hints": [
-        "`Locale locale=key.equals(\"de\")?Locale.GERMANY:Locale.US`。",
-        "`NumberFormat.getNumberInstance(locale).format(value)`。"
-      ],
-      "solution": "import java.text.*;\nimport java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        String key = sc.next();\n        long value = sc.nextLong();\n        Locale locale = key.equals(\"de\") ? Locale.GERMANY : Locale.US;\n        System.out.println(NumberFormat.getNumberInstance(locale).format(value));\n    }\n}\n",
-      "extraTasks": [
-        {
-          "kind": "applied",
-          "task": "lang `ja` / `en` と名前を読み、ListResourceBundleから `greeting` パターンを選び、MessageFormatで名前を埋めて表示してください。jaは `こんにちは、{0}さん`、enは `Hello, {0}`。",
-          "starterCode": "import java.text.*;\nimport java.util.*;\n\nclass MessagesJa extends ListResourceBundle {\n    protected Object[][] getContents() {\n        return new Object[][] {{\"greeting\", \"こんにちは、{0}さん\"}};\n    }\n}\n\nclass MessagesEn extends ListResourceBundle {\n    protected Object[][] getContents() {\n        return new Object[][] {{\"greeting\", \"Hello, {0}\"}};\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        String lang = sc.next(), name = sc.next();\n        /* TODO */\n    }\n}\n",
-          "visibleCases": [
-            {
-              "label": "日本語",
-              "stdin": "ja 太郎",
-              "expected": "こんにちは、太郎さん"
-            },
-            {
-              "label": "英語",
-              "stdin": "en Alice",
-              "expected": "Hello, Alice"
-            },
-            {
-              "label": "日本語に英字名",
-              "stdin": "ja Alice",
-              "expected": "こんにちは、Aliceさん"
-            },
-            {
-              "label": "英語に日本語名",
-              "stdin": "en 太郎",
-              "expected": "Hello, 太郎"
-            }
-          ],
-          "hiddenCases": [],
-          "hints": [
-            "langに応じて `new MessagesJa()` または `new MessagesEn()`。",
-            "`MessageFormat.format(bundle.getString(\"greeting\"), name)`。"
-          ],
-          "solution": "import java.text.*;\nimport java.util.*;\n\nclass MessagesJa extends ListResourceBundle {\n    protected Object[][] getContents() {\n        return new Object[][] {{\"greeting\", \"こんにちは、{0}さん\"}};\n    }\n}\n\nclass MessagesEn extends ListResourceBundle {\n    protected Object[][] getContents() {\n        return new Object[][] {{\"greeting\", \"Hello, {0}\"}};\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        String lang = sc.next(), name = sc.next();\n        ResourceBundle b = lang.equals(\"ja\") ? new MessagesJa() : new MessagesEn();\n        System.out.println(MessageFormat.format(b.getString(\"greeting\"), name));\n    }\n}\n",
-          "sourceChecks": [
-            {
-              "pattern": "extends\\s+ListResourceBundle\\b",
-              "minimum": 2,
-              "message": "言語ごとに `ListResourceBundle` を継承したクラスを用意してください。"
-            },
-            {
-              "pattern": "MessageFormat\\s*\\.\\s*format\\s*\\(",
-              "minimum": 1,
-              "message": "`{0}` へ名前を埋めるのは `MessageFormat.format` です。文字列連結で組み立てると、語順の違う言語に対応できません。"
-            }
-          ]
-        }
-      ],
-      "quiz": [
-        {
-          "question": "機械的な識別子の小文字化に適するLocaleは？",
-          "choices": [
-            "Locale.JAPAN",
-            "null",
-            "実行環境のデフォルトLocale",
-            "Locale.ROOT"
-          ],
-          "answer": 3,
-          "explanation": "`Locale.JAPAN` は日本語向けの規則で、`null` は渡せません。デフォルトLocaleに任せると実行環境によって結果が変わります。実際にトルコ語では `i` の大文字が `İ` になるため、識別子の比較が壊れます。言語に依存させたくない処理では `Locale.ROOT` を渡します。"
-        }
-      ]
-    },
-    {
-      "id": "42-5",
-      "title": "章末演習：業務値と文字列境界",
+      "id": "42-6",
+      "title": "章末演習：金額と桁あふれ",
       "objectiveIds": [
         "ch42-o1"
       ],
-      "explanation": "## 値・検証・表示を分ける\n\nこの章の中心は、**計算に使う値**と**人に見せる文字列**を混ぜないことです。\n\n1. 金額は `BigDecimal` など目的に合う型で持つ\n2. 入力された文字列は、使う前に形式と範囲を検証する\n3. 表示するときだけ `Locale` や `NumberFormat` で地域に合わせる\n\n`double` を金額へ使う、正規表現だけで業務上の正しさまで保証する、表示用文字列をそのまま計算へ使う、といった混同が代表的な失敗です。章末問題では、どの処理が「値」「検証」「表示」のどこに属するかを意識してください。",
-      "samples": [
-        {
-          "caption": "金額を計算して表示",
-          "code": "import java.math.*;\nimport java.text.*;\nimport java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        BigDecimal x = new BigDecimal(\"1234.50\");\n        System.out.println(NumberFormat.getCurrencyInstance(Locale.US).format(x));\n    }\n}\n"
-        }
-      ],
-      "task": "【基本】価格、税率（%）、個数を文字列・整数で読み、税込合計を小数第2位HALF_UPで表示してください。",
-      "starterCode": "import java.math.*;\nimport java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        String price = sc.next(), rate = sc.next();\n        int count = sc.nextInt();\n        /* TODO */\n    }\n}\n",
+      "explanation": "## 金額は正確に、整数はあふれに気をつけて\n\nこの章で扱った2つを組み合わせます。**金額は `BigDecimal` で10進数のまま計算し、\n丸め方と桁数を自分で決める**こと。**整数は `long` でも上限があるので、\n`Math.addExact` / `Math.multiplyExact` であふれに気づけるようにする**ことです。\n\n新しい文法は出てきません。迷ったら `42-1` と `42-2` の解説へ戻ってください。\n\n| 確かめること | どこで学んだか |\n|---|---|\n| `setScale(2, RoundingMode.HALF_UP)` で桁と丸めを決める | `42-1` |\n| `divide` は割り切れない可能性を考える（ここでは100で割るので割り切れます） | `42-1` |\n| `Math.addExact` / `Math.multiplyExact` は、あふれたら例外で知らせる | `42-2` |\n| `BigInteger` は桁数の上限がない | `42-2` |\n\n> ⚠️ `double` は使いません。`0.1 + 0.2` が `0.30000000000000004` になる型で\n> 金額を扱うと、合計が1円ずれます。理由は `42-1` の解説にあります。",
+      "task": "【基本】単価 `price`（小数の文字列）、個数 `count`、割引率 `rate`（%の整数）を読み、\n割引後の金額を**小数第2位・`HALF_UP`** で丸めて `total=...` の形で表示してください。\n\n計算は「単価 × 個数 × (100 - 割引率) ÷ 100」です。100で割るので割り切れます。",
+      "starterCode": "import java.math.BigDecimal;\nimport java.math.RoundingMode;\nimport java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        BigDecimal price = new BigDecimal(sc.next());\n        int count = sc.nextInt();\n        int rate = sc.nextInt();\n        // TODO 割引後の金額を小数第2位でHALF_UPに丸めて total=... の形で表示する\n        System.out.println(\"total=\" + price);\n    }\n}\n",
       "visibleCases": [
         {
-          "label": "10%",
-          "stdin": "100.00 10 3",
-          "expected": "330.00"
+          "label": "1割引",
+          "stdin": "100.00 3 10",
+          "expected": "total=270.00"
+        },
+        {
+          "label": "割引なし",
+          "stdin": "19.99 3 0",
+          "expected": "total=59.97"
         }
       ],
       "hiddenCases": [
         {
-          "label": "丸め",
-          "stdin": "0.05 8 1",
-          "expected": "0.05"
+          "label": "0.005はHALF_UPで0.01",
+          "stdin": "0.005 1 0",
+          "expected": "total=0.01"
         },
         {
-          "label": "税率8パーセント",
-          "stdin": "100 8 1",
-          "expected": "108.00"
+          "label": "33%割引",
+          "stdin": "10.00 3 33",
+          "expected": "total=20.10"
         },
         {
-          "label": "丸めで下がる",
-          "stdin": "0.01 10 3",
-          "expected": "0.03"
+          "label": "桁が増える",
+          "stdin": "1.005 2 0",
+          "expected": "total=2.01"
         },
         {
-          "label": "税率0",
-          "stdin": "1000 0 2",
-          "expected": "2000.00"
+          "label": "大きい金額",
+          "stdin": "99999.99 100 5",
+          "expected": "total=9499999.05"
         }
       ],
       "hints": [
-        "税率は `new BigDecimal(rate).movePointLeft(2)`。",
-        "`price * count * (1 + rate)` の順で計算してsetScale。"
+        "`price.multiply(BigDecimal.valueOf(count))` のように、掛ける相手も `BigDecimal` にします。",
+        "最後に `setScale(2, RoundingMode.HALF_UP)` を呼ぶと、桁数と丸め方が決まります。"
       ],
-      "solution": "import java.math.*;\nimport java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        BigDecimal price = new BigDecimal(sc.next());\n        BigDecimal rate = new BigDecimal(sc.next()).movePointLeft(2);\n        int count = sc.nextInt();\n        BigDecimal total = price.multiply(BigDecimal.valueOf(count)).multiply(BigDecimal.ONE.add(rate)).setScale(2, RoundingMode.HALF_UP);\n        System.out.println(total);\n    }\n}\n",
+      "solution": "import java.math.BigDecimal;\nimport java.math.RoundingMode;\nimport java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        BigDecimal price = new BigDecimal(sc.next());\n        int count = sc.nextInt();\n        int rate = sc.nextInt();\n        BigDecimal total = price.multiply(BigDecimal.valueOf(count))\n                .multiply(BigDecimal.valueOf(100 - rate))\n                .divide(BigDecimal.valueOf(100))\n                .setScale(2, RoundingMode.HALF_UP);\n        System.out.println(\"total=\" + total);\n    }\n}\n",
       "extraTasks": [
         {
           "objectiveIds": [
-            "ch42-o3"
+            "ch42-o2"
           ],
           "kind": "drill",
-          "task": "【組み合わせ】カンマ区切りの整数文字列がUS形式として正しいか正規表現で検証し、正しければカンマを除いた値、違えばinvalidを表示してください。0または先頭が1〜9で、その後は3桁区切りです。",
-          "starterCode": "import java.util.*;\nimport java.util.regex.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        String text = new Scanner(System.in).next();\n        /* TODO */\n    }\n}\n",
+          "task": "【組み合わせ】2つの `long` を読み、積を表示します。\n`long` に収まるなら `long=積`、**あふれるなら `BigInteger` で計算して** `big=積` と表示してください。\n\n「たぶん収まる」で書かず、あふれを**検出してから**切り替えます。",
+          "starterCode": "import java.math.BigInteger;\nimport java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        long a = sc.nextLong();\n        long b = sc.nextLong();\n        // TODO あふれない範囲なら long=積、あふれるなら big=積 を表示する\n        System.out.println(\"long=\" + (a * b));\n    }\n}\n",
           "visibleCases": [
             {
-              "label": "正しい",
-              "stdin": "1,234,567",
-              "expected": "1234567"
+              "label": "収まる",
+              "stdin": "3 4",
+              "expected": "long=12"
             },
             {
-              "label": "不正",
-              "stdin": "12,34",
-              "expected": "invalid"
+              "label": "あふれる",
+              "stdin": "9223372036854775807 2",
+              "expected": "big=18446744073709551614"
             }
           ],
           "hiddenCases": [
             {
-              "label": "0",
-              "stdin": "0",
-              "expected": "0"
+              "label": "0倍",
+              "stdin": "0 9223372036854775807",
+              "expected": "long=0"
             },
             {
-              "label": "1000",
-              "stdin": "1,000",
-              "expected": "1000"
+              "label": "最小値の符号反転",
+              "stdin": "-9223372036854775808 -1",
+              "expected": "big=9223372036854775808"
             },
             {
-              "label": "先頭0のあとに区切り",
-              "stdin": "0,000",
-              "expected": "invalid"
+              "label": "ぎりぎり収まる",
+              "stdin": "1000000000 1000000000",
+              "expected": "long=1000000000000000000"
             },
             {
-              "label": "区切りなし3桁",
-              "stdin": "999",
-              "expected": "999"
-            },
-            {
-              "label": "区切りが4桁",
-              "stdin": "1,0000",
-              "expected": "invalid"
+              "label": "大きく超える",
+              "stdin": "4000000000 4000000000",
+              "expected": "big=16000000000000000000"
             }
           ],
           "hints": [
-            "式は `0|[1-9]\\d{0,2}(,\\d{3})*`。",
-            "正しければreplaceでカンマを空文字へ。"
+            "`Math.multiplyExact(a, b)` はあふれたときに `ArithmeticException` を投げます。",
+            "`catch` の中で `BigInteger.valueOf(a).multiply(BigInteger.valueOf(b))` を使います。"
           ],
-          "solution": "import java.util.*;\nimport java.util.regex.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        String text = new Scanner(System.in).next();\n        boolean ok = Pattern.compile(\"0|[1-9]\\\\d{0,2}(,\\\\d{3})*\").matcher(text).matches();\n        System.out.println(ok ? text.replace(\",\", \"\") : \"invalid\");\n    }\n}\n",
+          "solution": "import java.math.BigInteger;\nimport java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        long a = sc.nextLong();\n        long b = sc.nextLong();\n        try {\n            System.out.println(\"long=\" + Math.multiplyExact(a, b));\n        } catch (ArithmeticException e) {\n            System.out.println(\"big=\" + BigInteger.valueOf(a).multiply(BigInteger.valueOf(b)));\n        }\n    }\n}\n",
           "sourceChecks": [
             {
-              "pattern": "Pattern\\s*\\.\\s*compile\\s*\\(",
+              "pattern": "multiplyExact\\s*\\(",
               "minimum": 1,
-              "message": "形式の検証は正規表現で行ってください。"
+              "message": "あふれは自分で判定せず、`Math.multiplyExact` に知らせてもらいます。"
             },
             {
-              "pattern": "\\.matches\\s*\\(",
+              "pattern": "BigInteger",
               "minimum": 1,
-              "message": "全体が形式どおりかを見るので `matches()` です。`find()` だと一部が合うだけで通ってしまいます。"
+              "message": "あふれたときは `BigInteger` で計算し直します。"
             }
           ]
         },
         {
           "objectiveIds": [
             "ch42-o1",
-            "ch42-o4"
+            "ch42-o2"
           ],
-          "kind": "applied",
-          "task": "【実践】n個の商品価格文字列をBigDecimalで合計し、US形式で小数2桁・桁区切り付きにして `total=...` と表示してください。小数第3位以下は **`HALF_UP`** で丸めます（`0.005` は `0.01`。負の数は0から遠い側へ丸めるので `-0.005` は `-0.01`）。\n\n> 表示桁を「小数2桁」と決めても、丸め方は決まりません。`HALF_EVEN`（いわゆる銀行丸め）なら`0.005` は `0.00` になります。金額では丸め規則そのものが仕様なので、暗黙に決めずに指定します。",
-          "starterCode": "import java.math.*;\nimport java.text.*;\nimport java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n        BigDecimal total = BigDecimal.ZERO;\n        /* TODO */\n    }\n}\n",
+          "kind": "practice",
+          "task": "【実践】明細の合計を出します。件数 `n` を読み、続けてn行を `price count` の形で読みます\n（`price` は小数の文字列、`count` は `long`）。次の2行を表示してください。\n\n1. `count=個数の合計`。ただし合計が `long` からあふれたら `count=overflow`\n2. `total=金額の合計`（**小数第2位・`HALF_UP`**）\n\n金額は `BigDecimal` なのであふれません。**あふれるのは個数の側だけ**です。\n個数があふれても、金額は最後まで計算して表示します。",
+          "starterCode": "import java.math.BigDecimal;\nimport java.math.RoundingMode;\nimport java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n        long count = 0;\n        BigDecimal total = BigDecimal.ZERO;\n        for (int i = 0; i < n; i++) {\n            BigDecimal price = new BigDecimal(sc.next());\n            long each = sc.nextLong();\n            // TODO 金額を足す。個数はあふれを検出しながら足す\n            count = count + each;\n        }\n        System.out.println(\"count=\" + count);\n        System.out.println(\"total=\" + total);\n    }\n}\n",
           "visibleCases": [
             {
-              "label": "3件",
-              "stdin": "3 1000.5 20 0.25",
-              "expected": "total=1,020.75"
+              "label": "2件",
+              "stdin": "2\n10.00 3\n5.555 2",
+              "expected": "count=5\ntotal=41.11"
+            },
+            {
+              "label": "丸め上げ",
+              "stdin": "1\n0.005 1",
+              "expected": "count=1\ntotal=0.01"
             }
           ],
           "hiddenCases": [
             {
-              "label": "空",
-              "stdin": "0",
-              "expected": "total=0.00"
+              "label": "個数があふれる",
+              "stdin": "2\n1.00 9223372036854775807\n1.00 1",
+              "expected": "count=overflow\ntotal=9223372036854775808.00"
             },
             {
-              "label": "丸めが上がる",
-              "stdin": "2 0.005 0",
-              "expected": "total=0.01"
+              "label": "3件の丸め",
+              "stdin": "3\n1.115 2\n0.005 1\n2.00 1",
+              "expected": "count=4\ntotal=4.24"
             },
             {
-              "label": "負の合計",
-              "stdin": "1 -1234.567",
-              "expected": "total=-1,234.57"
-            },
-            {
-              "label": "百万",
-              "stdin": "1 1000000",
-              "expected": "total=1,000,000.00"
+              "label": "切り捨てられる",
+              "stdin": "1\n0.004 1",
+              "expected": "count=1\ntotal=0.00"
             }
           ],
           "hints": [
-            "ループで `total=total.add(new BigDecimal(sc.next()))`。",
-            "NumberFormatへsetMinimumFractionDigits(2)とsetMaximumFractionDigits(2)。丸め方は `setRoundingMode(RoundingMode.HALF_UP)` で指定します。"
+            "金額は `total = total.add(price.multiply(BigDecimal.valueOf(each)))` と足していきます。",
+            "`Math.addExact` が例外を投げたら、あふれたことを覚えておいて最後に `overflow` と出します。",
+            "一度あふれたら、そのあとの `addExact` は呼ばなくて構いません。"
           ],
-          "solution": "import java.math.*;\nimport java.text.*;\nimport java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n        BigDecimal total = BigDecimal.ZERO;\n        for (int i = 0; i < n; i++) total = total.add(new BigDecimal(sc.next()));\n        NumberFormat f = NumberFormat.getNumberInstance(Locale.US);\n        f.setMinimumFractionDigits(2);\n        f.setMaximumFractionDigits(2);\n        f.setRoundingMode(RoundingMode.HALF_UP);\n        System.out.println(\"total=\" + f.format(total));\n    }\n}\n",
+          "solution": "import java.math.BigDecimal;\nimport java.math.RoundingMode;\nimport java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n        long count = 0;\n        boolean overflow = false;\n        BigDecimal total = BigDecimal.ZERO;\n        for (int i = 0; i < n; i++) {\n            BigDecimal price = new BigDecimal(sc.next());\n            long each = sc.nextLong();\n            total = total.add(price.multiply(BigDecimal.valueOf(each)));\n            if (!overflow) {\n                try {\n                    count = Math.addExact(count, each);\n                } catch (ArithmeticException e) {\n                    overflow = true;\n                }\n            }\n        }\n        System.out.println(\"count=\" + (overflow ? \"overflow\" : String.valueOf(count)));\n        System.out.println(\"total=\" + total.setScale(2, RoundingMode.HALF_UP));\n    }\n}\n",
           "sourceChecks": [
             {
-              "pattern": "\\.add\\s*\\(",
+              "pattern": "addExact\\s*\\(",
               "minimum": 1,
-              "message": "`BigDecimal` の合計は `add` です（`+` は使えません）。"
+              "message": "個数のあふれは `Math.addExact` で検出します。"
             },
             {
-              "pattern": "NumberFormat\\s*\\.\\s*getNumberInstance\\s*\\(",
+              "pattern": "setScale\\s*\\(",
               "minimum": 1,
-              "message": "桁区切りは `NumberFormat.getNumberInstance(Locale.US)` に任せてください。"
-            },
-            {
-              "pattern": "RoundingMode\\s*\\.",
-              "minimum": 1,
-              "message": "丸め方は `setRoundingMode` で明示してください。既定に任せると、境界の値で結果が変わります。"
+              "message": "金額の桁数と丸め方は `setScale` で決めます。"
             }
           ]
         }
       ],
       "quiz": [
         {
-          "question": "BigDecimalの数値的な等価比較に使うものは？",
+          "question": "`new BigDecimal(\"10.00\").divide(new BigDecimal(\"3\"))` を実行するとどうなりますか。",
           "choices": [
-            "hashCode",
-            "compareTo",
-            "==",
-            "equalsだけ"
+            "`3.33` になる。既定で小数第2位に丸められる",
+            "`ArithmeticException` になる。割り切れないため",
+            "`3.3333333333333335` になる。`double` と同じ精度で計算される",
+            "`3` になる。整数部分だけが残り、小数は切り捨てられる"
           ],
           "answer": 1,
-          "explanation": "`hashCode` は等価判定そのものではなく、`==` は同じインスタンスかを見るだけです。`equals` は scale まで一致を求めるので、`1.0` と `1.00` が別物になります。数値として同じかを見たいなら、`compareTo` が0かどうかで判定します。"
+          "explanation": "`divide` は割り切れないときに必ず `ArithmeticException` を投げます。桁数と丸め方は言語が決めず、書く人が `divide(divisor, 2, RoundingMode.HALF_UP)` のように渡します。既定の丸めはありません。`double` の精度になることもありません。"
         },
         {
-          "question": "割り切れないBigDecimal除算で必要になり得る指定は？",
+          "question": "`long` の掛け算があふれたとき、`*` 演算子はどう振る舞いますか。",
           "choices": [
-            "scaleとRoundingMode",
-            "classpath",
-            "Localeだけ",
-            "スレッド名"
-          ],
-          "answer": 0,
-          "explanation": "丸め規則を明示しない除算はArithmeticExceptionになることがあります。"
-        },
-        {
-          "question": "文字列全体の形式検証に向くMatcher操作は？",
-          "choices": [
-            "groupだけ",
-            "find",
-            "resetだけ",
-            "matches"
-          ],
-          "answer": 3,
-          "explanation": "`group` は取り出した部分を得るもの、`reset` は位置を戻すもの、`find` は部分一致を探すものです。形式の検証は「入力全体が式どおりか」を見るので `matches` を使います。`find` で書くと、途中に余計な文字が混ざっていても通ってしまいます。"
-        },
-        {
-          "question": "ResourceBundleを使う主な目的は？",
-          "choices": [
-            "日付の書式を、地域ごとに変換",
-            "数値の桁区切りを、自動で付与",
-            "言語別メッセージをコードから分離",
-            "文字コードを、地域ごとに変換"
+            "必ず `ArithmeticException` を投げる",
+            "`Long.MAX_VALUE` で止まる",
+            "例外を投げず、上位の桁を捨てた値を返す",
+            "コンパイルエラーになる"
           ],
           "answer": 2,
-          "explanation": "日付の書式は `DateTimeFormatter`、数値の桁区切りは `NumberFormat`、文字コードの変換は `Charset` の仕事です。`ResourceBundle` が受け持つのは**表示する文字列**で、コードの中へ直接書くと言語を増やすたびにコードを直すことになります。資源ファイルへ外出しておけば、差し替えるだけで表示言語を変えられます。"
+          "explanation": "`*` は黙って回り込んだ値を返します。だから「結果が負になった」などの症状で初めて気づくことになります。`Math.multiplyExact` は同じ計算をして、あふれたときだけ `ArithmeticException` を投げるので、その場で気づけます。"
         }
       ]
     }

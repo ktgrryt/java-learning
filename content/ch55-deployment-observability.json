@@ -29,8 +29,8 @@
     {
       "id": "55-0",
       "lessonType": "preflight",
-      "title": "事前確認：container labを動かす準備",
-      "explanation": "## imageをbuildして動かす環境を確認する\n\n`labs/delivery`の`runtime-lab`では、Dockerfileの静的な形だけでなく、実際にimageをbuildし、non-root、read-only filesystem、memory・CPU制限付きで起動してreadinessへHTTP要求を送ります。JDK 21と、DockerまたはPodmanのどちらかが必要です。\n\n```bash\ndocker pull eclipse-temurin:21-jdk\ndocker pull eclipse-temurin:21-jre\n```\n\n提出時はこの2つのbase imageがローカルにあるかを確認し、不足していても自動downloadはしません。実行ごとに一意なimage/container名と動的なlocalhostポートを使い、終了時に削除します。この事前確認は★対象外です。",
+      "title": "事前確認：コンテナlabを動かす準備",
+      "explanation": "## イメージをビルドして動かす環境を確認する\n\n`labs/delivery`の`runtime-lab`では、Dockerfileの静的な形だけでなく、実際にイメージをビルドし、non-root、read-only filesystem、メモリ・CPU制限付きで起動してreadinessへHTTP要求を送ります。JDK 21と、DockerまたはPodmanのどちらかが必要です。\n\n```bash\ndocker pull eclipse-temurin:21-jdk\ndocker pull eclipse-temurin:21-jre\n```\n\n提出時はこの2つのbase imageがローカルにあるかを確認し、不足していても自動ダウンロードはしません。実行ごとに一意なイメージ/コンテナ名と動的なlocalhostポートを使い、終了時に削除します。この事前確認は★対象外です。",
       "preflight": {
         "buttonLabel": "container labの準備を確認する",
         "checks": [
@@ -73,7 +73,7 @@
           "code": "public class Main {\n    public static void main(String[] a) {\n        String v = System.getenv(\"APP_MODE\");\n        System.out.println(v == null ? \"missing\" : v);\n    }\n}\n"
         }
       ],
-      "task": "`timeout`、`poolSize`、`secretPresent`（0か1）を読みます。timeoutが1〜30000、poolSizeが1〜100、secretPresentが1のときだけ `START`、それ以外は `CONFIG_ERROR` と表示してください。",
+      "task": "`timeout`、`poolSize`、`secretPresent`（0か1）を読みます。`timeout`が1〜30000、`poolSize`が1〜100、`secretPresent`が1のときだけ `START`、それ以外は `CONFIG_ERROR` と表示してください。",
       "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] a) {\n        Scanner sc = new Scanner(System.in);\n        int timeout = sc.nextInt(), pool = sc.nextInt(), secret = sc.nextInt();\n        /* TODO */\n    }\n}\n",
       "visibleCases": [
         {
@@ -382,7 +382,7 @@
             "ch55-o3"
           ],
           "kind": "drill",
-          "task": "【組み合わせ】container memoryの予算と、起動から終了までのhealth応答をまとめて確かめます。`limit nonHeap margin` をMiBで読み、続けて状態の数nと、n件の状態を読みます（状態は `starting` / `ready` / `draining` / `failed`）。\n\n1行目に、heap上限の候補を `HEAP 値` の形で表示してください。値は `limit - nonHeap - margin` です。0以下になったら `HEAP INVALID` と表示します。\n\n続けて各状態を読んだ順に `行番号 状態 status` と表示します（行番号は1から）。statusは `ready` が `200`、`failed` が `500`、`starting` と `draining` は `503` です。最後に、`ready` の状態が1件以上あれば `RECEIVED_TRAFFIC 件数`、1件も無ければ `NO_TRAFFIC` と表示します。",
+          "task": "【組み合わせ】コンテナのメモリの予算と、起動から終了までのhealth応答をまとめて確かめます。`limit nonHeap margin` をMiBで読み、続けて状態の数nと、n件の状態を読みます（状態は `starting` / `ready` / `draining` / `failed`）。\n\n1行目に、heap上限の候補を `HEAP 値` の形で表示してください。値は `limit - nonHeap - margin` です。0以下になったら `HEAP INVALID` と表示します。\n\n続けて各状態を読んだ順に `行番号 状態 status` と表示します（行番号は1から）。statusは `ready` が `200`、`failed` が `500`、`starting` と `draining` は `503` です。最後に、`ready` の状態が1件以上あれば `RECEIVED_TRAFFIC 件数`、1件も無ければ `NO_TRAFFIC` と表示します。",
           "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int limit = sc.nextInt(), nonHeap = sc.nextInt(), margin = sc.nextInt(), heap = limit - nonHeap - margin;\n        /* TODO HEAP の表示 */ int n = sc.nextInt(), ready = 0;\n        for (int k = 1; k <= n; k++) {\n            String state = sc.next();\n            /* TODO status の表示と ready の数え上げ */\n        }\n        /* TODO RECEIVED_TRAFFIC か NO_TRAFFIC */\n    }\n}\n",
           "visibleCases": [
             {
@@ -496,7 +496,7 @@
           ],
           "kind": "applied",
           "type": "runtime-lab",
-          "task": "【実container演習】`labs/delivery`の`exercise/Dockerfile`を、non-rootで動く最終imageへ直してください。提出すると編集したDockerfileを実際にbuildし、read-only filesystem、256MiB memory、1 CPUの制限でcontainerを起動します。動的なlocalhostポートからreadinessを確認した後、containerと演習用imageを削除します。",
+          "task": "【実コンテナ演習】`labs/delivery`の`exercise/Dockerfile`を、non-rootで動く最終イメージへ直してください。提出すると編集したDockerfileを実際にビルドし、read-only filesystem、256MiBメモリ、1 CPUの制限でコンテナを起動します。動的なlocalhostポートからreadinessを確認した後、コンテナと演習用イメージを削除します。",
           "runtimeLab": {
             "name": "container readiness lab",
             "source": "labs/delivery",

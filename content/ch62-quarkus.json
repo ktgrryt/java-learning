@@ -30,7 +30,7 @@
       "id": "62-0",
       "lessonType": "preflight",
       "title": "事前確認：Quarkus labを起動する準備",
-      "explanation": "## JVMモードと任意のNative buildを分けて確認する\n\n`labs/frameworks/quarkus`をJVMモードで動かすには、JDK 21、Maven 3.9以上、localhostの8080番ポートが必要です。DockerはNative Imageをcontainer buildする場合だけ必要で、この章のJVM演習には必須ではありません。任意項目が失敗しても「準備完了」になります。\n\n```bash\ncd labs/frameworks/quarkus\nmvn quarkus:dev\n# 別のターミナルで確認\ncurl 'http://localhost:8080/api/greeting?name=Java'\n```\n\n初回はExtensionなどの依存関係を取得します。8080番が使用中なら既存サーバーを停止するか、`quarkus.http.port`を変更します。Native Imageへ進むのは、まずJVMモードでテストと動作確認を終え、起動時間やメモリの要件がある場合です。",
+      "explanation": "## JVMモードと任意のNativeビルドを分けて確認する\n\n`labs/frameworks/quarkus`をJVMモードで動かすには、JDK 21、Maven 3.9以上、localhostの8080番ポートが必要です。DockerはNative Imageをコンテナでビルドする場合だけ必要で、この章のJVM演習には必須ではありません。任意項目が失敗しても「準備完了」になります。\n\n```bash\ncd labs/frameworks/quarkus\nmvn quarkus:dev\n# 別のターミナルで確認\ncurl 'http://localhost:8080/api/greeting?name=Java'\n```\n\n初回はExtensionなどの依存関係を取得します。8080番が使用中なら既存サーバーを停止するか、`quarkus.http.port`を変更します。Native Imageへ進むのは、まずJVMモードでテストと動作確認を終え、起動時間やメモリの要件がある場合です。",
       "preflight": {
         "buttonLabel": "Quarkusの準備を確認する",
         "checks": [
@@ -83,7 +83,7 @@
         }
       ],
       "type": "artifact",
-      "task": "注文APIに必要なQuarkus Extensionを、**実際の`pom.xml`へ宣言**してください。\n\n要件は4つです。\n\n- REST APIをJSONで公開する\n- 入力を検証する\n- ヘルスチェックを公開する\n- PostgreSQLへJDBCで接続する\n\nBOMの取り込みはすでに書いてあります。**これがあるので各Extensionに`<version>`を書く必要はありません。個別に版を書くと、BOMが決めた版と食い違って壊れます。**\n\n`groupId`は`io.quarkus`です。要件に無いExtensionは足さないでください（使わない依存はbuild時間と攻撃面を増やします）。",
+      "task": "注文APIに必要なQuarkus Extensionを、**実際の`pom.xml`へ宣言**してください。\n\n要件は4つです。\n\n- REST APIをJSONで公開する\n- 入力を検証する\n- ヘルスチェックを公開する\n- PostgreSQLへJDBCで接続する\n\nBOMの取り込みはすでに書いてあります。**これがあるので各Extensionに`<version>`を書く必要はありません。個別に版を書くと、BOMが決めた版と食い違って壊れます。**\n\n`groupId`は`io.quarkus`です。要件に無いExtensionは足さないでください（使わない依存はビルド時間と攻撃面を増やします）。",
       "starterContent": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<project xmlns=\"http://maven.apache.org/POM/4.0.0\">\n  <modelVersion>4.0.0</modelVersion>\n  <groupId>cafe</groupId>\n  <artifactId>orders</artifactId>\n  <version>1.0.0</version>\n\n  <properties>\n    <quarkus.platform.group-id>io.quarkus.platform</quarkus.platform.group-id>\n    <quarkus.platform.artifact-id>quarkus-bom</quarkus.platform.artifact-id>\n    <quarkus.platform.version>3.33.3.1</quarkus.platform.version>\n  </properties>\n\n  <!-- BOMの取り込み。ここは変更しません。\n       これがあるので、下の各Extensionに <version> を書く必要がありません。 -->\n  <dependencyManagement>\n    <dependencies>\n      <dependency>\n        <groupId>${quarkus.platform.group-id}</groupId>\n        <artifactId>${quarkus.platform.artifact-id}</artifactId>\n        <version>${quarkus.platform.version}</version>\n        <type>pom</type>\n        <scope>import</scope>\n      </dependency>\n    </dependencies>\n  </dependencyManagement>\n\n  <dependencies>\n    <!-- TODO: 要件に対応するExtensionをここへ宣言します。\n         groupId は io.quarkus、version は書きません（BOMが決めます）。 -->\n  </dependencies>\n</project>\n",
       "artifact": {
         "path": "pom.xml",
@@ -467,7 +467,7 @@
       "objectiveIds": [
         "ch62-o5"
       ],
-      "explanation": "QuarkusはJVMモードとNative Imageの2つを主要な配備方法として扱います。JVMモードはビルドが速く、JIT（実行中に頻繁に通るコードを最適化する仕組み）による長時間稼働時の性能、Javaライブラリとの高い互換性、調査ツールの豊富さがあります。Native Imageはアプリと必要なランタイム要素をOS向け実行ファイルへ事前コンパイルし、特に起動時間と初期メモリを小さくしやすい方法です。リクエスト時だけ起動するServerless、利用がなければ実行数を0にするscale to zero、多数のコンテナを急速に増減する環境で効果が出やすくなります。\n\n```bash\n## 採用はレポートで判断する\n\n使っているライブラリがNativeで動くかは、ビルド時に出る**互換性レポート**で分かります。\n\n```text\njackson                 OK\nhibernate-validator     NEEDS_CONFIG   ← リフレクション登録などの設定が必要\nlegacy-reflection-util  UNSUPPORTED    ← Nativeにできない\n```\n\n`NEEDS_CONFIG` は「設定を足せば動く」、`UNSUPPORTED` は「Nativeにできない」です。**この2つを混同すると、直せるものを諦めたり、できないものに時間を使ったりします。**\n起動の速さという要件だけでなく、レポートと稼働時間の両方から決めます。\n\n# GraalVMをローカルへ入れず、コンテナでNative build\nmvn package -Dnative -Dquarkus.native.container-build=true\n```\n\nNative buildはJVM buildより時間とメモリを使います。Reflection（名前からクラスやメソッドを実行時に探す処理）、classpath resource（JAR内などに同梱した設定・テンプレート）、JNI（JavaからOS固有のネイティブコードを呼ぶ仕組み）や実行時のクラス生成は、追加登録や対応Extensionが必要な場合があります。Quarkus Extensionが多くを処理しますが、独自の動的処理はNativeテストで確認します。JVMとNativeで同じ性能特性になるとは限らないため、起動、常駐メモリ、ピーク性能、ビルド時間、障害調査を実測します。\n\n運用監視にはSmallRye HealthなどMicroProfile互換機能を使えます。代表的なパスは`/q/health/live`、`/q/health/ready`、`/q/health/started`です。アプリの業務APIと管理APIを同じ公開範囲へ置かず、必要なら管理インターフェースを分け、認証やネットワークポリシーで守ります。メトリクス、OpenTelemetry、構造化ログもExtensionとして追加できます。\n\n「Nativeだから常に費用が下がる」「起動が速いから障害に強い」とは限りません。DB接続数やキャッシュ、リクエスト量が支配的な場合もあります。まずJVM版を基準にし、業務シナリオで測り、運用チームがビルドと障害調査を維持できる場合にNativeを採用します。",
+      "explanation": "QuarkusはJVMモードとNative Imageの2つを主要な配備方法として扱います。JVMモードはビルドが速く、JIT（実行中に頻繁に通るコードを最適化する仕組み）による長時間稼働時の性能、Javaライブラリとの高い互換性、調査ツールの豊富さがあります。Native Imageはアプリと必要なランタイム要素をOS向け実行ファイルへ事前コンパイルし、特に起動時間と初期メモリを小さくしやすい方法です。リクエスト時だけ起動するServerless、利用がなければ実行数を0にするscale to zero、多数のコンテナを急速に増減する環境で効果が出やすくなります。\n\n```bash\n## 採用はレポートで判断する\n\n使っているライブラリがNativeで動くかは、ビルド時に出る**互換性レポート**で分かります。\n\n```text\njackson                 OK\nhibernate-validator     NEEDS_CONFIG   ← リフレクション登録などの設定が必要\nlegacy-reflection-util  UNSUPPORTED    ← Nativeにできない\n```\n\n`NEEDS_CONFIG` は「設定を足せば動く」、`UNSUPPORTED` は「Nativeにできない」です。**この2つを混同すると、直せるものを諦めたり、できないものに時間を使ったりします。**\n起動の速さという要件だけでなく、レポートと稼働時間の両方から決めます。\n\n# GraalVMをローカルへ入れず、コンテナでNative build\nmvn package -Dnative -Dquarkus.native.container-build=true\n```\n\nNativeビルドはJVMビルドより時間とメモリを使います。Reflection（名前からクラスやメソッドを実行時に探す処理）、classpath resource（JAR内などに同梱した設定・テンプレート）、JNI（JavaからOS固有のネイティブコードを呼ぶ仕組み）や実行時のクラス生成は、追加登録や対応Extensionが必要な場合があります。Quarkus Extensionが多くを処理しますが、独自の動的処理はNativeテストで確認します。JVMとNativeで同じ性能特性になるとは限らないため、起動、常駐メモリ、ピーク性能、ビルド時間、障害調査を実測します。\n\n運用監視にはSmallRye HealthなどMicroProfile互換機能を使えます。代表的なパスは`/q/health/live`、`/q/health/ready`、`/q/health/started`です。アプリの業務APIと管理APIを同じ公開範囲へ置かず、必要なら管理インターフェースを分け、認証やネットワークポリシーで守ります。メトリクス、OpenTelemetry、構造化ログもExtensionとして追加できます。\n\n「Nativeだから常に費用が下がる」「起動が速いから障害に強い」とは限りません。DB接続数やキャッシュ、リクエスト量が支配的な場合もあります。まずJVM版を基準にし、業務シナリオで測り、運用チームがビルドと障害調査を維持できる場合にNativeを採用します。",
       "samples": [
         {
           "caption": "考え方を標準Javaで確かめる",
@@ -604,7 +604,7 @@
           "kind": "applied",
           "required": false,
           "type": "runtime-lab",
-          "task": "【任意・Native Image発展】JVM演習を終え、cold startまたは初期メモリを実測する必要がある場合だけ進めます。`application.properties`のprefixを`Native`にし、`GreetingReadiness`を`UP`へ直してください。\n\n提出するとQuarkus公式のUBI 9 Mandrel builder imageでLinux Native executableをcontainer buildし、UBI 9 micro imageへ格納して起動します。Native REST、readiness、停止を検証し、build秒数も出力します。Docker daemonと2つのimageが必要で、章クリア・★・カフェ報酬には影響しません。初回は数分と十分なCPU・メモリ・空き容量が必要です。",
+          "task": "【任意・Native Image発展】JVM演習を終え、cold startまたは初期メモリを実測する必要がある場合だけ進めます。`application.properties`のprefixを`Native`にし、`GreetingReadiness`を`UP`へ直してください。\n\n提出するとQuarkus公式のUBI 9 Mandrel builder imageでLinux Native executableをコンテナでビルドし、UBI 9 micro imageへ格納して起動します。Native REST、readiness、停止を検証し、ビルド秒数も出力します。Docker daemonと2つのイメージが必要で、章クリア・★・カフェ報酬には影響しません。初回は数分と十分なCPU・メモリ・空き容量が必要です。",
           "runtimeLab": {
             "name": "quarkus-native-container-optional",
             "source": "labs/frameworks/quarkus/native-exercise",
@@ -662,9 +662,9 @@
             ]
           },
           "hints": [
-            "先に`docker pull quay.io/quarkus/ubi9-quarkus-mandrel-builder-image:jdk-21`と`docker pull quay.io/quarkus/ubi9-quarkus-micro-image:2.0`を実行します。採点はimageを自動pullしません。",
+            "先に`docker pull quay.io/quarkus/ubi9-quarkus-mandrel-builder-image:jdk-21`と`docker pull quay.io/quarkus/ubi9-quarkus-micro-image:2.0`を実行します。採点はイメージを自動pullしません。",
             "設定は`app.greeting.prefix=Native`、readinessは`HealthCheckResponse.up(\"native-greeting\")`です。",
-            "Nativeを採用する結論ありきにせず、JVM版とbuild時間、起動時間、RSS、定常性能、障害調査性を同条件で比較してください。"
+            "Nativeを採用する結論ありきにせず、JVM版とビルド時間、起動時間、RSS、定常性能、障害調査性を同条件で比較してください。"
           ],
           "rubric": [
             "implement"
@@ -793,7 +793,7 @@
       "objectiveIds": [
         "ch62-o3"
       ],
-      "explanation": "Quarkusを使える状態とは、REST APIを起動できるだけでなく、Extensionがビルド時最適化へどう関わるか、どの設定を実行時に変えられるか、Dev Servicesが本番構成ではないこと、JVM/Nativeのどちらをなぜ選ぶかを説明できる状態です。\n\n演習後は`labs/frameworks/quarkus/README.md`に沿ってdev mode、継続テスト、Health、JVMパッケージを確認してください。DockerまたはPodmanがある場合はDev Services演習を行い、Native buildは任意の発展課題として測定結果をJVM版と比較します。",
+      "explanation": "Quarkusを使える状態とは、REST APIを起動できるだけでなく、Extensionがビルド時最適化へどう関わるか、どの設定を実行時に変えられるか、Dev Servicesが本番構成ではないこと、JVM/Nativeのどちらをなぜ選ぶかを説明できる状態です。\n\n演習後は`labs/frameworks/quarkus/README.md`に沿ってdev mode、継続テスト、Health、JVMパッケージを確認してください。DockerまたはPodmanがある場合はDev Services演習を行い、Nativeビルドは任意の発展課題として測定結果をJVM版と比較します。",
       "samples": [],
       "task": "開発と本番で違う準備をするため、**`application.properties` にprofile別の設定**を書いてください。\n\nQuarkusでは `%dev.` や `%prod.` を頭に付けると、そのprofileのときだけ効きます。接頭辞の無い行はどのprofileでも効きます。次の状態にしてください。\n\n- どのprofileでも `quarkus.datasource.db-kind` は `postgresql`（ビルド時設定なので直接書く）\n- `%dev.` では接続先を**書かない**。Dev Servicesに用意させます\n- `%prod.` では接続先 `quarkus.datasource.jdbc.url` を `${DB_URL}` にする（既定値なし）\n- `%prod.` のログレベル `quarkus.log.level` は `INFO`\n- `%dev.` のログレベルは `DEBUG`\n\n**開発側に接続先を書いてしまうと Dev Services が動きません。** 「設定していないから用意してくれる」仕組みなので、開発では意図して空けておきます。\n\n> 本番の接続先に既定値を付けないのは、未設定のまま起動して**開発用のDBへつながる事故**を防ぐためです。起動時に失敗したほうが安全です。",
       "hints": [

@@ -29,7 +29,7 @@
       "id": "27-0",
       "lessonType": "preflight",
       "title": "事前確認：実DBでトランザクション labを動かす準備",
-      "explanation": "## 実DBを使う範囲を先に確認する\n\nこの章の`runtime-lab`はcontainer上で一時的なPostgreSQL 16を起動し、commitとrollback・同時更新・冪等性を本物のDBで確認します。DockerまたはPodmanのどちらかが必須で、接続できて必要imageがある方を採点側が選びます。提出時に`postgres:16-alpine` imageがローカルに無ければ、自動で大きなdownloadを始めず、先に実行するpullコマンドを表示します。\n\n```bash\ndocker pull postgres:16-alpine\ndocker image inspect postgres:16-alpine\n```\n\nJDBCドライバはMavenで取得します（`mvn dependency:copy-dependencies`）。buildもtestもMavenには任せず、取り出したjarを使って`javac`と`java`を直接動かします。初回はドライバのdownloadに時間がかかることがあります。\n\nlabは動的なlocalhostポートと一意なcontainer名を使い、成功・失敗・timeoutのいずれでもcontainerを削除します。ただしDocker自体の強制終了などで残った場合は、表示された`jq-`で始まるcontainerを確認してから削除してください。この事前確認は★対象外です。",
+      "explanation": "## 実DBを使う範囲を先に確認する\n\nこの章の`runtime-lab`はコンテナ上で一時的なPostgreSQL 16を起動し、commitとrollback・同時更新・冪等性を本物のDBで確認します。DockerまたはPodmanのどちらかが必須で、接続できて必要イメージがある方を採点側が選びます。提出時に`postgres:16-alpine`イメージがローカルに無ければ、自動で大きなダウンロードを始めず、先に実行するpullコマンドを表示します。\n\n```bash\ndocker pull postgres:16-alpine\ndocker image inspect postgres:16-alpine\n```\n\nJDBCドライバはMavenで取得します（`mvn dependency:copy-dependencies`）。ビルドもtestもMavenには任せず、取り出したjarを使って`javac`と`java`を直接動かします。初回はドライバのダウンロードに時間がかかることがあります。\n\nlabは動的なlocalhostポートと一意なコンテナ名を使い、成功・失敗・タイムアウトのいずれでもコンテナを削除します。ただしDocker自体の強制終了などで残った場合は、表示された`jq-`で始まるコンテナを確認してから削除してください。この事前確認は★対象外です。",
       "preflight": {
         "buttonLabel": "実DB labの準備を確認する",
         "checks": [
@@ -287,7 +287,7 @@
         {
           "kind": "applied",
           "type": "runtime-lab",
-          "task": "【実行演習】`labs/transactions/conflict-exercise`で、**実PostgreSQL**へ接続する送金を直します。\n\n採点はcontainerでPostgreSQL 16を起動し、`db/schema.sql`で表を作り直して口座A・Bへ100,000ずつ入れてから、4つの場面を流します。判定は必ず**DBを読んで**行うので、例外を投げたかどうかではなく、実際に何が残ったかで決まります。\n\n`exercise/TransferService.java`はいま1文ずつ別々に流し（autocommitのまま）、残高を読んで計算して書き戻しています。1スレッドで成功する分には動いて見えますが、実DBでは次の4つが起きます。\n\n(1)存在しない口座へ送ると、送金元だけ減って戻りません。`UPDATE`は**0行更新でもエラーになりません**。\n(2)同じ向きの同時送金（2スレッド×300件）で、読んで計算して書く間の更新が上書きされます。\n(3)逆向きの同時送金（A→BとB→Aを300件ずつ）が1件も失敗しないこと。**これはいまも通っています**（1文ずつ確定しているので待ち合わせが起きません）。直す対象ではなく見張りです。1つのトランザクションにまとめると、こんどは取得順が交差して待ち合わせが起きるので、そこで効いてきます。\n(4)同じ送金IDが2回届くと、残高だけ二重に動きます。\n\n1件の送金を1つのトランザクションにまとめ、金額の計算はDBに任せ、更新できた行数を確かめ、2回目の送金IDは「すでに済んでいる」として何もせずに戻してください。逆向きの衝突は、更新の順序をそろえるか、`SQLState`の`40001`/`40P01`を捕まえて再試行すれば通せます。\n\nクラス名・コンストラクタ・`transfer`の形は採点の足場が呼ぶので変えないでください。",
+          "task": "【実行演習】`labs/transactions/conflict-exercise`で、**実PostgreSQL**へ接続する送金を直します。\n\n採点はコンテナでPostgreSQL 16を起動し、`db/schema.sql`で表を作り直して口座A・Bへ100,000ずつ入れてから、4つの場面を流します。判定は必ず**DBを読んで**行うので、例外を投げたかどうかではなく、実際に何が残ったかで決まります。\n\n`exercise/TransferService.java`はいま1文ずつ別々に流し（autocommitのまま）、残高を読んで計算して書き戻しています。1スレッドで成功する分には動いて見えますが、実DBでは次の4つが起きます。\n\n(1)存在しない口座へ送ると、送金元だけ減って戻りません。`UPDATE`は**0行更新でもエラーになりません**。\n(2)同じ向きの同時送金（2スレッド×300件）で、読んで計算して書く間の更新が上書きされます。\n(3)逆向きの同時送金（A→BとB→Aを300件ずつ）が1件も失敗しないこと。**これはいまも通っています**（1文ずつ確定しているので待ち合わせが起きません）。直す対象ではなく見張りです。1つのトランザクションにまとめると、こんどは取得順が交差して待ち合わせが起きるので、そこで効いてきます。\n(4)同じ送金IDが2回届くと、残高だけ二重に動きます。\n\n1件の送金を1つのトランザクションにまとめ、金額の計算はDBに任せ、更新できた行数を確かめ、2回目の送金IDは「すでに済んでいる」として何もせずに戻してください。逆向きの衝突は、更新の順序をそろえるか、`SQLState`の`40001`/`40P01`を捕まえて再試行すれば通せます。\n\nクラス名・コンストラクタ・`transfer`の形は採点の足場が呼ぶので変えないでください。",
           "runtimeLab": {
             "name": "transfer transaction conflict lab",
             "source": "labs/transactions/conflict-exercise",

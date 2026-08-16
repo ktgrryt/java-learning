@@ -1,7 +1,7 @@
 {
   "id": "ch29",
-  "title": "Validation・テスト・本番運用",
-  "subtitle": "入力から運用までをつないで完成させる",
+  "title": "入力の検証とAPIの境界",
+  "subtitle": "形式・項目間・在庫を、順番に確かめて断る",
   "emoji": "✅",
   "objectives": [
     {
@@ -14,10 +14,6 @@
     },
     {
       "id": "ch29-o3",
-      "text": "ログから機密値を隠し、外部呼び出しの再試行を実装できる"
-    },
-    {
-      "id": "ch29-o4",
       "text": "形式・存在・在庫の順に判定して、正しいステータスを返すAPI境界を作れる"
     }
   ],
@@ -33,7 +29,7 @@
       "id": "29-0",
       "lessonType": "preflight",
       "title": "事前確認：実サーバーでValidation labを動かす準備",
-      "explanation": "## 実サーバーへ配備して確かめます\n\nこの章の`runtime-lab`は宣言した制約が実際に効くかを、実サーバーへ不正な入力を送って確かめます。`mvn package`でWARを作り、**Open Liberty 26.0.0.8**を採点側が確保した動的ポートで起動して、HTTPで実測します。使うFeatureは`restfulWS-4.0`・`cdi-4.1`・`jsonb-3.0`・`validation-3.1`です。\n\nLibertyの本体はMavenが取得します（`~/.m2`へ約120MB）。**初回だけ**時間がかかり、2回目以降はキャッシュから起動します。containerは使いません。\n\nlabは成功・失敗・timeoutのいずれでもサーバーを停止します。提出のたびに一時ディレクトリで動くので、`labs/`の中身は書き換わりません。この事前確認は★対象外です。",
+      "explanation": "## 実サーバーへ配備して確かめます\n\nこの章の`runtime-lab`は宣言した制約が実際に効くかを、実サーバーへ不正な入力を送って確かめます。`mvn package`でWARを作り、**Open Liberty 26.0.0.8**を採点側が確保した動的ポートで起動して、HTTPで実測します。使うFeatureは`restfulWS-4.0`・`cdi-4.1`・`jsonb-3.0`・`validation-3.1`です。\n\nLibertyの本体はMavenが取得します（`~/.m2`へ約120MB）。**初回だけ**時間がかかり、2回目以降はキャッシュから起動します。コンテナは使いません。\n\nlabは成功・失敗・タイムアウトのいずれでもサーバーを停止します。提出のたびに一時ディレクトリで動くので、`labs/`の中身は書き換わりません。この事前確認は★対象外です。",
       "preflight": {
         "buttonLabel": "Validation labの準備を確認する",
         "checks": [
@@ -70,7 +66,7 @@
       "objectiveIds": [
         "ch29-o1"
       ],
-      "explanation": "## はじめて学ぶ人へ\n\nBean Validationは、入口で確認する項目をJavaの注釈として宣言する仕組みです。申込書に「名前は必須」「年齢は0以上」とチェック欄を付けておくイメージです。\n\n```java\nclass UserRequest {\n    @NotBlank String name;\n    @Min(0) int age;\n}\n```\n\n`name=\"\"`、`age=-1` が届けば、業務処理へ進む前に項目ごとの違反を集められます。これは「形式として受け付けられるか」の検査です。在庫があるか、購入上限を超えていないかといった業務ルールは別の層で確認します。まず入口の単純な条件を注釈へ集めると、処理本体が読みやすくなります。\n\n## 制約をDTOへ集める\n\n```java\nrecord CreateUser(\n @NotBlank @Size(max=100) String name,\n @Email String email,\n @Min(0) int age\n) {}\n```\n\nJakarta Validationは `Validator.validate` やJakarta REST/CDIとの統合で制約を検査します。`@NotNull` はnullだけ、`@NotEmpty` はnullと空、`@NotBlank` はnull・空・空白だけを弾きます。文字列長は`@Size`、数値範囲は`@Min/@Max`。`@Email`だけでは必須にならないので、必須なら`@NotBlank`も付けます。\n\n```svg 形式の検査は入口で、業務ルールは Service で、最後の砦は DB の制約\n<svg viewBox=\"0 0 720 232\">\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"14\" y=\"24\">入口から順に、それぞれの担当で確かめる</text>\n\n  <rect class=\"fig-box\" x=\"14\" y=\"40\" width=\"150\" height=\"72\" rx=\"6\"/>\n  <text class=\"fig-t fig-small\" x=\"89\" y=\"60\" text-anchor=\"middle\">リクエスト</text>\n  <text class=\"fig-t fig-mono fig-small\" x=\"89\" y=\"82\" text-anchor=\"middle\">name = \"\"</text>\n  <text class=\"fig-t fig-mono fig-small\" x=\"89\" y=\"100\" text-anchor=\"middle\">age = -1</text>\n\n  <rect class=\"fig-box-accent\" x=\"190\" y=\"40\" width=\"160\" height=\"72\" rx=\"6\"/>\n  <text class=\"fig-t fig-mono fig-small fig-t-accent\" x=\"270\" y=\"60\" text-anchor=\"middle\">@NotBlank @Min(0)</text>\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"270\" y=\"82\" text-anchor=\"middle\">形式として</text>\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"270\" y=\"100\" text-anchor=\"middle\">受け付けられるか</text>\n\n  <rect class=\"fig-box\" x=\"376\" y=\"40\" width=\"160\" height=\"72\" rx=\"6\"/>\n  <text class=\"fig-t fig-small\" x=\"456\" y=\"60\" text-anchor=\"middle\">Service</text>\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"456\" y=\"82\" text-anchor=\"middle\">在庫はあるか</text>\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"456\" y=\"100\" text-anchor=\"middle\">上限を超えないか</text>\n\n  <rect class=\"fig-box\" x=\"562\" y=\"40\" width=\"144\" height=\"72\" rx=\"6\"/>\n  <text class=\"fig-t fig-small\" x=\"634\" y=\"60\" text-anchor=\"middle\">DB の制約</text>\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"634\" y=\"82\" text-anchor=\"middle\">UNIQUE・外部キー</text>\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"634\" y=\"100\" text-anchor=\"middle\">競合まで守る</text>\n\n  <line class=\"fig-line\" x1=\"168\" y1=\"76\" x2=\"186\" y2=\"76\" marker-end=\"arrow\"/>\n  <line class=\"fig-line\" x1=\"354\" y1=\"76\" x2=\"372\" y2=\"76\" marker-end=\"arrow\"/>\n  <line class=\"fig-line\" x1=\"540\" y1=\"76\" x2=\"558\" y2=\"76\" marker-end=\"arrow\"/>\n\n  <line class=\"fig-line-ng\" x1=\"270\" y1=\"112\" x2=\"270\" y2=\"148\" marker-end=\"arrow-ng\"/>\n  <rect class=\"fig-box-ng\" x=\"190\" y=\"152\" width=\"160\" height=\"40\" rx=\"6\"/>\n  <text class=\"fig-t fig-small fig-t-ng\" x=\"270\" y=\"166\" text-anchor=\"middle\">400 と、項目ごとの</text>\n  <text class=\"fig-t fig-small fig-t-ng\" x=\"270\" y=\"184\" text-anchor=\"middle\">違反の一覧を返す</text>\n  <line class=\"fig-line-ng\" x1=\"456\" y1=\"112\" x2=\"456\" y2=\"148\" marker-end=\"arrow-ng\"/>\n  <rect class=\"fig-box-ng\" x=\"376\" y=\"152\" width=\"160\" height=\"40\" rx=\"6\"/>\n  <text class=\"fig-t fig-small fig-t-ng\" x=\"456\" y=\"172\" text-anchor=\"middle\">業務エラーとして返す</text>\n\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"14\" y=\"222\">@NotNull は null だけ / @NotEmpty は null と空 / @NotBlank は空白だけも弾く。必須なら @Email に @NotBlank も付ける</text>\n</svg>\n```\n\n制約メッセージは利用者向けにし、フィールド名とcodeを持つエラーDTOへ変換します。DBのUNIQUEや外部状態を毎回問い合わせる検査は単純なBean制約にせず、ServiceとDB制約で競合まで守ります。教材のMiniValidatorは頻出制約だけを再現します。",
+      "explanation": "## はじめて学ぶ人へ\n\nBean Validationは、入口で確認する項目をJavaの注釈として宣言する仕組みです。申込書に「名前は必須」「年齢は0以上」とチェック欄を付けておくイメージです。\n\n```java\nclass UserRequest {\n    @NotBlank String name;\n    @Min(0) int age;\n}\n```\n\n`name=\"\"`、`age=-1` が届けば、業務処理へ進む前に項目ごとの違反を集められます。これは「形式として受け付けられるか」の検査です。在庫があるか、購入上限を超えていないかといった業務ルールは別の層で確認します。まず入口の単純な条件を注釈へ集めると、処理本体が読みやすくなります。\n\n## 制約をDTOへ集める\n\n```java\nrecord CreateUser(\n @NotBlank @Size(max=100) String name,\n @Email String email,\n @Min(0) int age\n) {}\n```\n\nJakarta Validationは `Validator.validate` やJakarta REST/CDIとの統合で制約を検査します。`@NotNull` はnullだけ、`@NotEmpty` はnullと空、`@NotBlank` はnull・空・空白だけを弾きます。文字列長は`@Size`、数値範囲は`@Min/@Max`。`@Email`だけでは必須にならないので、必須なら`@NotBlank`も付けます。\n\n```svg 形式の検査は入口で、業務ルールは Service で、最後の砦は DB の制約\n<svg viewBox=\"0 0 720 232\">\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"14\" y=\"24\">入口から順に、それぞれの担当で確かめる</text>\n\n  <rect class=\"fig-box\" x=\"14\" y=\"40\" width=\"150\" height=\"72\" rx=\"6\"/>\n  <text class=\"fig-t fig-small\" x=\"89\" y=\"60\" text-anchor=\"middle\">リクエスト</text>\n  <text class=\"fig-t fig-mono fig-small\" x=\"89\" y=\"82\" text-anchor=\"middle\">name = \"\"</text>\n  <text class=\"fig-t fig-mono fig-small\" x=\"89\" y=\"100\" text-anchor=\"middle\">age = -1</text>\n\n  <rect class=\"fig-box-accent\" x=\"190\" y=\"40\" width=\"160\" height=\"72\" rx=\"6\"/>\n  <text class=\"fig-t fig-mono fig-small fig-t-accent\" x=\"270\" y=\"60\" text-anchor=\"middle\">@NotBlank @Min(0)</text>\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"270\" y=\"82\" text-anchor=\"middle\">形式として</text>\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"270\" y=\"100\" text-anchor=\"middle\">受け付けられるか</text>\n\n  <rect class=\"fig-box\" x=\"376\" y=\"40\" width=\"160\" height=\"72\" rx=\"6\"/>\n  <text class=\"fig-t fig-small\" x=\"456\" y=\"60\" text-anchor=\"middle\">Service</text>\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"456\" y=\"82\" text-anchor=\"middle\">在庫はあるか</text>\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"456\" y=\"100\" text-anchor=\"middle\">上限を超えないか</text>\n\n  <rect class=\"fig-box\" x=\"562\" y=\"40\" width=\"144\" height=\"72\" rx=\"6\"/>\n  <text class=\"fig-t fig-small\" x=\"634\" y=\"60\" text-anchor=\"middle\">DB の制約</text>\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"634\" y=\"82\" text-anchor=\"middle\">UNIQUE・外部キー</text>\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"634\" y=\"100\" text-anchor=\"middle\">競合まで守る</text>\n\n  <line class=\"fig-line\" x1=\"168\" y1=\"76\" x2=\"186\" y2=\"76\" marker-end=\"arrow\"/>\n  <line class=\"fig-line\" x1=\"354\" y1=\"76\" x2=\"372\" y2=\"76\" marker-end=\"arrow\"/>\n  <line class=\"fig-line\" x1=\"540\" y1=\"76\" x2=\"558\" y2=\"76\" marker-end=\"arrow\"/>\n\n  <line class=\"fig-line-ng\" x1=\"270\" y1=\"112\" x2=\"270\" y2=\"148\" marker-end=\"arrow-ng\"/>\n  <rect class=\"fig-box-ng\" x=\"190\" y=\"152\" width=\"160\" height=\"40\" rx=\"6\"/>\n  <text class=\"fig-t fig-small fig-t-ng\" x=\"270\" y=\"166\" text-anchor=\"middle\">400 と、項目ごとの</text>\n  <text class=\"fig-t fig-small fig-t-ng\" x=\"270\" y=\"184\" text-anchor=\"middle\">違反の一覧を返す</text>\n  <line class=\"fig-line-ng\" x1=\"456\" y1=\"112\" x2=\"456\" y2=\"148\" marker-end=\"arrow-ng\"/>\n  <rect class=\"fig-box-ng\" x=\"376\" y=\"152\" width=\"160\" height=\"40\" rx=\"6\"/>\n  <text class=\"fig-t fig-small fig-t-ng\" x=\"456\" y=\"172\" text-anchor=\"middle\">業務エラーとして返す</text>\n\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"14\" y=\"222\">@NotNull は null だけ / @NotEmpty は null と空 / @NotBlank は空白だけも弾く。必須なら @Email に @NotBlank も付ける</text>\n</svg>\n```\n\n制約メッセージは利用者向けにし、フィールド名とcodeを持つエラーDTOへ変換します。DBのUNIQUEや外部状態を毎回問い合わせる検査は単純なBean制約にせず、ServiceとDB制約で競合まで守ります。教材のMiniValidatorは頻出制約だけを再現します。\n\n### ⚠️ ここが本物と違う\n\n`MiniValidator` は**学習用に書いた最小限の検証器**です。頻出の制約だけを再現しています。\n\n- 対応するのは `@NotBlank` `@Size` `@Min` `@Max` `@Email` だけ\n- ネストした `@Valid` の連鎖、グループ（`groups`）、独自制約（`ConstraintValidator` の実装）は無い\n- メッセージの国際化（`ValidationMessages.properties`）も無い\n\n**書き方（フィールドへ制約を付け、違反をまとめて受け取る形）は本物と同じ**なので、\nここで身につけた形はそのまま実務で通用します。\n\n> 💡 本物でだけ確かめられること … `@Valid` を付けたときにフレームワークが自動で検証すること、\n> 違反を400へ変換する流れ、独自制約の組み立て。実物のOpen Libertyはこの章の章末演習\n> （`labs/jakarta-web/validation-exercise`）で動かします。",
       "samples": [
         {
           "caption": "注釈からエラー一覧を作る",
@@ -263,236 +259,6 @@
       ]
     },
     {
-      "id": "29-3",
-      "title": "テスト・設定・可観測性",
-      "objectiveIds": [
-        "ch29-o3"
-      ],
-      "explanation": "## はじめて学ぶ人へ\n\n本番で安全に動かす準備は、3つの時間帯で考えると整理できます。\n\n```text\nリリース前: テストで期待する動作を確認\n起動時:     環境ごとの設定を外から与える\n運用中:     ログやメトリクスで状態を観察\n```\n\nテストは変更で壊れていないかを確かめ、外部設定はパスワードや接続先をソースへ埋め込まないために使います。可観測性は体温計や心電図のように、動いているアプリの異常を外から知る手段です。秘密情報はログへ出さず、リクエストID、結果、処理時間など調査に必要な情報を一定の形式で残します。\n\n## 本番で直せるアプリにする\n\n単体テストではServiceへstubを注入して境界値と業務ルールを速く検証します。結合テストでは実DBに近い環境でJPA mapping、制約、トランザクションを確認し、HTTPテストではstatus/header/bodyと認証を通します。mockだけではSQLや設定ミスを見逃すため層を組み合わせます。\n\n設定はコードから外へ出し、環境変数・MicroProfile Config・サーバ設定などで環境差を注入します。秘密値はsecret管理へ置き、既定値で本番が危険に動かないようにします。\n\nログは時刻、level、traceId、処理名、結果を構造化し、パスワード・token・Cookie・カード番号を除外します。metricsで件数/遅延/失敗率、health checkで起動可否と依存先状態、traceでサービス間を追います。タイムアウトを必ず置き、再試行は冪等な処理だけに上限付きで行います。",
-      "samples": [
-        {
-          "caption": "stubで境界値を単体テスト",
-          "code": "interface Stock {\n    int get();\n}\n\nclass StubStock implements Stock {\n    public int get() {\n        return 0;\n    }\n}\n\nclass Service {\n    Stock s;\n\n    Service(Stock s) {\n        this.s = s;\n    }\n\n    boolean canBuy() {\n        return s.get() > 0;\n    }\n}\n\npublic class TestDesignSample {\n    public static void main(String[] a) {\n        System.out.println(new Service(new StubStock()).canBuy() ? \"FAIL\" : \"PASS\");\n    }\n}\n"
-        }
-      ],
-      "task": "ログ出力前に機密値をmaskします。入力メールを `先頭1文字***@domain`、tokenは常に `[REDACTED]` とし、`INFO login email=... token=[REDACTED]` を出してください。不正なメールは `***`。",
-      "starterCode": "import java.util.*;\n\npublic class ProductionLog {\n    static String maskEmail(String email) {\n        // TODO\n        return \"\";\n    }\n\n    public static void main(String[] a) {\n        Scanner sc = new Scanner(System.in);\n        String email = sc.next(), token = sc.next();\n        System.out.println(\"INFO login email=\" + maskEmail(email) + \" token=\" + /* TODO */ token);\n    }\n}\n",
-      "visibleCases": [
-        {
-          "label": "mask",
-          "stdin": "yamada@example.com secret-token",
-          "expected": "INFO login email=y***@example.com token=[REDACTED]"
-        }
-      ],
-      "hiddenCases": [
-        {
-          "label": "短いlocal",
-          "stdin": "a@test.jp xxx",
-          "expected": "INFO login email=a***@test.jp token=[REDACTED]"
-        },
-        {
-          "label": "不正mail",
-          "stdin": "invalid token",
-          "expected": "INFO login email=*** token=[REDACTED]"
-        }
-      ],
-      "hints": [
-        "indexOf('@')が1以上なら先頭文字＋***＋substring(at)。それ以外***。",
-        "token変数を連結せず文字列 `[REDACTED]`。"
-      ],
-      "solution": "import java.util.*;\n\npublic class ProductionLog {\n    static String maskEmail(String email) {\n        int at = email.indexOf('@');\n        return at < 1 ? \"***\" : email.charAt(0) + \"***\" + email.substring(at);\n    }\n\n    public static void main(String[] a) {\n        Scanner sc = new Scanner(System.in);\n        String email = sc.next(), token = sc.next();\n        System.out.println(\"INFO login email=\" + maskEmail(email) + \" token=[REDACTED]\");\n    }\n}\n",
-      "extraTasks": [
-        {
-          "kind": "applied",
-          "task": "外部APIの最大3回再試行を実装します。入力failures回だけ失敗し、その後成功。各回 `attempt=n failed/ok`、3回とも失敗なら最後に `give up`。",
-          "starterCode": "import java.util.*;\n\npublic class ProductionRetry {\n    public static void main(String[] a) {\n        int failures = new Scanner(System.in).nextInt();\n        // TODO max 3\n    }\n}\n",
-          "visibleCases": [
-            {
-              "label": "2回失敗後成功",
-              "stdin": "2",
-              "expected": "attempt=1 failed\nattempt=2 failed\nattempt=3 ok"
-            },
-            {
-              "label": "即成功",
-              "stdin": "0",
-              "expected": "attempt=1 ok"
-            }
-          ],
-          "hiddenCases": [
-            {
-              "label": "諦める",
-              "stdin": "9",
-              "expected": "attempt=1 failed\nattempt=2 failed\nattempt=3 failed\ngive up"
-            }
-          ],
-          "hints": [
-            "attemptを1から3までfor。`attempt<=failures` ならfailed。",
-            "成功ならokを出してreturn。loop後give up。"
-          ],
-          "solution": "import java.util.*;\n\npublic class ProductionRetry {\n    public static void main(String[] a) {\n        int failures = new Scanner(System.in).nextInt();\n        for (int attempt = 1; attempt <= 3; attempt++) {\n            if (attempt <= failures) System.out.println(\"attempt=\" + attempt + \" failed\");\n            else {\n                System.out.println(\"attempt=\" + attempt + \" ok\");\n                return;\n            }\n        }\n        System.out.println(\"give up\");\n    }\n}\n",
-          "sourceChecks": [
-            {
-              "pattern": "attempt\\s*<=\\s*3|attempt\\s*<\\s*4|\\b3\\b",
-              "minimum": 1,
-              "message": "再試行は最大3回までにしてください。上限のない再試行は障害を長引かせます。"
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "id": "29-4",
-      "title": "総合演習：安全な注文API",
-      "objectiveIds": [
-        "ch29-o4"
-      ],
-      "explanation": "## はじめて学ぶ人へ\n\nこの総合演習では、ここまでの部品を1本の注文処理としてつなぎます。最初から全コードを覚えようとせず、リクエストがどの順番で検査・処理されるかを追いましょう。\n\n```text\n1. JSONを注文DTOとして受け取る\n2. Bean Validationで必須項目や範囲を確認\n3. 認証済み利用者と操作権限を確認\n4. Serviceで在庫などの業務ルールを確認\n5. トランザクション内で注文保存と在庫更新\n6. 成功なら201、入力ミスなら400などへ変換\n7. ログにリクエストIDと結果を記録\n```\n\nResourceはHTTPとの変換、Serviceは業務判断、Repositoryは永続化という役割を守ります。失敗をどこで見つけ、どのステータスへ変えるかまで説明できれば、単に動くだけでなく保守しやすいAPIになります。\n\n## 入口から永続化までを一本につなぐ\n\n実務の1リクエストは、認証・DTO変換・Validation・認可・Service・トランザクション・Repository・DTO応答・ログという複数の責務を通ります。各段を分けると、入力不正400、業務競合409、対象なし404、想定外500を一貫して扱えます。\n\nJakarta EEのWeb ProfileにはServlet、REST、CDI、Validation、Persistence、Transactions、Security、Concurrency、Faces、WebSocketなどがあります。PlatformにはMessaging、Mail、Batchなども加わります。すべてを同時に使う必要はなく、同期HTTPならREST、DBならPersistence/Transactions、非同期連携ならMessaging、定時大量処理ならBatchというように要件で選びます。新規の業務部品は通常CDI Beanを中心にし、EJB固有機能が必要な場合だけEnterprise Beansを検討します。\n\nこの章までの疑似APIは概念とコード形を学ぶためのものです。次は実際のJakarta EEランタイム（WildFly、Open Liberty、Payaraなど）とテスト用DBで小さなCRUDをデプロイし、公式仕様とサーバ文書を確認しながら進めてください。",
-      "samples": [
-        {
-          "caption": "ValidationからResponseへ",
-          "code": "import jakarta.validation.constraints.*;\nimport jakarta.ws.rs.core.*;\nimport java.util.*;\n\nrecord Input(@NotBlank String item, @Min(1) int count) { }\n\nrecord ErrorDto(List<String> errors) { }\n\npublic class BoundarySample {\n    public static void main(String[] a) {\n        List<String> e = MiniValidator.validate(new Input(\"\", 0));\n        Response r = e.isEmpty() ? Response.status(201).build() : Response.status(400).entity(new ErrorDto(e)).build();\n        System.out.println(r.getStatus() + \" \" + r.getEntity());\n    }\n}\n"
-        }
-      ],
-      "task": "注文API境界を完成させます。入力 `item count`（`_`は空）。Validationエラーは400とエラー一覧、在庫はbook=3/pen=1で不存在404、不足409、成功201と `OrderDto[id=1, item=..., count=...]`。",
-      "starterCode": "import jakarta.validation.constraints.*;\nimport jakarta.ws.rs.core.*;\nimport jakarta.transaction.Transactional;\nimport java.util.*;\n\nrecord CreateOrder(@NotBlank(message = \"itemは必須です\") String item, @Min(value = 1, message = \"countは1以上です\") int count) { }\n\nrecord OrderDto(long id, String item, int count) { }\n\nrecord ApiError(String code, Object detail) { }\n\nclass OrderService {\n    private final Map<String, Integer> stock = new HashMap<>(Map.of(\"book\", 3, \"pen\", 1));\n\n    @Transactional\n    Response create(CreateOrder in) {\n        // TODO\n        return null;\n    }\n}\n\npublic class FinalOrderApi {\n    public static void main(String[] a) {\n        Scanner sc = new Scanner(System.in);\n        String item = sc.next();\n        if (item.equals(\"_\")) item = \"\";\n        CreateOrder in = new CreateOrder(item, sc.nextInt());\n        Response r = new OrderService().create(in);\n        System.out.println(r.getStatus() + \" \" + r.getEntity());\n    }\n}\n",
-      "visibleCases": [
-        {
-          "label": "成功",
-          "stdin": "book 2",
-          "expected": "201 OrderDto[id=1, item=book, count=2]"
-        },
-        {
-          "label": "入力不正",
-          "stdin": "_ 0",
-          "expected": "400 ApiError[code=VALIDATION_ERROR, detail=[item: itemは必須です, count: countは1以上です]]"
-        }
-      ],
-      "hiddenCases": [
-        {
-          "label": "不存在",
-          "stdin": "eraser 1",
-          "expected": "404 ApiError[code=NOT_FOUND, detail=商品がありません]"
-        },
-        {
-          "label": "不足",
-          "stdin": "pen 2",
-          "expected": "409 ApiError[code=OUT_OF_STOCK, detail=在庫が足りません]"
-        },
-        {
-          "label": "境界成功",
-          "stdin": "pen 1",
-          "expected": "201 OrderDto[id=1, item=pen, count=1]"
-        }
-      ],
-      "hints": [
-        "最初にMiniValidator.validateし、空でなければ400＋ApiError。",
-        "stock.getがnullなら404。不足なら409。",
-        "成功時だけ在庫を減らし201＋OrderDto。"
-      ],
-      "solution": "import jakarta.validation.constraints.*;\nimport jakarta.ws.rs.core.*;\nimport jakarta.transaction.Transactional;\nimport java.util.*;\n\nrecord CreateOrder(@NotBlank(message = \"itemは必須です\") String item, @Min(value = 1, message = \"countは1以上です\") int count) { }\n\nrecord OrderDto(long id, String item, int count) { }\n\nrecord ApiError(String code, Object detail) { }\n\nclass OrderService {\n    private final Map<String, Integer> stock = new HashMap<>(Map.of(\"book\", 3, \"pen\", 1));\n\n    @Transactional\n    Response create(CreateOrder in) {\n        List<String> errors = MiniValidator.validate(in);\n        if (!errors.isEmpty()) return Response.status(400).entity(new ApiError(\"VALIDATION_ERROR\", errors)).build();\n        Integer current = stock.get(in.item());\n        if (current == null) return Response.status(404).entity(new ApiError(\"NOT_FOUND\", \"商品がありません\")).build();\n        if (current < in.count()) return Response.status(409).entity(new ApiError(\"OUT_OF_STOCK\", \"在庫が足りません\")).build();\n        stock.put(in.item(), current - in.count());\n        return Response.status(201).entity(new OrderDto(1, in.item(), in.count())).build();\n    }\n}\n\npublic class FinalOrderApi {\n    public static void main(String[] a) {\n        Scanner sc = new Scanner(System.in);\n        String item = sc.next();\n        if (item.equals(\"_\")) item = \"\";\n        CreateOrder in = new CreateOrder(item, sc.nextInt());\n        Response r = new OrderService().create(in);\n        System.out.println(r.getStatus() + \" \" + r.getEntity());\n    }\n}\n",
-      "extraTasks": [
-        {
-          "kind": "applied",
-          "task": "1問目の境界へ、解説のパイプラインで飛ばしていた**認可**を足します。入力は1行に `caller role item count`（`caller` と `item` の `_` は空文字）。\n\n次の順に判定し、**最初に外れた理由だけ**を返してください。\n\n1. 形式 … `MiniValidator.validate` の結果が空でなければ `400` と `ApiError(\"VALIDATION_ERROR\", errors)`\n2. 認証 … `caller` が空なら `401` と `ApiError(\"UNAUTHENTICATED\", \"ログインが必要です\")`\n3. 認可 … `role` が `admin` でも `member` でもなければ `403` と `ApiError(\"FORBIDDEN\", \"権限がありません\")`\n4. 存在 … 在庫表に無ければ `404` と `ApiError(\"NOT_FOUND\", \"商品がありません\")`\n5. 在庫 … 足りなければ `409` と `ApiError(\"OUT_OF_STOCK\", \"在庫が足りません\")`\n6. 成功 … 在庫を減らして `201` と `OrderDto(1, item, count)`\n\n**順番が要件です。** とくに認可（3）を存在確認（4）より後に置くと、権限のない相手へ「その商品はある／ない」を教えてしまいます。在庫は `book=3` `pen=1` です。",
-          "starterCode": "import jakarta.validation.constraints.*;\nimport jakarta.ws.rs.core.*;\nimport jakarta.transaction.Transactional;\nimport java.util.*;\n\nrecord CreateOrder(@NotBlank(message = \"itemは必須です\") String item, @Min(value = 1, message = \"countは1以上です\") int count) { }\n\nrecord OrderDto(long id, String item, int count) { }\n\nrecord ApiError(String code, Object detail) { }\n\nclass OrderService {\n    private final Map<String, Integer> stock = new HashMap<>(Map.of(\"book\", 3, \"pen\", 1));\n\n    @Transactional\n    Response create(String caller, String role, CreateOrder in) {\n        // TODO 上から順に判定して、最初に外れた理由だけを返す\n        return null;\n    }\n}\n\npublic class OrderApiWithAuth {\n    public static void main(String[] a) {\n        Scanner sc = new Scanner(System.in);\n        String caller = sc.next();\n        if (caller.equals(\"_\")) caller = \"\";\n        String role = sc.next();\n        String item = sc.next();\n        if (item.equals(\"_\")) item = \"\";\n        CreateOrder in = new CreateOrder(item, sc.nextInt());\n        Response r = new OrderService().create(caller, role, in);\n        System.out.println(r.getStatus() + \" \" + r.getEntity());\n    }\n}\n",
-          "visibleCases": [
-            {
-              "label": "成功",
-              "stdin": "alice member book 2\n",
-              "expected": "201 OrderDto[id=1, item=book, count=2]"
-            },
-            {
-              "label": "権限が無い相手には、商品の有無を明かさない",
-              "stdin": "alice guest eraser 1\n",
-              "expected": "403 ApiError[code=FORBIDDEN, detail=権限がありません]"
-            }
-          ],
-          "hiddenCases": [
-            {
-              "label": "形式が最優先（認証も権限も外れているが400）",
-              "stdin": "_ guest _ 0\n",
-              "expected": "400 ApiError[code=VALIDATION_ERROR, detail=[item: itemは必須です, count: countは1以上です]]"
-            },
-            {
-              "label": "未認証",
-              "stdin": "_ member book 1\n",
-              "expected": "401 ApiError[code=UNAUTHENTICATED, detail=ログインが必要です]"
-            },
-            {
-              "label": "権限はあるが商品が無い",
-              "stdin": "alice member eraser 1\n",
-              "expected": "404 ApiError[code=NOT_FOUND, detail=商品がありません]"
-            },
-            {
-              "label": "在庫不足",
-              "stdin": "alice admin pen 2\n",
-              "expected": "409 ApiError[code=OUT_OF_STOCK, detail=在庫が足りません]"
-            },
-            {
-              "label": "境界（在庫と同数）",
-              "stdin": "bob admin pen 1\n",
-              "expected": "201 OrderDto[id=1, item=pen, count=1]"
-            }
-          ],
-          "hints": [
-            "最初に `MiniValidator.validate(in)`。形式の誤りは、認証や権限より先に `400` へ変えます。",
-            "認可（403）は存在確認（404）より**前**に置きます。あとにすると、権限のない相手へ商品の有無が伝わってしまいます。",
-            "`role` は `admin` と `member` だけ許可します。在庫を減らすのは成功するときだけです。"
-          ],
-          "solution": "import jakarta.validation.constraints.*;\nimport jakarta.ws.rs.core.*;\nimport jakarta.transaction.Transactional;\nimport java.util.*;\n\nrecord CreateOrder(@NotBlank(message = \"itemは必須です\") String item, @Min(value = 1, message = \"countは1以上です\") int count) { }\n\nrecord OrderDto(long id, String item, int count) { }\n\nrecord ApiError(String code, Object detail) { }\n\nclass OrderService {\n    private final Map<String, Integer> stock = new HashMap<>(Map.of(\"book\", 3, \"pen\", 1));\n\n    @Transactional\n    Response create(String caller, String role, CreateOrder in) {\n        List<String> errors = MiniValidator.validate(in);\n        if (!errors.isEmpty()) return Response.status(400).entity(new ApiError(\"VALIDATION_ERROR\", errors)).build();\n        if (caller.isEmpty()) return Response.status(401).entity(new ApiError(\"UNAUTHENTICATED\", \"ログインが必要です\")).build();\n        if (!role.equals(\"admin\") && !role.equals(\"member\")) return Response.status(403).entity(new ApiError(\"FORBIDDEN\", \"権限がありません\")).build();\n        Integer current = stock.get(in.item());\n        if (current == null) return Response.status(404).entity(new ApiError(\"NOT_FOUND\", \"商品がありません\")).build();\n        if (current < in.count()) return Response.status(409).entity(new ApiError(\"OUT_OF_STOCK\", \"在庫が足りません\")).build();\n        stock.put(in.item(), current - in.count());\n        return Response.status(201).entity(new OrderDto(1, in.item(), in.count())).build();\n    }\n}\n\npublic class OrderApiWithAuth {\n    public static void main(String[] a) {\n        Scanner sc = new Scanner(System.in);\n        String caller = sc.next();\n        if (caller.equals(\"_\")) caller = \"\";\n        String role = sc.next();\n        String item = sc.next();\n        if (item.equals(\"_\")) item = \"\";\n        CreateOrder in = new CreateOrder(item, sc.nextInt());\n        Response r = new OrderService().create(caller, role, in);\n        System.out.println(r.getStatus() + \" \" + r.getEntity());\n    }\n}\n",
-          "objectiveIds": [
-            "ch29-o4"
-          ]
-        }
-      ],
-      "quiz": [
-        {
-          "question": "@Emailだけを付けたフィールドについて正しいのは？",
-          "choices": [
-            "値が自動でパスワードhashになる",
-            "null/空も弾きたいならNotBlank等と組み合わせる",
-            "DBのUNIQUE制約も自動で作られるようになる",
-            "空文字でも必ず必須として扱われる"
-          ],
-          "answer": 1,
-          "explanation": "値が自動でハッシュ化されることはなく、DBのUNIQUE制約も作られません。`@Email` は**形式**の制約なので、`null` や空文字は「形式に違反していない」として通ります。必須にもしたいなら `@NotBlank` と組み合わせます。形式と必須は別の制約だと考えてください。"
-        },
-        {
-          "question": "在庫不足の検査を置く中心層は？",
-          "choices": [
-            "Cookieへ入れた値を見る、リクエストの境界",
-            "HTML側の入力チェックで済ませる、画面の層",
-            "入力欄の表示を制御する、CSSの層",
-            "Serviceの業務ルールとDBの同時実行制御"
-          ],
-          "answer": 3,
-          "explanation": "Cookieの値やHTML側の入力チェックは、利用者の手元で書き換えられます。CSSは表示だけの話です。在庫は「いまのDBの状態」で決まるので、入力形式の検証とは別に、Serviceの業務ルールと、DBの同時実行制御（ロックや条件付き更新）の両方で守ります。"
-        },
-        {
-          "question": "テスト構成として適切なのは？",
-          "choices": [
-            "ログを詳しく残せば、テストは省略できる",
-            "mockを使う単体テストだけで、境界も確認できる",
-            "単体・DB結合・HTTP境界を目的別に組み合わせる",
-            "本番環境で初めて動かし、問題が出たら直す"
-          ],
-          "answer": 2,
-          "explanation": "ログは起きたことの記録で、壊れていないことの確認にはなりません。mockだけの単体テストではSQLやHTTPの取り違えが見つからず、本番で初めて動かすのは事故です。単体・DB結合・HTTP境界には、それぞれでしか見つからない不具合があるので、目的別に組み合わせます。"
-        },
-        {
-          "question": "Jakarta Messagingを選ぶ代表的な要件は？",
-          "choices": [
-            "利用者が入力したHTMLの無害化",
-            "疎結合な非同期連携とメッセージ処理",
-            "同期的なHTTPでの単純な取得",
-            "日付と時刻の計算だけを行う処理"
-          ],
-          "answer": 1,
-          "explanation": "HTMLの無害化は出力の話で、単純な取得は同期HTTPで足りますし、日付と時刻の計算にメッセージングは要りません。送り手と受け手を切り離し、相手が止まっていても後から処理したい——という要件のときに、キューやtopicを介した非同期連携を選びます。"
-        }
-      ]
-    },
-    {
       "id": "29-5",
       "title": "章末演習：安全なAPI",
       "objectiveIds": [
@@ -588,7 +354,7 @@
         },
         {
           "objectiveIds": [
-            "ch29-o4"
+            "ch29-o3"
           ],
           "kind": "applied",
           "task": "【実践】商品book=3個、pen=1個の在庫を持つ注文APIを作ります。itemとcountを読み、空itemまたはcount<1なら400、商品なしは404、在庫不足は409、成功なら在庫を減らして `201 item count rest=残数` と表示してください。`_` は空itemです。",
@@ -643,7 +409,7 @@
         {
           "objectiveIds": [
             "ch29-o1",
-            "ch29-o4"
+            "ch29-o3"
           ],
           "kind": "applied",
           "type": "runtime-lab",

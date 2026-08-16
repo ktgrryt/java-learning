@@ -1,0 +1,402 @@
+{
+  "id": "ch67",
+  "title": "データ構造とネストした型",
+  "subtitle": "取り出し方で入れ物を選び、外側との結び付きで型を置く",
+  "emoji": "🗂️",
+  "objectives": [
+    {
+      "id": "ch67-o1",
+      "text": "`Queue` `Deque` `Iterator` と Sequenced Collection を用途で選べる"
+    },
+    {
+      "id": "ch67-o2",
+      "text": "static nested class と inner class を、外側との結び付きで使い分けられる"
+    }
+  ],
+  "lessons": [
+    {
+      "id": "41-4",
+      "title": "Queue・Deque・Iterator・Sequenced Collection",
+      "objectiveIds": [
+        "ch67-o1"
+      ],
+      "explanation": "## コレクションは「保存できるか」ではなく「どう取り出すか」で選ぶ\n\n`ArrayList` だけでも多くの値は保存できますが、先頭の削除を繰り返す待ち行列や、両端を使う履歴には目的に合いません。操作の意図が型に表れるコレクションを選ぶと、コードを読む人にも順序の規則が伝わります。\n\n- **Queue**: 先に入れた値を先に取り出すFIFO（First In, First Out）の待ち行列。受付順の処理に向く\n- **Deque**: 先頭と末尾の両方へ追加・削除できる入れ物。Queueとしても、後から入れた値を先に戻すスタックとしても使える\n- **Iterator**: コレクションを順に走査するための窓口。走査中に削除するなら `iterator.remove()` を使う\n- **SequencedCollection**: Java 21で導入された、先頭・末尾・逆順という共通操作を表すインターフェース\n\n```java\nDeque<String> history = new ArrayDeque<>();\nhistory.addLast(\"A\");\nhistory.addLast(\"B\");\nSystem.out.println(history.removeLast()); // B: スタックとして使う\n```\n\n`ArrayDeque` は通常、待ち行列やスタックに適した実装です。古い `Stack` より `Deque` が推奨されます。ただし `null` は追加できず、複数スレッドから同時に使うための同期も提供しません。並行処理では `BlockingQueue` など、別の目的に合う型を検討します。\n\n拡張for文で走査中に元のコレクションを直接変更すると、`ConcurrentModificationException` になることがあります。削除が目的なら `removeIf`、細かく制御するなら `Iterator` と、操作に合うAPIを選びます。\n\n今回の演習では `ArrayDeque` をスタックとして使います。追加する側と取り出す側を `addLast` / `removeLast` のように同じ端へそろえると、LIFO（Last In, First Out）がコードから読み取れます。\n\n## 拡張for が回せるのは Iterable だから\n\n第7章から `for (String s : names)` と書いてきました。これが書けるのは、`names` の型が\n`Iterable` を実装しているからです。コンパイラはこれを `Iterator` の呼び出しへ置き換えます。\n\n```java\nfor (String s : names) { ... }\n\n// コンパイラが作るのは、これに近い形\nfor (Iterator<String> it = names.iterator(); it.hasNext(); ) {\n    String s = it.next();\n    ...\n}\n```\n\nだから **自分のクラスも `Iterable<T>` を実装すれば拡張forで回せます。**\n`iterator()` が `Iterator<T>` を返すようにします。\n\n```java\nclass Box implements Iterable<String> {\n    private final List<String> items = new ArrayList<>();\n\n    void add(String item) { items.add(item); }\n\n    @Override\n    public Iterator<String> iterator() {\n        return items.iterator();   // 中の List に任せるのがいちばん簡単\n    }\n}\n\nBox box = new Box();\nbox.add(\"a\");\nfor (String s : box) { ... }   // これが書けるようになる\n```\n\n> 💡 `hasNext()` と `next()` を自分で書き起こすことは実務ではあまりなく、内部の `List` の\n> `iterator()` をそのまま返す形が多いです。`Iterable` にするかどうかは「この型を**並び**として\n> 見せたいか」で決めます。単に中身を渡したいだけなら、`List` を返すメソッドで足ります\n> （そのほうが、受け取った側が件数や添字も使えます）。",
+      "samples": [
+        {
+          "caption": "Dequeをキューとして使う",
+          "code": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Deque<String> q = new ArrayDeque<>();\n        q.addLast(\"A\");\n        q.addLast(\"B\");\n        System.out.println(q.removeFirst());\n        System.out.println(q);\n    }\n}\n"
+        }
+      ],
+      "task": "n個の命令 `push 値` / `pop` を読み、ArrayDequeをスタックとして処理します。popごとに値、空なら `empty` を表示し、最後に `rest=[...]` を先頭がスタック上端の順で表示してください。",
+      "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n        Deque<String> stack = new ArrayDeque<>();\n        for (int i = 0; i < n; i++) {\n            String op = sc.next();\n            /* TODO */\n        }\n        System.out.println(\"rest=\" + stack);\n    }\n}\n",
+      "visibleCases": [
+        {
+          "label": "push/pop",
+          "stdin": "5 push A push B pop pop pop",
+          "expected": "B\nA\nempty\nrest=[]"
+        }
+      ],
+      "hiddenCases": [
+        {
+          "label": "残る",
+          "stdin": "3 push X push Y pop",
+          "expected": "Y\nrest=[X]"
+        },
+        {
+          "label": "popだけ",
+          "stdin": "2 pop pop",
+          "expected": "empty\nempty\nrest=[]"
+        },
+        {
+          "label": "pushだけで上端から並ぶ",
+          "stdin": "3 push A push B push C",
+          "expected": "rest=[C, B, A]"
+        }
+      ],
+      "hints": [
+        "スタック上端には `addFirst`。",
+        "popは `pollFirst()` なら空でnullを返します。"
+      ],
+      "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n        Deque<String> stack = new ArrayDeque<>();\n        for (int i = 0; i < n; i++) {\n            String op = sc.next();\n            if (op.equals(\"push\")) stack.addFirst(sc.next());\n            else {\n                String v = stack.pollFirst();\n                System.out.println(v == null ? \"empty\" : v);\n            }\n        }\n        System.out.println(\"rest=\" + stack);\n    }\n}\n",
+      "extraTasks": [
+        {
+          "kind": "applied",
+          "task": "n個の整数をArrayListへ入れ、Iteratorを使って負数だけを安全に削除し、残ったリストとJava 21の `getFirst/getLast` を表示してください。空ならfirst/lastはnone。",
+          "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n        List<Integer> xs = new ArrayList<>();\n        for (int i = 0; i < n; i++) xs.add(sc.nextInt());\n        /* TODO */\n    }\n}\n",
+          "visibleCases": [
+            {
+              "label": "削除",
+              "stdin": "5 -1 0 2 -3 4",
+              "expected": "[0, 2, 4]\nfirst=0 last=4"
+            }
+          ],
+          "hiddenCases": [
+            {
+              "label": "空になる",
+              "stdin": "2 -1 -2",
+              "expected": "[]\nfirst=none last=none"
+            },
+            {
+              "label": "負数なし",
+              "stdin": "3 1 2 3",
+              "expected": "[1, 2, 3]\nfirst=1 last=3"
+            },
+            {
+              "label": "1件だけ残る",
+              "stdin": "3 -1 5 -2",
+              "expected": "[5]\nfirst=5 last=5"
+            }
+          ],
+          "hints": [
+            "`Iterator<Integer> it=xs.iterator()` とwhile(hasNext)。",
+            "負数なら `it.remove()`。"
+          ],
+          "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n        List<Integer> xs = new ArrayList<>();\n        for (int i = 0; i < n; i++) xs.add(sc.nextInt());\n        Iterator<Integer> it = xs.iterator();\n        while (it.hasNext()) if (it.next() < 0) it.remove();\n        System.out.println(xs);\n        if (xs.isEmpty()) System.out.println(\"first=none last=none\");\n        else System.out.println(\"first=\" + xs.getFirst() + \" last=\" + xs.getLast());\n    }\n}\n",
+          "sourceChecks": [
+            {
+              "pattern": "\\.remove\\s*\\(\\s*\\)",
+              "minimum": 1,
+              "message": "走査しながらの削除は `Iterator.remove()` です。拡張forの中で `list.remove` を呼ぶと `ConcurrentModificationException` になります。"
+            },
+            {
+              "pattern": "getFirst\\s*\\(",
+              "minimum": 1,
+              "message": "Java 21で入った `getFirst()` を使ってください。"
+            },
+            {
+              "pattern": "getLast\\s*\\(",
+              "minimum": 1,
+              "message": "Java 21で入った `getLast()` を使ってください。"
+            }
+          ]
+        }
+      ],
+      "quiz": [
+        {
+          "question": "走査中に現在要素を安全に削除する方法は？",
+          "choices": [
+            "Iterator.remove",
+            "配列へキャスト",
+            "削除したい要素を記録しておき、走査後に clear する",
+            "拡張forの中でlist.remove"
+          ],
+          "answer": 0,
+          "explanation": "配列へのキャストは削除と関係ありません。記録しておいて `clear` すると、残すはずの要素まで消えます。拡張forの中で `list.remove` を呼ぶと、走査の状態と実際の中身がずれて `ConcurrentModificationException` になります。`Iterator` 自身の `remove()` なら、走査状態と変更が食い違いません。"
+        }
+      ]
+    },
+    {
+      "id": "41-5",
+      "title": "ネストしたクラスと設計上の配置",
+      "objectiveIds": [
+        "ch67-o2"
+      ],
+      "explanation": "## 関連する型を近くに置き、不要な外側オブジェクトとの結び付きを避ける\n\n1つのクラスだけで使う補助型を別ファイルに置くと、公開範囲が広がり、どこで使う型かも分かりにくくなります。このようなときは、クラスの中にクラスやrecordを宣言する **ネストした型** が役立ちます。\n\n```java\nclass ReportService {\n    static record Row(String name, int total) {}\n\n    Row summarize(String name, int total) {\n        return new Row(name, total);\n    }\n}\n```\n\n`static` なネスト型は、外側の `ReportService` インスタンスを持たなくても作れます。外側のオブジェクトへの隠れた参照も持ちません。補助的なDTO、設定値、結果型など、「外側のクラスと概念上は関係するが、個々の外側オブジェクトの状態は不要」という場合に向きます。\n\n`static` を付けない **内部クラス** は、特定の外側インスタンスと結び付き、そのフィールドへ直接アクセスできます。便利な反面、外側オブジェクトを意図せず長く保持したり、単独で生成しにくくなったりします。外側の状態が本当に必要な場合だけ選びます。\n\nほかにも、メソッド内だけで使う **ローカルクラス**、その場で1つの実装を作る **匿名クラス** があります。ラムダで表せる単一メソッドの処理なら、匿名クラスよりラムダの方が意図を短く示せることもあります。\n\n判断基準は「短く書けるか」ではありません。利用範囲、外側の状態への依存、単独テストのしやすさを見ます。今回の演習では、外側の状態を必要としない結果データを `static record` として配置します。",
+      "samples": [
+        {
+          "caption": "static nested class",
+          "code": "public class Main {\n    static class Entry {\n        String key;\n        Entry(String key) {\n            this.key = key;\n        }\n    }\n\n    public static void main(String[] args) {\n        System.out.println(new Entry(\"id\").key);\n    }\n}\n"
+        }
+      ],
+      "task": "`Catalog` のstatic nested record `Item(String name,int price)` を作り、入力からItemを作って `name=price` と表示してください。",
+      "starterCode": "import java.util.*;\n\nclass Catalog {\n    /* TODO */\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        /* TODO */\n    }\n}\n",
+      "visibleCases": [
+        {
+          "label": "商品",
+          "stdin": "book 1200",
+          "expected": "book=1200"
+        }
+      ],
+      "hiddenCases": [
+        {
+          "label": "0円",
+          "stdin": "free 0",
+          "expected": "free=0"
+        },
+        {
+          "label": "高額",
+          "stdin": "laptop 128000",
+          "expected": "laptop=128000"
+        },
+        {
+          "label": "負の価格",
+          "stdin": "refund -500",
+          "expected": "refund=-500"
+        }
+      ],
+      "hints": [
+        "Catalog内に `static record Item(...) {}`。",
+        "`new Catalog.Item(...)` で作ります。"
+      ],
+      "solution": "import java.util.*;\n\nclass Catalog {\n    static record Item(String name, int price) { }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        Catalog.Item item = new Catalog.Item(sc.next(), sc.nextInt());\n        System.out.println(item.name() + \"=\" + item.price());\n    }\n}\n",
+      "extraTasks": [
+        {
+          "kind": "applied",
+          "task": "外側のCounterと結び付くinner class `Step` を作ります。Step.add(n)が外側のvalueを増やすようにし、2回加算した結果を表示してください。",
+          "starterCode": "import java.util.*;\n\nclass Counter {\n    private int value;\n\n    class Step {\n        void add(int n) {\n            /* TODO */\n        }\n    }\n\n    int value() {\n        return value;\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        Counter c = new Counter();\n        Counter.Step step = c.new Step();\n        step.add(sc.nextInt());\n        step.add(sc.nextInt());\n        System.out.println(c.value());\n    }\n}\n",
+          "visibleCases": [
+            {
+              "label": "加算",
+              "stdin": "3 4",
+              "expected": "7"
+            }
+          ],
+          "hiddenCases": [
+            {
+              "label": "負数",
+              "stdin": "10 -12",
+              "expected": "-2"
+            },
+            {
+              "label": "0を足す",
+              "stdin": "0 0",
+              "expected": "0"
+            },
+            {
+              "label": "同じ値を2回",
+              "stdin": "7 7",
+              "expected": "14"
+            }
+          ],
+          "hints": [
+            "inner classから外側のvalueを直接変更できます。",
+            "生成は `c.new Step()`。"
+          ],
+          "solution": "import java.util.*;\n\nclass Counter {\n    private int value;\n\n    class Step {\n        void add(int n) {\n            value += n;\n        }\n    }\n\n    int value() {\n        return value;\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        Counter c = new Counter();\n        Counter.Step step = c.new Step();\n        step.add(sc.nextInt());\n        step.add(sc.nextInt());\n        System.out.println(c.value());\n    }\n}\n",
+          "sourceChecks": [
+            {
+              "pattern": "\\bclass\\s+Step\\b",
+              "minimum": 1,
+              "message": "`Counter` の中に `Step` を作ってください。"
+            },
+            {
+              "pattern": "\\bstatic\\s+class\\s+Step\\b",
+              "minimum": 0,
+              "maximum": 0,
+              "message": "外側のインスタンスと結び付く inner class なので `static` は付けません。付けると外側の `value` に触れなくなります。"
+            }
+          ]
+        }
+      ],
+      "quiz": [
+        {
+          "question": "static nested classについて正しいものは？",
+          "choices": [
+            "外側インスタンスを常に暗黙保持する",
+            "staticメンバーを持てない",
+            "外側クラスの private フィールドへは触れない",
+            "外側インスタンスなしで生成できる"
+          ],
+          "answer": 3,
+          "explanation": "static nested classは外側インスタンスと独立して生成できます。"
+        }
+      ]
+    },
+    {
+      "id": "41-7",
+      "title": "章末演習：入れ物とネストした型",
+      "objectiveIds": [
+        "ch67-o1"
+      ],
+      "explanation": "## 「どう取り出すか」と「外側と結び付くか」で選ぶ\n\nこの章の2つを組み合わせます。**入れ物は取り出し方で選ぶ**こと（FIFOなら `Queue`、\n両端から触るなら `Deque`、走査しながら削除するなら `Iterator.remove()`）。\n**ネストした型は外側と結び付くかで選ぶ**こと（要らなければ `static`、\n外側の状態に触るなら inner）です。\n\n新しい文法は出てきません。迷ったら `41-4` と `41-5` の解説へ戻ってください。\n\n| 確かめること | どこで学んだか |\n|---|---|\n| `getFirst` `getLast` `reversed()`（Sequenced Collection） | `41-4` |\n| 走査中の削除は `Iterator.remove()`。`for` の中で `remove` すると失敗する | `41-4` |\n| 外側を要さない型は `static`。要る型は inner（`外側.new 内側()` で作る） | `41-5` |\n\n> ⚠️ `Deque` は Queue としてもスタックとしても使えます。**どちら向きに使っているか**を\n> 名前とメソッドで示してください（`addLast`/`pollFirst` ならFIFO、`push`/`pop` ならスタック）。",
+      "task": "【基本】整数をn個読んで `Deque` へ入れ、**先頭・末尾・逆順**を表示してください。\n形は `first=1 last=3 reversed=[3, 2, 1]` です。\n\n1件も無いときは `first=none last=none reversed=[]` と表示します。",
+      "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n        Deque<Integer> deque = new ArrayDeque<>();\n        for (int i = 0; i < n; i++) {\n            deque.addLast(sc.nextInt());\n        }\n        // TODO 空なら none、そうでなければ先頭・末尾・逆順を表示する\n        System.out.println(\"first=\" + deque);\n    }\n}\n",
+      "visibleCases": [
+        {
+          "label": "3件",
+          "stdin": "3\n1 2 3",
+          "expected": "first=1 last=3 reversed=[3, 2, 1]"
+        },
+        {
+          "label": "0件",
+          "stdin": "0",
+          "expected": "first=none last=none reversed=[]"
+        }
+      ],
+      "hiddenCases": [
+        {
+          "label": "1件",
+          "stdin": "1\n7",
+          "expected": "first=7 last=7 reversed=[7]"
+        },
+        {
+          "label": "負の数を含む",
+          "stdin": "5\n10 -2 30 -4 50",
+          "expected": "first=10 last=50 reversed=[50, -4, 30, -2, 10]"
+        }
+      ],
+      "hints": [
+        "Java 21 の `getFirst()` `getLast()` `reversed()` がそのまま使えます。",
+        "`reversed()` はそのまま `println` に渡すと `[3, 2, 1]` の形で出ます。"
+      ],
+      "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n        Deque<Integer> deque = new ArrayDeque<>();\n        for (int i = 0; i < n; i++) {\n            deque.addLast(sc.nextInt());\n        }\n        if (deque.isEmpty()) {\n            System.out.println(\"first=none last=none reversed=[]\");\n            return;\n        }\n        System.out.println(\"first=\" + deque.getFirst() + \" last=\" + deque.getLast()\n                + \" reversed=\" + deque.reversed());\n    }\n}\n",
+      "extraTasks": [
+        {
+          "objectiveIds": [
+            "ch67-o2"
+          ],
+          "kind": "drill",
+          "task": "【組み合わせ】買い物かごを作ります。件数nと、n行の `name price`、最後に割引率 `rate`（%）を読みます。\n\n- 明細は **`static` なネストしたrecord `Line`**（外側を要しません）\n- 割引は **inner class `Discount`**（外側の合計 `total` に触ります）\n\n次の3行を表示してください。\n\n```\nlines=[apple=100, pen=50]\ntotal=150\ndiscounted=135\n```\n\n割引後は `total * (100 - rate) / 100`（整数の割り算）です。",
+          "starterCode": "import java.util.*;\n\npublic class Main {\n    // TODO 外側を要さない明細は static nested record にする\n    record Line(String name, int price) { }\n\n    private int total;\n\n    // TODO 外側の total に触る割引は inner class（static を付けない）にする\n    class Discount {\n        int apply(int rate) {\n            return 0;\n        }\n    }\n\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n        List<Line> lines = new ArrayList<>();\n        Main cart = new Main();\n        for (int i = 0; i < n; i++) {\n            lines.add(new Line(sc.next(), sc.nextInt()));\n        }\n        int rate = sc.nextInt();\n        System.out.println(\"lines=[]\");\n        System.out.println(\"total=\" + cart.total);\n        System.out.println(\"discounted=0\");\n    }\n}\n",
+          "visibleCases": [
+            {
+              "label": "2件・1割引",
+              "stdin": "2\napple 100\npen 50\n10",
+              "expected": "lines=[apple=100, pen=50]\ntotal=150\ndiscounted=135"
+            },
+            {
+              "label": "割引なし",
+              "stdin": "1\nbook 300\n0",
+              "expected": "lines=[book=300]\ntotal=300\ndiscounted=300"
+            }
+          ],
+          "hiddenCases": [
+            {
+              "label": "0件",
+              "stdin": "0\n25",
+              "expected": "lines=[]\ntotal=0\ndiscounted=0"
+            },
+            {
+              "label": "切り捨て",
+              "stdin": "3\na 1\nb 2\nc 3\n33",
+              "expected": "lines=[a=1, b=2, c=3]\ntotal=6\ndiscounted=4"
+            }
+          ],
+          "hints": [
+            "inner class のインスタンスは `cart.new Discount()` の形で作ります。外側のインスタンスが必要だからです。",
+            "`Line` は外側に触らないので `static`（`record` は既定で static です）。",
+            "明細の並びは入力順です。区切りは `, `（カンマと空白）。"
+          ],
+          "solution": "import java.util.*;\n\npublic class Main {\n    /** 外側のインスタンスを要さないので static nested record。 */\n    record Line(String name, int price) { }\n\n    private int total;\n\n    /** 外側の total に触るので inner class（static を付けない）。 */\n    class Discount {\n        int apply(int rate) {\n            return total * (100 - rate) / 100;\n        }\n    }\n\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n        List<Line> lines = new ArrayList<>();\n        Main cart = new Main();\n        for (int i = 0; i < n; i++) {\n            Line line = new Line(sc.next(), sc.nextInt());\n            lines.add(line);\n            cart.total += line.price();\n        }\n        int rate = sc.nextInt();\n        StringBuilder sb = new StringBuilder();\n        for (Line line : lines) {\n            if (sb.length() > 0) {\n                sb.append(\", \");\n            }\n            sb.append(line.name()).append(\"=\").append(line.price());\n        }\n        System.out.println(\"lines=[\" + sb + \"]\");\n        System.out.println(\"total=\" + cart.total);\n        System.out.println(\"discounted=\" + cart.new Discount().apply(rate));\n    }\n}\n",
+          "sourceChecks": [
+            {
+              "pattern": "\\.new\\s+Discount\\s*\\(",
+              "minimum": 1,
+              "message": "外側の状態に触る inner class は `外側.new 内側()` で作ります。`static` にすると `total` へ触れません。"
+            }
+          ]
+        },
+        {
+          "objectiveIds": [
+            "ch67-o1",
+            "ch67-o2"
+          ],
+          "kind": "practice",
+          "task": "【実践】受付の待ち行列を整理します。件数nと、n行の `name priority`（1〜3）、\n最後に取り消す優先度 `drop` を読みます。\n\n票は **`static` なネストしたrecord `Ticket`** で表し、**`Queue`** に受付順で入れます。\n`priority` が `drop` の票を **`Iterator` で安全に取り除き**、次の2行を表示してください。\n\n```\nnext=ann\nleft=2 [ann(1), cho(3)]\n```\n\n`next` は先頭の名前（1件も残らなければ `none`）。`left` は残った件数と、受付順の一覧です。",
+          "starterCode": "import java.util.*;\n\npublic class Main {\n    record Ticket(String name, int priority) { }\n\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n        Queue<Ticket> queue = new ArrayDeque<>();\n        for (int i = 0; i < n; i++) {\n            queue.add(new Ticket(sc.next(), sc.nextInt()));\n        }\n        int drop = sc.nextInt();\n        // TODO Iterator で priority が drop の票だけを安全に取り除く\n        System.out.println(\"next=\" + queue.peek());\n        System.out.println(\"left=\" + queue.size() + \" []\");\n    }\n}\n",
+          "visibleCases": [
+            {
+              "label": "1件取り消す",
+              "stdin": "3\nann 1\nbob 2\ncho 3\n2",
+              "expected": "next=ann\nleft=2 [ann(1), cho(3)]"
+            },
+            {
+              "label": "全部取り消す",
+              "stdin": "2\nann 1\nbob 1\n1",
+              "expected": "next=none\nleft=0 []"
+            }
+          ],
+          "hiddenCases": [
+            {
+              "label": "該当なし",
+              "stdin": "1\nann 3\n2",
+              "expected": "next=ann\nleft=1 [ann(3)]"
+            },
+            {
+              "label": "先頭が消える",
+              "stdin": "4\na 1\nb 3\nc 1\nd 2\n1",
+              "expected": "next=b\nleft=2 [b(3), d(2)]"
+            },
+            {
+              "label": "0件",
+              "stdin": "0\n1",
+              "expected": "next=none\nleft=0 []"
+            }
+          ],
+          "hints": [
+            "走査しながら消すので `Iterator` を取り出し、`it.remove()` を呼びます。拡張forの中で `queue.remove(...)` を呼ぶと `ConcurrentModificationException` になります。",
+            "`queue.peek()` は空のとき `null` を返すので、先に `isEmpty()` を見ます。",
+            "一覧の区切りは `, `。票は `name(priority)` の形です。"
+          ],
+          "solution": "import java.util.*;\n\npublic class Main {\n    /** 受付票。外側を要さないので static nested record。 */\n    record Ticket(String name, int priority) { }\n\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n        Queue<Ticket> queue = new ArrayDeque<>();\n        for (int i = 0; i < n; i++) {\n            queue.add(new Ticket(sc.next(), sc.nextInt()));\n        }\n        int drop = sc.nextInt();\n        Iterator<Ticket> it = queue.iterator();\n        while (it.hasNext()) {\n            if (it.next().priority() == drop) {\n                it.remove();\n            }\n        }\n        System.out.println(\"next=\" + (queue.isEmpty() ? \"none\" : queue.peek().name()));\n        StringBuilder sb = new StringBuilder();\n        for (Ticket t : queue) {\n            if (sb.length() > 0) {\n                sb.append(\", \");\n            }\n            sb.append(t.name()).append(\"(\").append(t.priority()).append(\")\");\n        }\n        System.out.println(\"left=\" + queue.size() + \" [\" + sb + \"]\");\n    }\n}\n",
+          "sourceChecks": [
+            {
+              "pattern": "iterator\\s*\\(",
+              "minimum": 1,
+              "message": "走査しながら削除するので `Iterator` を使います。"
+            },
+            {
+              "pattern": "\\.remove\\s*\\(\\s*\\)",
+              "minimum": 1,
+              "message": "削除は `it.remove()`（引数なし）で行います。"
+            }
+          ]
+        }
+      ],
+      "quiz": [
+        {
+          "question": "拡張for文で `List` を回しながら `list.remove(値)` を呼ぶとどうなりますか。",
+          "choices": [
+            "必ず正しく削除できる。拡張forは内部で `Iterator` を使っているため",
+            "コンパイルエラーになる。走査中にコレクションを変更する式は書けない",
+            "削除は反映されるが、残りの要素が1つずつ飛ばされる",
+            "`ConcurrentModificationException` になることがある"
+          ],
+          "answer": 3,
+          "explanation": "拡張forは内部で `Iterator` を使いますが、コレクション側を直接変更すると走査の状態と食い違い、次の `next()` で `ConcurrentModificationException` になることがあります（最後の1件を消して即座に抜ける場合など、たまたま通ることもあるので厄介です）。走査しながら消すなら `Iterator` を自分で取り出して`it.remove()` を呼びます。コンパイルは通り、要素が飛ばされるだけで済むこともありません。"
+        },
+        {
+          "question": "ネストしたクラスに `static` を付けるかどうかは、何で決まりますか。",
+          "choices": [
+            "外側のクラスと同じファイルに書いてあるかどうか",
+            "外側のインスタンスの状態に触る必要があるか",
+            "そのクラスを他のパッケージからも使うかどうか",
+            "そのクラスが自分のフィールドを持つかどうか"
+          ],
+          "answer": 1,
+          "explanation": "`static` を付けない inner class は、外側のインスタンスへの参照を**常に持ちます**。そのため外側のフィールドへ触れる一方で、外側のインスタンスが無いと作れず、参照が残るぶん解放もされにくくなります。外側に触る必要がないなら `static` を付けます。同じファイルにあるか、外から使うか、フィールドを持つかは、この判断とは関係ありません。"
+        }
+      ]
+    }
+  ]
+}

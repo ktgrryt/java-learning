@@ -1,0 +1,255 @@
+{
+  "id": "ch69",
+  "title": "運用の備えとAPI境界",
+  "subtitle": "隠す・再試行する・順番に断る",
+  "emoji": "🧯",
+  "libs": [
+    "jakarta-validation",
+    "jakarta-rest",
+    "jakarta-transactions",
+    "jakarta-cdi",
+    "jakarta-persistence"
+  ],
+  "objectives": [
+    {
+      "id": "ch69-o1",
+      "text": "ログから機密値を隠し、外部呼び出しの再試行を実装できる"
+    },
+    {
+      "id": "ch69-o2",
+      "text": "認可まで含めた判定の順序を決めて、最初に外れた理由だけを返せる"
+    }
+  ],
+  "lessons": [
+    {
+      "id": "29-3",
+      "title": "テスト・設定・可観測性",
+      "objectiveIds": [
+        "ch69-o1"
+      ],
+      "explanation": "## はじめて学ぶ人へ\n\n本番で安全に動かす準備は、3つの時間帯で考えると整理できます。\n\n```text\nリリース前: テストで期待する動作を確認\n起動時:     環境ごとの設定を外から与える\n運用中:     ログやメトリクスで状態を観察\n```\n\nテストは変更で壊れていないかを確かめ、外部設定はパスワードや接続先をソースへ埋め込まないために使います。可観測性は体温計や心電図のように、動いているアプリの異常を外から知る手段です。秘密情報はログへ出さず、リクエストID、結果、処理時間など調査に必要な情報を一定の形式で残します。\n\n## 本番で直せるアプリにする\n\n単体テストではServiceへstubを注入して境界値と業務ルールを速く検証します。結合テストでは実DBに近い環境でJPA mapping、制約、トランザクションを確認し、HTTPテストではstatus/header/bodyと認証を通します。mockだけではSQLや設定ミスを見逃すため層を組み合わせます。\n\n設定はコードから外へ出し、環境変数・MicroProfile Config・サーバ設定などで環境差を注入します。秘密値はsecret管理へ置き、既定値で本番が危険に動かないようにします。\n\nログは時刻、level、traceId、処理名、結果を構造化し、パスワード・token・Cookie・カード番号を除外します。metricsで件数/遅延/失敗率、health checkで起動可否と依存先状態、traceでサービス間を追います。タイムアウトを必ず置き、再試行は冪等な処理だけに上限付きで行います。",
+      "samples": [
+        {
+          "caption": "stubで境界値を単体テスト",
+          "code": "interface Stock {\n    int get();\n}\n\nclass StubStock implements Stock {\n    public int get() {\n        return 0;\n    }\n}\n\nclass Service {\n    Stock s;\n\n    Service(Stock s) {\n        this.s = s;\n    }\n\n    boolean canBuy() {\n        return s.get() > 0;\n    }\n}\n\npublic class TestDesignSample {\n    public static void main(String[] a) {\n        System.out.println(new Service(new StubStock()).canBuy() ? \"FAIL\" : \"PASS\");\n    }\n}\n"
+        }
+      ],
+      "task": "ログ出力前に機密値をmaskします。入力メールを `先頭1文字***@domain`、tokenは常に `[REDACTED]` とし、`INFO login email=... token=[REDACTED]` を出してください。不正なメールは `***`。",
+      "starterCode": "import java.util.*;\n\npublic class ProductionLog {\n    static String maskEmail(String email) {\n        // TODO\n        return \"\";\n    }\n\n    public static void main(String[] a) {\n        Scanner sc = new Scanner(System.in);\n        String email = sc.next(), token = sc.next();\n        System.out.println(\"INFO login email=\" + maskEmail(email) + \" token=\" + /* TODO */ token);\n    }\n}\n",
+      "visibleCases": [
+        {
+          "label": "mask",
+          "stdin": "yamada@example.com secret-token",
+          "expected": "INFO login email=y***@example.com token=[REDACTED]"
+        }
+      ],
+      "hiddenCases": [
+        {
+          "label": "短いlocal",
+          "stdin": "a@test.jp xxx",
+          "expected": "INFO login email=a***@test.jp token=[REDACTED]"
+        },
+        {
+          "label": "不正mail",
+          "stdin": "invalid token",
+          "expected": "INFO login email=*** token=[REDACTED]"
+        }
+      ],
+      "hints": [
+        "indexOf('@')が1以上なら先頭文字＋***＋substring(at)。それ以外***。",
+        "token変数を連結せず文字列 `[REDACTED]`。"
+      ],
+      "solution": "import java.util.*;\n\npublic class ProductionLog {\n    static String maskEmail(String email) {\n        int at = email.indexOf('@');\n        return at < 1 ? \"***\" : email.charAt(0) + \"***\" + email.substring(at);\n    }\n\n    public static void main(String[] a) {\n        Scanner sc = new Scanner(System.in);\n        String email = sc.next(), token = sc.next();\n        System.out.println(\"INFO login email=\" + maskEmail(email) + \" token=[REDACTED]\");\n    }\n}\n",
+      "extraTasks": [
+        {
+          "kind": "applied",
+          "task": "外部APIの最大3回再試行を実装します。入力failures回だけ失敗し、その後成功。各回 `attempt=n failed/ok`、3回とも失敗なら最後に `give up`。",
+          "starterCode": "import java.util.*;\n\npublic class ProductionRetry {\n    public static void main(String[] a) {\n        int failures = new Scanner(System.in).nextInt();\n        // TODO max 3\n    }\n}\n",
+          "visibleCases": [
+            {
+              "label": "2回失敗後成功",
+              "stdin": "2",
+              "expected": "attempt=1 failed\nattempt=2 failed\nattempt=3 ok"
+            },
+            {
+              "label": "即成功",
+              "stdin": "0",
+              "expected": "attempt=1 ok"
+            }
+          ],
+          "hiddenCases": [
+            {
+              "label": "諦める",
+              "stdin": "9",
+              "expected": "attempt=1 failed\nattempt=2 failed\nattempt=3 failed\ngive up"
+            }
+          ],
+          "hints": [
+            "attemptを1から3までfor。`attempt<=failures` ならfailed。",
+            "成功ならokを出してreturn。loop後give up。"
+          ],
+          "solution": "import java.util.*;\n\npublic class ProductionRetry {\n    public static void main(String[] a) {\n        int failures = new Scanner(System.in).nextInt();\n        for (int attempt = 1; attempt <= 3; attempt++) {\n            if (attempt <= failures) System.out.println(\"attempt=\" + attempt + \" failed\");\n            else {\n                System.out.println(\"attempt=\" + attempt + \" ok\");\n                return;\n            }\n        }\n        System.out.println(\"give up\");\n    }\n}\n",
+          "sourceChecks": [
+            {
+              "pattern": "attempt\\s*<=\\s*3|attempt\\s*<\\s*4|\\b3\\b",
+              "minimum": 1,
+              "message": "再試行は最大3回までにしてください。上限のない再試行は障害を長引かせます。"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "29-4",
+      "title": "総合演習：安全な注文API",
+      "objectiveIds": [
+        "ch69-o2"
+      ],
+      "explanation": "## はじめて学ぶ人へ\n\nこの総合演習では、ここまでの部品を1本の注文処理としてつなぎます。最初から全コードを覚えようとせず、リクエストがどの順番で検査・処理されるかを追いましょう。\n\n```text\n1. JSONを注文DTOとして受け取る\n2. Bean Validationで必須項目や範囲を確認\n3. 認証済み利用者と操作権限を確認\n4. Serviceで在庫などの業務ルールを確認\n5. トランザクション内で注文保存と在庫更新\n6. 成功なら201、入力ミスなら400などへ変換\n7. ログにリクエストIDと結果を記録\n```\n\nResourceはHTTPとの変換、Serviceは業務判断、Repositoryは永続化という役割を守ります。失敗をどこで見つけ、どのステータスへ変えるかまで説明できれば、単に動くだけでなく保守しやすいAPIになります。\n\n## 入口から永続化までを一本につなぐ\n\n実務の1リクエストは、認証・DTO変換・Validation・認可・Service・トランザクション・Repository・DTO応答・ログという複数の責務を通ります。各段を分けると、入力不正400、業務競合409、対象なし404、想定外500を一貫して扱えます。\n\nJakarta EEのWeb ProfileにはServlet、REST、CDI、Validation、Persistence、Transactions、Security、Concurrency、Faces、WebSocketなどがあります。PlatformにはMessaging、Mail、Batchなども加わります。すべてを同時に使う必要はなく、同期HTTPならREST、DBならPersistence/Transactions、非同期連携ならMessaging、定時大量処理ならBatchというように要件で選びます。新規の業務部品は通常CDI Beanを中心にし、EJB固有機能が必要な場合だけEnterprise Beansを検討します。\n\nこの章までの疑似APIは概念とコード形を学ぶためのものです。次は実際のJakarta EEランタイム（WildFly、Open Liberty、Payaraなど）とテスト用DBで小さなCRUDをデプロイし、公式仕様とサーバ文書を確認しながら進めてください。\n\n### ⚠️ ここが本物と違う\n\nこの総合演習も、第29章と同じ `MiniValidator` と同梱の `jakarta.*` で動かします。**学習用に書いた\n最小限の再実装**で、本物のフレームワークではありません。判定の順序を確かめるうえで効いてくる違いは\n次の点です。\n\n- 検証は自分で呼びます（本物は `@Valid` を見てフレームワークが**入口で**呼びます）\n- 対応する制約は `@NotBlank` `@Size` `@Min` `@Max` `@Email` だけ。独自制約もグループもありません\n- 認可はこの問題の中の判定です（本物は `@RolesAllowed` などの宣言と、コンテナが解決する呼び出し元で決まります）\n- 例外からHTTPステータスへの変換は自分で書きます（本物は `ExceptionMapper` などが担います）\n\n**書き方（制約の付け方、違反の受け取り方、ステータスの選び方）は本物と同じ**なので、\nここで身につけた判断の順序はそのまま実務で通用します。\n\n> 💡 本物でだけ確かめられること … `@Valid` を付けるだけで入口で検証が走ること、\n> 認可の宣言がコンテナに解決されること、例外が対応するステータスへ変換されること。\n> 実物のOpen Libertyは第29章の章末演習（`labs/jakarta-web/validation-exercise`）で動かします。",
+      "samples": [
+        {
+          "caption": "ValidationからResponseへ",
+          "code": "import jakarta.validation.constraints.*;\nimport jakarta.ws.rs.core.*;\nimport java.util.*;\n\nrecord Input(@NotBlank String item, @Min(1) int count) { }\n\nrecord ErrorDto(List<String> errors) { }\n\npublic class BoundarySample {\n    public static void main(String[] a) {\n        List<String> e = MiniValidator.validate(new Input(\"\", 0));\n        Response r = e.isEmpty() ? Response.status(201).build() : Response.status(400).entity(new ErrorDto(e)).build();\n        System.out.println(r.getStatus() + \" \" + r.getEntity());\n    }\n}\n"
+        }
+      ],
+      "task": "注文API境界を完成させます。入力 `item count`（`_`は空）。Validationエラーは400とエラー一覧、在庫はbook=3/pen=1で不存在404、不足409、成功201と `OrderDto[id=1, item=..., count=...]`。",
+      "starterCode": "import jakarta.validation.constraints.*;\nimport jakarta.ws.rs.core.*;\nimport jakarta.transaction.Transactional;\nimport java.util.*;\n\nrecord CreateOrder(@NotBlank(message = \"itemは必須です\") String item, @Min(value = 1, message = \"countは1以上です\") int count) { }\n\nrecord OrderDto(long id, String item, int count) { }\n\nrecord ApiError(String code, Object detail) { }\n\nclass OrderService {\n    private final Map<String, Integer> stock = new HashMap<>(Map.of(\"book\", 3, \"pen\", 1));\n\n    @Transactional\n    Response create(CreateOrder in) {\n        // TODO\n        return null;\n    }\n}\n\npublic class FinalOrderApi {\n    public static void main(String[] a) {\n        Scanner sc = new Scanner(System.in);\n        String item = sc.next();\n        if (item.equals(\"_\")) item = \"\";\n        CreateOrder in = new CreateOrder(item, sc.nextInt());\n        Response r = new OrderService().create(in);\n        System.out.println(r.getStatus() + \" \" + r.getEntity());\n    }\n}\n",
+      "visibleCases": [
+        {
+          "label": "成功",
+          "stdin": "book 2",
+          "expected": "201 OrderDto[id=1, item=book, count=2]"
+        },
+        {
+          "label": "入力不正",
+          "stdin": "_ 0",
+          "expected": "400 ApiError[code=VALIDATION_ERROR, detail=[item: itemは必須です, count: countは1以上です]]"
+        }
+      ],
+      "hiddenCases": [
+        {
+          "label": "不存在",
+          "stdin": "eraser 1",
+          "expected": "404 ApiError[code=NOT_FOUND, detail=商品がありません]"
+        },
+        {
+          "label": "不足",
+          "stdin": "pen 2",
+          "expected": "409 ApiError[code=OUT_OF_STOCK, detail=在庫が足りません]"
+        },
+        {
+          "label": "境界成功",
+          "stdin": "pen 1",
+          "expected": "201 OrderDto[id=1, item=pen, count=1]"
+        }
+      ],
+      "hints": [
+        "最初にMiniValidator.validateし、空でなければ400＋ApiError。",
+        "stock.getがnullなら404。不足なら409。",
+        "成功時だけ在庫を減らし201＋OrderDto。"
+      ],
+      "solution": "import jakarta.validation.constraints.*;\nimport jakarta.ws.rs.core.*;\nimport jakarta.transaction.Transactional;\nimport java.util.*;\n\nrecord CreateOrder(@NotBlank(message = \"itemは必須です\") String item, @Min(value = 1, message = \"countは1以上です\") int count) { }\n\nrecord OrderDto(long id, String item, int count) { }\n\nrecord ApiError(String code, Object detail) { }\n\nclass OrderService {\n    private final Map<String, Integer> stock = new HashMap<>(Map.of(\"book\", 3, \"pen\", 1));\n\n    @Transactional\n    Response create(CreateOrder in) {\n        List<String> errors = MiniValidator.validate(in);\n        if (!errors.isEmpty()) return Response.status(400).entity(new ApiError(\"VALIDATION_ERROR\", errors)).build();\n        Integer current = stock.get(in.item());\n        if (current == null) return Response.status(404).entity(new ApiError(\"NOT_FOUND\", \"商品がありません\")).build();\n        if (current < in.count()) return Response.status(409).entity(new ApiError(\"OUT_OF_STOCK\", \"在庫が足りません\")).build();\n        stock.put(in.item(), current - in.count());\n        return Response.status(201).entity(new OrderDto(1, in.item(), in.count())).build();\n    }\n}\n\npublic class FinalOrderApi {\n    public static void main(String[] a) {\n        Scanner sc = new Scanner(System.in);\n        String item = sc.next();\n        if (item.equals(\"_\")) item = \"\";\n        CreateOrder in = new CreateOrder(item, sc.nextInt());\n        Response r = new OrderService().create(in);\n        System.out.println(r.getStatus() + \" \" + r.getEntity());\n    }\n}\n",
+      "extraTasks": [
+        {
+          "kind": "applied",
+          "task": "1問目の境界へ、解説のパイプラインで飛ばしていた**認可**を足します。入力は1行に `caller role item count`（`caller` と `item` の `_` は空文字）。\n\n次の順に判定し、**最初に外れた理由だけ**を返してください。\n\n1. 形式 … `MiniValidator.validate` の結果が空でなければ `400` と `ApiError(\"VALIDATION_ERROR\", errors)`\n2. 認証 … `caller` が空なら `401` と `ApiError(\"UNAUTHENTICATED\", \"ログインが必要です\")`\n3. 認可 … `role` が `admin` でも `member` でもなければ `403` と `ApiError(\"FORBIDDEN\", \"権限がありません\")`\n4. 存在 … 在庫表に無ければ `404` と `ApiError(\"NOT_FOUND\", \"商品がありません\")`\n5. 在庫 … 足りなければ `409` と `ApiError(\"OUT_OF_STOCK\", \"在庫が足りません\")`\n6. 成功 … 在庫を減らして `201` と `OrderDto(1, item, count)`\n\n**順番が要件です。** とくに認可（3）を存在確認（4）より後に置くと、権限のない相手へ「その商品はある／ない」を教えてしまいます。在庫は `book=3` `pen=1` です。",
+          "starterCode": "import jakarta.validation.constraints.*;\nimport jakarta.ws.rs.core.*;\nimport jakarta.transaction.Transactional;\nimport java.util.*;\n\nrecord CreateOrder(@NotBlank(message = \"itemは必須です\") String item, @Min(value = 1, message = \"countは1以上です\") int count) { }\n\nrecord OrderDto(long id, String item, int count) { }\n\nrecord ApiError(String code, Object detail) { }\n\nclass OrderService {\n    private final Map<String, Integer> stock = new HashMap<>(Map.of(\"book\", 3, \"pen\", 1));\n\n    @Transactional\n    Response create(String caller, String role, CreateOrder in) {\n        // TODO 上から順に判定して、最初に外れた理由だけを返す\n        return null;\n    }\n}\n\npublic class OrderApiWithAuth {\n    public static void main(String[] a) {\n        Scanner sc = new Scanner(System.in);\n        String caller = sc.next();\n        if (caller.equals(\"_\")) caller = \"\";\n        String role = sc.next();\n        String item = sc.next();\n        if (item.equals(\"_\")) item = \"\";\n        CreateOrder in = new CreateOrder(item, sc.nextInt());\n        Response r = new OrderService().create(caller, role, in);\n        System.out.println(r.getStatus() + \" \" + r.getEntity());\n    }\n}\n",
+          "visibleCases": [
+            {
+              "label": "成功",
+              "stdin": "alice member book 2\n",
+              "expected": "201 OrderDto[id=1, item=book, count=2]"
+            },
+            {
+              "label": "権限が無い相手には、商品の有無を明かさない",
+              "stdin": "alice guest eraser 1\n",
+              "expected": "403 ApiError[code=FORBIDDEN, detail=権限がありません]"
+            }
+          ],
+          "hiddenCases": [
+            {
+              "label": "形式が最優先（認証も権限も外れているが400）",
+              "stdin": "_ guest _ 0\n",
+              "expected": "400 ApiError[code=VALIDATION_ERROR, detail=[item: itemは必須です, count: countは1以上です]]"
+            },
+            {
+              "label": "未認証",
+              "stdin": "_ member book 1\n",
+              "expected": "401 ApiError[code=UNAUTHENTICATED, detail=ログインが必要です]"
+            },
+            {
+              "label": "権限はあるが商品が無い",
+              "stdin": "alice member eraser 1\n",
+              "expected": "404 ApiError[code=NOT_FOUND, detail=商品がありません]"
+            },
+            {
+              "label": "在庫不足",
+              "stdin": "alice admin pen 2\n",
+              "expected": "409 ApiError[code=OUT_OF_STOCK, detail=在庫が足りません]"
+            },
+            {
+              "label": "境界（在庫と同数）",
+              "stdin": "bob admin pen 1\n",
+              "expected": "201 OrderDto[id=1, item=pen, count=1]"
+            }
+          ],
+          "hints": [
+            "最初に `MiniValidator.validate(in)`。形式の誤りは、認証や権限より先に `400` へ変えます。",
+            "認可（403）は存在確認（404）より**前**に置きます。あとにすると、権限のない相手へ商品の有無が伝わってしまいます。",
+            "`role` は `admin` と `member` だけ許可します。在庫を減らすのは成功するときだけです。"
+          ],
+          "solution": "import jakarta.validation.constraints.*;\nimport jakarta.ws.rs.core.*;\nimport jakarta.transaction.Transactional;\nimport java.util.*;\n\nrecord CreateOrder(@NotBlank(message = \"itemは必須です\") String item, @Min(value = 1, message = \"countは1以上です\") int count) { }\n\nrecord OrderDto(long id, String item, int count) { }\n\nrecord ApiError(String code, Object detail) { }\n\nclass OrderService {\n    private final Map<String, Integer> stock = new HashMap<>(Map.of(\"book\", 3, \"pen\", 1));\n\n    @Transactional\n    Response create(String caller, String role, CreateOrder in) {\n        List<String> errors = MiniValidator.validate(in);\n        if (!errors.isEmpty()) return Response.status(400).entity(new ApiError(\"VALIDATION_ERROR\", errors)).build();\n        if (caller.isEmpty()) return Response.status(401).entity(new ApiError(\"UNAUTHENTICATED\", \"ログインが必要です\")).build();\n        if (!role.equals(\"admin\") && !role.equals(\"member\")) return Response.status(403).entity(new ApiError(\"FORBIDDEN\", \"権限がありません\")).build();\n        Integer current = stock.get(in.item());\n        if (current == null) return Response.status(404).entity(new ApiError(\"NOT_FOUND\", \"商品がありません\")).build();\n        if (current < in.count()) return Response.status(409).entity(new ApiError(\"OUT_OF_STOCK\", \"在庫が足りません\")).build();\n        stock.put(in.item(), current - in.count());\n        return Response.status(201).entity(new OrderDto(1, in.item(), in.count())).build();\n    }\n}\n\npublic class OrderApiWithAuth {\n    public static void main(String[] a) {\n        Scanner sc = new Scanner(System.in);\n        String caller = sc.next();\n        if (caller.equals(\"_\")) caller = \"\";\n        String role = sc.next();\n        String item = sc.next();\n        if (item.equals(\"_\")) item = \"\";\n        CreateOrder in = new CreateOrder(item, sc.nextInt());\n        Response r = new OrderService().create(caller, role, in);\n        System.out.println(r.getStatus() + \" \" + r.getEntity());\n    }\n}\n",
+          "objectiveIds": [
+            "ch69-o2"
+          ]
+        }
+      ],
+      "quiz": [
+        {
+          "question": "@Emailだけを付けたフィールドについて正しいのは？",
+          "choices": [
+            "値が自動でパスワードhashになる",
+            "null/空も弾きたいならNotBlank等と組み合わせる",
+            "DBのUNIQUE制約も自動で作られるようになる",
+            "空文字でも必ず必須として扱われる"
+          ],
+          "answer": 1,
+          "explanation": "値が自動でハッシュ化されることはなく、DBのUNIQUE制約も作られません。`@Email` は**形式**の制約なので、`null` や空文字は「形式に違反していない」として通ります。必須にもしたいなら `@NotBlank` と組み合わせます。形式と必須は別の制約だと考えてください。"
+        },
+        {
+          "question": "在庫不足の検査を置く中心層は？",
+          "choices": [
+            "Cookieへ入れた値を見る、リクエストの境界",
+            "HTML側の入力チェックで済ませる、画面の層",
+            "入力欄の表示を制御する、CSSの層",
+            "Serviceの業務ルールとDBの同時実行制御"
+          ],
+          "answer": 3,
+          "explanation": "Cookieの値やHTML側の入力チェックは、利用者の手元で書き換えられます。CSSは表示だけの話です。在庫は「いまのDBの状態」で決まるので、入力形式の検証とは別に、Serviceの業務ルールと、DBの同時実行制御（ロックや条件付き更新）の両方で守ります。"
+        },
+        {
+          "question": "テスト構成として適切なのは？",
+          "choices": [
+            "ログを詳しく残せば、テストは省略できる",
+            "mockを使う単体テストだけで、境界も確認できる",
+            "単体・DB結合・HTTP境界を目的別に組み合わせる",
+            "本番環境で初めて動かし、問題が出たら直す"
+          ],
+          "answer": 2,
+          "explanation": "ログは起きたことの記録で、壊れていないことの確認にはなりません。mockだけの単体テストではSQLやHTTPの取り違えが見つからず、本番で初めて動かすのは事故です。単体・DB結合・HTTP境界には、それぞれでしか見つからない不具合があるので、目的別に組み合わせます。"
+        },
+        {
+          "question": "Jakarta Messagingを選ぶ代表的な要件は？",
+          "choices": [
+            "利用者が入力したHTMLの無害化",
+            "疎結合な非同期連携とメッセージ処理",
+            "同期的なHTTPでの単純な取得",
+            "日付と時刻の計算だけを行う処理"
+          ],
+          "answer": 1,
+          "explanation": "HTMLの無害化は出力の話で、単純な取得は同期HTTPで足りますし、日付と時刻の計算にメッセージングは要りません。送り手と受け手を切り離し、相手が止まっていても後から処理したい——という要件のときに、キューやtopicを介した非同期連携を選びます。"
+        }
+      ]
+    }
+  ]
+}

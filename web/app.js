@@ -114,6 +114,14 @@
     lessonList = [];
     state.chapters.forEach(function (ch) {
       chapterIndex[ch.id] = ch;
+      // 章のidは大半が `chNN` だが、`34` のように数字だけのものが5章ある。
+      // `localizeChapterReferences` は `第NN章` から `chNN` を組み立てて引くので、
+      // 別名を入れておかないと**内部番号がそのまま画面に出る**（第34章 → 実際は第3章）。
+      var digits = String(ch.id).replace(/\D/g, '');
+      if (digits) {
+        var alias = 'ch' + (digits.length < 2 ? '0' + digits : digits);
+        if (!chapterIndex[alias]) { chapterIndex[alias] = ch; }
+      }
       ch.lessons.forEach(function (l) {
         lessonIndex[l.id] = l;
         chapterOfLesson[l.id] = ch;

@@ -78,6 +78,7 @@ def main():
     problems += check_resolvable(refs, chapters)
     problems += check_translated(refs, chapters)
     problems += check_labs(lab_refs)
+    problems += check_chapter_ids()
 
     print(f'章参照を{len(refs) + len(lab_refs)}件'
           f'（content {len(refs)}件 / labs {len(lab_refs)}件）調べました。')
@@ -90,6 +91,39 @@ def main():
         print(f'  {line}', file=sys.stderr)
     print('\n参照の書き方は docs/guide.md「章を1つ足す」にあります。', file=sys.stderr)
     return 1
+
+
+# 章の `id` がファイル名の番号と違うもの。`web/app.js` が数字から別名を作って救っているが、
+# **新しく増やさない**ためにここへ挙げておく（増やすと画面に内部番号が出る事故に近づく）。
+LEGACY_CHAPTER_IDS = {
+    'ch30-jvm-memory.json': '30',
+    'ch32-threads-safety.json': '32',
+    'ch34-tasks-async-io.json': '34',
+    'ch37-performance-lab.json': '37',
+    'ch38-resilience-observability.json': '38',
+}
+
+
+def check_chapter_ids():
+    """章の `id` は `chNN`（ファイル名と同じ番号）にする。
+
+    `web/app.js` の `localizeChapterReferences` は `第NN章` から **`chNN` を組み立てて**
+    章を引く。`id` が `34` のように数字だけだと引けず、**内部番号がそのまま画面に出る**
+    （実際に `ch40` の「第34章」がこれで読み替えられていなかった）。いまは app 側で
+    数字から別名を作って救っているが、`id` を合わせるのが本筋なので新しいものは失敗にする。
+    """
+    problems = []
+    for path in sorted(CONTENT.glob('ch*.json')):
+        raw = json.loads(path.read_text(encoding='utf-8'))
+        want = 'ch' + re.match(r'ch(\d+)', path.name).group(1)
+        if raw.get('id') == want:
+            continue
+        if LEGACY_CHAPTER_IDS.get(path.name) == raw.get('id'):
+            continue                      # 既知の5章。進捗（rewardedChapters）が壊れるので直さない
+        problems.append(
+            f'{path.name}: 章の id が {raw.get("id")!r} です。`{want}` にしてください'
+            '（`第NN章` の読み替えが `chNN` で章を引くため、違うと内部番号が画面に出ます）')
+    return problems
 
 
 def check_resolvable(refs, chapters):
