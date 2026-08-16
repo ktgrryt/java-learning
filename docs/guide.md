@@ -1558,6 +1558,11 @@ miniを使う章には、**そのminiが最初に出てくるレッスンの解�
 ./tools/format-content-code.sh --check    # 書き戻さず、対象件数だけ見る
 ```
 
+**ブロックの `{` が1行に2つ以上あれば、長さによらず詰め込みと判定します。**
+`public class Main {public static void main(String[] args){/* TODO */}}` のように**宣言だけ**を
+詰めたひな形は文が0個なので、長さと文の数の条件では拾えませんでした（実際に3件見落としていた。
+2026-08-16に判定を足した）。配列初期化子とラムダの `{` は数えません。
+
 整形は画面の表示にも使っている `jq.format.JavaSnippetFormatter` に任せます。改行とインデント
 だけでなく、演算子・カンマ・キーワードのまわりの空白もそろえます（`int n=s.nextInt();` →
 `int n = s.nextInt();`）。すでに整っているコードには触りません。
@@ -1614,6 +1619,7 @@ builder imageを用意した状態で「注意」が1件も出なかった）。
 | 他の章を参照する文を書いた・章を並び替えた・labのREADMEを直した | `./tools/check-chapter-refs.sh` （1秒） | 番号が3つある（内部・編内・旧通し）ので、参照先が解決できるか、読み替えの効かない場所に番号を書いていないかを見る。画面を開かないと気づけない |
 | 到達目標（`objectives`）を書いた・`objectiveIds` を変えた・問題を増減した | `./tools/check-objectives.sh` （1秒） | 目標と問題の対応は放っておくとずれる。測る問題が無い目標、任意発展問題しか測っていない目標、どの目標にも紐づかないレッスン、「〜を理解する」のような測れない書き方を落とす。問題を増減すると紐づけの抜けが生まれる |
 | 確認クイズを足した・選択肢を書き換えた | `./tools/check-quiz-fairness.sh` （1秒）＋**その問題の `explanation` を読み直す** | 「長い選択肢を選ぶ」「断定語を避ける」だけで正答率が上がる状態は、レビューでは気づけない。実際に391問へ増える過程で2件戻っていた。長さは画面上の幅で測り、見分けられない差は数えない。解説の読み直しは機械化できない（解説は誤答を名指しで否定しているので、選択肢だけ直すと存在しない選択肢を否定する解説が残る） |
+| 問題を足した・テストケースを削った | `./tools/check-constant-output.sh` （1秒） | 期待出力が全ケースで同じなら、その文字列を `println` するだけで通る。表示ケースに期待出力が見えているので写せば合格し、**採点が何も測らない**。`ch01`〜`ch03` は「printlnを書く」ことが目標なので除外する |
 | mini実装（`content/lib/`）を足した・その章の解説を書き換えた | `./tools/check-mini-labels.sh` （1秒） | 「書き方は本物と同じ／挙動は削ってある」の断りが無いと、学習者は教材でできたことを実務でできると思い込む。**中身が事実と合っているかは機械では見られない**ので、書くときは `content/lib/` の実装を読む |
 | 解説・問題文・ヒント・見出しを書いた | `./tools/check-term-consistency.sh` （1秒） | 同じものを英語とカタカナで呼び分けると、初学者は別概念かどうかを毎回考えることになる。一度そろえても章が増えれば戻る（クイズの手がかりで同じことが起きた）。識別子や製品名は `…` で囲めば対象から外れる |
 | labの `pom.xml` を直した・四半期ごと・Java CPUや製品minor更新のとき | `./tools/check-dependency-versions.sh` （**通信する**。20秒ほど）＋**上げたlabを実際に動かす** | 製品の版は教材の外で動くので、放っておくと教材だけが古くなる。宣言した版がCentralに無ければビルドが落ちるので失敗、系統内に新しいpatchがあれば警告、labのあいだで系統が食い違っていても警告する。JDKのbaselineはAdoptiumの最新GAと比べる |
@@ -1685,6 +1691,7 @@ index名の綴りが違って誰も合格できない検査、要件に書いた
 ./tools/check-dependency-versions.sh # labs の版とJDK baselineを公開情報と突き合わせる（**通信する**）
 ./tools/check-term-consistency.sh  # 散文に裸の英語（container・image…）が残っていないかを検査
 ./tools/check-mini-labels.sh       # mini実装の章に「ここが本物と違う」があるかを検査
+./tools/check-constant-output.sh   # 期待出力を写すだけで通る問題が無いかを検査
 ./tools/check-chapter-refs.sh      # 他の章への参照が、学習者に違う番号で見えないかを検査
 ./tools/check-build-jdk.sh         # 古いJDKへ警告するsecurity baseline判定を確認
 ./tools/check-web-security.sh      # 静的配信のpath・symlink境界を確認
@@ -1895,6 +1902,7 @@ Rank1〜5を約4.2倍の傾きへ引き直して、1章クリアで3個・2章�
 │   ├── check-dependency-versions.sh labsの版とJDK baselineの追随チェック（通信する）
 │   ├── check-term-consistency.sh 散文の英語／カタカナ混在チェック
 │   ├── check-mini-labels.sh   mini実装の「本物との違い」ラベルチェック
+│   ├── check-constant-output.sh 固定出力で通る問題のチェック
 │   ├── check-chapter-refs.sh  他章参照の表示番号チェック
 │   ├── check-build-jdk.sh     JDK security baselineの回帰チェック
 │   └── check-web-security.sh  静的配信のpath・symlink境界チェック

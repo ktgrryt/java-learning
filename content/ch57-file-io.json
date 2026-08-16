@@ -776,14 +776,14 @@
         "ch57-o4",
         "ch57-o5"
       ],
-      "explanation": "ここでは、文字コードの違いをバイト数で確かめる問題、ディレクトリを閉じながら一覧する問題、一時ファイルから安全に置き換える問題に取り組みます。いずれも「たまたま動く」ではなく、入出力の契約と失敗時の状態を意識してください。",
+      "explanation": "## この章の知識を、自分の手で組み合わせよう\n\nここでは、**文字コードの指定・ディレクトリの走査と後片付け・一時ファイルからの安全な置き換え**をまとめて使います。新しい文法は登場しません。分からなくなったら、直前までの解説やサンプルへ戻って確認して大丈夫です。\n\n### 3問の進め方\n\n1. **基本**で、中心となる書き方をもう一度使う\n2. **組み合わせ**で、章内の複数の知識を一緒に使う\n3. **実践**で、少し現実的な入力と条件を整理する\n\nいずれも「たまたま動く」ではなく、**入出力の契約と失敗したときの状態**を意識してください。文字コードを省略すると環境によって結果が変わり、ストリームを閉じ忘れると一覧の途中で失敗します。",
       "points": [
         "StandardCharsetsの定数を使い、同じ文字コードで往復する",
         "Files.listが返すStreamもtry-with-resourcesで閉じる",
         "一時ファイルは対象と同じディレクトリに作り、成功・失敗のどちらでも掃除する"
       ],
       "samples": [],
-      "task": "1つの文字列を読み、`utf8.txt` へUTF-8で、`utf16le.txt` へUTF-16LEで書いてください。それぞれ正しい文字コードで読み戻し、次の3行を出力します。\n\n```\nUTF8 バイト数\nUTF16LE バイト数\nTEXT UTF-8で戻した文字列|UTF-16LEで戻した文字列\n```",
+      "task": "【基本】1つの文字列を読み、`utf8.txt` へUTF-8で、`utf16le.txt` へUTF-16LEで書いてください。それぞれ正しい文字コードで読み戻し、次の3行を出力します。\n\n```\nUTF8 バイト数\nUTF16LE バイト数\nTEXT UTF-8で戻した文字列|UTF-16LEで戻した文字列\n```",
       "starterCode": "import java.nio.charset.StandardCharsets;\nimport java.nio.file.Files;\nimport java.nio.file.Path;\nimport java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) throws Exception {\n        String text = new Scanner(System.in).next();\n        Path utf8 = Path.of(\"utf8.txt\");\n        Path utf16 = Path.of(\"utf16le.txt\");\n        // 2つの文字コードで書き、サイズと読み戻した結果を出そう\n    }\n}\n",
       "visibleCases": [
         {
@@ -840,7 +840,7 @@
       "extraTasks": [
         {
           "kind": "drill",
-          "task": "`work/incoming` ディレクトリを `Files.createDirectories` で作ります。前回の実行で残った直下のファイルがあれば、`Files.list` をtry-with-resourcesで開いて `Files.deleteIfExists` で削除し、作業領域を空にしてください。個数 `n` と `n` 個のファイル名を読み、各名前の空ファイルをその中へ作ります。そのあともう一度 `Files.list` をtry-with-resourcesで開き、直下の通常ファイルのうち名前が `.txt` で終わるものだけを辞書順に並べ、`TXT 件数 名前1,名前2,...` と出力してください。0件なら `TXT 0` だけを出力します。",
+          "task": "【組み合わせ】`work/incoming` ディレクトリを `Files.createDirectories` で作ります。前回の実行で残った直下のファイルがあれば、`Files.list` をtry-with-resourcesで開いて `Files.deleteIfExists` で削除し、作業領域を空にしてください。個数 `n` と `n` 個のファイル名を読み、各名前の空ファイルをその中へ作ります。そのあともう一度 `Files.list` をtry-with-resourcesで開き、直下の通常ファイルのうち名前が `.txt` で終わるものだけを辞書順に並べ、`TXT 件数 名前1,名前2,...` と出力してください。0件なら `TXT 0` だけを出力します。",
           "starterCode": "import java.nio.file.Files;\nimport java.nio.file.Path;\nimport java.util.ArrayList;\nimport java.util.List;\nimport java.util.Scanner;\nimport java.util.stream.Stream;\n\npublic class Main {\n    public static void main(String[] args) throws Exception {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n        Path dir = Path.of(\"work\", \"incoming\");\n        // ディレクトリを作成して前回のファイルを消し、作成後にFiles.listで.txtだけ集めよう\n    }\n}\n",
           "visibleCases": [
             {
@@ -902,7 +902,7 @@
         },
         {
           "kind": "applied",
-          "task": "`config/settings.txt` を安全に置き換えます。旧内容と新内容を1語ずつ読み、ディレクトリを作って対象へ旧内容をUTF-8で書きます。次に**同じディレクトリ**へ `Files.createTempFile` で一時ファイルを作り、新内容をUTF-8で書いて閉じてから、`ATOMIC_MOVE` と `REPLACE_EXISTING` を付けた `Files.move` で置き換えてください。`AtomicMoveNotSupportedException` の場合だけ、`REPLACE_EXISTING` を付けた通常のmoveへフォールバックします。finallyで一時ファイルを削除し、次の3行を出力します。\n\n```\nTARGET 新内容\nTEMP_EXISTS false\nDIRECTORY true\n```",
+          "task": "【実践】`config/settings.txt` を安全に置き換えます。旧内容と新内容を1語ずつ読み、ディレクトリを作って対象へ旧内容をUTF-8で書きます。次に**同じディレクトリ**へ `Files.createTempFile` で一時ファイルを作り、新内容をUTF-8で書いて閉じてから、`ATOMIC_MOVE` と `REPLACE_EXISTING` を付けた `Files.move` で置き換えてください。`AtomicMoveNotSupportedException` の場合だけ、`REPLACE_EXISTING` を付けた通常のmoveへフォールバックします。finallyで一時ファイルを削除し、次の3行を出力します。\n\n```\nTARGET 新内容\nTEMP_EXISTS false\nDIRECTORY true\n```",
           "starterCode": "import java.nio.charset.StandardCharsets;\nimport java.nio.file.AtomicMoveNotSupportedException;\nimport java.nio.file.Files;\nimport java.nio.file.Path;\nimport java.nio.file.StandardCopyOption;\nimport java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) throws Exception {\n        Scanner sc = new Scanner(System.in);\n        String oldText = sc.next();\n        String newText = sc.next();\n        Path dir = Path.of(\"config\");\n        Path target = dir.resolve(\"settings.txt\");\n        Path temp = null;\n        // 同じdirの一時ファイルへ書いてから置き換えよう\n    }\n}\n",
           "visibleCases": [
             {

@@ -195,14 +195,14 @@
       "objectiveIds": [
         "ch65-o3"
       ],
-      "explanation": "バッチは正常終了だけでなく、遅延、二重起動、途中停止からの復旧まで含めて完成です。業務日を明示して未完了日を拾い、安定したキーで対象を分割し、副作用とcheckpointを同じ確定単位で扱います。",
+      "explanation": "## この章の知識を、自分の手で組み合わせよう\n\nここでは、**チャンクとcheckpoint・途中再開・二重起動の防止・取り戻しの上限**をまとめて使います。新しい文法は登場しません。分からなくなったら、直前までの解説やサンプルへ戻って確認して大丈夫です。\n\n### 3問の進め方\n\n1. **基本**で、中心となる書き方をもう一度使う\n2. **組み合わせ**で、章内の複数の知識を一緒に使う\n3. **実践**で、少し現実的な入力と条件を整理する\n\nバッチは正常終了だけでなく、遅延、二重起動、途中停止からの復旧まで含めて完成です。業務日を明示して未完了日を拾い、安定したキーで対象を分割し、**副作用とcheckpointを同じ確定単位で扱う**ことを意識してください。",
       "points": [
         "前回成功した業務日から未処理日を列挙し、起動漏れを回収する",
         "IDの大小関係を再開位置に使い、入力順に依存しない",
         "チャンク内の1件が失敗したら、そのチャンクの副作用とcheckpointを両方戻す"
       ],
       "samples": [],
-      "task": "最後に完了した業務日 `lastCompleted`、処理対象の最終日 `today`、1回の起動で処理する最大日数 `maxCatchUp` を読みます。lastCompletedの翌日からtodayまで、最大maxCatchUp日を `RUN yyyy-MM-dd` と出力してください。1日もなければ `UP_TO_DATE` を出します。最後に `CHECKPOINT 最後に完了した日` と `REMAINING 未処理日数` を出力してください。",
+      "task": "【基本】最後に完了した業務日 `lastCompleted`、処理対象の最終日 `today`、1回の起動で処理する最大日数 `maxCatchUp` を読みます。lastCompletedの翌日からtodayまで、最大maxCatchUp日を `RUN yyyy-MM-dd` と出力してください。1日もなければ `UP_TO_DATE` を出します。最後に `CHECKPOINT 最後に完了した日` と `REMAINING 未処理日数` を出力してください。",
       "starterCode": "import java.time.LocalDate;\nimport java.time.temporal.ChronoUnit;\nimport java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        LocalDate lastCompleted = LocalDate.parse(sc.next());\n        LocalDate today = LocalDate.parse(sc.next());\n        int maxCatchUp = sc.nextInt();\n        // 翌日から最大maxCatchUp日を処理し、残りを数えよう\n    }\n}\n",
       "visibleCases": [
         {
@@ -242,7 +242,7 @@
       "extraTasks": [
         {
           "kind": "drill",
-          "task": "入力順がばらばらで重複もあるIDを、keyset方式の候補へ整えます。`n`、n個のID、`checkpoint`、`chunkSize` を読みます。重複を除き、checkpointより大きいIDだけを昇順にし、chunkSize件ごとに `CHUNK id1,id2,...` と出力してください。最後に、処理対象があれば最大ID、なければ元のcheckpointを `CHECKPOINT 値` と出力します。",
+          "task": "【組み合わせ】入力順がばらばらで重複もあるIDを、keyset方式の候補へ整えます。`n`、n個のID、`checkpoint`、`chunkSize` を読みます。重複を除き、checkpointより大きいIDだけを昇順にし、chunkSize件ごとに `CHUNK id1,id2,...` と出力してください。最後に、処理対象があれば最大ID、なければ元のcheckpointを `CHECKPOINT 値` と出力します。",
           "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n        List<Long> ids = new ArrayList<>();\n        for (int i = 0; i < n; i++) ids.add(sc.nextLong());\n        long checkpoint = sc.nextLong();\n        int chunkSize = sc.nextInt();\n        // TreeSetで重複を除き、checkpointより後をchunkへ分けよう\n    }\n}\n",
           "visibleCases": [
             {
@@ -282,7 +282,7 @@
         },
         {
           "kind": "applied",
-          "task": "1つのバッチチャンクのトランザクションを模擬します。入力は `checkpoint`、処理済みID数 `d` とd個のID、チャンク件数 `n` とn組の `id outcome`（outcomeは `ok` / `fail`）です。\n\nチャンクに1件でもfailがあれば全体を `ROLLBACK` し、処理済み集合もcheckpointも変更しません。全件okなら `COMMIT` し、未処理IDだけを処理済みに追加します（重複IDの効果は1回）。checkpointはチャンク内の最大IDまで進めます。次の4行を出力してください。\n\n```\nRESULT COMMITまたはROLLBACK\nCHECKPOINT 値\nEFFECTS このチャンクで新たに確定したID数\nDONE 処理済みID総数\n```",
+          "task": "【実践】1つのバッチチャンクのトランザクションを模擬します。入力は `checkpoint`、処理済みID数 `d` とd個のID、チャンク件数 `n` とn組の `id outcome`（outcomeは `ok` / `fail`）です。\n\nチャンクに1件でもfailがあれば全体を `ROLLBACK` し、処理済み集合もcheckpointも変更しません。全件okなら `COMMIT` し、未処理IDだけを処理済みに追加します（重複IDの効果は1回）。checkpointはチャンク内の最大IDまで進めます。次の4行を出力してください。\n\n```\nRESULT COMMITまたはROLLBACK\nCHECKPOINT 値\nEFFECTS このチャンクで新たに確定したID数\nDONE 処理済みID総数\n```",
           "starterCode": "import java.util.*;\n\nrecord Item(long id, String outcome) {}\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        long checkpoint = sc.nextLong();\n        int d = sc.nextInt();\n        Set<Long> done = new HashSet<>();\n        for (int i = 0; i < d; i++) done.add(sc.nextLong());\n        int n = sc.nextInt();\n        List<Item> chunk = new ArrayList<>();\n        for (int i = 0; i < n; i++) chunk.add(new Item(sc.nextLong(), sc.next()));\n        // まず失敗を調べ、成功時だけ集合とcheckpointをまとめて更新しよう\n    }\n}\n",
           "visibleCases": [
             {

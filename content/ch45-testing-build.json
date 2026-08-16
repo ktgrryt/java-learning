@@ -960,14 +960,14 @@
       "objectiveIds": [
         "ch45-o5"
       ],
-      "explanation": "テストコードも保守する製品コードです。成功時だけでなく、単独実行・一括実行・実行環境の違いでも同じ結果になるかを考えます。共有状態を毎回初期化し、現在時刻などの外部要因を注入し、曖昧な待ち方を残さないことが重要です。",
+      "explanation": "## この章の知識を、自分の手で組み合わせよう\n\nここでは、**共有状態の初期化・時刻の注入・不安定要因の見分け**をまとめて使います。新しい文法は登場しません。分からなくなったら、直前までの解説やサンプルへ戻って確認して大丈夫です。\n\n### 3問の進め方\n\n1. **基本**で、中心となる書き方をもう一度使う\n2. **組み合わせ**で、章内の複数の知識を一緒に使う\n3. **実践**で、少し現実的な入力と条件を整理する\n\nテストコードも保守する製品コードです。成功時だけでなく、単独実行・一括実行・実行環境の違いでも同じ結果になるかを考えます。共有状態を毎回初期化し、現在時刻などの外部要因を注入し、**曖昧な待ち方を残さない**ことが重要です。",
       "points": [
         "準備を@BeforeEachへ集め、各テストを単独で実行できるようにする",
         "Clock.fixedで日時境界を待たずに再現する",
         "不安定要因を見つけたら再実行で隠さず、制御できる依存へ変える"
       ],
       "samples": [],
-      "task": "staticなListにはmainから任意個のごみデータが入ります。`@BeforeEach setUp` でListをclearし、`\"base\"` を1件追加してください。`addingKeepsExpectedSize` は `\"extra\"` を追加して件数2、`freshFixtureStartsWithBase` は件数1かつ先頭が `\"base\"` であることを検証します。入力はごみデータ数とその文字列です。",
+      "task": "【基本】staticなListにはmainから任意個のごみデータが入ります。`@BeforeEach setUp` でListをclearし、`\"base\"` を1件追加してください。`addingKeepsExpectedSize` は `\"extra\"` を追加して件数2、`freshFixtureStartsWithBase` は件数1かつ先頭が `\"base\"` であることを検証します。入力はごみデータ数とその文字列です。",
       "starterCode": "import org.junit.jupiter.api.BeforeEach;\nimport org.junit.jupiter.api.Test;\n\nimport java.util.*;\n\nimport static org.junit.jupiter.api.Assertions.assertEquals;\n\nclass FixtureTest {\n    static final List<String> items = new ArrayList<>();\n\n    @BeforeEach\n    void setUp() {\n        // TODO 毎回既知の状態へ戻す\n    }\n\n    @Test\n    void addingKeepsExpectedSize() {\n        // TODO\n    }\n\n    @Test\n    void freshFixtureStartsWithBase() {\n        // TODO\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n        for (int i = 0; i < n; i++) FixtureTest.items.add(sc.next());\n        MiniJUnit.run(FixtureTest.class);\n    }\n}\n",
       "visibleCases": [
         {
@@ -1022,7 +1022,7 @@
       "extraTasks": [
         {
           "kind": "drill",
-          "task": "現在時刻と期限をISO-8601形式で1つずつ読みます。`Clock.fixed(now, ZoneOffset.UTC)` を作り、`isExpired(Instant deadline, Clock clock)` へ渡してください。clockの現在時刻が期限と同じか後なら `EXPIRED`、前なら `ACTIVE` と出力します。メソッド内で `Instant.now()` を直接呼ばず、必ず渡されたClockを使います。",
+          "task": "【組み合わせ】現在時刻と期限をISO-8601形式で1つずつ読みます。`Clock.fixed(now, ZoneOffset.UTC)` を作り、`isExpired(Instant deadline, Clock clock)` へ渡してください。clockの現在時刻が期限と同じか後なら `EXPIRED`、前なら `ACTIVE` と出力します。メソッド内で `Instant.now()` を直接呼ばず、必ず渡されたClockを使います。",
           "starterCode": "import java.time.Clock;\nimport java.time.Instant;\nimport java.time.ZoneOffset;\nimport java.util.Scanner;\n\npublic class Main {\n    static boolean isExpired(Instant deadline, Clock clock) {\n        return false;\n    }\n\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        Instant now = Instant.parse(sc.next());\n        Instant deadline = Instant.parse(sc.next());\n        // 固定Clockを作って判定しよう\n    }\n}\n",
           "visibleCases": [
             {
@@ -1079,7 +1079,7 @@
         },
         {
           "kind": "applied",
-          "task": "テスト設計をn件読み、不安定要因を監査します。各行は `name clock random state wait network` で、値は次の組み合わせです。\n\n- clock: `fixed` / `real`\n- random: `seeded` / `unseeded`\n- state: `isolated` / `shared`\n- wait: `condition` / `sleep`\n- network: `fake` / `live`\n\n各テストについて、問題がなければ `name STABLE`、問題があれば `name FLAKY 要因` と出力します。要因は `CLOCK,RANDOM,STATE,WAIT,NETWORK` の順にカンマでつなぎます。最後に `SUMMARY stable=件数 flaky=件数` を出力してください。",
+          "task": "【実践】テスト設計をn件読み、不安定要因を監査します。各行は `name clock random state wait network` で、値は次の組み合わせです。\n\n- clock: `fixed` / `real`\n- random: `seeded` / `unseeded`\n- state: `isolated` / `shared`\n- wait: `condition` / `sleep`\n- network: `fake` / `live`\n\n各テストについて、問題がなければ `name STABLE`、問題があれば `name FLAKY 要因` と出力します。要因は `CLOCK,RANDOM,STATE,WAIT,NETWORK` の順にカンマでつなぎます。最後に `SUMMARY stable=件数 flaky=件数` を出力してください。",
           "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n        int stable = 0, flaky = 0;\n        for (int i = 0; i < n; i++) {\n            String name = sc.next();\n            String clock = sc.next(), random = sc.next(), state = sc.next();\n            String wait = sc.next(), network = sc.next();\n            List<String> risks = new ArrayList<>();\n            // TODO 決められた順に要因を追加\n        }\n        // TODO 集計\n    }\n}\n",
           "visibleCases": [
             {

@@ -63,6 +63,12 @@ public final class JavaSnippetFormatter {
      *
      * <p>文字列やコメントの中の `;` `{` は数えない。カッコの内側の `;` も数えない
      * （`for (int i = 0; i < n; i++)` は1つの長い文であって、詰め込みではない）。</p>
+     *
+     * <p><b>ブロックの `{` が1行に2つ以上あれば、長さや文の数によらず詰め込みとみなす。</b>
+     * `public class Main {public static void main(String[] args){/* TODO *&#47;}}` のように
+     * <em>宣言だけ</em>を詰めたひな形は、文が0個なので長さの条件では拾えなかった
+     * （実際に3件見落としていた）。配列初期化子とラムダの `{`
+     * （直前が {@code = , { ( -> + ]} のもの）はブロックではないので数えない。</p>
      */
     public static boolean isCompact(String source) {
         if (source == null || source.isBlank()) {
@@ -85,6 +91,9 @@ public final class JavaSnippetFormatter {
                     default -> { }
                 }
             }
+            if (blockBraces(line) >= 2) {
+                return true;
+            }
             if (line.length() > 100 && (statements >= 2 || blocks >= 2)) {
                 return true;
             }
@@ -93,6 +102,24 @@ public final class JavaSnippetFormatter {
             }
         }
         return false;
+    }
+
+    /** ブロックを開く `{` の数。配列初期化子・ラムダ・式の中のものは数えない。 */
+    private static int blockBraces(String line) {
+        int count = 0;
+        for (int k = 0; k < line.length(); k++) {
+            if (line.charAt(k) != '{') {
+                continue;
+            }
+            String before = line.substring(0, k).stripTrailing();
+            if (before.endsWith("=") || before.endsWith(",") || before.endsWith("{")
+                    || before.endsWith("(") || before.endsWith("->") || before.endsWith("+")
+                    || before.endsWith("]")) {
+                continue;
+            }
+            count++;
+        }
+        return count;
     }
 
     /** 改行位置とインデント、空白を作り直す。元の改行位置は保たない。 */

@@ -192,20 +192,48 @@
       "extraTasks": [
         {
           "kind": "applied",
-          "task": "処理リストをDB区間と外部API区間に分けます。入力行（validate, db-update, http-call, commit）を、トランザクション内だけ `[TX]`、外は `[OUT]` で指定順に表示してください。HTTPはcommit後です。",
-          "starterCode": "public class TxShort{public static void main(String[]a){// TODO\n}}\n",
+          "task": "手順の並びを見て、トランザクションの内と外に分けます。件数 `n` と、続けて n 行の手順名を読みます。\n\n- **内側（`[TX]`）**: `db-read` `db-insert` `db-update` `commit`\n- **外側（`[OUT]`）**: `validate` `http-call` `send-mail` `notify`\n\n入力順に `[TX] 手順名` / `[OUT] 手順名` を1行ずつ表示してください。\nさらに、**外部呼び出し（`http-call` `send-mail` `notify`）が `commit` より前にある**ときは、\nその行の末尾へ ` MOVE_AFTER_COMMIT` を付けます。トランザクションを開いたまま外部を待つと、\n相手が遅いあいだ行がロックされ続けるからです。\n\n`commit` が無い入力ではトランザクションが始まっていないので、印は付けません。",
+          "starterCode": "import java.util.*;\n\npublic class TxShort {\n    public static void main(String[] a) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n        List<String> steps = new ArrayList<>();\n        for (int i = 0; i < n; i++) {\n            steps.add(sc.next());\n        }\n        // TODO 各手順を [TX] / [OUT] に分け、commit より前の外部呼び出しへ印を付ける\n        for (String step : steps) {\n            System.out.println(\"[TX] \" + step);\n        }\n    }\n}\n",
           "visibleCases": [
             {
               "label": "短い境界",
-              "stdin": "",
+              "stdin": "4\nvalidate\ndb-update\ncommit\nhttp-call",
               "expected": "[OUT] validate\n[TX] db-update\n[TX] commit\n[OUT] http-call"
+            },
+            {
+              "label": "commit前の外部呼び出し",
+              "stdin": "4\nvalidate\nhttp-call\ndb-update\ncommit",
+              "expected": "[OUT] validate\n[OUT] http-call MOVE_AFTER_COMMIT\n[TX] db-update\n[TX] commit"
             }
           ],
-          "hiddenCases": [],
-          "hints": [
-            "期待される4行をその順で出します。設計順序を確認する問題です。"
+          "hiddenCases": [
+            {
+              "label": "メール送信は外",
+              "stdin": "3\ndb-read\ncommit\nsend-mail",
+              "expected": "[TX] db-read\n[TX] commit\n[OUT] send-mail"
+            },
+            {
+              "label": "通知がcommit前",
+              "stdin": "2\nnotify\ncommit",
+              "expected": "[OUT] notify MOVE_AFTER_COMMIT\n[TX] commit"
+            },
+            {
+              "label": "commitが無ければ印は付かない",
+              "stdin": "2\nvalidate\nhttp-call",
+              "expected": "[OUT] validate\n[OUT] http-call"
+            },
+            {
+              "label": "5手順",
+              "stdin": "5\ndb-insert\nnotify\ndb-update\ncommit\nhttp-call",
+              "expected": "[TX] db-insert\n[OUT] notify MOVE_AFTER_COMMIT\n[TX] db-update\n[TX] commit\n[OUT] http-call"
+            }
           ],
-          "solution": "public class TxShort {\n    public static void main(String[] a) {\n        System.out.println(\"[OUT] validate\");\n        System.out.println(\"[TX] db-update\");\n        System.out.println(\"[TX] commit\");\n        System.out.println(\"[OUT] http-call\");\n    }\n}\n"
+          "hints": [
+            "`commit` の位置は `steps.indexOf(\"commit\")` で分かります。見つからなければ `-1` です。",
+            "内側か外側かは手順名で決まります。`switch` の矢印形（`case \"db-read\", \"commit\" -> true;`）が読みやすいです。",
+            "印を付けるのは「外部呼び出し」かつ「`commit` より前」の行だけです。`validate` は外側ですが外部呼び出しではないので印は付きません。"
+          ],
+          "solution": "import java.util.*;\n\npublic class TxShort {\n    public static void main(String[] a) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n        List<String> steps = new ArrayList<>();\n        for (int i = 0; i < n; i++) {\n            steps.add(sc.next());\n        }\n        int commitAt = steps.indexOf(\"commit\");\n        for (int i = 0; i < steps.size(); i++) {\n            String step = steps.get(i);\n            boolean inTx = switch (step) {\n                case \"db-read\", \"db-insert\", \"db-update\", \"commit\" -> true;\n                default -> false;\n            };\n            boolean external = switch (step) {\n                case \"http-call\", \"send-mail\", \"notify\" -> true;\n                default -> false;\n            };\n            String mark = \"\";\n            if (external && commitAt >= 0 && i < commitAt) {\n                mark = \" MOVE_AFTER_COMMIT\";\n            }\n            System.out.println((inTx ? \"[TX] \" : \"[OUT] \") + step + mark);\n        }\n    }\n}\n"
         }
       ],
       "rubric": [
@@ -409,7 +437,7 @@
         }
       ],
       "task": "【基本】OrderServiceの `create()` に `@Transactional` を付けます。リフレクションで注釈を取得し、既定の伝播種別 `REQUIRED` を表示してください。",
-      "starterCode": "import jakarta.transaction.Transactional;\nclass OrderService {@Transactional void create(){}}\npublic class Main {public static void main(String[] args)throws Exception{/* TODO */}}\n",
+      "starterCode": "import jakarta.transaction.Transactional;\n\nclass OrderService {\n    @Transactional\n    void create() { }\n}\n\npublic class Main {\n    public static void main(String[] args) throws Exception {\n        /* TODO */\n    }\n}\n",
       "visibleCases": [
         {
           "label": "既定値",

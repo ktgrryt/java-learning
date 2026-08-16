@@ -113,8 +113,26 @@ def format_all(classpath, snippets):
     return out
 
 
+def block_braces(line):
+    """ブロックを開く `{` の数。配列初期化子・ラムダ・式の中のものは数えない。"""
+    count = 0
+    for index, ch in enumerate(line):
+        if ch != '{':
+            continue
+        before = line[:index].rstrip()
+        if before.endswith(('=', ',', '{', '(', '->', '+', ']')):
+            continue
+        count += 1
+    return count
+
+
 def is_compact(code):
-    """1行に複数の文やブロックが詰め込まれているか（Java側 isCompact と同じ判定）。"""
+    """1行に複数の文やブロックが詰め込まれているか（Java側 isCompact と同じ判定）。
+
+    **ブロックの `{` が2つ以上ある行は、長さや文の数によらず詰め込み。** 宣言だけを詰めた
+    `public class Main {public static void main(String[] args){}}` は文が0個なので、
+    長さの条件だけでは拾えず、実際に3件見落としていた。
+    """
     if not code or not code.strip():
         return False
     for line in blank_out_literals(code).split('\n'):
@@ -128,6 +146,8 @@ def is_compact(code):
                 statements += 1
             elif ch == '{':
                 blocks += 1
+        if block_braces(line) >= 2:
+            return True
         if len(line) > 100 and (statements >= 2 or blocks >= 2):
             return True
         if len(line) > 60 and blocks >= 2 and statements >= 1:
