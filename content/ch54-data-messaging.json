@@ -341,33 +341,65 @@
       "objectiveIds": [
         "ch54-o3"
       ],
-      "explanation": "## 速さと引き換えに「古さ」を引き受ける\n\ncache-aside方式では、キャッシュに無ければDBから読み、その結果をキャッシュへ保存します。更新のときはDBのコミット後にキャッシュを破棄するのが基本ですが、その間に別の読み取りが割り込む競合や、破棄そのものの失敗も考える必要があります。TTL（有効期間）は、許容できる古さの上限・容量・障害時のDB負荷を踏まえて決めます。人気のキーが一斉に切れてDBへ問い合わせが集中する現象（cache stampede）には、同じ要求をまとめる仕組み、TTLのばらつき（ジッター）、期限前の先読み更新を使います。\n\nキャッシュのキーには、テナント・ロケール・認可によって結果が変わる条件を必ず含めます。含め忘れると情報漏えいになります。「存在しない」という結果もキャッシュしておくと連打を防げますが、作成直後しばらく見えない期間が生まれます。キャッシュは正となるデータ（source of truth）にはせず、消えても再構築できる設計にします。\n\n### いっせいに切れると、DBへ集中する\n\nTTLを全キーで同じにすると、書き込んだタイミングが近いキーが**同時に切れます**。\n切れた瞬間、同じ問い合わせが一斉にDBへ流れます（cache stampede）。\n\n対策は3つを組み合わせます。\n\n| 対策 | すること |\n|---|---|\n| ジッター | TTLに±10%程度のばらつきを持たせ、切れる時刻を散らす |\n| 同一要求のまとめ | 同じキーの再計算は1つだけ走らせ、他は待って結果を共有する |\n| 先読み更新 | 期限が近づいたら裏で更新し、切れる前に差し替える |\n\n### 「無い」もキャッシュする\n\n問い合わせても見つからなかったという結果をキャッシュしないと、存在しないキーへの\nアクセスが **毎回DBまで到達します**。攻撃にも使われるので、短いTTLで「無い」を\n覚えておきます（negative caching）。\n\n> ⚠️ 間違えやすい点 … キャッシュを「正しいデータの置き場所」にしないこと。\n> 正はDBで、キャッシュはいつ消えても業務が続けられる複製です。\n> 更新時は「DBを更新してからキャッシュを消す」の順にします。逆にすると、\n> 消してからDB更新までの一瞬に古い値を読み直して、また入れてしまいます。",
+      "explanation": "## 速さと引き換えに「古さ」を引き受ける\n\ncache-aside方式では、キャッシュに無ければDBから読み、その結果をキャッシュへ保存します。更新のときはDBのコミット後にキャッシュを破棄するのが基本ですが、その間に別の読み取りが割り込む競合や、破棄そのものの失敗も考える必要があります。TTL（有効期間）は、許容できる古さの上限・容量・障害時のDB負荷を踏まえて決めます。人気のキーが一斉に切れてDBへ問い合わせが集中する現象（cache stampede）には、同じ要求をまとめる仕組み、TTLのばらつき（ジッター）、期限前の先読み更新を使います。\n\nキャッシュのキーには、テナント・ロケール・認可によって結果が変わる条件を必ず含めます。含め忘れると情報漏えいになります。「存在しない」という結果もキャッシュしておくと連打を防げますが、作成直後しばらく見えない期間が生まれます。キャッシュは正となるデータ（source of truth）にはせず、消えても再構築できる設計にします。\n\n### いっせいに切れると、DBへ集中する\n\nTTLを全キーで同じにすると、書き込んだタイミングが近いキーが**同時に切れます**。\n切れた瞬間、同じ問い合わせが一斉にDBへ流れます（cache stampede）。\n\n対策は3つを組み合わせます。\n\n| 対策 | すること |\n|---|---|\n| ジッター | TTLに±10%程度のばらつきを持たせ、切れる時刻を散らす |\n| 同一要求のまとめ | 同じキーの再計算は1つだけ走らせ、他は待って結果を共有する |\n| 先読み更新 | 期限が近づいたら裏で更新し、切れる前に差し替える |\n\n### 「無い」もキャッシュする\n\n問い合わせても見つからなかったという結果をキャッシュしないと、存在しないキーへの\nアクセスが **毎回DBまで到達します**。攻撃にも使われるので、短いTTLで「無い」を\n覚えておきます（negative caching）。\n\n### 今回の演習\n\nキーの組み立てと、**同じ秒に失効が集中していないか**の判定を行います。ジッターを入れても、\n同じキーが何度も書き込まれれば同じ秒に集まります。「ばらつきを入れた」ことと\n「実際に散っている」ことは別なので、数えて確かめます。\n\n> ⚠️ 間違えやすい点 … キャッシュを「正しいデータの置き場所」にしないこと。\n> 正はDBで、キャッシュはいつ消えても業務が続けられる複製です。\n> 更新時は「DBを更新してからキャッシュを消す」の順にします。逆にすると、\n> 消してからDB更新までの一瞬に古い値を読み直して、また入れてしまいます。",
       "samples": [
         {
           "caption": "テナントを含むキー",
           "code": "record Key(String tenant, long id) { }\n\npublic class Main {\n    public static void main(String[] a) {\n        System.out.println(new Key(\"acme\", 42));\n    }\n}\n"
         }
       ],
-      "task": "基準となるTTL（秒）、ばらつきの幅（秒）、キーを読み、毎回同じ値になるTTL `base + floorMod(key.hashCode(), jitter+1)` を表示してください。",
-      "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] a) {\n        Scanner sc = new Scanner(System.in);\n        int base = sc.nextInt(), jitter = sc.nextInt();\n        String key = sc.next();\n        /* TODO */\n    }\n}\n",
+      "task": "キャッシュのキーを組み立て、**同じ秒に失効が集中していないか**を確かめます。\n\n1行目に基準TTL `base`（秒）とばらつきの幅 `jitter`（秒）、2行目に件数nを読み、続けてn行を `tenant locale id` の形で読みます。\n\n- キーは `tenant/locale/id` の形でつなぎます。**テナントとロケールを含めます**（含め忘れると、別のテナントや別の言語の結果を返してしまいます）\n- そのキーのTTLは `base + Math.floorMod(key.hashCode(), jitter + 1)` 秒です\n\nまずn行、`キー TTL` を読んだ順に表示してください。続けて、**同じTTLになった件数の最大値**を `maxSameExpiry=件数` の形で表示します（0件なら0）。\n\n最後に、次を上から順に確かめて最初に当てはまった判定を表示してください。\n\n| 判定 | 条件 |\n|---|---|\n| `OK spread` | 件数が0 |\n| `RISK all-same` | `jitter` が0。ばらつきが無いので、書いた時刻が近いキーは全部同時に切れる |\n| `RISK concentrated` | 同じTTLの件数が2以上で、かつ全体の**半分を超える** |\n| `OK spread` | 上のどれでもない |\n\n**ちょうど半分は集中としません。** 4件のうち2件が同じ秒なら `OK spread` です。",
+      "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] a) {\n        Scanner sc = new Scanner(System.in);\n        int base = sc.nextInt(), jitter = sc.nextInt(), n = sc.nextInt();\n        for (int i = 0; i < n; i++) {\n            String tenant = sc.next(), locale = sc.next(), id = sc.next();\n            // TODO キーを tenant/locale/id の形で組み立て、TTLを求めて表示する\n            // TODO 同じTTLになった件数を数えておく\n        }\n        // TODO maxSameExpiry= を表示する\n        // TODO 判定（OK spread / RISK all-same / RISK concentrated）を表示する\n    }\n}\n",
       "visibleCases": [
         {
-          "label": "ばらつきなし",
-          "stdin": "60 0 user42",
-          "expected": "60"
+          "label": "ばらつきが無いので全部同じ秒に切れる",
+          "stdin": "300 0 3\nt1 ja 100\nt1 ja 101\nt2 en 100\n",
+          "expected": "t1/ja/100 300\nt1/ja/101 300\nt2/en/100 300\nmaxSameExpiry=3\nRISK all-same"
+        },
+        {
+          "label": "ばらついて散る",
+          "stdin": "300 60 4\nt1 ja 100\nt1 ja 101\nt1 ja 102\nt1 ja 103\n",
+          "expected": "t1/ja/100 360\nt1/ja/101 300\nt1/ja/102 301\nt1/ja/103 302\nmaxSameExpiry=1\nOK spread"
         }
       ],
       "hiddenCases": [
         {
-          "label": "範囲内",
-          "stdin": "100 10 a",
-          "expected": "109"
+          "label": "同じキーが並ぶと同じ秒に集まる",
+          "stdin": "300 60 2\nt1 ja 100\nt1 ja 100\n",
+          "expected": "t1/ja/100 360\nt1/ja/100 360\nmaxSameExpiry=2\nRISK concentrated"
+        },
+        {
+          "label": "テナントが違えば別のキー",
+          "stdin": "300 60 2\nt1 ja 100\nt2 ja 100\n",
+          "expected": "t1/ja/100 360\nt2/ja/100 313\nmaxSameExpiry=1\nOK spread"
+        },
+        {
+          "label": "ロケールが違えば別のキー",
+          "stdin": "300 60 2\nt1 ja 100\nt1 en 100\n",
+          "expected": "t1/ja/100 360\nt1/en/100 309\nmaxSameExpiry=1\nOK spread"
+        },
+        {
+          "label": "1件も無い",
+          "stdin": "300 0 0\n",
+          "expected": "maxSameExpiry=0\nOK spread"
+        },
+        {
+          "label": "1件だけなら集中ではない",
+          "stdin": "300 60 1\nt1 ja 100\n",
+          "expected": "t1/ja/100 360\nmaxSameExpiry=1\nOK spread"
+        },
+        {
+          "label": "半分ちょうどは集中としない",
+          "stdin": "300 60 4\nt1 ja 100\nt1 ja 100\nt2 en 200\nt3 fr 300\n",
+          "expected": "t1/ja/100 360\nt1/ja/100 360\nt2/en/200 312\nt3/fr/300 317\nmaxSameExpiry=2\nOK spread"
         }
       ],
       "hints": [
-        "`Math.floorMod(key.hashCode(),jitter+1)` を加えます。文字列 `\"a\"` の `hashCode()` は97です。"
+        "キーは `tenant + \"/\" + locale + \"/\" + id` です。`id` を単独のキーにすると、別のテナントの結果を返してしまいます。",
+        "同じTTLの件数は `Map<Integer, Integer>` へ `merge(ttl, 1, Integer::sum)` で数え、あとから最大値を取ります。",
+        "判定は上から順です。`jitter` が0のときは、`maxSameExpiry` を見る前に `RISK all-same` が決まります。件数0のときはどちらの危険もありません。"
       ],
-      "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] a) {\n        Scanner sc = new Scanner(System.in);\n        int base = sc.nextInt(), jitter = sc.nextInt();\n        String key = sc.next();\n        System.out.println(base + Math.floorMod(key.hashCode(), jitter + 1));\n    }\n}\n",
+      "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] a) {\n        Scanner sc = new Scanner(System.in);\n        int base = sc.nextInt(), jitter = sc.nextInt(), n = sc.nextInt();\n        Map<Integer, Integer> perTtl = new HashMap<>();\n        for (int i = 0; i < n; i++) {\n            // テナントとロケールを含めないと、別の利用者の結果を返してしまう\n            String key = sc.next() + \"/\" + sc.next() + \"/\" + sc.next();\n            int ttl = base + Math.floorMod(key.hashCode(), jitter + 1);\n            perTtl.merge(ttl, 1, Integer::sum);\n            System.out.println(key + \" \" + ttl);\n        }\n        int max = 0;\n        for (int count : perTtl.values()) {\n            max = Math.max(max, count);\n        }\n        System.out.println(\"maxSameExpiry=\" + max);\n        String verdict;\n        if (n == 0) {\n            verdict = \"OK spread\";\n        } else if (jitter == 0) {\n            verdict = \"RISK all-same\";\n        } else if (max >= 2 && max * 2 > n) {\n            verdict = \"RISK concentrated\";\n        } else {\n            verdict = \"OK spread\";\n        }\n        System.out.println(verdict);\n    }\n}\n",
       "quiz": [
         {
           "question": "キャッシュのキーにテナントを含めることが重要な理由は？",
@@ -389,7 +421,7 @@
             "キャッシュを正となるデータとして扱う"
           ],
           "answer": 1,
-          "explanation": "cache stampedeへの対策です。画面内問題のばらつき付きTTLは、この考え方の小さなモデルです。先読み更新も併用します。"
+          "explanation": "TTLをそろえるのは、切れる時刻を集中させるので逆効果です。「存在しない」結果のキャッシュをやめると、無いものへのアクセスが毎回DBまで届きます。キャッシュを正のデータにすると、消えた時点で業務が止まります。対策は、TTLにばらつき（ジッター）を持たせ、同じキーの再計算を1つにまとめ、必要なら期限前に先読み更新することです。"
         }
       ]
     },
@@ -436,7 +468,7 @@
             "DBの更新とメッセージ送信の間に生じる不整合"
           ],
           "answer": 3,
-          "explanation": "業務データの更新と「送るべきイベント」を、1つのDBトランザクションで確定させます。"
+          "explanation": "クラスの読み込み順、JSONの整形、型消去は、どれも配送の確実さとは関係ありません。困るのは、DBの更新とメッセージ送信を別々に行うと**片方だけ成功しうる**ことです。outboxは業務データと「送るべきイベント」を同じトランザクションで確定させ、送信は後から別のプロセスが行います。"
         },
         {
           "question": "受信側が処理を終えた直後に、確認応答（ack）の送信が失敗しました。at-least-onceを前提にすると、必要な備えはどれでしょう。",
@@ -447,7 +479,7 @@
             "処理済み記録や業務上の一意制約を使い、冪等に処理する"
           ],
           "answer": 3,
-          "explanation": "「処理したのにackできない」状態は避けられないので、重複を前提に設計します。同じイベントが再配信されても結果が変わらないようにします。"
+          "explanation": "順序を保証しても「処理したのにackできない」状態は起きるので、重複はなくなりません。ブローカーを作り直して消すのは、まだ処理していないメッセージまで失う操作です。再試行をやめれば取りこぼします。重複を前提に、イベントIDの処理済み記録や業務上の一意制約で、2回目を無害にします。"
         }
       ]
     },

@@ -98,7 +98,7 @@
             "バイトコードは実行時にOSごとに再生成される"
           ],
           "answer": 2,
-          "explanation": "ソースを共通バイトコードへ変換し、各環境のJVMが実行する二段構造が移植性の土台です。"
+          "explanation": "JARに入っているのは機械語ではなくバイトコードです。JVMは逆にOSごとに用意された実装なので、「どこでも同じ1つのJVM」ではありません。バイトコードが実行時に作り直されることもありません。共通のバイトコードを各環境向けのJVMが解釈または機械語化する——この二段構造が移植性の土台です。"
         }
       ]
     },
@@ -167,7 +167,7 @@
             "不正なメモリ操作を必ず防ぐ堅牢性・安全性の方針"
           ],
           "answer": 3,
-          "explanation": "ポインタ演算を持たないこと、境界を検査すること、例外と型検査を備えることは同じ判断から来ています。"
+          "explanation": "Javaは静的型付けで、メモリはGCが回収するので手動管理を前提にしていません。実行速度を最優先するなら、範囲の検査は省くほうが速くなります。それでも毎回検査して例外にするのは、**不正なメモリ操作を防ぐ**という方針の結果です。ポインタ演算を持たないこと、型検査、例外も同じ判断から来ています。"
         }
       ],
       "extraTasks": [
@@ -240,43 +240,55 @@
       "objectiveIds": [
         "ch50-o3"
       ],
-      "explanation": "## 「何を入れれば動くのか」を、役割で分ける\n\nJavaを学び始めると、JVM・JRE・JDK・Java SEなど似た名前が続きます。これらは同じものの別名ではありません。まず「実行する仕組み」「開発用の道具」「APIの仕様」に分けると整理できます。\n\n### 実行と開発の道具\n\n- **JVM**: バイトコードを実行するエンジン。メモリ管理やGCも担当する\n- **JRE**: JVMと、実行に必要な標準ライブラリをまとめた「実行環境」という考え方\n- **JDK**: JVMと標準ライブラリに加え、`javac`（コンパイラ）、`java`（起動）、`javadoc`、診断ツールなどを含む開発キット\n\n古い資料では「JDKの中にJREが入る」と図示されます。概念の理解には役立ちますが、現在はベンダーが単独のJRE製品を必ず配布するとは限りません。開発者は通常JDKを入れ、配布時はJDKそのもの、コンテナイメージ、または必要なモジュールから作った実行環境を使います。\n\n### APIの範囲を定める仕様\n\n- **Java SE**: 言語、JVM、コレクション、入出力など、Javaの土台となる標準仕様\n- **Jakarta EE**: Java SEの上で、Web、REST、データベース、トランザクションなど業務サーバー向けAPIを定める仕様群\n- **Java ME**: 組み込み機器など、資源が限られた環境向けの仕様\n\n仕様は「どんなAPIや動作を提供するか」という約束で、JDKやアプリケーションサーバーはその約束を動く形にした **実装** です。たとえばJava SEは製品名ではなく、複数ベンダーのJDKが実装できる共通仕様です。\n\n今回の演習では、コンパイルや実行といった操作をJDKとJVMへ対応付けます。`javac`が必要なら開発用のJDK、すでにあるバイトコードを動かす中心はJVM、と目的から判断してください。",
+      "explanation": "## 「何を入れれば動くのか」を、役割で分ける\n\nJavaを学び始めると、JVM・JRE・JDK・Java SEなど似た名前が続きます。これらは同じものの別名ではありません。まず「実行する仕組み」「開発用の道具」「APIの仕様」に分けると整理できます。\n\n### 実行と開発の道具\n\n- **JVM**: バイトコードを実行するエンジン。メモリ管理やGCも担当する\n- **JRE**: JVMと、実行に必要な標準ライブラリをまとめた「実行環境」という考え方\n- **JDK**: JVMと標準ライブラリに加え、`javac`（コンパイラ）、`java`（起動）、`javadoc`、診断ツールなどを含む開発キット\n\n古い資料では「JDKの中にJREが入る」と図示されます。概念の理解には役立ちますが、現在はベンダーが単独のJRE製品を必ず配布するとは限りません。開発者は通常JDKを入れ、配布時はJDKそのもの、コンテナイメージ、または必要なモジュールから作った実行環境を使います。\n\n### APIの範囲を定める仕様\n\n- **Java SE**: 言語、JVM、コレクション、入出力など、Javaの土台となる標準仕様\n- **Jakarta EE**: Java SEの上で、Web、REST、データベース、トランザクションなど業務サーバー向けAPIを定める仕様群\n- **Java ME**: 組み込み機器など、資源が限られた環境向けの仕様\n\n仕様は「どんなAPIや動作を提供するか」という約束で、JDKやアプリケーションサーバーはその約束を動く形にした **実装** です。たとえばJava SEは製品名ではなく、複数ベンダーのJDKが実装できる共通仕様です。\n\n今回の演習では、**配布物**（`javac`が必要なら開発用のJDK、動かすだけならその中心であるJVM）と**仕様**（Java SE・Jakarta EE・Java ME）を、**別の軸**として判断します。この2つは連動しません。Web APIを提供するからコンパイラが要るわけではなく、コンパイルするから仕様がJava SEに限られるわけでもありません。",
       "samples": [
         {
           "caption": "JDKの場所とJVM名",
           "code": "public class Main {\n    public static void main(String[] a) {\n        System.out.println(System.getProperty(\"java.home\"));\n        System.out.println(System.getProperty(\"java.vm.name\"));\n    }\n}\n"
         }
       ],
-      "task": "必要な操作を読み、`run`ならJVM、`compile`/`javadoc`/`jar`ならJDKと表示してください。n件処理します。",
-      "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] a) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n        for (int i = 0; i < n; i++) {\n            String op = sc.next();\n            /* TODO */\n        }\n    }\n}\n",
+      "task": "配布物と仕様は**別の軸**です。件数nを読み、続けてn件を `needsCompile apiScope` の形で読みます。\n\n- `needsCompile` … 配る相手の側でソースをコンパイルするなら `yes`、できているclass fileを動かすだけなら `no`\n- `apiScope` … 使うAPIの範囲。`core`（言語・コレクション・入出力）、`web`（Web・REST・トランザクション）、`device`（資源が限られた機器）\n\n各件について `必要なもの 仕様` を1行ずつ表示し、最後に `jdk=JDKが必要な件数` を表示してください。\n\n| 列 | 決め方 |\n|---|---|\n| 必要なもの | `needsCompile` が `yes` なら `JDK`、`no` なら `JVM` |\n| 仕様 | `core` なら `SE`、`web` なら `EE`、`device` なら `ME` |\n\n**2つの軸は独立しています。** Web APIを提供するからといってコンパイラが要るわけではなく、コンパイルするからといって仕様が `SE` に限られるわけでもありません。\n\n> `no` のときに実際に必要なのは、JVMと実行に必要な標準ライブラリ（＝JREという考え方）です。ただし単独のJRE製品が必ず配布されるとは限らないので、この演習では実行の中心である `JVM` と答えます。",
+      "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] a) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n        for (int i = 0; i < n; i++) {\n            String needsCompile = sc.next();\n            String apiScope = sc.next();\n            // TODO 配布物（JDK / JVM）を決める\n            // TODO 仕様（SE / EE / ME）を決める。配布物とは別の軸\n        }\n        // TODO JDKが必要だった件数を jdk= の形で表示する\n    }\n}\n",
       "visibleCases": [
         {
-          "label": "道具の範囲",
-          "stdin": "4 run compile jar javadoc",
-          "expected": "JVM\nJDK\nJDK\nJDK"
+          "label": "動かすだけのWeb APIと、コンパイルする土台",
+          "stdin": "2\nno web\nyes core\n",
+          "expected": "JVM EE\nJDK SE\njdk=1"
+        },
+        {
+          "label": "0件",
+          "stdin": "0\n",
+          "expected": "jdk=0"
         }
       ],
       "hiddenCases": [
         {
-          "label": "実行のみ",
-          "stdin": "2 run run",
-          "expected": "JVM\nJVM"
+          "label": "6通りすべて",
+          "stdin": "6\nyes core\nyes web\nyes device\nno core\nno web\nno device\n",
+          "expected": "JDK SE\nJDK EE\nJDK ME\nJVM SE\nJVM EE\nJVM ME\njdk=3"
         },
         {
-          "label": "0件",
-          "stdin": "0",
-          "expected": ""
+          "label": "組み込みでもコンパイルは別の軸",
+          "stdin": "1\nyes device\n",
+          "expected": "JDK ME\njdk=1"
         },
         {
-          "label": "compileだけ",
-          "stdin": "1 compile",
-          "expected": "JDK"
+          "label": "Web APIでもコンパイラは要らない",
+          "stdin": "1\nno web\n",
+          "expected": "JVM EE\njdk=0"
+        },
+        {
+          "label": "動かすだけが続く",
+          "stdin": "3\nno core\nno core\nno device\n",
+          "expected": "JVM SE\nJVM SE\nJVM ME\njdk=0"
         }
       ],
       "hints": [
-        "runだけをJVM、それ以外をJDKとします。"
+        "2つの軸は別々に決めます。`needsCompile` を見る判定と `apiScope` を見る判定を分けて書くと、片方の答えがもう片方へ混ざりません。",
+        "仕様は `switch` 式で `web` → `EE`、`device` → `ME`、それ以外を `SE` にできます。",
+        "`jdk=` に数えるのは `needsCompile` が `yes` の件数だけです。仕様の側は数えません。"
       ],
-      "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] a) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n        for (int i = 0; i < n; i++) {\n            String op = sc.next();\n            System.out.println(op.equals(\"run\") ? \"JVM\" : \"JDK\");\n        }\n    }\n}\n",
+      "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] a) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt(), jdk = 0;\n        for (int i = 0; i < n; i++) {\n            boolean needsCompile = sc.next().equals(\"yes\");\n            // 仕様はAPIの範囲だけで決まる。コンパイルするかどうかとは連動しない\n            String edition = switch (sc.next()) {\n                case \"web\" -> \"EE\";\n                case \"device\" -> \"ME\";\n                default -> \"SE\";\n            };\n            if (needsCompile) {\n                jdk++;\n            }\n            System.out.println((needsCompile ? \"JDK\" : \"JVM\") + \" \" + edition);\n        }\n        System.out.println(\"jdk=\" + jdk);\n    }\n}\n",
       "quiz": [
         {
           "question": "javacやjarを含むものは？",
@@ -298,7 +310,7 @@
             "Jakarta EE の API JAR をまとめた依存の一式"
           ],
           "answer": 0,
-          "explanation": "独立したJREの配布を前提にせず、jlinkのランタイムイメージを使う構成が一般的です。"
+          "explanation": "`jar` はクラスとリソースをまとめる書庫で、実行環境は含みません。`javadoc` は文書の生成、Jakarta EEのAPI JARは依存の宣言で、どちらも配布物の大きさとは別の話です。`jlink` なら必要なモジュールだけを含む実行環境を組み立てられるので、JDK全体を同梱せずに済みます。"
         }
       ]
     },
@@ -355,7 +367,7 @@
             "Jakarta EEのREST仕様の別名"
           ],
           "answer": 0,
-          "explanation": "OpenJDKはJDK実装を公開プロセスで開発します。仕様策定のJCPとは役割が異なります。"
+          "explanation": "非公開で1社だけが配布するものではありません（複数のベンダーがここを土台に配布物を作ります）。デバッガの呼び名でも、Jakarta EEのREST仕様の別名でもありません。OpenJDKはJava SEの実装を公開の場で共同開発するプロジェクトで、仕様を決めるJCPとは役割が違います。"
         },
         {
           "question": "「JEPでJDK変更が提案された」と「JSRで仕様策定が進められた」の違いを説明したものはどれでしょう。",
@@ -366,7 +378,7 @@
             "JEPは廃止済みで、いまはJSRへ統合された制度"
           ],
           "answer": 0,
-          "explanation": "仕様を策定する枠組みと、実装側での変更提案は、別の単位です。画面内問題もこの区別を扱っています。"
+          "explanation": "JEPはJakarta EE向けの制度ではなく、OpenJDK（Java SE側）の仕組みです。JSRと同じ意味の別名でもなく、廃止されてもいません（いまも新機能ごとに作られます）。JEPは実装側の変更提案と追跡、JSRはJCPでの仕様策定の単位です。**提案された**ことと**標準仕様になった**ことは、別の段階だと分けて読みます。"
         }
       ]
     },

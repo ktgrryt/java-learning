@@ -46,7 +46,7 @@
       "objectiveIds": [
         "ch46-o1"
       ],
-      "explanation": "## データのルールをDBにも持たせる\n\nテーブルは行と列でデータを表します。主キー（PRIMARY KEY）は行を一意に識別し、外部キー（FOREIGN KEY）は参照先の存在を保証します。NOT NULL、UNIQUE、CHECKも不正データを入口で拒否する制約です。アプリの検証だけに頼らず、DBを最後の防波堤にします。\n\n正規化では、注文行へ顧客名を何度も複製する代わりに顧客IDで参照します。更新箇所を一つにし、不整合を避けるためです。ただし読み取り性能のための非正規化は、測定と整合性維持の方法を決めてから行います。\n\n```sql\nCREATE TABLE orders (\n  id BIGINT PRIMARY KEY,\n  customer_id BIGINT NOT NULL REFERENCES customers(id),\n  total DECIMAL(12,2) NOT NULL CHECK (total >= 0)\n);\n```\n\n### 制約は「入口で拒む」ための仕組み\n\n`labs/sql/schema.sql` はこう書いてあります。\n\n```sql\nCREATE TABLE customers (\n    id    BIGINT PRIMARY KEY,\n    name  VARCHAR(100) NOT NULL,\n    email VARCHAR(255) NOT NULL UNIQUE\n);\n\nCREATE TABLE orders (\n    id          BIGINT PRIMARY KEY,\n    customer_id BIGINT NOT NULL,\n    status      VARCHAR(20) NOT NULL CHECK (status IN ('NEW', 'PAID', 'CANCELLED')),\n    total       DECIMAL(12, 2) NOT NULL CHECK (total >= 0),\n    created_at  TIMESTAMP WITH TIME ZONE NOT NULL,\n    CONSTRAINT fk_orders_customer FOREIGN KEY (customer_id) REFERENCES customers(id)\n);\n```\n\nそれぞれが防いでいるものが違います。\n\n| 制約 | 防ぐもの |\n|---|---|\n| `PRIMARY KEY` | 同じ行の二重登録、行を特定できない状態 |\n| `NOT NULL` | 「未入力」が混ざって集計や比較が崩れること |\n| `UNIQUE` | 同じメールで2人登録されること |\n| `CHECK` | ありえない値（負の金額、未定義のステータス） |\n| `FOREIGN KEY` | 存在しない顧客の注文（孤児行） |\n\n`DECIMAL(12, 2)` は金額なので固定小数です。`DOUBLE` にすると誤差が出ます（第2章の\n`0.1 + 0.2`）。日時は、何を保存したいかで型を選びます。PostgreSQLの `TIMESTAMP WITH TIME ZONE`（`timestamptz`）は、入力された日時をUTC基準の同じ瞬間へ変換して保存します。そのため別のタイムゾーンでも同じ瞬間を表せますが、入力時の `Asia/Tokyo` のような地域名や元のオフセット自体は保持しません。元の地域も必要なら、タイムゾーンIDを別の列へ保存します。\n\n> ⚠️ 間違えやすい点 … 「アプリで検証しているからDBは緩くていい」は成り立ちません。\n> データが入る経路はアプリだけではなく、移行スクリプト、運用の手作業、別のサービス、\n> 障害時の直接投入があります。**DBを最後の防波堤** にしておけば、どの経路から来ても\n> 不正なデータは入りません。制約は後から足すほうが（既存データが違反しているため）\n> ずっと大変です。\n\n> 🧪 アプリで確かめること / labs で動かすこと … この問題で確かめるのはどの列にどの制約を置くかという設計の判断です。\n> DDLを実DBへ流して、制約違反を実際に起こすことは、1ファイル・標準入力だけのこの画面では扱えません。`labs/sql` に本物を置いてあります。",
+      "explanation": "## データのルールをDBにも持たせる\n\nテーブルは行と列でデータを表します。主キー（PRIMARY KEY）は行を一意に識別し、外部キー（FOREIGN KEY）は参照先の存在を保証します。NOT NULL、UNIQUE、CHECKも不正データを入口で拒否する制約です。アプリの検証だけに頼らず、DBを最後の防波堤にします。\n\n正規化では、注文行へ顧客名を何度も複製する代わりに顧客IDで参照します。更新箇所を一つにし、不整合を避けるためです。ただし読み取り性能のための非正規化は、測定と整合性維持の方法を決めてから行います。\n\n```sql\nCREATE TABLE orders (\n  id BIGINT PRIMARY KEY,\n  customer_id BIGINT NOT NULL REFERENCES customers(id),\n  total DECIMAL(12,2) NOT NULL CHECK (total >= 0)\n);\n```\n\n### 制約は「入口で拒む」ための仕組み\n\n`labs/sql/schema.sql` はこう書いてあります。\n\n```sql\nCREATE TABLE customers (\n    id    BIGINT PRIMARY KEY,\n    name  VARCHAR(100) NOT NULL,\n    email VARCHAR(255) NOT NULL UNIQUE\n);\n\nCREATE TABLE orders (\n    id          BIGINT PRIMARY KEY,\n    customer_id BIGINT NOT NULL,\n    status      VARCHAR(20) NOT NULL CHECK (status IN ('NEW', 'PAID', 'CANCELLED')),\n    total       DECIMAL(12, 2) NOT NULL CHECK (total >= 0),\n    created_at  TIMESTAMP WITH TIME ZONE NOT NULL,\n    CONSTRAINT fk_orders_customer FOREIGN KEY (customer_id) REFERENCES customers(id)\n);\n```\n\nそれぞれが防いでいるものが違います。\n\n| 制約 | 防ぐもの |\n|---|---|\n| `PRIMARY KEY` | 同じ行の二重登録、行を特定できない状態 |\n| `NOT NULL` | 「未入力」が混ざって集計や比較が崩れること |\n| `UNIQUE` | 同じメールで2人登録されること |\n| `CHECK` | ありえない値（負の金額、未定義のステータス） |\n| `FOREIGN KEY` | 存在しない顧客の注文（孤児行） |\n\n`DECIMAL(12, 2)` は金額なので固定小数です。`DOUBLE` にすると誤差が出ます（第42章の\n`0.1 + 0.2`）。日時は、何を保存したいかで型を選びます。PostgreSQLの `TIMESTAMP WITH TIME ZONE`（`timestamptz`）は、入力された日時をUTC基準の同じ瞬間へ変換して保存します。そのため別のタイムゾーンでも同じ瞬間を表せますが、入力時の `Asia/Tokyo` のような地域名や元のオフセット自体は保持しません。元の地域も必要なら、タイムゾーンIDを別の列へ保存します。\n\n> ⚠️ 間違えやすい点 … 「アプリで検証しているからDBは緩くていい」は成り立ちません。\n> データが入る経路はアプリだけではなく、移行スクリプト、運用の手作業、別のサービス、\n> 障害時の直接投入があります。**DBを最後の防波堤** にしておけば、どの経路から来ても\n> 不正なデータは入りません。制約は後から足すほうが（既存データが違反しているため）\n> ずっと大変です。\n\n> 🧪 アプリで確かめること / labs で動かすこと … この問題で確かめるのはどの列にどの制約を置くかという設計の判断です。\n> DDLを実DBへ流して、制約違反を実際に起こすことは、1ファイル・標準入力だけのこの画面では扱えません。`labs/sql` に本物を置いてあります。",
       "samples": [
         {
           "caption": "主キーの重複を検出",
@@ -115,7 +115,7 @@
             "制約を付けると、対応するインデックスも自動で作られて速くなるため"
           ],
           "answer": 0,
-          "explanation": "DBを最後の防波堤にします。アプリの検証だけに頼ると、経路が増えたときに守れません。"
+          "explanation": "制約は正規化の代わりにはならず、SQLが短くなるわけでもありません。インデックスが自動で作られるのは `PRIMARY KEY` や `UNIQUE` のように一意性を保つ制約で、`NOT NULL` や `CHECK` では作られません。DBへ制約を置く理由は、移行スクリプト・運用の手作業・別のサービスなど**アプリを通らない経路**から入るデータも入口で拒否できることです。"
         },
         {
           "question": "PostgreSQLの `TIMESTAMP WITH TIME ZONE` が保持するものとして最も正確なのはどれでしょう。",
@@ -358,7 +358,7 @@
             "上限なしで再試行する"
           ],
           "answer": 1,
-          "explanation": "取得順を統一し、トランザクションを短くします。分離レベルを強めることは解決策ではありません。"
+          "explanation": "トランザクションを長くまとめると、ロックを持つ時間が伸びて衝突がむしろ増えます。分離レベルを強めても、逆順にロックを取る2つの処理は同じように待ち合います（競合が増えて失敗しやすくなるだけです）。上限なしの再試行は同じ衝突を繰り返します。まず全処理でロックの取得順をそろえ、あわせてトランザクションを短く保ちます。"
         }
       ]
     },

@@ -31,8 +31,10 @@ public final class ContentLoader {
     /** libs に書ける名前。ディレクトリ区切りやドットを許さないので、content/lib の外へは出られない。 */
     private static final Pattern LIB_NAME = Pattern.compile("[A-Za-z0-9_-]+");
     private static final Pattern SAFE_PROJECT_PATH = Pattern.compile("[A-Za-z0-9._/-]+");
+    // `jcmd` と `jfr` はJDK付属の診断ツール。`jfr` は在るだけでは足りないので、
+    // PreflightRunner が短い記録を実際に作って確かめる（OpenJ9系は作れない）。
     private static final java.util.Set<String> PREFLIGHT_TOOLS = java.util.Set.of(
-            "java", "javac", "maven", "gradle", "docker", "docker-or-podman");
+            "java", "javac", "jcmd", "jfr", "maven", "gradle", "docker", "docker-or-podman");
     private static final java.util.Set<String> RUNTIME_CAPABILITIES = java.util.Set.of(
             "server", "db", "http", "jfr", "container", "jdk-tool", "build");
     private static final java.util.Set<String> RUNTIME_TOOLS = java.util.Set.of(
@@ -263,6 +265,12 @@ public final class ContentLoader {
                 }
                 if (!minimumVersion.isEmpty() && !minimumVersion.matches("[0-9]+(?:\\.[0-9]+){0,2}")) {
                     throw new IllegalStateException("事前確認 " + lessonId + " のminimumVersionが不正です");
+                }
+                // `jcmd` と `jfr` は版を表示しない。`jcmd -h` の使用方法に混ざる数字を版として
+                // 読むと必ず不合格になるので、最低版を書けないようにしておく。
+                if (!minimumVersion.isEmpty() && (tool.equals("jcmd") || tool.equals("jfr"))) {
+                    throw new IllegalStateException("事前確認 " + lessonId + " の " + tool
+                            + " にminimumVersionは書けません（版ではなく動くかどうかで判定します）");
                 }
             } else if (type.equals("port")) {
                 if (!tool.isEmpty() || !minimumVersion.isEmpty() || port < 1024 || port > 65535) {

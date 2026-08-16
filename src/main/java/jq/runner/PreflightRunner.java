@@ -37,7 +37,40 @@ public final class PreflightRunner {
 
     private static CheckResult checkTool(PreflightCheck check) {
         if (check.tool().equals("docker-or-podman")) return checkContainerRuntime(check);
+        if (check.tool().equals("jfr")) return checkFlightRecorder(check);
+        if (check.tool().equals("jcmd")) return checkJdkCommand(check);
         return runTool(check, toolCommand(check.tool()));
+    }
+
+    /**
+     * JFRは「`jfr` コマンドが在る」だけでは足りない。
+     *
+     * OpenJ9系の配布物はコマンドを同梱していてもJVM側が設定つきの記録を作れず、章の
+     * <b>必須labが必ず落ちる</b>。しかも `jfr` は在るので、学習者は要件を満たしていると
+     * 見える。だから {@link JdkCapability} で短い記録を実際に作り、
+     * <b>章に入る前にlabと同じ判定</b>を見せる。
+     */
+    private static CheckResult checkFlightRecorder(PreflightCheck check) {
+        CheckResult attempt = runTool(check, toolCommand(check.tool()));
+        if (!attempt.pass()) return attempt;
+        if (!JdkCapability.canRecordFlight()) {
+            return failed(check, "このJDKでは記録を作れません",
+                    "`jfr` コマンドはありますが、`-XX:StartFlightRecording` で記録ファイルを"
+                            + "作れませんでした。OpenJ9系の配布物で起きます。");
+        }
+        return passed(check, "記録を作れます", "短い記録を実際に作って確かめました。");
+    }
+
+    /**
+     * 版を表示しないJDK付属ツールの確認。
+     *
+     * `jcmd -h` の使用方法には `0` のような数字が混ざるので、版として読むと
+     * 「利用できます（0）」と出てしまう。ここでは使えるかどうかだけを見る。
+     */
+    private static CheckResult checkJdkCommand(PreflightCheck check) {
+        CheckResult attempt = runTool(check, toolCommand(check.tool()));
+        if (!attempt.pass()) return attempt;
+        return passed(check, "利用できます", attempt.detail());
     }
 
     /**
@@ -111,6 +144,9 @@ public final class PreflightRunner {
         return switch (tool) {
             case "java" -> List.of(javaTool("java"), "--version");
             case "javac" -> List.of(javaTool("javac"), "--version");
+            // JDK付属の診断ツール。--version を持たないので help の起動だけを見る。
+            case "jcmd" -> List.of(javaTool("jcmd"), "-h");
+            case "jfr" -> List.of(javaTool("jfr"), "help");
             case "maven" -> List.of("mvn", "--version");
             case "gradle" -> List.of("gradle", "--version");
             case "docker" -> List.of("docker", "version", "--format", "{{.Server.Version}}");

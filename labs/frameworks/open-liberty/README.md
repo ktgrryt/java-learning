@@ -107,8 +107,8 @@ JUnitから設定値を直接渡すための、この小さなラボ用の入口
 
 ### Java Café の採点付き演習
 
-`61-2`では`server.xml`を直接編集し、XML構造とFeature構成を検査します。`61-6`の
-runtime-labでは、別の一時作業領域で次の流れを自動実行します。
+『Feature Managerで必要な機能を有効にする』では`server.xml`を直接編集し、XML構造とFeature構成を
+検査します。『テスト・運用・InstantOnを使い分ける』のruntime-labでは、別の一時作業領域で次の流れを自動実行します。
 
 1. `mvn test package`で実クラスを含む`greeting.war`を作成する。
 2. 固定したOpen LibertyランタイムへWARを配備し、採点側が確保した動的portで起動する。

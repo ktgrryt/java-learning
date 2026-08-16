@@ -25,6 +25,7 @@
   var chapterOfLesson = {};// レッスンID -> 章
   var chapterIndex = {};   // 章ID -> 章
   var lessonList = [];     // 全レッスンを出題順に並べたもの
+  var lessonNumber = {};   // レッスンID -> 画面で見せる章内の番号（事前確認は0）
   var currentId = null;    // いま開いているレッスンID（ホーム／カフェ表示中は null）
   var currentView = 'menu'; // menu / cafe / lesson / review / reviewTask
   var editors = {};        // 問題ID -> エディタ（1レッスンに複数問あるので複数持つ）
@@ -112,6 +113,7 @@
     chapterOfLesson = {};
     chapterIndex = {};
     lessonList = [];
+    lessonNumber = {};
     state.chapters.forEach(function (ch) {
       chapterIndex[ch.id] = ch;
       // 章のidは大半が `chNN` だが、`34` のように数字だけのものが5章ある。
@@ -122,10 +124,16 @@
         var alias = 'ch' + (digits.length < 2 ? '0' + digits : digits);
         if (!chapterIndex[alias]) { chapterIndex[alias] = ch; }
       }
+      // 画面の番号は**章の中の位置**から振り直す。IDの番号をそのまま出すと、
+      // 章を分けたところで `4-1 4-2 4-3 4-6` のように飛んで見える（IDは進捗ファイルの
+      // 互換のため変えられない）。事前確認は章クリアの対象外なので `-0` のまま見せ、
+      // 本編の番号には数えない。
+      var shownNumber = 0;
       ch.lessons.forEach(function (l) {
         lessonIndex[l.id] = l;
         chapterOfLesson[l.id] = ch;
         lessonList.push(l);
+        lessonNumber[l.id] = l.type === 'preflight' ? 0 : ++shownNumber;
       });
     });
   }
@@ -175,12 +183,22 @@
     return chapter.partNumber || chapter.number;
   }
 
-  /** 保存用ID（21-1など）は変えず、画面では編内の番号（1-1など）を見せる。 */
+  /**
+   * 保存用ID（21-1など）は変えず、画面では編内の番号（1-1など）を見せる。
+   *
+   * 前半（章）は編内番号へ、<b>後半（レッスン）は章の中の位置へ</b>読み替える。
+   * 章を分けたときレッスンIDは変えない方針なので、IDの番号をそのまま出すと
+   * `4-1 4-2 4-3 4-6` のように画面で番号が飛び、学習者には抜けているように見える。
+   * 番号は `setState` で作った索引から引く（サイドバーが全レッスンぶん呼ぶため）。
+   */
   function displayLessonId(lesson) {
     var chapter = chapterOf(lesson.id);
     var dash = lesson.id.indexOf('-');
     if (!chapter || dash < 0) { return lesson.id; }
-    return displayChapterNumber(chapter) + lesson.id.substring(dash);
+    var number = lessonNumber.hasOwnProperty(lesson.id)
+      ? lessonNumber[lesson.id]
+      : lesson.id.substring(dash + 1);
+    return displayChapterNumber(chapter) + '-' + number;
   }
 
   function chapterById(id) {
@@ -211,8 +229,49 @@
     });
   }
 
+  // 教材が書くレッスン参照（`13-5` `46-5#4` など）。前後に英数字・ドット・`[` `]` が
+  // 付くものは対象外にする（`postgres:16-alpine` や 正規表現の `[1-4]` を拾わないため）。
+  // 先読みだけでは前を見られないので、直前の1文字を捕まえてそのまま書き戻す。
+  var LESSON_REF = /(^|[^\w.[-])(\d{1,2})-(\d{1,2})(#\d+)?(?![\w.\]-])/g;
+
+  /**
+   * 教材に書かれたレッスン番号を、画面の表示番号へ読み替える。
+   *
+   * `localizeChapterReferences` と対になる処理。教材は `13-5` のように内部IDで
+   * レッスンを指すが、画面の番号は章ごとに振り直すので、そのまま出すと別の
+   * レッスンを指してしまう（`13-5` は画面では `14-5`）。
+   *
+   * <b>コードブロックの中は読み替えない。</b> 二重ループの出力例が
+   * `1-1 1-2 2-1 …` のようにレッスンIDと同じ形をしていて、これは番号ではない。
+   * 解決できないものは、誤った番号を作らないためそのまま残す。
+   */
+  function localizeLessonReferences(text) {
+    var here = currentId && chapterOf(currentId);
+    if (!here) { return text; }
+    return outsideCodeBlocks(String(text || ''), function (chunk) {
+      return chunk.replace(LESSON_REF, function (whole, before, chapterPart, lessonPart, taskPart) {
+        var id = chapterPart + '-' + lessonPart;
+        var chapter = chapterOf(id);
+        if (!chapter || !lessonNumber.hasOwnProperty(id)) { return whole; }
+        var shown = displayChapterNumber(chapter) + '-' + lessonNumber[id] + (taskPart || '');
+        if (chapter.partId === here.partId) { return before + shown; }
+        var part = partOfChapter(chapter);
+        return before + (part ? part.title + ' ' + shown : shown);
+      });
+    });
+  }
+
+  /** ```で囲んだ範囲を素通しし、それ以外だけを変換する。 */
+  function outsideCodeBlocks(text, transform) {
+    var parts = text.split(/(```[\s\S]*?```)/);
+    for (var i = 0; i < parts.length; i += 2) {
+      parts[i] = transform(parts[i]);
+    }
+    return parts.join('');
+  }
+
   function renderMarkdown(text) {
-    return md(localizeChapterReferences(text));
+    return md(localizeLessonReferences(localizeChapterReferences(text)));
   }
 
   function partProgress(part) {

@@ -84,14 +84,14 @@ dev modeのターミナルで表示される操作案内から継続テストを
 
 ### Java Caféの採点付き演習
 
-`62-3`のproject問題では、`pom.xml`、Service、properties、`@QuarkusTest`を編集し、REST Jackson、
+『Quarkus REST・CDI・ConfigでAPIを作る』のproject問題では、`pom.xml`、Service、properties、`@QuarkusTest`を編集し、REST Jackson、
 Hibernate Validator、SmallRye HealthのExtension、MicroProfile Config、実HTTP境界を`mvn test`で確認します。
 学習者が変更できない受け入れテストも正常JSON、Validation 400、readinessを確認します。
 
-`62-5`の必須runtime-labでは`mvn package`で`target/quarkus-app`一式を作り、採点側の動的portで
+『JVM・Native Imageと運用監視を選ぶ』の必須runtime-labでは`mvn package`で`target/quarkus-app`一式を作り、採点側の動的portで
 `quarkus-run.jar`をJVM起動します。REST、Validation、Health、停止まで実測し、Dockerは使いません。
 
-Native Imageのcontainer buildは同じ`62-5`内の**任意発展問題**です。章クリアや★の分母には含まれず、
+Native Imageのcontainer buildは同じレッスン内の**任意発展問題**です。章クリアや★の分母には含まれず、
 Docker daemonと公式UBI 9 builder/micro imageがある場合だけ実行します。Linux executableをbuildして
 runtime containerへ格納し、Native REST、Health、cleanupを確認します。
 

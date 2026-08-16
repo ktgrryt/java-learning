@@ -4,8 +4,8 @@
 Starter、自動構成、ControllerとService、外部設定、テスト、Actuator、成果物の関係を
 小さなAPIで確認するためのものです。
 
-教材画面の60-5では`project-exercise`を複数ファイルで編集し、`mvn test`で採点します。
-60-6では`runtime-exercise`を動的ポートで起動し、API、入力不正、Actuator health、停止まで自動検証します。
+教材画面の『目的ごとにテスト範囲を選ぶ』では`project-exercise`を複数ファイルで編集し、
+`mvn test`で採点します。『Actuatorで運用し、安全に更新する』では`runtime-exercise`を動的ポートで起動し、API、入力不正、Actuator health、停止まで自動検証します。
 
 ## 到達目標
 

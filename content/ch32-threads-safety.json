@@ -151,7 +151,7 @@
             "対象スレッドを複製して並列に動かす"
           ],
           "answer": 1,
-          "explanation": "終了待ちに加え、join後に結果が見えるhappens-before関係を作ります。"
+          "explanation": "`join` は優先度を変えず、相手のロックを破棄したり、スレッドを複製したりもしません。対象スレッドの**終了を待つ**操作です。さらに `join` が成功したあとは、そのスレッドが書いた結果が見えることも保証されます（happens-before）。だから時間を決めて待つ `sleep` とは別物です。"
         },
         {
           "question": "sleepで他スレッドの完了を待つ設計の問題は？",
@@ -345,7 +345,7 @@
             "一定の順序制約"
           ],
           "answer": 0,
-          "explanation": "read-modify-writeの複合操作にはatomic型やロックが必要です。"
+          "explanation": "`volatile` は書き込みと読み取りの可視性を保証し、一定の順序も保ちます。保証しないのは、`count++` のように「読む→足す→書く」がひとまとまりで行われること（原子性）です。途中で割り込まれると更新が消えるので、`AtomicInteger` かロックを使います。"
         },
         {
           "question": "ConcurrentHashMapで安全な件数加算に適したAPIは？",

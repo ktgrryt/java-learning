@@ -119,7 +119,7 @@
             "不正な状態のインスタンスがトラフィックを受けてしまうため"
           ],
           "answer": 3,
-          "explanation": "既定値・必須値・型・範囲を起動時に検証し、設定が不正なら早く停止します。原因の分かりにくい障害になります。"
+          "explanation": "設定ファイルが読めなくなるわけでも、シークレット管理へつながらなくなるわけでもありません。起動の速さは問題ではありません。困るのは、設定が欠けたインスタンスが「起動できた」と見なされて**トラフィックを受けてしまう**ことです。利用者の要求が失敗してから気づくので、必須値・型・範囲は起動時に検証し、不正なら早く止めます。"
         }
       ]
     },
@@ -166,7 +166,7 @@
             "JVMのヒープ領域だけで、それ以外は上限の対象にならない"
           ],
           "answer": 2,
-          "explanation": "プロセス全体の使用量を予算として見積もります。ダイレクトバッファも含め、プロセス全体の使用量を予算として見積もります。"
+          "explanation": "同じ機器で動く別のプロセス（DBなど）は、そのコンテナの上限には入りません。読み込んだクラスファイルの大きさだけでも、ヒープだけでもありません。上限はプロセス全体の使用量で判断されるので、ヒープに加えてMetaspace、コードキャッシュ、スレッドスタック、ダイレクトバッファなども予算へ入れて見積もります。"
         },
         {
           "question": "コンテナのメモリ上限が512MiBのときに `-Xmx512m` を指定すると、起きやすいことはどれでしょう。",
@@ -252,7 +252,7 @@
             "新規受付が早く止まるので、デプロイが短時間で終わる"
           ],
           "answer": 1,
-          "explanation": "シグナルを受けたら、まずreadinessを落として新規受付を止め、実行中の処理を期限内に終えます。"
+          "explanation": "再起動が繰り返されるのは liveness が失敗し続けたときの話で、終了処理とは別です。ロールバックが自動で走ることもありません。「早く止まるぶんデプロイが短く終わる」と考えるのも危険です。振り分けから外れる前に落ちると、まだ届いている要求が失敗します。シグナルを受けたら、まず readiness を落として新規受付を止め、実行中の処理を期限内に終えます。"
         }
       ]
     },
@@ -269,7 +269,7 @@
           "code": "public class Main {\n    public static void main(String[] a) {\n        long total = 1000, good = 997;\n        System.out.printf(\"%.2f%%%n\", good * 100.0 / total);\n    }\n}\n"
         }
       ],
-      "task": "総数と失敗数を読み、成功率を小数2桁のパーセントで表示してください。総数が0なら `NO_DATA` です。",
+      "task": "総数と失敗数を読み、成功率を小数2桁のパーセントで表示してください。総数が0なら `NO_DATA` です。小数の書式には `Locale.ROOT` を渡してください（既定のLocaleでは小数点がカンマになる国があります）。",
       "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] a) {\n        Scanner sc = new Scanner(System.in);\n        long total = sc.nextLong(), failed = sc.nextLong();\n        /* TODO */\n    }\n}\n",
       "visibleCases": [
         {
@@ -288,7 +288,7 @@
       "hints": [
         "総数が0かどうかを先に判定し、そのあと `(total-failed)*100.0/total` を求めます。"
       ],
-      "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] a) {\n        Scanner sc = new Scanner(System.in);\n        long total = sc.nextLong(), failed = sc.nextLong();\n        if (total == 0) System.out.println(\"NO_DATA\");\n        else System.out.printf(\"%.2f%%%n\",(total - failed) * 100.0 / total);\n    }\n}\n",
+      "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] a) {\n        Scanner sc = new Scanner(System.in);\n        long total = sc.nextLong(), failed = sc.nextLong();\n        if (total == 0) System.out.println(\"NO_DATA\");\n        else System.out.printf(Locale.ROOT, \"%.2f%%%n\",(total - failed) * 100.0 / total);\n    }\n}\n",
       "quiz": [
         {
           "question": "メトリクスのラベルに利用者IDを使いにくい理由は？",
@@ -299,7 +299,7 @@
             "トレースIDと重複し、片方が上書きされるため"
           ],
           "answer": 2,
-          "explanation": "集計の軸は種類が限られた安定した値にし、個別の追跡はトレースやログで行います。性能も悪化します。"
+          "explanation": "文字列でもラベルにはできるので、集計できないからではありません。ラベルを付けてログが止まることも、トレースIDと重複して上書きされることもありません。問題は値の種類の多さで、利用者ごとに時系列が作られるため、保存量・費用・性能が悪化します。集計の軸は種類の限られた値にし、個別の追跡はトレースやログで行います。"
         },
         {
           "question": "「CPU使用率が80%を超えた」ではなく、エラーバジェットの消費速度（burn rate）でアラートを鳴らす利点はどれでしょう。",

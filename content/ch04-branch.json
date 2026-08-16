@@ -14,7 +14,7 @@
     },
     {
       "id": "ch04-o3",
-      "text": "文字列の比較に `equals` を使い、`==` との違いを説明できる"
+      "text": "文字列の比較に `equals` を使い、`==` では正しく比べられない場合を見分けられる"
     },
     {
       "id": "ch04-o4",
@@ -427,7 +427,7 @@
       "objectiveIds": [
         "ch04-o3"
       ],
-      "explanation": "## 文字列に == を使ってはいけない\n\n数を比べるときは `==` でよいのですが、**文字列では `==` を使いません**。\n\n```java\nString name = sc.next();\n\nif (name == \"admin\") { ... }        // ✗ うまく動かないことがある\nif (name.equals(\"admin\")) { ... }   // ○ こちらが正しい\n```\n\n理由をざっくり言うと、`==` は「同じ**箱**か？」を調べ、\n`equals` は「同じ**中身**か？」を調べるからです。\n文字列は同じ内容でも別の箱に入っていることがあるため、`==` では false になり得ます。\n\nやっかいなのは、短い文字列だと**たまたま `==` でも true になってしまう**ことです。\nだから「動いたから大丈夫」とは言えません。**文字列は必ず `equals`** と覚えてください。\n\n### 使い方\n\n```java\nname.equals(\"admin\")      // name の中身が \"admin\" なら true\n!name.equals(\"admin\")     // 違うなら true（! で反転）\n```\n\n### 大文字・小文字を無視して比べる\n\n`equals` は大文字と小文字を区別します。`Admin` と `admin` は別物です。\n区別せず比べたいときは `equalsIgnoreCase` を使います。\n\n```java\n\"Admin\".equals(\"admin\");             // false\n\"Admin\".equalsIgnoreCase(\"admin\");   // true\n```\n\n### 文字列でよく使う操作\n\n```java\nString s = \"Hello\";\ns.length()          // 5      文字数\ns.charAt(0)         // 'H'    0番目の文字\ns.toUpperCase()     // \"HELLO\"\ns.contains(\"ell\")   // true   含んでいるか\ns.isEmpty()         // false  空文字か\n```\n\n`charAt` が返すのは文字列ではなく **`char`**（文字1つ）です。だから `'H'` と\nシングルクォートで書いてあります（`2-5`）。\n\n`length()` にはかっこが付くことに注意してください（配列の `length` はかっこ無しです。第6章で出てきます）。\n\n> 💡 `sc.next()` は空白までの1単語を、`sc.nextLine()` は改行までの1行を読みます。\n> 名前など空白を含まないものは `next()` で十分です。",
+      "explanation": "## 文字列に == を使ってはいけない\n\n数を比べるときは `==` でよいのですが、**文字列では `==` を使いません**。\n\n```java\nString name = sc.next();\n\nif (name == \"admin\") { ... }        // ✗ うまく動かないことがある\nif (name.equals(\"admin\")) { ... }   // ○ こちらが正しい\n```\n\n理由をざっくり言うと、`==` は「同じ**箱**か？」を調べ、\n`equals` は「同じ**中身**か？」を調べるからです。\n文字列は同じ内容でも別の箱に入っていることがあるため、`==` では false になり得ます。\n\nやっかいなのは、**コードに直接書いた同じ文字列（リテラル）は使い回される**ため、\nその場合だけ `==` でも true になってしまうことです。文字列の長さは関係ありません。\nだから「動いたから大丈夫」とは言えません。**文字列は必ず `equals`** と覚えてください。\n（なぜ使い回されるのかは第14章で詳しく扱います。）\n\n### 使い方\n\n```java\nname.equals(\"admin\")      // name の中身が \"admin\" なら true\n!name.equals(\"admin\")     // 違うなら true（! で反転）\n```\n\n### 大文字・小文字を無視して比べる\n\n`equals` は大文字と小文字を区別します。`Admin` と `admin` は別物です。\n区別せず比べたいときは `equalsIgnoreCase` を使います。\n\n```java\n\"Admin\".equals(\"admin\");             // false\n\"Admin\".equalsIgnoreCase(\"admin\");   // true\n```\n\n### 文字列でよく使う操作\n\n```java\nString s = \"Hello\";\ns.length()          // 5      文字数\ns.charAt(0)         // 'H'    0番目の文字\ns.toUpperCase()     // \"HELLO\"\ns.contains(\"ell\")   // true   含んでいるか\ns.isEmpty()         // false  空文字か\n```\n\n`charAt` が返すのは文字列ではなく **`char`**（文字1つ）です。だから `'H'` と\nシングルクォートで書いてあります（`2-5`）。\n\n`length()` にはかっこが付くことに注意してください（配列の `length` はかっこ無しです。第6章で出てきます）。\n\n> 💡 `sc.next()` は空白までの1単語を、`sc.nextLine()` は改行までの1行を読みます。\n> 名前など空白を含まないものは `next()` で十分です。",
       "samples": [
         {
           "caption": "== と equals のちがい（入力は admin）",
@@ -746,74 +746,78 @@
       "extraTasks": [
         {
           "kind": "applied",
-          "task": "上の問題では三項演算子を1段だけ、短絡評価は `&&` だけ使いました。ここでは **三項演算子を入れ子にして3択** にし、**`||` の短絡** も使います。\n\n整数 `n` が1つ入力されます。**`if` を1つも使わずに**、次の2行を出力してください。\n\n1行目 … `80` 以上なら `A`、`60` 以上なら `B`、それ以外は `C`\n2行目 … `n` が `0` **または** `100 / n` が `5` より大きいなら `小さめ`、そうでなければ `大きめ`\n\n例えば `85` なら:\n\n```\nA\n大きめ\n```\n\n- `n` に `0` が入力されても **エラーで落ちてはいけません**（`||` の左に `n == 0` を置くのがポイントです）\n- マイナスの数も入力されます",
-          "starterCode": "import java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n\n        // 1行目：三項演算子を入れ子にして3択\n\n        // 2行目：|| の短絡で 0 割りを避ける\n    }\n}\n",
+          "task": "上の問題では三項演算子を1段だけ、短絡評価は `&&` だけ使いました。ここでは **三項演算子を入れ子にして3択** にし、**`||` の短絡** と **`null` を避ける `&&` の短絡** も使います。\n\n整数 `n` と、続けて商品名 `raw`（空白を含まない1単語）が入力されます。`raw` が `-` のときは「名前が無い」という意味なので、**`null` として扱ってください**。\n\n**`if` を1つも使わずに**、次の3行を出力してください。\n\n1行目 … `80` 以上なら `A`、`60` 以上なら `B`、それ以外は `C`\n2行目 … `n` が `0` **または** `100 / n` が `5` より大きいなら `小さめ`、そうでなければ `大きめ`\n3行目 … 名前が **null ではなく、かつ** 3文字以上なら `長い名前`、そうでなければ `短いか無し`\n\n例えば `85 Java` なら:\n\n```\nA\n大きめ\n長い名前\n```\n\n- `n` に `0` が入力されても **エラーで落ちてはいけません**（`||` の左に `n == 0` を置くのがポイントです）\n- 名前が `-`（＝`null`）のときも **落ちてはいけません**（`&&` の左に `null` の確認を置きます）\n- マイナスの数も入力されます",
+          "starterCode": "import java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n        String raw = sc.next();\n\n        // TODO raw が \"-\" なら null として扱う（三項演算子で書けます）\n        // TODO 1行目: 80以上ならA、60以上ならB、それ以外はC\n        // TODO 2行目: n == 0 を左に置いて短絡させる\n        // TODO 3行目: null の確認を左に置いて短絡させる\n    }\n}\n",
           "visibleCases": [
             {
-              "label": "85 のとき",
-              "stdin": "85",
-              "expected": "A\n大きめ"
+              "label": "85 と名前あり",
+              "stdin": "85 Java",
+              "expected": "A\n大きめ\n長い名前"
             },
             {
-              "label": "70 のとき",
-              "stdin": "70",
-              "expected": "B\n大きめ"
+              "label": "名前が無い（null）",
+              "stdin": "70 -",
+              "expected": "B\n大きめ\n短いか無し"
             },
             {
               "label": "0 のとき（落ちてはいけない）",
-              "stdin": "0",
-              "expected": "C\n小さめ"
+              "stdin": "0 ab",
+              "expected": "C\n小さめ\n短いか無し"
             }
           ],
           "hiddenCases": [
             {
-              "label": "ちょうど80",
-              "stdin": "80",
-              "expected": "A\n大きめ"
+              "label": "ちょうど80・ちょうど3文字",
+              "stdin": "80 abc",
+              "expected": "A\n大きめ\n長い名前"
             },
             {
-              "label": "ちょうど60",
-              "stdin": "60",
-              "expected": "B\n大きめ"
+              "label": "ちょうど60・名前なし",
+              "stdin": "60 -",
+              "expected": "B\n大きめ\n短いか無し"
             },
             {
-              "label": "10（100/10 は 5 より大きい）",
-              "stdin": "10",
-              "expected": "C\n小さめ"
+              "label": "100/10 は 5 より大きい",
+              "stdin": "10 x",
+              "expected": "C\n小さめ\n短いか無し"
             },
             {
-              "label": "20（100/20 はちょうど 5）",
-              "stdin": "20",
-              "expected": "C\n大きめ"
+              "label": "100/20 はちょうど 5",
+              "stdin": "20 Cafe",
+              "expected": "C\n大きめ\n長い名前"
             },
             {
-              "label": "マイナスのとき",
-              "stdin": "-5",
-              "expected": "C\n大きめ"
+              "label": "マイナスと名前なし",
+              "stdin": "-5 -",
+              "expected": "C\n大きめ\n短いか無し"
             }
           ],
           "hints": [
             "1行目は `n >= 80 ? \"A\" : n >= 60 ? \"B\" : \"C\"` です。`:` の右側にもう一段の三項演算子を書くと3択になります。",
             "2行目の条件は `n == 0 || 100 / n > 5` です。`n == 0` を **左** に置くと、`n` が `0` のとき右側の割り算は評価されません。",
-            "全体は `System.out.println((n == 0 || 100 / n > 5) ? \"小さめ\" : \"大きめ\");` の形になります。条件をかっこで囲むと読みやすくなります。"
+            "名前は `String name = raw.equals(\"-\") ? null : raw;` で `null` にできます。3行目の条件は `name != null && name.length() >= 3` です。左右を入れ替えると、名前が無いときに落ちます。"
           ],
-          "solution": "import java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n\n        System.out.println(n >= 80 ? \"A\" : n >= 60 ? \"B\" : \"C\");\n        System.out.println((n == 0 || 100 / n > 5) ? \"小さめ\" : \"大きめ\");\n    }\n}\n",
+          "solution": "import java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n        String raw = sc.next();\n        String name = raw.equals(\"-\") ? null : raw;\n\n        System.out.println(n >= 80 ? \"A\" : n >= 60 ? \"B\" : \"C\");\n        System.out.println((n == 0 || 100 / n > 5) ? \"小さめ\" : \"大きめ\");\n        // null の確認を左に置く。右へ置くと name が null のとき length() で落ちる\n        System.out.println(name != null && name.length() >= 3 ? \"長い名前\" : \"短いか無し\");\n    }\n}\n",
           "sourceChecks": [
             {
               "pattern": "\\bif\\s*\\(",
               "minimum": 0,
-              "maximum": 0,
               "message": "`if` を1つも使わず、三項演算子だけで書いてください。"
             },
             {
               "pattern": "\\?",
               "minimum": 3,
-              "message": "1行目は三項演算子を入れ子にして3択にします（`?` は合計3つになります）。"
+              "message": "1行目は三項演算子を入れ子にして3択にします（`?` は合計3つ以上になります）。"
             },
             {
               "pattern": "\\|\\|",
               "minimum": 1,
               "message": "2行目は `||` を使い、`n == 0` を左に置いて短絡させてください（`0` で落ちないようにするのがポイントです）。"
+            },
+            {
+              "pattern": "!=\\s*null",
+              "minimum": 1,
+              "message": "3行目は `&&` の左へ `name != null` を置いて短絡させてください。右へ置くと、名前が無いときに `length()` を呼んで落ちます。"
             }
           ]
         }

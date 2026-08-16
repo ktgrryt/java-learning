@@ -1,5 +1,6 @@
 import jq.content.PreflightCheck;
 import jq.content.PreflightSpec;
+import jq.runner.JdkCapability;
 import jq.runner.PreflightRunner;
 
 import java.net.InetAddress;
@@ -41,7 +42,37 @@ public final class PreflightRunnerCheck {
                     "使用中のポートが空きとして判定されました");
         }
 
-        System.out.println("preflight runner: すべて合格");
+        // JDK付属の診断ツール。`jcmd -h` の使用方法には数字が混ざるので、
+        // 版として読んで「利用できます（0）」と出さないことも見る。
+        PreflightRunner.Result jdkTools = runner.run(new PreflightSpec("確認", List.of(
+                tool("jcmd", "jcmd", "", true))));
+        require(jdkTools.ready(), "JDK付属の jcmd が見つかりませんでした: " + jdkTools);
+        require(jdkTools.checks().getFirst().summary().equals("利用できます"),
+                "jcmdの判定に版が混ざりました: " + jdkTools.checks().getFirst().summary());
+
+        // JFRは「コマンドが在る」だけでは足りない。事前確認とruntime labが
+        // **同じ実測**を使っていることを確かめる（別々に測ると食い違う）。
+        boolean canRecord = JdkCapability.canRecordFlight();
+        PreflightRunner.Result flight = runner.run(new PreflightSpec("確認", List.of(
+                tool("jfr", "jfr", "", true))));
+        PreflightRunner.CheckResult jfr = flight.checks().getFirst();
+        require(jfr.pass() == canRecord,
+                "JFRの判定がruntime labの実測と食い違いました: pass=" + jfr.pass()
+                        + " / canRecordFlight=" + canRecord);
+        require(flight.ready() == canRecord, "必須のJFR判定が準備完了へ反映されていません");
+        if (!canRecord) {
+            require(jfr.detail().contains("OpenJ9"),
+                    "記録を作れない理由が学習者へ伝わりません: " + jfr.detail());
+        }
+
+        // 任意にすれば、記録を作れない配布物でも準備完了を妨げない。
+        PreflightRunner.Result optionalFlight = runner.run(new PreflightSpec("確認", List.of(
+                tool("optional-jfr", "jfr", "", false))));
+        require(optionalFlight.ready(), "任意のJFR判定で準備未完了になりました: " + optionalFlight);
+
+        System.out.println("preflight runner: すべて合格"
+                + (canRecord ? "（このJDKはJFRを記録できます）"
+                             : "（このJDKはJFRを記録できないので、その経路も確かめました）"));
     }
 
     private static PreflightCheck tool(String id, String tool, String minimum, boolean required) {

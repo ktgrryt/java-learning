@@ -74,6 +74,9 @@ public final class JavaSnippetFormatter {
         if (source == null || source.isBlank()) {
             return false;
         }
+        if (indentUnitTooSmall(source)) {
+            return true;
+        }
         for (String line : blankOutLiterals(source).split("\n", -1)) {
             int statements = 0;
             int blocks = 0;
@@ -102,6 +105,27 @@ public final class JavaSnippetFormatter {
             }
         }
         return false;
+    }
+
+    /**
+     * 字下げの最小単位が4より小さいか（1〜3桁で字下げしているか）。
+     *
+     * <p>教材の字下げは4桁。1桁や2桁で詰めて書かれたコードは、`;` や `{` の数では
+     * 拾えないのに読みにくい（ch22・ch23のServletのひな形が実際にそうだった）ので、
+     * 詰め込みとして整形の対象にする。</p>
+     */
+    private static boolean indentUnitTooSmall(String source) {
+        int smallest = Integer.MAX_VALUE;
+        for (String line : source.split("\n", -1)) {
+            if (line.isBlank()) {
+                continue;
+            }
+            int indent = line.length() - line.stripLeading().length();
+            if (indent > 0) {
+                smallest = Math.min(smallest, indent);
+            }
+        }
+        return smallest != Integer.MAX_VALUE && smallest < 4;
     }
 
     /** ブロックを開く `{` の数。配列初期化子・ラムダ・式の中のものは数えない。 */
@@ -259,6 +283,10 @@ public final class JavaSnippetFormatter {
         private int parens;
         private int generics;
         private int i;
+        /** 行コメントを含む注釈の、閉じかっこの次の位置。そこまで来たら改行する。 */
+        private int annotationEnd = -1;
+        /** 直前に出したのが前置の `++` `--` か（次のトークンとの間に空白を入れない）。 */
+        private boolean afterPrefixStep;
 
         Emitter(List<Tok> toks) {
             this.toks = new ArrayList<>(toks);
@@ -270,7 +298,10 @@ public final class JavaSnippetFormatter {
                 if (t.kind == Kind.OP) {
                     emitOperator(t);
                 } else if (t.kind == Kind.LINE_COMMENT) {
-                    space();
+                    // `{// TODO` と続けると `}` までコメントに入るので、必ず空白を挟む
+                    if (!out.isEmpty() && !Character.isWhitespace(out.charAt(out.length() - 1))) {
+                        out.append(' ');
+                    }
                     out.append(t.text);
                     newline();
                     i++;
@@ -318,6 +349,10 @@ public final class JavaSnippetFormatter {
                     parens = Math.max(0, parens - 1);
                     out.append(')');
                     i++;
+                    if (i == annotationEnd) {          // 行コメントを含む注釈。ここで改行する
+                        annotationEnd = -1;
+                        newline();
+                    }
                 }
                 case "[", "]", ".", "::" -> {
                     out.append(t.text);
@@ -335,6 +370,7 @@ public final class JavaSnippetFormatter {
                 case "++", "--" -> {
                     if (isPrefixPosition()) {
                         space();
+                        afterPrefixStep = true;      // `++ value` と離さない
                     }
                     out.append(t.text);
                     i++;
@@ -501,6 +537,9 @@ public final class JavaSnippetFormatter {
             if (!(previousIs("@"))) {
                 return;
             }
+            if (word.isWord("interface")) {
+                return;                // `@interface Command` は注釈の宣言。名前を続けて置く
+            }
             int j = i + 1;
             if (j < toks.size() && toks.get(j).is("(")) {
                 int depth = 0;
@@ -522,6 +561,20 @@ public final class JavaSnippetFormatter {
             }
             Tok after = j < toks.size() ? toks.get(j) : null;
             if (after == null || !isDeclarationLike(after)) {
+                return;
+            }
+            // 引数に行コメントがある注釈は1行へ畳めない（`{// TODO}` になり `}` まで
+            // コメントに飲まれる）。畳まず、閉じかっこの次で改行するだけにする。
+            for (int k = i + 1; k < j; k++) {
+                if (toks.get(k).kind == Kind.LINE_COMMENT) {
+                    annotationEnd = j;
+                    return;
+                }
+            }
+            // `@Code(200) OK,` のように名前だけで終わるものは enum 定数。定数は横に並べる
+            Tok afterName = j + 1 < toks.size() ? toks.get(j + 1) : null;
+            if (after.kind == Kind.WORD && afterName != null
+                    && (afterName.is(",") || afterName.is(";") || afterName.is("}"))) {
                 return;
             }
             // アノテーション本体を出し切ってから改行する
@@ -630,6 +683,10 @@ public final class JavaSnippetFormatter {
         private boolean isPrefixPosition() {
             Tok prev = previous();
             if (prev == null) {
+                return true;
+            }
+            // `return ++value` の `return` は変数ではない。keywordの後ろは前置
+            if (prev.kind == Kind.WORD && KEYWORD_BEFORE_PAREN.contains(prev.text)) {
                 return true;
             }
             if (prev.kind == Kind.WORD || prev.kind == Kind.NUMBER) {
@@ -746,6 +803,10 @@ public final class JavaSnippetFormatter {
          * `{` は配列初期化子（`{1, 2, 3}`）のときだけ後ろに文が続く。ブロックなら直後に改行する。</p>
          */
         private void space() {
+            if (afterPrefixStep) {
+                afterPrefixStep = false;
+                return;
+            }
             if (out.isEmpty()) {
                 return;
             }

@@ -307,7 +307,7 @@
         }
       ],
       "task": "`/items?id=...` をGETとDELETEに対応させてください。ID 1,2は存在します。GETは200と `item-<id>`、DELETEは204、存在しなければ404、不正なIDは400です。",
-      "starterCode": "import jakarta.servlet.annotation.WebServlet;\nimport jakarta.servlet.http.*;\nimport java.io.*;\nimport java.util.*;\n@WebServlet(\"/items\") public class ItemServlet extends HttpServlet {\n private final Set<Integer> ids=new HashSet<>(Set.of(1,2));\n private Integer id(HttpServletRequest req,HttpServletResponse res)throws IOException{return null;}\n protected void doGet(HttpServletRequest req,HttpServletResponse res)throws IOException{// TODO\n }\n protected void doDelete(HttpServletRequest req,HttpServletResponse res)throws IOException{// TODO\n }\n public static void main(String[]a){MiniWeb.app().register(ItemServlet.class).serve();}\n}\n",
+      "starterCode": "import jakarta.servlet.annotation.WebServlet;\nimport jakarta.servlet.http.*;\nimport java.io.*;\nimport java.util.*;\n\n@WebServlet(\"/items\")\npublic class ItemServlet extends HttpServlet {\n    private final Set<Integer> ids = new HashSet<>(Set.of(1, 2));\n\n    private Integer id(HttpServletRequest req, HttpServletResponse res) throws IOException {\n        return null;\n    }\n\n    protected void doGet(HttpServletRequest req, HttpServletResponse res) throws IOException {\n        // TODO\n    }\n\n    protected void doDelete(HttpServletRequest req, HttpServletResponse res) throws IOException {\n        // TODO\n    }\n\n    public static void main(String[] a) {\n        MiniWeb.app().register(ItemServlet.class).serve();\n    }\n}\n",
       "visibleCases": [
         {
           "label": "取得",
@@ -351,7 +351,7 @@
       "extraTasks": [
         {
           "kind": "applied",
-          "task": "POST `/users?name=...` で利用者を作成します。name必須、既存名は409、成功は201と `作成: name`。",
+          "task": "POST `/users?name=...` で利用者を作成します。name必須、既存名は409、成功は201と `作成: name`。エラー本文は、必須違反が `nameは必須です`、既存名が `nameは使用済みです` です。",
           "starterCode": "import jakarta.servlet.annotation.WebServlet;\nimport jakarta.servlet.http.*;\nimport java.io.*;\nimport java.util.*;\n\n@WebServlet(\"/users\")\npublic class UserCreateServlet extends HttpServlet {\n    private final Set<String> names = new HashSet<>(Set.of(\"admin\"));\n\n    protected void doPost(HttpServletRequest q, HttpServletResponse s) throws IOException {\n        // TODO\n    }\n\n    public static void main(String[] a) {\n        MiniWeb.app().register(UserCreateServlet.class).serve();\n    }\n}\n",
           "visibleCases": [
             {
@@ -537,7 +537,7 @@
       "extraTasks": [
         {
           "kind": "applied",
-          "task": "例外の詳細を漏らさないAPI境界を書きます。`mode=missing` は404、`mode=fail` はログにだけ原因を出して500 `処理に失敗しました`、通常は200 `ok`。",
+          "task": "例外の詳細を漏らさないAPI境界を書きます。`mode=missing` は404、`mode=fail` はログにだけ原因を出して500 `処理に失敗しました`、通常は200 `ok`。404の本文は `データが見つかりません`、ログへ出す原因は `internal: database password=secret` とします（この文字列がログにだけ出て、応答本文には出ないことを確かめます）。",
           "starterCode": "import jakarta.servlet.annotation.WebServlet;\nimport jakarta.servlet.http.*;\nimport java.io.*;\n\n@WebServlet(\"/work\")\npublic class WorkServlet extends HttpServlet {\n    protected void doGet(HttpServletRequest q, HttpServletResponse s) throws IOException {\n        // TODO\n    }\n\n    public static void main(String[] a) {\n        MiniWeb.app().register(WorkServlet.class).serve();\n    }\n}\n",
           "visibleCases": [
             {
@@ -588,7 +588,7 @@
             "405"
           ],
           "answer": 3,
-          "explanation": "doGetを上書きしていないためMethod Not Allowedの405です。"
+          "explanation": "`doGet` を上書きしていないので、`HttpServlet` の既定の実装が「そのメソッドは許可されていない」と応答します。処理は走らないので `200` にも `201`（作成成功）にもなりません。URLは合っているので `404` でもありません。返るのは `405 Method Not Allowed` です。"
         },
         {
           "question": "利用者入力をHTML本文へ入れるとき必要な対策は？",
@@ -610,7 +610,7 @@
             "スレッドセーフな共有キャッシュ"
           ],
           "answer": 2,
-          "explanation": "1インスタンスを複数利用者・複数スレッドで共有するため、リクエスト固有値はローカル変数へ置きます。"
+          "explanation": "サーブレットは1つのインスタンスを複数の利用者・複数のスレッドが同時に使います。不変な設定値、初期化後に変わらないServiceの参照、スレッドセーフな共有キャッシュは共有しても壊れません。危ないのは利用者ごとの名前のような**リクエスト固有の値**で、フィールドへ置くと別の利用者の値が混ざります。そういう値はローカル変数へ置きます。"
         },
         {
           "question": "想定外例外の扱いとして適切なのは？",
@@ -744,8 +744,8 @@
           "hiddenCases": [
             {
               "label": "アンパサンド",
-              "stdin": "GET /search?q=a&b",
-              "expected": "200 OK\n+ Content-Type: text/html; charset=UTF-8\n検索: a"
+              "stdin": "GET /search?q=%26b",
+              "expected": "200 OK\n+ Content-Type: text/html; charset=UTF-8\n検索: &amp;b"
             },
             {
               "label": "パラメータなし",

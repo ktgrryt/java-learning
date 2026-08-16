@@ -135,6 +135,8 @@ def is_compact(code):
     """
     if not code or not code.strip():
         return False
+    if indent_unit_too_small(code):
+        return True
     for line in blank_out_literals(code).split('\n'):
         statements = blocks = depth = 0
         for ch in line:
@@ -153,6 +155,17 @@ def is_compact(code):
         if len(line) > 60 and blocks >= 2 and statements >= 1:
             return True
     return False
+
+
+def indent_unit_too_small(code):
+    """字下げの最小単位が4より小さいか（1〜3桁で詰めて書かれているか）。
+
+    教材の字下げは4桁。1桁で詰めたコードは `;` や `{` の数では拾えないのに読みにくい。
+    """
+    indents = [len(line) - len(line.lstrip(' '))
+               for line in code.split('\n') if line.strip()]
+    positive = [i for i in indents if i > 0]
+    return bool(positive) and min(positive) < 4
 
 
 def blank_out_literals(src):

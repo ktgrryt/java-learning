@@ -118,7 +118,7 @@
             "バージョン番号だけをもう一度確認する"
           ],
           "answer": 1,
-          "explanation": "同じバージョン番号でも、配布元ごとに条件が違います。開発・CI・本番のベンダーとバージョンを記録します。"
+          "explanation": "ソースの文字コードや改行コード、Mavenの版は、更新期限や暗号の条件とは関係ありません。バージョン番号をもう一度見ても、同じ「21」なので違いは出てきません。同じ番号でも配布元（ベンダー）と配布物によって、無償更新の期間・サポート・同梱される構成が違います。開発・CI・本番のベンダーと版を記録しておきます。"
         }
       ],
       "rubric": [
@@ -193,7 +193,7 @@
             "外部依存のバージョンをそろえてくれる"
           ],
           "answer": 2,
-          "explanation": "古い実行環境向けのビルドで、新しい標準APIを誤って使ってしまう事故を防げます。"
+          "explanation": "テストの実行や外部依存の版とは関係がなく、実行するJVMを新しくしてくれるわけでもありません。`--release 17` は、クラスファイルの形式と**コンパイル時に見える標準API**を17相当へそろえます。だから新しいJDKで作っても、17に無いAPIを誤って呼んだ時点で止められます。"
         },
         {
           "question": "Java 21でビルドしたクラスファイルを、Java 17のJVMで実行するとどうなるでしょう。",
@@ -204,7 +204,7 @@
             "ビルドの時点で必ず検出され、実行までいかない"
           ],
           "answer": 2,
-          "explanation": "古いJVMは新しいクラスファイルを読めません。17向けにしたいなら `--release 17` でビルドします。"
+          "explanation": "古いJVMが新しいクラスファイルを変換してくれることはなく、警告で済むこともありません。ビルドの時点では、どのJVMで動かすかを知らないので検出もされません。実行しようとした瞬間に`UnsupportedClassVersionError` で止まります。17向けにしたいなら `--release 17` でビルドします。"
         }
       ]
     },
@@ -214,48 +214,70 @@
       "objectiveIds": [
         "ch51-o3"
       ],
-      "explanation": "## 目的を先に決めて、JDK付属ツールを選ぶ\n\nJDKにはコンパイラと起動コマンド以外にも、コードの確認、依存分析、配布、実行中JVMの調査に使う道具が含まれます。名前を暗記するより、「何を知りたいか」から選びます。\n\n| 目的 | ツール | 得られるもの |\n|---|---|---|\n| Java文を短く試す | `jshell` | 宣言や式を対話的に実行した結果 |\n| クラスファイルの構造を見る | `javap` | メソッド情報や逆アセンブルしたバイトコード |\n| 依存するモジュールを調べる | `jdeps` | クラス・JARが参照するパッケージやJDKモジュール |\n| 実行環境を組み立てる | `jlink` | 指定したモジュールと依存モジュールを含むカスタムランタイムイメージ |\n| OS向けに配布する | `jpackage` | アプリと必要な依存物をまとめたプラットフォーム固有パッケージ |\n| 非推奨APIを探す | `jdeprscan` | 利用している非推奨APIの候補 |\n| 動いているJVMを調べる | `jcmd` | スレッド情報、JFR操作、ヒープ関連情報などJVMが対応する診断結果 |\n\n`jlink` で作るイメージの大きさは、含めるモジュール、JDK配布物、OS、圧縮設定などで変わります。「必ず何MBになる」とは言えないため、`jdeps` の結果を入口に構成を作り、実際の配布物でサイズと起動を測ります。JDK配布物によっては必要なJMODファイルを含まず、同じ手順が使えない場合もあります。\n\n`jcmd` は実行中プロセスへ診断要求を送ります。コマンドによって負荷や停止時間が異なるため、対象PID、実行権限、保存先、ディスク容量、機密情報、想定される影響を本番手順で確認します。利用可能な診断コマンドはJVM実装や版によって異なるので、`jcmd <PID> help` でも確認します。\n\n今回の演習では、実験・バイトコード・依存・ランタイム・インストーラーという目的を対応するツールへ結び付けます。",
+      "explanation": "## 目的を先に決めて、JDK付属ツールを選ぶ\n\nJDKにはコンパイラと起動コマンド以外にも、コードの確認、依存分析、配布、実行中JVMの調査に使う道具が含まれます。名前を暗記するより、「何を知りたいか」から選びます。\n\n| 目的 | ツール | 得られるもの |\n|---|---|---|\n| Java文を短く試す | `jshell` | 宣言や式を対話的に実行した結果 |\n| クラスファイルの構造を見る | `javap` | メソッド情報や逆アセンブルしたバイトコード |\n| 依存するモジュールを調べる | `jdeps` | クラス・JARが参照するパッケージやJDKモジュール |\n| 実行環境を組み立てる | `jlink` | 指定したモジュールと依存モジュールを含むカスタムランタイムイメージ |\n| OS向けに配布する | `jpackage` | アプリと必要な依存物をまとめたプラットフォーム固有パッケージ |\n| 非推奨APIを探す | `jdeprscan` | 利用している非推奨APIの候補 |\n| 動いているJVMを調べる | `jcmd` | スレッド情報、JFR操作、ヒープ関連情報などJVMが対応する診断結果 |\n\n`jlink` で作るイメージの大きさは、含めるモジュール、JDK配布物、OS、圧縮設定などで変わります。「必ず何MBになる」とは言えないため、`jdeps` の結果を入口に構成を作り、実際の配布物でサイズと起動を測ります。JDK配布物によっては必要なJMODファイルを含まず、同じ手順が使えない場合もあります。\n\n`jcmd` は実行中プロセスへ診断要求を送ります。コマンドによって負荷や停止時間が異なるため、対象PID、実行権限、保存先、ディスク容量、機密情報、想定される影響を本番手順で確認します。利用可能な診断コマンドはJVM実装や版によって異なるので、`jcmd <PID> help` でも確認します。\n\n今回の演習では、手順書に書かれた道具を目的と突き合わせ、**足りない道具**と**どの目的にも要らない道具**を見つけます。`jlink`（実行環境を組み立てる）と`jpackage`（OS向けに配布する）のように、隣どうしで混ざりやすい道具を分けて考えてください。実際に動かすのは、このレッスンの実機演習です。",
       "samples": [
         {
           "caption": "使えるツールがあるか確認する",
           "code": "import java.util.spi.ToolProvider;\n\npublic class Main {\n    public static void main(String[] a) {\n        System.out.println(ToolProvider.findFirst(\"javac\").isPresent());\n    }\n}\n"
         }
       ],
-      "task": "目的n件を読み、`experiment→jshell`、`bytecode→javap`、`dependencies→jdeps`、`runtime→jlink`、`installer→jpackage` と表示してください。",
-      "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] a) {\n        Map<String, String> tools = Map.of(\"experiment\", \"jshell\", \"bytecode\", \"javap\", \"dependencies\", \"jdeps\", \"runtime\", \"jlink\", \"installer\", \"jpackage\");\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n        for (int i = 0; i < n; i++) {\n            /* TODO */\n        }\n    }\n}\n",
+      "task": "手順書に書かれた道具を、目的と突き合わせて点検します。\n\n1行目に目的の数nを読み、続けてn行の目的を読みます。次の行に手順書へ書かれている道具の数mを読み、続けてm行の道具名を読みます（同じ道具が2回書かれていることがあります）。\n\n| 目的 | 道具 |\n|---|---|\n| `experiment` | `jshell` |\n| `bytecode` | `javap` |\n| `dependencies` | `jdeps` |\n| `runtime` | `jlink` |\n| `installer` | `jpackage` |\n\nまず目的を読んだ順に1行ずつ、その目的に必要な道具を `目的 道具` と表示してください。ただしその道具が手順書に**書かれていない**ときは、行末へ ` MISSING` を付けます。\n\n続けて、手順書にあるのに**どの目的にも要らない**道具を、辞書順に重複なく `UNUSED 道具` と表示してください。\n\n最後に、`MISSING` も `UNUSED` も無ければ `ready=yes`、1つでもあれば `ready=no` と表示します。\n\n**`jlink` と `jpackage` は別の道具です。** 縮めた実行環境を組み立てるのが `jlink`、OS向けの配布物にするのが `jpackage` なので、`runtime` の手順書に `jpackage` しか書かれていなければ `jlink` は `MISSING` です。",
+      "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] a) {\n        Scanner sc = new Scanner(System.in);\n        Map<String, String> tools = Map.of(\"experiment\", \"jshell\", \"bytecode\", \"javap\",\n                \"dependencies\", \"jdeps\", \"runtime\", \"jlink\", \"installer\", \"jpackage\");\n        int n = sc.nextInt();\n        List<String> goals = new ArrayList<>();\n        for (int i = 0; i < n; i++) {\n            goals.add(sc.next());\n        }\n        int m = sc.nextInt();\n        Set<String> written = new LinkedHashSet<>();\n        for (int i = 0; i < m; i++) {\n            written.add(sc.next());\n        }\n        // TODO 目的ごとに要る道具を表示する。手順書に無ければ MISSING を付ける\n        // TODO どの目的にも要らない道具を、辞書順に UNUSED として表示する\n        // TODO MISSING も UNUSED も無ければ ready=yes、あれば ready=no\n    }\n}\n",
       "visibleCases": [
         {
-          "label": "道具を選ぶ",
-          "stdin": "5 experiment bytecode dependencies runtime installer",
-          "expected": "jshell\njavap\njdeps\njlink\njpackage"
+          "label": "手順書がそろっている",
+          "stdin": "2\nbytecode\ndependencies\n2\njavap\njdeps\n",
+          "expected": "bytecode javap\ndependencies jdeps\nready=yes"
+        },
+        {
+          "label": "jlinkとjpackageを混同している",
+          "stdin": "1\nruntime\n1\njpackage\n",
+          "expected": "runtime jlink MISSING\nUNUSED jpackage\nready=no"
         }
       ],
       "hiddenCases": [
         {
-          "label": "一件",
-          "stdin": "1 bytecode",
-          "expected": "javap"
+          "label": "要らない道具が混ざる（辞書順）",
+          "stdin": "1\nexperiment\n3\njshell\njcmd\njdeprscan\n",
+          "expected": "experiment jshell\nUNUSED jcmd\nUNUSED jdeprscan\nready=no"
         },
         {
-          "label": "0件",
-          "stdin": "0",
-          "expected": ""
+          "label": "同じ道具が2回書かれていても1行",
+          "stdin": "1\nbytecode\n3\njavap\njavap\njdeps\n",
+          "expected": "bytecode javap\nUNUSED jdeps\nready=no"
         },
         {
-          "label": "同じ目的を2回",
-          "stdin": "2 runtime runtime",
-          "expected": "jlink\njlink"
+          "label": "同じ目的が2回でも道具は1つ",
+          "stdin": "2\nruntime\nruntime\n1\njlink\n",
+          "expected": "runtime jlink\nruntime jlink\nready=yes"
+        },
+        {
+          "label": "目的が0件なら手順書は全部余り",
+          "stdin": "0\n2\njlink\njshell\n",
+          "expected": "UNUSED jlink\nUNUSED jshell\nready=no"
+        },
+        {
+          "label": "5つの目的がすべてそろう",
+          "stdin": "5\ninstaller\nruntime\ndependencies\nbytecode\nexperiment\n5\njpackage\njlink\njdeps\njavap\njshell\n",
+          "expected": "installer jpackage\nruntime jlink\ndependencies jdeps\nbytecode javap\nexperiment jshell\nready=yes"
+        },
+        {
+          "label": "目的も手順書も0件",
+          "stdin": "0\n0\n",
+          "expected": "ready=yes"
         }
       ],
       "hints": [
-        "読んだ文字列を `Map` のキーとして使います。"
+        "目的から道具を引く `Map` と、手順書の道具を入れた `Set` の2つを用意します。足りないかどうかも、要らないかどうかも `contains` で決まります。",
+        "`UNUSED` は辞書順で重複なしなので `TreeSet` が向きます。目的から導いた「要る道具」の集合に無いものだけを入れます。",
+        "`ready=` は、`MISSING` を1つでも出したか、`UNUSED` が1つでもあるかで決まります。表示しながら `boolean` で覚えておきます。"
       ],
-      "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] a) {\n        Map<String, String> tools = Map.of(\"experiment\", \"jshell\", \"bytecode\", \"javap\", \"dependencies\", \"jdeps\", \"runtime\", \"jlink\", \"installer\", \"jpackage\");\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n        for (int i = 0; i < n; i++) System.out.println(tools.get(sc.next()));\n    }\n}\n",
+      "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] a) {\n        Scanner sc = new Scanner(System.in);\n        Map<String, String> tools = Map.of(\"experiment\", \"jshell\", \"bytecode\", \"javap\",\n                \"dependencies\", \"jdeps\", \"runtime\", \"jlink\", \"installer\", \"jpackage\");\n        int n = sc.nextInt();\n        List<String> goals = new ArrayList<>();\n        for (int i = 0; i < n; i++) {\n            goals.add(sc.next());\n        }\n        int m = sc.nextInt();\n        Set<String> written = new LinkedHashSet<>();\n        for (int i = 0; i < m; i++) {\n            written.add(sc.next());\n        }\n\n        Set<String> needed = new HashSet<>();          // 目的から導いた、要る道具\n        boolean ready = true;\n        for (String goal : goals) {\n            String tool = tools.get(goal);\n            needed.add(tool);\n            if (written.contains(tool)) {\n                System.out.println(goal + \" \" + tool);\n            } else {\n                System.out.println(goal + \" \" + tool + \" MISSING\");\n                ready = false;\n            }\n        }\n        Set<String> unused = new TreeSet<>();\n        for (String tool : written) {\n            if (!needed.contains(tool)) {\n                unused.add(tool);\n            }\n        }\n        for (String tool : unused) {\n            System.out.println(\"UNUSED \" + tool);\n            ready = false;\n        }\n        System.out.println(\"ready=\" + (ready ? \"yes\" : \"no\"));\n    }\n}\n",
       "extraTasks": [
         {
           "kind": "applied",
           "type": "runtime-lab",
-          "task": "【実機演習】`labs/jdk-tools`で、道具の名前を答える代わりに実際に動かします。本番のJVMはJava 21です。\n\n`exercise/tools.options`へ3つの目的の指定を書きます。①本番で動くclass fileを作る版、②class fileが「どの版のJVM向けか」と連結が変換された命令を読む道具と指定、③実行に必要なJDKモジュールだけを一覧する道具と指定です。\n\n`exercise/Menu.java`は、Java 21で追加されたAPIで先頭と末尾を取り出し、`java.net.http`の`HttpRequest`を組み立てて、`first=espresso last=mocha`と`path=/menu`の2行を出力する形に仕上げます。\n\n提出すると、書いた指定でコンパイル・逆アセンブル・依存分析・実行を実際に行います。同じsourceが`--release 17`では通らないことも確かめます。道具や指定を取り違えると、出力に答えが出ないので不合格になります。",
+          "task": "【実機演習】`labs/jdk-tools`で、1問目は手順書の上で点検した道具を、実際に動かします。本番のJVMはJava 21です。\n\n`exercise/tools.options`へ3つの目的の指定を書きます。①本番で動くclass fileを作る版、②class fileが「どの版のJVM向けか」と連結が変換された命令を読む道具と指定、③実行に必要なJDKモジュールだけを一覧する道具と指定です。\n\n`exercise/Menu.java`は、Java 21で追加されたAPIで先頭と末尾を取り出し、`java.net.http`の`HttpRequest`を組み立てて、`first=espresso last=mocha`と`path=/menu`の2行を出力する形に仕上げます。\n\n提出すると、書いた指定でコンパイル・逆アセンブル・依存分析・実行を実際に行います。同じsourceが`--release 17`では通らないことも確かめます。道具や指定を取り違えると、出力に答えが出ないので不合格になります。",
           "runtimeLab": {
             "name": "JDK tool observation lab",
             "source": "labs/jdk-tools",
@@ -474,7 +496,7 @@
             "負荷と必要な権限、本番の手順を確認し、取得の記録を残すこと"
           ],
           "answer": 3,
-          "explanation": "調査そのものが本番へ影響しえます。手順と権限を確認し、いつ何を取ったかを残します。PIDや取得時刻、実行したコマンドを残しておきます。"
+          "explanation": "同じ機器でIDEを起動しておく必要はありません。再起動してから取ると、調べたい状態が消えます。そして「取得そのものは無害」も誤りで、コマンド次第で停止時間と負荷が変わります。だから負荷と必要な権限、本番での手順を先に確認し、いつ何を取ったか（PID・時刻・コマンド）を記録します。"
         }
       ]
     },
@@ -543,7 +565,7 @@
             "コンパイル時だけ有効化しておけばよい"
           ],
           "answer": 0,
-          "explanation": "プレビュー機能は仕様が確定する前のものなので、更新時に追随するコストまで含めて判断します。起動オプションの管理も含めて判断します。"
+          "explanation": "プレビュー機能は仕様が確定していないので「将来も変わらない」とは扱えません。LTSであることと機能が正式化されることは別の軸です。有効化はコンパイルと実行の両方に必要で、片方だけでは起動しません。採用するなら、変更・撤回へ追随するコストと、起動オプションを全環境でそろえる手間まで含めて条件を決めます。"
         },
         {
           "question": "プレビュー機能を使ったコードはコンパイルできたのに、実行時に起動できませんでした。最も考えられる原因はどれでしょう。",

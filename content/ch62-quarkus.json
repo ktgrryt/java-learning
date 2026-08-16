@@ -211,7 +211,7 @@
             "HTTPの待ち受けを止めてから、設定を書き換える"
           ],
           "answer": 0,
-          "explanation": "すでにアプリ構造へ固定された値は、実行時上書きでは変わらない場合があります。"
+          "explanation": "環境変数を変えるだけでは、すでにアプリ構造へ固定された値は変わりません。影響するテストを削除するのは問題を隠すだけで、待ち受けを止めて書き換えても同じです。ビルド時に決まる設定を変えたいなら、変更を含めて作り直します。あわせて、その値が本当にビルド時でよいのか、実行時設定へ移すべきかを見直します。"
         }
       ],
       "type": "artifact",
@@ -265,29 +265,29 @@
       "starterCode": "import java.util.*;\n\npublic class Main {\n    static class GreetingService {\n        String message(String prefix, String name) {\n            return prefix + \", \" + name.trim();\n        }\n    }\n\n    static String resolve(String profileValue, String commonValue) {\n        // TODO: profile固有、共通、既定値の順で選ぶ\n        return \"Hello\";\n    }\n\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        String profile = sc.nextLine();\n        String profileValue = sc.nextLine();\n        String commonValue = sc.nextLine();\n        String name = sc.nextLine();\n        // TODO: 入力検証後にServiceを呼ぶ\n    }\n}",
       "visibleCases": [
         {
-          "label": "表示ケース1",
+          "label": "profile固有prefixが効く",
           "stdin": "dev\nHi-dev\nHello\nJava\n",
           "expected": "200 [dev] Hi-dev, Java"
         },
         {
-          "label": "表示ケース2",
+          "label": "名前が空白だけ",
           "stdin": "test\n-\nHello-test\n   \n",
           "expected": "400 NAME_REQUIRED"
         }
       ],
       "hiddenCases": [
         {
-          "label": "隠しケース1",
+          "label": "どちらも未設定なので `Hello`",
           "stdin": "prod\n-\n-\nQuarkus\n",
           "expected": "200 [prod] Hello, Quarkus"
         },
         {
-          "label": "隠しケース2",
+          "label": "共通prefixが効く",
           "stdin": "prod\n-\nWelcome\n  Cloud  \n",
           "expected": "200 [prod] Welcome, Cloud"
         },
         {
-          "label": "隠しケース3",
+          "label": "profile固有が共通より優先",
           "stdin": "test\nTest\nCommon\nJUnit\n",
           "expected": "200 [test] Test, JUnit"
         }
@@ -360,7 +360,7 @@
             "RESTの処理をリバースプロキシ側で行うから"
           ],
           "answer": 0,
-          "explanation": "Quarkus固有の最適化を使いながら、RESTとDIではJakarta標準APIを中心に書けます。"
+          "explanation": "実行時に独自のアノテーションへ読み替えているわけではなく、解析はビルド時に済ませます。Spring MVCへ変換するものでも、RESTの処理をリバースプロキシへ任せるものでもありません。`@Path` や `@GET` といったJakarta標準のAPIに基づいているので、Jakarta RESTの知識がそのまま使えます。"
         },
         {
           "question": "profile別設定を使うときの注意として適切なものはどれですか？",
@@ -442,7 +442,7 @@
             "CIで、実際の本番DBへ接続して結合テストを回すとき"
           ],
           "answer": 0,
-          "explanation": "ローカル開発・テストの準備を減らす機能です。本番の接続先は別途明示します。"
+          "explanation": "本番で設定が抜けていたときの予備にしてはいけません（接続先は明示します）。成果物へ外部サービスを同梱する仕組みでもなく、本番DBへ接続してテストするためのものでもありません。開発とテストで、設定していない対応サービスを開発用に用意し、手元の準備を減らす機能です。"
         },
         {
           "question": "Live ReloadとContinuous Testingの違いはどれですか？",
@@ -453,7 +453,7 @@
             "前者は保存のたび、後者はビルドのたびに1回だけ働く"
           ],
           "answer": 0,
-          "explanation": "素早く動かすことと、正しいことを確認することを組み合わせてフィードバックを短くします。"
+          "explanation": "役割は逆ではありません。どちらもJVMモードの開発中に働く機能で、Nativeモード専用ではありません。「保存のたび」「ビルドのたびに1回」という区別でもありません。変更を素早く反映するのがLive Reload、変更後に関係するテストを走らせて正しさを見るのがContinuous Testingです。"
         }
       ],
       "rubric": [
@@ -768,7 +768,7 @@
             "生成された設定を、本番の値へ手で書き換えてから配る"
           ],
           "answer": 0,
-          "explanation": "自動化は移行の一部です。未対応変更とアプリ固有動作を人とテストで確認します。"
+          "explanation": "自動変換の差分をレビューせず採用するのは、移行の失敗をそのまま取り込む行為です。旧版の依存へ戻すのは移行の先送りで、生成された設定へ本番の値を直接書くのは機密の扱いとして危険です。自動化は移行の一部なので、Migration Guideと差分を読み、テストで未対応の変更とアプリ固有の動作を確かめます。"
         },
         {
           "question": "Spring互換Extensionについて正しい説明はどれですか？",
@@ -779,7 +779,7 @@
             "有効にすると、Jakarta標準APIとは併用できなくなる"
           ],
           "answer": 0,
-          "explanation": "公式ガイドで対象APIを確認し、不足部分は書き換えまたは小さな検証を行います。"
+          "explanation": "Spring Bootのstarterを足せばそのまま動く、というものではありません。対応するAPIの範囲は版によって変わりますし、Jakarta標準APIと併用もできます。あくまでSpringのAPIの**一部**をQuarkus上で扱えるようにする互換の層なので、公式ガイドで対象を確認し、足りない部分は書き換えます。"
         }
       ],
       "rubric": [

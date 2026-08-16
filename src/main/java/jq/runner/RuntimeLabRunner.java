@@ -223,28 +223,14 @@ public final class RuntimeLabRunner {
         }
     }
 
-    /** 短い記録を実際に作り、この配布物のJVMでJFRが使えるかを確かめる。 */
+    /**
+     * 短い記録を実際に作り、この配布物のJVMでJFRが使えるかを確かめる。
+     *
+     * 判定は {@link JdkCapability} に置いてある。<b>事前確認（`37-0`）と同じ実測を使う</b>ため。
+     * 別々に測ると、事前確認は通るのにlabだけ環境不足になる食い違いが起きる。
+     */
     private static boolean canRecordFlight() {
-        Path probe;
-        try {
-            probe = Files.createTempDirectory("jq-jfr-probe-");
-        } catch (IOException e) {
-            return false;
-        }
-        Path recording = probe.resolve("probe.jfr");
-        try {
-            // 教材のlabと同じく設定を指定して記録する。OpenJ9はここで起動オプションを拒否する。
-            // 起動オプションを受け付けても記録fileを作らない配布物があるため、file自体も確かめる。
-            boolean started = commandWorks(List.of(jdkTool("java"),
-                    "-XX:StartFlightRecording=filename=" + recording
-                            + ",settings=profile,duration=1s",
-                    "-version"), CAPABILITY_PROBE_TIMEOUT_SECONDS);
-            return started && Files.size(recording) > 0;
-        } catch (IOException recordingMissing) {
-            return false;
-        } finally {
-            deleteRecursively(probe);
-        }
+        return JdkCapability.canRecordFlight();
     }
 
     private static void deleteRecursively(Path directory) {

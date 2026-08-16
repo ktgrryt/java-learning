@@ -1,4 +1,4 @@
-"""章参照（「第NN章」）が、学習者に正しい番号で見えるかを確かめる。
+"""章参照（「第NN章」）とレッスン参照（「13-5」）が、学習者に正しい番号で見えるかを確かめる。
 
 tools/check-chapter-refs.sh から呼ばれる。
 
@@ -25,11 +25,27 @@ tools/check-chapter-refs.sh から呼ばれる。
 
 実際に labs のREADMEは30ファイルが旧通し番号と内部番号を混在させていた。
 
+## レッスン番号も同じ形で2つある
+
+レッスンIDは章を分けても変えない（`progress.json` のキーなので変えると進捗が消える）。
+そのため `ch67` のように、IDが `41-4` から始まる章がある。画面では**章の中の位置**で
+振り直すので、同じレッスンが `41-4`（内部）と `5-4`（画面）の2つの番号を持つ。
+
+本文も `第NN章` と同じく**内部ID**で `41-4` と書く。`web/app.js` の
+`localizeLessonReferences` が読み替える。ただしコードブロックの中は読み替えない
+（`5-5` の二重ループの出力例が `1-1 1-2 2-1 …` で、これは番号ではないため）。
+
+**数の範囲を `2-3` のように地の文へ書かないこと。** レッスンIDと同じ形なので、
+読み替えの対象になってしまう。`--list` で全参照を一覧できる。
+
 ## 何を見るか
 
   content … `第NN章` が manifest の章へ解決できること
   content … 変換を通らないフィールドでは、内部番号と編内番号が一致していること
-  labs   … `第NN章` を書いていないこと（編名と章タイトルで参照する）
+  content … レッスン参照が実在するレッスンを指していること
+  content … 変換を通らないフィールドでは、レッスンの内部番号と画面の番号が一致していること
+  content … 事前確認は章の先頭に1つだけであること（画面の `-0` の意味が保てる）
+  labs   … `第NN章` と `13-5` のようなレッスンIDを書いていないこと（編名・章タイトル・レッスン名で参照する）
 
 labsはREADMEだけでなく、学習者が画面のファイル一覧で読む `.java` や `server.xml` の
 コメントも対象にする（実際にその2箇所へ旧通し番号が残っていた）。`target/` などの
@@ -46,6 +62,16 @@ CONTENT = pathlib.Path('content')
 LABS = pathlib.Path('labs')
 
 CHAPTER_REF = re.compile(r'第(\d+)章')
+
+# レッスン参照。前後に英数字・ドット・`[` `]` `-` が付くものは外す
+# （`postgres:16-alpine` `2024-05-03` 正規表現の `[1-4]` を拾わないため）。
+# **`\w` はASCIIだけにする。** Pythonの `\w` は日本語も含むので、そのままだと
+# 「画面の60-5では」のような日本語のうしろの参照を見落とす。web/app.js の `\w`
+# （JavaScriptはASCIIのみ）と範囲をそろえないと、検査と画面の判定が食い違う。
+LESSON_REF = re.compile(r'(?<![A-Za-z0-9_.\[-])(\d{1,2})-(\d{1,2})(#\d+)?(?![A-Za-z0-9_.\]-])')
+
+# ```で囲んだ範囲。`localizeLessonReferences` が読み替えないので、ここも見ない。
+CODE_BLOCK = re.compile(r'```.*?```', re.S)
 
 # labsの走査から外すディレクトリ。生成物なので元ファイルを直せば作り直される。
 GENERATED_DIRS = {'target', 'build', 'node_modules', '.git', '.mvn'}
@@ -64,14 +90,43 @@ TRANSLATED_FIELDS = {
 }
 
 
+# レッスン参照を探すフィールド。**学習者が読む文章だけ**にする。
+# `expected` や `stdin`、`solution` にはレッスンIDと同じ形の文字列がふつうに出てくる
+# （`COMMIT 1-3`、二重ループの出力 `1-1` など）ので、走査に入れると誤検出になる。
+# `rubric` と `objectives[].text` は問題を書く側の基準で画面に出ないため対象外。
+SCANNED_FIELDS = TRANSLATED_FIELDS | {
+    'title',
+    'subtitle',
+    'lessons[].title',
+    'lessons[].samples[].caption',
+    'lessons[].visibleCases[].label',
+    'lessons[].hiddenCases[].label',
+    'lessons[].extraTasks[].visibleCases[].label',
+    'lessons[].extraTasks[].hiddenCases[].label',
+    'lessons[].sourceChecks[].message',
+    'lessons[].extraTasks[].sourceChecks[].message',
+    'lessons[].artifact.checks[].message',
+    'lessons[].extraTasks[].artifact.checks[].message',
+    'lessons[].runtimeLab.checks[].label',
+    'lessons[].extraTasks[].runtimeLab.checks[].label',
+    'lessons[].preflight.buttonLabel',
+    'lessons[].preflight.checks[].label',
+    'lessons[].preflight.checks[].help',
+}
+
+
 def main():
     listing = '--list' in sys.argv[1:]
     chapters = load_chapters()
+    lessons = load_lessons()
     refs = collect_content_refs()
     lab_refs = collect_lab_refs()
+    lesson_refs = collect_lesson_refs()
+    lab_lesson_refs = collect_lab_lesson_refs(lessons)
 
     if listing:
         show(refs, lab_refs, chapters)
+        show_lessons(lesson_refs, lessons)
         return 0
 
     problems = []
@@ -79,9 +134,15 @@ def main():
     problems += check_translated(refs, chapters)
     problems += check_labs(lab_refs)
     problems += check_chapter_ids()
+    problems += check_lesson_resolvable(lesson_refs, lessons, chapters)
+    problems += check_lesson_translated(lesson_refs, lessons)
+    problems += check_lab_lesson_refs(lab_lesson_refs, lessons)
+    problems += check_preflight_position()
 
     print(f'章参照を{len(refs) + len(lab_refs)}件'
-          f'（content {len(refs)}件 / labs {len(lab_refs)}件）調べました。')
+          f'（content {len(refs)}件 / labs {len(lab_refs)}件）、'
+          f'レッスン参照を{len(lesson_refs) + len(lab_lesson_refs)}件'
+          f'（content {len(lesson_refs)}件 / labs {len(lab_lesson_refs)}件）調べました。')
     if not problems:
         print('  学習者に違う番号が見える参照はありません。')
         return 0
@@ -156,6 +217,96 @@ def check_translated(refs, chapters):
     return problems
 
 
+def check_lesson_resolvable(lesson_refs, lessons, chapters):
+    """指せないレッスンを書くと、読み替えられず内部IDがそのまま画面に出る。
+
+    章はあるのにレッスンが無いものだけを失敗にする（`3-4割` のような数の書き方を
+    誤って失敗にしないため）。ただしその形は読み替えの対象になるので、
+    地の文へ書かないこと自体が決まりである。
+    """
+    problems = []
+    for ref in lesson_refs:
+        if ref['id'] in lessons:
+            continue
+        if ref['chapter'] not in chapters:
+            continue          # レッスン参照ではなく、ただの数字と判断する
+        problems.append(
+            f'{ref["file"]} {ref["path"]}: `{ref["id"]}` に対応するレッスンがありません。'
+            f'第{ref["chapter"]}章にあるレッスンIDで書いてください  …{ref["context"]}…')
+    return problems
+
+
+def check_lesson_translated(lesson_refs, lessons):
+    """変換を通らないフィールドは、内部IDと画面の番号が一致していないと違う番号が出る。"""
+    problems = []
+    for ref in lesson_refs:
+        if ref['path'] in TRANSLATED_FIELDS:
+            continue
+        lesson = lessons.get(ref['id'])
+        if lesson is None:
+            continue          # 解決できない件は check_lesson_resolvable が報告済み
+        if ref['id'] != lesson['shown']:
+            problems.append(
+                f'{ref["file"]} {ref["path"]}: `{ref["id"]}` は画面では'
+                f'「{lesson["part"]} {lesson["shown"]}」と出ますが、'
+                'このフィールドは読み替えられません。レッスン名で参照してください')
+    return problems
+
+
+def check_lab_lesson_refs(lab_lesson_refs, lessons):
+    """READMEはファイルとして読まれるので、レッスンIDも読み替えられない。
+
+    章参照と同じ理由で、labs には番号を書かない。`62-3` は画面では `4-3` と出るので、
+    学習者が探しても見つからない（誤読はしないが、引けない）。レッスン名で参照する。
+    """
+    problems = []
+    for ref in lab_lesson_refs:
+        lesson = lessons.get(ref['id'])
+        shown = f'「{lesson["part"]} {lesson["shown"]}『{lesson["title"]}』」' if lesson else ''
+        problems.append(
+            f'{ref["file"]}: `{ref["id"]}` と書かれています。画面では{shown}と出るので、'
+            'labsではレッスン名で参照してください  …' + ref['context'] + '…')
+    return problems
+
+
+def collect_lab_lesson_refs(lessons):
+    refs = []
+    for path in sorted(LABS.rglob('*')):
+        if not path.is_file() or is_generated(path):
+            continue
+        try:
+            text = path.read_text(encoding='utf-8')
+        except (UnicodeDecodeError, OSError):
+            continue
+        for match in LESSON_REF.finditer(CODE_BLOCK.sub(lambda m: ' ' * len(m.group(0)), text)):
+            key = f'{match.group(1)}-{match.group(2)}'
+            if key not in lessons:
+                continue          # 版番号や正規表現など、レッスンIDでないもの
+            refs.append({'file': str(path), 'id': key, 'task': match.group(3) or '',
+                         'context': snippet(text, match.start())})
+    return refs
+
+
+def check_preflight_position():
+    """事前確認は章の先頭に1つだけ。画面ではこれだけを `-0` として見せる。
+
+    `web/app.js` は事前確認を本編の番号に数えず `-0` を割り当てる。途中に混ざったり
+    2つ入ったりすると、本編の番号が飛ぶか、同じ `-0` が並ぶ。
+    """
+    problems = []
+    for path in sorted(CONTENT.glob('ch*.json')):
+        raw = json.loads(path.read_text(encoding='utf-8'))
+        positions = [index for index, lesson in enumerate(raw.get('lessons', []))
+                     if lesson.get('lessonType') == 'preflight']
+        if not positions:
+            continue
+        if positions != [0]:
+            problems.append(
+                f'{path.name}: 事前確認が {positions} 番目にあります。'
+                '章の先頭に1つだけ置いてください（画面の `-0` が重なります）')
+    return problems
+
+
 def check_labs(lab_refs):
     """READMEはファイルとして読まれるので、誰も番号を読み替えない。"""
     return [f'{ref["file"]}: 第{ref["number"]}章 と書かれています。'
@@ -179,6 +330,61 @@ def load_chapters():
                 'file': file_name,
             }
     return chapters
+
+
+def load_lessons():
+    """レッスンID -> {編名, 画面の番号, 章タイトル}。番号は web/app.js と同じ採番。"""
+    manifest = json.loads((CONTENT / 'manifest.json').read_text(encoding='utf-8'))
+    lessons = {}
+    for part in manifest['parts']:
+        for part_number, file_name in enumerate(part['chapters'], start=1):
+            raw = json.loads((CONTENT / file_name).read_text(encoding='utf-8'))
+            shown_number = 0
+            for lesson in raw.get('lessons', []):
+                if lesson.get('lessonType') == 'preflight':
+                    number = 0
+                else:
+                    shown_number += 1
+                    number = shown_number
+                lessons[lesson['id']] = {
+                    'part': part['title'],
+                    'shown': f'{part_number}-{number}',
+                    'title': lesson.get('title', ''),
+                    'file': file_name,
+                }
+    return lessons
+
+
+def collect_lesson_refs():
+    """本文に現れるレッスン参照を、フィールドのパスごとに拾う。コードブロックは見ない。"""
+    refs = []
+    for path in sorted(CONTENT.glob('*.json')):
+        raw = json.loads(path.read_text(encoding='utf-8'))
+        walk_lessons(raw, '', path.name, refs)
+    return refs
+
+
+def walk_lessons(node, path, file_name, refs):
+    if isinstance(node, str):
+        if path not in SCANNED_FIELDS:
+            return
+        # コードブロックは同じ長さの空白へ置き換える（位置をずらさず、中身だけ外す）
+        text = CODE_BLOCK.sub(lambda m: ' ' * len(m.group(0)), node)
+        for match in LESSON_REF.finditer(text):
+            refs.append({
+                'file': file_name,
+                'path': path,
+                'id': f'{match.group(1)}-{match.group(2)}',
+                'chapter': str(int(match.group(1))),
+                'task': match.group(3) or '',
+                'context': snippet(node, match.start()),
+            })
+    elif isinstance(node, dict):
+        for key, value in node.items():
+            walk_lessons(value, f'{path}.{key}' if path else key, file_name, refs)
+    elif isinstance(node, list):
+        for value in node:
+            walk_lessons(value, f'{path}[]', file_name, refs)
 
 
 def collect_content_refs():
@@ -243,6 +449,17 @@ def show(refs, lab_refs, chapters):
         where = f'{ref["file"]} {ref["path"]}'.strip()
         print(f'第{ref["number"]}章 → {shown}\n  {where}\n  …{ref["context"]}…')
     print(f'\ncontent {len(refs)}件 / labs {len(lab_refs)}件')
+
+
+def show_lessons(lesson_refs, lessons):
+    print()
+    for ref in lesson_refs:
+        lesson = lessons.get(ref['id'])
+        shown = (f'{lesson["part"]} {lesson["shown"]}{ref["task"]}'
+                 f'『{lesson["title"]}』' if lesson else '★解決できません')
+        print(f'{ref["id"]}{ref["task"]} → {shown}\n'
+              f'  {ref["file"]} {ref["path"]}\n  …{ref["context"]}…')
+    print(f'\nレッスン参照 {len(lesson_refs)}件')
 
 
 if __name__ == '__main__':

@@ -16,8 +16,8 @@ Java実践・開発基盤編『JDKの選定・互換性・標準ツール』の�
 
 | 課題 | 編集するファイル | 確認すること |
 |---|---|---|
-| 51-3 実機演習（必須） | `exercise/tools.options` `exercise/Menu.java` | `--release`で作った版、`javap`のmajor versionと命令、`jdeps`のmodule依存、実行結果 |
-| 51-3 任意発展 | `jlink-lab/exercise/module-info.java` | `jlink`で作った縮小ランタイムのmodule一覧と起動 |
+| 実機演習（必須） | `exercise/tools.options` `exercise/Menu.java` | `--release`で作った版、`javap`のmajor versionと命令、`jdeps`のmodule依存、実行結果 |
+| 任意発展 | `jlink-lab/exercise/module-info.java` | `jlink`で作った縮小ランタイムのmodule一覧と起動 |
 
 下の「手順」は同じ道具を手で動かすためのもので、採点とは独立している。
 

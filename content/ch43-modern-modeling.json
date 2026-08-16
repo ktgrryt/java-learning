@@ -417,7 +417,7 @@
           "message": "`value` はリフレクションで `getAnnotation(Command.class)` から読み取ってください。"
         }
       ],
-      "solution": "import java.lang.annotation.*;\nimport java.lang.reflect.*;\nimport java.util.*;\n\n@Retention(RetentionPolicy.RUNTIME)\n@Target(ElementType.METHOD)\n@interface\nCommand {\n    String value();\n}\n\nclass Handler {\n    @Command(\"create\")\n    void add() { }\n\n    @Command(\"list\")\n    void show() { }\n\n    void helper() { }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Arrays.stream(Handler.class.getDeclaredMethods()).sorted(Comparator.comparing(Method::getName)).filter(m -> m.isAnnotationPresent(Command.class)).forEach(m -> System.out.println(m.getAnnotation(Command.class).value() + \"->\" + m.getName()));\n    }\n}\n",
+      "solution": "import java.lang.annotation.*;\nimport java.lang.reflect.*;\nimport java.util.*;\n\n@Retention(RetentionPolicy.RUNTIME)\n@Target(ElementType.METHOD)\n@interface Command {\n    String value();\n}\n\nclass Handler {\n    @Command(\"create\")\n    void add() { }\n\n    @Command(\"list\")\n    void show() { }\n\n    void helper() { }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Arrays.stream(Handler.class.getDeclaredMethods()).sorted(Comparator.comparing(Method::getName)).filter(m -> m.isAnnotationPresent(Command.class)).forEach(m -> System.out.println(m.getAnnotation(Command.class).value() + \"->\" + m.getName()));\n    }\n}\n",
       "extraTasks": [
         {
           "kind": "applied",
@@ -451,7 +451,7 @@
             "`User.class.getRecordComponents()[0].getAnnotation(Range.class)`。",
             "u.age()をmin/maxと比較します。"
           ],
-          "solution": "import java.lang.annotation.*;\nimport java.lang.reflect.*;\nimport java.util.*;\n\n@Retention(RetentionPolicy.RUNTIME)\n@Target(ElementType.RECORD_COMPONENT)\n@interface\nRange {\n    int min();\n    int max();\n}\n\nrecord User(@Range(min = 0, max = 150) int age) { }\n\npublic class Main {\n    public static void main(String[] args) throws Exception {\n        User u = new User(new Scanner(System.in).nextInt());\n        Range r = User.class.getRecordComponents()[0].getAnnotation(Range.class);\n        System.out.println(u.age() >= r.min() && u.age() <= r.max() ? \"valid\" : \"invalid\");\n    }\n}\n",
+          "solution": "import java.lang.annotation.*;\nimport java.lang.reflect.*;\nimport java.util.*;\n\n@Retention(RetentionPolicy.RUNTIME)\n@Target(ElementType.RECORD_COMPONENT)\n@interface Range {\n    int min();\n    int max();\n}\n\nrecord User(@Range(min = 0, max = 150) int age) { }\n\npublic class Main {\n    public static void main(String[] args) throws Exception {\n        User u = new User(new Scanner(System.in).nextInt());\n        Range r = User.class.getRecordComponents()[0].getAnnotation(Range.class);\n        System.out.println(u.age() >= r.min() && u.age() <= r.max() ? \"valid\" : \"invalid\");\n    }\n}\n",
           "sourceChecks": [
             {
               "pattern": "RetentionPolicy\\s*\\.\\s*RUNTIME",
@@ -614,7 +614,7 @@
             "`Status.class.getField(status.name())` でenum定数のField。",
             "getAnnotation(Code.class).value()。"
           ],
-          "solution": "import java.lang.annotation.*;\nimport java.lang.reflect.*;\nimport java.util.*;\n\n@Retention(RetentionPolicy.RUNTIME)\n@Target(ElementType.FIELD)\n@interface\nCode {\n    int value();\n}\n\nenum Status {\n    @Code(200)\n    OK, @Code(404)\n    NOT_FOUND, @Code(500)\n    ERROR\n}\n\npublic class Main {\n    public static void main(String[] args) throws Exception {\n        Status status = Status.valueOf(new Scanner(System.in).next());\n        Code code = Status.class.getField(status.name()).getAnnotation(Code.class);\n        System.out.println(status + \"=\" + code.value());\n    }\n}\n",
+          "solution": "import java.lang.annotation.*;\nimport java.lang.reflect.*;\nimport java.util.*;\n\n@Retention(RetentionPolicy.RUNTIME)\n@Target(ElementType.FIELD)\n@interface Code {\n    int value();\n}\n\nenum Status {\n    @Code(200) OK, @Code(404) NOT_FOUND, @Code(500) ERROR\n}\n\npublic class Main {\n    public static void main(String[] args) throws Exception {\n        Status status = Status.valueOf(new Scanner(System.in).next());\n        Code code = Status.class.getField(status.name()).getAnnotation(Code.class);\n        System.out.println(status + \"=\" + code.value());\n    }\n}\n",
           "sourceChecks": [
             {
               "pattern": "RetentionPolicy\\s*\\.\\s*RUNTIME",

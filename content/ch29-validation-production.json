@@ -73,7 +73,7 @@
           "code": "import jakarta.validation.constraints.*;\n\nrecord Signup(@NotBlank String name, @Email String email, @Min(18) int age) { }\n\npublic class ValidationSample {\n    public static void main(String[] a) {\n        System.out.println(MiniValidator.validate(new Signup(\" \", \"bad\", 15)));\n    }\n}\n"
         }
       ],
-      "task": "CreateProductのnameを必須かつ1〜20文字、priceを0以上100000以下にし、MiniValidatorのエラーを1行ずつ表示してください。エラーなしは `valid`。入力は `name price` で、`_` は空文字とします。",
+      "task": "CreateProductのnameを必須かつ1〜20文字、priceを0以上100000以下にし、MiniValidatorのエラーを1行ずつ表示してください。エラーなしは `valid`。文言は `名前は必須です`・`名前は20文字以内です`・`価格は0以上です`・`価格は100000以下です` です。入力は `name price` で、`_` は空文字とします。",
       "starterCode": "import jakarta.validation.constraints.*;\nimport java.util.*;\n\nrecord CreateProduct(/* TODO */ String name, /* TODO */ int price) { }\n\npublic class ValidateProduct {\n    public static void main(String[] a) {\n        Scanner sc = new Scanner(System.in);\n        String name = sc.next();\n        if (name.equals(\"_\")) name = \"\";\n        CreateProduct p = new CreateProduct(name, sc.nextInt());\n        // TODO validate/output\n    }\n}\n",
       "visibleCases": [
         {
@@ -113,7 +113,7 @@
       "extraTasks": [
         {
           "kind": "applied",
-          "task": "Signupのemailを必須＋メール形式、passwordを8〜30文字にしてください。入力の `_` は空文字。エラーを順に出し、正常ならvalid。",
+          "task": "Signupのemailを必須＋メール形式、passwordを8〜30文字にしてください。入力の `_` は空文字。エラーを順に出し、正常ならvalid。文言は `メールは必須です`（未入力）、`メール形式が不正です`（形式違反）、`パスワードは8〜30文字です`（長さ違反）です。",
           "starterCode": "import jakarta.validation.constraints.*;\nimport java.util.*;\n\nrecord Signup(/* TODO */ String email, /* TODO */ String password) { }\n\npublic class ValidateSignup {\n    public static void main(String[] a) {\n        Scanner sc = new Scanner(System.in);\n        String e = sc.next(), p = sc.next();\n        if (e.equals(\"_\")) e = \"\";\n        if (p.equals(\"_\")) p = \"\";\n        List<String> errors = MiniValidator.validate(new Signup(e, p));\n        // TODO\n    }\n}\n",
           "visibleCases": [
             {
@@ -297,7 +297,7 @@
           "code": "import jakarta.validation.constraints.*;\nimport jakarta.ws.rs.core.*;\nimport java.util.*;\n\nrecord Input(@NotBlank String item, @Min(1) int count) { }\n\nrecord ErrorDto(List<String> errors) { }\n\npublic class BoundarySample {\n    public static void main(String[] a) {\n        List<String> e = MiniValidator.validate(new Input(\"\", 0));\n        Response r = e.isEmpty() ? Response.status(201).build() : Response.status(400).entity(new ErrorDto(e)).build();\n        System.out.println(r.getStatus() + \" \" + r.getEntity());\n    }\n}\n"
         }
       ],
-      "task": "【基本】`Signup` recordのnameへNotBlank、emailへEmail、ageへMin(18)を付けます。`_` は空文字として入力し、エラーがなければ `valid`、あれば検証メッセージを1行ずつ表示してください。",
+      "task": "【基本】`Signup` recordのnameへNotBlank、emailへEmail、ageへMin(18)を付けます。`_` は空文字として入力し、エラーがなければ `valid`、あれば検証メッセージを1行ずつ表示してください。文言は `nameは必須です`、`emailの形式が不正です`、`ageは18以上です` です。",
       "starterCode": "import jakarta.validation.constraints.*;\nimport java.util.*;\n\nrecord Signup(/* 注釈 */ String name, /* 注釈 */ String email, /* 注釈 */ int age) { }\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        String name = sc.next(), email = sc.next();\n        int age = sc.nextInt();\n        if (name.equals(\"_\")) name = \"\";\n        if (email.equals(\"_\")) email = \"\";\n        List<String> errors = MiniValidator.validate(new Signup(name, email, age));\n        /* TODO */\n    }\n}\n",
       "visibleCases": [
         {
@@ -383,7 +383,7 @@
             "ch29-o3"
           ],
           "kind": "applied",
-          "task": "【実践】商品book=3個、pen=1個の在庫を持つ注文APIを作ります。itemとcountを読み、空itemまたはcount<1なら400、商品なしは404、在庫不足は409、成功なら在庫を減らして `201 item count rest=残数` と表示してください。`_` は空itemです。",
+          "task": "【実践】商品book=3個、pen=1個の在庫を持つ注文APIを作ります。itemとcountを読み、空itemまたはcount<1なら400、商品なしは404、在庫不足は409、成功なら在庫を減らして `201 item count rest=残数` と表示してください。失敗は `400 VALIDATION_ERROR`・`404 NOT_FOUND`・`409 OUT_OF_STOCK` の形で表示します。`_` は空itemです。",
           "starterCode": "import java.util.*;\n\nrecord CreateOrder(String item, int count) { }\n\nrecord ApiResult(int status, String body) { }\n\nclass OrderService {\n    private final Map<String, Integer> stock = new HashMap<>(Map.of(\"book\", 3, \"pen\", 1));\n\n    ApiResult create(CreateOrder in) {\n        /* TODO */ return null;\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        String item = sc.next();\n        if (item.equals(\"_\")) item = \"\";\n        ApiResult r = new OrderService().create(new CreateOrder(item, sc.nextInt()));\n        System.out.println(r.status() + \" \" + r.body());\n    }\n}\n",
           "visibleCases": [
             {

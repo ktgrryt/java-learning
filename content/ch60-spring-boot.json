@@ -174,29 +174,29 @@
       "starterCode": "import java.util.*;\n\npublic class Main {\n    static class GreetingService {\n        String message(String name) {\n            return \"Hello, \" + name.trim();\n        }\n    }\n\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        String method = sc.nextLine();\n        String path = sc.nextLine();\n        String name = sc.nextLine();\n        // TODO: HTTP境界の検査後にServiceを呼ぶ\n    }\n}",
       "visibleCases": [
         {
-          "label": "表示ケース1",
+          "label": "正しい要求",
           "stdin": "GET\n/api/greetings\nJava\n",
           "expected": "200 Hello, Java"
         },
         {
-          "label": "表示ケース2",
+          "label": "名前が空白だけ",
           "stdin": "GET\n/api/greetings\n   \n",
           "expected": "400 NAME_REQUIRED"
         }
       ],
       "hiddenCases": [
         {
-          "label": "隠しケース1",
+          "label": "パスは合うがGET以外",
           "stdin": "POST\n/api/greetings\nJava\n",
           "expected": "405 METHOD_NOT_ALLOWED"
         },
         {
-          "label": "隠しケース2",
+          "label": "知らないパス",
           "stdin": "GET\n/api/unknown\nJava\n",
           "expected": "404 NOT_FOUND"
         },
         {
-          "label": "隠しケース3",
+          "label": "名前の前後に空白",
           "stdin": "GET\n/api/greetings\n  Spring  \n",
           "expected": "200 Hello, Spring"
         }
@@ -218,7 +218,7 @@
             "層を分けるとDIのコストが減り、DB接続が速くなる"
           ],
           "answer": 0,
-          "explanation": "ControllerはHTTP境界、Serviceは業務ルールを担当させると変更理由とテスト範囲が明確になります。"
+          "explanation": "クラスを増やすとSpringが自動で並列に処理してくれる、という仕組みはありません。Controllerで検証したからService側が不要になるわけでもなく（Serviceは他の入口からも呼ばれます）、層を分けてDB接続が速くなることもありません。分ける理由は、HTTPの境界と業務ルールを別々にテストでき、変更の理由も分かれることです。"
         },
         {
           "question": "通常共有されるControllerのフィールドにリクエストごとの値を保存すると危険なのはなぜですか？",
@@ -251,29 +251,29 @@
       "starterCode": "import java.util.*;\n\npublic class Main {\n    static String resolve(String environment, String file, String defaultValue) {\n        // TODO: 優先順位に従って値を返す\n        return defaultValue;\n    }\n\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        String environment = sc.nextLine();\n        String file = sc.nextLine();\n        String defaultValue = sc.nextLine();\n        boolean userBean = Boolean.parseBoolean(sc.nextLine());\n        // TODO: 設定値と構成元を出力する\n    }\n}",
       "visibleCases": [
         {
-          "label": "表示ケース1",
+          "label": "環境変数が最優先",
           "stdin": "Bonjour\nHello\nHi\nfalse\n",
           "expected": "Bonjour AUTO_CONFIGURED"
         },
         {
-          "label": "表示ケース2",
+          "label": "環境変数だけ未設定",
           "stdin": "-\nHello\nHi\ntrue\n",
           "expected": "Hello USER_BEAN"
         }
       ],
       "hiddenCases": [
         {
-          "label": "隠しケース1",
+          "label": "どちらも未設定なので既定値",
           "stdin": "-\n-\nHi\nfalse\n",
           "expected": "Hi AUTO_CONFIGURED"
         },
         {
-          "label": "隠しケース2",
+          "label": "3つとも設定済み",
           "stdin": "ENV\nFILE\nDEFAULT\ntrue\n",
           "expected": "ENV USER_BEAN"
         },
         {
-          "label": "隠しケース3",
+          "label": "設定ファイルが効く",
           "stdin": "-\nFILE\nDEFAULT\nfalse\n",
           "expected": "FILE AUTO_CONFIGURED"
         }
@@ -295,7 +295,7 @@
             "起動時にBeanの重複を検出して、失敗させる仕組み"
           ],
           "answer": 0,
-          "explanation": "Spring Bootの自動構成は利用者の定義を検出すると後退するよう設計されたものが多くあります。"
+          "explanation": "同じ型のBeanが2つ登録されて選べるようになるのではなく、自動構成の側が**登録をやめます**。利用者の定義を上書きするのでも、重複を検出して起動を失敗させるのでもありません。これがback offで、「明示的に書いた構成を優先する」という設計です。だから自分でBeanを定義したら、自動構成の既定は現れなくなります。"
         },
         {
           "question": "関連する独自設定が増えた場合に`@ConfigurationProperties`が適する理由はどれですか？",
@@ -306,7 +306,7 @@
             "設定が無いときの既定値を、型から推測して補ってくれる"
           ],
           "answer": 0,
-          "explanation": "設定名、型、検証規則を1か所にまとめられるため、設定の意図と不足を把握しやすくなります。"
+          "explanation": "設定値を暗号化する機能ではないので、機密をそのまま書いてよくなるわけではありません。読み込みの優先順位も変わらず、環境変数のほうが後から上書きします。既定値を型から推測してくれることもありません。利点は、関連する設定を型付きのまとまりとして受け取り、検証を1か所へ書けることです。"
         }
       ],
       "rubric": [
@@ -392,7 +392,7 @@
             "DBへ書き込みが起きる行ごと"
           ],
           "answer": 0,
-          "explanation": "注文確定など、一緒に成功または失敗させたい業務操作を境界にします。"
+          "explanation": "リクエスト全体を囲むと、外部API呼び出しの待ち時間までDB接続と行ロックを保持します。Repositoryのメソッド単位や行単位で区切ると、一緒に成功しなければ意味がない更新が分かれてしまいます。境界は「注文確定」のように、**一緒に成功または失敗させたい業務操作**へ置きます。"
         }
       ],
       "rubric": [
@@ -525,7 +525,7 @@
             "外部サービスとの通信。実際のHTTP呼び出しを含む"
           ],
           "answer": 0,
-          "explanation": "Web層を絞って読み込むテストです。業務ロジックの細部や実DBは別のテストで確認します。"
+          "explanation": "実DBを含むデータアクセスは `@DataJpaTest` や結合テストの担当です。アプリ全体を読み込むのは`@SpringBootTest` で、範囲も起動時間も違います。外部サービスへ実際に通信することもありません。`@WebMvcTest` はController・JSON変換・入力検証といったWeb層だけを読み込み、Serviceはテスト用の実装へ差し替えます。"
         },
         {
           "question": "Mockitoを学ぶ前にも理解しておきたい考え方はどれですか？",
@@ -536,7 +536,7 @@
             "非同期処理を待つために、固定の待ち時間を入れる方法"
           ],
           "answer": 0,
-          "explanation": "何をどの理由で置き換えるかを理解すれば、手書きfakeとMockitoを状況で選べます。"
+          "explanation": "privateメソッドを直接呼ぶのは内部実装へ結び付くので避けます。呼び出し順を1つずつ固定すると、振る舞いが同じリファクタリングでもテストが壊れます。固定の待ち時間は不安定なテストの原因です。まず「どの境界を、なぜ置き換えるのか」を理解すれば、手書きのstubやfakeとMockitoを場面で選べます。"
         }
       ],
       "rubric": [
@@ -639,7 +639,7 @@
             "依存先の障害を検出して、自動で切り離す"
           ],
           "answer": 0,
-          "explanation": "Readiness失敗中は通信先から外し、回復を待てます。Livenessとは目的が異なります。"
+          "explanation": "プロセスが生きているかを示し、失敗すると再起動されるのは liveness です。起動時間や初期化の進み方を数値で返すものでもなく、依存先を自動で切り離す仕組みでもありません（それはサーキットブレーカーの役割です）。readiness は「いま新しい要求を受けてよいか」を示し、falseの間は振り分けから外れて回復を待てます。"
         },
         {
           "question": "Spring Boot更新時のProperties Migratorの扱いとして適切なものはどれですか？",
@@ -650,7 +650,7 @@
             "設定の移行が終わったことを、テストの代わりに保証する"
           ],
           "answer": 0,
-          "explanation": "移行支援用の一時的な依存関係です。警告を修正し、不要になったら外します。"
+          "explanation": "設定ファイルを書き換えて保存してくれるわけではなく、警告を出すだけです。本番へ入れたまま古い設定名を使い続ける前提にすると、移行が終わりません。移行できたことをテストの代わりに保証するものでもありません。古い設定名を検出して直すあいだだけ入れ、直し終わったら依存から外します。"
         }
       ],
       "rubric": [
