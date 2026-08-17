@@ -606,6 +606,13 @@
         "`n` が `0` のとき、`a.use(n)` で例外が飛ぶので `b.use(n)` は実行されません。それでも両方のリソースは閉じられます。"
       ],
       "solution": "import java.util.Scanner;\n\nclass Resource implements AutoCloseable {\n    private final String label;\n\n    Resource(String label) {\n        this.label = label;\n        System.out.println(\"open \" + label);\n    }\n\n    void use(int n) {\n        if (n == 0) {\n            throw new IllegalStateException(\"使えません\");\n        }\n        System.out.println(\"処理 \" + n);\n    }\n\n    @Override\n    public void close() {\n        System.out.println(\"close \" + label);\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n\n        try (Resource a = new Resource(\"A\");\n             Resource b = new Resource(\"B\")) {\n            a.use(n);\n            b.use(n);\n        } catch (IllegalStateException e) {\n            System.out.println(\"エラー\");\n        }\n    }\n}\n",
+      "sourceChecks": [
+        {
+          "pattern": "\\btry\\s*\\(",
+          "minimum": 1,
+          "message": "`Resource` は try-with-resources（`try (Resource a = new Resource(\"A\"); ...)`）で開いてください。手で `close()` を呼んでも出力は同じですが、閉じ忘れを防ぐ書き方がこのレッスンの主題です。"
+        }
+      ],
       "extraTasks": [
         {
           "kind": "applied",
@@ -714,6 +721,17 @@
           ],
           "answer": 1,
           "explanation": "`try` のカッコに書けるのは **`AutoCloseable`（または `Closeable`）を実装したもの** だけです。それ以外を書くとコンパイルエラーになります。"
+        },
+        {
+          "question": "次の `catch` はどうなるでしょう。\n\n```java\ntry {\n    ...\n} catch (Exception | ArithmeticException e) {\n    ...\n}\n```",
+          "choices": [
+            "広い方が優先されて動く",
+            "両方の catch が順に実行される",
+            "親子を並べたのでコンパイルエラー",
+            "どちらの例外も受け止められない"
+          ],
+          "answer": 2,
+          "explanation": "広い方が優先される仕組みはなく、`catch` は1つしか実行されないので順に動くこともありません。受け止められないわけでもありません。`ArithmeticException` は `Exception` の子なので、`Exception` だけで足ります。親子をマルチキャッチへ並べるとコンパイルエラーです。"
         }
       ]
     },

@@ -86,6 +86,10 @@ def collect():
 
 
 def tasks_of(lesson):
+    # 事前確認レッスンと概念レッスンは提出課題を持たない。レッスン本体を1問目として
+    # 数えると、実在しない single-file 問題がスナップショットへ入る。
+    if lesson.get('lessonType') in ('preflight', 'concept'):
+        return []
     if lesson.get('type') == 'preflight' or 'preflight' in lesson:
         return []
     return [lesson] + list(lesson.get('extraTasks') or [])

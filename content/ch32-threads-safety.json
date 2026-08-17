@@ -67,6 +67,18 @@
         "最初のループで全Threadをstartし、次のループで全Threadをjoinします。"
       ],
       "solution": "import java.util.*;\nimport java.util.concurrent.atomic.AtomicInteger;\n\npublic class Main {\n    public static void main(String[] args) throws Exception {\n        Scanner sc = new Scanner(System.in);\n        int workers = sc.nextInt(), iterations = sc.nextInt();\n        AtomicInteger count = new AtomicInteger();\n        List<Thread> threads = new ArrayList<>();\n        for (int w = 0; w < workers; w++) threads.add(new Thread(() -> {\n            for (int i = 0; i < iterations; i++) count.incrementAndGet();\n        }));\n        threads.forEach(Thread::start);\n        for (Thread t : threads) t.join();\n        System.out.println(count.get());\n    }\n}\n",
+      "sourceChecks": [
+        {
+          "pattern": "\\bnew\\s+Thread\\s*\\(|Thread\\s*\\.\\s*of(Platform|Virtual)\\s*\\(",
+          "minimum": 1,
+          "message": "スレッドを実際に `workers` 本作って走らせてください。計算だけで最終値を出すと、原子性の問題そのものが起きません。"
+        },
+        {
+          "pattern": "\\.join\\s*\\(",
+          "minimum": 1,
+          "message": "最終値を読む前に、全スレッドを `join()` で待ってください（`sleep` で待つのは不可です）。"
+        }
+      ],
       "extraTasks": [
         {
           "kind": "applied",
@@ -223,6 +235,23 @@
         "`new TreeMap<>(counts).forEach((k,v) -> ...)` で順序を固定します。"
       ],
       "solution": "import java.util.*;\nimport java.util.concurrent.*;\n\npublic class Main {\n    public static void main(String[] args) throws Exception {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n        String[] words = new String[n];\n        for (int i = 0; i < n; i++) words[i] = sc.next();\n        Map<String, Integer> counts = new ConcurrentHashMap<>();\n        List<Thread> ts = new ArrayList<>();\n        for (String w : words) ts.add(new Thread(() -> counts.merge(w, 1, Integer::sum)));\n        ts.forEach(Thread::start);\n        for (Thread t : ts) t.join();\n        new TreeMap<>(counts).forEach((k, v) -> System.out.println(k + \"=\" + v));\n    }\n}\n",
+      "sourceChecks": [
+        {
+          "pattern": "\\bnew\\s+Thread\\s*\\(|Thread\\s*\\.\\s*of(Platform|Virtual)\\s*\\(",
+          "minimum": 1,
+          "message": "単語ごとにスレッドを1本作って走らせてください。1本で順に数えると、共有状態の練習になりません。"
+        },
+        {
+          "pattern": "\\bnew\\s+ConcurrentHashMap\\b",
+          "minimum": 1,
+          "message": "件数の加算は複数スレッドから同時に来るので、`ConcurrentHashMap` を使ってください。"
+        },
+        {
+          "pattern": "\\.join\\s*\\(",
+          "minimum": 1,
+          "message": "表示する前に、全スレッドを `join()` で待ってください。"
+        }
+      ],
       "extraTasks": [
         {
           "kind": "applied",
@@ -439,6 +468,23 @@
         "`countDown` は `finally` に置きます。途中で例外が起きても待ち合わせが解けるようにするためです。"
       ],
       "solution": "import java.util.*;\nimport java.util.concurrent.*;\nimport java.util.concurrent.atomic.*;\n\npublic class Main {\n    public static void main(String[] args) throws Exception {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n        AtomicInteger sum = new AtomicInteger();\n        AtomicLong squareSum = new AtomicLong();\n        CountDownLatch latch = new CountDownLatch(n);\n        for (int i = 0; i < n; i++) {\n            int value = sc.nextInt();\n            new Thread(() -> {\n                try {\n                    sum.addAndGet(value);\n                    squareSum.addAndGet((long) value * value);\n                } finally {\n                    latch.countDown();\n                }\n            }).start();\n        }\n        latch.await();\n        System.out.println(\"sum=\" + sum.get() + \" squareSum=\" + squareSum.get());\n    }\n}\n",
+      "sourceChecks": [
+        {
+          "pattern": "\\bnew\\s+Thread\\s*\\(|Thread\\s*\\.\\s*of(Platform|Virtual)\\s*\\(",
+          "minimum": 1,
+          "message": "値ごとにスレッドを1本作って走らせてください。計算だけで合計を出すと、待ち合わせの練習になりません。"
+        },
+        {
+          "pattern": "\\bcountDown\\s*\\(",
+          "minimum": 1,
+          "message": "各スレッドは終わりに `countDown()` を呼んでください（`finally` の中で呼びます）。"
+        },
+        {
+          "pattern": "\\.await\\s*\\(",
+          "minimum": 1,
+          "message": "合計を読む前に `await()` で全スレッドの完了を待ってください。待たずに読むと途中の値が出ます。"
+        }
+      ],
       "extraTasks": [
         {
           "objectiveIds": [

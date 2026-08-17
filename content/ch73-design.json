@@ -1,0 +1,470 @@
+{
+  "id": "ch73",
+  "title": "基本設計と詳細設計",
+  "subtitle": "外から見える取り決めを先に固め、中身は差し替えられるようにする",
+  "emoji": "🧩",
+  "objectives": [
+    {
+      "id": "ch73-o1",
+      "text": "設計項目を、外から見えるかどうかで基本設計と詳細設計へ振り分けられる"
+    },
+    {
+      "id": "ch73-o2",
+      "text": "`api/preorders.json` に経路・状態コード・必須項目を書き、API契約を先に固められる"
+    },
+    {
+      "id": "ch73-o3",
+      "text": "機能とデータの対応表から、誰も作らないデータと誰も読まないデータを見つけられる"
+    },
+    {
+      "id": "ch73-o4",
+      "text": "状態遷移の表と契約の新旧を当てて、許されない遷移と利用側を壊す変更を見分けられる"
+    },
+    {
+      "id": "ch73-o5",
+      "text": "設計の決定を、選ばなかった案とその理由まで含めて残せる"
+    }
+  ],
+  "lessons": [
+    {
+      "id": "73-1",
+      "title": "外部設計で決めること",
+      "lessonType": "concept",
+      "objectiveIds": [
+        "ch73-o1"
+      ],
+      "explanation": "## 外から見えるものを先に決める\n\n基本設計（外部設計）で決めるのは、**外から見える取り決め**です。利用者から見えるもの、他システムから見えるもの、運用担当から見えるものが対象になります。\n\n| 決めるもの | 中身 |\n|---|---|\n| 画面 | 項目、入力の制限、遷移、エラーの見せ方 |\n| 帳票・出力 | 項目、並び順、単位、丸め方、文字コード |\n| API | 経路、要求と応答の項目、状態コード、エラーの形 |\n| データ | どんな表を持ち、何をキーにするか、どこまで残すか |\n| バッチ | いつ動くか、失敗したらどうするか、二重起動を防ぐか |\n| 外部連携 | どの相手と、どの形式で、どの頻度でやりとりするか |\n| 権限 | 誰が何を見られるか、何を変えられるか |\n| 非機能の方針 | 可用性・性能の目標をどう実現するか（第72章で決めた数を、どう満たすか） |\n\n**ここが決まっていないと、詳細設計に入れません。** 逆にここが決まっていれば、中身は後から差し替えられます。\n\n## 決める順番\n\n事前注文なら、次の順が組みやすいです。\n\n1. **データ** … 何を保存するかが決まらないと、画面もAPIも決まりません\n2. **API** … 画面と他システムの両方から使うので、画面より先に決めます\n3. **画面** … APIで取れるものを、どう並べて見せるかを決めます\n\nただし、**利用者に見せて反応を見たい場合は画面から始めます**（画面の紙芝居を作って確かめ、そこからAPIとデータへ戻る）。どちらでも、最後には3つがそろって矛盾していないことを確かめます。\n\n## 命名規約は最初に決める\n\n表の名前、列の名前、APIの経路、状態コードの使い分け。これらは**あとから直すと影響範囲が広い**ので、最初に決めて文書に残します。\n\n- 表の名前は複数形か単数形か（`orders` か `order` か）\n- 日時の列名は何で終わるか（`created_at` か `create_date` か）\n- 一覧を返す経路は複数形か（`/orders` か `/order/list` か）\n\n**どちらが正しいかより、そろっていることが効きます。** 途中で混ざると、読む人が毎回確かめることになります。\n\n## 誰にレビューしてもらうか\n\n基本設計のレビュー相手は、**その取り決めを外から使う人**です。\n\n| 決めたもの | レビューしてもらう相手 |\n|---|---|\n| 画面・帳票 | 利用部門（実際に使う人） |\n| API・外部連携 | 相手システムの担当者 |\n| データの保持期間 | 業務の責任者（法令や監査の要求がある） |\n| 運用の見え方 | 運用担当 |\n\n開発の内部だけでレビューすると、「使う側から見て足りないもの」が見つかりません。**外から見える取り決めなのだから、外の人に見てもらいます。**\n\n> 基本設計と詳細設計の線引きに迷ったら、「これは外から見えるか」に戻します。見えるなら基本設計です。外から見えない選択（どのクラスに分けるか、どのSQLを投げるか）は、あとから差し替えられるので詳細設計です。\n",
+      "quiz": [
+        {
+          "question": "基本設計（外部設計）で決めるものはどれでしょう。",
+          "choices": [
+            "注文一覧のAPIが返す項目と、その状態コードの使い分け",
+            "注文一覧を作るクラスの分け方と、呼び出しの順番",
+            "注文一覧のSQLが使う索引と、取得する件数の上限",
+            "注文一覧の処理が失敗したときの、途中記録の戻し方"
+          ],
+          "answer": 0,
+          "explanation": "クラスの分け方、SQLと索引、失敗したときの戻し方は、どれも外から見えないので詳細設計です。APIが返す項目と状態コードは、利用側から見える取り決めなので基本設計で決めます。"
+        },
+        {
+          "question": "データ・API・画面を決める順番として、組みやすいのはどれでしょう。",
+          "choices": [
+            "画面 → データ → API の順で決めていく",
+            "データ → API → 画面 の順で決めていく",
+            "API → 画面 → データ の順で決めていく",
+            "3つを別々の担当が独立して決めていく"
+          ],
+          "answer": 1,
+          "explanation": "画面から始める進め方もありますが、その場合も最後にAPIとデータへ戻ります。APIを先に決めても、保存するものが決まっていなければ項目が定まりません。別々に独立して決めると、繋いだときに食い違います。何を保存するかを決め、次にAPI、最後に画面が組みやすい順です。"
+        },
+        {
+          "question": "命名規約を最初に決めておく理由はどれでしょう。",
+          "choices": [
+            "名前の付け方には、言語ごとに正解が決まっているから",
+            "名前が短いほうが、処理の速さが上がっていくから",
+            "あとから直すと、影響する場所が広くなってしまうから",
+            "規約があると、設計書の枚数を減らせるようになるから"
+          ],
+          "answer": 2,
+          "explanation": "命名に唯一の正解はなく、そろっていることが効きます。名前の長さは処理の速さと関係しません。設計書の枚数も減りません。表の名前や経路の付け方は、あとから直すと利用側まで波及します。"
+        },
+        {
+          "question": "画面と帳票の基本設計を、いちばんレビューしてもらうとよい相手はどれでしょう。",
+          "choices": [
+            "同じ案件で詳細設計を担当している開発の担当者",
+            "運用を引き継ぐ予定の、監視の担当者",
+            "相手システムとの連携を担当している担当者",
+            "実際にその画面と帳票を使う利用部門の担当者"
+          ],
+          "answer": 3,
+          "explanation": "詳細設計の担当者は中身を見ますが、使う側から見た抜けは分かりません。監視の担当者は運用の見え方、相手システムの担当者はAPIと連携の取り決めを見ます。画面と帳票は使う人にレビューしてもらいます。"
+        },
+        {
+          "question": "「これは基本設計か詳細設計か」を判断するときの問いはどれでしょう。",
+          "choices": [
+            "外から見えるかどうか",
+            "実装するのに時間がかかるかどうか",
+            "何人の担当者が関わるかどうか",
+            "文書の枚数が増えるかどうか"
+          ],
+          "answer": 0,
+          "explanation": "工数や担当者の人数、文書の枚数は、どちらの設計でも変わります。外から見えるなら基本設計、見えないなら詳細設計です。見えないものは、あとから差し替えられます。"
+        },
+        {
+          "question": "基本設計を開発の内部だけでレビューしたときに起きやすいことはどれでしょう。",
+          "choices": [
+            "クラスの分け方が、層をまたいで混ざってしまう",
+            "使う側から見て足りない項目が、見つからずに残る",
+            "SQLの索引が使われず、一覧の表示が遅くなる",
+            "命名規約が、途中から2種類に分かれてしまう"
+          ],
+          "answer": 1,
+          "explanation": "クラスの分け方やSQLの索引は詳細設計の話で、内部のレビューでこそ見つかります。命名規約の揺れも内部で気づけます。使う側から見た抜けは、使う人に見てもらわないと出てきません。"
+        }
+      ]
+    },
+    {
+      "id": "73-2",
+      "title": "API契約を先に決める",
+      "objectiveIds": [
+        "ch73-o2"
+      ],
+      "explanation": "## 契約を先に決めると、並行して作れる\n\nAPIの取り決め（**契約**）を先に固めると、画面を作る人とサーバーを作る人が同時に動けます。契約が無いまま両方が進むと、繋いだ瞬間に食い違いが出ます。\n\n契約に書くのは次の5つです。\n\n1. **経路とメソッド** … `POST /preorders`\n2. **要求の項目** … 名前、型、必須かどうか\n3. **応答の項目** … 名前、型、必須かどうか\n4. **状態コード** … 成功と失敗をどう返すか\n5. **エラーの形** … どの項目に何を入れるか\n\n## 状態コードは使い分けを決める\n\n| 状態コード | 使うところ |\n|---|---|\n| 201 | 作成に成功した（作ったものの場所や識別子を返す） |\n| 400 | 入力が不正（項目が足りない、形式が違う、範囲外） |\n| 401 / 403 | 認証が無い / 権限が無い |\n| 404 | 対象が無い |\n| 409 | 状態が合わない（支払い済みの注文を取り消そうとした、在庫が足りない） |\n| 500 | 予期しない失敗（利用側が直せない） |\n\n**作成の成功に200を返すか201を返すかは、決めておかないと混ざります。** どちらでも動きますが、混ざると利用側が両方を書くことになります。\n\n## 必須かどうかは、あとから変えにくい\n\n`required` に項目を足すのは、**利用側を壊す変更**です。既に動いている利用側はその項目を送っていないので、足した瞬間に400になります。\n\n| 変更 | 利用側への影響 |\n|---|---|\n| 応答へ項目を足す | 壊れない（知らない項目は無視できる） |\n| 応答の必須項目を消す | 壊れる（あると決めて読んでいる） |\n| 応答の必須をやめて任意にする | 壊れる（入っていない応答が来る） |\n| 応答の任意項目を消す | 壊れない（無い場合に備えてある） |\n| 応答の項目の型を変える | 壊れる |\n| 要求の必須項目を足す | 壊れる |\n| 要求の任意項目を足す | 壊れない |\n\nだから**契約は最初に広く決めておき、あとから狭めない**ようにします。互換性の判定は章末演習で書きます。\n\n## OpenAPIで書く\n\n契約は文章でも書けますが、機械が読める形にしておくと、利用側のコード生成、入力の検証、試験の自動生成に使えます。よく使われる形式が **OpenAPI** です（第56章でも扱います）。\n\n```json\n{\n  \"openapi\": \"3.1.0\",\n  \"paths\": {\n    \"/preorders\": {\n      \"post\": {\n        \"operationId\": \"createPreorder\",\n        \"requestBody\": { \"required\": true, \"content\": { \"…\": \"…\" } },\n        \"responses\": { \"201\": { \"…\": \"…\" }, \"400\": { \"…\": \"…\" } }\n      }\n    }\n  }\n}\n```\n\nこの問題では、事前注文の契約を実際に書き足します。\n",
+      "type": "artifact",
+      "task": "事前注文のAPI契約を `api/preorders.json` へ書き足してください。ひな形には`openapi`と`info`、それに空の`paths`と、項目が1つだけの`PreorderRequest`が入っています。\n\n次の6つを満たす形にします。\n\n1. `info.version` を `1.0.0` にする\n2. `paths` へ `/preorders` の `post` を足し、`operationId` を `createPreorder` にする\n3. `post` の `responses` に `201`・`400`・`409` の3つを置く（`description` の文はそのままでも構いません）\n4. `post` の `requestBody` に `\"required\": true` を書き、`PreorderRequest` を参照する\n5. `PreorderRequest` の `properties` へ、次の3項目をそろえる\n   - `storeId` … `\"type\": \"integer\"`\n   - `items` … `\"type\": \"array\"`\n   - `pickupAt` … `\"type\": \"string\"` と `\"format\": \"date-time\"`\n6. `PreorderRequest` の `required` に `storeId`・`items`・`pickupAt` の3つを入れる\n\n`201` は作成の成功、`400` は入力が不正、`409` は在庫が足りないなど状態が合わないときに使います。`pickupAt`（受け取り時刻）は日時なので、`string` に `date-time` の形式を添えます。\n\nJSONとして読めない状態では採点できません。カンマと括弧の対応に注意してください。\n",
+      "starterContent": "{\n  \"openapi\": \"3.1.0\",\n  \"info\": {\n    \"title\": \"Preorders API\",\n    \"version\": \"0.1.0\"\n  },\n  \"paths\": {\n  },\n  \"components\": {\n    \"schemas\": {\n      \"PreorderRequest\": {\n        \"type\": \"object\",\n        \"properties\": {\n          \"storeId\": { \"type\": \"integer\" }\n        }\n      }\n    }\n  }\n}\n",
+      "artifact": {
+        "path": "api/preorders.json",
+        "format": "json",
+        "checks": [
+          {
+            "type": "jsonPointer",
+            "expression": "/info/version",
+            "expected": "1.0.0",
+            "message": "info.version を 1.0.0 にする"
+          },
+          {
+            "type": "jsonPointer",
+            "expression": "/paths/~1preorders/post/operationId",
+            "expected": "createPreorder",
+            "message": "/preorders の post に operationId createPreorder を書く"
+          },
+          {
+            "type": "regex",
+            "expression": "\"201\"\\s*:",
+            "message": "作成の成功として 201 を返す"
+          },
+          {
+            "type": "regex",
+            "expression": "\"400\"\\s*:",
+            "message": "入力が不正なときの 400 を置く"
+          },
+          {
+            "type": "regex",
+            "expression": "\"409\"\\s*:",
+            "message": "状態が合わないときの 409 を置く"
+          },
+          {
+            "type": "regex",
+            "expression": "\"requestBody\"[\\s\\S]{0,200}?\"required\"\\s*:\\s*true",
+            "message": "requestBody に \"required\": true を書く"
+          },
+          {
+            "type": "regex",
+            "expression": "\"\\$ref\"\\s*:\\s*\"#/components/schemas/PreorderRequest\"",
+            "message": "requestBody から PreorderRequest を参照する"
+          },
+          {
+            "type": "jsonPointer",
+            "expression": "/components/schemas/PreorderRequest/properties/storeId/type",
+            "expected": "integer",
+            "message": "storeId は type integer のまま残す"
+          },
+          {
+            "type": "jsonPointer",
+            "expression": "/components/schemas/PreorderRequest/properties/items/type",
+            "expected": "array",
+            "message": "items を type array で足す"
+          },
+          {
+            "type": "jsonPointer",
+            "expression": "/components/schemas/PreorderRequest/properties/pickupAt/type",
+            "expected": "string",
+            "message": "pickupAt を type string で足す"
+          },
+          {
+            "type": "jsonPointer",
+            "expression": "/components/schemas/PreorderRequest/properties/pickupAt/format",
+            "expected": "date-time",
+            "message": "pickupAt に format date-time を添える"
+          },
+          {
+            "type": "regex",
+            "expression": "\"required\"\\s*:\\s*\\[(?=[^\\]]*\"storeId\")(?=[^\\]]*\"items\")(?=[^\\]]*\"pickupAt\")",
+            "message": "required に storeId・items・pickupAt の3つを入れる"
+          }
+        ]
+      },
+      "hints": [
+        "`paths` の下は `\"/preorders\": { \"post\": { … } }` の形です。経路の名前がキーになります。",
+        "`required` は `PreorderRequest` の直下に置く配列です（`properties` の中ではありません）。`requestBody` の `\"required\": true` とは別のものです。"
+      ],
+      "solution": "{\n  \"openapi\": \"3.1.0\",\n  \"info\": {\n    \"title\": \"Preorders API\",\n    \"version\": \"1.0.0\"\n  },\n  \"paths\": {\n    \"/preorders\": {\n      \"post\": {\n        \"operationId\": \"createPreorder\",\n        \"summary\": \"来店前の注文を受け付ける\",\n        \"requestBody\": {\n          \"required\": true,\n          \"content\": {\n            \"application/json\": {\n              \"schema\": { \"$ref\": \"#/components/schemas/PreorderRequest\" }\n            }\n          }\n        },\n        \"responses\": {\n          \"201\": { \"description\": \"受け付けた\" },\n          \"400\": { \"description\": \"入力が不正\" },\n          \"409\": { \"description\": \"在庫が足りない\" }\n        }\n      }\n    }\n  },\n  \"components\": {\n    \"schemas\": {\n      \"PreorderRequest\": {\n        \"type\": \"object\",\n        \"properties\": {\n          \"storeId\": { \"type\": \"integer\" },\n          \"items\": { \"type\": \"array\" },\n          \"pickupAt\": { \"type\": \"string\", \"format\": \"date-time\" }\n        },\n        \"required\": [\"storeId\", \"items\", \"pickupAt\"]\n      }\n    }\n  }\n}\n",
+      "rubric": [
+        "decide"
+      ],
+      "quiz": [
+        {
+          "question": "作成に成功したときに返す状態コードとして、契約で決めておくとよいのはどれでしょう。",
+          "choices": [
+            "204",
+            "302",
+            "201",
+            "409"
+          ],
+          "answer": 2,
+          "explanation": "204は本文を返さないとき、302は別の場所へ案内するとき、409は状態が合わないときに使います。作成の成功には201を使い、どちらを使うか決めておかないと利用側が両方に備えることになります。"
+        },
+        {
+          "question": "すでに動いている利用側を壊す契約変更はどれでしょう。",
+          "choices": [
+            "応答に、新しい任意の項目を1つ足す",
+            "応答の説明文を、詳しい言い方へ直す",
+            "要求に、新しい任意の項目を1つ足す",
+            "要求に、新しい必須の項目を1つ足す"
+          ],
+          "answer": 3,
+          "explanation": "応答へ項目を足しても、利用側は知らない項目を無視できます。説明文の変更は動きに影響しません。要求の任意項目も送らなくて済みます。要求の必須項目を足すと、その項目を送っていない利用側がその瞬間から弾かれます。"
+        }
+      ]
+    },
+    {
+      "id": "73-3",
+      "title": "機能とデータの対応を確かめる",
+      "objectiveIds": [
+        "ch73-o3"
+      ],
+      "explanation": "## 誰が作り、誰が読むのかを並べる\n\nデータを決めたら、**そのデータをどの機能が作り、読み、更新し、消すのか**を表にします。よく使うのが CRUD表（Create / Read / Update / Delete）です。\n\n| 機能 \\ データ | 注文 | 在庫 | 監査ログ |\n|---|---|---|---|\n| 事前注文の登録 | C | R | C |\n| 注文一覧 | R | | |\n| 取り消し | U | U | C |\n| 在庫調整 | | U | C |\n\nこの表を作ると、設計の抜けが2種類見つかります。\n\n- **誰も作らないデータ** … R や U はあるのに C が無い。どこから来るのかが決まっていません\n- **誰も読まないデータ** … C はあるのに R が無い。作る意味が説明できません\n\n**どちらも「即座に誤り」ではありません。** 在庫のように別システムが作るデータなら C が無いのが正しく、そのときは「在庫マスタは在庫管理システムが作る」と設計に書きます。監査ログのように後で人が見るだけのデータなら R が無いこともあり、そのときは「誰がどうやって読むのか」を運用の側に書きます。\n\n**表が教えるのは「説明が要る場所」で、答えそのものではありません。**\n\n## 表を作ると分かること\n\n- **1つのデータを更新する機能が多すぎる** … 整合性を保つ場所が散っています。1か所へ寄せられないかを考えます\n- **1つの機能が多くのデータを触る** … その機能が大きすぎるか、責務が混ざっています\n- **削除が1つも無い** … 消さない方針なのか、決めていないだけなのかを確かめます（保持期間は第72章の非機能要件）\n\n## 消さない設計\n\n業務のデータは、消さずに「消したことにする」ことが多いです（`cancelled_at` に時刻を入れる、`deleted` の列を立てる）。\n\n- 監査で「いつ誰が何をしたか」を追えるようにするため\n- 誤って消したときに戻せるようにするため\n- 集計の対象から外すだけでよい場合が多いため\n\nそのとき CRUD表の D は空になり、代わりに U が立ちます。**表の見た目より、なぜそうなっているかを書き残すことが大事です。**\n",
+      "task": "機能とデータの対応表から、説明が要る場所を洗い出してください。\n\n入力の1行目は行数n、続くn行が `機能名 データ名 操作` です。操作は `C` `R` `U` `D` のどれか1文字で、同じ機能とデータの組が複数回出てくることもあります。名前に空白は入りません。\n\n```\n5\n事前注文の登録 注文 C\n注文一覧 注文 R\n事前注文の登録 在庫 R\n在庫調整 在庫 U\n監査ログ出力 監査ログ C\n```\n\n次の2つを見つけます。\n\n1. **誰も作らないデータ** … `C` が1つも無いデータ\n2. **誰も読まないデータ** … `R` が1つも無いデータ\n\n出力の1行目は、どちらも0件なら `OK`、1件以上あれば `NG` です。\n\n続けて、データ名の**昇順**に次を並べます。同じデータが両方に当たるときは、`NOCREATE` を先に出します。\n\n- `NOCREATE <データ名>`\n- `NOREAD <データ名>`\n\n最後の行に `データ <出てきたデータの数>` を表示してください。\n\n上の例の答えはこうなります。\n\n```\nNG\nNOCREATE 在庫\nNOREAD 監査ログ\nデータ 3\n```\n",
+      "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int n = Integer.parseInt(sc.nextLine().trim());\n        Map<String, Set<String>> operations = new TreeMap<>();\n        for (int i = 0; i < n; i++) {\n            String[] parts = sc.nextLine().trim().split(\"\\\\s+\");\n            /* TODO データ名ごとに、出てきた操作（C/R/U/D）を集める */\n        }\n        /* TODO C が無いデータ、R が無いデータを集める */\n        /* TODO OK / NG を表示し、データ名の昇順に並べ、最後にデータの数を表示する */\n    }\n}\n",
+      "visibleCases": [
+        {
+          "label": "作られないデータと読まれないデータが1つずつ",
+          "stdin": "5\n事前注文の登録 注文 C\n注文一覧 注文 R\n事前注文の登録 在庫 R\n在庫調整 在庫 U\n監査ログ出力 監査ログ C\n",
+          "expected": "NG\nNOCREATE 在庫\nNOREAD 監査ログ\nデータ 3"
+        },
+        {
+          "label": "すべてのデータに作成と参照がある",
+          "stdin": "4\n登録 注文 C\n一覧 注文 R\n登録 在庫 C\n引当 在庫 R\n",
+          "expected": "OK\nデータ 2"
+        }
+      ],
+      "hiddenCases": [
+        {
+          "label": "同じデータが作成も参照も無い（両方に当たる）",
+          "stdin": "2\n取り消し 注文 U\n取り消し 注文 D\n",
+          "expected": "NG\nNOCREATE 注文\nNOREAD 注文\nデータ 1"
+        },
+        {
+          "label": "同じ機能とデータの組が複数回出てくる",
+          "stdin": "4\n登録 注文 C\n登録 注文 C\n一覧 注文 R\n一覧 注文 R\n",
+          "expected": "OK\nデータ 1"
+        },
+        {
+          "label": "データ名の昇順に並べ替える",
+          "stdin": "3\n出力 監査ログ C\n調整 在庫 U\n登録 注文 C\n",
+          "expected": "NG\nNOCREATE 在庫\nNOREAD 在庫\nNOREAD 注文\nNOREAD 監査ログ\nデータ 3"
+        },
+        {
+          "label": "行が1つだけ",
+          "stdin": "1\n登録 注文 C\n",
+          "expected": "NG\nNOREAD 注文\nデータ 1"
+        }
+      ],
+      "hints": [
+        "`Map<String, Set<String>>` にデータ名ごとの操作を集めると、`contains(\"C\")` で判定できます。",
+        "`TreeMap` を使えば、取り出すときにデータ名の昇順になっています。1つのデータが両方に当たるときは、`NOCREATE` を先に足します。"
+      ],
+      "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int n = Integer.parseInt(sc.nextLine().trim());\n        Map<String, Set<String>> operations = new TreeMap<>();\n        for (int i = 0; i < n; i++) {\n            String[] parts = sc.nextLine().trim().split(\"\\\\s+\");\n            operations.computeIfAbsent(parts[1], key -> new LinkedHashSet<>()).add(parts[2]);\n        }\n\n        List<String> problems = new ArrayList<>();\n        for (Map.Entry<String, Set<String>> entry : operations.entrySet()) {\n            if (!entry.getValue().contains(\"C\")) {\n                problems.add(\"NOCREATE \" + entry.getKey());\n            }\n            if (!entry.getValue().contains(\"R\")) {\n                problems.add(\"NOREAD \" + entry.getKey());\n            }\n        }\n\n        System.out.println(problems.isEmpty() ? \"OK\" : \"NG\");\n        problems.forEach(System.out::println);\n        System.out.println(\"データ \" + operations.size());\n    }\n}\n",
+      "quiz": [
+        {
+          "question": "CRUD表で、あるデータに `R` と `U` はあるのに `C` が無いと分かりました。この状態の読み方はどれでしょう。",
+          "choices": [
+            "どこから来るデータかを、説明する必要がある",
+            "設計の誤りなので、作成する機能をすぐ足す",
+            "そのデータは使われていないので、消してよい",
+            "更新の機能を、作成の機能へ書き換えるべきだ"
+          ],
+          "answer": 0,
+          "explanation": "別システムが作るデータなら、作成する機能が無いのが正しい姿です。読まれているので使われていないわけでもなく、更新を作成へ書き換える話でもありません。表が教えるのは「説明が要る場所」です。"
+        },
+        {
+          "question": "業務のデータを実際には消さず、`cancelled_at` に時刻を入れる設計にする理由はどれでしょう。",
+          "choices": [
+            "表の行数が減って、検索が速くなるようにするため",
+            "いつ誰が何をしたかを、あとから追えるようにするため",
+            "削除の権限を、誰にも与えなくて済むようにするため",
+            "CRUD表の `D` の列を、空欄にせず埋めておくため"
+          ],
+          "answer": 1,
+          "explanation": "行は減らないので検索が速くなることはありません。権限の設計は別に決めます。表の列を埋めるためでもなく、`D` はむしろ空になります。監査で履歴を追えるようにし、誤って消したときに戻せるようにするためです。"
+        }
+      ]
+    },
+    {
+      "id": "73-4",
+      "title": "詳細設計と設計判断の記録",
+      "lessonType": "concept",
+      "objectiveIds": [
+        "ch73-o5"
+      ],
+      "explanation": "## 詳細設計は、外から見えない選択を決める\n\n基本設計で「外から見える取り決め」が固まったら、詳細設計では**その中をどう作るか**を決めます。\n\n| 決めるもの | 例 |\n|---|---|\n| クラスの分け方 | 検証・業務判断・保存を、どの層のどのクラスが持つか（第21章） |\n| 処理の順番 | 入力検証 → 存在確認 → 権限 → 状態 の順で見る |\n| SQL | どの表を結合するか、索引を使えるか、何件取るか |\n| 失敗したときの戻し方 | どこまで戻すか、途中の記録は残すか |\n| 排他 | 同時に来たときどちらを通すか（第27章） |\n\n## どこまで書くかを決める\n\n詳細設計書に**コードと同じ内容を書くと、二重に持つことになります**。コードを直すたびに文書も直す作業が増え、やがて文書だけが古くなります。\n\n| 書く | 書かない |\n|---|---|\n| なぜその分け方にしたか | 変数の宣言、getterの一覧 |\n| どの順で確かめるか（順番に意味があるとき） | 1行ずつの日本語訳 |\n| 失敗したときにどう戻すか | コードを読めば分かる分岐 |\n| 性能のために何を選んだか（索引、まとめ取り） | メソッドの引数の型（署名を見れば分かる） |\n\n**判断の基準は「コードを読んでも分からないことか」です。** 分かることは書きません。分からないのは、**選ばなかった案**と**その理由**です。\n\n## 決定を残す（ADR）\n\n設計の決定は、あとから必ず問い直されます。「なぜこの方式にしたのか」が残っていないと、変えていいのか判断できません。決定を1件ずつ短く残す形が **ADR**（Architecture Decision Record）です（第63章で実際に書きます）。\n\n1件に書くのは4つです。\n\n| 項目 | 中身 |\n|---|---|\n| 決めたこと | 事前注文の在庫確保は、注文の保存と同じトランザクションで行う |\n| 背景 | 在庫が足りないのに受け付けると、店で渡せず苦情になる |\n| 選ばなかった案とその理由 | 非同期で後から確保する案 … 受付から確保までの間に売り切れる。先に在庫を予約する案 … 予約の期限切れの管理が増える |\n| 影響 | 在庫システムが遅いと注文の応答も遅くなる。応答時間の目標（第72章）へ跳ね返る |\n\n**いちばん大事なのは3つ目です。** 選ばなかった案が書かれていないと、あとから同じ案が「良い考え」として何度も出てきます。書いてあれば「その案は◯◯の理由で見送った」と1行で返せます。\n\n## 決定が残らないと、変えられなくなる\n\n理由の分からない実装は、**触ると危ないもの**として扱われます。誰も理由を知らないので、消してよいか判断できず、そのまま残ります。理由が残っていれば、その理由がもう成り立たないと分かった時点で消せます。\n\n> 「あとで書く」で残らなかった設計判断は、**次に触る人の時間を借りている**状態です。借りは利子付きで返すことになります。\n",
+      "quiz": [
+        {
+          "question": "詳細設計書に書かないほうがよいのはどれでしょう。",
+          "choices": [
+            "入力検証・存在確認・権限・状態を見ていく順番",
+            "失敗したときに、どこまで戻して何を記録に残すか",
+            "変数の宣言と、getterの一覧をそのまま並べたもの",
+            "一覧の取得で、まとめ取りのほうを選んだ理由"
+          ],
+          "answer": 2,
+          "explanation": "確かめる順番、失敗したときの戻し方、性能のための選択は、どれもコードを読んでも意図が分かりません。変数の宣言とgetterの一覧はコードを読めば分かるので、書くと二重に持つことになり、やがて文書だけが古くなります。"
+        },
+        {
+          "question": "ADR（設計判断の記録）で、いちばん後から効くのはどの項目でしょう。",
+          "choices": [
+            "決めたことを、短い文で言い直したもの",
+            "決めた日付と、その場にいた人の名前",
+            "決定を書いた文書の、章と節の番号",
+            "選ばなかった案と、選ばなかった理由"
+          ],
+          "answer": 3,
+          "explanation": "決めたことの言い直しはコードや設計書から読み取れます。日付や参加者、章番号は記録として要りますが、判断には効きません。選ばなかった案が書かれていないと、同じ案が何度も「良い考え」として出てきます。"
+        },
+        {
+          "question": "理由の分からない実装が残り続けるのはなぜでしょう。",
+          "choices": [
+            "消してよいか判断できず、触ると危ないものとして扱われるから",
+            "その実装だけ、書き換えるのに人手と時間がかかるから",
+            "その実装が、いちばん性能の良い書き方だと信じられているから",
+            "その実装を書いた担当者が、変更を強く止めているから"
+          ],
+          "answer": 0,
+          "explanation": "書き換えの手間や性能の良さが理由ではありません。担当者が止めているわけでもなく、たいていその人はもういません。理由が分からないので、消すと何が起きるか判断できず、そのまま残ります。"
+        },
+        {
+          "question": "詳細設計に書くかどうかの判断基準はどれでしょう。",
+          "choices": [
+            "実装より先に書けるものであるかどうか",
+            "コードを読んでも分からないことかどうか",
+            "文書の分量として足りているかどうか",
+            "レビューする人が読みたがる内容かどうか"
+          ],
+          "answer": 1,
+          "explanation": "実装より先に書けるかは順番の話で、書くかどうかとは別です。分量を基準にすると、埋めるための文章が増えます。読みたがるかどうかは人によって変わります。コードを読めば分かることは書かず、分からないこと（理由と選択）を書きます。"
+        },
+        {
+          "question": "ADRに書いた「影響」の欄が役に立つ場面はどれでしょう。",
+          "choices": [
+            "その決定を書いた人の担当していた範囲を確かめるとき",
+            "その決定の文が、書き方の規約どおりか確かめるとき",
+            "その決定が、別の目標へ跳ね返るかを確かめるとき",
+            "その決定を書いた日付の古い順に並べ替えるとき"
+          ],
+          "answer": 2,
+          "explanation": "担当範囲や書き方の規約、日付の並べ替えは記録の管理の話です。影響の欄には「在庫システムが遅いと注文の応答も遅くなる」のような跳ね返りを書きます。応答時間の目標と衝突していないかを、あとから確かめられます。"
+        },
+        {
+          "question": "「あとで書く」と言って設計判断を残さなかったとき、実際に起きることはどれでしょう。",
+          "choices": [
+            "設計書の枚数が減り、レビューの時間が短くなる",
+            "実装した本人が、あとから正確に思い出して書ける",
+            "文書と実装の食い違いが、これ以上増えなくなる",
+            "次に触る人が、理由を調べ直す時間を使うことになる"
+          ],
+          "answer": 3,
+          "explanation": "レビューの時間は短くなりますが、その分は後で誰かが払います。本人も数か月後には理由を正確に思い出せません。食い違いは増えないかわりに、そもそも記録がありません。結果として、次に触る人が調べ直す時間を負担します。"
+        }
+      ]
+    },
+    {
+      "id": "73-5",
+      "title": "章末演習：取り決めを機械で守る",
+      "objectiveIds": [
+        "ch73-o4"
+      ],
+      "explanation": "## 決めた取り決めを、機械で守る\n\n章末では、設計の取り決めを実際に当てます。\n\n- 1問目 … 許された状態遷移の表を当てて、**起きてはいけない遷移**を見つける\n- 2問目 … 旧い契約と新しい契約を比べて、**利用側を壊す変更**を見つける\n\n1問目の状態遷移は、基本設計で決める中心のひとつです。「支払い済みの注文は取り消せない」は、状態遷移の表で表せば1行で済みます。文章で書くと条件が散り、抜けます。\n\n2問目は、契約を変えるときに毎回必要な判定です（第63章の「壊さないAPI契約の更新」と同じ観点）。**応答の必須項目を消す・必須をやめる・型を変えるのは壊す変更**で、項目を足すことと、任意項目を消すことは壊しません。\n\n> どちらも判定は機械にできますが、**表そのものが正しいかは人が決めます**。許された遷移が足りなければ、正しい操作も不正と判定されます。\n",
+      "task": "許された状態遷移の表を当てて、起きてはいけない遷移を見つけてください。\n\n入力は2つの部分に分かれます。\n\n```\n3\nNEW PAID\nNEW CANCELLED\nPAID DONE\n4\nA-1 NEW PAID\nA-1 PAID DONE\nA-2 NEW CANCELLED\nA-2 CANCELLED PAID\n```\n\n前半の1行目は許された遷移の数n、続くn行が `元の状態 次の状態` です。後半の1行目は記録の数m、続くm行が `注文ID 元の状態 次の状態` です。\n\n出力の1行目は、許されない遷移が0件なら `OK`、1件以上あれば `NG` です。続けて、**入力の順**に許されない遷移だけを `NG <注文ID> <元の状態> <次の状態>` と表示します。\n\n最後の行に `不正 <件数>/<記録の総数>` を表示してください。\n\n上の例の答えはこうなります。\n\n```\nNG\nNG A-2 CANCELLED PAID\n不正 1/4\n```\n",
+      "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int n = Integer.parseInt(sc.nextLine().trim());\n        Set<String> allowed = new HashSet<>();\n        for (int i = 0; i < n; i++) {\n            String[] parts = sc.nextLine().trim().split(\"\\\\s+\");\n            /* TODO 「元の状態 -> 次の状態」の組を集める */\n        }\n        int m = Integer.parseInt(sc.nextLine().trim());\n        List<String> problems = new ArrayList<>();\n        for (int i = 0; i < m; i++) {\n            String[] parts = sc.nextLine().trim().split(\"\\\\s+\");\n            /* TODO 許された組に無ければ problems へ足す */\n        }\n        /* TODO OK / NG、許されない遷移、不正の件数を表示する */\n    }\n}\n",
+      "visibleCases": [
+        {
+          "label": "取り消し後の支払いが記録されている",
+          "stdin": "3\nNEW PAID\nNEW CANCELLED\nPAID DONE\n4\nA-1 NEW PAID\nA-1 PAID DONE\nA-2 NEW CANCELLED\nA-2 CANCELLED PAID\n",
+          "expected": "NG\nNG A-2 CANCELLED PAID\n不正 1/4"
+        },
+        {
+          "label": "すべて許された遷移",
+          "stdin": "2\nNEW PAID\nPAID DONE\n2\nA-1 NEW PAID\nA-1 PAID DONE\n",
+          "expected": "OK\n不正 0/2"
+        }
+      ],
+      "hiddenCases": [
+        {
+          "label": "同じ状態への遷移が許されていない",
+          "stdin": "1\nNEW PAID\n2\nA-1 NEW NEW\nA-1 NEW PAID\n",
+          "expected": "NG\nNG A-1 NEW NEW\n不正 1/2"
+        },
+        {
+          "label": "記録のすべてが許されていない",
+          "stdin": "1\nNEW PAID\n2\nA-1 PAID CANCELLED\nA-2 DONE NEW\n",
+          "expected": "NG\nNG A-1 PAID CANCELLED\nNG A-2 DONE NEW\n不正 2/2"
+        },
+        {
+          "label": "許された遷移が1つだけで記録も1つ",
+          "stdin": "1\nNEW CANCELLED\n1\nA-9 NEW CANCELLED\n",
+          "expected": "OK\n不正 0/1"
+        },
+        {
+          "label": "戻る遷移が許されている",
+          "stdin": "2\nNEW PAID\nPAID NEW\n3\nA-1 NEW PAID\nA-1 PAID NEW\nA-1 NEW DONE\n",
+          "expected": "NG\nNG A-1 NEW DONE\n不正 1/3"
+        }
+      ],
+      "hints": [
+        "許された遷移は `元の状態 + \">\" + 次の状態` の文字列にして `Set` へ入れると、1回の `contains` で判定できます。",
+        "許されない遷移だけを並べます。記録の総数は、許された遷移の数ではなく後半の行数です。"
+      ],
+      "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int n = Integer.parseInt(sc.nextLine().trim());\n        Set<String> allowed = new HashSet<>();\n        for (int i = 0; i < n; i++) {\n            String[] parts = sc.nextLine().trim().split(\"\\\\s+\");\n            allowed.add(parts[0] + \">\" + parts[1]);\n        }\n        int m = Integer.parseInt(sc.nextLine().trim());\n        List<String> problems = new ArrayList<>();\n        for (int i = 0; i < m; i++) {\n            String[] parts = sc.nextLine().trim().split(\"\\\\s+\");\n            if (!allowed.contains(parts[1] + \">\" + parts[2])) {\n                problems.add(\"NG \" + parts[0] + \" \" + parts[1] + \" \" + parts[2]);\n            }\n        }\n        System.out.println(problems.isEmpty() ? \"OK\" : \"NG\");\n        problems.forEach(System.out::println);\n        System.out.println(\"不正 \" + problems.size() + \"/\" + m);\n    }\n}\n",
+      "extraTasks": [
+        {
+          "kind": "applied",
+          "objectiveIds": [
+            "ch73-o4"
+          ],
+          "task": "応答の契約を新旧で比べて、利用側を壊す変更を見つけてください。\n\n入力は2つの部分に分かれます。前半が旧い契約、後半が新しい契約です。\n\n```\n3\norderId integer required\nstoreName string required\nnote string optional\n3\norderId integer required\nstoreName string optional\npickupAt string required\n```\n\nそれぞれ1行目は項目の数、続く行が `項目名 型 required|optional` です。\n\n壊す変更は次の3つです。\n\n- `REMOVED <項目名>` … 旧で `required` だった項目が、新しい契約に無い\n- `WEAKENED <項目名>` … 旧で `required` だった項目が、新しい契約で `optional` になっている\n- `TYPECHANGED <項目名> <旧の型> <新の型>` … 両方にあるが型が違う\n\n旧で `optional` だった項目が消えても、利用側は受け取れない場合に備えているので壊れません。**新しい項目が増えるのも壊れません**（知らない項目は無視できます）。\n\n出力の1行目は、壊す変更が0件なら `互換`、1件以上あれば `非互換` です。続けて項目名の**昇順**に、上の3つを並べます。1つの項目が複数に当たるときは `REMOVED` → `WEAKENED` → `TYPECHANGED` の順です。\n\n最後の行に `追加 <新しく増えた項目の数>` を表示してください。\n\n上の例の答えはこうなります。\n\n```\n非互換\nWEAKENED storeName\n追加 1\n```\n",
+          "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        Map<String, String[]> before = read(sc);\n        Map<String, String[]> after = read(sc);\n        /* TODO 旧の項目を回って、消えた・弱まった・型が変わったを集める */\n        /* TODO 互換 / 非互換 を表示し、項目名の昇順に並べる */\n        /* TODO 新しく増えた項目の数を表示する */\n    }\n\n    /** 1つの契約を「項目名 -> {型, required/optional}」で読み取る。 */\n    static Map<String, String[]> read(Scanner sc) {\n        int n = Integer.parseInt(sc.nextLine().trim());\n        Map<String, String[]> spec = new TreeMap<>();\n        for (int i = 0; i < n; i++) {\n            String[] parts = sc.nextLine().trim().split(\"\\\\s+\");\n            spec.put(parts[0], new String[] {parts[1], parts[2]});\n        }\n        return spec;\n    }\n}\n",
+          "visibleCases": [
+            {
+              "label": "必須が任意へ弱まり、項目が1つ増えた",
+              "stdin": "3\norderId integer required\nstoreName string required\nnote string optional\n3\norderId integer required\nstoreName string optional\npickupAt string required\n",
+              "expected": "非互換\nWEAKENED storeName\n追加 1"
+            },
+            {
+              "label": "項目を足しただけ（互換）",
+              "stdin": "2\norderId integer required\nstoreName string required\n3\norderId integer required\nstoreName string required\npickupAt string required\n",
+              "expected": "互換\n追加 1"
+            }
+          ],
+          "hiddenCases": [
+            {
+              "label": "必須の項目が消えている",
+              "stdin": "2\norderId integer required\namount integer required\n1\norderId integer required\n",
+              "expected": "非互換\nREMOVED amount\n追加 0"
+            },
+            {
+              "label": "任意の項目が消えても壊れない",
+              "stdin": "2\norderId integer required\nnote string optional\n1\norderId integer required\n",
+              "expected": "互換\n追加 0"
+            },
+            {
+              "label": "型が変わっている",
+              "stdin": "2\norderId integer required\namount integer required\n2\norderId string required\namount integer required\n",
+              "expected": "非互換\nTYPECHANGED orderId integer string\n追加 0"
+            },
+            {
+              "label": "1つの項目が弱まりと型変更の両方に当たる",
+              "stdin": "1\namount integer required\n1\namount string optional\n",
+              "expected": "非互換\nWEAKENED amount\nTYPECHANGED amount integer string\n追加 0"
+            }
+          ],
+          "hints": [
+            "旧い契約の項目を回り、新しい契約から `get` して比べます。`null` なら消えています。",
+            "`TreeMap` で読み込めば、旧い契約を回るだけで項目名の昇順になります。1つの項目が複数に当たるときは、判定の順番がそのまま出力の順番になります。"
+          ],
+          "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        Map<String, String[]> before = read(sc);\n        Map<String, String[]> after = read(sc);\n\n        List<String> problems = new ArrayList<>();\n        for (Map.Entry<String, String[]> entry : before.entrySet()) {\n            String field = entry.getKey();\n            String type = entry.getValue()[0];\n            boolean wasRequired = entry.getValue()[1].equals(\"required\");\n            String[] now = after.get(field);\n            if (now == null) {\n                if (wasRequired) {\n                    problems.add(\"REMOVED \" + field);\n                }\n                continue;\n            }\n            if (wasRequired && now[1].equals(\"optional\")) {\n                problems.add(\"WEAKENED \" + field);\n            }\n            if (!type.equals(now[0])) {\n                problems.add(\"TYPECHANGED \" + field + \" \" + type + \" \" + now[0]);\n            }\n        }\n\n        int added = 0;\n        for (String field : after.keySet()) {\n            if (!before.containsKey(field)) {\n                added++;\n            }\n        }\n\n        System.out.println(problems.isEmpty() ? \"互換\" : \"非互換\");\n        problems.forEach(System.out::println);\n        System.out.println(\"追加 \" + added);\n    }\n\n    /** 1つの契約を「項目名 -> {型, required/optional}」で読み取る。 */\n    static Map<String, String[]> read(Scanner sc) {\n        int n = Integer.parseInt(sc.nextLine().trim());\n        Map<String, String[]> spec = new TreeMap<>();\n        for (int i = 0; i < n; i++) {\n            String[] parts = sc.nextLine().trim().split(\"\\\\s+\");\n            spec.put(parts[0], new String[] {parts[1], parts[2]});\n        }\n        return spec;\n    }\n}\n"
+        }
+      ]
+    }
+  ]
+}

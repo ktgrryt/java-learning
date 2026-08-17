@@ -28,6 +28,8 @@ import java.util.stream.Stream;
  */
 public final class ContentLoader {
 
+    /** 概念レッスンに要るクイズの数。★の根拠がクイズだけなので、少ないと当て推量で★が付く。 */
+    private static final int CONCEPT_MIN_QUIZZES = 3;
     /** libs に書ける名前。ディレクトリ区切りやドットを許さないので、content/lib の外へは出られない。 */
     private static final Pattern LIB_NAME = Pattern.compile("[A-Za-z0-9_-]+");
     private static final Pattern SAFE_PROJECT_PATH = Pattern.compile("[A-Za-z0-9._/-]+");
@@ -55,6 +57,37 @@ public final class ContentLoader {
 
     public ContentLoader(Path contentDir) {
         this.contentDir = contentDir;
+    }
+
+    /**
+     * content/ の中身が変わったかを見分けるための印。
+     *
+     * <p>{@code /api/state} は「教材を編集したらブラウザの再読み込みだけで反映される」ように
+     * 毎回 {@link #load()} を呼ぶ。ところが全章のJSONは4MBを超えており、解析だけで1回
+     * 0.3〜0.4秒かかる（69ファイル）。編集していないときにこれを繰り返す意味はないので、
+     * 読み直しが要るかをここで先に判断する。</p>
+     *
+     * <p>中身は読まない。パス・更新時刻・大きさだけを混ぜるので、138ファイルでも数ミリ秒で
+     * 済む（{@code stat} だけ）。同梱ライブラリ（{@code content/lib/}）も含めて見るので、
+     * ライブラリだけを直した場合も読み直しになる。</p>
+     *
+     * @return 中身が同じなら同じ値。<b>0 は「判断できなかった」</b>を表す
+     *         （呼び出し側は毎回読み直す ― 分からないときは古いものを見せない側に倒す）
+     */
+    public long fingerprint() {
+        try (Stream<Path> paths = Files.walk(contentDir.toRealPath())) {
+            long mixed = 1L;
+            for (Path path : paths.sorted().toList()) {
+                mixed = mixed * 31 + path.toString().hashCode();
+                if (Files.isRegularFile(path, LinkOption.NOFOLLOW_LINKS)) {
+                    mixed = mixed * 31 + Files.getLastModifiedTime(path).toMillis();
+                    mixed = mixed * 31 + Files.size(path);
+                }
+            }
+            return mixed == 0 ? 1 : mixed;   // 0 は「判断できなかった」に使うので避ける
+        } catch (IOException | RuntimeException e) {
+            return 0;
+        }
     }
 
     public Curriculum load() {
@@ -208,10 +241,16 @@ public final class ContentLoader {
         // typeは1問目のartifact/project種別として既に使われているため、
         // レッスン自体の種類はlessonTypeへ分ける。
         String lessonType = MiniJson.str(raw, "lessonType", "lesson");
-        if (!lessonType.equals("lesson") && !lessonType.equals("preflight")) {
-            throw new IllegalStateException("レッスン " + id + " のtypeはlesson / preflightにしてください");
+        if (!lessonType.equals("lesson") && !lessonType.equals("preflight")
+                && !lessonType.equals("concept")) {
+            throw new IllegalStateException("レッスン " + id
+                    + " のtypeはlesson / preflight / conceptにしてください");
         }
         PreflightSpec preflight = lessonType.equals("preflight") ? parsePreflight(raw, id) : null;
+        boolean concept = lessonType.equals("concept");
+        if (concept) {
+            checkConcept(raw, id);
+        }
 
         List<Sample> samples = new ArrayList<>();
         for (Object o : MiniJson.list(raw, "samples")) {
@@ -229,11 +268,35 @@ public final class ContentLoader {
                 MiniJson.requireStr(raw, "title"),
                 MiniJson.str(raw, "explanation", ""),
                 List.copyOf(samples),
-                preflight == null ? parseTasks(raw, id, objectiveIds) : List.of(),
+                preflight == null && !concept ? parseTasks(raw, id, objectiveIds) : List.of(),
                 parseQuizzes(raw, id),
                 resolveLibs(chapterLibs, stringList(raw, "libs"), id, libCache),
                 preflight,
+                concept,
                 List.copyOf(parseObjectiveIds(raw, "レッスン " + id, objectiveIds)));
+    }
+
+    /**
+     * 概念レッスンの形を確かめる。
+     *
+     * 提出課題を書けるようにすると、概念レッスンにする理由（測る対象がずれる論点）が
+     * 消えてしまうので、書いてあればエラーにする。逆にクイズは★の唯一の根拠なので、
+     * 数が少ないと「たまたま当たった」で★が付く。3問以上を求める。
+     */
+    private void checkConcept(Map<String, Object> raw, String lessonId) {
+        if (raw.containsKey("task") || !MiniJson.list(raw, "extraTasks").isEmpty()) {
+            throw new IllegalStateException("概念レッスン " + lessonId
+                    + " には問題を置けません（提出課題を付けるなら通常のレッスンにしてください）");
+        }
+        if (raw.containsKey("preflight")) {
+            throw new IllegalStateException("概念レッスン " + lessonId + " には事前確認を置けません");
+        }
+        int quizzes = MiniJson.list(raw, "quiz").size();
+        if (quizzes < CONCEPT_MIN_QUIZZES) {
+            throw new IllegalStateException("概念レッスン " + lessonId + " のクイズが"
+                    + quizzes + "問です（★の根拠がクイズだけなので"
+                    + CONCEPT_MIN_QUIZZES + "問以上にしてください）");
+        }
     }
 
     private PreflightSpec parsePreflight(Map<String, Object> raw, String lessonId) {

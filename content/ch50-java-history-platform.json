@@ -108,7 +108,7 @@
       "objectiveIds": [
         "ch50-o2"
       ],
-      "explanation": "## Javaは、実行環境の違いと危険なメモリ操作を減らすために設計された\n\nプログラムを別のOSへ移すたびに書き直したり、誤ったメモリ操作で突然停止したりすると、開発と運用に大きな負担がかかります。Javaの設計目標は、こうした問題を言語と実行環境の両方で減らすことです。\n\n- **移植性**: ソースをバイトコードへ変換し、環境ごとのJVMで実行することで、OSやCPUへの依存を小さくする\n- **堅牢性**: 配列の範囲検査、型検査、例外、GCにより、壊れた状態のまま処理が進む危険を減らす\n- **安全性**: 任意のメモリアドレスを直接操作するポインタ演算を提供せず、読み込んだクラスもJVMが検査する\n- **実用的な性能**: 実行中によく使われるコードを機械語へ変換する **JITコンパイラ** により、繰り返し処理を高速化する\n\nJITは *Just-In-Time* の略で、「実行の直前・実行中に必要な部分をコンパイルする」という意味です。最初からすべてを機械語にする方式と、1命令ずつ解釈する方式の中間にあたります。\n\nこれらは個別の機能ではなく、組み合わせて効果を発揮します。たとえば配列外アクセスを検出して例外にすることで、別のデータを誤って破壊する代わりに、失敗した場所を追跡できます。一方で、GCの停止時間やJITのウォームアップなど、JVMが管理するからこそ生じる特性もあります。安全性や移植性と性能のバランスを取る設計だと理解してください。\n\n今回の演習では、設計目標を表す語を数えます。英単語の暗記ではなく、それぞれがどの困りごとに対応するかを意識して分類しましょう。",
+      "explanation": "## Javaは、実行環境の違いと危険なメモリ操作を減らすために設計された\n\nプログラムを別のOSへ移すたびに書き直したり、誤ったメモリ操作で突然停止したりすると、開発と運用に大きな負担がかかります。Javaの設計目標は、こうした問題を言語と実行環境の両方で減らすことです。\n\n- **移植性**: ソースをバイトコードへ変換し、環境ごとのJVMで実行することで、OSやCPUへの依存を小さくする\n- **堅牢性**: 配列の範囲検査、型検査、例外、GCにより、壊れた状態のまま処理が進む危険を減らす\n- **安全性**: 任意のメモリアドレスを直接操作するポインタ演算を提供せず、読み込んだクラスもJVMが検査する\n- **実用的な性能**: 実行中によく使われるコードを機械語へ変換する **JITコンパイラ** により、繰り返し処理を高速化する\n\nJITは *Just-In-Time* の略で、「実行の直前・実行中に必要な部分をコンパイルする」という意味です。最初からすべてを機械語にする方式と、1命令ずつ解釈する方式の中間にあたります。\n\nこれらは個別の機能ではなく、組み合わせて効果を発揮します。たとえば配列外アクセスを検出して例外にすることで、別のデータを誤って破壊する代わりに、失敗した場所を追跡できます。一方で、GCの停止時間やJITのウォームアップなど、JVMが管理するからこそ生じる特性もあります。安全性や移植性と性能のバランスを取る設計だと理解してください。\n\nこの単元の1問目では、**同じclass fileを2つの環境で動かした出力を突き合わせます**。差が出た項目が、移植性が保証していないものです。2問目の実測演習（`labs/platform`）では、その差を実際に出してから消します。",
       "samples": [
         {
           "caption": "配列の範囲外アクセスは検査される",
@@ -116,36 +116,47 @@
           "expected": "checked"
         }
       ],
-      "task": "設計上の要求n件を `portable/robust/secure/performance` のいずれかで読み、それぞれの件数を固定順で表示してください。",
-      "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] a) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n        Map<String, Integer> m = new LinkedHashMap<>();\n        for (String k : List.of(\"portable\", \"robust\", \"secure\", \"performance\")) m.put(k, 0);\n        for (int i = 0; i < n; i++) {\n            String k = sc.next();\n            /* TODO */\n        }\n        m.forEach((k, v) -> System.out.println(k + \"=\" + v));\n    }\n}\n",
+      "task": "同じclass fileを2つの環境で動かした出力を突き合わせて、**環境の既定値に依存している項目**を洗い出してください。\n\n移植性が保証するのは「同じclass fileがどのJVMでも読める」ことです。**出力が同じになることは保証しません。** ロケール・タイムゾーン・文字集合の既定値が違えば、同じコードでも表示は変わります。どこが変わるかは、突き合わせれば分かります。\n\n入力の1行目は項目の数n、続くn行が `項目名 環境Aの出力 環境Bの出力` です。名前と出力に空白は入りません。\n\n```\n4\ntotal 1,234.50 1.234,50\nrecorded 2026-08-13 2026-08-14\nlabel café café\ncount 42 42\n```\n\n項目ごとに、出力が違うものだけを**入力の順**に表示します。\n\n```\nDIFF <項目名> <環境Aの出力> <環境Bの出力>\n```\n\n続けて次の2行を表示してください。\n\n```\n安定 <一致した項目の数>/<n>\n判定 <移植できる か 既定値に依存>\n```\n\n`判定` は、違う項目が0件なら `移植できる`、1件以上あれば `既定値に依存` です。\n\n上の例の答えはこうなります。\n\n```\nDIFF total 1,234.50 1.234,50\nDIFF recorded 2026-08-13 2026-08-14\n安定 2/4\n判定 既定値に依存\n```\n\n`total` は数の書式（ロケール）、`recorded` は日付（タイムゾーン）で変わりました。`label` は同じ文字が出ているので、この2環境のあいだでは文字集合の差が出ていません。**差が出た項目が、移植性が保証していないものです。**\n",
+      "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int n = Integer.parseInt(sc.nextLine().trim());\n        int same = 0;\n        for (int i = 0; i < n; i++) {\n            String[] parts = sc.nextLine().trim().split(\"\\\\s+\");\n            /* TODO 環境Aと環境Bの出力を比べ、違えば DIFF の行を表示する */\n            /* TODO 同じだった件数をためる */\n        }\n        /* TODO 安定した件数と、判定を表示する */\n    }\n}\n",
       "visibleCases": [
         {
-          "label": "分類",
-          "stdin": "5 portable robust secure portable performance",
-          "expected": "portable=2\nrobust=1\nsecure=1\nperformance=1"
+          "label": "書式と日付が環境で変わる",
+          "stdin": "4\ntotal 1,234.50 1.234,50\nrecorded 2026-08-13 2026-08-14\nlabel café café\ncount 42 42\n",
+          "expected": "DIFF total 1,234.50 1.234,50\nDIFF recorded 2026-08-13 2026-08-14\n安定 2/4\n判定 既定値に依存"
+        },
+        {
+          "label": "どの項目も同じ（移植できる）",
+          "stdin": "3\ntotal 1234.50 1234.50\nrecorded 2026-08-13 2026-08-13\ncount 42 42\n",
+          "expected": "安定 3/3\n判定 移植できる"
         }
       ],
       "hiddenCases": [
         {
-          "label": "0件",
-          "stdin": "0",
-          "expected": "portable=0\nrobust=0\nsecure=0\nperformance=0"
+          "label": "文字集合の既定値で文字が変わる",
+          "stdin": "2\nlabel café caf?\ncount 42 42\n",
+          "expected": "DIFF label café caf?\n安定 1/2\n判定 既定値に依存"
         },
         {
-          "label": "1種類だけ",
-          "stdin": "3 secure secure secure",
-          "expected": "portable=0\nrobust=0\nsecure=3\nperformance=0"
+          "label": "すべての項目が違う",
+          "stdin": "3\na 1 2\nb 3 4\nc 5 6\n",
+          "expected": "DIFF a 1 2\nDIFF b 3 4\nDIFF c 5 6\n安定 0/3\n判定 既定値に依存"
         },
         {
-          "label": "入力順と表示順は別",
-          "stdin": "4 performance secure robust portable",
-          "expected": "portable=1\nrobust=1\nsecure=1\nperformance=1"
+          "label": "項目が1つだけで一致する",
+          "stdin": "1\ncount 42 42\n",
+          "expected": "安定 1/1\n判定 移植できる"
+        },
+        {
+          "label": "大文字と小文字は別の出力として扱う",
+          "stdin": "2\nlabel CAFE cafe\ncount 42 42\n",
+          "expected": "DIFF label CAFE cafe\n安定 1/2\n判定 既定値に依存"
         }
       ],
       "hints": [
-        "既存キーへ `merge(k,1,Integer::sum)`。"
+        "文字列の比較は `equals` です。`==` では、同じ内容でも別のオブジェクトなら false になります（第14章）。",
+        "`DIFF` の行は違ったときだけ出します。一致した件数は別に数えて、最後の2行で使います。"
       ],
-      "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] a) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n        Map<String, Integer> m = new LinkedHashMap<>();\n        for (String k : List.of(\"portable\", \"robust\", \"secure\", \"performance\")) m.put(k, 0);\n        for (int i = 0; i < n; i++) {\n            String k = sc.next();\n            m.merge(k, 1, Integer::sum);\n        }\n        m.forEach((k, v) -> System.out.println(k + \"=\" + v));\n    }\n}\n",
+      "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int n = Integer.parseInt(sc.nextLine().trim());\n        int same = 0;\n        for (int i = 0; i < n; i++) {\n            String[] parts = sc.nextLine().trim().split(\"\\\\s+\");\n            if (parts[1].equals(parts[2])) {\n                same++;\n            } else {\n                System.out.println(\"DIFF \" + parts[0] + \" \" + parts[1] + \" \" + parts[2]);\n            }\n        }\n        System.out.println(\"安定 \" + same + \"/\" + n);\n        System.out.println(\"判定 \" + (same == n ? \"移植できる\" : \"既定値に依存\"));\n    }\n}\n",
       "quiz": [
         {
           "question": "Javaが安全性と性能を両立する仕組みの組み合わせは？",
@@ -317,46 +328,17 @@
     {
       "id": "50-4",
       "title": "JCP・JSR・OpenJDK・JEP",
+      "lessonType": "concept",
       "objectiveIds": [
         "ch50-o4"
       ],
-      "explanation": "## 似た略語を「手続き・提案・実装・検査」に分ける\n\nJavaの新機能の記事にはJCP、JSR、OpenJDK、JEP、TCKが一度に出てきます。役割を混同すると、「提案された」だけなのか「標準仕様になった」のか「製品で使える」のかを誤って判断します。\n\n| 名前 | 何のためのものか | たとえるなら |\n|---|---|---|\n| **JCP** | Java技術の仕様を審議・承認する手続き | 標準を決める会議のルール |\n| **JSR** | 新しい仕様や大きな仕様変更を提案し、仕様書・参照実装・TCKを作る作業単位 | 標準化する案件 |\n| **OpenJDK** | JDKをオープンソースで開発するコミュニティとプロジェクト群 | 実際の製品の土台を作る開発現場 |\n| **JEP** | OpenJDKで大きなJDK変更を提案し、目的・設計・進捗を追跡する文書 | 開発計画書 |\n| **TCK** | 実装が仕様へ適合するかを確かめるテスト、道具、文書の一式 | 共通ルールへの適合試験 |\n\n大切なのは、**JEPは実装そのものではない**という点です。JEPは変更の提案と計画を表し、採用後のコードはOpenJDKなどで実装されます。また、JEPの中にはJDK内部の変更もあり、すべてがJava SEの標準API変更になるわけではありません。標準仕様に影響する変更は、JCP側の仕様策定とも整合させます。\n\nたとえばrecordsでは、JEP 395がJDKへの変更目的と設計を記録し、OpenJDKにコードが実装され、Java SE仕様にも言語機能として反映されました。ここには「提案」「実装」「標準仕様」という別の段階があります。\n\n```text\nJEPで変更を提案・追跡\n        ↓\nOpenJDKで実装・検証\n        ↓ 仕様に影響する場合は整合\nJCP / JSRによる標準仕様\n        ↓\nTCKなどで実装の適合性を確認\n```\n\n同じJava SEの版でも、JDK配布物はベンダーごとに更新期間、サポート、ライセンス、追加構成が異なります。採用時は「Java 21」のような版だけでなく、ベンダーと更新方針も確認します。今回の演習では、識別子を提案・仕様・適合試験・実装プロジェクトへ分類し、略語の役割を確かめます。",
+      "explanation": "## 似た略語を「手続き・提案・実装・検査」に分ける\n\nJavaの新機能の記事にはJCP、JSR、OpenJDK、JEP、TCKが一度に出てきます。役割を混同すると、「提案された」だけなのか「標準仕様になった」のか「製品で使える」のかを誤って判断します。\n\n| 名前 | 何のためのものか | たとえるなら |\n|---|---|---|\n| **JCP** | Java技術の仕様を審議・承認する手続き | 標準を決める会議のルール |\n| **JSR** | 新しい仕様や大きな仕様変更を提案し、仕様書・参照実装・TCKを作る作業単位 | 標準化する案件 |\n| **OpenJDK** | JDKをオープンソースで開発するコミュニティとプロジェクト群 | 実際の製品の土台を作る開発現場 |\n| **JEP** | OpenJDKで大きなJDK変更を提案し、目的・設計・進捗を追跡する文書 | 開発計画書 |\n| **TCK** | 実装が仕様へ適合するかを確かめるテスト、道具、文書の一式 | 共通ルールへの適合試験 |\n\n大切なのは、**JEPは実装そのものではない**という点です。JEPは変更の提案と計画を表し、採用後のコードはOpenJDKなどで実装されます。また、JEPの中にはJDK内部の変更もあり、すべてがJava SEの標準API変更になるわけではありません。標準仕様に影響する変更は、JCP側の仕様策定とも整合させます。\n\nたとえばrecordsでは、JEP 395がJDKへの変更目的と設計を記録し、OpenJDKにコードが実装され、Java SE仕様にも言語機能として反映されました。ここには「提案」「実装」「標準仕様」という別の段階があります。\n\n```text\nJEPで変更を提案・追跡\n        ↓\nOpenJDKで実装・検証\n        ↓ 仕様に影響する場合は整合\nJCP / JSRによる標準仕様\n        ↓\nTCKなどで実装の適合性を確認\n```\n\n同じJava SEの版でも、JDK配布物はベンダーごとに更新期間、サポート、ライセンス、追加構成が異なります。採用時は「Java 21」のような版だけでなく、ベンダーと更新方針も確認します。このレッスンには提出課題がありません。役割の違いは、識別子の綴りを分類するコードではなく、「その時点で何が言えるか」を問うクイズで確かめます。",
       "samples": [
         {
           "caption": "vendorとversionを確認",
           "code": "public class Main {\n    public static void main(String[] a) {\n        System.out.println(System.getProperty(\"java.vendor\"));\n        System.out.println(System.getProperty(\"java.runtime.version\"));\n    }\n}\n"
         }
       ],
-      "task": "識別子n件を読み、`JEP`で始まれば `proposal`、`JSR`で始まれば `specification-request`、`TCK`で始まれば `compatibility-test`、`OpenJDK`で始まれば `implementation-project`、それ以外は `unknown` と表示してください。大文字と小文字は区別します。",
-      "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] a) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n        for (int i = 0; i < n; i++) {\n            String id = sc.next();\n            /* TODO */\n        }\n    }\n}\n",
-      "visibleCases": [
-        {
-          "label": "提案の区別",
-          "stdin": "5 JEP444 JSR401 TCK21 OpenJDK RFC9110",
-          "expected": "proposal\nspecification-request\ncompatibility-test\nimplementation-project\nunknown"
-        }
-      ],
-      "hiddenCases": [
-        {
-          "label": "大小は区別",
-          "stdin": "2 jep1 JSR1",
-          "expected": "unknown\nspecification-request"
-        },
-        {
-          "label": "0件",
-          "stdin": "0",
-          "expected": ""
-        },
-        {
-          "label": "接頭辞だけ",
-          "stdin": "4 JEP JSR TCK OpenJDK",
-          "expected": "proposal\nspecification-request\ncompatibility-test\nimplementation-project"
-        }
-      ],
-      "hints": [
-        "`startsWith` を使い、JEP・JSR・TCK・OpenJDKの4種類を順に判定します。"
-      ],
-      "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] a) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n        for (int i = 0; i < n; i++) {\n            String id = sc.next();\n            String role;\n            if (id.startsWith(\"JEP\")) role = \"proposal\";\n            else if (id.startsWith(\"JSR\")) role = \"specification-request\";\n            else if (id.startsWith(\"TCK\")) role = \"compatibility-test\";\n            else if (id.startsWith(\"OpenJDK\")) role = \"implementation-project\";\n            else role = \"unknown\";\n            System.out.println(role);\n        }\n    }\n}\n",
       "quiz": [
         {
           "question": "OpenJDKについて適切な説明は？",
@@ -367,7 +349,7 @@
             "Jakarta EEのREST仕様の別名"
           ],
           "answer": 0,
-          "explanation": "非公開で1社だけが配布するものではありません（複数のベンダーがここを土台に配布物を作ります）。デバッガの呼び名でも、Jakarta EEのREST仕様の別名でもありません。OpenJDKはJava SEの実装を公開の場で共同開発するプロジェクトで、仕様を決めるJCPとは役割が違います。"
+          "explanation": "非公開で1社だけが配布するものではありません。デバッガの名前でもなく、REST仕様の別名でもありません。OpenJDKは、Java SEの実装をオープンソースで共同開発するコミュニティとプロジェクト群です。"
         },
         {
           "question": "「JEPでJDK変更が提案された」と「JSRで仕様策定が進められた」の違いを説明したものはどれでしょう。",
@@ -378,7 +360,51 @@
             "JEPは廃止済みで、いまはJSRへ統合された制度"
           ],
           "answer": 0,
-          "explanation": "JEPはJakarta EE向けの制度ではなく、OpenJDK（Java SE側）の仕組みです。JSRと同じ意味の別名でもなく、廃止されてもいません（いまも新機能ごとに作られます）。JEPは実装側の変更提案と追跡、JSRはJCPでの仕様策定の単位です。**提案された**ことと**標準仕様になった**ことは、別の段階だと分けて読みます。"
+          "explanation": "JEPはJakarta EE向けの制度ではなく、どちらも同じ意味ではありません。JEPは廃止されておらず、いまも使われています。JEPはOpenJDKでのJDK変更の提案、JSRはJCPでの仕様策定の単位です。"
+        },
+        {
+          "question": "「JEPが承認された」と聞いたとき、その時点で言えるのはどれでしょう。",
+          "choices": [
+            "Java SEの標準仕様へ、その機能が取り込まれ終わった",
+            "変更の提案と計画が受け入れられ、これから実装が進む",
+            "TCKの適合試験を通り、製品として配布され始めた",
+            "JCPでの審議が終わり、JSRとして公開され終わった"
+          ],
+          "answer": 1,
+          "explanation": "標準仕様への反映はJCPとJSRの側で、適合試験はTCKで確かめます。JSRの公開はJCPの手続きで、JEPとは別の単位です。JEPは変更の提案と計画を追跡する文書なので、承認された時点では「これから実装が進む」までが言えます。"
+        },
+        {
+          "question": "TCKの役割はどれでしょう。",
+          "choices": [
+            "JDKの配布物へ、ベンダー独自の機能を追加する仕組み",
+            "OpenJDKへ寄せられた変更を、時系列に記録する文書",
+            "実装が仕様どおりかを確かめる試験と道具の一式",
+            "新しい仕様を提案するときに使う、審議の手続き"
+          ],
+          "answer": 2,
+          "explanation": "独自機能の追加はベンダーの配布方針の話、変更の記録はJEPやコミット履歴、審議の手続きはJCPです。TCKは、実装が仕様へ適合しているかを確かめる試験・道具・文書の一式です。"
+        },
+        {
+          "question": "すべてのJEPがJava SEの標準API変更になるとは限らないのはなぜでしょう。",
+          "choices": [
+            "JEPは提案の段階どまりで、実装されることがないから",
+            "JEPはJCPの審議をまったく通さない決まりだから",
+            "JEPはベンダーごとに別の番号で管理されているから",
+            "JEPには、JDK内部の変更や実装の改善も含まれるから"
+          ],
+          "answer": 3,
+          "explanation": "JEPは提案の段階で終わるものではなく、採用されれば実装されます。標準仕様に影響する変更はJCP側と整合させます。番号はOpenJDKで一意に管理されます。JEPにはGCの改善や内部構造の変更のように、標準APIを変えないものも含まれます。"
+        },
+        {
+          "question": "同じ「Java 21」でも、採用時にベンダーと更新方針まで確認するのはなぜでしょう。",
+          "choices": [
+            "配布物ごとに、標準APIの内容が入れ替わっているから",
+            "配布物ごとに、更新期間・サポート・ライセンスが違うから",
+            "配布物ごとに、class fileのメジャー版が違っているから",
+            "配布物ごとに、JEPの番号の付け方が違っているから"
+          ],
+          "answer": 1,
+          "explanation": "標準APIとclass fileのメジャー版は仕様で決まっているので、ベンダーが違っても同じです。JEPの番号もOpenJDKで共通です。違うのは更新の提供期間、サポート、ライセンス、追加の構成です。"
         }
       ]
     },
@@ -444,48 +470,48 @@
             "ch50-o4"
           ],
           "kind": "drill",
-          "task": "【組み合わせ】用語をn件読み、次のように分類して読んだ順に `用語=分類` と表示してください。上から順に当てはめます。\n\n1. `JSR` で始まる → `specification-request`\n2. `JEP` で始まる → `proposal`\n3. `javac` / `java` / `jar` / `javadoc` / `jlink` / `jshell` のいずれか → `jdk-tool`\n4. `SpringBoot` / `Quarkus` のいずれか → `framework`\n5. `OpenLiberty` → `runtime`\n6. それ以外 → `unknown`\n\n最後に、分類ごとの件数を `specification-request` → `proposal` → `jdk-tool` → `framework` → `runtime` → `unknown` の固定順で `分類=件数` と表示します。",
-          "starterCode": "import java.util.*;\n\npublic class Main {\n    static String classify(String term) {\n        /* TODO 上から順に判定 */ return \"unknown\";\n    }\n\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n        List<String> kinds = List.of(\"specification-request\", \"proposal\", \"jdk-tool\", \"framework\", \"runtime\", \"unknown\");\n        Map<String, Integer> count = new LinkedHashMap<>();\n        for (String k : kinds) count.put(k, 0);\n        for (int i = 0; i < n; i++) {\n            String term = sc.next();\n            /* TODO 表示と集計 */\n        }\n        /* TODO 件数の表示 */\n    }\n}\n",
+          "task": "【組み合わせ】1つのclass fileを、複数のJVMで動かせるかを調べてください。\n\n`メジャー版 = リリース番号 + 44` で、JVMは自分のメジャー版以下のclass fileを読めます（1問目と同じ関係を、こんどは**1つのclass fileと複数のJVM**で当てます）。\n\n入力の1行目はclass fileのメジャー版、2行目はJVMの数n、3行目にJVMのリリース番号がn個、空白区切りで並びます。\n\n```\n65\n4\n17 21 25 11\n```\n\nJVMごとに1行、**入力の順**に `<リリース番号> <判定>` を表示します。判定は読めるなら `RUN`、読めないなら `UnsupportedClassVersionError` です。\n\n続けて次の2行を表示してください。\n\n```\n必要なリリース <このclass fileを読める最小のリリース番号>\n動く <RUNだったJVMの数>/<n>\n```\n\n上の例の答えはこうなります。\n\n```\n17 UnsupportedClassVersionError\n21 RUN\n25 RUN\n11 UnsupportedClassVersionError\n必要なリリース 21\n動く 2/4\n```\n\nメジャー版65は `65 - 44 = 21` なので、リリース21以上のJVMで読めます。\n",
+          "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int majorVersion = Integer.parseInt(sc.nextLine().trim());\n        int n = Integer.parseInt(sc.nextLine().trim());\n        String[] parts = sc.nextLine().trim().split(\"\\\\s+\");\n        /* TODO このclass fileを読める最小のリリース番号を出す */\n        for (int i = 0; i < n; i++) {\n            /* TODO JVMのリリース番号と比べて RUN か UnsupportedClassVersionError を表示する */\n        }\n        /* TODO 必要なリリースと、動いた数を表示する */\n    }\n}\n",
           "visibleCases": [
             {
-              "label": "5種類が1つずつ",
-              "stdin": "5 JSR400 JEP444 javac Quarkus RFC9110",
-              "expected": "JSR400=specification-request\nJEP444=proposal\njavac=jdk-tool\nQuarkus=framework\nRFC9110=unknown\nspecification-request=1\nproposal=1\njdk-tool=1\nframework=1\nruntime=0\nunknown=1"
+              "label": "4つのJVMのうち2つで動く",
+              "stdin": "65\n4\n17 21 25 11\n",
+              "expected": "17 UnsupportedClassVersionError\n21 RUN\n25 RUN\n11 UnsupportedClassVersionError\n必要なリリース 21\n動く 2/4"
             },
             {
-              "label": "道具とフレームワーク",
-              "stdin": "3 jlink SpringBoot OpenLiberty",
-              "expected": "jlink=jdk-tool\nSpringBoot=framework\nOpenLiberty=runtime\nspecification-request=0\nproposal=0\njdk-tool=1\nframework=1\nruntime=1\nunknown=0"
+              "label": "どのJVMでも動く（古いclass file）",
+              "stdin": "52\n3\n17 21 25\n",
+              "expected": "17 RUN\n21 RUN\n25 RUN\n必要なリリース 8\n動く 3/3"
             }
           ],
           "hiddenCases": [
             {
-              "label": "用語0件",
-              "stdin": "0",
-              "expected": "specification-request=0\nproposal=0\njdk-tool=0\nframework=0\nruntime=0\nunknown=0"
+              "label": "どのJVMでも動かない（新しいclass file）",
+              "stdin": "70\n2\n17 21\n",
+              "expected": "17 UnsupportedClassVersionError\n21 UnsupportedClassVersionError\n必要なリリース 26\n動く 0/2"
             },
             {
-              "label": "仕様と提案が混ざる",
-              "stdin": "4 JSR366 JSR369 JEP330 JEP400",
-              "expected": "JSR366=specification-request\nJSR369=specification-request\nJEP330=proposal\nJEP400=proposal\nspecification-request=2\nproposal=2\njdk-tool=0\nframework=0\nruntime=0\nunknown=0"
+              "label": "必要なリリースとちょうど同じJVM",
+              "stdin": "61\n1\n17\n",
+              "expected": "17 RUN\n必要なリリース 17\n動く 1/1"
             },
             {
-              "label": "同じ用語が2回",
-              "stdin": "2 javac javac",
-              "expected": "javac=jdk-tool\njavac=jdk-tool\nspecification-request=0\nproposal=0\njdk-tool=2\nframework=0\nruntime=0\nunknown=0"
+              "label": "JVMが1つだけで動かない",
+              "stdin": "69\n1\n21\n",
+              "expected": "21 UnsupportedClassVersionError\n必要なリリース 25\n動く 0/1"
             },
             {
-              "label": "Javaの外にあるもの",
-              "stdin": "2 Kubernetes POSIX",
-              "expected": "Kubernetes=unknown\nPOSIX=unknown\nspecification-request=0\nproposal=0\njdk-tool=0\nframework=0\nruntime=0\nunknown=2"
+              "label": "同じリリースが複数並ぶ",
+              "stdin": "65\n3\n21 21 17\n",
+              "expected": "21 RUN\n21 RUN\n17 UnsupportedClassVersionError\n必要なリリース 21\n動く 2/3"
             }
           ],
           "hints": [
-            "`term.startsWith(\"JSR\")` と `term.startsWith(\"JEP\")` を先に見ます。",
-            "道具とフレームワークは `Set.of(...).contains(term)` で判定できます。",
-            "JSRは標準化する仕様の要求、JEPはOpenJDKでの変更提案です。Open Libertyはフレームワークではなく、Jakarta EEアプリを動かすサーバー実装です。"
+            "必要なリリースは `メジャー版 - 44` です。判定はJVMのリリース番号がこれ以上かどうかだけで決まります。",
+            "件数はループの中で数えます。表示の順は入力の順なので、並べ替えません。",
+            "表示は3つの部分に分かれます。JVMごとの行 → 必要なリリース → 動いた数。ループの中で出すのは1つ目だけです。"
           ],
-          "solution": "import java.util.*;\n\npublic class Main {\n    static String classify(String term) {\n        if (term.startsWith(\"JSR\")) return \"specification-request\";\n        if (term.startsWith(\"JEP\")) return \"proposal\";\n        if (Set.of(\"javac\", \"java\", \"jar\", \"javadoc\", \"jlink\", \"jshell\").contains(term)) return \"jdk-tool\";\n        if (Set.of(\"SpringBoot\", \"Quarkus\").contains(term)) return \"framework\";\n        if (term.equals(\"OpenLiberty\")) return \"runtime\";\n        return \"unknown\";\n    }\n\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n        List<String> kinds = List.of(\"specification-request\", \"proposal\", \"jdk-tool\", \"framework\", \"runtime\", \"unknown\");\n        Map<String, Integer> count = new LinkedHashMap<>();\n        for (String k : kinds) count.put(k, 0);\n        for (int i = 0; i < n; i++) {\n            String term = sc.next(), kind = classify(term);\n            System.out.println(term + \"=\" + kind);\n            count.merge(kind, 1, Integer::sum);\n        }\n        for (String k : kinds) System.out.println(k + \"=\" + count.get(k));\n    }\n}\n"
+          "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int majorVersion = Integer.parseInt(sc.nextLine().trim());\n        int n = Integer.parseInt(sc.nextLine().trim());\n        String[] parts = sc.nextLine().trim().split(\"\\\\s+\");\n\n        int required = majorVersion - 44;\n        int runnable = 0;\n        for (int i = 0; i < n; i++) {\n            int release = Integer.parseInt(parts[i]);\n            boolean ok = release >= required;\n            if (ok) {\n                runnable++;\n            }\n            System.out.println(release + \" \" + (ok ? \"RUN\" : \"UnsupportedClassVersionError\"));\n        }\n        System.out.println(\"必要なリリース \" + required);\n        System.out.println(\"動く \" + runnable + \"/\" + n);\n    }\n}\n"
         },
         {
           "objectiveIds": [

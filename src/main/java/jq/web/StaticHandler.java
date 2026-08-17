@@ -4,12 +4,16 @@ import com.sun.net.httpserver.Headers;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.LinkOption;
 import java.nio.file.Path;
+import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.zip.GZIPOutputStream;
 
 /**
  * web/ ディレクトリの静的ファイルを配信する。
@@ -28,6 +32,14 @@ public final class StaticHandler implements HttpHandler {
             ".ico", "image/x-icon",
             ".png", "image/png",
             ".woff2", "font/woff2");
+
+    /**
+     * gzipで返す下限。
+     *
+     * これより小さい応答は、圧縮しても縮む量が数百バイトにしかならない（gzipのヘッダと
+     * 辞書のぶんで増えることもある）。カフェの購入やヒント1件のような小さな応答は素で返す。
+     */
+    private static final int GZIP_MIN_BYTES = 1_024;
 
     private final Path root;
 
@@ -110,6 +122,11 @@ public final class StaticHandler implements HttpHandler {
      * CSPは万一この画面にスクリプトを差し込まれたときの保険。画面は自分のJSファイルしか
      * 読まないので {@code 'self'} で足りる（インラインの style 属性を1箇所だけ使っているため
      * style-src には unsafe-inline が要る。favicon はSVGのdata:URLなので img-src に data: が要る）。
+     *
+     * <p>本文が大きければgzipで返す。{@code /api/state} は全カリキュラムの解説とサンプルを
+     * 載せるので3MBを超えており（章が増えるほど伸びる）、素で返すとブラウザが受け取り終わるまで
+     * 画面が出ない。文字ばかりなので圧縮がよく効く。JDKのhttpserverは自分では圧縮しないので
+     * ここで行う。</p>
      */
     static void send(HttpExchange exchange, int status, String contentType, byte[] body) throws IOException {
         Headers headers = exchange.getResponseHeaders();
@@ -119,9 +136,82 @@ public final class StaticHandler implements HttpHandler {
         headers.set("Content-Security-Policy",
                 "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; "
                 + "frame-ancestors 'none'; base-uri 'none'; form-action 'none'");
-        exchange.sendResponseHeaders(status, body.length);
-        try (OutputStream os = exchange.getResponseBody()) {
-            os.write(body);
+        // 同じURLでも Accept-Encoding で中身（の符号化）が変わることを伝える
+        headers.set("Vary", "Accept-Encoding");
+
+        byte[] payload = body;
+        if (body.length >= GZIP_MIN_BYTES && isCompressible(contentType) && acceptsGzip(exchange)) {
+            byte[] compressed = gzip(body);
+            // すでに圧縮済みの中身では逆に増えることがある。増えたら素のまま返す
+            if (compressed.length < body.length) {
+                payload = compressed;
+                headers.set("Content-Encoding", "gzip");
+            }
         }
+        exchange.sendResponseHeaders(status, payload.length);
+        try (OutputStream os = exchange.getResponseBody()) {
+            os.write(payload);
+        }
+    }
+
+    /**
+     * 圧縮して意味のある型か。
+     *
+     * 画像やフォント（png / woff2）はそれ自体が圧縮済みなので、かけても縮まずCPUだけ使う。
+     * 縮むのは文字の型（html / css / js / json / svg）だけ。
+     */
+    private static boolean isCompressible(String contentType) {
+        String type = contentType.toLowerCase(Locale.ROOT);
+        return type.startsWith("text/")
+                || type.startsWith("application/json")
+                || type.startsWith("image/svg+xml");
+    }
+
+    /**
+     * 相手がgzipを受け取れるか。
+     *
+     * ブラウザは必ず付けてくる。{@code curl} や {@code tools/verify-solutions.sh} のような
+     * ブラウザ以外は付けないので、素のまま返る（検査側で展開する必要はない）。
+     * {@code gzip;q=0} は「使わないでほしい」という意思表示なので断る。
+     */
+    private static boolean acceptsGzip(HttpExchange exchange) {
+        List<String> values = exchange.getRequestHeaders().get("Accept-Encoding");
+        if (values == null) {
+            return false;
+        }
+        for (String value : values) {
+            for (String entry : value.split(",")) {
+                String token = entry.trim();
+                int semicolon = token.indexOf(';');
+                String name = (semicolon < 0 ? token : token.substring(0, semicolon)).trim();
+                if (name.equalsIgnoreCase("gzip")) {
+                    return semicolon < 0 || quality(token.substring(semicolon + 1)) > 0.0;
+                }
+            }
+        }
+        return false;
+    }
+
+    /** {@code ;q=0.5} の重み。書いていない・読めない場合は1（受け取れる）とみなす。 */
+    private static double quality(String parameters) {
+        for (String parameter : parameters.split(";")) {
+            String p = parameter.trim();
+            if (p.regionMatches(true, 0, "q=", 0, 2)) {
+                try {
+                    return Double.parseDouble(p.substring(2).trim());
+                } catch (NumberFormatException e) {
+                    return 1.0;
+                }
+            }
+        }
+        return 1.0;
+    }
+
+    private static byte[] gzip(byte[] body) throws IOException {
+        ByteArrayOutputStream buffer = new ByteArrayOutputStream(Math.max(64, body.length / 8));
+        try (GZIPOutputStream gzip = new GZIPOutputStream(buffer)) {
+            gzip.write(body);
+        }
+        return buffer.toByteArray();
     }
 }

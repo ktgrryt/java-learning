@@ -2,7 +2,7 @@
 
 tools/check-objectives.sh から呼ばれる。
 
-  python3 tools/check_objectives.py                … 検査する（全59章に到達目標が必要）
+  python3 tools/check_objectives.py                … 検査する（全69章に到達目標が必要）
   python3 tools/check_objectives.py --list         … 章ごとの記述状況を一覧する
   python3 tools/check_objectives.py --baseline 3   … 未記述を許す章数を一時的に緩める
 
@@ -30,7 +30,7 @@ tools/check-objectives.sh から呼ばれる。
   4. `objectiveIds` を持たないレッスンが無いこと（事前確認レッスンは対象外）
   5. 目標の文が可能形（「〜できる」「〜書ける」）で終わっていること
 
-全59章へ書き終えたので、既定では未記述を1章も許さない。章を足すときは目標も書く。
+全69章へ書き終えたので、既定では未記述を1章も許さない。章を足すときは目標も書く。
 """
 import json
 import pathlib
@@ -54,7 +54,7 @@ UNOBSERVABLE = ('覚える', '覚えます', '考える', '考えます', '思�
                 '増える', '増えます')
 MIN_PER_CHAPTER = 2
 MAX_PER_CHAPTER = 5
-BASELINE = 0           # 未記述を許す章数。全59章へ書き終えたので0
+BASELINE = 0           # 未記述を許す章数。全69章へ書き終えたので0
 
 
 def main():

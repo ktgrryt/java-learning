@@ -271,6 +271,29 @@ public final class CafeBalanceSimulation {
                         }
                         buyAllAffordable(progress, learning(curriculum, progress), strategy);
                     }
+
+                    // 概念レッスンは提出課題を持たず、クイズ全問正解で★が1つ付く。★はカフェの
+                    // 経済の分母（totalTaskCount）に入るので、本番と同じ順番でここでも通す。
+                    // 復習は対象外（解き直す提出物が無い）ので、苦手度と復習の記録は動かさない。
+                    if (lesson.concept()) {
+                        String key = lesson.conceptKey();
+                        progress.markCleared(key);
+                        ProgressStore.CafeLearningProgress learning = learning(curriculum, progress);
+                        progress.rewardTask(learning, key);
+                        if (curriculum.isChapterCleared(chapter, progress.clearedIds())) {
+                            progress.noteChapterAchievements(chapterTaskKeys(chapter));
+                            progress.rewardChapter(
+                                    chapter.id(), learning, curriculum.taskCount(chapter));
+                        }
+                        buyAllAffordable(progress, learning(curriculum, progress), strategy);
+                        if (earlyFacilities.size() < EARLY_TRACE_STARS) {
+                            earlyFacilities.add(facilityCount(
+                                    cafe(progress, learning(curriculum, progress))));
+                        }
+                        if (printRows && MILESTONES.contains(progress.clearedIds().size())) {
+                            printRow(progress, learning(curriculum, progress));
+                        }
+                    }
                 }
             }
 

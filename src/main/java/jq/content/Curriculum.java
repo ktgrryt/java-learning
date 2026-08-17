@@ -57,11 +57,16 @@ public final class Curriculum {
         return lessonsById.size();
     }
 
-    /** 全問題の数。★の分母になる（1レッスンに複数問あるのでレッスン数とは一致しない）。 */
+    /**
+     * 全問題の数。★の分母になる（1レッスンに複数問あるのでレッスン数とは一致しない）。
+     *
+     * 数えるのは {@link Lesson#taskKeys()}、つまり★が付くキーである。{@code tasks()} を
+     * 直接数えると、問題を持たない概念レッスンの★だけが分母から漏れて章クリアが成立しなくなる。
+     */
     public int totalTaskCount() {
         int n = 0;
         for (Lesson l : lessonsById.values()) {
-            n += (int) l.tasks().stream().filter(Task::required).count();
+            n += l.taskKeys().size();
         }
         return n;
     }
@@ -71,11 +76,20 @@ public final class Curriculum {
         return List.copyOf(lessonsById.keySet());
     }
 
-    /** 全問題を出題順に並べたもの。 */
+    /**
+     * 全問題を出題順に並べたもの。
+     *
+     * 概念レッスンは問題を持たないが、★のキーを1つ持つので同じ並びへ入れる。
+     * 入れないと「次へ」が概念レッスンを飛ばして、読まないまま先へ進んでしまう。
+     */
     public List<TaskRef> taskOrder() {
         List<TaskRef> order = new ArrayList<>();
         for (Chapter c : chapters) {
             for (Lesson l : c.lessons()) {
+                if (l.concept()) {
+                    order.add(new TaskRef(l.id(), Lesson.CONCEPT_TASK_ID));
+                    continue;
+                }
                 for (Task t : l.tasks()) {
                     if (t.required()) order.add(new TaskRef(l.id(), t.id()));
                 }
@@ -88,11 +102,11 @@ public final class Curriculum {
         return lesson(lessonId).flatMap(l -> l.task(taskId));
     }
 
-    /** 章に含まれる問題の数。 */
+    /** 章に含まれる★の数（問題と、概念レッスン1つあたり1）。{@link #clearedCount} の分母。 */
     public int taskCount(Chapter chapter) {
         int n = 0;
         for (Lesson l : chapter.lessons()) {
-            n += (int) l.tasks().stream().filter(Task::required).count();
+            n += l.taskKeys().size();
         }
         return n;
     }

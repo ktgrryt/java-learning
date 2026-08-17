@@ -67,6 +67,23 @@
         "Futureリストを同じ順で回してgetすると出力順が固定されます。"
       ],
       "solution": "import java.util.*;\nimport java.util.concurrent.*;\n\npublic class Main {\n    public static void main(String[] args) throws Exception {\n        Scanner sc = new Scanner(System.in);\n        int size = sc.nextInt(), n = sc.nextInt();\n        long[] values = new long[n];\n        for (int i = 0; i < n; i++) values[i] = sc.nextLong();\n        try (ExecutorService pool = Executors.newFixedThreadPool(size)) {\n            List<Future<Long>> fs = new ArrayList<>();\n            for (long v : values) fs.add(pool.submit(() -> v * v));\n            for (Future<Long> f : fs) System.out.println(f.get());\n        }\n    }\n}\n",
+      "sourceChecks": [
+        {
+          "pattern": "Executors\\s*\\.\\s*newFixedThreadPool\\s*\\(",
+          "minimum": 1,
+          "message": "スレッド数を決めたプールは `Executors.newFixedThreadPool(poolSize)` で作ってください。"
+        },
+        {
+          "pattern": "\\.submit\\s*\\(",
+          "minimum": 1,
+          "message": "各値の計算は `pool.submit(...)` で投入し、`Future` を投入順に保持してください。ループで直接計算すると、タスクを投入したことになりません。"
+        },
+        {
+          "pattern": "\\btry\\s*\\(",
+          "minimum": 1,
+          "message": "プールは閉じないとプログラムが終わりません。try-with-resources で受けてください。"
+        }
+      ],
       "extraTasks": [
         {
           "kind": "applied",
@@ -276,6 +293,18 @@
         "リストを投入順に回し、joinした値を表示します。"
       ],
       "solution": "import java.util.*;\nimport java.util.concurrent.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n        int[] values = new int[n];\n        for (int i = 0; i < n; i++) values[i] = sc.nextInt();\n        List<CompletableFuture<Integer>> fs = new ArrayList<>();\n        for (int value : values) fs.add(CompletableFuture.supplyAsync(() -> value * 2).thenApply(x -> x + 1));\n        for (var f : fs) System.out.println(f.join());\n    }\n}\n",
+      "sourceChecks": [
+        {
+          "pattern": "supplyAsync\\s*\\(",
+          "minimum": 1,
+          "message": "各値の計算は `CompletableFuture.supplyAsync(...)` で始めてください。"
+        },
+        {
+          "pattern": "thenApply\\s*\\(",
+          "minimum": 1,
+          "message": "+1 は `thenApply(...)` でつないでください。先に足してしまうと、つなぐ練習になりません。"
+        }
+      ],
       "extraTasks": [
         {
           "kind": "applied",
@@ -579,6 +608,13 @@
         "try-with-resources で閉じた `ExecutorService` は、全タスクの終了を待ってから抜けます。`shutdown` を書き忘れて止まらないことを防げます。"
       ],
       "solution": "import java.util.*;\nimport java.util.concurrent.*;\n\npublic class Main {\n    public static void main(String[] args) throws Exception {\n        Scanner sc = new Scanner(System.in);\n        int poolSize = sc.nextInt(), n = sc.nextInt();\n        long total = 0;\n        try (ExecutorService pool = Executors.newFixedThreadPool(poolSize)) {\n            List<Future<Integer>> futures = new ArrayList<>();\n            for (int i = 0; i < n; i++) {\n                int value = sc.nextInt();\n                futures.add(pool.submit(() -> value > 0 ? value * 2 : 0));\n            }\n            for (Future<Integer> f : futures) {\n                int result = f.get();\n                total += result;\n                System.out.println(result);\n            }\n        }\n        System.out.println(\"total=\" + total);\n    }\n}\n",
+      "sourceChecks": [
+        {
+          "pattern": "\\.submit\\s*\\(",
+          "minimum": 1,
+          "message": "各値の計算は `pool.submit(...)` で投入してください。ループで直接計算すると、ひな形のプールを使ったことになりません。"
+        }
+      ],
       "extraTasks": [
         {
           "objectiveIds": [

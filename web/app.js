@@ -349,9 +349,12 @@
   /**
    * 提出・クイズ回答の応答に入っている差分を、手元の state に上書きする。
    *
-   * サーバはカリキュラム全体（解説やサンプル込みで約500KB）を返さず、
-   * 変わったところ＝進捗まわりだけを返す。解説文などは最初の /api/state で
-   * 受け取ったものをそのまま使い続ける。
+   * サーバはカリキュラム全体（解説やサンプル込みで3MB以上）を返さず、
+   * 変わったところ＝提出した問題のレッスンとその章、それに進捗の集計だけを返す。
+   * 解説文などは最初の /api/state で受け取ったものをそのまま使い続ける。
+   *
+   * 差分に入っていないものは触らない（id で引き当てて、来た項目だけ上書きする）。
+   * サーバが送る範囲を絞っても、ここは書き換えなくてよいようにしてある。
    */
   function applyDelta(delta) {
     if (!delta) { return; }
@@ -365,6 +368,8 @@
       if (u) {
         ch.cleared = u.cleared;
         ch.clearedCount = u.clearedCount;
+        // 3層の到達状況。数え方はサーバーにしかないので、来た値をそのまま入れ替える
+        if (u.layers) { ch.layers = u.layers; }
       }
     });
 
@@ -391,6 +396,12 @@
           t.solutionUnlocked = u.solutionUnlocked;
           t.bookmarked = u.bookmarked;
           t.reviewWeight = u.reviewWeight;
+          // 期限とレベルも入れ替える。ここを入れていなかったので、復習で通した問題の
+          // 間隔が伸びたことが、画面を再読み込みするまで復習一覧に出なかった
+          // （未クリアの問題では3つとも来ない。reviewCandidates が未定義を0として扱う）
+          t.reviewLevel = u.reviewLevel;
+          t.reviewDue = u.reviewDue;
+          t.reviewDueDays = u.reviewDueDays;
         }
       });
     });
@@ -633,6 +644,10 @@
    */
   function lessonTaskProgress(lesson) {
     if (lesson.type === 'preflight') { return '<span class="lesson-frac">準備</span>'; }
+    // 概念レッスンは提出課題を持たないので、開く前に「クイズで★が付く」と分かるようにする。
+    if (lesson.type === 'concept') {
+      return lesson.cleared ? '' : '<span class="lesson-frac">クイズ</span>';
+    }
     if (lesson.taskCount < 2 || lesson.cleared) { return ''; }
     return lesson.clearedCount ? '<span class="lesson-frac">学習中</span>' : '';
   }
@@ -640,6 +655,7 @@
   function lessonTooltip(lesson) {
     if (lesson.type === 'preflight') { return '環境の事前確認（★対象外）: ' + lesson.title; }
     if (lesson.cleared) { return 'クリア済み: ' + lesson.title; }
+    if (lesson.type === 'concept') { return 'クイズ全問正解で★: ' + lesson.title; }
     return lesson.clearedCount ? lesson.title + '（学習中）' : lesson.title;
   }
 
@@ -2522,6 +2538,8 @@
 
       '  <section class="preflight" id="preflight"></section>' +
 
+      '  <section class="concept-note" id="conceptNote"></section>' +
+
       '  <section class="tasks" id="tasks"></section>' +
       '  <section class="quiz" id="quiz"></section>' +
       '  <nav class="lesson-next" id="lessonNext" aria-label="次のレッスン"></nav>' +
@@ -2529,6 +2547,7 @@
 
     renderSamples(lesson);
     renderPreflight(lesson);
+    renderConceptNote(lesson);
 
     var tasksHost = document.getElementById('tasks');
     lesson.tasks.forEach(function (task, index) {
@@ -2561,6 +2580,25 @@
       if (ready) localStorage.setItem(preflightStorageKey(lessonId), String(Date.now()));
       else localStorage.removeItem(preflightStorageKey(lessonId));
     } catch (e) { /* 保存できなくても確認そのものは続けられる */ }
+  }
+
+  /**
+   * 概念レッスンに提出課題が無い理由を、その場で書いておく。
+   *
+   * 何も書かないと「問題が抜けている」と読める。工程名や成果物の対応のように、
+   * 提出物にすると測る対象がずれてしまう論点をここで扱っていること、★はクイズで付くことを示す。
+   */
+  function renderConceptNote(lesson) {
+    var host = document.getElementById('conceptNote');
+    if (!host || lesson.type !== 'concept') { return; }
+    host.innerHTML = '<div class="card card-concept">' +
+      '<div class="concept-head"><div><span class="screen-eyebrow">CONCEPT</span>' +
+      '<h2 class="card-h"><span class="card-h-icon">📋</span>このレッスンは用語と判断を扱います</h2></div>' +
+      '<span class="concept-star">★はクイズ全問正解</span></div>' +
+      '<p class="concept-lead">提出するコードはありません。工程の名前・成果物・どちらを選ぶかの判断は、' +
+      'コードにすると測る対象がずれてしまうため、解説と確認クイズで身につけます。' +
+      '下のクイズに全問正解すると★が付き、章クリアの条件にも入ります。</p>' +
+      '</div>';
   }
 
   function renderPreflight(lesson) {
@@ -3024,7 +3062,9 @@
              (answered < quizzes.length ? '（未回答 ' + (quizzes.length - answered) + '）' : '') +
       '    </span>' +
       '  </div>' +
-      '  <p class="quiz-note">★ の判定には影響しません。何度でも答え直せます。</p>' +
+      '  <p class="quiz-note">' + (lesson.type === 'concept'
+        ? '全問正解すると★が付きます。何度でも答え直せます。'
+        : '★ の判定には影響しません。何度でも答え直せます。') + '</p>' +
       quizzes.map(function (q, i) { return quizItemHtml(q, i, results[i]); }).join('') +
       '</div>';
 
@@ -3069,12 +3109,21 @@
 
   function answerQuiz(index, choice) {
     var lessonId = currentId;
+    var cafeBefore = cafeLevelSnapshot();
     api('quiz', { lessonId: lessonId, index: index, choice: choice })
       .then(function (res) {
         applyDelta(res.delta);
         renderHeader();
         var lesson = findLesson(lessonId);
         if (lesson && lessonId === currentId) { renderQuiz(lesson); }
+        // 概念レッスンは、この回で全問そろうと★が付く。報酬・章クリア・次への導線は
+        // 問題をクリアしたときと同じ通知に出す（同じ意味の出来事を2種類の見た目にしない）。
+        if (res.newStar) {
+          notifyConceptReward(res, lesson, cafeBefore);
+          celebrate(res);
+          if (lessonId === currentId) { markLessonCleared(lesson); }
+          return;
+        }
         if (res.cafeAward && res.cafeAward.cash > 0) {
           showCafeRewardNotification(res.cafeAward, {
             kicker: '確認クイズ正解',
@@ -3085,6 +3134,42 @@
         }
       })
       .catch(toastError);
+  }
+
+  /** 概念レッスンの★を、問題クリアと同じ1枚の通知で知らせる。 */
+  function notifyConceptReward(res, lesson, cafeBefore) {
+    if (!res.cafeAward || !(res.cafeAward.cash > 0 || res.cafeAward.cups > 0)) { return; }
+    var cafeAfter = cafeLevelSnapshot();
+    showCafeRewardNotification(res.cafeAward, {
+      kicker: 'クイズ全問正解',
+      title: '★ を獲得しました',
+      label: lesson ? lesson.title : '',
+      balance: cafeState().cash,
+      newStar: true,
+      chapterCleared: res.chapterCleared,
+      chapterNumber: res.chapterNumber,
+      chapterTitle: res.chapterTitle,
+      next: res.next,
+      levelUp: cafeBefore && cafeAfter.level > cafeBefore.level
+        ? { before: cafeBefore, after: cafeAfter }
+        : null
+    });
+  }
+
+  /**
+   * 開いているレッスンの見出しへ★のバッジを足す。
+   *
+   * レッスンごと描き直すと画面の先頭へ戻ってしまい、いま答えたクイズの解説が視界から消える。
+   * 変わったのはバッジだけなので、そこだけ足す。
+   */
+  function markLessonCleared(lesson) {
+    var head = document.querySelector('.lesson-h1');
+    if (!head || !lesson || !lesson.cleared || head.querySelector('.badge-clear')) { return; }
+    var badge = document.createElement('span');
+    badge.className = 'badge badge-clear';
+    badge.textContent = '★ クリア済み';
+    head.appendChild(badge);
+    renderSidebar();
   }
 
   /** 問題文の下に置く「どんな入出力が試されるか」の表。 */

@@ -14,6 +14,14 @@
 # 出力クラスが動く最低バージョン。ここを上げると古いJDKで動かなくなる
 JQ_TARGET_RELEASE=21
 
+# javacの警告。既定では黙っているものまで出す。
+#
+# 説明の付け替え漏れ（dangling-doc-comments）のように、動くけれど読み手を誤らせる
+# 間違いはこれでしか出ない。実際に、後から挿し込んだメソッドの上に別のメソッドの説明が
+# 残っていた箇所が2件あった。警告0の状態から始めるので、増えたらすぐ分かる。
+# `-Werror` にはしない ― 学習者が起動できなくなるのは割に合わない。
+JQ_LINT=(-Xlint:all)
+
 # 2026-07-21のJava CPU（Critical Patch Update）で公開された最低security baseline。
 # 四半期ごとのCPUに合わせて更新する。非LTSの22〜24は現在の更新対象外なので受け付けない。
 jq_jdk_meets_security_baseline() {
@@ -116,7 +124,8 @@ jq_build() {
   rm -rf "$build_dir"
   mkdir -p "$build_dir"
   find src -name '*.java' > build/sources.txt
-  "$JQ_JAVAC" --release "$JQ_TARGET_RELEASE" -encoding UTF-8 -d "$build_dir" @build/sources.txt
+  "$JQ_JAVAC" --release "$JQ_TARGET_RELEASE" -encoding UTF-8 "${JQ_LINT[@]}" \
+    -d "$build_dir" @build/sources.txt
   printf '%s' "$JQ_JDK_LABEL" > "$stamp"
   touch "$build_dir"
   echo "ビルド完了"

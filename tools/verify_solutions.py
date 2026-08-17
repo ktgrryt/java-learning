@@ -23,7 +23,7 @@ PORT = sys.argv[1] if len(sys.argv) > 1 else "8123"
 BASE = f"http://localhost:{PORT}/api/"
 
 # 第2引数以降にレッスンIDの先頭を並べると、その章・レッスンだけを検査する。
-# 章を1つ書いている間、1122件すべてを走らせ直さなくて済むようにするための指定。
+# 章を1つ書いている間、3405件すべてを走らせ直さなくて済むようにするための指定。
 # 例:  tools/verify-solutions.sh --only 21      （第21章だけ）
 #      tools/verify-solutions.sh --only 21-3    （そのレッスンだけ）
 ONLY = [p for p in sys.argv[2:] if p and p != "--strict-starters"]
@@ -326,7 +326,13 @@ def main():
             required_n = sum(1 for t in lesson["tasks"] if t.get("required", True))
             optional_n = len(lesson["tasks"]) - required_n
             optional_note = f" + 任意{optional_n}問" if optional_n else ""
-            task_note = " / ★対象外" if is_preflight else f" / {required_n}問{optional_note}"
+            if is_preflight:
+                task_note = " / ★対象外"
+            elif lesson.get("type") == "concept":
+                # 概念レッスンは提出課題を持たず、★はクイズ全問正解で付く
+                task_note = " / ★はクイズ"
+            else:
+                task_note = f" / {required_n}問{optional_note}"
             quiz_n = len(lesson.get("quizzes", []))
             quiz_note = f" / クイズ{quiz_n}問" if quiz_n else ""
             print(f"   {mark} {lid:4} {lesson['title'][:26]:28} "

@@ -112,6 +112,23 @@
         "`if(rs.next())` の中で列名から3値を読み、elseで該当なし。"
       ],
       "solution": "import java.sql.*;\nimport java.util.*;\n\npublic class JdbcFind {\n    public static void main(String[] a) throws Exception {\n        int id = new Scanner(System.in).nextInt();\n        String sql = \"SELECT id, name, balance FROM users WHERE id = ?\";\n        try (Connection con = MiniJdbc.open(); PreparedStatement ps = con.prepareStatement(sql)) {\n            ps.setInt(1, id);\n            try (ResultSet rs = ps.executeQuery()) {\n                if (rs.next()) System.out.println(\"id=\" + rs.getInt(\"id\") + \" name=\" + rs.getString(\"name\") + \" balance=\" + rs.getInt(\"balance\"));\n                else System.out.println(\"該当なし\");\n            }\n        }\n    }\n}\n",
+      "sourceChecks": [
+        {
+          "pattern": "\\bprepareStatement\\s*\\(",
+          "minimum": 1,
+          "message": "検索は `con.prepareStatement(sql)` で組み立ててください。"
+        },
+        {
+          "pattern": "\\bexecuteQuery\\s*\\(",
+          "minimum": 1,
+          "message": "結果は `executeQuery()` でDBから読んでください。値を直接書くと、表の中身が変わったときに合わなくなります。"
+        },
+        {
+          "pattern": "\\btry\\s*\\(",
+          "minimum": 1,
+          "message": "Connection・PreparedStatement・ResultSet は try-with-resources で閉じてください。"
+        }
+      ],
       "extraTasks": [
         {
           "kind": "applied",
@@ -207,6 +224,18 @@
         "戻り値が1なら更新、0なら対象なし。"
       ],
       "solution": "import java.sql.*;\nimport java.util.*;\n\npublic class JdbcUpdate {\n    public static void main(String[] a) throws Exception {\n        Scanner sc = new Scanner(System.in);\n        int id = sc.nextInt(), balance = sc.nextInt();\n        if (balance < 0) {\n            System.out.println(\"不正な残高\");\n            return;\n        }\n        try (Connection c = MiniJdbc.open(); PreparedStatement p = c.prepareStatement(\"UPDATE users SET balance = ? WHERE id = ?\")) {\n            p.setInt(1, balance);\n            p.setInt(2, id);\n            System.out.println(p.executeUpdate() == 1 ? \"更新しました\" : \"対象なし\");\n        }\n    }\n}\n",
+      "sourceChecks": [
+        {
+          "pattern": "\\bsetInt\\s*\\(",
+          "minimum": 1,
+          "message": "IDと残高を文字列連結でSQLへ埋めず、`?` に `setInt` で入れてください（SQLインジェクションを防ぐため）。"
+        },
+        {
+          "pattern": "\\bexecuteUpdate\\s*\\(",
+          "minimum": 1,
+          "message": "UPDATE は `executeUpdate` です。戻り値が更新件数になります。"
+        }
+      ],
       "extraTasks": [
         {
           "kind": "applied",
@@ -428,6 +457,18 @@
         "ResultSetはnextしてから列を読みます。"
       ],
       "solution": "import java.sql.*;\nimport java.util.*;\n\npublic class Main {\n    public static void main(String[] args) throws Exception {\n        int id = new Scanner(System.in).nextInt();\n        try (Connection c = MiniJdbc.open(); PreparedStatement p = c.prepareStatement(\"SELECT id, name, balance FROM users WHERE id = ?\")) {\n            p.setInt(1, id);\n            try (ResultSet r = p.executeQuery()) {\n                if (r.next()) System.out.println(r.getString(\"name\") + \" balance=\" + r.getInt(\"balance\"));\n                else System.out.println(\"not found\");\n            }\n        }\n    }\n}\n",
+      "sourceChecks": [
+        {
+          "pattern": "\\bsetInt\\s*\\(",
+          "minimum": 1,
+          "message": "ひな形の `?` へ、`p.setInt(1, id)` でIDを入れてください。"
+        },
+        {
+          "pattern": "\\bexecuteQuery\\s*\\(",
+          "minimum": 1,
+          "message": "名前と残高は `executeQuery()` の結果から読んでください。"
+        }
+      ],
       "extraTasks": [
         {
           "kind": "drill",

@@ -35,7 +35,8 @@
       '<div class="editor-scroll">' +
       '  <pre class="editor-highlight" aria-hidden="true"><code></code></pre>' +
       '  <textarea class="editor-input" spellcheck="false" autocapitalize="off"' +
-      '            autocomplete="off" wrap="off" aria-label="' + this.ariaLabel + '"></textarea>' +
+      '            autocomplete="off" wrap="off" aria-label="'
+                   + global.JQHighlight.escapeHtml(this.ariaLabel) + '"></textarea>' +
       '</div>';
 
     this.gutter = this.host.querySelector('.editor-gutter');

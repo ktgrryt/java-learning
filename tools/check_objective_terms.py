@@ -96,9 +96,17 @@ def collect(data):
     """目標id -> その目標を測る必須問題のテキスト。"""
     corpus = {o['id']: [] for o in data.get('objectives', [])}
     for lesson in data['lessons']:
-        if lesson.get('type') == 'preflight':
+        if lesson.get('type') == 'preflight' or lesson.get('lessonType') == 'preflight':
             continue
         base = lesson.get('objectiveIds') or []
+        # 概念レッスンは提出課題を持たず、★（章クリアの分母）はクイズ全問正解で付く。
+        # そのレッスンで測っているのはクイズなので、名指しした語もクイズの中で探す。
+        if lesson.get('lessonType') == 'concept':
+            body = json.dumps(lesson.get('quiz') or [], ensure_ascii=False)
+            for oid in base:
+                if oid in corpus:
+                    corpus[oid].append(body)
+            continue
         for task in [lesson] + list(lesson.get('extraTasks') or []):
             if not task.get('task') or task.get('required') is False:
                 continue

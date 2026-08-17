@@ -695,53 +695,53 @@
             "ch51-o3"
           ],
           "kind": "applied",
-          "task": "【実践】作業をn件 `goal state` の形で読みます。`goal` は `experiment` / `bytecode` / `dependencies` / `runtime` / `installer` のいずれかで、それぞれ `jshell` / `javap` / `jdeps` / `jlink` / `jpackage` を使います。`state` は `standard` / `preview` / `deprecated` / `removed` のいずれかで、それぞれ `CONSIDER` / `EVALUATE` / `MIGRATE` / `BLOCK` の判断になります。\n\n各作業を読んだ順に `行番号 ツール名 判断` と表示してください（行番号は1から）。ただし `state` が `removed` のときは、ツールを動かす前に止めるので `行番号 BLOCK` だけを表示します。\n\n続けて、`--enable-preview` が必要な件数（`state` が `preview` の件数）を `PREVIEW 件数`、先に移行を済ませるべき件数（`state` が `deprecated` または `removed` の件数）を `MIGRATE 件数` の形で表示します。",
-          "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        Map<String, String> tools = Map.of(\"experiment\", \"jshell\", \"bytecode\", \"javap\", \"dependencies\", \"jdeps\", \"runtime\", \"jlink\", \"installer\", \"jpackage\");\n        Map<String, String> actions = Map.of(\"standard\", \"CONSIDER\", \"preview\", \"EVALUATE\", \"deprecated\", \"MIGRATE\", \"removed\", \"BLOCK\");\n        int n = sc.nextInt(), preview = 0, migrate = 0;\n        for (int k = 1; k <= n; k++) {\n            String goal = sc.next(), state = sc.next();\n            /* TODO 表示と集計 */\n        }\n        /* TODO PREVIEW と MIGRATE の表示 */\n    }\n}\n",
+          "task": "【実践】非推奨APIの移行を、**重い順**に並べてください。\n\n同じ「非推奨」でも、放っておける期間が違います。すでに削除された（`removed`）ものはビルドが通らないので今すぐ直します。削除予定（`for-removal`）は次の版で消えるので、期限があります。ただの非推奨（`deprecated`）は動き続けますが、いつか上の2つへ進みます。\n\n入力の1行目はAPIの数n、続くn行が `API名 状態 使用箇所数` です。状態は `removed` / `for-removal` / `deprecated` のどれか、使用箇所数は整数です。API名に空白は入りません。\n\n```\n4\nThread.stop removed 3\nRuntime.runFinalizersOnExit removed 1\nSecurityManager for-removal 12\nDate.getYear deprecated 40\n```\n\nまず、**状態の重い順**（`removed` → `for-removal` → `deprecated`）に並べ、同じ状態なら**使用箇所数の多い順**、それも同じなら**API名の辞書順**にします。並べた順に1行ずつ表示してください。\n\n```\n<API名> <状態> <使用箇所数>\n```\n\n続けて次の3行を表示します。\n\n```\n今すぐ <removedの使用箇所数の合計>\n期限あり <for-removalの使用箇所数の合計>\n判定 <ビルド不可 か 計画的移行>\n```\n\n`判定` は、`removed` が1件以上あれば `ビルド不可`、無ければ `計画的移行` です。\n\n上の例の答えはこうなります。\n\n```\nThread.stop removed 3\nRuntime.runFinalizersOnExit removed 1\nSecurityManager for-removal 12\nDate.getYear deprecated 40\n今すぐ 4\n期限あり 12\n判定 ビルド不可\n```\n\n**使用箇所が多い順ではありません。** 40箇所ある `deprecated` より、1箇所の `removed` を先に直します。動かないものが先です。\n",
+          "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int n = Integer.parseInt(sc.nextLine().trim());\n        List<String[]> apis = new ArrayList<>();\n        for (int i = 0; i < n; i++) {\n            apis.add(sc.nextLine().trim().split(\"\\\\s+\"));\n        }\n        /* TODO 状態の重さを数にして、重い順 → 使用箇所の多い順 → API名順に並べる */\n        /* TODO 並べた順に表示し、removed と for-removal の使用箇所数を合計する */\n        /* TODO 今すぐ・期限あり・判定を表示する */\n    }\n}\n",
           "visibleCases": [
             {
-              "label": "4つの状態が混ざる",
-              "stdin": "5 experiment preview bytecode standard dependencies deprecated runtime removed installer standard",
-              "expected": "1 jshell EVALUATE\n2 javap CONSIDER\n3 jdeps MIGRATE\n4 BLOCK\n5 jpackage CONSIDER\nPREVIEW 1\nMIGRATE 2"
+              "label": "removedがあるのでビルド不可",
+              "stdin": "4\nThread.stop removed 3\nRuntime.runFinalizersOnExit removed 1\nSecurityManager for-removal 12\nDate.getYear deprecated 40\n",
+              "expected": "Thread.stop removed 3\nRuntime.runFinalizersOnExit removed 1\nSecurityManager for-removal 12\nDate.getYear deprecated 40\n今すぐ 4\n期限あり 12\n判定 ビルド不可"
             },
             {
-              "label": "確定した機能だけ",
-              "stdin": "2 bytecode standard runtime standard",
-              "expected": "1 javap CONSIDER\n2 jlink CONSIDER\nPREVIEW 0\nMIGRATE 0"
+              "label": "removedが無く、計画的に移行できる",
+              "stdin": "3\nSecurityManager for-removal 12\nDate.getYear deprecated 40\nThread.suspend for-removal 2\n",
+              "expected": "SecurityManager for-removal 12\nThread.suspend for-removal 2\nDate.getYear deprecated 40\n今すぐ 0\n期限あり 14\n判定 計画的移行"
             }
           ],
           "hiddenCases": [
             {
-              "label": "作業0件",
-              "stdin": "0",
-              "expected": "PREVIEW 0\nMIGRATE 0"
+              "label": "同じ状態は使用箇所の多い順",
+              "stdin": "3\nA deprecated 1\nB deprecated 9\nC deprecated 5\n",
+              "expected": "B deprecated 9\nC deprecated 5\nA deprecated 1\n今すぐ 0\n期限あり 0\n判定 計画的移行"
             },
             {
-              "label": "すべてpreview",
-              "stdin": "3 experiment preview bytecode preview runtime preview",
-              "expected": "1 jshell EVALUATE\n2 javap EVALUATE\n3 jlink EVALUATE\nPREVIEW 3\nMIGRATE 0"
+              "label": "状態も使用箇所も同じならAPI名の辞書順",
+              "stdin": "3\nZebra deprecated 4\nApple deprecated 4\nMango deprecated 4\n",
+              "expected": "Apple deprecated 4\nMango deprecated 4\nZebra deprecated 4\n今すぐ 0\n期限あり 0\n判定 計画的移行"
             },
             {
-              "label": "すべて削除済み",
-              "stdin": "2 experiment removed installer removed",
-              "expected": "1 BLOCK\n2 BLOCK\nPREVIEW 0\nMIGRATE 2"
+              "label": "使用箇所が0件のremovedでもビルド不可",
+              "stdin": "2\nThread.stop removed 0\nDate.getYear deprecated 5\n",
+              "expected": "Thread.stop removed 0\nDate.getYear deprecated 5\n今すぐ 0\n期限あり 0\n判定 ビルド不可"
             },
             {
-              "label": "非推奨と削除済みは両方MIGRATEに数える",
-              "stdin": "3 dependencies deprecated runtime removed installer deprecated",
-              "expected": "1 jdeps MIGRATE\n2 BLOCK\n3 jpackage MIGRATE\nPREVIEW 0\nMIGRATE 3"
+              "label": "for-removalだけが並ぶ",
+              "stdin": "2\nA for-removal 3\nB for-removal 7\n",
+              "expected": "B for-removal 7\nA for-removal 3\n今すぐ 0\n期限あり 10\n判定 計画的移行"
             },
             {
-              "label": "1件だけ",
-              "stdin": "1 dependencies standard",
-              "expected": "1 jdeps CONSIDER\nPREVIEW 0\nMIGRATE 0"
+              "label": "APIが1件だけ",
+              "stdin": "1\nDate.getYear deprecated 40\n",
+              "expected": "Date.getYear deprecated 40\n今すぐ 0\n期限あり 0\n判定 計画的移行"
             }
           ],
           "hints": [
-            "ツール名と判断はどちらも `Map` の引き当てで済みます。分岐を書くのは `removed` の場合だけです。",
-            "`removed` の行はツール名を出しません。表示の形が変わる場合を先に片づけると読みやすくなります。",
-            "`preview` は仕様が変わり得る暫定機能なので、`--enable-preview` の件数を別に数えます。`deprecated` は即時削除ではありませんが、`removed` と同じく移行の対象です。"
+            "並べ替えは3段です。状態を数へ直してから、`Comparator.comparingInt(...).thenComparing(...)` でつなぎます。",
+            "使用箇所の多い順は、`-Integer.parseInt(...)` のように符号を反転させると昇順の比較で書けます。",
+            "`今すぐ` と `期限あり` は、並べ替えたあとのループで足せます。判定は合計ではなく、`removed` の行があるかどうかで決まります。"
           ],
-          "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        Map<String, String> tools = Map.of(\"experiment\", \"jshell\", \"bytecode\", \"javap\", \"dependencies\", \"jdeps\", \"runtime\", \"jlink\", \"installer\", \"jpackage\");\n        Map<String, String> actions = Map.of(\"standard\", \"CONSIDER\", \"preview\", \"EVALUATE\", \"deprecated\", \"MIGRATE\", \"removed\", \"BLOCK\");\n        int n = sc.nextInt(), preview = 0, migrate = 0;\n        for (int k = 1; k <= n; k++) {\n            String goal = sc.next(), state = sc.next();\n            if (state.equals(\"removed\")) System.out.println(k + \" BLOCK\");\n            else System.out.println(k + \" \" + tools.get(goal) + \" \" + actions.get(state));\n            if (state.equals(\"preview\")) preview++;\n            if (state.equals(\"deprecated\") || state.equals(\"removed\")) migrate++;\n        }\n        System.out.println(\"PREVIEW \" + preview);\n        System.out.println(\"MIGRATE \" + migrate);\n    }\n}\n"
+          "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int n = Integer.parseInt(sc.nextLine().trim());\n        List<String[]> apis = new ArrayList<>();\n        for (int i = 0; i < n; i++) {\n            apis.add(sc.nextLine().trim().split(\"\\\\s+\"));\n        }\n\n        apis.sort(Comparator.comparingInt((String[] row) -> weight(row[1]))\n                .thenComparing(row -> -Integer.parseInt(row[2]))\n                .thenComparing(row -> row[0]));\n\n        int now = 0;\n        int planned = 0;\n        for (String[] row : apis) {\n            int uses = Integer.parseInt(row[2]);\n            if (row[1].equals(\"removed\")) {\n                now += uses;\n            } else if (row[1].equals(\"for-removal\")) {\n                planned += uses;\n            }\n            System.out.println(row[0] + \" \" + row[1] + \" \" + uses);\n        }\n        System.out.println(\"今すぐ \" + now);\n        System.out.println(\"期限あり \" + planned);\n        System.out.println(\"判定 \" + (hasRemoved(apis) ? \"ビルド不可\" : \"計画的移行\"));\n    }\n\n    /** 重さを小さい数で表す。小さいほど先に直す。 */\n    static int weight(String state) {\n        return switch (state) {\n            case \"removed\" -> 0;\n            case \"for-removal\" -> 1;\n            default -> 2;\n        };\n    }\n\n    /** 使用箇所が0件でも、removed が並んでいればビルドは通らない。 */\n    static boolean hasRemoved(List<String[]> apis) {\n        for (String[] row : apis) {\n            if (row[1].equals(\"removed\")) {\n                return true;\n            }\n        }\n        return false;\n    }\n}\n"
         }
       ],
       "rubric": [
