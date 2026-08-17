@@ -692,16 +692,16 @@
         },
         {
           "objectiveIds": [
-            "ch51-o3"
+            "ch51-o4"
           ],
           "kind": "applied",
-          "task": "【実践】非推奨APIの移行を、**重い順**に並べてください。\n\n同じ「非推奨」でも、放っておける期間が違います。すでに削除された（`removed`）ものはビルドが通らないので今すぐ直します。削除予定（`for-removal`）は次の版で消えるので、期限があります。ただの非推奨（`deprecated`）は動き続けますが、いつか上の2つへ進みます。\n\n入力の1行目はAPIの数n、続くn行が `API名 状態 使用箇所数` です。状態は `removed` / `for-removal` / `deprecated` のどれか、使用箇所数は整数です。API名に空白は入りません。\n\n```\n4\nThread.stop removed 3\nRuntime.runFinalizersOnExit removed 1\nSecurityManager for-removal 12\nDate.getYear deprecated 40\n```\n\nまず、**状態の重い順**（`removed` → `for-removal` → `deprecated`）に並べ、同じ状態なら**使用箇所数の多い順**、それも同じなら**API名の辞書順**にします。並べた順に1行ずつ表示してください。\n\n```\n<API名> <状態> <使用箇所数>\n```\n\n続けて次の3行を表示します。\n\n```\n今すぐ <removedの使用箇所数の合計>\n期限あり <for-removalの使用箇所数の合計>\n判定 <ビルド不可 か 計画的移行>\n```\n\n`判定` は、`removed` が1件以上あれば `ビルド不可`、無ければ `計画的移行` です。\n\n上の例の答えはこうなります。\n\n```\nThread.stop removed 3\nRuntime.runFinalizersOnExit removed 1\nSecurityManager for-removal 12\nDate.getYear deprecated 40\n今すぐ 4\n期限あり 12\n判定 ビルド不可\n```\n\n**使用箇所が多い順ではありません。** 40箇所ある `deprecated` より、1箇所の `removed` を先に直します。動かないものが先です。\n",
+          "task": "【実践】非推奨APIの移行を、**重い順**に並べてください。\n\n同じ「非推奨」でも、放っておける期間が違います。すでに削除された（`removed`）ものはビルドが通らないので今すぐ直します。削除予定（`for-removal`）は次の版で消えるので、期限があります。ただの非推奨（`deprecated`）は動き続けますが、いつか上の2つへ進みます。\n\n入力の1行目はAPIの数n、続くn行が `API名 状態 使用箇所数` です。状態は `removed` / `for-removal` / `deprecated` のどれか、使用箇所数は整数です。API名に空白は入りません。\n\n```\n4\nThread.stop for-removal 3\nRuntime.runFinalizersOnExit removed 1\nSecurityManager for-removal 12\nDate.getYear deprecated 40\n```\n\nまず、**状態の重い順**（`removed` → `for-removal` → `deprecated`）に並べ、同じ状態なら**使用箇所数の多い順**、それも同じなら**API名の辞書順**にします。並べた順に1行ずつ表示してください。\n\n```\n<API名> <状態> <使用箇所数>\n```\n\n続けて次の3行を表示します。\n\n```\n今すぐ <removedの使用箇所数の合計>\n期限あり <for-removalの使用箇所数の合計>\n判定 <ビルド不可 か 計画的移行>\n```\n\n`判定` は、`removed` が1件以上あれば `ビルド不可`、無ければ `計画的移行` です。\n\n上の例の答えはこうなります。\n\n```\nRuntime.runFinalizersOnExit removed 1\nSecurityManager for-removal 12\nThread.stop for-removal 3\nDate.getYear deprecated 40\n今すぐ 1\n期限あり 15\n判定 ビルド不可\n```\n\n**使用箇所が多い順ではありません。** 40箇所ある `deprecated` より、1箇所の `removed` を先に直します。動かないものが先です。\n\n> 状態は自分で調べて入れる欄です。たとえば `Thread.stop` はJava 21でも**まだ在る**（呼ぶと `UnsupportedOperationException` を投げる）ので `for-removal`、`Runtime.runFinalizersOnExit` はJava 11で消えたので `removed` です。`jdeprscan` の出力とリリースノートで確かめます。\n",
           "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int n = Integer.parseInt(sc.nextLine().trim());\n        List<String[]> apis = new ArrayList<>();\n        for (int i = 0; i < n; i++) {\n            apis.add(sc.nextLine().trim().split(\"\\\\s+\"));\n        }\n        /* TODO 状態の重さを数にして、重い順 → 使用箇所の多い順 → API名順に並べる */\n        /* TODO 並べた順に表示し、removed と for-removal の使用箇所数を合計する */\n        /* TODO 今すぐ・期限あり・判定を表示する */\n    }\n}\n",
           "visibleCases": [
             {
               "label": "removedがあるのでビルド不可",
-              "stdin": "4\nThread.stop removed 3\nRuntime.runFinalizersOnExit removed 1\nSecurityManager for-removal 12\nDate.getYear deprecated 40\n",
-              "expected": "Thread.stop removed 3\nRuntime.runFinalizersOnExit removed 1\nSecurityManager for-removal 12\nDate.getYear deprecated 40\n今すぐ 4\n期限あり 12\n判定 ビルド不可"
+              "stdin": "4\nThread.stop for-removal 3\nRuntime.runFinalizersOnExit removed 1\nSecurityManager for-removal 12\nDate.getYear deprecated 40\n",
+              "expected": "Runtime.runFinalizersOnExit removed 1\nSecurityManager for-removal 12\nThread.stop for-removal 3\nDate.getYear deprecated 40\n今すぐ 1\n期限あり 15\n判定 ビルド不可"
             },
             {
               "label": "removedが無く、計画的に移行できる",
@@ -722,8 +722,8 @@
             },
             {
               "label": "使用箇所が0件のremovedでもビルド不可",
-              "stdin": "2\nThread.stop removed 0\nDate.getYear deprecated 5\n",
-              "expected": "Thread.stop removed 0\nDate.getYear deprecated 5\n今すぐ 0\n期限あり 0\n判定 ビルド不可"
+              "stdin": "2\nThread.destroy removed 0\nDate.getYear deprecated 5\n",
+              "expected": "Thread.destroy removed 0\nDate.getYear deprecated 5\n今すぐ 0\n期限あり 0\n判定 ビルド不可"
             },
             {
               "label": "for-removalだけが並ぶ",
