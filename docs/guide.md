@@ -1855,13 +1855,13 @@ builder imageを用意した状態で「注意」が1件も出なかった）。
 | 1つの章のJSON（問題・解説・クイズ） | `--only 52` のようにレッスンIDの先頭を渡す | `ContentLoader` は `content/` が変わっていれば全manifestを読み直すので、他章のJSON崩れは章限定の実行でも即座に出る（読み直すかの判定は更新時刻と大きさ。編集すれば必ず読み直しになる） |
 | labのscriptや `exercise/` `reference/` | そのlabを直接実行し、続けて `--only <レッスンIDの先頭>` | 影響がそのlabと、それを参照する問題に閉じる |
 | `ContentLoader`・各`Runner`・`Judge`などengine | 対応する `tools/check-*.sh` と、非single-file問題を持つ章（22 23 24 26 27 28 29 30 32 34 37 38 45 46 47 48 50 51 52 53 54 55 56 58 59 60 61 62 63 68 73） | 613問の `single-file` は `JavaRunner` と `Judge` にしか依存しない。章の一覧は増えるので、`content` から機械的に出すとよい（この一覧は `/api/state` の `tasks[].type` を数え直したもの。手で足すと今回のように漏れる） |
-| `web/` だけ | `node --check web/app.js` と `node tools/check-cafe-scene.js` | 採点はサーバー側で行うため、模範解答の合否は変わらない |
+| `web/` だけ | `node --check web/app.js`・`node tools/check-cafe-scene.js`・`./tools/check-learn-ui.sh` | 採点はサーバー側で行うため、模範解答の合否は変わらない。ただし**採点結果の描き方・`applyDelta` の上書き・通知・復習の出題は画面にしか無い**ので、最後の1本で1問を解き切る経路を通す |
 | カフェの規則・価格・アイテム（`CafeEconomy` / `CafeCatalog`） | `./tools/simulate-cafe.sh`・`check-achievements.sh`・`check-review-economy.sh`・`check-cafe-ui.sh` | 前3本が数（投資率・解放条件・上限）を、最後の1本が画面（タブの描画・購入で残高が価格ぶん減る・通知・自動売上）を見る。学習の採点には影響しないので `verify-solutions.sh` は要らない |
 | `web/` のカフェ画面まわり（`app.js` のカフェ節・`cafe-scene.js`） | `node --check web/app.js`・`node tools/check-cafe-scene.js`・`./tools/check-cafe-ui.sh` | 構文と店構えSVGの単体に加えて、実際のブラウザで描画と購入を通す。Chromeが無い環境では省略されるので、その場合は手で開いて確かめる |
 | このガイドの数（★の総数・問題数・テストケース件数など） | `./tools/check-guide-numbers.sh` （1秒） | 教材を増やすたびに必ず古くなる。実際に一度のレビューで6箇所ずれていた。文を書き換えたときは検査側の正規表現も直す（合致しなくなったら失敗として知らせる） |
 | 問題数の増減・概念レッスンの追加 | 上のいずれか＋ `./tools/simulate-cafe.sh` | ★が増えると1問あたりの報酬が積み上がって投資率は下がるが、★が20の倍数を越えると改装が1段増えて逆に上がる。向きは決めつけず出力を読む |
 | 概念レッスン（`lessonType: concept`）を足した | `./tools/check-layer-completion.sh`・`check-quiz-fairness.sh`・`check-content-inventory.sh`・`verify-solutions.sh --only <章>` | ★の根拠がクイズだけなので、選択肢の手がかりがそのまま★になる。層の数え方（章クリアの分母に★が入るか、コード層へ混ざっていないか）も機械でしか見えない |
-| コードの一括整形・複数章の同時修正・コミット前 | `./tools/check-all.sh`（速い26本）＋ 全件（`--only` なし） | 全章のコードや共通の採点条件を書き換えるので、影響範囲を絞れない |
+| コードの一括整形・複数章の同時修正・コミット前 | `./tools/check-all.sh`（速い27本）＋ 全件（`--only` なし） | 全章のコードや共通の採点条件を書き換えるので、影響範囲を絞れない |
 | 採点条件（`sourceChecks`・`visibleCases`・`hiddenCases`）を書き換えた | `--strict-starters` を付けて対象章 | `single-file`のひな形も全ケースで採点し、ひな形が偶然通る状態を捕まえる（所要はおよそ2倍） |
 | 到達目標を書いた・書き換えた | `./tools/check-objectives.sh` と `./tools/check-objective-terms.sh` （各1秒） | 前者は紐づけの有無、後者は「名指しした構文・APIが問題側に現れるか」を見る。目標だけが広い状態は後者でしか出ない |
 | テストケースを足した・ラベルを書いた | `./tools/check-case-fairness.sh` （1秒） | 隠しケースだけが求める固定文言と、番号だけのケースラベルを探す。模範解答は通るので `verify-solutions.sh` では出ない |
@@ -1953,12 +1953,24 @@ index名の綴りが違って誰も合格できない検査、要件に書いた
 ./tools/check-chapter-refs.sh      # 他の章・他のレッスンへの参照が、学習者に違う番号で見えないかを検査
 ./tools/check-build-jdk.sh         # 古いJDKへ警告するsecurity baseline判定を確認
 ./tools/check-web-security.sh      # 静的配信のpath・symlink境界を確認
-./tools/check-all.sh               # 速い検査26本をまとめて走らせる（1〜2分。コミット前に）
+./tools/check-all.sh               # 速い検査27本をまとめて走らせる（1〜2分。コミット前に）
 ./tools/check-guide-numbers.sh     # このガイドに書いた集計が教材と合っているかを検査
 ./tools/check-cafe-ui.sh           # カフェ画面をブラウザで操作して描画・購入・自動売上を検査
+./tools/check-learn-ui.sh          # 学習画面をブラウザで操作して採点・ヒント・★・自動保存・復習を検査
 ./tools/clean-labs.sh              # labsを動かして溜まった生成物を消す（既定は一覧だけ。--yes で実行）
 node tools/check-cafe-scene.js    # カフェSVGの内装差分・再描画条件・出力を検査
 ```
+
+`check-learn-ui.sh` は**画面のJSでしか起きない壊れ方**を検査します。ブラウザ（Chrome）で
+`1-1` を開き、誤答 → コンパイルエラー → ヒントを全部開く → 模範解答をエディタへ入れる →
+正解して★とコインと通知を受け取る → 読み直して自動保存を確かめる → 復習の一覧から
+解き直しへ入る、までを実際に操作します。採点そのものは `verify-solutions.sh` が見ているので、
+ここが見ているのは「サーバーの応答を画面がどう扱うか」です ― 採点結果の描画、
+提出の応答（`delta` / `newStar` / `cafeAward`）の受け取り、`applyDelta` の上書き、
+報酬の通知、復習がひな形から始まること。**画面の再読み込みで `/api/state` から直ってしまうため、
+`delta` の欠けは手で触っても気づけません**。そこで画面が受け取った応答そのものも確かめます。
+Chromeが無い環境では省略して成功扱いにします（`check-cafe-ui.sh` と同じ扱い）。
+`web/app.js` を触ったら走らせてください。
 
 `check-review-schedule.sh` は復習の出題を決める土台を検査します ―「初クリアの翌日が最初の
 期限」「正解で 1→3→7→14→30→60→120日 と伸びる」「同じ日に失敗してから通したら1段戻る」
@@ -2206,9 +2218,10 @@ Rank1〜5を約4.2倍の傾きへ引き直して、1章クリアで3個・2章�
 │   ├── check-chapter-refs.sh  他章参照の表示番号チェック
 │   ├── check-build-jdk.sh     JDK security baselineの回帰チェック
 │   ├── check-web-security.sh  静的配信のpath・symlink境界チェック
-│   ├── check-all.sh           速い検査26本をまとめて走らせる
+│   ├── check-all.sh           速い検査27本をまとめて走らせる
 │   ├── check-guide-numbers.sh このガイドの集計と教材の突き合わせ
 │   ├── check-cafe-ui.sh       カフェ画面のブラウザ操作チェック（Chrome。無ければ省略）
+│   ├── check-learn-ui.sh      学習画面のブラウザ操作チェック（Chrome。無ければ省略）
 │   └── clean-labs.sh          labsを動かして溜まった生成物を消す（既定は一覧だけ）
 ├── labs/                      実ツールを使う独立ラボ
 │   ├── testing-maven/         Maven + JUnit

@@ -44,7 +44,7 @@ import java.util.function.Supplier;
  *
  * <ul>
  *   <li>{@code GET  /api/state}    … 全カリキュラム + 進捗</li>
- *   <li>{@code POST /api/run}      … コードを1回実行するだけ（採点しない）</li>
+ *   <li>{@code POST /api/run}      … サンプルを1回実行するだけ（採点も保存もしない）</li>
  *   <li>{@code POST /api/submit}   … 全テストケースで採点し、通れば★を付ける</li>
  *   <li>{@code POST /api/save}     … 書きかけのコードを保存</li>
  *   <li>{@code POST /api/hint}     … ヒントを1つ開示</li>
@@ -510,24 +510,21 @@ public final class ApiHandler implements HttpHandler {
     }
 
     /**
-     * 採点なしで1回実行する。「まず動かしてみる」ためのボタン。
+     * 採点なしで1回実行する。解説に載せたサンプルの「▶ サンプルを実行」だけが使う。
      *
-     * {@code lessonId} が付いていれば、書きかけのコードとして保存もする。
-     * サンプルコードの試し打ちのように「保存はしたくないが同梱ライブラリだけ知りたい」場合は、
-     * 代わりに {@code libLessonId} を送る（参照専用。保存しない）。
+     * <p><b>進捗には何も書かない。</b>学習者の書いたコードを保存するのは
+     * {@code /api/save}（自動保存）と {@code /api/submit}（提出）だけである。
+     * 以前はここでも {@code lessonId} を受けて下書きを保存していたが、
+     * 「実行＝採点」にして試すボタンを畳んだ時点で呼び出し側が無くなった。
+     * 保存する口が2つに絞られていれば、どこで progress.json が変わるかを追いやすい。</p>
+     *
+     * <p>{@code libLessonId} は同梱ライブラリの引き当てだけに使う参照専用のIDで、
+     * 知らないIDでも例外にしない（{@link #libSourcesOf}）。</p>
      */
     private Object doRun(Map<String, Object> body) {
         String code = requireCode(body);
         String stdin = MiniJson.str(body, "stdin", "");
-        String lessonId = MiniJson.str(body, "lessonId", "");
-        if (!lessonId.isEmpty()) {
-            String taskId = taskId(body);
-            requireTask(lessonId, taskId);   // 知らないIDで progress.json を汚さない
-            progress.saveCode(Lesson.taskKey(lessonId, taskId), code);
-        }
-
-        // 同梱ライブラリの引き当て元。lessonId があればそれを、無ければ参照専用の libLessonId を使う
-        String libLessonId = lessonId.isEmpty() ? MiniJson.str(body, "libLessonId", "") : lessonId;
+        String libLessonId = MiniJson.str(body, "libLessonId", "");
 
         Map<String, Object> result = new LinkedHashMap<>();
         try (JavaRunner.Compiled compiled = runner.compile(code, libSourcesOf(libLessonId))) {

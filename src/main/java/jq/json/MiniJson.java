@@ -179,6 +179,14 @@ public final class MiniJson {
                     sb.append(c);
                     continue;
                 }
+                // エスケープの途中で入力が終わっていたら、ここで自分の例外にして断る。
+                // charAt / substring / parseInt に任せると
+                // 「Range [11, 15) out of bounds for length 13」のようなJDKの生の
+                // メッセージがそのまま利用者と教材の書き手へ出てしまう（他の失敗は
+                // すべて日本語と位置で返しているので、ここだけ読めなくなる）。
+                if (pos >= src.length()) {
+                    throw new JsonException("\\ の後で入力が終わりました (位置 " + pos + ")");
+                }
                 char esc = src.charAt(pos++);
                 switch (esc) {
                     case '"' -> sb.append('"');
@@ -190,7 +198,16 @@ public final class MiniJson {
                     case 'r' -> sb.append('\r');
                     case 't' -> sb.append('\t');
                     case 'u' -> {
-                        sb.append((char) Integer.parseInt(src.substring(pos, pos + 4), 16));
+                        if (pos + 4 > src.length()) {
+                            throw new JsonException("\\u の後の4桁が足りません (位置 " + pos + ")");
+                        }
+                        String hex = src.substring(pos, pos + 4);
+                        try {
+                            sb.append((char) Integer.parseInt(hex, 16));
+                        } catch (NumberFormatException e) {
+                            throw new JsonException(
+                                    "\\u の後が16進4桁ではありません: \"" + hex + "\" (位置 " + pos + ")");
+                        }
                         pos += 4;
                     }
                     default -> throw new JsonException("未知のエスケープ \\" + esc);
