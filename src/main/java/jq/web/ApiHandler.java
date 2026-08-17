@@ -67,7 +67,16 @@ import java.util.function.Supplier;
  */
 public final class ApiHandler implements HttpHandler {
 
-    private static final int MAX_BODY_BYTES = 500_000;
+    /**
+     * 受け取るリクエスト本文の上限。
+     *
+     * <p>いちばん大きい正当な本文は project 問題の提出で、教材が許す文字数は
+     * {@link ProjectRunner#TOTAL_LIMIT_CHARS}（30万字）である。日本語のコメント込みだと
+     * UTF-8で1字3バイトになり、JSONのエスケープも乗るので、<b>文字数の上限を
+     * バイト数へ換算してから決める</b>。ここを文字数と同じ数にしていたため、
+     * 以前は「教材としては許しているのに、手前で大きすぎるとして断る」大きさの帯があった。</p>
+     */
+    private static final int MAX_BODY_BYTES = 4 * ProjectRunner.TOTAL_LIMIT_CHARS;
 
     /**
      * 同時に走らせるコード実行の数。

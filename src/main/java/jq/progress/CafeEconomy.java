@@ -69,6 +69,12 @@ final class CafeEconomy {
         this.saver = saver;
     }
 
+    // 24: 終盤改装の値上がりを1.5倍→1.2倍へ寝かせ、基準額を2,000億→3,000億へ上げた。
+    //     1.5倍でも★680（9段目の解放直後）で44.15%まで来ており、次の★700で57.5%、
+    //     ★740では107.5%（買えない額）になる計算だった。費用が等比で伸びるのに売上は
+    //     問題数に比例して増えるだけなので、傾きが急だといつか必ず追い越される。
+    //     1.2倍なら 29.0%→31.7%→38.8% と3回先の解放まで帯に留まる。傾きを寝かせると
+    //     吸い込みが弱まって下限25%へ寄るため、基準額で戻している。
     // 23: 問題を574問から596問へ増やしたぶん投資率が下限へ寄っていたので、終盤改装の
     //     基準額を450億→2,000億へ上げ、あわせて1段ごとの値上がりを2倍→1.5倍へ寝かせた。
     //     2倍のままでは、次の1段だけで全段の合計と同額になり、20問ごとの解放の瞬間に
@@ -82,7 +88,7 @@ final class CafeEconomy {
     //     574問すべて外れても投資率45%以内になるよう、終盤改装の基準額を450億へ下げた。
     // 20: ラッキーコインを「頻繁な小当たり」から「5%の大当たり」へ変更し、価格を77,777にした。
     //     期待売上が下がるぶん、全購入時の投資率を範囲内へ戻すため終盤改装の基準額も下げた。
-    private static final int CAFE_ECONOMY_VERSION = 23;
+    private static final int CAFE_ECONOMY_VERSION = 24;
     private static final int CUP_PRICE = 500;
     private static final int MAX_CAFE_STORES = 512;
     private static final long FIRST_EXPANSION_COST = 2_500L;
@@ -153,19 +159,22 @@ final class CafeEconomy {
     /**
      * 収益効果のない任意投資。追加章のコイン余りを受け止める調整弁。
      *
-     * <p>値上がりは1段ごとに 3/2 倍。以前は2倍だったが、2倍だと<b>次の1段だけで
-     * それまでの全段の合計と同額</b>になるため、20問ごとの解放の瞬間に投資率が跳ね、
-     * ラッキーコイン未解放（生涯売上が最も小さい）で上限45%を突き抜けてしまう。
-     * 2倍のまま基準額を上げてこの穴を埋めることはできない ― 基準額を上げるほど
-     * 跳ね幅も比例して大きくなる。傾きを寝かせて基準額を上げると、解放のたびの段差が
-     * 小さくなり、問題を増やしても帯の中に留まる。
+     * <p><b>効くのは傾き（1段ごとの値上がり）で、基準額ではない。</b>費用は等比で伸びるのに
+     * 売上は問題数に比例して増えるだけなので、傾きが急だと必ずどこかの解放で追い越される。
+     * 実際に2倍→1.5倍へ寝かせてもまだ急で、★680（9段目の解放直後）で44.15%、
+     * <b>次の★700では57.5%、★740では107.5%（買えない額）</b>になる計算だった。
+     * 1.2倍まで寝かせると 29.0% → 31.7% → 38.8% と、3回先の解放まで帯に留まる。</p>
      *
-     * <p>基準額を触ったら {@code tools/simulate-cafe.sh} を通すこと。効くのは上限側で、
-     * plainより先にラッキーコイン未解放の投資率が45%へ当たる。
+     * <p>基準額は下限側の調整に使う。傾きを寝かせるとコインの吸い込みが弱くなり、
+     * こんどは下限25%へ寄るので、2,000億→3,000億へ上げて戻している。
+     * 上げすぎると最初の1段（★520）だけが重くなるので、傾きで直せない分だけにする。</p>
+     *
+     * <p>触ったら {@code tools/simulate-cafe.sh} を通すこと。plainより先に、
+     * ラッキーコイン未解放（生涯売上が最も小さい）の投資率が上限45%へ当たる。</p>
      */
-    private static final long ENDGAME_INVESTMENT_BASE_COST = 200_000_000_000L;
-    private static final long ENDGAME_INVESTMENT_STEP_NUMERATOR = 3L;
-    private static final long ENDGAME_INVESTMENT_STEP_DENOMINATOR = 2L;
+    private static final long ENDGAME_INVESTMENT_BASE_COST = 300_000_000_000L;
+    private static final long ENDGAME_INVESTMENT_STEP_NUMERATOR = 6L;
+    private static final long ENDGAME_INVESTMENT_STEP_DENOMINATOR = 5L;
     /*
      * 設備（通常設備・自動営業）に★の解放条件は<b>置かない</b>。
      *
