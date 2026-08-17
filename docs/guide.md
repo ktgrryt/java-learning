@@ -1856,10 +1856,12 @@ builder imageを用意した状態で「注意」が1件も出なかった）。
 | labのscriptや `exercise/` `reference/` | そのlabを直接実行し、続けて `--only <レッスンIDの先頭>` | 影響がそのlabと、それを参照する問題に閉じる |
 | `ContentLoader`・各`Runner`・`Judge`などengine | 対応する `tools/check-*.sh` と、非single-file問題を持つ章（22 23 24 26 27 28 29 30 32 34 37 38 45 46 47 48 50 51 52 53 54 55 56 58 59 60 61 62 63 68 73） | 613問の `single-file` は `JavaRunner` と `Judge` にしか依存しない。章の一覧は増えるので、`content` から機械的に出すとよい（この一覧は `/api/state` の `tasks[].type` を数え直したもの。手で足すと今回のように漏れる） |
 | `web/` だけ | `node --check web/app.js` と `node tools/check-cafe-scene.js` | 採点はサーバー側で行うため、模範解答の合否は変わらない |
-| カフェの規則・価格・アイテム（`CafeEconomy` / `CafeCatalog`） | `./tools/simulate-cafe.sh`・`check-achievements.sh`・`check-review-economy.sh` ＋ **カフェ画面を実際に開いて購入する** | 数（投資率・解放条件・上限）は機械で見られるが、**タブの描画と購入後の通知はどの検査も触っていない**。学習の採点には影響しないので `verify-solutions.sh` は要らない |
+| カフェの規則・価格・アイテム（`CafeEconomy` / `CafeCatalog`） | `./tools/simulate-cafe.sh`・`check-achievements.sh`・`check-review-economy.sh`・`check-cafe-ui.sh` | 前3本が数（投資率・解放条件・上限）を、最後の1本が画面（タブの描画・購入で残高が価格ぶん減る・通知・自動売上）を見る。学習の採点には影響しないので `verify-solutions.sh` は要らない |
+| `web/` のカフェ画面まわり（`app.js` のカフェ節・`cafe-scene.js`） | `node --check web/app.js`・`node tools/check-cafe-scene.js`・`./tools/check-cafe-ui.sh` | 構文と店構えSVGの単体に加えて、実際のブラウザで描画と購入を通す。Chromeが無い環境では省略されるので、その場合は手で開いて確かめる |
+| このガイドの数（★の総数・問題数・テストケース件数など） | `./tools/check-guide-numbers.sh` （1秒） | 教材を増やすたびに必ず古くなる。実際に一度のレビューで6箇所ずれていた。文を書き換えたときは検査側の正規表現も直す（合致しなくなったら失敗として知らせる） |
 | 問題数の増減・概念レッスンの追加 | 上のいずれか＋ `./tools/simulate-cafe.sh` | ★が増えると1問あたりの報酬が積み上がって投資率は下がるが、★が20の倍数を越えると改装が1段増えて逆に上がる。向きは決めつけず出力を読む |
 | 概念レッスン（`lessonType: concept`）を足した | `./tools/check-layer-completion.sh`・`check-quiz-fairness.sh`・`check-content-inventory.sh`・`verify-solutions.sh --only <章>` | ★の根拠がクイズだけなので、選択肢の手がかりがそのまま★になる。層の数え方（章クリアの分母に★が入るか、コード層へ混ざっていないか）も機械でしか見えない |
-| コードの一括整形・複数章の同時修正・コミット前 | 全件（`--only` なし） | 全章のコードや共通の採点条件を書き換えるので、影響範囲を絞れない |
+| コードの一括整形・複数章の同時修正・コミット前 | `./tools/check-all.sh`（速い26本）＋ 全件（`--only` なし） | 全章のコードや共通の採点条件を書き換えるので、影響範囲を絞れない |
 | 採点条件（`sourceChecks`・`visibleCases`・`hiddenCases`）を書き換えた | `--strict-starters` を付けて対象章 | `single-file`のひな形も全ケースで採点し、ひな形が偶然通る状態を捕まえる（所要はおよそ2倍） |
 | 到達目標を書いた・書き換えた | `./tools/check-objectives.sh` と `./tools/check-objective-terms.sh` （各1秒） | 前者は紐づけの有無、後者は「名指しした構文・APIが問題側に現れるか」を見る。目標だけが広い状態は後者でしか出ない |
 | テストケースを足した・ラベルを書いた | `./tools/check-case-fairness.sh` （1秒） | 隠しケースだけが求める固定文言と、番号だけのケースラベルを探す。模範解答は通るので `verify-solutions.sh` では出ない |
@@ -1951,6 +1953,9 @@ index名の綴りが違って誰も合格できない検査、要件に書いた
 ./tools/check-chapter-refs.sh      # 他の章・他のレッスンへの参照が、学習者に違う番号で見えないかを検査
 ./tools/check-build-jdk.sh         # 古いJDKへ警告するsecurity baseline判定を確認
 ./tools/check-web-security.sh      # 静的配信のpath・symlink境界を確認
+./tools/check-all.sh               # 速い検査26本をまとめて走らせる（1〜2分。コミット前に）
+./tools/check-guide-numbers.sh     # このガイドに書いた集計が教材と合っているかを検査
+./tools/check-cafe-ui.sh           # カフェ画面をブラウザで操作して描画・購入・自動売上を検査
 ./tools/clean-labs.sh              # labsを動かして溜まった生成物を消す（既定は一覧だけ。--yes で実行）
 node tools/check-cafe-scene.js    # カフェSVGの内装差分・再描画条件・出力を検査
 ```
@@ -2201,6 +2206,9 @@ Rank1〜5を約4.2倍の傾きへ引き直して、1章クリアで3個・2章�
 │   ├── check-chapter-refs.sh  他章参照の表示番号チェック
 │   ├── check-build-jdk.sh     JDK security baselineの回帰チェック
 │   ├── check-web-security.sh  静的配信のpath・symlink境界チェック
+│   ├── check-all.sh           速い検査26本をまとめて走らせる
+│   ├── check-guide-numbers.sh このガイドの集計と教材の突き合わせ
+│   ├── check-cafe-ui.sh       カフェ画面のブラウザ操作チェック（Chrome。無ければ省略）
 │   └── clean-labs.sh          labsを動かして溜まった生成物を消す（既定は一覧だけ）
 ├── labs/                      実ツールを使う独立ラボ
 │   ├── testing-maven/         Maven + JUnit
