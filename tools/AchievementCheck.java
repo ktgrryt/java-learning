@@ -129,7 +129,7 @@ public final class AchievementCheck {
                 check("初期状態: " + id, has(fresh, id), false);
             }
 
-            // ── 1.5 ラッキーコインは初回・復習の正解ごとに1%抽選 ──────────
+            // ── 1.5 ラッキーコインは初回・復習の正解ごとに0.3%抽選 ────────
             Path luckyFile = dir.resolve("lucky.json");
             Files.writeString(luckyFile,
                     "{\"cafe\":{\"economyVersion\":21,\"luckyCoinUnlockSeed\":77777}}");
@@ -153,13 +153,13 @@ public final class AchievementCheck {
                 lucky.markCleared(key);
                 initialDraws++;
             }
-            check("初回問題の正解で1%抽選: lucky_coin", has(lucky, "lucky_coin"), true);
+            check("初回問題の正解で0.3%抽選: lucky_coin", has(lucky, "lucky_coin"), true);
             Map<String, Object> luckyItem = items(lucky).stream()
                     .filter(item -> "lucky_coin".equals(item.get("id")))
                     .findFirst()
                     .orElseThrow();
-            check("カードに1%抽選条件を表示",
-                    String.valueOf(luckyItem.get("unlockNote")).contains("1%"), true);
+            check("カードに0.3%抽選条件を表示",
+                    String.valueOf(luckyItem.get("unlockNote")).contains("0.3%"), true);
 
             Path reviewLuckyFile = dir.resolve("review-lucky.json");
             Files.writeString(reviewLuckyFile,
@@ -171,7 +171,7 @@ public final class AchievementCheck {
                 reviewLucky.recordMasterySubmission("luck#review", true);
                 reviewDraws++;
             }
-            check("復習問題の正解でも1%抽選: lucky_coin",
+            check("復習問題の正解でも0.3%抽選: lucky_coin",
                     has(reviewLucky, "lucky_coin"), true);
 
             Path reloadLuckyFile = dir.resolve("reload-lucky.json");
@@ -183,13 +183,15 @@ public final class AchievementCheck {
             }
             beforeReload.flushNow();
             ProgressStore afterReload = new ProgressStore(reloadLuckyFile);
-            for (int i = 100; i < 170; i++) {
+            // 当たる回は種と確率で決まる。seed 77777 の初当たりは117回目
+            // （1%抽選のころは171回目だった）。確率を変えたら数え直すこと。
+            for (int i = 100; i < 116; i++) {
                 afterReload.recordMasterySubmission("luck#reload-" + i, true);
             }
-            check("再起動後も外れた170回を引き直さない: lucky_coin",
+            check("再起動後も外れた116回を引き直さない: lucky_coin",
                     has(afterReload, "lucky_coin"), false);
-            afterReload.recordMasterySubmission("luck#reload-170", true);
-            check("再起動後は171回目の抽選へ進む: lucky_coin",
+            afterReload.recordMasterySubmission("luck#reload-116", true);
+            check("再起動後は117回目の抽選へ進む: lucky_coin",
                     has(afterReload, "lucky_coin"), true);
             check("ラッキーコインの価格は77,777",
                     number(luckyItem.get("cost")) == 77_777L, true);
@@ -435,7 +437,7 @@ public final class AchievementCheck {
                         effects.size() == allowed, true);
             }
 
-            System.out.println("\nACHIEVEMENTS OK: 12種の解放条件・1%抽選・重い2種・完走時救済を確認しました");
+            System.out.println("\nACHIEVEMENTS OK: 12種の解放条件・0.3%抽選・重い2種・完走時救済を確認しました");
         } finally {
             for (String name : new String[] {
                     "catch-up.json", "dated.json", "spam.json", "review.json", "lucky.json",

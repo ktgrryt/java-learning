@@ -314,7 +314,7 @@ const HELPERS = `window.__t = {
       cleared: block.classList.contains('is-cleared'),
       chip: !!block.querySelector('.task-clear-chip'),
       mark: (block.querySelector('.task-mark') || {}).textContent,
-      headSticky: getComputedStyle(head).position,
+      headPosition: getComputedStyle(head).position,
       headBottomBorder: parseFloat(getComputedStyle(head).borderBottomWidth),
       panelBorder: parseFloat(style.borderTopWidth),
       panelRadius: parseFloat(style.borderTopLeftRadius),
@@ -338,8 +338,10 @@ const HELPERS = `window.__t = {
   check(panel.panelBorder >= 1 && panel.panelRadius >= 10
     && panel.taskSideBorder === 0 && panel.taskRadius === 0,
     '1問が1枚のパネルで、中の課題文は枠を持たない（段になっている）', panel);
-  check(panel.headSticky === 'sticky' && panel.headBottomBorder >= 1,
-    '問題の帯がパネルの上辺に貼り付く', panel);
+  // 帯は貼り付けない（試したが、スクロール中ずっと画面の上に残るのが見た目に良くない）。
+  // 一度入れて外した指定なので、戻っていないことをここで見る。
+  check(panel.headPosition === 'static' && panel.headBottomBorder >= 1,
+    '問題の帯はパネルの上辺にあり、スクロールしても付いてこない', panel);
   check(panel.dividers >= 1 && panel.untouched
     && panel.untouched.emptyRowsTakeSpace === 0 && panel.untouched.cleared === false,
     '出ている段は細い線で区切られ、まだ出ていない段（未クリアの問題）は場所を取らない', panel);

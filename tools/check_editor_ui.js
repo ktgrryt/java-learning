@@ -13,8 +13,9 @@
  * かっこより難しい ― 文字列の中では足さず、テキストブロック（`"""`）を打つ途中でも
  * 足してはいけない（第18章に、学習者が `"""` を自分で打つ問題がある）。
  *
- * 補完の案内（`sout` を知らせるカード）もここで見る。出す条件が「第2章以降のレッスンの1問目で、
- * まだ閉じていないとき」という画面側の判断なので、教材や採点では確かめられない。
+ * `sout` の案内は**教材の本文**（`2-1` の解説の最後）にある。案内カードを出す形は
+ * やめたので、ここで見るのは「解説にその案内が載っていること」だけである
+ * ―― 打ち方を変えたときに、教材の記述が取り残されるのを防ぐため。
  *
  * 落とし穴を3つ踏んであるので、真似するときは注意する。
  *   ・同じURLへ Page.navigate してもページは読み直されない（ハッシュ移動と見なされる）。
@@ -33,8 +34,8 @@ const GREEN = '\x1b[32m', RED = '\x1b[31m', RESET = '\x1b[0m';
 const LESSON = '1-1';
 const TASK = '1';
 /**
- * 補完の案内が出始めるレッスン（第2章の最初の練習問題）。
- * 出す位置は `web/app.js` の `COMPLETION_TIP_FROM` が持つので、動かすなら両方直す。
+ * `sout` の案内を載せているレッスン（第2章の最初の練習問題）。解説の本文に書いてあるので、
+ * 文言を変えるときは `content/ch02-variables.json` の `2-1` を直す。
  */
 const TIP_LESSON = '2-1';
 
@@ -526,9 +527,9 @@ const KEYS = {
   const errors = await ev(`window.__jqErrors || []`);
   check(errors.length === 0, '画面のJavaScriptが例外を出していない', errors);
 
-  // ── 補完の案内（第2章のはじめから、閉じるまで）──────────────────────────
-  // 「閉じた」印は localStorage に残る。ここまでの検査で `sout` を使っており
-  // （使えた人には出し続けない）印が既に付いているので、まず消してから見る。
+  // ── `sout` の案内は教材の解説にある ────────────────────────────────
+  // 画面から案内カードを出す形はやめた（出す条件が特殊で、読み返せる場所にもなかった）。
+  // 代わりに `2-1` の解説の最後に書いてあるので、そこに載っていることをここで見る。
   // ここから先はページを読み直すので、上の例外チェックはこの前に置いてある。
   const openLesson = async id => {
     await send('Page.navigate', { url: 'about:blank' });   // 同じURLでは読み直されない
@@ -536,54 +537,17 @@ const KEYS = {
     await send('Page.navigate', { url: `http://localhost:${PORT}/#${id}` });
     await sleep(1600);
   };
-  const tipState = () => ev(`(() => {
-    const card = document.querySelector('.card-tip');
-    return { shown: !!card, text: card ? card.textContent : '' };
+
+  await openLesson(TIP_LESSON);
+  const guide = await ev(`(() => {
+    const box = document.querySelector('.card-explain');
+    const text = box ? box.textContent.replace(/\\s+/g, ' ') : '';
+    return { found: text.indexOf('sout') >= 0 && text.indexOf('Tab') >= 0,
+             tail: text.slice(-140) };
   })()`);
-  const forgetTip = () => ev(`(localStorage.removeItem('jq-completion-tip-done'), true)`);
-
-  await forgetTip();
-  await openLesson(LESSON);
-  const atFirst = await tipState();
-  check(!atFirst.shown,
-    `第1章（${LESSON}）では案内を出さない（書き写す手そのものが練習のため）`, atFirst);
-
-  await openLesson(TIP_LESSON);
-  const atTip = await tipState();
-  check(atTip.shown && atTip.text.indexOf('sout') >= 0 && atTip.text.indexOf('Tab') >= 0,
-    `${TIP_LESSON} で補完と \`sout\` の案内が出る`, atTip.text.slice(0, 80));
-
-  const tipClosed = await ev(`(async () => {
-    document.querySelector('.card-tip [data-role="tip-close"]').click();
-    await new Promise(r => setTimeout(r, 150));
-    return { card: !!document.querySelector('.card-tip'),
-             saved: localStorage.getItem('jq-completion-tip-done') };
-  })()`);
-  check(!tipClosed.card && tipClosed.saved === '1',
-    '「閉じる」で消え、閉じたことが残る', tipClosed);
-
-  await openLesson(TIP_LESSON);
-  check(!(await tipState()).shown, '閉じたあとは開き直しても出ない');
-
-  // `sout` を自分で使えた人にも出し続けない（complete.js が app.js へ知らせる）
-  await forgetTip();
-  await openLesson(TIP_LESSON);
-  check((await tipState()).shown, '印を消せば案内はまた出る（次の確認の前提）');
-  await clear();
-  await write('sout');
-  await sleep(500);
-  await tab();
-  const afterSnippet = await ev(`(() => ({
-    card: !!document.querySelector('.card-tip'),
-    saved: localStorage.getItem('jq-completion-tip-done'),
-    code: document.querySelector('#task-${TASK} .editor-input').value
-  }))()`);
-  check(afterSnippet.code.indexOf('System.out.println') >= 0
-      && !afterSnippet.card && afterSnippet.saved === '1',
-    '`sout` を使うと案内は引っ込む（もう知っている人に出し続けない）', afterSnippet);
-
-  const tipErrors = await ev(`window.__jqErrors || []`);
-  check(tipErrors.length === 0, '案内を出した画面でも例外が出ていない', tipErrors);
+  check(guide.found, `${TIP_LESSON} の解説に \`sout\` と \`Tab\` の案内が載っている`, guide);
+  check(!(await ev(`!!document.querySelector('.card-tip')`)),
+    '問題の中に案内カードは出さない（教材の本文へ移した）');
 
   // ── 編集欄の高さ（書いたコードに合わせて伸びる）────────────────────
   // 固定11行だと**ひな形の81%が開いた時点から隠れる**（→ docs/guide.md
@@ -678,7 +642,7 @@ const KEYS = {
   }
   console.log(`\n${GREEN}EDITOR UI OK: 自動で閉じるかっこと引用符・打ち抜けの条件・`
     + `テキストブロック・位置の追従・候補の移動（↑↓ と Ctrl+P/N）・定型の短縮（sout）・`
-    + `Tabの字下げ・補完の案内（${TIP_LESSON} から、閉じるまで）・`
+    + `Tabの字下げ・${TIP_LESSON} の解説にある \`sout\` の案内・`
     + `編集欄の高さ（行数に追随・下限と上限・つまみを尊重）を確認しました${RESET}`);
 })().catch(e => {
   console.error(`${RED}検査を実行できませんでした: ${e.message}${RESET}`);

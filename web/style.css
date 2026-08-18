@@ -2307,10 +2307,7 @@ kbd {
 
    以前は問題ごとに4枚のカード（帯・課題文・コツ・コード欄）が同じ角丸・同じ間隔で
    縦に並んでいた。**問題の中の区切りと、問題どうしの区切りが同じ強さ**だったので、
-   どこからどこまでが1問なのか読めなかった。中は線・外は余白、で強さを逆にしてある。
-
-   `overflow: hidden` は付けないこと。付けると中の帯の `position: sticky` が
-   このパネルを基準にしてしまい（スクロールしない箱なので）貼り付かなくなる。 */
+   どこからどこまでが1問なのか読めなかった。中は線・外は余白、で強さを逆にしてある。 */
 
 .task-block {
   margin-bottom: 30px;
@@ -2320,17 +2317,10 @@ kbd {
   background: var(--bg-elev);
 }
 
-/* 帯はパネルの上辺に接ける。1問はおよそ1400pxあるので、スクロール中も貼り付けて
-   「いま何問目か」を残す。z-index は補完の窓（.cmp-popup 120）より下でよい。
-
-   `top: 0` は狭い画面でもそのままでよい。縦積みになっても `.content` は
-   `flex: 1` ＋ `overflow-y: auto` でスクロールの持ち主のままなので（窓側は
-   スクロールしない）、貼り付く位置はその内側の上端 ―― つまり固定ヘッダのすぐ下になる。
-   ここを `var(--topbar-h)` にすると、その内側でさらに56px下がって帯が浮く。 */
+/* 帯はパネルの上辺に接ける。**貼り付けない**（`position: sticky` を試したが、
+   スクロール中ずっと画面の上に居座るのが見た目に良くないという判断）。
+   いま何問目かは、パネルの枠と問題どうしの余白で追える。 */
 .task-block-head {
-  position: sticky;
-  top: 0;
-  z-index: 2;
   display: flex;
   align-items: center;
   gap: 10px;
@@ -2348,7 +2338,7 @@ kbd {
 
 /* 中のカードは段になる。角丸と面の色を捨て、枠は**上だけ**残して段の区切り線に使う
    （.card は元から 1px の枠を持っているので、線を足すのではなく削って作る）。
-   色付きの左端（.card-tip の緑・.card-hint の青）はその段が何かを示すので消さない。 */
+   色付きの左端（.card-hint の青）はその段が何かを示すので消さない。 */
 .task-block-body > .card {
   margin: 0;
   border-right: 0;
@@ -2363,8 +2353,6 @@ kbd {
 .task-block-body > *:not(.card) { border-top: 1px solid var(--border-soft); }
 /* 先頭の段（課題文）の上は帯との境目なので、線は帯の下線1本にする */
 .task-block-body > *:first-child { border-top: 0; }
-/* 左端に色を出す段だけ、線のぶん左を詰めて他の段と文字の頭をそろえる */
-.task-block-body > .card-tip { padding-left: 19px; }
 
 /* ヒント・採点結果・模範解答は枠付きのカードのまま段の中に置く。
    採点結果の枠は合否（緑/赤）を示しているので、ここは平らにしない。 */
@@ -3295,35 +3283,6 @@ pre.code-plain { color: var(--text-dim); }
 }
 .lesson-next-btn { flex: none; }
 
-/* ── 補完の案内（第2章のはじめから、閉じるまで） ─────────────────────
-   問題文とコード欄のあいだに置く。ヒント（青）と見分けが付くよう緑にしてあり、
-   面の色は `.card` の bg-elev のまま ― 中の `.inline-code` が bg-elev-2 なので、
-   ここを bg-elev-2 にすると `sout` や `Tab` の囲みが背景に溶ける。 */
-
-.card-tip {
-  padding: 14px 18px;
-  border-left: 3px solid var(--ok);
-}
-.tip-head {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 8px;
-  font-size: 14px;
-}
-.tip-head strong { flex: 1; }
-.card-tip p {
-  margin: 0 0 7px;
-  font-size: 14px;
-  line-height: 1.85;
-  color: var(--text-dim);
-}
-.card-tip p:last-child { margin-bottom: 0; }
-.card-tip b { color: var(--text); }
-/* 覚えてほしい語そのものが行の途中で割れると読み違えるので、`.inline-code` 既定の
-   break-all は使わない（`System.out.println();` は入りきらなければ次の行へ送る）。 */
-.card-tip .inline-code { word-break: normal; overflow-wrap: anywhere; }
-
 /* ── ヒントと模範解答 ───────────────────────────────────────────────── */
 
 .card-hint {
@@ -4058,13 +4017,11 @@ pre.code-plain { color: var(--text-dim); }
   .quiz-choice { font-size: 13px; padding: 10px 12px; }
   .task-block-head { padding: 11px 18px; }
   .task-block-body > * { padding: 16px 18px; }
-  .task-block-body > .card-tip { padding-left: 15px; }
 }
 
 @media (max-width: 700px) {
   .task-block-head { padding: 10px 16px; }
   .task-block-body > * { padding: 14px 16px; }
-  .task-block-body > .card-tip { padding-left: 13px; }
   .onboarding-tour-card {
     right: 12px;
     bottom: 12px;

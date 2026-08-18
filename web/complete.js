@@ -857,9 +857,10 @@
    * `sout` で入れられるようにしてある。標準の書き方は入る文字列の側に残るので、
    * `System.out.println` を読んで覚える機会は減らない。
    *
-   * 置いておくだけでは気づかれないので、第2章の最初の練習問題から画面が案内する
-   * （`web/app.js` の `COMPLETION_TIP_FROM`）。使えたことは `accept()` から
-   * `onSnippet` で知らせ、もう知っている人には案内を出し続けない。
+   * 置いておくだけでは気づかれないので、**教材の側で案内する**（`2-1` の解説の最後
+   * 「打つ手間を減らす（エディタの補完）」）。一度は画面から案内カードを出す形にしたが、
+   * 出す条件（レッスンの1問目・閉じるまで・使えたら引っ込める）が読み手から見て特殊で、
+   * 読み返せる場所にないため教材へ移した。
    *
    * `insert` … 入れる文字列。`caret` … その先頭から数えたカーソルの位置
    */
@@ -1499,11 +1500,6 @@
       this._accepting = false;
     }
 
-    // 定型を自分で使えたことを外へ知らせる（app.js が補完の案内を引っ込めるのに使う）
-    if (item.kind === 'snippet' && typeof global.JQComplete.onSnippet === 'function') {
-      global.JQComplete.onSnippet(item.label);
-    }
-
     if (item.isPackage) { this.trigger(true); }
     return true;
   };
@@ -1612,9 +1608,6 @@
     Completer: Completer,
     // ショートカットの案内文を場合分けするために app.js が読む
     isMac: isMac,
-    // 定型（`sout`）が使われたときに呼ばれる。差し込むのは app.js
-    // （もう使えている人に「`sout` があります」と案内し続けないため）
-    onSnippet: null,
     // 中身の確認用（テストや動作確認から呼べるようにしておく）
     suggest: suggest,
     scan: scan,

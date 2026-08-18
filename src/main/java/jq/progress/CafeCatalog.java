@@ -258,7 +258,7 @@ final class CafeCatalog {
      * 復習するか、25問を無傷で連続クリアしないと届かない。
      */
     static final Map<String, String> ACHIEVEMENT_NOTES = Map.ofEntries(
-            Map.entry("lucky_coin_draw", "問題または復習問題へ正解するたび、1%の確率で解放"),
+            Map.entry("lucky_coin_draw", "問題または復習問題へ正解するたび、0.3%の確率で解放"),
             Map.entry("same_day_15", "同じ日に異なる15問を初クリアまたは復習で正解"),
             Map.entry("streak_7", "7日連続で学習"),
             Map.entry("quiz_streak_20", "確認クイズの20問へ、1度目の回答で連続正解"),

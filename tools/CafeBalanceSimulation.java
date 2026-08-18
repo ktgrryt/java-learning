@@ -36,9 +36,9 @@ import java.util.Set;
  */
 public final class CafeBalanceSimulation {
 
-    /** 171回目でラッキーコインを引く、再現可能な通常試算用シード。 */
+    /** 117回目でラッキーコインを引く、再現可能な通常試算用シード。 */
     private static final long STANDARD_LUCKY_UNLOCK_SEED = 77_777L;
-    /** 584回の初回正解では引かない、最も不運な場合の境界試算用シード。 */
+    /** 584回の初回正解では引かない（初当たりは812回目）、最も不運な場合の境界試算用シード。 */
     private static final long UNLUCKY_UNLOCK_SEED = 47L;
 
     private static final Set<Integer> MILESTONES = Set.of(
@@ -127,8 +127,9 @@ public final class CafeBalanceSimulation {
         require(number(plain.cafe().get("equipmentDiscountPercent")) == 20,
                 "マイスター工具箱の設備費20%OFFが効いていません");
 
-        // 1%抽選なので、全584問を解いても外れ続ける可能性は約0.3%ある。
-        // その場合でも必須設備・店舗・終盤投資を買えて、投資率が破綻しないことを見る。
+        // 0.3%抽選なので、全584問を解いても外れ続ける人が約17%いる（1%のころは約0.3%）。
+        // 珍しい筋書きではないので、未解放でも必須設備・店舗・終盤投資を買えて、
+        // 投資率が破綻しないことをここで見る。
         Outcome unlucky = simulate(
                 curriculum, "unlucky", false, 0, false, UNLUCKY_UNLOCK_SEED);
         verifyUnluckyContentReachable(curriculum, unlucky);
@@ -239,7 +240,7 @@ public final class CafeBalanceSimulation {
                             firstTask = false;
                         }
                         // 本番と同じく、正解の記録を初クリア判定より先に通す。
-                        // ラッキーコインの1%解放抽選はこの共通経路で行われる。
+                        // ラッキーコインの0.3%解放抽選はこの共通経路で行われる。
                         progress.recordMasterySubmission(key, true);
                         progress.markCleared(key);
                         ProgressStore.CafeLearningProgress learning = learning(curriculum, progress);

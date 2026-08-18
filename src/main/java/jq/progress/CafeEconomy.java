@@ -69,6 +69,12 @@ final class CafeEconomy {
         this.saver = saver;
     }
 
+    // 26: ラッキーコインの解放抽選を1%から0.3%へ下げた（依頼）。抽選の枠を100→1000へ
+    //     増やして0.1%刻みを表せるようにしてある（isLuckyValue の buckets）。
+    //     **584問すべて正解しても解放されない人が約17%になる**（1%のときは約0.3%）ので、
+    //     「未解放でも破綻しない」ことを見る tools/simulate-cafe.sh の unlucky が
+    //     例外ではなく普通の筋書きになった。投資率そのものは動かない（解放が遅れるほど
+    //     生涯売上は減るが、plain は 27.95%→27.95%、未解放は 28.99% で据え置き）。
     // 25: 確認クイズのチップを「1度目の回答で正解したとき」だけに絞った。誤答のあとに
     //     表示された正解を押しても入らない（クイズが読んで押すだけの入金口になっていた）。
     //     ひらめきメガホンの解放も初回答の20問連続だけにし、答え直し込みの連続記録
@@ -94,7 +100,7 @@ final class CafeEconomy {
     //     574問すべて外れても投資率45%以内になるよう、終盤改装の基準額を450億へ下げた。
     // 20: ラッキーコインを「頻繁な小当たり」から「5%の大当たり」へ変更し、価格を77,777にした。
     //     期待売上が下がるぶん、全購入時の投資率を範囲内へ戻すため終盤改装の基準額も下げた。
-    private static final int CAFE_ECONOMY_VERSION = 25;
+    private static final int CAFE_ECONOMY_VERSION = 26;
     private static final int CUP_PRICE = 500;
     private static final int MAX_CAFE_STORES = 512;
     private static final long FIRST_EXPANSION_COST = 2_500L;
@@ -150,8 +156,17 @@ final class CafeEconomy {
     private static final int RETRY_BONUS_ATTEMPTS = 5;
     /** 粘りのドリッパーそのものが解放される提出回数（1問への累計）。 */
     private static final int RETRY_ACHIEVEMENT_ATTEMPTS = 10;
-    /** 初回・復習を問わず、問題へ正解したときにラッキーコインを引く確率。 */
-    private static final int LUCKY_COIN_UNLOCK_CHANCE_PERCENT = 1;
+    /**
+     * 初回・復習を問わず、問題へ正解したときにラッキーコインを引く確率（<b>千分率</b>）。
+     *
+     * <p>3 = 0.3%。1%から下げたときに枠を100→1000へ増やした ― {@code isLuckyValue} は
+     * 混ぜた値を枠数で割った余りで判定するので、%のままでは0.3を表せない。</p>
+     *
+     * <p><b>584問すべてに正解しても解放されない人が約17%いる</b>（1%では約0.3%だった）。
+     * 未解放のまま完走しても必須設備・店舗・終盤投資を買えることは
+     * {@code tools/simulate-cafe.sh} の unlucky が見ている。</p>
+     */
+    private static final int LUCKY_COIN_UNLOCK_CHANCE_PER_MILLE = 3;
     /** 「今日の1杯目」に数える連続日数の既定の上限。皆勤の日めくりだけがこれを広げる。 */
     private static final int STREAK_BONUS_CAP_DAYS = 7;
     /**
@@ -1165,21 +1180,33 @@ final class CafeEconomy {
         return isLuckyValue(value, chancePercent);
     }
 
-    /** 利用者ごとの種を混ぜた、ラッキーコイン解放専用の1%抽選。 */
+    /** 利用者ごとの種を混ぜた、ラッキーコイン解放専用の0.3%抽選。 */
     private static boolean isLuckyUnlockHit(long seed, long sequence) {
         long value = seed ^ ((long) "lucky_coin_unlock".hashCode() << 32)
                 ^ Long.rotateLeft(sequence * 0x9e3779b97f4a7c15L, 17);
-        return isLuckyValue(value, LUCKY_COIN_UNLOCK_CHANCE_PERCENT);
+        return isLuckyValue(value, LUCKY_COIN_UNLOCK_CHANCE_PER_MILLE, 1_000L);
     }
 
-    /** 抽選ごとに作った値を十分に混ぜ、100個の確率枠へ割り当てる。 */
+    /** 抽選ごとに作った値を十分に混ぜ、100個の確率枠へ割り当てる（1%刻み）。 */
     private static boolean isLuckyValue(long value, int chancePercent) {
+        return isLuckyValue(value, chancePercent, 100L);
+    }
+
+    /**
+     * 混ぜた値を {@code buckets} 個の枠へ割り当て、先頭の {@code chance} 枠を当たりにする。
+     *
+     * <p>刻みは枠数で決まる ― 100なら1%刻み、1000なら0.1%刻み。枠数を変えると
+     * <b>同じ種・同じ回数でも当たり外れが変わる</b>ので、当たる回を決め打ちしている検査
+     * （{@code tools/AchievementCheck.java}・{@code tools/CafeBalanceSimulation.java} の
+     * 試算用シード）は数え直すこと。</p>
+     */
+    private static boolean isLuckyValue(long value, int chance, long buckets) {
         value ^= value >>> 33;
         value *= 0xff51afd7ed558ccdL;
         value ^= value >>> 33;
         value *= 0xc4ceb9fe1a85ec53L;
         value ^= value >>> 33;
-        return Long.remainderUnsigned(value, 100L) < chancePercent;
+        return Long.remainderUnsigned(value, buckets) < chance;
     }
     /**
      * その効果を持つアイテムを所持していれば返す。していなければ null。

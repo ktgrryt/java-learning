@@ -3427,67 +3427,6 @@
   }
 
   /**
-   * 補完の案内を出し始めるレッスン。<b>第2章の最初の練習問題</b>。
-   *
-   * 第1章は出力そのものが到達目標で、`System.out.println` を書き写す手が練習になる。
-   * そこを終えて型や変数へ進むあたりが、外枠を打つ手間だけを減らせると知るのに一番よい
-   * ころ合いである（教材側の方針は docs/guide.md「コード補完」）。
-   * レッスンIDは進捗ファイルの互換のため変えない方針なので、IDで指してよい。
-   *
-   * <b>「2-1 を開いたときだけ」にはしない。</b> この案内より先に 2-1 を通り過ぎた人には
-   * 一度も出なくなるため、2-1 以降のレッスンで**閉じるまで**出す。
-   */
-  var COMPLETION_TIP_FROM = '2-1';
-  var COMPLETION_TIP_KEY = 'jq-completion-tip-done';
-
-  function completionTipDone() {
-    try { return localStorage.getItem(COMPLETION_TIP_KEY) === '1'; }
-    catch (e) { return false; }   // 使えない環境では毎回出る（閉じれば消える）
-  }
-
-  /**
-   * 案内の役目が終わった。閉じたときと、`sout` を自分で使えたときの2つから呼ぶ。
-   *
-   * 出したままの案内も引っ込める ― `sout` を使ったのは案内を読んだ結果なので、
-   * そのまま残っていると「もう知っていること」を指し続ける。
-   */
-  function markCompletionTipDone() {
-    try { localStorage.setItem(COMPLETION_TIP_KEY, '1'); } catch (e) { /* 次回また出るだけ */ }
-    var shown = document.querySelector('.card-tip');
-    if (shown && shown.parentNode) { shown.parentNode.removeChild(shown); }
-  }
-
-  /** この問題の上に補完の案内を出すか。 */
-  function shouldShowCompletionTip(lesson, task, index, review) {
-    // 出すのはレッスンの1問目だけ。復習は解き直しなので、案内は重ねない
-    if (review || index !== 0) { return false; }
-    // Javaを書く欄の話。設定ファイル・複数ファイルの問題には出さない
-    // （`type` は single-file / artifact / project / runtime-lab のいずれか）
-    if (task.type !== 'single-file') { return false; }
-    if (completionTipDone()) { return false; }
-    var from = lessonOrder[COMPLETION_TIP_FROM];
-    var here = lessonOrder[lesson.id];
-    return from !== undefined && here !== undefined && here >= from;
-  }
-
-  function completionTipHtml() {
-    return '<div class="card card-tip" role="note">' +
-      '<div class="tip-head"><span aria-hidden="true">💡</span>' +
-      '<strong>入力のコツ</strong>' +
-      '<button class="ghost-btn small" type="button" data-role="tip-close">閉じる</button></div>' +
-      '<p>クラス名・メソッド名・変数名は、<b>途中まで打つと候補が出ます</b>。'
-      + '候補は <code class="inline-code">↑</code> <code class="inline-code">↓</code> で選び、'
-      + '<code class="inline-code">Tab</code> で入ります'
-      + '（候補が出ていないときの <code class="inline-code">Tab</code> は、'
-      + 'いままでどおり字下げです）。</p>' +
-      '<p><code class="inline-code">sout</code> と打って <code class="inline-code">Tab</code> '
-      + 'を押すと <code class="inline-code">System.out.println();</code> が入り、'
-      + '<b>かっこの中にカーソルが来ます</b>。これから何度も書く形なので、'
-      + '外枠は打たずに済ませてかまいません。</p>' +
-      '</div>';
-  }
-
-  /**
    * 問題ヘッダに出す状態チップ。
    *
    * 文言を2箇所（描くとき・採点で通ったとき）で組み立てていたので、ここへ寄せた。
@@ -3519,7 +3458,6 @@
       : artifact
       ? 'Tab で字下げ　·　⌘/Ctrl + Enter で検証'
       : 'Tab で補完（候補は ' + completionMoveKeysText() + ' で選ぶ）　·　⌘/Ctrl + Enter で実行';
-    var showTip = shouldShowCompletionTip(lesson, task, index, review);
 
     // 復習モードでは緑にしない（→ taskStatusHtml）
     var cleared = !review && !!task.cleared;
@@ -3549,8 +3487,6 @@
       '    <div class="task-body">' + renderMarkdown(task.task) + '</div>' +
            renderCasePreview(task) +
       '  </div>' +
-
-      (showTip ? completionTipHtml() : '') +
 
       '  <div class="card card-code">' +
       '    <div class="code-head">' +
@@ -3605,9 +3541,6 @@
         scheduleSave(n);
       }
     });
-
-    var tipClose = block.querySelector('[data-role="tip-close"]');
-    if (tipClose) { tipClose.addEventListener('click', markCompletionTipDone); }
 
     var hintBtn = block.querySelector('.hint-btn');
     if (hintBtn) { hintBtn.addEventListener('click', function () { revealNextHint(n); }); }
@@ -5317,9 +5250,6 @@
           + '読み込みに失敗しました: ' + esc(e.message) + '</div></div>';
       });
   }
-
-  // `sout` を自分で使えたなら、補完の案内はもう要らない（complete.js から呼ばれる）
-  if (window.JQComplete) { window.JQComplete.onSnippet = markCompletionTipDone; }
 
   document.getElementById('homeBtn').addEventListener('click', goHome);
   document.getElementById('learningBtn').addEventListener('click', goLearning);
