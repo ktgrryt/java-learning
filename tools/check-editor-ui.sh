@@ -1,24 +1,25 @@
 #!/usr/bin/env bash
 #
-# 学習画面をブラウザで実際に操作して確かめる。
+# コードを書く欄（web/editor.js）のキー操作をブラウザで実際に確かめる。
 #
-#   ./tools/check-learn-ui.sh              … 検査する（40秒ほど）
-#   ./tools/check-learn-ui.sh --keep-open  … 終わってもサーバとChromeを残す（手で見たいとき）
+#   ./tools/check-editor-ui.sh              … 検査する（20秒ほど）
+#   ./tools/check-editor-ui.sh --keep-open  … 終わってもサーバとChromeを残す（手で見たいとき）
 #
-# このアプリの中心は「コードを書く → 実行して採点 → ★と報酬 → 次へ」で、そこに
-# ヒント・模範解答・自動保存・カフェへの寄り道・復習がぶら下がっている。
-# **この経路を通す検査はここだけ**である。
-# `verify-solutions.sh` はサーバー側の採点しか見ないので、画面のJS（採点結果の描画、
-# `applyDelta` の上書き、通知、復習の出題）が壊れても他の検査は全部通ってしまう。
-# `check-cafe-ui.sh` はカフェ画面の担当で、学習画面はレッスンが開けることしか見ていない。
+# 見るのは**打鍵に対する入力補助**である ― 自動で閉じるかっこと引用符、打った閉じ記号の打ち抜け、
+# テキストブロック（`"""`）、Backspaceでのペア削除、Tabの字下げ、補完が入れたかっこ、
+# 補完の候補の移動（↑↓ と、macOSの Ctrl+P / Ctrl+N）。
+# `check-learn-ui.sh` は「1問を解き切るまでの経路」の担当で、エディタについては
+# 「ひな形が入って提出できる」ことしか見ていない。
+#
+# ここが要るのは、閉じ記号の打ち抜けが**位置の記憶**に頼っているためである
+# （`web/editor.js` の `_autoClosed`）。自動で足した閉じ記号だけを通り抜けさせるので、
+# 覚えた位置が編集でずれると「打った `)` が黙って消える」か「`)` が重なる」のどちらかになる。
+# どちらも書いた本人にしか見えず、他の検査は全部通ってしまう。
 #
 # 追加パッケージは要らない（node 24 組み込みの WebSocket で Chrome DevTools Protocol を叩く）。
-# **Chromeが無い環境では省略して成功扱いにする** ― runtime-labが環境不足を省略するのと同じ扱いで、
-# 手元にChromeが無い人のコミットを止めないため。
+# **Chromeが無い環境では省略して成功扱いにする** ― 手元にChromeが無い人のコミットを止めないため。
 #
 # 進捗ファイルは書き換えない（一時ディレクトリに用意した進捗で動かす）。
-# その進捗は「初回案内は済み・★は0」にしてある ― ★を付ける瞬間（初回クリアの報酬と通知）が
-# この検査でいちばん見たいところなので、あらかじめクリア済みにはしない。
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
@@ -41,13 +42,13 @@ for candidate in \
 done
 
 if [[ -z "$CHROME" ]]; then
-  echo "注意: Chrome / Chromium が見つからないため、学習画面の検査を省略します。"
-  echo "      （画面の確認だけは機械化できていないので、変更したら手で開いて確かめてください）"
+  echo "注意: Chrome / Chromium が見つからないため、エディタの検査を省略します。"
+  echo "      （変更したら手で開いて、かっこの自動補完を確かめてください）"
   exit 0
 fi
 
 if ! command -v node >/dev/null 2>&1; then
-  echo "注意: node が見つからないため、学習画面の検査を省略します（node 20以降が必要）。"
+  echo "注意: node が見つからないため、エディタの検査を省略します（node 20以降が必要）。"
   exit 0
 fi
 
@@ -56,9 +57,9 @@ source tools/build.sh
 jq_build
 
 ROOT="$(pwd)"
-WORK="$(mktemp -d /tmp/jq-learn-ui.XXXXXX)"
-APP_PORT="${JQ_LEARN_PORT:-8353}"
-CDP_PORT="${JQ_LEARN_CDP_PORT:-9353}"
+WORK="$(mktemp -d /tmp/jq-editor-ui.XXXXXX)"
+APP_PORT="${JQ_EDITOR_PORT:-8355}"
+CDP_PORT="${JQ_EDITOR_CDP_PORT:-9355}"
 
 cleanup() {
   if [[ "$KEEP_OPEN" == "1" ]]; then
@@ -81,24 +82,17 @@ ln -s "$ROOT/content" "$WORK/content"
 ln -s "$ROOT/web" "$WORK/web"
 ln -s "$ROOT/labs" "$WORK/labs"
 
-# 初回案内は済み・★は0から始める。案内が出たままだと振り分けが `menu` に固定され
+# 初回案内は済みにする。案内が出たままだと振り分けが `menu` に固定され
 # （`web/app.js` の `routeFromHash`）、レッスンを開けない
-#
-# コインだけは最初から持たせる。カフェへ寄り道して帰る経路の検査で実際に1つ買うためで、
-# 1問ぶんの報酬では最も安い設備（4,000コイン）に届かない。★は0のままなので、
-# ★が付く瞬間（初回クリアの報酬と通知）はこれまでどおり見られる。
-# `economyVersion` を2以上にしておくのは、1だと初版とみなされて残高が50倍に換算されるためである
-# （`CafeEconomy` の読み込み）。
-echo '{"onboardingCompleted":true,"cafe":{"cash":20000,"economyVersion":2}}' > "$WORK/progress.json"
+echo '{"onboardingCompleted":true}' > "$WORK/progress.json"
 
 # exec で java に置き換える。付けないと $! はサブシェルのPIDになり、kill しても
 # java が生き残ってポートを掴み続ける（以降の実行が古いビルドを検査してしまう）。
 # 先客がいると --exact-port で起動に失敗し、そのまま「古いサーバ」を検査してしまう。
-# 黙って別のビルドを検査するのが最悪なので、ここで止める。
 if curl -fsS -o /dev/null "http://localhost:${APP_PORT}/api/state" 2>/dev/null; then
   echo "ポート ${APP_PORT} で既に何かが応答しています。" >&2
   echo "  古い検査用サーバが残っている可能性があります: lsof -ti:${APP_PORT} | xargs kill" >&2
-  echo "  別のポートで走らせるなら: JQ_LEARN_PORT=8354 ./tools/check-learn-ui.sh" >&2
+  echo "  別のポートで走らせるなら: JQ_EDITOR_PORT=8356 ./tools/check-editor-ui.sh" >&2
   exit 1
 fi
 
@@ -126,9 +120,9 @@ for _ in $(seq 1 40); do
   sleep 0.5
 done
 if ! curl -fsS -o /dev/null "http://127.0.0.1:${CDP_PORT}/json/version" 2>/dev/null; then
-  echo "注意: Chromeへ接続できなかったため、学習画面の検査を省略します。"
+  echo "注意: Chromeへ接続できなかったため、エディタの検査を省略します。"
   cat "$WORK/chrome.log" >&2
   exit 0
 fi
 
-node tools/check_learn_ui.js "$APP_PORT" "$CDP_PORT"
+node tools/check_editor_ui.js "$APP_PORT" "$CDP_PORT"

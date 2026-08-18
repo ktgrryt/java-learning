@@ -28,6 +28,10 @@
   var lessonNumber = {};   // レッスンID -> 画面で見せる章内の番号（事前確認は0）
   var currentId = null;    // いま開いているレッスンID（ホーム／カフェ表示中は null）
   var currentView = 'menu'; // menu / cafe / lesson / review / reviewTask
+  // 解いていた場所へ戻すための3つ。カフェへ寄り道しても、読んでいた位置ごと再開できるように。
+  var paintedLessonId = null;    // いま #content に描いてあるレッスンID（位置の持ち主）
+  var lessonScroll = null;       // 直前に離れたレッスンで読んでいた位置 { lessonId, top }
+  var cafeReturnLessonId = null; // カフェの「📚 学習」で帰るレッスンID（寄り道でなければ null）
   var editors = {};        // 問題ID -> エディタ（1レッスンに複数問あるので複数持つ）
   var saveTimers = {};     // 問題ID -> 自動保存のタイマー
   var busyTask = null;     // 実行・採点中の問題ID（同時に走らせない）
@@ -503,6 +507,9 @@
     cafeBtn.setAttribute('aria-current', learningActive ? 'false' : 'page');
     cafeBtn.setAttribute('aria-label', Number(cafeState().unseenItemCount || 0) > 0
       ? 'カフェ（新しいアイテムがあります）' : 'カフェ');
+    // 「📚 学習」の行き先は場面で変わる（解いている途中で寄り道したならそのレッスンへ）ので、
+    // 押す前に分かるよう説明も合わせる。
+    learningBtn.title = learningReturnLessonId() ? '解いていた問題に戻る' : '学習ホームに戻る';
   }
 
   // -------------------------------------------------------- サイドバー描画
@@ -2561,7 +2568,10 @@
 
     renderQuiz(lesson);
     renderLessonNext(lesson);
-    main.scrollTop = 0;
+    paintedLessonId = lesson.id;
+    // 直前に離れたレッスンへ帰ってきたときだけ、読んでいた位置から再開する。
+    // 中身の高さが足りなければ入れた値は縮められるが、それはその窓での行き止まりなので任せる。
+    main.scrollTop = lessonScroll && lessonScroll.lessonId === lesson.id ? lessonScroll.top : 0;
   }
 
   var PREFLIGHT_READY_MAX_AGE = 7 * 24 * 60 * 60 * 1000;
@@ -2691,6 +2701,17 @@
    * @param options {review:true} なら復習モード。保存済みの解答ではなくひな形から始め、
    *                苦手度のバッジを見出しに出す（保存を止めるのは {@link scheduleSave}）
    */
+  /**
+   * 補完の候補を選ぶキーの案内。
+   *
+   * macOSでは Ctrl+P / Ctrl+N でも動く（complete.js の `handleKeyDown`）。使えない環境で
+   * 書いてしまうと案内が嘘になるので、そちらの判定をそのまま借りて出し分ける。
+   */
+  function completionMoveKeysText() {
+    var mac = window.JQComplete && window.JQComplete.isMac && window.JQComplete.isMac();
+    return mac ? '↑↓ か Ctrl+P / Ctrl+N' : '↑↓';
+  }
+
   function buildTaskBlock(lesson, task, index, options) {
     var n = task.id;
     var review = !!(options && options.review);
@@ -2708,7 +2729,7 @@
       ? 'ファイルを切り替えて編集　·　⌘/Ctrl + Enter で実行'
       : artifact
       ? 'Tab で字下げ　·　⌘/Ctrl + Enter で検証'
-      : 'Tab で補完（候補は ↑↓ で選ぶ）　·　⌘/Ctrl + Enter で実行';
+      : 'Tab で補完（候補は ' + completionMoveKeysText() + ' で選ぶ）　·　⌘/Ctrl + Enter で実行';
 
     var block = document.createElement('section');
     block.className = 'task-block' + (task.required === false ? ' task-block-optional' : '');
@@ -4061,8 +4082,31 @@
     return currentView === 'reviewTask';
   }
 
+  /**
+   * 画面を描き替える前に、レッスンで読んでいた位置を控える。
+   *
+   * 控える相手は currentId ではなく paintedLessonId（いま画面に出ているレッスン）である。
+   * ここへ来た時点で currentId はもう行き先を指しているので、currentId で控えると
+   * カフェ（null）や移動先のレッスンの位置として覚えてしまう。
+   *
+   * 覚えるのは直前に離れた1つだけ。別のレッスンを開けば差し替わるので、読み直したくて
+   * 開いたレッスンが途中から始まることはない。
+   *
+   * 併せて「📚 学習」の帰り先も決める。レッスンから直接カフェへ寄り道したときだけ、
+   * そのレッスンへ帰す。自分でホームや復習へ移ったのなら、帰り先はホームのままでよい。
+   */
+  function rememberLessonScroll() {
+    var painted = paintedLessonId;
+    paintedLessonId = null;
+    cafeReturnLessonId = painted && currentView === 'cafe' ? painted : null;
+    if (!painted) { return; }
+    lessonScroll = { lessonId: painted, top: document.getElementById('content').scrollTop };
+  }
+
   /** 現在の画面状態に合わせて描く。 */
   function render() {
+    // 描き替えると位置が失われるので、中身を差し替える前に控える。
+    rememberLessonScroll();
     // 復習セッション（今回の10問）は、問題を解いている画面の間だけ生きている。
     // ホームやレッスンへ移ったら捨てる。ブラウザの戻るも必ずここを通るので、
     // 捨てる場所を1つにしておくと「無関係な問題で 3 / 10問 と出る」ような
@@ -4130,6 +4174,30 @@
     currentView = 'cafe';
     if (location.hash !== '#cafe') { location.hash = 'cafe'; }
     render();
+  }
+
+  /**
+   * ヘッダの「📚 学習」で帰るレッスンID。無ければ null（＝学習ホームへ）。
+   *
+   * レッスンから直接カフェへ寄り道したときだけ返る（{@code rememberLessonScroll} が決める）。
+   * 覚えたあとに章が入れ替わって消えたIDでも困らないよう、ここで実在も確かめる。
+   */
+  function learningReturnLessonId() {
+    if (currentView !== 'cafe' || !cafeReturnLessonId) { return null; }
+    return findLesson(cafeReturnLessonId) ? cafeReturnLessonId : null;
+  }
+
+  /**
+   * ヘッダの「📚 学習」。
+   *
+   * 解いている途中でカフェへ寄り道したなら、そのレッスンへ1手で帰す（読んでいた位置ごと）。
+   * それ以外はこれまでどおり学習ホームへ。章を選び直したいときは、カフェ画面の
+   * 「📚 章を選ぶ」と左上のロゴがいつでもホームへ戻す。
+   */
+  function goLearning() {
+    var back = learningReturnLessonId();
+    if (back) { selectLesson(back); return; }
+    goHome();
   }
 
   /** 復習ホームへ。今回のセッションは {@code render} が畳む。 */
@@ -4200,7 +4268,7 @@
   }
 
   document.getElementById('homeBtn').addEventListener('click', goHome);
-  document.getElementById('learningBtn').addEventListener('click', goHome);
+  document.getElementById('learningBtn').addEventListener('click', goLearning);
   document.getElementById('cafeBtn').addEventListener('click', goCafe);
 
   // ── サイドバー全体の開閉（既定は非表示。集中を妨げないため） ─────

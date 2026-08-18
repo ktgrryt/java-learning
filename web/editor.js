@@ -7,8 +7,9 @@
  * 初心者がつまずきやすいところを補助する:
  *   - Tab で4スペース（Javaの慣習）。Shift+Tab で戻す
  *   - Enter で前の行のインデントを引き継ぐ。`{` の後ろなら1段深くする
- *   - `{` `(` `[` を自動で閉じる。自分で閉じ記号を打ったときは重複させず通り抜ける
- *   - 引用符は入力・削除とも1文字ずつ扱う（勝手に2個入ったように見せない）
+ *   - `{` `(` `[` を自動で閉じる。**自動で足した**閉じ記号の前でだけ、打った閉じ記号は
+ *     重複させず通り抜ける（ひな形や自分で書いた閉じ記号の前では、打った文字がそのまま入る）
+ *   - `"` も自動で閉じる。ただし文字列やテキストブロック（`"""`）の中では足さない
  *   - 書きかけの語から補完候補を出す（complete.js）。Tab で選んだ候補を入れる
  */
 (function (global) {
@@ -18,6 +19,35 @@
 
   var PAIRS = { '(': ')', '{': '}', '[': ']' };
   var CLOSERS = { ')': true, '}': true, ']': true };
+  // 同じ記号で開いて閉じるので、かっことは別に扱う。`'` は入れていない ―
+  // Javaの `char` にしか使わないのに、コメントの `don't` のような書き方で
+  // 勝手に2個入るほうが煩わしいため
+  var QUOTES = { '"': true };
+
+  /**
+   * その位置は文字列（`"..."`）かテキストブロック（`"""..."""`）の中か。
+   *
+   * 構文解析はしない。エスケープを飛ばしながら `"""` と `"` を数えるだけである。
+   * 通常の文字列は行をまたげないので改行で閉じ扱いにする（書きかけを追いたいため）。
+   * テキストブロックは行をまたぐので、そちらは改行で閉じない。
+   *
+   * これを見るのは `"` を自動で閉じるかの判断だけで、色付け（highlight.js）とは別系統である。
+   * 中にいるときに足さないのは、そこで打つ `"` は「閉じるつもりの1つ」だからである。
+   */
+  function insideQuotes(text, pos) {
+    var block = false;   // `"""` の中
+    var str = false;     // `"` の中
+    var i = 0;
+    while (i < pos) {
+      var c = text.charAt(i);
+      if ((str || block) && c === '\\') { i += 2; continue; }   // `\"` は数えない
+      if (!str && text.substr(i, 3) === '"""') { block = !block; i += 3; continue; }
+      if (!block && c === '"') { str = !str; i++; continue; }
+      if (!block && c === '\n') { str = false; i++; continue; }
+      i++;
+    }
+    return block || str;
+  }
 
   function Editor(host, options) {
     this.host = host;
@@ -25,6 +55,9 @@
     this.ariaLabel = options && options.ariaLabel ? options.ariaLabel : 'コードを書く欄';
     this.onSubmit = null;
     this._isComposing = false;
+    // 自動で足した閉じ記号がいまどこにあるか。打ち抜けを許すのはこの位置だけ
+    this._autoClosed = [];
+    this._lastValue = null;  // 位置をずらすために、1つ前のテキストを控える
     this._build();
   }
 
@@ -75,6 +108,9 @@
 
   Editor.prototype.setValue = function (text) {
     if (this.complete) { this.complete.close(); }
+    // 中身を丸ごと入れ替えるので、覚えている閉じ記号の位置は全部無効になる
+    // （ひな形に戻す・模範解答を入れる・保存した続きを開く、のどれもここを通る）
+    this._autoClosed = [];
     this.input.value = text == null ? '' : text;
     this._refresh();
     this.input.scrollTop = 0;
@@ -85,9 +121,80 @@
     this.input.focus();
   };
 
+  /**
+   * 自動で足した閉じ記号の位置を覚える。
+   *
+   * 打った閉じ記号を通り抜けさせてよいのは、ここに覚えのある位置だけである。
+   * ひな形にあった `)` や自分で書いた `)` の前でも通り抜けると、打った文字が
+   * 消えたように見える（カーソルだけ右へ動く）。
+   *
+   * 補完（complete.js）が `println()` のように閉じかっこ込みで入れたときも、
+   * その閉じかっこは自動で足したものなので、あちらから呼んで覚えさせる。
+   */
+  Editor.prototype.markAutoClosed = function (pos) {
+    if (this._autoClosed.indexOf(pos) < 0) { this._autoClosed.push(pos); }
+  };
+
+  /** その位置の閉じ記号は、自動で足したものか。 */
+  Editor.prototype._isAutoClosed = function (pos) {
+    return this._autoClosed.indexOf(pos) >= 0;
+  };
+
+  /** 通り抜けた閉じ記号は役目を終えたので、覚えから外す。 */
+  Editor.prototype._forgetAutoClosed = function (pos) {
+    var at = this._autoClosed.indexOf(pos);
+    if (at >= 0) { this._autoClosed.splice(at, 1); }
+  };
+
+  /**
+   * テキストが変わったぶんだけ、覚えている位置をずらす。
+   *
+   * 変わったところを1区間として求め（前後の一致部分を削る）、手前は動かさず、
+   * 後ろは伸縮ぶんずらし、区間の中にあったものは捨てる ― 書き換えられた閉じ記号は
+   * もう「自動で足したもの」とは言えないため。
+   *
+   * テキストが変わる道はすべて {@link Editor#_refresh} を通る（打鍵・貼り付け・取り消し・
+   * 補完・ひな形に戻す）ので、ずらす場所はここ1つで足りる。
+   */
+  Editor.prototype._shiftAutoClosed = function (before, after) {
+    if (!this._autoClosed.length || before === after) { return; }
+    var limit = Math.min(before.length, after.length);
+    var head = 0;
+    while (head < limit && before.charAt(head) === after.charAt(head)) { head++; }
+    var tail = 0;
+    while (tail < limit - head
+        && before.charAt(before.length - 1 - tail) === after.charAt(after.length - 1 - tail)) {
+      tail++;
+    }
+    var removedEnd = before.length - tail;   // before の [head, removedEnd) が置き換わった
+    var shift = after.length - before.length;
+    this._autoClosed = this._autoClosed
+      .filter(function (pos) { return pos < head || pos >= removedEnd; })
+      .map(function (pos) { return pos < head ? pos : pos + shift; });
+  };
+
+  /**
+   * その位置で `"` を自動で閉じてよいか。
+   *
+   * 足さないのは3つの場面である。
+   *   ・文字列・テキストブロックの中 ― そこで打つ `"` は閉じるつもりの1つだから
+   *   ・直前が `""` ― テキストブロックの `"""` を打っている途中で、
+   *     ここで足すと `""""` になる（第18章のテキストブロックの問題で必ず踏む）
+   *   ・直後が英数字 ― 既存の語を壊さないため（かっこと同じ考え方）
+   */
+  Editor.prototype._shouldCloseQuote = function (pos) {
+    var value = this.input.value;
+    if (insideQuotes(value, pos)) { return false; }
+    if (value.charAt(pos - 1) === '"' && value.charAt(pos - 2) === '"') { return false; }
+    var next = value.charAt(pos);
+    return next === '' || /[\s)\]};,.]/.test(next);
+  };
+
   /** 色付けと行番号を書き直す。 */
   Editor.prototype._refresh = function () {
     var text = this.input.value;
+    this._shiftAutoClosed(this._lastValue === null ? text : this._lastValue, text);
+    this._lastValue = text;
     // 末尾が改行だと <pre> の最終行が潰れるので、見えない1文字を足して高さを保つ
     var highlighter = this.language === 'java'
       ? global.JQHighlight.java
@@ -219,10 +326,18 @@
     }
 
     // ---- 閉じ記号の打ち抜け（重複を防ぐ） ----------------------------------
+    // 通り抜けるのは、自分が自動で足した閉じ記号の前だけにする。以前は右隣が同じ記号なら
+    // 必ず通り抜けていたため、ひな形の `(x + y));` の中や、自分で書いた `)` の前で
+    // `)` を打つと、その1文字が入らずカーソルだけ動いていた（打った文字が消えたように見える）。
     if (CLOSERS[e.key] && el.selectionStart === el.selectionEnd
-        && el.value.charAt(el.selectionStart) === e.key) {
+        && el.value.charAt(el.selectionStart) === e.key
+        && this._isAutoClosed(el.selectionStart)) {
       e.preventDefault();
+      this._forgetAutoClosed(el.selectionStart);
       el.selectionStart = el.selectionEnd = el.selectionStart + 1;
+      // ここは文字が増えないので input が飛ばず、補完の窓は自分では畳まれない。
+      // 開いたまま置くと、窓が指している場所とカーソルがずれて、Tab が別の場所へ入る
+      if (this.complete) { this.complete.close(); }
       return;
     }
 
@@ -235,6 +350,7 @@
         e.preventDefault();
         var picked = el.value.slice(selStart, selEnd);
         this._insert(e.key + picked + PAIRS[e.key], 1, 1 + picked.length);
+        this.markAutoClosed(selStart + 1 + picked.length);
         return;
       }
       var next = el.value.charAt(selStart);
@@ -242,6 +358,38 @@
       if (next === '' || /[\s)\]};,.]/.test(next)) {
         e.preventDefault();
         this._insert(e.key + PAIRS[e.key], 1);
+        // 覚えるのは入れたあと。_insert の中で _refresh が走り、そこで位置がずれるため
+        this.markAutoClosed(selStart + 1);
+      }
+      return;
+    }
+
+    // ---- 引用符の自動閉じ --------------------------------------------------
+    // 開き記号と閉じ記号が同じなので、かっこと同じ枝には入れられない。
+    // 「通り抜け → 囲む → 自動で閉じる」の順に見て、どれでもなければ1文字だけ入れる。
+    if (QUOTES[e.key]) {
+      var qStart = el.selectionStart;
+      var qEnd = el.selectionEnd;
+      // 自分が足した閉じ引用符の前なら通り抜ける（かっこと同じ扱い）
+      if (qStart === qEnd && el.value.charAt(qStart) === e.key && this._isAutoClosed(qStart)) {
+        e.preventDefault();
+        this._forgetAutoClosed(qStart);
+        el.selectionStart = el.selectionEnd = qStart + 1;
+        if (this.complete) { this.complete.close(); }
+        return;
+      }
+      if (qStart !== qEnd) {
+        // 選択範囲を引用符で囲む
+        e.preventDefault();
+        var quoted = el.value.slice(qStart, qEnd);
+        this._insert(e.key + quoted + e.key, 1, 1 + quoted.length);
+        this.markAutoClosed(qStart + 1 + quoted.length);
+        return;
+      }
+      if (this._shouldCloseQuote(qStart)) {
+        e.preventDefault();
+        this._insert(e.key + e.key, 1);
+        this.markAutoClosed(qStart + 1);
       }
       return;
     }
@@ -250,7 +398,9 @@
     if (e.key === 'Backspace' && el.selectionStart === el.selectionEnd) {
       var p = el.selectionStart;
       var prev = el.value.charAt(p - 1);
-      if (PAIRS[prev] && el.value.charAt(p) === PAIRS[prev]) {
+      // 引用符も同じ扱い。`"` だけ残ると文字列が閉じないコードになってしまう
+      var pairOf = PAIRS[prev] || (QUOTES[prev] ? prev : '');
+      if (pairOf && el.value.charAt(p) === pairOf) {
         e.preventDefault();
         el.selectionStart = p - 1;
         el.selectionEnd = p + 1;

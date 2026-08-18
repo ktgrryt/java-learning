@@ -11,7 +11,7 @@
  * 外れても候補が少し的外れになるだけで、入力の邪魔はしない。
  *
  * 操作:
- *   ↑ ↓        候補を選ぶ
+ *   ↑ ↓        候補を選ぶ（macOSでは Ctrl+P / Ctrl+N でも動く）
  *   Tab        選んでいる候補を入れる
  *   Esc        閉じる
  *   Ctrl+Space 自分で呼び出す
@@ -23,6 +23,32 @@
   var api = global.JQJavaApi;
 
   var MAX_ITEMS = 100;   // これ以上は出さない（絞り込めば消える）
+
+  /**
+   * 押しただけでは何も起きないキー。窓を閉じる判断から外す。
+   *
+   * `Control` を押した瞬間にも keydown が飛び、そのとき既に `ctrlKey` は true である。
+   * 「修飾キー付きのキーなら窓を閉じる」だけで判断すると、**修飾キーを先に押す組み合わせ
+   * （Ctrl+N / Ctrl+P）が成立しない** ― Nを押す前に窓が消えてしまう。
+   */
+  var BARE_MODIFIERS = {
+    Control: true, Meta: true, Shift: true, Alt: true, AltGraph: true, CapsLock: true
+  };
+
+  /**
+   * macOSか。Emacsキーバインド（Ctrl+P / Ctrl+N）を候補の移動に使うかの判断に用いる。
+   *
+   * macOSではテキスト欄で Ctrl+P / Ctrl+N が「1行上／下へ」として最初から効くので、
+   * 候補の移動に割り当てても手の動きが変わらない。WindowsやLinuxでは Ctrl+N が
+   * ブラウザの「新しいウィンドウ」なので、そちらは横取りしない。
+   */
+  function isMac() {
+    var nav = global.navigator || {};
+    if (nav.userAgentData && nav.userAgentData.platform) {
+      return /mac/i.test(nav.userAgentData.platform);
+    }
+    return /Mac|iPhone|iPad/.test(nav.platform || nav.userAgent || '');
+  }
 
   // ── 字句の下ごしらえ ───────────────────────────────────────────────
 
@@ -1394,6 +1420,7 @@
     var value = el.value;
     var text = item.label;
     var caret = text.length;
+    var addedCloser = false;   // `()` ごと入れたか（エディタに覚えさせるため）
 
     if (item.isPackage) {
       // パッケージは `.` まで入れて、続きの候補をもう一度出す
@@ -1406,6 +1433,7 @@
       } else {
         text += '()';
         caret = item.params ? text.length - 1 : text.length;  // 引数があればかっこの中へ
+        addedCloser = true;
       }
     }
 
@@ -1416,6 +1444,11 @@
     try {
       this.close();
       this.editor.replaceRange(this.from, this.to, text, caret);
+      // ここで入れた `)` は自動で足したものなので、引数を書いたあとに `)` を打ったら
+      // 通り抜けてよい。覚えさせないと、その `)` が重なって `println("x"))` になる
+      if (addedCloser && this.editor.markAutoClosed) {
+        this.editor.markAutoClosed(this.from + text.length - 1);
+      }
     } finally {
       this._accepting = false;
     }
@@ -1466,6 +1499,25 @@
 
     if (!this.open) { return false; }
 
+    // 修飾キーそのものを押しただけなら、まだ何も起きていない。窓は開けたままにする
+    if (BARE_MODIFIERS[e.key]) { return false; }
+
+    // macOSのEmacsキーバインドでも候補を選べるようにする（Ctrl+P 上 / Ctrl+N 下）。
+    // 横取りするのは**窓が出ているあいだだけ**である ― 出ていないときは上の
+    // `!this.open` で先に返るので、OS本来の「1行上／下へ」がそのまま残る。
+    if (isMac() && e.ctrlKey && !e.metaKey && !e.shiftKey && !e.altKey) {
+      if (e.key === 'n' || e.code === 'KeyN') {
+        e.preventDefault();
+        this.move(1);
+        return true;
+      }
+      if (e.key === 'p' || e.code === 'KeyP') {
+        e.preventDefault();
+        this.move(-1);
+        return true;
+      }
+    }
+
     switch (e.key) {
       case 'Tab':
         if (e.shiftKey) { this.close(); return false; }
@@ -1507,6 +1559,8 @@
 
   global.JQComplete = {
     Completer: Completer,
+    // ショートカットの案内文を場合分けするために app.js が読む
+    isMac: isMac,
     // 中身の確認用（テストや動作確認から呼べるようにしておく）
     suggest: suggest,
     scan: scan,

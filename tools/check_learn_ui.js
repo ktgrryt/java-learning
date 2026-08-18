@@ -4,7 +4,8 @@
  * 引数: <アプリのポート> <ChromeのCDPポート>
  *
  * 見るのは「1問を解き切るまでの経路」全体である。
- *   誤答 → コンパイルエラー → ヒント → 模範解答 → 正解（★・コイン・通知）→ 自動保存 → 復習
+ *   誤答 → コンパイルエラー → ヒント → 模範解答 → 正解（★・コイン・通知）→ 自動保存
+ *   → カフェへ寄り道して同じ位置で再開 → 復習
  * サーバー側の採点は `verify-solutions.sh` が見るので、ここでは
  * **画面がその結果をどう受け取って描くか**（`renderJudgement` / `applyDelta` / 通知 / 復習の出題）
  * だけを確かめる。
@@ -313,6 +314,78 @@ const HELPERS = `window.__t = {
   check(saved.status.indexOf('★') >= 0 && saved.stars === '1',
     '★も読み直しても残っている', saved);
 
+  // ── 寄り道して戻る（カフェで買って帰り、解いていた位置で再開できるか）────────
+  // 位置を控えているのは画面だけ（`web/app.js` の `rememberLessonScroll`）なので、
+  // ここでしか確かめられない。壊れても見た目は普通のレッスン画面（先頭が出る）で、
+  // 「さっきの続きが出ない」と気づくのは解いている人だけになる。
+  // 購入まで通すのは、買ったあとの描き直しが `render` を経由しないためである
+  // （`renderCafe(true)`）。ここが `render` に変わると帰り先の記憶が消えるので、
+  // その取り違えを捕まえる。
+  const detour = await ev(`(async () => {
+    const main = document.getElementById('content');
+    const state = await (await fetch('/api/state')).json();
+    let other = null;
+    state.chapters.forEach(ch => ch.lessons.forEach(l => {
+      if (!other && l.id !== '${LESSON}') { other = l.id; }
+    }));
+    document.getElementById('task-${TASK}').scrollIntoView({ block: 'start' });
+    await window.__t.sleep(300);
+    const leaving = main.scrollTop;
+    const coinsBefore = window.__t.coins();
+    document.getElementById('cafeBtn').click();
+    if (!await window.__t.until(() => document.querySelector('.cafe-page'), 40)) {
+      return { error: 'カフェ画面が描かれない' };
+    }
+    const title = document.getElementById('learningBtn').title;
+    const buyable = [...document.querySelectorAll(
+      '.cafe-item-buy, .equipment-upgrade-btn, .cafe-automation-buy')].filter(b => !b.disabled);
+    let bought = null;
+    if (buyable.length) {
+      bought = buyable[0].textContent.replace(/\\s+/g, ' ').trim();
+      buyable[0].click();
+      await window.__t.until(() => window.__t.coins() !== coinsBefore, 40);
+    }
+    const coinsAfter = window.__t.coins();
+    document.getElementById('learningBtn').click();
+    if (!await window.__t.until(() => document.querySelector('.lesson-view'), 40)) {
+      return { error: '学習画面へ帰れない' };
+    }
+    await window.__t.sleep(300);
+    const back = main.scrollTop;
+    // 帰り先はここで読む。このあと別レッスンへ移るので、最後にまとめて読むと取り違える
+    const backHash = location.hash;
+    const code = (window.__t.editor() || {}).value || '';
+    // 別のレッスンへ移ると先頭から始まる（覚えているのは直前に離れた1件だけ）
+    if (!other) { return { error: '比較用の別レッスンが見つからない' }; }
+    main.scrollTop = leaving;
+    await window.__t.sleep(150);
+    location.hash = '#' + other;
+    if (!await window.__t.until(
+        () => location.hash === '#' + other && document.querySelector('.lesson-view'), 40)) {
+      return { error: other + ' が開けない' };
+    }
+    await window.__t.sleep(300);
+    return {
+      leaving, back, backHash, title, bought, coinsBefore, coinsAfter, code,
+      other, otherTop: main.scrollTop
+    };
+  })()`);
+  check(!detour.error, 'カフェへ寄り道して学習画面へ帰れる', detour.error);
+  if (!detour.error) {
+    check(detour.leaving > 0, '問題までスクロールした状態から寄り道した', detour.leaving);
+    check(detour.bought !== null && detour.coinsAfter !== detour.coinsBefore,
+      'カフェで1つ購入できた（残高が動く）',
+      { bought: detour.bought, before: detour.coinsBefore, after: detour.coinsAfter });
+    check(detour.backHash === `#${LESSON}`, '「📚 学習」が解いていたレッスンへ帰す', detour.backHash);
+    check(detour.title === '解いていた問題に戻る',
+      'カフェでの「📚 学習」の説明が行き先に合っている', detour.title);
+    check(detour.back === detour.leaving, '読んでいた位置で再開する',
+      { leaving: detour.leaving, back: detour.back });
+    check(detour.code.indexOf(SAVE_MARK) >= 0, '書いたコードも残っている', detour.code.slice(-40));
+    check(detour.otherTop === 0, '別のレッスンは先頭から始まる（覚えているのは直前の1件だけ）',
+      { lesson: detour.other, top: detour.otherTop });
+  }
+
   // ── 復習（クリアした問題が出題に回るか）──────────────────────
   await open('#review');
   const review = await ev(`(() => ({
@@ -350,7 +423,7 @@ const HELPERS = `window.__t = {
     process.exit(1);
   }
   console.log(`\n${GREEN}LEARN UI OK: 誤答・コンパイルエラー・ヒント・模範解答・`
-    + `★と報酬・自動保存・復習の出題を確認しました${RESET}`);
+    + `★と報酬・自動保存・カフェへの寄り道と位置の復元・復習の出題を確認しました${RESET}`);
 })().catch(e => {
   console.error(`${RED}検査を実行できませんでした: ${e.message}${RESET}`);
   process.exit(1);
