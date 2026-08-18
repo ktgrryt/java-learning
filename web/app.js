@@ -37,6 +37,10 @@
   var busyTask = null;     // 実行・採点中の問題ID（同時に走らせない）
   var sideExpanded = {};   // サイドバーで開いている章のID（既定は全部たたむ）
   var sideScrolledFor = null; // サイドバーのスクロールを合わせた単元のID（同じ単元なら動かさない）
+  var sideQuery = '';      // サイドバーの検索語（空なら章の一覧を出す）
+  var sideHitIndex = -1;   // 検索結果でキーボードが選んでいる行（-1 は未選択）
+  var searchIndex = null;  // 検索用の索引。setState で捨て、最初の検索で作る
+  var SIDE_HIT_LIMIT = 40; // 検索結果に並べる上限。残りは件数だけ知らせる
   var activePartId = null; // メニューで表示中の大区分（Java基礎編 / Web・Jakarta EE編など）
   var selectedChapterByPart = {}; // ホームの編ごとに、最後に見ていた章を覚える
   var onboardingTourStep = 0; // 初回だけホーム上に重ねる操作ガイドの現在位置
@@ -119,6 +123,7 @@
     chapterIndex = {};
     lessonList = [];
     lessonNumber = {};
+    searchIndex = null;   // 教材が入れ替わったので、次の検索で作り直す
     state.chapters.forEach(function (ch) {
       chapterIndex[ch.id] = ch;
       // 章のidは大半が `chNN` だが、`34` のように数字だけのものが5章ある。
@@ -220,9 +225,13 @@
    * （同じ編の中では番号だけで足りるし、毎回編名が付くと読みにくい）。
    *
    * 対応する章が無い番号は、読み替えずそのまま残す（誤った番号を作らないため）。
+   *
+   * @param from どの章から見た番号として書くか。省略すると開いているレッスンの章。
+   *             サイドバーの検索結果は開いているレッスンと関係ない章の文を引用するので、
+   *             そこでは引用元の章を渡す（{@link describeHit}）
    */
-  function localizeChapterReferences(text) {
-    var here = currentId && chapterOf(currentId);
+  function localizeChapterReferences(text, from) {
+    var here = from || (currentId && chapterOf(currentId));
     if (!here) { return text; }
     return String(text || '').replace(/第(\d+)章/g, function (whole, rawNumber) {
       var target = chapterById('ch' + (rawNumber.length < 2 ? '0' + rawNumber : rawNumber));
@@ -513,10 +522,506 @@
     learningBtn.title = learningReturnLessonId() ? '解いていた問題に戻る' : '学習ホームに戻る';
   }
 
+  // ---------------------------------------------------- サイドバーの検索
+
+  /**
+   * 検索用の索引。レッスン1件につき1エントリ。
+   *
+   * 教材の全文（解説・サンプル・課題文）は起動時の {@code /api/state} で手元に来ているので、
+   * 検索はサーバへ行かずに済む。ただし本文は全部で3MB以上あり、打鍵ごとに小文字へ
+   * 直していては間に合わない。小文字にした干し草をここで1回だけ作って持つ。
+   *
+   * 段（レッスン名 → 章名 → 到達目標 → 本文）に分けてあるのは、照合の優先順が
+   * そのまま結果の並びになるためである（{@link searchLessons}）。
+   *
+   * レッスン名に表示IDを混ぜていないのは、混ぜると `6-1` が `16-1` `26-1` にも
+   * 当たってしまうため。番号は {@link matchesLessonId} が番号の形の語だけで照合する。
+   *
+   * 照合するのは<b>画面に出る番号だけ</b>で、保存用ID（`6-2`）は入れない。番号は編ごとに
+   * 振り直すので両方入れると、`6-2` と打った人に `7-2` と書かれた行が混ざって出てしまう。
+   *
+   * 模範解答・ヒント・クイズの解説は入れない。当たった箇所の抜粋を出す作りなので、
+   * 入れると探しただけで答えが見えてしまう（模範解答とヒントはそもそも state に載っていない）。
+   */
+  function buildSearchIndex() {
+    var entries = [];
+    state.chapters.forEach(function (ch) {
+      var objectiveText = {};
+      (ch.objectives || []).forEach(function (o) { objectiveText[o.id] = o.text || ''; });
+      var chapterName = '第' + displayChapterNumber(ch) + '章 ' + ch.title
+        + ' ' + (ch.subtitle || '');
+      var part = partOfChapter(ch);
+      ch.lessons.forEach(function (l) {
+        var bodies = [];
+        if (l.explanation) { bodies.push({ label: '解説', text: l.explanation }); }
+        var taskText = (l.tasks || []).map(function (t) { return t.task || ''; }).join('\n');
+        if (taskText.trim()) { bodies.push({ label: '課題', text: taskText }); }
+        var sampleText = (l.samples || []).map(function (s) {
+          return (s.caption || '') + '\n' + (s.code || '');
+        }).join('\n');
+        if (sampleText.trim()) { bodies.push({ label: 'サンプル', text: sampleText }); }
+        bodies.forEach(function (b) { b.lower = b.text.toLowerCase(); });
+
+        // 章の目標のうち、このレッスンが担うものだけ。章の全目標を入れると
+        // 同じ章のレッスンが全部同じ強さで当たってしまう。
+        var objectives = (l.objectiveIds || []).map(function (id) {
+          return objectiveText[id] || '';
+        }).join(' ');
+
+        var shownId = displayLessonId(l);
+        entries.push({
+          order: entries.length,   // カリキュラム順。同じ段の中の並びに使う
+          lesson: l,
+          chapter: ch,
+          part: part,
+          shownId: shownId,
+          ids: [shownId.toLowerCase()],
+          name: String(l.title || '').toLowerCase(),
+          chapterName: chapterName.toLowerCase(),
+          objectivesText: objectives,
+          objectives: objectives.toLowerCase(),
+          bodies: bodies
+        });
+      });
+    });
+    return entries;
+  }
+
+  /** レッスン番号として扱う語（`6-2` など）。数字だけの語は番号照合に使わない。 */
+  var LESSON_ID_TERM = /^\d{1,2}-\d{1,2}$/;
+  /**
+   * 抜粋で一致箇所の前後に付ける字数。
+   * 後ろを長く取るのは、288pxのサイドバーでは2行しか出せないため。前を詰めておけば
+   * 当たった語が1行目に残り、そこから読み進める形になる。
+   */
+  var SNIPPET_LEAD = 12;
+  var SNIPPET_TAIL = 44;
+
+  /**
+   * 検索語を正規化して語に分ける（空白区切りのAND）。
+   *
+   * NFKCするのは<b>クエリだけ</b>。教材は半角で書かれているので、IMEで全角のまま
+   * 打った `Ａｒｒａｙ` を直すにはこちら側だけで足りる。干し草を正規化すると
+   * 字数が動いて、抜粋を切り出す位置がずれてしまう。
+   */
+  function searchTerms(query) {
+    var text = String(query || '');
+    if (text.normalize) { text = text.normalize('NFKC'); }
+    return text.toLowerCase().trim().split(/\s+/).filter(function (t) { return !!t; });
+  }
+
+  function matchesLessonId(entry, term) {
+    if (!LESSON_ID_TERM.test(term)) { return false; }
+    return entry.ids.some(function (id) { return id.indexOf(term) === 0; });
+  }
+
+  /** 本文のどの段に当たったか。当たらなければ null。 */
+  function bodyHit(entry, term) {
+    for (var i = 0; i < entry.bodies.length; i++) {
+      var at = entry.bodies[i].lower.indexOf(term);
+      if (at >= 0) { return { body: entry.bodies[i], at: at }; }
+    }
+    return null;
+  }
+
+  /**
+   * 全語がそろった最初の段。0 なら一致しない。
+   *
+   * 段は積み上げていく（レッスン名 → ＋章名 → ＋到達目標 → ＋本文）。こうすると
+   * 「配列 合計」のように語が章名と本文へ分かれていても拾えて、なお
+   * 「名前で当たったもの」が上に来る。
+   */
+  function matchTier(entry, terms, deep) {
+    var pools = [
+      function (term) { return entry.name.indexOf(term) >= 0 || matchesLessonId(entry, term); },
+      function (term) { return entry.chapterName.indexOf(term) >= 0; },
+      function (term) { return entry.objectives.indexOf(term) >= 0; },
+      function (term) { return !!bodyHit(entry, term); }
+    ];
+    var limit = deep ? pools.length : 3;
+    for (var tier = 1; tier <= limit; tier++) {
+      var upto = tier;
+      var all = terms.every(function (term) {
+        for (var i = 0; i < upto; i++) { if (pools[i](term)) { return true; } }
+        return false;
+      });
+      if (all) { return tier; }
+    }
+    return 0;
+  }
+
+  /**
+   * 1行ぶんの表示材料。名前や章名で当たった行はそれ自体が見えているので、
+   * 抜粋は「レッスン名にも章名にも無かった語」の周りだけを出す。
+   */
+  function describeHit(entry, terms, tier) {
+    var hit = { entry: entry, tier: tier, order: entry.order, label: '', snippet: '' };
+    if (tier < 3) { return hit; }
+    for (var i = 0; i < terms.length; i++) {
+      var term = terms[i];
+      if (entry.name.indexOf(term) >= 0 || entry.chapterName.indexOf(term) >= 0) { continue; }
+      var at = entry.objectives.indexOf(term);
+      if (at >= 0) {
+        hit.label = '到達目標';
+        hit.snippet = snippetChapterNumbers(
+          searchSnippet(entry.objectivesText, at, term), entry.chapter);
+        return hit;
+      }
+      var found = bodyHit(entry, term);
+      if (found) {
+        hit.label = found.body.label;
+        hit.snippet = snippetChapterNumbers(
+          searchSnippet(found.body.text, found.at, term), entry.chapter);
+        return hit;
+      }
+    }
+    return hit;
+  }
+
+  /**
+   * 抜粋の中の章番号を、画面の番号へ読み替える。
+   *
+   * 教材はファイル名の番号（`第16章`）で参照を書くが、画面の番号は編ごとに振り直す。
+   * 引用したまま出すと存在しない章を指してしまうので、引用元の章から見た番号に直す。
+   *
+   * レッスン番号（`13-5`）の読み替えはしない。抜粋はサンプルコードから切ることもあり、
+   * コードの中の `1-1` まで書き換えてしまう（本文では ``` で囲まれた範囲を避けているが、
+   * 抜粋にはその囲みが残らない）。
+   */
+  function snippetChapterNumbers(text, chapter) {
+    return localizeChapterReferences(text, chapter);
+  }
+
+  /**
+   * 一致したところの周りを1行に抜き出す。
+   *
+   * 位置は小文字にした側で数えたものなので、原文と1〜2字ずれることがある
+   * （`İ` のように小文字化で長さが変わる字が教材に実在する）。前後に余裕を取って
+   * 切るので読めるものになる。ここで位置合わせは要求しない。
+   */
+  function searchSnippet(text, at, term) {
+    var source = String(text || '');
+    var from = Math.max(0, at - SNIPPET_LEAD);
+    var to = Math.min(source.length, at + term.length + SNIPPET_TAIL);
+    var piece = plainSnippetText(source.substring(from, to));
+    return (from > 0 ? '…' : '') + piece + (to < source.length ? '…' : '');
+  }
+
+  /**
+   * 抜粋から書式の記号を落として1行にする。
+   *
+   * 教材はMarkdownで書いてあるので、そのまま切ると `` ` `` や `**` や引用の `>` が
+   * 混ざって読みにくい。落とすのは誤爆しないものだけにする ―
+   * 単独の `*` や `_` はコード（`w * h`・`MAX_VALUE`）で使うので触らない。
+   * 行頭の記号は改行をつぶす前に落とす（つぶした後では行頭が分からなくなる）。
+   */
+  function plainSnippetText(text) {
+    return String(text || '')
+      .replace(/^[ \t]*>+[ \t]?/gm, '')      // 引用の目印
+      .replace(/^[ \t]*#{1,6}[ \t]+/gm, '')  // 見出しの #
+      .replace(/\*\*/g, '')                  // 太字（Javaに ** は無い）
+      .replace(/`/g, '')                     // コード記法
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+
+  /**
+   * 一致した語だけ `<mark>` で包む。
+   *
+   * 原文を一致位置で切り分けてから片ごとに {@code esc()} する。HTMLにしてから探すと、
+   * エスケープで増えた `&amp;` や `&lt;` の中の文字にも当たってしまう。
+   */
+  function highlightTerms(text, terms) {
+    var source = String(text || '');
+    if (!terms || !terms.length) { return esc(source); }
+    var lower = source.toLowerCase();
+    var html = '';
+    var at = 0;
+    while (at < source.length) {
+      var bestAt = -1;
+      var bestLen = 0;
+      terms.forEach(function (term) {
+        var found = lower.indexOf(term, at);
+        if (found < 0) { return; }
+        if (bestAt < 0 || found < bestAt || (found === bestAt && term.length > bestLen)) {
+          bestAt = found;
+          bestLen = term.length;
+        }
+      });
+      if (bestAt < 0) { break; }
+      html += esc(source.substring(at, bestAt))
+        + '<mark class="side-hit-mark">' + esc(source.substr(bestAt, bestLen)) + '</mark>';
+      at = bestAt + bestLen;
+    }
+    return html + esc(source.substring(at));
+  }
+
+  /**
+   * 検索の本体。{ terms, hits, total } を返す。
+   *
+   * 1文字のクエリでは本文まで広げない。「配」のような1字はほぼ全章の解説に出るので、
+   * 広げると結果が全レッスンになって役に立たない。
+   */
+  function searchLessons(query) {
+    var terms = searchTerms(query);
+    if (!terms.length) { return { terms: terms, hits: [], total: 0 }; }
+    if (!searchIndex) { searchIndex = buildSearchIndex(); }
+    var deep = terms.join('').length >= 2;
+    var hits = [];
+    searchIndex.forEach(function (entry) {
+      var tier = matchTier(entry, terms, deep);
+      if (tier) { hits.push(describeHit(entry, terms, tier)); }
+    });
+    hits.sort(function (a, b) { return a.tier - b.tier || a.order - b.order; });
+    return { terms: terms, hits: hits, total: hits.length };
+  }
+
+  function sidebarTree() {
+    return document.getElementById('sidebarTree');
+  }
+
+  /**
+   * 検索欄そのものの見た目。
+   *
+   * 入力欄の値は打っている本人が持っているので、ずれているときだけ書き戻す
+   * （毎回入れ直すと、IMEの変換中に横取りしてしまう）。
+   */
+  function paintSidebarSearch(result) {
+    var input = document.getElementById('sidebarSearch');
+    var clear = document.getElementById('sidebarSearchClear');
+    var count = document.getElementById('sidebarSearchCount');
+    if (!input) { return; }
+    if (input.value !== sideQuery) { input.value = sideQuery; }
+    input.setAttribute('aria-expanded', sideQuery ? 'true' : 'false');
+    if (clear) { clear.hidden = !sideQuery; }
+    if (!count) { return; }
+    if (!sideQuery || !result) {
+      count.hidden = true;
+      count.textContent = '';
+      return;
+    }
+    count.hidden = false;
+    count.textContent = result.total > SIDE_HIT_LIMIT
+      ? '一致 ' + result.total + '件（上から ' + SIDE_HIT_LIMIT + '件）'
+      : '一致 ' + result.total + '件';
+  }
+
+  /** サイドバーの行頭の印。章の一覧と検索結果で同じ規則を使う。 */
+  function lessonMark(lesson) {
+    if (lesson.type === 'preflight') { return '⚙'; }
+    return lesson.cleared ? '★' : '○';
+  }
+
+  /**
+   * 検索結果。章の階層はたたんで、当たったレッスンだけを平らに並べる。
+   *
+   * どこに居るレッスンなのかが分からないと飛べないので、編と章名を必ず添える。
+   * レッスン名にも章名にも無い語で当たった行は、当たった箇所の抜粋も出す
+   * （出さないと「なぜこの行が出たのか」が分からない）。
+   */
+  function renderSidebarHits(tree, result) {
+    tree.innerHTML = '';
+    tree.scrollTop = 0;
+    if (!result.total) {
+      tree.innerHTML =
+        '<div class="side-hits-empty">' +
+        '  <p><b>' + esc(sideQuery) + '</b> に一致するレッスンはありません。</p>' +
+        '  <p class="side-hits-hint">レッスン名・章名・到達目標・解説・課題文・サンプルから探します。'
+          + 'レッスン番号（6-2 など）でも開けます。</p>' +
+        '</div>';
+      return;
+    }
+
+    var shown = result.hits.slice(0, SIDE_HIT_LIMIT);
+    if (sideHitIndex >= shown.length) { sideHitIndex = -1; }
+    var ul = document.createElement('ul');
+    ul.className = 'side-hits';
+    ul.id = 'sidebarHits';
+    ul.setAttribute('role', 'listbox');
+    ul.setAttribute('aria-label', '検索結果');
+    shown.forEach(function (hit, i) {
+      var l = hit.entry.lesson;
+      var active = i === sideHitIndex;
+      var li = document.createElement('li');
+      li.className = 'side-hit'
+        + (l.cleared ? ' side-hit-cleared' : '')
+        + (l.id === currentId ? ' side-hit-current' : '')
+        + (active ? ' active' : '');
+      li.id = 'sidebarHit' + i;
+      li.dataset.lesson = l.id;
+      li.setAttribute('role', 'option');
+      li.setAttribute('aria-selected', active ? 'true' : 'false');
+      li.title = lessonTooltip(l);
+      li.innerHTML =
+        '<span class="side-hit-head">' +
+        '<span class="lesson-mark">' + lessonMark(l) + '</span>' +
+        '<span class="lesson-id">'
+          + highlightTerms(hit.entry.shownId, result.terms) + '</span>' +
+        '<span class="side-hit-title">' + highlightTerms(l.title, result.terms) + '</span>' +
+        '</span>' +
+        '<span class="side-hit-where">'
+          + (hit.entry.part ? esc(hit.entry.part.emoji + ' ' + hit.entry.part.title) + ' · ' : '')
+          + highlightTerms('第' + displayChapterNumber(hit.entry.chapter) + '章 '
+              + hit.entry.chapter.title, result.terms)
+        + '</span>' +
+        (hit.snippet
+          ? '<span class="side-hit-snippet">' + esc(hit.label) + '「'
+            + highlightTerms(hit.snippet, result.terms) + '」</span>'
+          : '');
+      li.addEventListener('click', function () { openSideHit(i); });
+      ul.appendChild(li);
+    });
+    tree.appendChild(ul);
+
+    // 上限で切った分は黙って落とさない。件数と、絞る手立てを一緒に出す。
+    if (result.total > SIDE_HIT_LIMIT) {
+      var more = document.createElement('p');
+      more.className = 'side-hits-more';
+      more.textContent = 'ほか ' + (result.total - SIDE_HIT_LIMIT)
+        + '件。語を足すと絞り込めます（例: 配列 合計）。';
+      tree.appendChild(more);
+    }
+  }
+
+  function sideHitNodes() {
+    var tree = sidebarTree();
+    return tree ? Array.prototype.slice.call(tree.querySelectorAll('.side-hit')) : [];
+  }
+
+  /** 検索結果の選択行を動かす。端は回り込む。 */
+  function moveSideHit(step) {
+    var nodes = sideHitNodes();
+    if (!nodes.length) { return; }
+    var at = sideHitIndex < 0
+      ? (step > 0 ? 0 : nodes.length - 1)
+      : (sideHitIndex + step + nodes.length) % nodes.length;
+    sideHitIndex = at;
+    nodes.forEach(function (node, i) {
+      node.classList.toggle('active', i === at);
+      node.setAttribute('aria-selected', i === at ? 'true' : 'false');
+    });
+    var input = document.getElementById('sidebarSearch');
+    if (input) { input.setAttribute('aria-activedescendant', nodes[at].id); }
+    if (nodes[at].scrollIntoView) { nodes[at].scrollIntoView({ block: 'nearest' }); }
+  }
+
+  /**
+   * 検索結果からレッスンを開く。
+   *
+   * 語は消さずに残す。1つ開いて違ったときに、打ち直さず次の行へ移れるようにするため。
+   * 章の一覧へ戻りたいときは × か Esc で戻す。
+   */
+  function openSideHit(index) {
+    var nodes = sideHitNodes();
+    var at = index == null ? (sideHitIndex < 0 ? 0 : sideHitIndex) : index;
+    var node = nodes[at];
+    if (!node) { return; }
+    sideHitIndex = at;
+    selectLesson(node.dataset.lesson);
+  }
+
+  /** 検索語を変える。空にしたら章の一覧へ戻る。 */
+  function setSideQuery(value) {
+    var next = String(value || '');
+    if (next === sideQuery) { return; }
+    sideQuery = next;
+    sideHitIndex = -1;
+    var input = document.getElementById('sidebarSearch');
+    if (input) { input.removeAttribute('aria-activedescendant'); }
+    // 章の一覧へ戻ったら、いま居る単元まで寄せ直す（検索中は寄せていない）
+    if (!sideQuery) { sideScrolledFor = null; }
+    // 読み込み中に打たれた語は控えるだけにする。教材が届いたあとの render が拾う
+    if (state) { renderSidebar(); }
+  }
+
+  function isMacKeys() {
+    return !!(window.JQComplete && window.JQComplete.isMac && window.JQComplete.isMac());
+  }
+
+  /** 検索の近道の表記。使えないキーを案内しないよう、環境で出し分ける。 */
+  function searchShortcutText() {
+    return isMacKeys() ? '⌘K' : 'Ctrl+K';
+  }
+
+  function isTextEntry(node) {
+    if (!node || !node.tagName) { return false; }
+    var tag = node.tagName.toLowerCase();
+    return tag === 'textarea' || tag === 'input' || !!node.isContentEditable;
+  }
+
+  /**
+   * 近道（⌘K）の行き先。閉じているサイドバーは開いてから合わせる。
+   * 初回案内の最中は何もしない（そのあいだサイドバーは出していない）。
+   */
+  function focusSidebarSearch() {
+    if (document.body.classList.contains('view-onboarding')) { return; }
+    if (isSidebarHidden()) { setSidebarHidden(false); }
+    var input = document.getElementById('sidebarSearch');
+    if (!input) { return; }
+    input.focus();
+    input.select();
+  }
+
+  function bindSidebarSearch() {
+    var input = document.getElementById('sidebarSearch');
+    var clear = document.getElementById('sidebarSearchClear');
+    if (!input) { return; }
+    input.placeholder = 'レッスンを検索（' + searchShortcutText() + '）';
+    input.title = 'レッスン名・章名・解説から探す（' + searchShortcutText() + '）';
+
+    input.addEventListener('input', function () { setSideQuery(input.value); });
+    input.addEventListener('keydown', function (e) {
+      if (e.isComposing || e.keyCode === 229) { return; }   // IMEの変換中は横取りしない
+      if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+        e.preventDefault();
+        moveSideHit(e.key === 'ArrowDown' ? 1 : -1);
+        return;
+      }
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        openSideHit();
+        return;
+      }
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        if (sideQuery) { setSideQuery(''); } else { input.blur(); }
+      }
+    });
+    if (clear) {
+      clear.addEventListener('click', function () {
+        setSideQuery('');
+        input.focus();
+      });
+    }
+
+    // ⌘K / Ctrl+K でどこからでも検索へ。サイドバーは既定で閉じているので、
+    // ここが「開いてから探す」までを1手にする。
+    //
+    // ただし **macOSの Ctrl+K は文字入力欄では本来「行末まで削除」** である。
+    // コードを書いている最中に奪うと打鍵が壊れるので、その組み合わせだけ譲る
+    // （complete.js が Ctrl+P / Ctrl+N を窓が開いている間だけ横取りするのと同じ理由）。
+    // macOSでは ⌘K が空いているので、エディタからでも1手で届く。
+    document.addEventListener('keydown', function (e) {
+      if (e.key !== 'k' && e.key !== 'K' && e.code !== 'KeyK') { return; }
+      if (!e.metaKey && !e.ctrlKey) { return; }
+      if (e.altKey || e.shiftKey) { return; }
+      if (e.ctrlKey && !e.metaKey && isMacKeys() && isTextEntry(e.target)) { return; }
+      e.preventDefault();
+      focusSidebarSearch();
+    });
+  }
+
   // -------------------------------------------------------- サイドバー描画
 
   function renderSidebar() {
-    var nav = document.getElementById('sidebar');
+    var nav = sidebarTree();
+    if (sideQuery) {
+      var result = searchLessons(sideQuery);
+      paintSidebarSearch(result);
+      renderSidebarHits(nav, result);
+      return;
+    }
+    paintSidebarSearch(null);
     var keepScrollTop = nav.scrollTop;
     nav.innerHTML = '';
 
@@ -584,7 +1089,6 @@
       if (!open) { ul.hidden = true; }
       ch.lessons.forEach(function (l) {
         var li = document.createElement('li');
-        var isPreflight = l.type === 'preflight';
         // 開いている単元は塗り（lesson-current）。開いていないが最後にいた単元は、
         // 「いまここを見ている」と誤解しないよう控えめな目印（lesson-focus）にする。
         li.className = 'lesson'
@@ -592,7 +1096,7 @@
           + (l.id === currentId ? ' lesson-current'
             : (l.id === focusId ? ' lesson-focus' : ''));
         li.innerHTML =
-          '<span class="lesson-mark">' + (isPreflight ? '⚙' : (l.cleared ? '★' : '○')) + '</span>' +
+          '<span class="lesson-mark">' + lessonMark(l) + '</span>' +
           '<span class="lesson-id">' + esc(displayLessonId(l)) + '</span>' +
           '<span class="lesson-title">' + esc(l.title) + '</span>' +
           lessonTaskProgress(l);
@@ -622,10 +1126,11 @@
   /**
    * 目印を付けた単元が見える位置までサイドバーをスクロールする。
    * サイドバーを閉じている間（display:none）は寸法が測れないので何もせず、
-   * ☰ で開いたときにやり直す。
+   * ☰ で開いたときにやり直す。検索中は章の一覧そのものが出ていないので何もしない。
    */
   function scrollSidebarToFocus(nav) {
-    nav = nav || document.getElementById('sidebar');
+    if (sideQuery) { return; }
+    nav = nav || sidebarTree();
     if (!nav || !nav.clientHeight) { return; }   // 閉じている＝測れない
     var focusId = sidebarFocusId();
     if (!focusId) {
@@ -4337,8 +4842,9 @@
     document.body.classList.toggle('view-onboarding', onboarding);
     renderHeader();
     // 初回案内はホーム上で行う。レッスン用サイドバーだけは不要なので組み立てない。
+    // 空にするのは章の一覧だけ。#sidebar ごと消すと検索欄まで無くなる。
     if (onboarding) {
-      document.getElementById('sidebar').innerHTML = '';
+      sidebarTree().innerHTML = '';
     } else {
       // サイドバーはメニュー画面でも描いておく（☰で開けるように）。
       renderSidebar();
@@ -4497,15 +5003,20 @@
     var btn = document.getElementById('sidebarToggle');
     if (btn) { btn.setAttribute('aria-expanded', String(!hidden)); }
   }
-  document.getElementById('sidebarToggle').addEventListener('click', function () {
-    var next = !isSidebarHidden();
-    try { localStorage.setItem(SIDEBAR_HIDE_KEY, next ? '1' : '0'); } catch (e) { /* 使えなくても困らない */ }
+  function setSidebarHidden(hidden) {
+    try {
+      localStorage.setItem(SIDEBAR_HIDE_KEY, hidden ? '1' : '0');
+    } catch (e) { /* 使えなくても困らない */ }
     applySidebarVisibility();
     // 開いた瞬間に初めて寸法が測れるようになる。閉じている間の描画ではスクロール
     // できていないので、ここで目印の単元まで寄せる。
-    if (!next) { scrollSidebarToFocus(); }
+    if (!hidden) { scrollSidebarToFocus(); }
+  }
+  document.getElementById('sidebarToggle').addEventListener('click', function () {
+    setSidebarHidden(!isSidebarHidden());
   });
   applySidebarVisibility();
+  bindSidebarSearch();
 
   // ── 画面の明るさ（ライト / ダーク / システム） ───────────────────
   // 設定の読み書きと data-theme の管理は theme.js に置いてある。ここは見た目だけ。
@@ -4619,6 +5130,8 @@
       .then(function (data) {
         setState(data);
         sideExpanded = {};
+        sideQuery = '';
+        sideHitIndex = -1;
         reviewSession = null;
         reviewSummary = null;
         try { localStorage.removeItem('jq-last-lesson'); } catch (e) { /* 同上 */ }

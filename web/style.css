@@ -276,16 +276,31 @@ body.view-cafe .stat:not(.stat-cafe) { display: none; }
 
 .layout { display: flex; padding-top: var(--topbar-h); height: 100%; }
 
+/* 上に検索欄を貼り、下の章の一覧だけがスクロールする2段構成。
+   スクロールを内側（.side-tree）に持たせているので、検索欄は常に見える位置に残り、
+   編見出しの sticky（.side-part-head）も一覧の上端で止まる。 */
 .sidebar {
   position: fixed;
   top: var(--topbar-h);
   bottom: 0;
   left: 0;
+  display: flex;
+  flex-direction: column;
   width: var(--sidebar-w);
-  overflow-y: auto;
-  padding: 14px 12px 40px;
   background: var(--bg-elev);
   border-right: 1px solid var(--border);
+}
+
+.side-tree {
+  flex: 1;
+  min-height: 0;          /* これが無いと中身の高さで伸びてスクロールしなくなる */
+  overflow-y: auto;
+  /* 上には余白を置かない。**貼り付く編見出し（.side-part-head）は、この容器の
+     padding の内側で止まる**ので、padding-top があるとその分だけ見出しの上に
+     スクロール領域が残り、章やレッスンがその隙間を通り抜けて見えてしまう。
+     先頭の余白は見出し自身の padding-top で取る（.side-part-head）。
+     左右の12pxは動かさない。.side-part-head の margin:0 -12px がこの値に合わせてある */
+  padding: 0 12px 40px;
 }
 
 .content {
@@ -304,8 +319,11 @@ body.view-cafe .stat:not(.stat-cafe) { display: none; }
 /* メインメニューでもサイドバーの表示は sidebar-hidden トグルに任せる。
    既定は非表示（＝全幅）だが、☰ボタンでいつでも開ける。 */
 body.view-menu .overall { visibility: hidden; }   /* メニュー側にリングがあるので二重に出さない */
-/* ホーム／カフェには画面内ナビゲーションがあるため、レッスン用の章メニューは見せない。 */
-body.view-menu .menu-toggle { display: none; }
+/* ☰ はどの画面でも出す（隠すのは初回案内の最中だけ。下の view-onboarding を参照）。
+   以前はホームとカフェで隠していたが、そこには
+   - 開ける手立てが無い（章とレッスンの一覧へ行けるのに気づけない）
+   - 閉じる手立ても無い（開いたままホームへ戻ると、そのまま閉じられない）
+   の2つがあった。場所によって出たり消えたりするボタンは、あることを覚えていられない。 */
 
 /* ── サイドバー全体の開閉 ───────────────────────────────────────────
    集中を妨げないよう、レッスン画面でも既定ではサイドバーを隠す。
@@ -379,6 +397,140 @@ body.view-menu:not(.view-cafe) .theme-toggle { margin-left: auto; }
 body.sidebar-hidden .sidebar { display: none; }
 body.sidebar-hidden .content { margin-left: 0; }
 
+/* ── サイドバー: レッスンの検索 ─────────────────────────────────────
+   75章355レッスンあるので、章をたたんだ一覧だけでは目的の場所へ辿れない。
+   上に貼った検索欄で、章名・レッスン名・到達目標・本文から絞り込む。 */
+
+.side-search {
+  flex: none;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.side-search-field {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 8px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+  transition: border-color 0.15s;
+}
+.side-search-field:focus-within { border-color: var(--accent); }
+.side-search-icon { flex: none; font-size: 12px; line-height: 1; opacity: 0.75; }
+
+.side-search-input {
+  flex: 1;
+  min-width: 0;
+  padding: 7px 0;
+  border: 0;
+  background: none;
+  color: var(--text);
+  font: inherit;
+  font-size: 12.5px;
+}
+.side-search-input:focus { outline: none; }
+.side-search-input::placeholder { color: var(--text-faint); }
+/* 消すボタンは自分で持っているので、WebKitの標準の×は出さない（二重になる） */
+.side-search-input::-webkit-search-cancel-button { display: none; }
+
+.side-search-clear {
+  flex: none;
+  width: 20px; height: 20px;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text-faint);
+  font-size: 14px; line-height: 1;
+  cursor: pointer;
+  transition: color 0.12s, background 0.12s;
+}
+.side-search-clear:hover { background: var(--bg-elev-2); color: var(--text); }
+.side-search-clear[hidden] { display: none; }
+
+.side-search-count {
+  margin: 6px 2px 0;
+  font-family: var(--mono);
+  font-size: 10.5px;
+  color: var(--text-faint);
+}
+.side-search-count[hidden] { display: none; }
+
+/* 検索結果は章の階層をたたんで平らに並べる。どこのレッスンか分からないと飛べないので、
+   1行の中に「印・番号・レッスン名」「編・章名」「当たった箇所の抜粋」を積む。 */
+/* 上の余白は容器（.side-tree）ではなくここで取る。あちらに padding-top を置くと
+   貼り付く編見出しの上に隙間ができてしまうため。 */
+.side-hits { list-style: none; margin: 12px 0 0; padding: 0; }
+
+.side-hit {
+  padding: 7px 8px;
+  border-radius: 7px;
+  color: var(--text-faint);
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s;
+}
+.side-hit:hover { background: var(--bg-elev-2); color: var(--text); }
+.side-hit-cleared { color: var(--text); }
+.side-hit-cleared .lesson-mark { color: var(--accent); }
+
+/* いま開いているレッスン。検索結果に残っていても現在地だと分かるようにする */
+.side-hit-current { box-shadow: inset 2px 0 var(--accent); }
+
+/* ↑↓ で選んでいる行。Enter で開くので、hover より強く示す */
+.side-hit.active {
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
+  color: var(--text);
+}
+
+.side-hit-head {
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
+  font-size: 12.5px;
+}
+.side-hit-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* 2行目以降は折り返す。サイドバーは288pxしかないので1行に詰めると、
+   肝心の章名や当たった語そのものが `…` の向こうへ消えてしまう。
+   抜粋だけは2行で切る（長い解説がそのまま流れ込むと行が高くなりすぎる）。 */
+.side-hit-where,
+.side-hit-snippet {
+  margin-left: 20px;      /* 印の幅（13px）＋ gap（7px）ぶん、名前の頭にそろえる */
+  color: var(--text-faint);
+  line-height: 1.45;
+}
+.side-hit-where { display: block; margin-top: 2px; font-size: 10.5px; }
+.side-hit-snippet {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  margin-top: 2px;
+  font-size: 10.5px;
+}
+
+/* 素の <mark> の黄色は明暗どちらのテーマでも浮くので、変数で塗り直す
+   （CSSは prefers-color-scheme を見ず data-theme で切り替える方式）。 */
+.side-hit-mark {
+  padding: 0 1px;
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--accent) 30%, transparent);
+  color: inherit;
+  font-weight: 700;
+}
+
+.side-hits-empty { padding: 16px 8px 10px; font-size: 12px; color: var(--text-dim); }
+.side-hits-empty p { margin: 0 0 8px; }
+.side-hits-hint { font-size: 11px; color: var(--text-faint); line-height: 1.6; }
+.side-hits-more {
+  margin: 10px 8px 0;
+  font-size: 10.5px;
+  color: var(--text-faint);
+  line-height: 1.6;
+}
+
 /* ── サイドバー: 章とレッスン ───────────────────────────────────────── */
 
 /* 編ごとに見出しと章を囲う。見出しの sticky はこの囲いの末尾まで効くので、
@@ -391,8 +543,10 @@ body.sidebar-hidden .content { margin-left: 0; }
    裏を章が通るので、
    - 背景は不透明にする
    - 左右はサイドバーのパディング分（-12px）まで広げる（端の隙間から覗かないように）
-   - 上下の余白は margin ではなく padding で持たせる（margin があるとその分だけ
-     下がった位置で止まり、上に隙間ができてしまう） */
+   - 上下の余白は margin ではなく padding で持たせる。**margin を持つと、押し出される
+     ときにその分だけ手前で止まる**（貼り付いている枠は margin box なので、余白のぶん
+     早く出ていってしまう）。次の見出しが来るまでの短い間、章がいちばん上に覗く。
+     下の余白は最初の章側（.side-part-head + .ch）で取る */
 .side-part-head {
   position: sticky;
   top: 0;
@@ -400,13 +554,19 @@ body.sidebar-hidden .content { margin-left: 0; }
   display: flex;
   align-items: center;
   gap: 7px;
-  margin: 0 -12px 8px;
+  margin: 0 -12px;
   padding: 23px 26px 8px;
   background: var(--bg-elev);
   border-bottom: 1px solid var(--border);
   color: var(--text-dim);
 }
-.side-part:first-child .side-part-head { padding-top: 9px; }
+/* 見出しと最初の章のあいだの余白。見出し側の margin-bottom から移してある（上の理由）。 */
+.side-part-head + .ch { margin-top: 8px; }
+/* 編の終わりの余白も落とす。ここが残ると、その分だけ次の編の見出しが遅れて来て、
+   押し出しのあいだに隙間ができる。編のあいだの間は次の見出しの padding-top（23px）で足りる。 */
+.side-part > .ch:last-child { margin-bottom: 0; }
+/* 先頭の編も他と同じ余白（23px）にする。容器（.side-tree）が上の余白を持たない
+   ぶんをここで受けるので、いちばん上に来たときの見え方は貼り付いたときと同じになる。 */
 .side-part-head.current { color: var(--text); border-bottom-color: var(--accent); }
 .side-part-emoji { flex: none; font-size: 15px; }
 .side-part-title { flex: 1; font-size: 12.5px; font-weight: 800; letter-spacing: 0.04em; }
@@ -537,6 +697,8 @@ body.sidebar-hidden .content { margin-left: 0; }
    初回オンボーディング
    ═══════════════════════════════════════════════════════════════════ */
 
+/* ☰ を隠すのはここだけ。案内の最中はサイドバー自体を出さないので、
+   押しても何も起きないボタンを置かないためである（他の画面では常に出す）。 */
 body.view-onboarding .menu-toggle,
 body.view-onboarding .sidebar { display: none; }
 body.view-onboarding .content { margin-left: 0; }
@@ -2745,6 +2907,7 @@ pre.code-plain { color: var(--text-dim); }
 .cmp-icon-type { background: var(--tok-type); }
 .cmp-icon-keyword,
 .cmp-icon-literal { background: var(--tok-keyword); }
+.cmp-icon-snippet { background: var(--accent); }
 
 .cmp-label { flex: none; }
 .cmp-label b { color: var(--accent); font-weight: 700; }
@@ -3798,6 +3961,16 @@ pre.code-plain { color: var(--text-dim); }
 .lesson { font-size: 14px; }
 .lesson-mark,
 .lesson-id { font-size: 12.5px; }
+
+/* 検索。打った語と、どのレッスンかを読む文字なので一覧と同じ寸法にそろえる。 */
+.side-search-input,
+.side-hit-head { font-size: 14px; }
+.side-search-count,
+.side-hit-where,
+.side-hit-snippet,
+.side-hits-hint,
+.side-hits-more { font-size: 12px; }
+.side-hits-empty { font-size: 13px; }
 
 .menu-h2 { font-size: 21px; }
 .menu-note,

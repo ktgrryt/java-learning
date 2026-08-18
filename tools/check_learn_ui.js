@@ -487,6 +487,261 @@ const HELPERS = `window.__t = {
   check(jumped.inView, '飛んだ先のクイズが画面に入っている', jumped);
   check(jumped.highlighted, '飛んだ先のクイズが光る（どこへ着いたか分かる）', jumped);
 
+  // ── サイドバーの検索（打つ → 絞る → 開く → 章の一覧へ戻る）────────────
+  //
+  // 索引も照合も画面の中だけにあるので、サーバ側の検査には出ない。
+  // 探す語は教材から取る（決め打ちの単語は教材を書き換えたときに黙って腐る）。
+  await open(`#${LESSON}`);
+  const searchTarget = await ev(`(async () => {
+    const state = await (await fetch('/api/state')).json();
+    let lesson = null, chapter = null;
+    state.chapters.forEach(ch => ch.lessons.forEach(l => {
+      if (l.id === '${LESSON}') { lesson = l; chapter = ch; }
+    }));
+    // 本文だけに出る語。全レッスンの解説から探して、無ければ理由の分かる失敗にする
+    const deepTerm = 'System.out.println';
+    let deepCount = 0;
+    state.chapters.forEach(ch => ch.lessons.forEach(l => {
+      if ((l.explanation || '').indexOf(deepTerm) >= 0) { deepCount++; }
+    }));
+    return {
+      title: lesson && lesson.title,
+      chapterTitle: chapter && chapter.title,
+      shownNumber: chapter && (chapter.partNumber || chapter.number),
+      deepTerm: deepTerm,
+      deepCount: deepCount,
+      box: !!document.getElementById('sidebarSearch'),
+      tree: !!document.getElementById('sidebarTree')
+    };
+  })()`);
+  check(searchTarget.box && searchTarget.tree && searchTarget.title && searchTarget.deepCount > 0,
+    '検索欄と章の一覧がサイドバーにあり、本文に出る語が教材にある', searchTarget);
+  if (!searchTarget.box || !searchTarget.deepCount) {
+    console.log(`${RED}検索の検査は #sidebarSearch と、解説に `
+      + `${searchTarget.deepTerm} を含むレッスンがある前提です${RESET}`);
+    close();
+    process.exit(1);
+  }
+
+  const searched = await ev(`(async () => {
+    if (document.body.classList.contains('sidebar-hidden')) {
+      document.getElementById('sidebarToggle').click();
+    }
+    const input = document.getElementById('sidebarSearch');
+    const type = async value => {
+      input.focus();
+      input.value = value;
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+      await window.__t.sleep(150);
+    };
+    const rows = () => [...document.querySelectorAll('#sidebarTree .side-hit')];
+    // 抜粋は「解説「…」」の形。本文から当たった行だけを数えたいので、
+    // 到達目標の抜粋は数に入れない
+    const bodyRows = () => rows().filter(r => /^(解説|課題|サンプル)「/.test(
+      (r.querySelector('.side-hit-snippet') || {}).textContent || ''));
+
+    await type(${JSON.stringify(String(searchTarget.title || ''))});
+    const byName = {
+      rows: rows().length,
+      hit: rows().some(r => r.dataset.lesson === '${LESSON}'),
+      marks: document.querySelectorAll('#sidebarTree .side-hit-mark').length,
+      where: rows().length
+        ? (rows()[0].querySelector('.side-hit-where') || {}).textContent || '' : '',
+      count: (document.getElementById('sidebarSearchCount') || {}).textContent || ''
+    };
+
+    // 1文字では本文まで広げない（解説がほぼ全章に当たってしまうため）
+    await type(${JSON.stringify(String(searchTarget.title || 'a').slice(0, 1))});
+    const shallow = {
+      rows: rows().length,
+      bodyLabels: bodyRows().length
+    };
+
+    // 2文字以上なら本文からも探す
+    await type(${JSON.stringify(searchTarget.deepTerm)});
+    const deep = {
+      rows: rows().length,
+      bodyLabels: bodyRows().length
+    };
+
+    // 一致しない語では、探せる範囲を案内する
+    await type('該当しない語ｘｙｚ');
+    const empty = {
+      rows: rows().length,
+      note: !!document.querySelector('#sidebarTree .side-hits-empty')
+    };
+
+    // ↑↓ で選んで Enter で開く。語は残る
+    await type(${JSON.stringify(String(searchTarget.title || ''))});
+    input.dispatchEvent(new KeyboardEvent('keydown',
+      { key: 'ArrowDown', bubbles: true, cancelable: true }));
+    const active = (document.querySelector('#sidebarTree .side-hit.active') || {}).dataset;
+    input.dispatchEvent(new KeyboardEvent('keydown',
+      { key: 'Enter', bubbles: true, cancelable: true }));
+    await window.__t.until(() => document.querySelector('.lesson-view'), 40);
+    const opened = {
+      hash: location.hash,
+      activeLesson: active && active.lesson,
+      queryKept: input.value,
+      currentRow: !!document.querySelector('#sidebarTree .side-hit-current')
+    };
+
+    // Esc で検索をやめると章の一覧に戻り、現在地の印も戻る
+    input.focus();
+    input.dispatchEvent(new KeyboardEvent('keydown',
+      { key: 'Escape', bubbles: true, cancelable: true }));
+    await window.__t.sleep(150);
+    const restored = {
+      value: input.value,
+      hits: document.querySelectorAll('#sidebarTree .side-hit').length,
+      chapters: document.querySelectorAll('#sidebarTree .ch').length,
+      current: document.querySelectorAll('#sidebarTree .lesson-current').length
+    };
+    return { byName, shallow, deep, empty, opened, restored };
+  })()`);
+
+  check(searched.byName.rows > 0 && searched.byName.hit,
+    'レッスン名で打つと、そのレッスンが結果に出る', searched.byName);
+  check(searched.byName.marks > 0 && /第\d+章/.test(searched.byName.where),
+    '一致した語が強調され、行に編と章名が付く', searched.byName);
+  check(/一致 \d+件/.test(searched.byName.count), '件数を出す', searched.byName.count);
+  check(searched.shallow.rows > 0 && searched.shallow.bodyLabels === 0,
+    '1文字では名前と章名までしか探さない', searched.shallow);
+  check(searched.deep.rows > 0 && searched.deep.bodyLabels > 0,
+    '2文字以上なら解説や課題文からも探し、当たった箇所を添える', searched.deep);
+  check(searched.empty.rows === 0 && searched.empty.note,
+    '一致しない語では探せる範囲を案内する', searched.empty);
+  check(searched.opened.hash === '#' + searched.opened.activeLesson
+    && searched.opened.currentRow,
+    '↑↓ と Enter で結果のレッスンを開き、その行に現在地の印が付く', searched.opened);
+  check(searched.opened.queryKept.length > 0,
+    '開いたあとも検索語は残る（続けて別の行へ移れる）', searched.opened.queryKept);
+  check(searched.restored.value === '' && searched.restored.hits === 0
+    && searched.restored.chapters > 0 && searched.restored.current === 1,
+    'Esc で章の一覧へ戻り、開いているレッスンの印も戻る', searched.restored);
+
+  // ⌘K / Ctrl+K。macOSの入力欄では Ctrl+K を奪わない（本来「行末まで削除」なので、
+  // 奪うとコードを書いている最中の打鍵が壊れる）
+  //
+  // 結果から別のレッスンへ飛んでいることがあるので、コード欄がある前提の
+  // レッスン（前提を確かめた ${LESSON}）へ戻してから触る。
+  await open(`#${LESSON}`);
+  const shortcut = await ev(`(() => {
+    const mac = !!(window.JQComplete && window.JQComplete.isMac && window.JQComplete.isMac());
+    const fire = (target, init) => {
+      const e = new KeyboardEvent('keydown',
+        Object.assign({ key: 'k', code: 'KeyK', bubbles: true, cancelable: true }, init));
+      target.dispatchEvent(e);
+      return e.defaultPrevented;
+    };
+    // 閉じた状態から開いて検索欄へ入るか
+    if (!document.body.classList.contains('sidebar-hidden')) {
+      document.getElementById('sidebarToggle').click();
+    }
+    const closed = document.body.classList.contains('sidebar-hidden');
+    const opened = fire(document.body, { metaKey: mac, ctrlKey: !mac });
+    const focused = document.activeElement && document.activeElement.id;
+    const editor = window.__t.editor();
+    editor.focus();
+    return {
+      mac: mac,
+      closedBefore: closed,
+      handled: opened,
+      hiddenAfter: document.body.classList.contains('sidebar-hidden'),
+      focused: focused,
+      ctrlInEditor: fire(editor, { ctrlKey: true }),
+      metaInEditor: fire(editor, { metaKey: true })
+    };
+  })()`);
+  check(shortcut.closedBefore && shortcut.handled && !shortcut.hiddenAfter
+    && shortcut.focused === 'sidebarSearch',
+    '⌘K / Ctrl+K で閉じているサイドバーを開いて検索欄へ入る', shortcut);
+  check(shortcut.mac ? shortcut.ctrlInEditor === false : shortcut.ctrlInEditor === true,
+    shortcut.mac
+      ? 'macOSではコード欄の Ctrl+K を奪わない（行末まで削除を残す）'
+      : 'macOS以外ではコード欄でも Ctrl+K で検索へ入れる',
+    shortcut);
+  check(shortcut.metaInEditor === true, 'コード欄からでも ⌘K は効く', shortcut);
+
+  // ── ☰ はどの画面でも出す ────────────────────────────────────────
+  //
+  // ホームとカフェでは以前隠していた。隠すと、章とレッスンの一覧を開く手立ても、
+  // 開いたまま移ってきたときに閉じる手立ても無くなる。CSS1行で消える性質のものなので、
+  // 画面ごとに実際の display を見る。
+  const toggles = {};
+  for (const [name, hash] of [['ホーム', '#menu'], ['カフェ', '#cafe'], ['復習ホーム', '#review']]) {
+    await open(hash);
+    toggles[name] = await ev(`(() => {
+      const btn = document.getElementById('sidebarToggle');
+      const shown = () => getComputedStyle(btn).display !== 'none';
+      const hidden = () => document.body.classList.contains('sidebar-hidden');
+      const before = { shown: shown(), hidden: hidden() };
+      btn.click();
+      return { before: before, shown: shown(), hidden: hidden() };
+    })()`);
+  }
+  const toggleNames = Object.keys(toggles);
+  check(toggleNames.every(k => toggles[k].before.shown && toggles[k].shown),
+    'ホーム・カフェ・復習ホームでも☰が出ている', toggles);
+  check(toggleNames.every(k => toggles[k].hidden !== toggles[k].before.hidden),
+    'どの画面でも☰でサイドバーを開閉できる', toggles);
+
+  // ── 貼り付いた編見出しの上に隙間ができていないか ────────────────────
+  //
+  // 貼り付く位置は**容器のパディングの内側**なので、`.side-tree` に padding-top を
+  // 足すとその分だけ見出しの上にスクロール領域が残り、章やレッスンが覗く。
+  // 編の切り替わりでも同じことが起きる（見出しが margin を持つと早く出ていく）。
+  // どちらも数pxの隙間なので、実際にその点に何が描かれているかを見るしかない。
+  await open(`#${LESSON}`);
+  const sticky = await ev(`(async () => {
+    if (document.body.classList.contains('sidebar-hidden')) {
+      document.getElementById('sidebarToggle').click();
+    }
+    const tree = document.getElementById('sidebarTree');
+    const partTop = () => {
+      const box = tree.getBoundingClientRect();
+      return [...tree.querySelectorAll('.side-part-head')]
+        .map(h => h.getBoundingClientRect())
+        .filter(b => b.top >= box.top - 1 && b.top < box.top + 40)
+        .map(b => Math.round(b.top - box.top))[0];
+    };
+    // 上端の数点に何が描かれているか。見出し以外が出たらそこが隙間
+    const atTop = () => {
+      const box = tree.getBoundingClientRect();
+      return [1, 5, 10].map(y => {
+        const el = document.elementFromPoint(box.left + 40, box.top + y);
+        if (!el) { return 'なし'; }
+        return el.closest('.side-part-head') ? 'head' : (el.className || el.tagName);
+      });
+    };
+    const look = async top => {
+      tree.scrollTop = top;
+      await window.__t.sleep(150);
+      return { top: top, pinned: partTop(), atTop: atTop() };
+    };
+    // 2つめの編の見出しの位置（編の切り替わりを跨いで見るため）
+    tree.scrollTop = 0;
+    await window.__t.sleep(150);
+    const box = tree.getBoundingClientRect();
+    const heads = [...tree.querySelectorAll('.side-part-head')];
+    const secondPart = heads.length > 1
+      ? Math.round(heads[1].getBoundingClientRect().top - box.top + tree.scrollTop) : null;
+    const spots = [await look(400)];
+    if (secondPart) {
+      for (const d of [-40, -10, 0]) { spots.push(await look(secondPart + d)); }
+    }
+    return { paddingTop: getComputedStyle(tree).paddingTop, parts: heads.length, spots: spots };
+  })()`);
+  check(sticky.parts > 1 && sticky.spots.length === 4,
+    '編が複数あり、切り替わりを跨いで測れた', { parts: sticky.parts, spots: sticky.spots.length });
+  // 落ち着いた位置（編の途中）では、見出しが上端そのものに貼り付いている。
+  // 切り替わりの最中は、出ていく見出しと入ってくる見出しが動いている途中なので
+  // 「0pxにある」ことは成り立たない ― そこで見るのは下の「覗かない」だけである。
+  check(sticky.spots[0].pinned === 0 && sticky.paddingTop === '0px',
+    '編の途中では見出しが一覧の上端（0px）に貼り付く', sticky.spots[0]);
+  check(sticky.spots.every(s => s.atTop.every(what => what === 'head')),
+    '貼り付いた見出しの上に章やレッスンが覗かない（編の切り替わりでも）', sticky);
+
   const errors = await ev(`window.__jqErrors || []`);
   check(errors.length === 0, '画面のJavaScriptが例外を出していない', errors);
 
@@ -497,7 +752,7 @@ const HELPERS = `window.__t = {
   }
   console.log(`\n${GREEN}LEARN UI OK: 誤答・コンパイルエラー・ヒント・模範解答・`
     + `★と報酬・自動保存・カフェへの寄り道と位置の復元・復習の出題・`
-    + `クイズのしおりを確認しました${RESET}`);
+    + `クイズのしおり・サイドバーの検索を確認しました${RESET}`);
 })().catch(e => {
   console.error(`${RED}検査を実行できませんでした: ${e.message}${RESET}`);
   process.exit(1);

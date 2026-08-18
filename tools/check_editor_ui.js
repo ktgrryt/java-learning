@@ -371,6 +371,26 @@ const KEYS = {
   check(/^System\.out\.[A-Za-z]+\("x"\)\|$/.test(closed),
     '補完が入れた `)` も通り抜ける（`))` にならない）', closed);
 
+  // ── 定型の短縮（`sout`）──────────────────────────────────────────
+  // `);` まで入れるので、通り抜けさせる `)` は**末尾ではなく caret の位置**である。
+  // ここを末尾から数えると `;` を覚えてしまい、打った `)` が消える。
+  await clear();
+  await write('sout');
+  await sleep(500);
+  const snip = await candidate();
+  check(snip.open && snip.selected === 'sout',
+    '`sout` を打つと同名の候補が先頭に来る', snip);
+  await tab();
+  const soutInserted = await read();
+  check(soutInserted === 'System.out.println(|);',
+    '`sout` + Tab で `System.out.println();` が入り、カーソルがかっこの中に来る', soutInserted);
+  await key('"');
+  await write('x');
+  await key('"');
+  await key(')');
+  check(await read() === 'System.out.println("x")|;',
+    '`sout` が入れた `)` も通り抜ける（`);` の `;` を巻き込まない）', await read());
+
   // ── 候補の移動（↑↓ と、macOSのEmacsキーバインド Ctrl+P / Ctrl+N）──────────
   // 窓が開いているあいだだけ横取りする。閉じているときの Ctrl+N / Ctrl+P は
   // macOSの「1行下／上へ」なので、そちらを塞いでいないことも見る。
@@ -504,8 +524,8 @@ const KEYS = {
     process.exit(1);
   }
   console.log(`\n${GREEN}EDITOR UI OK: 自動で閉じるかっこと引用符・打ち抜けの条件・`
-    + `テキストブロック・位置の追従・候補の移動（↑↓ と Ctrl+P/N）・Tabの字下げを`
-    + `確認しました${RESET}`);
+    + `テキストブロック・位置の追従・候補の移動（↑↓ と Ctrl+P/N）・定型の短縮（sout）・`
+    + `Tabの字下げを確認しました${RESET}`);
 })().catch(e => {
   console.error(`${RED}検査を実行できませんでした: ${e.message}${RESET}`);
   process.exit(1);

@@ -1,9 +1,10 @@
 /*
  * コード補完。VS Codeのように、書きかけの語から候補を出す。
  *
- * 候補の出どころは2つある。
+ * 候補の出どころは3つある。
  *   1. java-api.js の辞書 … 標準ライブラリのクラスとメソッド
  *   2. 今書いているコードそのもの … 自分で作った変数・メソッド・クラス
+ *   3. 定型の短縮（SNIPPETS） … `sout` → `System.out.println();`
  *
  * 「今書いているコード」を読むのに本物の構文解析はしていない。書きかけの
  * コードは文法的に壊れているのが普通で、厳密な解析はすぐ失敗するため。
@@ -848,6 +849,33 @@
     };
   }
 
+  /**
+   * 短縮して書ける定型。略記はIntelliJのlive templateと同じものに合わせてある。
+   *
+   * `System.out.println(` は基礎編で何百回も打つが、打つ手そのものが練習になるのは
+   * **出力が到達目標の章**（第1〜3章）だけである。それ以降は計算した値を覗く窓に
+   * なるので、`sout` で入れられるようにしてある。標準の書き方は入る文字列の側に
+   * 残るので、`System.out.println` を読んで覚える機会は減らない。
+   *
+   * `insert` … 入れる文字列。`caret` … その先頭から数えたカーソルの位置
+   */
+  var SNIPPETS = [
+    {
+      label: 'sout',
+      insert: 'System.out.println();',
+      caret: 'System.out.println('.length,
+      doc: '1行出力する。かっこの中にカーソルが入る'
+    }
+  ];
+
+  function snippetItem(snip) {
+    return {
+      label: snip.label, kind: 'snippet', params: '', detail: snip.insert,
+      doc: snip.doc || '', origin: '', rank: RANK['keyword'], depth: 0,
+      insert: snip.insert, caret: snip.caret
+    };
+  }
+
   function localClassItem(cls) {
     return {
       label: cls.name, kind: 'class', params: '', detail: cls.kind,
@@ -912,6 +940,12 @@
       if (seen['c' + names[i]]) { continue; }
       seen['c' + names[i]] = true;
       items.push(classItem(names[i], isNearby(info, names[i])));
+    }
+
+    // 定型の短縮（`sout` など）。キーワードと同じ点数なので、`s` だけ打った状態では
+    // 変数や `String` に埋もれる。`sout` まで打てば完全一致で先頭に出る
+    for (i = 0; i < SNIPPETS.length; i++) {
+      items.push(snippetItem(SNIPPETS[i]));
     }
 
     for (i = 0; i < api.primitives.length; i++) {
@@ -1134,7 +1168,8 @@
 
   var ICONS = {
     method: 'M', field: 'F', var: 'V', class: 'C',
-    keyword: 'K', literal: 'L', type: 'T', package: 'P'
+    keyword: 'K', literal: 'L', type: 'T', package: 'P',
+    snippet: 'S'
   };
 
   /**
@@ -1420,9 +1455,16 @@
     var value = el.value;
     var text = item.label;
     var caret = text.length;
-    var addedCloser = false;   // `()` ごと入れたか（エディタに覚えさせるため）
+    // 自動で足した `)` の位置。入れた文字列の先頭から数える。-1 は足していない。
+    // `sout` は `);` まで入れるので、末尾から数えると `;` を指してしまう
+    var closerAt = -1;
 
-    if (item.isPackage) {
+    if (item.kind === 'snippet') {
+      // 定型はひとかたまりで入れ替える。`sout` → `System.out.println();`
+      text = item.insert;
+      caret = item.caret;
+      closerAt = item.caret;   // かっこの中で `)` を打っても重ならないように
+    } else if (item.isPackage) {
       // パッケージは `.` まで入れて、続きの候補をもう一度出す
       text += '.';
       caret = text.length;
@@ -1433,7 +1475,7 @@
       } else {
         text += '()';
         caret = item.params ? text.length - 1 : text.length;  // 引数があればかっこの中へ
-        addedCloser = true;
+        closerAt = text.length - 1;
       }
     }
 
@@ -1446,8 +1488,8 @@
       this.editor.replaceRange(this.from, this.to, text, caret);
       // ここで入れた `)` は自動で足したものなので、引数を書いたあとに `)` を打ったら
       // 通り抜けてよい。覚えさせないと、その `)` が重なって `println("x"))` になる
-      if (addedCloser && this.editor.markAutoClosed) {
-        this.editor.markAutoClosed(this.from + text.length - 1);
+      if (closerAt >= 0 && this.editor.markAutoClosed) {
+        this.editor.markAutoClosed(this.from + closerAt);
       }
     } finally {
       this._accepting = false;
