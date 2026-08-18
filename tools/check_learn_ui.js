@@ -4,7 +4,8 @@
  * 引数: <アプリのポート> <ChromeのCDPポート>
  *
  * 見るのは「1問を解き切るまでの経路」全体である。
- *   誤答 → コンパイルエラー → ヒント → 模範解答 → 正解（★・コイン・通知）→ 自動保存
+ *   誤答 → コンパイルエラー → ヒント → 模範解答 → 正解（★・コイン・通知）
+ *   → 獲得の履歴（消えた通知の読み返し）→ 自動保存
  *   → カフェへ寄り道して同じ位置で再開 → 復習 → クイズのしおり
  * サーバー側の採点は `verify-solutions.sh` が見るので、ここでは
  * **画面がその結果をどう受け取って描くか**（`renderJudgement` / `applyDelta` / 通知 / 復習の出題）
@@ -299,6 +300,37 @@ const HELPERS = `window.__t = {
     '提出の応答に delta.progress が入っている（画面はこれで描き直す）',
     res.delta && Object.keys(res.delta));
 
+  // ── 獲得の履歴（消えた通知をあとから読み返せるか）──────────────────
+  // 通知は数秒で消えるので、消えたあとに残っているかはここでしか見られない。
+  // 積むのは通知を出すのと同じ場所（`showCafeRewardNotification`）なので、
+  // 通知が出ていても履歴が空なら、控えを取る側が外れている。
+  const coinLog = await ev(`(async () => {
+    document.getElementById('statCafe').click();
+    const pop = await window.__t.until(() => {
+      const p = document.getElementById('coinLog');
+      return p && !p.hidden ? p : null;
+    }, 20);
+    if (!pop) { return { opened: false }; }
+    const first = pop.querySelector('.coin-log-item');
+    const out = {
+      opened: true,
+      items: pop.querySelectorAll('.coin-log-item').length,
+      first: (first ? first.textContent : '').replace(/\s+/g, ' ').trim().slice(0, 120),
+      today: ((pop.querySelector('.coin-log-sum-cell.today') || {}).textContent || '').trim(),
+      expanded: document.getElementById('statCafe').getAttribute('aria-expanded')
+    };
+    // 開いたままだと後の操作を覆うので、外側を押して閉じるところまで見る
+    document.body.click();
+    out.closed = !!document.getElementById('coinLog').hidden;
+    return out;
+  })()`);
+  check(coinLog.opened && coinLog.items === 1 && coinLog.expanded === 'true',
+    'ヘッダのコインを押すと獲得の履歴が開く', coinLog);
+  check(/\+[\d,]+コイン/.test(coinLog.first) && coinLog.first.indexOf('★') >= 0,
+    '履歴の1件目に金額と★が残っている', coinLog.first);
+  check(/\+[1-9][\d,]*コイン/.test(coinLog.today), '今日の獲得が合計されている', coinLog.today);
+  check(coinLog.closed, '外側を押すと履歴が閉じる', coinLog.closed);
+
   // ── 自動保存（読み直しても書いたコードが残るか）──────────────────
   await ev(`(async () => {
     window.__t.type(window.__t.editor().value + '\\n${SAVE_MARK}\\n');
@@ -315,6 +347,20 @@ const HELPERS = `window.__t = {
     '書いたコードが読み直しても残っている', saved.code.slice(-40));
   check(saved.status.indexOf('★') >= 0 && saved.stars === '1',
     '★も読み直しても残っている', saved);
+
+  // 履歴は localStorage に置いてあるので、読み直しても残る（サーバは1件ずつの内訳を持たない）
+  const coinLogAgain = await ev(`(async () => {
+    document.getElementById('statCafe').click();
+    const pop = await window.__t.until(() => {
+      const p = document.getElementById('coinLog');
+      return p && !p.hidden ? p : null;
+    }, 20);
+    if (!pop) { return { opened: false }; }
+    const out = { opened: true, items: pop.querySelectorAll('.coin-log-item').length };
+    document.body.click();
+    return out;
+  })()`);
+  check(coinLogAgain.items === 1, '獲得の履歴も読み直しても残っている', coinLogAgain);
 
   // ── 寄り道して戻る（カフェで買って帰り、解いていた位置で再開できるか）────────
   // 位置を控えているのは画面だけ（`web/app.js` の `rememberLessonScroll`）なので、
@@ -751,7 +797,7 @@ const HELPERS = `window.__t = {
     process.exit(1);
   }
   console.log(`\n${GREEN}LEARN UI OK: 誤答・コンパイルエラー・ヒント・模範解答・`
-    + `★と報酬・自動保存・カフェへの寄り道と位置の復元・復習の出題・`
+    + `★と報酬・獲得の履歴・自動保存・カフェへの寄り道と位置の復元・復習の出題・`
     + `クイズのしおり・サイドバーの検索を確認しました${RESET}`);
 })().catch(e => {
   console.error(`${RED}検査を実行できませんでした: ${e.message}${RESET}`);

@@ -26,6 +26,7 @@
   var chapterIndex = {};   // 章ID -> 章
   var lessonList = [];     // 全レッスンを出題順に並べたもの
   var lessonNumber = {};   // レッスンID -> 画面で見せる章内の番号（事前確認は0）
+  var lessonOrder = {};    // レッスンID -> 出題順の位置（案内をどこから出すかの判断に使う）
   var currentId = null;    // いま開いているレッスンID（ホーム／カフェ表示中は null）
   var currentView = 'menu'; // menu / cafe / lesson / review / reviewTask
   // 解いていた場所へ戻すための3つ。カフェへ寄り道しても、読んでいた位置ごと再開できるように。
@@ -52,6 +53,11 @@
   var notificationStartedAt = 0;
   var notificationRemainingMs = 0;
   var confettiTimer = null; // 降り終わった紙吹雪をDOMから片付けるまでの待ち
+
+  // 獲得したコインの控え。通知は数秒で消えるので、ヘッダのコインから読み返せるようにする。
+  var COIN_LOG_KEY = 'jq-coin-log';
+  var COIN_LOG_LIMIT = 40;  // 古いぶんから捨てる。読み返したいのは直近だけ
+  var coinLog = null;       // 最初に必要になったときだけ localStorage から読む
 
   // 復習モード。セッションは画面の中だけで持つ（再読込したら1問復習に戻る）
   var reviewSession = null; // { queue: [{lessonId, taskId}], index, cleared, clearedKeys }
@@ -123,6 +129,7 @@
     chapterIndex = {};
     lessonList = [];
     lessonNumber = {};
+    lessonOrder = {};
     searchIndex = null;   // 教材が入れ替わったので、次の検索で作り直す
     state.chapters.forEach(function (ch) {
       chapterIndex[ch.id] = ch;
@@ -142,6 +149,7 @@
       ch.lessons.forEach(function (l) {
         lessonIndex[l.id] = l;
         chapterOfLesson[l.id] = ch;
+        lessonOrder[l.id] = lessonList.length;
         lessonList.push(l);
         lessonNumber[l.id] = l.type === 'preflight' ? 0 : ++shownNumber;
       });
@@ -506,6 +514,7 @@
     document.querySelector('#statStars b').textContent = stars;
     document.querySelector('#statStreak b').textContent = state.progress.streak;
     document.querySelector('#statCafe b').textContent = cafeNumberText(cafeState().cash);
+    paintCoinLog();   // 開いていれば残高と今日の合計をそろえる（閉じていれば何もしない）
 
     var learningBtn = document.getElementById('learningBtn');
     var cafeBtn = document.getElementById('cafeBtn');
@@ -3417,6 +3426,67 @@
     return mac ? '↑↓ か Ctrl+P / Ctrl+N' : '↑↓';
   }
 
+  /**
+   * 補完の案内を出し始めるレッスン。<b>第2章の最初の練習問題</b>。
+   *
+   * 第1章は出力そのものが到達目標で、`System.out.println` を書き写す手が練習になる。
+   * そこを終えて型や変数へ進むあたりが、外枠を打つ手間だけを減らせると知るのに一番よい
+   * ころ合いである（教材側の方針は docs/guide.md「コード補完」）。
+   * レッスンIDは進捗ファイルの互換のため変えない方針なので、IDで指してよい。
+   *
+   * <b>「2-1 を開いたときだけ」にはしない。</b> この案内より先に 2-1 を通り過ぎた人には
+   * 一度も出なくなるため、2-1 以降のレッスンで**閉じるまで**出す。
+   */
+  var COMPLETION_TIP_FROM = '2-1';
+  var COMPLETION_TIP_KEY = 'jq-completion-tip-done';
+
+  function completionTipDone() {
+    try { return localStorage.getItem(COMPLETION_TIP_KEY) === '1'; }
+    catch (e) { return false; }   // 使えない環境では毎回出る（閉じれば消える）
+  }
+
+  /**
+   * 案内の役目が終わった。閉じたときと、`sout` を自分で使えたときの2つから呼ぶ。
+   *
+   * 出したままの案内も引っ込める ― `sout` を使ったのは案内を読んだ結果なので、
+   * そのまま残っていると「もう知っていること」を指し続ける。
+   */
+  function markCompletionTipDone() {
+    try { localStorage.setItem(COMPLETION_TIP_KEY, '1'); } catch (e) { /* 次回また出るだけ */ }
+    var shown = document.querySelector('.card-tip');
+    if (shown && shown.parentNode) { shown.parentNode.removeChild(shown); }
+  }
+
+  /** この問題の上に補完の案内を出すか。 */
+  function shouldShowCompletionTip(lesson, task, index, review) {
+    // 出すのはレッスンの1問目だけ。復習は解き直しなので、案内は重ねない
+    if (review || index !== 0) { return false; }
+    // Javaを書く欄の話。設定ファイル・複数ファイルの問題には出さない
+    // （`type` は single-file / artifact / project / runtime-lab のいずれか）
+    if (task.type !== 'single-file') { return false; }
+    if (completionTipDone()) { return false; }
+    var from = lessonOrder[COMPLETION_TIP_FROM];
+    var here = lessonOrder[lesson.id];
+    return from !== undefined && here !== undefined && here >= from;
+  }
+
+  function completionTipHtml() {
+    return '<div class="card card-tip" role="note">' +
+      '<div class="tip-head"><span aria-hidden="true">💡</span>' +
+      '<strong>入力のコツ</strong>' +
+      '<button class="ghost-btn small" type="button" data-role="tip-close">閉じる</button></div>' +
+      '<p>クラス名・メソッド名・変数名は、<b>途中まで打つと候補が出ます</b>。'
+      + '候補は <code class="inline-code">↑</code> <code class="inline-code">↓</code> で選び、'
+      + '<code class="inline-code">Tab</code> で入ります'
+      + '（候補が出ていないときの <code class="inline-code">Tab</code> は、'
+      + 'いままでどおり字下げです）。</p>' +
+      '<p><code class="inline-code">sout</code> と打って <code class="inline-code">Tab</code> '
+      + 'を押すと <code class="inline-code">System.out.println();</code> が入り、'
+      + '<b>かっこの中にカーソルが来ます</b>。これから何度も書く形なので、'
+      + '外枠は打たずに済ませてかまいません。</p>' +
+      '</div>';
+  }
+
   function buildTaskBlock(lesson, task, index, options) {
     var n = task.id;
     var review = !!(options && options.review);
@@ -3435,6 +3505,7 @@
       : artifact
       ? 'Tab で字下げ　·　⌘/Ctrl + Enter で検証'
       : 'Tab で補完（候補は ' + completionMoveKeysText() + ' で選ぶ）　·　⌘/Ctrl + Enter で実行';
+    var showTip = shouldShowCompletionTip(lesson, task, index, review);
 
     var block = document.createElement('section');
     block.className = 'task-block' + (task.required === false ? ' task-block-optional' : '');
@@ -3458,6 +3529,8 @@
       '    <div class="task-body">' + renderMarkdown(task.task) + '</div>' +
            renderCasePreview(task) +
       '  </div>' +
+
+      (showTip ? completionTipHtml() : '') +
 
       '  <div class="card card-code">' +
       '    <div class="code-head">' +
@@ -3512,6 +3585,9 @@
         scheduleSave(n);
       }
     });
+
+    var tipClose = block.querySelector('[data-role="tip-close"]');
+    if (tipClose) { tipClose.addEventListener('click', markCompletionTipDone); }
 
     var hintBtn = block.querySelector('.hint-btn');
     if (hintBtn) { hintBtn.addEventListener('click', function () { revealNextHint(n); }); }
@@ -4554,7 +4630,7 @@
         next: options.next || null
       }
       : null;
-    enqueueNotification({
+    var notification = {
       type: 'reward',
       kicker: options.kicker || 'JAVA CAFÉ',
       title: options.title || '報酬を獲得',
@@ -4571,7 +4647,10 @@
       duration: chapter
         ? 0
         : Math.min(7000, 4500 + events.length * 500 + (options.levelUp ? 900 : 0))
-    });
+    };
+    // 消えたあとに読み返せるよう、出すのと同じ場所で控えも取る（→ コインの獲得履歴）
+    recordCoinLog(notification);
+    enqueueNotification(notification);
   }
 
   /** 従来の短い操作結果も同じ右上通知へ送り、同時発生時の上書きを防ぐ。 */
@@ -4710,6 +4789,232 @@
     }, 300);
   }
 
+  // ------------------------------------------- コインの獲得履歴（ヘッダのコインを押す）
+
+  /*
+   * 報酬の通知は数秒で消える。手を動かしている最中に出るものなので、読む前に消えたり、
+   * 次の通知に譲って消えたりする。ヘッダのコイン（🪙）を押せば、いつ・何で・いくら
+   * 受け取ったかを新しい順に読み返せるようにしてある。
+   *
+   * 置き場所は localStorage である。サーバの progress.json が持っているのは残高と累計だけで、
+   * 1件ずつの内訳は通知を組み立てるこの画面にしか無い。ここをサーバへ移すと進捗ファイルの形と
+   * economyVersion の面倒が増えるいっぽう、読み返すための控えなので、消えても学習の記録は
+   * 1つも失われない。だから画面側に置く（＝別のブラウザで開くと履歴は空から始まる）。
+   *
+   * 使ったコイン（設備・店舗・投資）は入れない。これは出納帳ではなく「獲得の履歴」で、
+   * 混ぜると残高の計算に見えてしまう。見出しと末尾の断りでそう分かるようにしてある。
+   */
+
+  function loadCoinLog() {
+    if (coinLog) { return coinLog; }
+    coinLog = [];
+    try {
+      var saved = JSON.parse(localStorage.getItem(COIN_LOG_KEY) || '[]');
+      if (Array.isArray(saved)) {
+        coinLog = saved
+          .filter(function (entry) { return entry && typeof entry === 'object'; })
+          .slice(0, COIN_LOG_LIMIT);
+      }
+    } catch (e) {
+      coinLog = [];   // 壊れていても空から作り直すだけ。学習の記録とは無関係
+    }
+    return coinLog;
+  }
+
+  function saveCoinLog() {
+    try { localStorage.setItem(COIN_LOG_KEY, JSON.stringify(coinLog)); }
+    catch (e) { /* 保存できなくても、開いている間は読み返せる */ }
+  }
+
+  /** 報酬の通知1枚を履歴へ積む。新しいものが先頭。 */
+  function recordCoinLog(notification) {
+    var log = loadCoinLog();
+    log.unshift({
+      at: Date.now(),
+      reason: notification.kicker || '報酬',
+      label: notification.label || '',
+      cash: Number(notification.cash || 0),
+      cups: Number(notification.cups || 0),
+      newStar: !!notification.newStar,
+      chapter: notification.chapter ? Number(notification.chapter.number || 0) : 0,
+      events: (notification.events || []).slice(0, 4)
+    });
+    if (log.length > COIN_LOG_LIMIT) { log.length = COIN_LOG_LIMIT; }
+    saveCoinLog();
+    paintCoinLog();
+  }
+
+  /** リセットで残高が0に戻るので、履歴も一緒に捨てる（残っていると勘定が合わない） */
+  function clearCoinLog() {
+    coinLog = [];
+    try { localStorage.removeItem(COIN_LOG_KEY); } catch (e) { /* 同上 */ }
+    closeCoinLog();
+  }
+
+  /** 「今日ぶん」を数えるための日付の鍵。時刻は見ない。 */
+  function coinLogDayKey(date) {
+    return date.getFullYear() + '-' + date.getMonth() + '-' + date.getDate();
+  }
+
+  /**
+   * 時刻の見せ方。日付を毎行に出すと、その日のうちに何度も受け取る使い方では
+   * 同じ日付が並ぶだけで読みにくい。今日と昨日は言葉にして、それより前だけ日付を出す。
+   */
+  function coinLogTimeText(at) {
+    var when = new Date(Number(at) || 0);
+    if (!Number(at) || isNaN(when.getTime())) { return '時刻不明'; }
+    var hm = when.getHours() + ':' + ('0' + when.getMinutes()).slice(-2);
+    var now = new Date();
+    if (coinLogDayKey(when) === coinLogDayKey(now)) { return '今日 ' + hm; }
+    var yesterday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1);
+    if (coinLogDayKey(when) === coinLogDayKey(yesterday)) { return '昨日 ' + hm; }
+    return (when.getMonth() + 1) + '/' + when.getDate() + ' ' + hm;
+  }
+
+  function coinLogHtml() {
+    var log = loadCoinLog();
+    var today = coinLogDayKey(new Date());
+    var todayCash = log.reduce(function (sum, entry) {
+      return coinLogDayKey(new Date(Number(entry.at) || 0)) === today
+        ? sum + Number(entry.cash || 0)
+        : sum;
+    }, 0);
+
+    var items = log.map(function (entry) {
+      var marks = [];
+      if (entry.newStar) { marks.push('★ +1'); }
+      if (Number(entry.cups) > 0) { marks.push('☕ +' + cafeNumberText(entry.cups) + '杯'); }
+      var chapterMark = Number(entry.chapter) > 0
+        ? '<span class="coin-log-mark chapter">🎉 第' + numberText(entry.chapter) + '章クリア</span>'
+        : '';
+      var events = (entry.events || []).map(function (event) {
+        return '<span>✨ ' + esc(String(event)) + '</span>';
+      }).join('');
+      return '<li class="coin-log-item">'
+        + '<div class="coin-log-line">'
+        + '<span class="coin-log-when">' + esc(coinLogTimeText(entry.at)) + '</span>'
+        + '<b class="coin-log-cash">+' + cafeNumberText(entry.cash) + 'コイン</b>'
+        + '</div>'
+        + '<div class="coin-log-reason">' + esc(entry.reason || '報酬') + '</div>'
+        + (entry.label ? '<p class="coin-log-label">' + esc(entry.label) + '</p>' : '')
+        + (marks.length || chapterMark
+          ? '<div class="coin-log-marks">'
+            + marks.map(function (mark) {
+              return '<span class="coin-log-mark">' + esc(mark) + '</span>';
+            }).join('') + chapterMark + '</div>'
+          : '')
+        + (events ? '<div class="coin-log-events">' + events + '</div>' : '')
+        + '</li>';
+    }).join('');
+
+    return '<div class="coin-log-top">'
+      + '<div class="coin-log-title"><small>JAVA CAFÉ</small>'
+      + '<strong>コインの獲得履歴</strong></div>'
+      + '<button class="coin-log-close" type="button" data-role="close"'
+      + ' aria-label="履歴を閉じる">×</button></div>'
+      + '<div class="coin-log-sum">'
+      + '<div class="coin-log-sum-cell today"><small>今日の獲得</small><b>+'
+      + cafeNumberText(todayCash) + 'コイン</b></div>'
+      + '<div class="coin-log-sum-cell"><small>現在の残高</small><b>'
+      + cafeNumberText(cafeState().cash) + 'コイン</b></div>'
+      + '</div>'
+      + (log.length
+        ? '<ul class="coin-log-list">' + items + '</ul>'
+        : '<p class="coin-log-empty">まだ記録がありません。問題をクリアすると、'
+          + '受け取った報酬がここに残ります。</p>')
+      + '<p class="coin-log-note">学習で受け取ったぶんを新しい順に'
+      + numberText(COIN_LOG_LIMIT) + '件まで残します（使ったコインは含みません）。'
+      + 'この履歴はこのブラウザにだけ保存されます。</p>';
+  }
+
+  /** 開いている履歴を描き直す。閉じているときは何もしない。 */
+  function paintCoinLog() {
+    var pop = document.getElementById('coinLog');
+    if (!pop || pop.hidden) { return; }
+    // 開いたまま報酬が来ることもある。中に居たフォーカスは描き直しで消えるので戻す。
+    var hadFocus = pop.contains(document.activeElement);
+    var scroll = pop.querySelector('.coin-log-list');
+    var top = scroll ? scroll.scrollTop : 0;
+    pop.innerHTML = coinLogHtml();
+    var list = pop.querySelector('.coin-log-list');
+    if (list) { list.scrollTop = top; }
+    if (hadFocus) {
+      var close = pop.querySelector('[data-role="close"]');
+      if (close) { close.focus(); }
+    }
+  }
+
+  /**
+   * 進捗を消した跡に控えだけが残っていたら捨てる。リセットは画面のボタンだけでなく
+   * `progress.json` を手で削除する道も案内してある（→ docs/guide.md「進捗のリセット」）ので、
+   * clearCoinLog を通らずに残高が0へ戻ることがある。累計獲得が0なら1コインも受け取っていない
+   * 進捗ということなので、履歴が残っていればそれは前の進捗のものである。
+   */
+  function dropStaleCoinLog() {
+    if (Number(cafeState().lifetimeCash || 0) > 0 || !loadCoinLog().length) { return; }
+    clearCoinLog();
+  }
+
+  function closeCoinLog() {
+    var pop = document.getElementById('coinLog');
+    var btn = document.getElementById('statCafe');
+    if (pop) { pop.hidden = true; }
+    if (btn) { btn.setAttribute('aria-expanded', 'false'); }
+  }
+
+  /**
+   * ヘッダのコインを押したときの開閉。箱は body 直下にあるので、位置は自分で測って
+   * ボタンの真下へ寄せる（明るさの3択 setupThemeMenu と同じ作り）。
+   */
+  function setupCoinLog() {
+    var btn = document.getElementById('statCafe');
+    var pop = document.getElementById('coinLog');
+    if (!btn || !pop) { return; }
+
+    function isOpen() { return !pop.hidden; }
+
+    function place() {
+      var r = btn.getBoundingClientRect();
+      pop.style.top = Math.round(r.bottom + 8) + 'px';
+      pop.style.left = 'auto';
+      // 右端をボタンの右端にそろえ、画面外に出ないよう最低8pxは残す
+      pop.style.right = Math.max(8, Math.round(window.innerWidth - r.right)) + 'px';
+    }
+
+    function open() {
+      pop.innerHTML = coinLogHtml();
+      pop.hidden = false;
+      btn.setAttribute('aria-expanded', 'true');
+      place();
+      var close = pop.querySelector('[data-role="close"]');
+      if (close) { close.focus(); }
+    }
+
+    btn.addEventListener('click', function (e) {
+      e.stopPropagation();   // 直後の document クリックで閉じてしまわないように
+      if (isOpen()) { closeCoinLog(); } else { open(); }
+    });
+
+    pop.addEventListener('click', function (e) {
+      var hit = e.target.closest ? e.target.closest('[data-role="close"]') : null;
+      if (!hit) { return; }
+      closeCoinLog();
+      btn.focus();
+    });
+
+    // 外側クリックと Esc で閉じる。中の一覧をスクロールしても閉じないよう、箱の中は除く。
+    document.addEventListener('click', function (e) {
+      if (isOpen() && !pop.contains(e.target) && !btn.contains(e.target)) { closeCoinLog(); }
+    });
+    document.addEventListener('keydown', function (e) {
+      if (!isOpen() || e.key !== 'Escape') { return; }
+      e.preventDefault();
+      closeCoinLog();
+      btn.focus();
+    });
+    window.addEventListener('resize', function () { if (isOpen()) { place(); } });
+  }
+
   /**
    * 章クリアのお祝いは報酬通知（showCafeRewardNotification）へ移した。画面を塞ぐのは
    * 学習の最後の1回、全問制覇だけにする。クリア直後は模範解答を読み返したり、その問題に
@@ -4840,6 +5145,8 @@
     document.body.classList.toggle('view-menu', isHub);
     document.body.classList.toggle('view-cafe', currentView === 'cafe');
     document.body.classList.toggle('view-onboarding', onboarding);
+    // 学習ホームではヘッダのコインを隠すので、開いたままだと押した相手が消えた箱が残る
+    closeCoinLog();
     renderHeader();
     // 初回案内はホーム上で行う。レッスン用サイドバーだけは不要なので組み立てない。
     // 空にするのは章の一覧だけ。#sidebar ごと消すと検索欄まで無くなる。
@@ -4974,6 +5281,7 @@
     api('state')
       .then(function (data) {
         setState(data);
+        dropStaleCoinLog();
         // ハッシュ付きで開いたときだけそのレッスンへ。それ以外はメインメニューから始める
         applyRoute(routeFromHash());
         render();
@@ -4984,6 +5292,9 @@
           + '読み込みに失敗しました: ' + esc(e.message) + '</div></div>';
       });
   }
+
+  // `sout` を自分で使えたなら、補完の案内はもう要らない（complete.js から呼ばれる）
+  if (window.JQComplete) { window.JQComplete.onSnippet = markCompletionTipDone; }
 
   document.getElementById('homeBtn').addEventListener('click', goHome);
   document.getElementById('learningBtn').addEventListener('click', goLearning);
@@ -5123,6 +5434,7 @@
     paintButton();
   }
   setupThemeMenu();
+  setupCoinLog();
 
   function resetProgress() {
     if (!window.confirm('★・書いたコード・復習の記録・ブックマーク・カフェのコイン・店舗・設備・アイテムがすべて消えます。本当にリセットしますか？')) { return; }
@@ -5135,6 +5447,7 @@
         reviewSession = null;
         reviewSummary = null;
         try { localStorage.removeItem('jq-last-lesson'); } catch (e) { /* 同上 */ }
+        clearCoinLog();
         goHome();
         toast('進捗をリセットしました');
       })

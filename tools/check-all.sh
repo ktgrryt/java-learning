@@ -33,6 +33,7 @@ CHECKS=(
   check-term-consistency.sh
   check-quiz-fairness.sh
   check-case-fairness.sh
+  check-starter-imports.sh
   check-constant-output.sh
   check-explanation-output.sh
   check-mini-labels.sh

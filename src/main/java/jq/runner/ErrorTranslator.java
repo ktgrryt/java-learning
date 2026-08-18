@@ -22,6 +22,26 @@ public final class ErrorTranslator {
     /** メッセージ中の 'x' のように引用符で囲まれたトークン。日本語でも英語でも同じ形で出る。 */
     private static final Pattern QUOTED = Pattern.compile("'([^']{1,20})'");
 
+    /** クラス名らしい形（大文字始まり）。import を勧めるかどうかの入口の判定に使う。 */
+    private static final Pattern CLASS_NAME = Pattern.compile("[A-Z][A-Za-z0-9_]*");
+
+    /**
+     * import が要るクラスを探すパッケージ。<b>先に見つかったものを使う</b>ので並び順が意味を持つ
+     * （`java.util.Date` と `java.sql.Date` のように同名のクラスがある）。教材が使うものを、
+     * 基礎編から順に並べてある。{@code java.lang} は import が要らないので入れない。
+     *
+     * <p>表にクラス名を持たず、JDKへ {@code Class.forName} で問い合わせる。教材が新しい
+     * クラスを使い始めても書き足す必要がなく、パッケージ名を書き間違えたまま
+     * 「`import java.util.LocalDate;`」と勧めてしまうこともない。
+     */
+    private static final String[] IMPORTABLE_PACKAGES = {
+        "java.util", "java.util.function", "java.util.stream",
+        "java.time", "java.time.format", "java.time.temporal",
+        "java.io", "java.nio.file", "java.nio.charset",
+        "java.math", "java.util.regex", "java.text",
+        "java.util.concurrent", "java.util.concurrent.atomic", "java.sql",
+    };
+
     /**
      * コンパイルエラーへのヒント。該当がなければ空文字を返す（UIは元のメッセージだけを出す）。
      *
@@ -50,6 +70,11 @@ public final class ErrorTranslator {
             case "compiler.err.cant.resolve", "compiler.err.cant.resolve.args",
                  "compiler.err.cant.resolve.location", "compiler.err.cant.resolve.location.args" -> {
                 String name = symbolName(msg);
+                String importable = importPackageOf(name);
+                if (importable != null) {
+                    return "「" + name + "」を使うには import が必要です。いちばん上（`class` より前）へ"
+                            + " `import " + importable + "." + name + ";` を書き足しましょう。";
+                }
                 String subject = name != null ? "「" + name + "」" : "この名前";
                 return subject + " が見つかりません。つづりが合っているか、使う前に値を用意できているか、"
                         + "大文字と小文字が合っているかを確かめましょう（Javaは大文字と小文字を区別します）。";
@@ -241,5 +266,30 @@ public final class ErrorTranslator {
             last = last.substring(0, paren);
         }
         return last.isEmpty() ? null : last;
+    }
+
+    /**
+     * 見つからなかった名前が「import すれば使えるJDKのクラス」なら、そのパッケージ名。
+     * 違えば null（自作クラスの書き忘れや、変数名のつづり間違いはこちらへ落ちる）。
+     *
+     * <p>javacのメッセージに書かれた種別（「クラス」「変数」）では判定しない。
+     * {@code Files.writeString(...)} の import 忘れは、javacからは
+     * <b>「シンボル: 変数 Files」</b>として届く（フィールド参照に見えるため）。
+     * 大文字始まりであることと、そのパッケージに実物があることだけで決める。
+     */
+    private static String importPackageOf(String name) {
+        if (name == null || !CLASS_NAME.matcher(name).matches()) {
+            return null;
+        }
+        ClassLoader loader = ErrorTranslator.class.getClassLoader();
+        for (String pkg : IMPORTABLE_PACKAGES) {
+            try {
+                Class.forName(pkg + "." + name, false, loader);
+                return pkg;
+            } catch (ClassNotFoundException | LinkageError ignored) {
+                // このパッケージには無い。次を試す
+            }
+        }
+        return null;
     }
 }
