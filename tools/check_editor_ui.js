@@ -13,7 +13,7 @@
  * かっこより難しい ― 文字列の中では足さず、テキストブロック（`"""`）を打つ途中でも
  * 足してはいけない（第18章に、学習者が `"""` を自分で打つ問題がある）。
  *
- * `sout` の案内は**教材の本文**（`2-1` の解説の最後）にある。案内カードを出す形は
+ * `sysout` の案内は**教材の本文**（`2-1` の解説の最後）にある。案内カードを出す形は
  * やめたので、ここで見るのは「解説にその案内が載っていること」だけである
  * ―― 打ち方を変えたときに、教材の記述が取り残されるのを防ぐため。
  *
@@ -34,7 +34,7 @@ const GREEN = '\x1b[32m', RED = '\x1b[31m', RESET = '\x1b[0m';
 const LESSON = '1-1';
 const TASK = '1';
 /**
- * `sout` の案内を載せているレッスン（第2章の最初の練習問題）。解説の本文に書いてあるので、
+ * `sysout` の案内を載せているレッスン（第2章の最初の練習問題）。解説の本文に書いてあるので、
  * 文言を変えるときは `content/ch02-variables.json` の `2-1` を直す。
  */
 const TIP_LESSON = '2-1';
@@ -380,25 +380,25 @@ const KEYS = {
   check(/^System\.out\.[A-Za-z]+\("x"\)\|$/.test(closed),
     '補完が入れた `)` も通り抜ける（`))` にならない）', closed);
 
-  // ── 定型の短縮（`sout`）──────────────────────────────────────────
+  // ── 定型の短縮（`sysout`）──────────────────────────────────────────
   // `);` まで入れるので、通り抜けさせる `)` は**末尾ではなく caret の位置**である。
   // ここを末尾から数えると `;` を覚えてしまい、打った `)` が消える。
   await clear();
-  await write('sout');
+  await write('sysout');
   await sleep(500);
   const snip = await candidate();
-  check(snip.open && snip.selected === 'sout',
-    '`sout` を打つと同名の候補が先頭に来る', snip);
+  check(snip.open && snip.selected === 'sysout',
+    '`sysout` を打つと同名の候補が先頭に来る', snip);
   await tab();
-  const soutInserted = await read();
-  check(soutInserted === 'System.out.println(|);',
-    '`sout` + Tab で `System.out.println();` が入り、カーソルがかっこの中に来る', soutInserted);
+  const sysoutInserted = await read();
+  check(sysoutInserted === 'System.out.println(|);',
+    '`sysout` + Tab で `System.out.println();` が入り、カーソルがかっこの中に来る', sysoutInserted);
   await key('"');
   await write('x');
   await key('"');
   await key(')');
   check(await read() === 'System.out.println("x")|;',
-    '`sout` が入れた `)` も通り抜ける（`);` の `;` を巻き込まない）', await read());
+    '`sysout` が入れた `)` も通り抜ける（`);` の `;` を巻き込まない）', await read());
 
   // ── 候補の移動（↑↓ と、macOSのEmacsキーバインド Ctrl+P / Ctrl+N）──────────
   // 窓が開いているあいだだけ横取りする。閉じているときの Ctrl+N / Ctrl+P は
@@ -527,7 +527,7 @@ const KEYS = {
   const errors = await ev(`window.__jqErrors || []`);
   check(errors.length === 0, '画面のJavaScriptが例外を出していない', errors);
 
-  // ── `sout` の案内は教材の解説にある ────────────────────────────────
+  // ── `sysout` の案内は教材の解説にある ────────────────────────────────
   // 画面から案内カードを出す形はやめた（出す条件が特殊で、読み返せる場所にもなかった）。
   // 代わりに `2-1` の解説の最後に書いてあるので、そこに載っていることをここで見る。
   // ここから先はページを読み直すので、上の例外チェックはこの前に置いてある。
@@ -542,10 +542,10 @@ const KEYS = {
   const guide = await ev(`(() => {
     const box = document.querySelector('.card-explain');
     const text = box ? box.textContent.replace(/\\s+/g, ' ') : '';
-    return { found: text.indexOf('sout') >= 0 && text.indexOf('Tab') >= 0,
+    return { found: text.indexOf('sysout') >= 0 && text.indexOf('Tab') >= 0,
              tail: text.slice(-140) };
   })()`);
-  check(guide.found, `${TIP_LESSON} の解説に \`sout\` と \`Tab\` の案内が載っている`, guide);
+  check(guide.found, `${TIP_LESSON} の解説に \`sysout\` と \`Tab\` の案内が載っている`, guide);
   check(!(await ev(`!!document.querySelector('.card-tip')`)),
     '問題の中に案内カードは出さない（教材の本文へ移した）');
 
@@ -641,8 +641,8 @@ const KEYS = {
     process.exit(1);
   }
   console.log(`\n${GREEN}EDITOR UI OK: 自動で閉じるかっこと引用符・打ち抜けの条件・`
-    + `テキストブロック・位置の追従・候補の移動（↑↓ と Ctrl+P/N）・定型の短縮（sout）・`
-    + `Tabの字下げ・${TIP_LESSON} の解説にある \`sout\` の案内・`
+    + `テキストブロック・位置の追従・候補の移動（↑↓ と Ctrl+P/N）・定型の短縮（sysout）・`
+    + `Tabの字下げ・${TIP_LESSON} の解説にある \`sysout\` の案内・`
     + `編集欄の高さ（行数に追随・下限と上限・つまみを尊重）を確認しました${RESET}`);
 })().catch(e => {
   console.error(`${RED}検査を実行できませんでした: ${e.message}${RESET}`);

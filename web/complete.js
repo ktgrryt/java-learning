@@ -4,7 +4,7 @@
  * 候補の出どころは3つある。
  *   1. java-api.js の辞書 … 標準ライブラリのクラスとメソッド
  *   2. 今書いているコードそのもの … 自分で作った変数・メソッド・クラス
- *   3. 定型の短縮（SNIPPETS） … `sout` → `System.out.println();`
+ *   3. 定型の短縮（SNIPPETS） … `sysout` → `System.out.println();`
  *
  * 「今書いているコード」を読むのに本物の構文解析はしていない。書きかけの
  * コードは文法的に壊れているのが普通で、厳密な解析はすぐ失敗するため。
@@ -850,11 +850,11 @@
   }
 
   /**
-   * 短縮して書ける定型。略記はIntelliJのlive templateと同じものに合わせてある。
+   * 短縮して書ける定型。略記はEclipseのtemplateと同じものに合わせてある。
    *
    * `System.out.println(` は基礎編で何百回も打つが、打つ手そのものが練習になるのは
    * **出力が到達目標の第1章**だけである。そこから先は計算した値を覗く窓になるので、
-   * `sout` で入れられるようにしてある。標準の書き方は入る文字列の側に残るので、
+   * `sysout` で入れられるようにしてある。標準の書き方は入る文字列の側に残るので、
    * `System.out.println` を読んで覚える機会は減らない。
    *
    * 置いておくだけでは気づかれないので、**教材の側で案内する**（`2-1` の解説の最後
@@ -866,7 +866,7 @@
    */
   var SNIPPETS = [
     {
-      label: 'sout',
+      label: 'sysout',
       insert: 'System.out.println();',
       caret: 'System.out.println('.length,
       doc: '1行出力する。かっこの中にカーソルが入る'
@@ -947,8 +947,8 @@
       items.push(classItem(names[i], isNearby(info, names[i])));
     }
 
-    // 定型の短縮（`sout` など）。キーワードと同じ点数なので、`s` だけ打った状態では
-    // 変数や `String` に埋もれる。`sout` まで打てば完全一致で先頭に出る
+    // 定型の短縮（`sysout` など）。キーワードと同じ点数なので、`s` だけ打った状態では
+    // 変数や `String` に埋もれる。`sysout` まで打てば完全一致で先頭に出る
     for (i = 0; i < SNIPPETS.length; i++) {
       items.push(snippetItem(SNIPPETS[i]));
     }
@@ -1461,11 +1461,11 @@
     var text = item.label;
     var caret = text.length;
     // 自動で足した `)` の位置。入れた文字列の先頭から数える。-1 は足していない。
-    // `sout` は `);` まで入れるので、末尾から数えると `;` を指してしまう
+    // `sysout` は `);` まで入れるので、末尾から数えると `;` を指してしまう
     var closerAt = -1;
 
     if (item.kind === 'snippet') {
-      // 定型はひとかたまりで入れ替える。`sout` → `System.out.println();`
+      // 定型はひとかたまりで入れ替える。`sysout` → `System.out.println();`
       text = item.insert;
       caret = item.caret;
       closerAt = item.caret;   // かっこの中で `)` を打っても重ならないように

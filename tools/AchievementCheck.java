@@ -262,6 +262,12 @@ public final class AchievementCheck {
             check("20問連続で初回正解: quiz_crown", has(fresh, "quiz_crown"), true);
             fresh.recordQuiz("q-2", 0, 1, false, ZERO);
             check("間違えても残る: quiz_crown", has(fresh, "quiz_crown"), true);
+            Map<String, Object> crownCard = items(fresh).stream()
+                    .filter(item -> "quiz_crown".equals(item.get("id")))
+                    .findFirst()
+                    .orElseThrow();
+            check("カードに復習でも取れると書いてある",
+                    String.valueOf(crownCard.get("unlockNote")).contains("復習"), true);
 
             // ── 4.5 1度目に間違えたクイズは、正解し直しても連続へ戻らない ─────
             ProgressStore retried = new ProgressStore(dir.resolve("retry.json"));
@@ -272,6 +278,50 @@ public final class AchievementCheck {
             retried.recordQuiz("r-1", 19, 0, true, ZERO);    // 正解を押し直す
             check("答え直しでは20問連続にならない: quiz_crown",
                     has(retried, "quiz_crown"), false);
+
+            // ── 4.6 初回答を使い切っても、復習で取り返せる ───────────────────
+            // 📣は「1度目の回答で20問連続」だけが条件だったため、全クイズを答え終えて
+            // 20連続が無ければ二度と取れなかった（初回答は永久に減る在庫）。
+            // 復習として出し直したクイズの連続正解でも解放する。
+            ProgressStore recovered = new ProgressStore(dir.resolve("recover.json"));
+            recovered.recordQuiz("v-1", 0, 1, false, ZERO);   // 1問目を1度目に間違える
+            for (int i = 1; i < 40; i++) {
+                recovered.recordQuiz("v-1", i, 0, true, ZERO);
+            }
+            check("初回答を使い切ってから始める: quiz_crown",
+                    has(recovered, "quiz_crown"), true);   // 19連続+20連続で先に解放される
+
+            // 在庫を使い切った人の状態を作り直す（1度目の回答で20連続を作らせない）
+            ProgressStore exhausted = new ProgressStore(dir.resolve("exhausted.json"));
+            for (int i = 0; i < 60; i++) {
+                // 3問ごとに1度目を間違えるので、初回答の連続は最長2問で止まる
+                exhausted.recordQuiz("w-1", i, i % 3 == 0 ? 1 : 0, i % 3 != 0, ZERO);
+            }
+            check("在庫を使い切っても1度目の連続では出ない: quiz_crown",
+                    has(exhausted, "quiz_crown"), false);
+            for (int i = 0; i < 19; i++) {
+                exhausted.recordQuizReview("w-1", i, true);
+            }
+            check("復習19問では出ない: quiz_crown", has(exhausted, "quiz_crown"), false);
+            exhausted.recordQuizReview("w-1", 5, true);
+            check("同じクイズの解き直しでは伸びない: quiz_crown",
+                    has(exhausted, "quiz_crown"), false);
+            exhausted.recordQuizReview("w-1", 19, true);
+            check("復習で異なる20問に連続正解: quiz_crown",
+                    has(exhausted, "quiz_crown"), true);
+
+            // 途中で間違えたら連続はやり直し（覚えていない問題を飛ばして取れない）
+            ProgressStore broken = new ProgressStore(dir.resolve("broken.json"));
+            for (int i = 0; i < 25; i++) {
+                broken.recordQuiz("y-1", i, i % 3 == 0 ? 1 : 0, i % 3 != 0, ZERO);
+            }
+            for (int i = 0; i < 19; i++) {
+                broken.recordQuizReview("y-1", i, true);
+            }
+            broken.recordQuizReview("y-1", 19, false);
+            broken.recordQuizReview("y-1", 20, true);
+            check("復習で間違えたら連続はやり直し: quiz_crown",
+                    has(broken, "quiz_crown"), false);
 
             // ── 5. 章をヒントなし・同じ日に全問クリア → ケーキとしおり ────────
             check("まだ出ない: first_try_tamper", has(fresh, "first_try_tamper"), false);
@@ -437,11 +487,12 @@ public final class AchievementCheck {
                         effects.size() == allowed, true);
             }
 
-            System.out.println("\nACHIEVEMENTS OK: 12種の解放条件・0.3%抽選・重い2種・完走時救済を確認しました");
+            System.out.println("\nACHIEVEMENTS OK: 12種の解放条件・0.3%抽選・復習での取り返し・重い2種・完走時救済を確認しました");
         } finally {
             for (String name : new String[] {
                     "catch-up.json", "dated.json", "spam.json", "review.json", "lucky.json",
                     "review-lucky.json", "reload-lucky.json", "retry.json",
+                    "recover.json", "exhausted.json", "broken.json",
                     "replay.json", "other.json", "progress.json" }) {
                 Files.deleteIfExists(dir.resolve(name));
             }

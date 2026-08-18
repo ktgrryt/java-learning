@@ -881,6 +881,21 @@ public final class ProgressStore {
         return award;
     }
 
+    /**
+     * 復習として出し直したクイズへの回答を記録する。
+     *
+     * <p>通常の回答（{@link #recordQuiz}）と分けてあるのは、<b>残すものが違う</b>ため。
+     * ここでは {@code quizChoices} を書き換えない ― 書き換えると、復習で間違えただけで
+     * 概念レッスンの★（最後に選んだ答えで数える）を失い、正解数の表示も減る。
+     * チップも払わない（復習の原則）。動くのは「復習で連続正解したクイズ」だけで、
+     * 📣ひらめきメガホンの解放条件になる。</p>
+     */
+    public synchronized void recordQuizReview(String lessonId, int index, boolean correct) {
+        if (cafe.noteQuizReviewAnswered(quizKey(lessonId, index), correct)) {
+            saveSoon();
+        }
+    }
+
     /** 進捗を全て消す。 */
     public synchronized void resetAll() {
         clearAllState();

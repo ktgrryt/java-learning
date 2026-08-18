@@ -60,11 +60,20 @@
   var coinLog = null;       // 最初に必要になったときだけ localStorage から読む
 
   // 復習モード。セッションは画面の中だけで持つ（再読込したら1問復習に戻る）
-  var reviewSession = null; // { queue: [{lessonId, taskId}], index, cleared, clearedKeys }
+  var reviewSession = null; // { queue: [{lessonId, taskId}], index, cleared, clearedKeys,
+                            //   quizQueue: [{lessonId, index}], quizIndex, quizCorrect }
+                            // quizIndex が 0 以上ならクイズの段（問題を解き終えたあと）
   var reviewTaskId = null;  // 復習で開いている問題ID（レッスンIDは currentId）
   var reviewFilter = 'all'; // 復習の絞り込み（all / weak / bookmark）
   var reviewSummary = null; // 直前に終えたセッションの結果。復習ホームの先頭に1回だけ出す
   var REVIEW_SESSION_SIZE = 10;
+  /**
+   * 1セッションの最後に続けて出すクイズの数。
+   *
+   * 📣の解放は「異なる20問へ連続正解」なので、1回で20問出すと1セッションで取れてしまう。
+   * 問題と同じ10問で切って、2回に分けて届くようにしてある。
+   */
+  var REVIEW_QUIZ_SESSION_SIZE = 10;
   var REVIEW_LIST_LIMIT = 50; // 一覧に並べる上限。残りは件数だけ知らせる
   var quizFocus = null;     // しおりから開いたクイズ { lessonId, index }。描画側で1回だけ使う
 
@@ -1582,6 +1591,36 @@
       });
   }
 
+  /**
+   * セッションの最後に続けて出すクイズを決める。
+   *
+   * <b>一度答えたクイズだけ</b>を対象にする ― まだ答えていないクイズは「1度目の回答」の
+   * 在庫で、復習で先に出すとその機会を奪ってしまう（チップも📣の初回答の連続もそこにある）。
+   *
+   * すでに「復習の連続正解」に入っているクイズは外す。サーバ側は重複しない集合で数えるので
+   * （覚えた1問を繰り返すだけで並ばないように）、外さないと20問そろわない。
+   *
+   * 並びは 誤答 → しおり → 残り で、それぞれ教材の順。抽選はしない（問題側の出題と同じ方針）。
+   */
+  function buildReviewQuizQueue() {
+    var inRun = {};
+    (cafeState().quizReviewRunKeys || []).forEach(function (key) { inRun[key] = true; });
+    var wrong = [];
+    var marked = [];
+    var rest = [];
+    allLessons().forEach(function (lesson) {
+      (lesson.quizzes || []).forEach(function (quiz, index) {
+        var result = (lesson.quizResults || [])[index];
+        if (!result || inRun[lesson.id + '#' + index]) { return; }
+        var entry = { lessonId: lesson.id, index: index };
+        if (!result.correct) { wrong.push(entry); }
+        else if (quizBookmarked(lesson, index)) { marked.push(entry); }
+        else { rest.push(entry); }
+      });
+    });
+    return wrong.concat(marked, rest).slice(0, REVIEW_QUIZ_SESSION_SIZE);
+  }
+
   function setReviewFilter(filter) {
     reviewFilter = filter;
     try { localStorage.setItem('jq-review-filter', filter); } catch (e) { /* 使えなくても困らない */ }
@@ -1595,11 +1634,35 @@
       return;
     }
     reviewSummary = null;
-    reviewSession = { queue: queue, index: 0, cleared: 0, clearedKeys: {} };
+    reviewSession = {
+      queue: queue, index: 0, cleared: 0, clearedKeys: {},
+      quizQueue: buildReviewQuizQueue(), quizIndex: -1, quizCorrect: 0
+    };
     selectReviewTask(queue[0].lessonId, queue[0].taskId);
   }
 
-  /** 次の問題へ。最後まで来ていたらセッションを終えて復習ホームへ戻す。 */
+  /**
+   * クイズだけを解き直すセッション。問題の復習が無い日のための入口。
+   *
+   * 問題のキューを空にしてクイズの段から始めるだけで、数え方は通常のセッションと同じ。
+   */
+  function startReviewQuizSession() {
+    var quizQueue = buildReviewQuizQueue();
+    if (!quizQueue.length) {
+      toast('解き直せるクイズがありません');
+      return;
+    }
+    reviewSummary = null;
+    reviewSession = {
+      queue: [], index: 0, cleared: 0, clearedKeys: {},
+      quizQueue: quizQueue, quizIndex: 0, quizCorrect: 0
+    };
+    renderReviewQuiz();
+  }
+
+  /**
+   * 次の問題へ。問題を出し切ったらクイズの段へ進み、それも終わったら復習ホームへ戻す。
+   */
   function advanceReviewSession() {
     if (!reviewSession) {
       goReview();
@@ -1607,13 +1670,28 @@
     }
     reviewSession.index++;
     if (reviewSession.index >= reviewSession.queue.length) {
-      reviewSummary = { total: reviewSession.queue.length, cleared: reviewSession.cleared };
-      reviewSession = null;
-      goReview();
+      if (reviewSession.quizQueue.length) {
+        reviewSession.quizIndex = 0;
+        renderReviewQuiz();
+        return;
+      }
+      finishReviewSession();
       return;
     }
     var next = reviewSession.queue[reviewSession.index];
     selectReviewTask(next.lessonId, next.taskId);
+  }
+
+  /** 今回の成績を控えてセッションを閉じ、復習ホームへ戻す。 */
+  function finishReviewSession() {
+    reviewSummary = {
+      total: reviewSession.queue.length,
+      cleared: reviewSession.cleared,
+      quizTotal: reviewSession.quizIndex < 0 ? 0 : reviewSession.quizQueue.length,
+      quizCorrect: reviewSession.quizCorrect
+    };
+    reviewSession = null;
+    goReview();
   }
 
   function endReviewSession() {
@@ -1647,20 +1725,37 @@
       '  </header>';
 
     if (!counts.all) {
-      // クイズのしおりは★0でも付けられるので、解き直せる問題が無い日でもここに出す
+      // クイズのしおりは★0でも付けられるので、解き直せる問題が無い日でもここに出す。
+      // 答えたクイズがあるなら、それだけを解き直せるようにもする ―― 📣の解放は
+      // 「復習で異なる20問に連続正解」でも進むので、問題の復習が無い日に道を塞がない
+      var quizOnly = buildReviewQuizQueue().length;
       main.innerHTML =
         '<div class="menu review-page">' + head +
+        // クイズだけの復習もここへ戻ってくるので、成績はこの分岐でも出す
+             reviewSummaryHtml() +
         '  <section class="menu-section review-empty">' +
         '    <span class="review-empty-icon">📚</span>' +
         '    <div><strong>復習できる問題はまだありません</strong>' +
         '    <p>問題を1問クリアすると、ここで解き直せるようになります。</p></div>' +
         '    <button class="primary-btn" id="reviewEmptyBtn">章を選ぶ</button>' +
         '  </section>' +
+        (quizOnly
+          ? '  <section class="menu-section review-empty">' +
+            '    <span class="review-empty-icon">🧠</span>' +
+            '    <div><strong>答えた確認クイズなら解き直せます</strong>' +
+            '    <p>' + quizOnly + '問を、答えと解説を隠して出し直します（チップは出ません）。</p></div>' +
+            '    <button class="primary-btn" id="reviewQuizOnlyBtn">▶ クイズを復習する</button>' +
+            '  </section>'
+          : '') +
              quizBookmarkSectionHtml() +
         '</div>';
       document.getElementById('backToLearningBtn').addEventListener('click', goHome);
       document.getElementById('reviewEmptyBtn').addEventListener('click', goHome);
+      var quizOnlyBtn = document.getElementById('reviewQuizOnlyBtn');
+      if (quizOnlyBtn) { quizOnlyBtn.addEventListener('click', startReviewQuizSession); }
       bindReviewRows(main);
+      // 知らせは1回だけ（開き直すたびに前回の成績が出ると、いまの状態が読みにくい）
+      reviewSummary = null;
       main.scrollTop = 0;
       return;
     }
@@ -1684,6 +1779,7 @@
       '      <h1 class="hero-title">解き直して定着させる</h1>' +
       '      <p class="hero-sub">忘却曲線で「そろそろ確認したい問題」から出ます · '
         + '正解すると次に出るまでの間隔が伸びます</p>' +
+             reviewQuizNoteHtml() +
              reviewCafeNoteHtml() +
              reviewFilterTabsHtml(counts, filter) +
       '      <div class="hero-action">' +
@@ -1754,14 +1850,40 @@
     return '⏰ 期限切れ ' + sessionOverdue + '問 ＋ 早めの復習 ' + early + '問';
   }
 
+  /**
+   * 「問題のあとにクイズが続く」ことを、始める前に見せる。
+   *
+   * 出題の一覧には混ぜない（押した先が出題なのか移動なのか読めなくなるため）。
+   * 代わりにここへ書いて、セッションの最後に続けて出す。
+   */
+  function reviewQuizNoteHtml() {
+    var quizzes = buildReviewQuizQueue().length;
+    if (!quizzes) { return ''; }
+    var run = Number(cafeState().quizReviewRun || 0);
+    var goal = Number(cafeState().quizStreakGoal || 20);
+    return '      <p class="hero-sub review-quiz-note">🧠 問題のあとに、答えた確認クイズを'
+      + quizzes + '問続けて出します（答えと解説は隠して出し直します）· '
+      + '異なる' + goal + '問に連続正解すると 📣 が解放 · いまの連続 ' + run + '問</p>';
+  }
+
   function reviewSummaryHtml() {
     if (!reviewSummary) { return ''; }
-    var perfect = reviewSummary.cleared === reviewSummary.total;
+    var perfect = reviewSummary.total > 0 && reviewSummary.cleared === reviewSummary.total;
+    var quiz = '';
+    if (reviewSummary.quizTotal) {
+      var run = Number(cafeState().quizReviewRun || 0);
+      var goal = Number(cafeState().quizStreakGoal || 20);
+      quiz = 'クイズは' + reviewSummary.quizTotal + '問のうち '
+        + reviewSummary.quizCorrect + '問に正解（連続 ' + run + ' / ' + goal + '問）。';
+    }
     return '<section class="menu-section review-summary">' +
       '<span class="review-summary-icon">' + (perfect ? '🎉' : '📝') + '</span>' +
       '<div><strong>復習おつかれさまでした</strong>' +
-      '<p>' + reviewSummary.total + '問のうち ' + reviewSummary.cleared + '問に正解しました。' +
-      (perfect ? '全問正解です！' : '通らなかった問題は、次の復習で出やすくなります。') +
+      '<p>' + (reviewSummary.total
+        ? reviewSummary.total + '問のうち ' + reviewSummary.cleared + '問に正解しました。'
+          + (perfect ? '全問正解です！' : '通らなかった問題は、次の復習で出やすくなります。')
+        : '') +
+      (quiz ? (reviewSummary.total ? '<br>' : '') + quiz : '') +
       '</p></div></section>';
   }
 
@@ -2008,6 +2130,159 @@
     main.scrollTop = 0;
   }
 
+  // ------------------------------------------- 復習でクイズを1問ずつ解き直す
+
+  /**
+   * 復習の段で出すクイズ1問。
+   *
+   * <b>前の答えと解説は出さない。</b>答えが見えている状態で数えると、押すだけで
+   * 連続が並んでしまう（レッスン画面の答え直しを数えないのと同じ理由）。
+   * 答えたあとだけ、その回の結果と解説を見せる。
+   */
+  function renderReviewQuiz(answered) {
+    var entry = reviewSession && reviewSession.quizQueue[reviewSession.quizIndex];
+    var lesson = entry && findLesson(entry.lessonId);
+    var quiz = lesson && (lesson.quizzes || [])[entry.index];
+    if (!quiz) {
+      finishReviewSession();
+      return;
+    }
+    var chapter = chapterOf(entry.lessonId);
+    var main = document.getElementById('content');
+    var run = Number(cafeState().quizReviewRun || 0);
+    var goal = Number(cafeState().quizStreakGoal || 20);
+
+    main.innerHTML =
+      '<article class="lesson-view review-view review-quiz-view">' +
+      reviewBarHtml() +
+      '  <div class="lesson-head">' +
+      '    <div class="crumb">' +
+      '      <button class="crumb-home" id="crumbHome">メニュー</button>' +
+      '      <span class="crumb-sep">›</span>' +
+      '      <button class="crumb-home" id="crumbReview">🔁 復習</button>' +
+      '      <span class="crumb-sep">›</span>' +
+             (chapter ? esc(chapter.emoji) + ' 第' + displayChapterNumber(chapter) + '章 '
+               + esc(chapter.title) : '') +
+      '    </div>' +
+      '    <h1 class="lesson-h1">' +
+      '      <span class="lesson-h1-id">' + esc(displayLessonId(lesson)) + '</span>' +
+             esc(lesson.title) +
+      '    </h1>' +
+      '  </div>' +
+      '  <section class="tasks">' +
+      '    <div class="card card-quiz">' +
+      '      <div class="quiz-head">' +
+      '        <h2 class="card-h"><span class="card-h-icon">🧠</span>確認クイズの復習</h2>' +
+      '        <span class="quiz-score">連続 ' + run + ' / ' + goal + '問</span>' +
+      '      </div>' +
+      '      <p class="quiz-note">チップは出ません。★と正解数も動きません。'
+        + '異なる' + goal + '問へ連続で正解すると 📣 ひらめきメガホン が解放されます'
+        + '（間違えると連続は0に戻ります）。</p>' +
+             reviewQuizItemHtml(lesson, quiz, entry.index, answered) +
+      '    </div>' +
+      '  </section>' +
+      '  <nav class="lesson-next" id="reviewFooter" aria-label="復習の進み方"></nav>' +
+      '</article>';
+
+    document.getElementById('crumbHome').addEventListener('click', goHome);
+    document.getElementById('crumbReview').addEventListener('click', endReviewSession);
+    bindReviewBar();
+    if (!answered) {
+      Array.prototype.forEach.call(main.getElementsByClassName('quiz-choice'), function (btn) {
+        btn.addEventListener('click', function () {
+          answerReviewQuiz(Number(btn.dataset.choice));
+        });
+      });
+    }
+    renderReviewQuizFooter(answered);
+    main.scrollTop = 0;
+  }
+
+  /** 復習で出すクイズの本体。{@code answered} が来た回だけ結果と解説を足す。 */
+  function reviewQuizItemHtml(lesson, quiz, index, answered) {
+    var choices = quiz.choices.map(function (text, i) {
+      var cls = 'quiz-choice';
+      if (answered) {
+        if (i === answered.choice) { cls += answered.correct ? ' is-picked-ok' : ' is-picked-ng'; }
+        if (!answered.correct && i === answered.answer) { cls += ' is-answer'; }
+      }
+      return '<button class="' + cls + '" type="button" data-choice="' + i + '"'
+        + (answered ? ' disabled' : '') + '>' +
+        '<span class="quiz-mark">' + CHOICE_LABELS[i] + '</span>' +
+        '<span class="quiz-choice-text">' + renderMarkdown(text) + '</span>' +
+        '</button>';
+    }).join('');
+    return '<div class="quiz-item">' +
+      '  <div class="quiz-item-head">' +
+      '    <div class="quiz-q"><span class="quiz-no">Q' + (index + 1) + '</span>' +
+           renderMarkdown(quiz.question) + '</div>' +
+           quizBookmarkButtonHtml(lesson, index) +
+      '  </div>' +
+      '  <div class="quiz-choices">' + choices + '</div>' +
+         quizFeedbackHtml(answered) +
+      '</div>';
+  }
+
+  /**
+   * 復習のクイズへ答える。
+   *
+   * {@code review} を付けて投げるので、サーバはチップを払わず、選んだ答えも残さない
+   * （★と正解数は動かない ― 復習で間違えて★を失わないため）。
+   */
+  function answerReviewQuiz(choice) {
+    var entry = reviewSession && reviewSession.quizQueue[reviewSession.quizIndex];
+    if (!entry) { return; }
+    api('quiz', {
+      lessonId: entry.lessonId, index: entry.index, choice: choice, review: true
+    })
+      .then(function (res) {
+        applyDelta(res.delta);
+        renderHeader();
+        if (res.correct) { reviewSession.quizCorrect++; }
+        renderReviewQuiz({
+          choice: choice, correct: res.correct,
+          answer: res.answer, explanation: res.explanation
+        });
+        toast(res.correct
+          ? '🧠 正解！　連続 ' + Number(cafeState().quizReviewRun || 0) + '問'
+          : '🧠 不正解　連続は0に戻りました');
+      })
+      .catch(toastError);
+  }
+
+  /** 次のクイズへ。出し切ったらセッションを閉じる。 */
+  function advanceReviewQuiz() {
+    if (!reviewSession) {
+      goReview();
+      return;
+    }
+    reviewSession.quizIndex++;
+    if (reviewSession.quizIndex >= reviewSession.quizQueue.length) {
+      finishReviewSession();
+      return;
+    }
+    renderReviewQuiz();
+  }
+
+  /** クイズの段の「次へ」。答える前は先に進ませない（飛ばすのは帯のボタン）。 */
+  function renderReviewQuizFooter(answered) {
+    var host = document.getElementById('reviewFooter');
+    if (!host) { return; }
+    var remaining = reviewSession.quizQueue.length - reviewSession.quizIndex - 1;
+    if (!answered) {
+      host.innerHTML =
+        '<div class="lesson-next-copy"><small>クイズの復習</small>' +
+        '<b>' + (remaining > 0 ? 'あと' + (remaining + 1) + '問' : 'これが最後の1問') + '</b></div>';
+      return;
+    }
+    host.innerHTML =
+      '<div class="lesson-next-copy"><small>' + (answered.correct ? '正解' : '不正解') + '</small>' +
+      '<b>' + (remaining > 0 ? 'あと' + remaining + '問' : 'これが最後の1問') + '</b></div>' +
+      '<button class="primary-btn lesson-next-btn" id="reviewFooterBtn">' +
+      (remaining > 0 ? '次のクイズへ →' : '復習を終える →') + '</button>';
+    document.getElementById('reviewFooterBtn').addEventListener('click', advanceReviewQuiz);
+  }
+
   function taskIndexOf(lesson, task) {
     var index = 0;
     lesson.tasks.forEach(function (candidate, i) {
@@ -2018,24 +2293,41 @@
 
   /** 復習中だと分かる帯。何問目か・どこで抜けられるかを常に見せる。 */
   function reviewBarHtml() {
+    var quizPhase = inReviewQuizPhase();
+    var progress = '1問だけ復習中';
+    if (quizPhase) {
+      progress = 'クイズ ' + (reviewSession.quizIndex + 1) + ' / '
+        + reviewSession.quizQueue.length + '問';
+    } else if (reviewSession) {
+      progress = (reviewSession.index + 1) + ' / ' + reviewSession.queue.length + '問';
+    }
     return '<div class="review-bar">' +
       '<span class="review-bar-title">🔁 復習モード</span>' +
-      '<span class="review-bar-progress">' + (reviewSession
-        ? (reviewSession.index + 1) + ' / ' + reviewSession.queue.length + '問'
-        : '1問だけ復習中') + '</span>' +
-      '<span class="review-bar-note">ひな形から解き直します。前に書いた解答は残っています</span>' +
+      '<span class="review-bar-progress">' + progress + '</span>' +
+      '<span class="review-bar-note">' + (quizPhase
+        ? '答えと解説は答えたあとに出ます。チップは出ません'
+        : 'ひな形から解き直します。前に書いた解答は残っています') + '</span>' +
       '<span class="spacer"></span>' +
       (reviewSession
-        ? '<button class="ghost-btn small" id="reviewSkipBtn">この問題を飛ばす</button>'
+        ? '<button class="ghost-btn small" id="reviewSkipBtn">'
+          + (quizPhase ? 'このクイズを飛ばす' : 'この問題を飛ばす') + '</button>'
         : '') +
       '<button class="ghost-btn small" id="reviewExitBtn">' +
       (reviewSession ? '復習を終える' : '復習メニューへ') + '</button>' +
       '</div>';
   }
 
+  /** いまクイズの段にいるか（問題を出し切ったあと）。 */
+  function inReviewQuizPhase() {
+    return !!(reviewSession && reviewSession.quizIndex >= 0);
+  }
+
   function bindReviewBar() {
     var skip = document.getElementById('reviewSkipBtn');
-    if (skip) { skip.addEventListener('click', advanceReviewSession); }
+    if (skip) {
+      skip.addEventListener('click',
+        inReviewQuizPhase() ? advanceReviewQuiz : advanceReviewSession);
+    }
     document.getElementById('reviewExitBtn').addEventListener('click', endReviewSession);
   }
 
@@ -2058,11 +2350,17 @@
     }
 
     var remaining = reviewSession.queue.length - reviewSession.index - 1;
+    var quizzes = reviewSession.quizQueue.length;
+    var label = remaining > 0
+      ? '次の問題へ →'
+      : (quizzes ? 'クイズの復習へ →' : '復習を終える →');
+    var lead = remaining > 0
+      ? 'あと' + remaining + '問'
+      : (quizzes ? '問題はこれで最後（クイズが' + quizzes + '問続きます）' : 'これが最後の1問');
     host.innerHTML =
       '<div class="lesson-next-copy"><small>' + (justCleared ? '復習クリア' : '復習中') + '</small>' +
-      '<b>' + (remaining > 0 ? 'あと' + remaining + '問' : 'これが最後の1問') + '</b></div>' +
-      '<button class="primary-btn lesson-next-btn" id="reviewFooterBtn">' +
-      (remaining > 0 ? '次の問題へ →' : '復習を終える →') + '</button>';
+      '<b>' + lead + '</b></div>' +
+      '<button class="primary-btn lesson-next-btn" id="reviewFooterBtn">' + label + '</button>';
     document.getElementById('reviewFooterBtn').addEventListener('click', advanceReviewSession);
   }
 

@@ -69,6 +69,13 @@ final class CafeEconomy {
         this.saver = saver;
     }
 
+    // 27: 確認クイズを復習の対象へ入れた（依頼「取り返しのつかない要素は無くしたい」）。
+    //     📣ひらめきメガホンは「1度目の回答で20問連続正解」だけが条件で、初回答は永久に
+    //     消費されるため、全522問を答え終えて20連続が無ければ**二度と取れなかった**。
+    //     復習で解き直したクイズの連続正解（quizMasteryRun）でも解放するようにして、
+    //     取り逃しを無くした。🏆生涯学習トロフィーと同じ「初回 or 復習」の形である。
+    //     売上は動かない ― 復習のクイズはチップを払わず、quizChoices も書き換えないので
+    //     ★も正解数も動かない。
     // 26: ラッキーコインの解放抽選を1%から0.3%へ下げた（依頼）。抽選の枠を100→1000へ
     //     増やして0.1%刻みを表せるようにしてある（isLuckyValue の buckets）。
     //     **584問すべて正解しても解放されない人が約17%になる**（1%のときは約0.3%）ので、
@@ -100,7 +107,7 @@ final class CafeEconomy {
     //     574問すべて外れても投資率45%以内になるよう、終盤改装の基準額を450億へ下げた。
     // 20: ラッキーコインを「頻繁な小当たり」から「5%の大当たり」へ変更し、価格を77,777にした。
     //     期待売上が下がるぶん、全購入時の投資率を範囲内へ戻すため終盤改装の基準額も下げた。
-    private static final int CAFE_ECONOMY_VERSION = 26;
+    private static final int CAFE_ECONOMY_VERSION = 27;
     private static final int CUP_PRICE = 500;
     private static final int MAX_CAFE_STORES = 512;
     private static final long FIRST_EXPANSION_COST = 2_500L;
@@ -157,12 +164,21 @@ final class CafeEconomy {
     /** 粘りのドリッパーそのものが解放される提出回数（1問への累計）。 */
     private static final int RETRY_ACHIEVEMENT_ATTEMPTS = 10;
     /**
+     * 📣ひらめきメガホンが解放される連続正解の数。
+     *
+     * <p>「1度目の回答で連続正解」と「復習で異なるクイズへ連続正解」の<b>どちらでも</b>この数。
+     * 初回答は答えるたび永久に減る在庫なので、片方だけでは取り逃しが起きる。</p>
+     */
+    private static final int QUIZ_STREAK_ITEM_RUN = 20;
+    /**
      * 初回・復習を問わず、問題へ正解したときにラッキーコインを引く確率（<b>千分率</b>）。
      *
      * <p>3 = 0.3%。1%から下げたときに枠を100→1000へ増やした ― {@code isLuckyValue} は
      * 混ぜた値を枠数で割った余りで判定するので、%のままでは0.3を表せない。</p>
      *
-     * <p><b>584問すべてに正解しても解放されない人が約17%いる</b>（1%では約0.3%だった）。
+     * <p><b>1周する間に当たらない人が約17%いる</b>（1%では約0.3%だった）。ただし抽選は
+     * 復習の正解でも引ける（{@link #noteReviewSubmission} は初回・復習を同じ1回として数える）
+     * ので、完走後も引き続けられる ―― <b>取り逃しにはならない</b>。
      * 未解放のまま完走しても必須設備・店舗・終盤投資を買えることは
      * {@code tools/simulate-cafe.sh} の unlucky が見ている。</p>
      */
@@ -269,6 +285,15 @@ final class CafeEconomy {
     private int cafeQuizFirstStreak;
     /** 復習で連続正解した、重複しない問題。失敗すると空に戻る。 */
     private final Set<String> cafeMasteryTaskRun = new LinkedHashSet<>();
+    /**
+     * 復習で連続正解した、重複しないクイズ。間違えると空に戻る。
+     *
+     * <p><b>数えるのは復習として出し直した回答だけ</b>（{@code /api/quiz} の
+     * {@code review}）。レッスン画面での答え直しは数えない ― 誤答すると正解の記号が
+     * 表示されるので、それを押すだけで並んでしまう。同じクイズを何度解いても
+     * 集合なので1回きり。</p>
+     */
+    private final Set<String> cafeQuizMasteryRun = new LinkedHashSet<>();
     /** 復習で再正解した問題。章をもう一度仕上げたかの判定と、ブランド成長に使う。 */
     private final Set<String> cafeMasteryTasks = new LinkedHashSet<>();
     /** 復習問題を最後に正解した日。日が変わったら当日分を空にする。 */
@@ -309,6 +334,35 @@ final class CafeEconomy {
         cafeQuizFirstStreak = correct ? cafeQuizFirstStreak + 1 : 0;
         refreshCafeAchievements();
         return correct ? rewardQuiz(quizKey, learning) : CafeAward.NONE;
+    }
+
+    /**
+     * 復習として出し直したクイズへの回答が届いた。<b>コインは1枚も払わない。</b>
+     *
+     * <p>数えるのは「異なるクイズへ連続して正解した数」だけで、これが
+     * {@link #QUIZ_STREAK_ITEM_RUN} に届くと📣ひらめきメガホンが解放される。
+     * 同じクイズを何度解き直しても集合なので1回きり ― でないと、覚えた1問を
+     * 繰り返すだけで並んでしまう。間違えたら連続は空に戻る。</p>
+     *
+     * <p>チップを払わないのは復習の原則そのまま（クリア済みは何度でも解けるので、
+     * 払うと無限に稼げる）。★と正解数も動かさない ― 呼び出し側は
+     * {@code quizChoices} を書き換えないので、復習で間違えても★を失わない。</p>
+     *
+     * @return 記録が変わったら true（保存の予約に使う）
+     */
+    boolean noteQuizReviewAnswered(String quizKey, boolean correct) {
+        if (!correct) {
+            if (cafeQuizMasteryRun.isEmpty()) {
+                return false;
+            }
+            cafeQuizMasteryRun.clear();
+            return true;
+        }
+        if (!cafeQuizMasteryRun.add(quizKey)) {
+            return false;
+        }
+        refreshCafeAchievements();
+        return true;
     }
 
     /**
@@ -419,6 +473,11 @@ final class CafeEconomy {
                 cafeMasteryTaskRun.add(ProgressStore.migrateKey(s));
             }
         }
+        for (Object o : MiniJson.list(cafe, "quizMasteryRun")) {
+            if (o instanceof String s) {
+                cafeQuizMasteryRun.add(ProgressStore.migrateKey(s));
+            }
+        }
         for (Object o : MiniJson.list(cafe, "masteryTasks")) {
             if (o instanceof String s) {
                 cafeMasteryTasks.add(ProgressStore.migrateKey(s));
@@ -478,6 +537,7 @@ final class CafeEconomy {
         cafe.put("achievements", new ArrayList<>(cafeAchievements));
         cafe.put("quizFirstStreak", cafeQuizFirstStreak);
         cafe.put("masteryTaskRun", new ArrayList<>(cafeMasteryTaskRun));
+        cafe.put("quizMasteryRun", new ArrayList<>(cafeQuizMasteryRun));
         cafe.put("masteryTasks", new ArrayList<>(cafeMasteryTasks));
         cafe.put("masteryDay", cafeMasteryDay);
         cafe.put("masteryDayTasks", new ArrayList<>(cafeMasteryDayTasks));
@@ -507,6 +567,7 @@ final class CafeEconomy {
         cafeAchievements.clear();
         cafeQuizFirstStreak = 0;
         cafeMasteryTaskRun.clear();
+        cafeQuizMasteryRun.clear();
         cafeMasteryTasks.clear();
         cafeMasteryDay = "";
         cafeMasteryDayTasks.clear();
@@ -566,6 +627,12 @@ final class CafeEconomy {
         cafe.put("brandMultiplierBasisPoints", brandMultiplierBasisPoints);
         cafe.put("reviewBrandBasisPoints", cafeReviewBrandBasisPoints());
         cafe.put("reviewedTasks", cafeMasteryTasks.size());
+        // 📣の進み具合。keys は「もう連続に入っているクイズ」で、復習の出題から外すのに使う
+        // （集合なので同じクイズを繰り返しても増えない ― 外さないと20問そろわない）
+        cafe.put("quizStreakGoal", QUIZ_STREAK_ITEM_RUN);
+        cafe.put("quizFirstStreak", cafeQuizFirstStreak);
+        cafe.put("quizReviewRun", cafeQuizMasteryRun.size());
+        cafe.put("quizReviewRunKeys", new ArrayList<>(cafeQuizMasteryRun));
         cafe.put("reviewedTaskPercent", reviewedTaskPercent());
         cafe.put("equipmentDiscountPercent", equipmentDiscountPercent());
         cafe.put("storeCount", cafeStores);
@@ -1101,8 +1168,12 @@ final class CafeEconomy {
         }
         boolean changed = award("same_day_15", busiestDay >= 15);
         changed |= award("streak_7", learningRecord.longestClearStreak() >= 7);
-        // 答え直しは数えない。表示された正解を押すだけで20問そろってしまうため
-        changed |= award("quiz_streak_20", cafeQuizFirstStreak >= 20);
+        // レッスン画面での答え直しは数えない（表示された正解を押すだけで20問そろう）。
+        // 数えるのは初回答の連続と、復習として出し直したクイズの連続の2つ
+        // ―― 初回答は在庫が減る一方なので、片方だけだと取り逃しが起きる。
+        changed |= award("quiz_streak_20",
+                cafeQuizFirstStreak >= QUIZ_STREAK_ITEM_RUN
+                        || cafeQuizMasteryRun.size() >= QUIZ_STREAK_ITEM_RUN);
         changed |= award("store_5", cafeStores >= 5);
         changed |= award("persistent_clear",
                 learningRecord.maxAttemptsOnAnyTask() >= RETRY_ACHIEVEMENT_ATTEMPTS);

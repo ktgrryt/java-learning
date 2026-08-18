@@ -784,10 +784,17 @@ public final class ApiHandler implements HttpHandler {
         }
 
         boolean correct = choice == quiz.answer();
+        // 復習として出し直したクイズ（復習セッションの最後に続けて出る）。チップは払わず、
+        // 選んだ答えも残さない ―― 残す・払うの判断はカフェ側にある（recordQuizReview）。
+        boolean review = body.get("review") == Boolean.TRUE;
         ProgressStore.CafeLearningProgress cafeLearning =
                 CafeApi.learningProgress(c, progress.clearedIds());
-        ProgressStore.CafeAward cafeAward =
-                progress.recordQuiz(lessonId, index, choice, correct, cafeLearning);
+        ProgressStore.CafeAward cafeAward = ProgressStore.CafeAward.NONE;
+        if (review) {
+            progress.recordQuizReview(lessonId, index, correct);
+        } else {
+            cafeAward = progress.recordQuiz(lessonId, index, choice, correct, cafeLearning);
+        }
 
         Map<String, Object> m = new LinkedHashMap<>();
         m.put("lessonId", lessonId);
@@ -800,7 +807,9 @@ public final class ApiHandler implements HttpHandler {
 
         // 概念レッスンは提出課題を持たないので、★の根拠はクイズ全問正解しかない。
         // 全問そろった回に、問題を解いたときと同じ経路で★・章クリア・報酬を出す。
-        if (lesson.concept() && correctQuizCount(lesson) == lesson.quizzes().size()) {
+        // 復習の回答では見ない ― 選んだ答えを残していないので判定材料が変わらず、
+        // すでに付いている★の報酬をもう一度なぞるだけになる。
+        if (!review && lesson.concept() && correctQuizCount(lesson) == lesson.quizzes().size()) {
             addConceptClearRewards(m, c, lesson, cafeAward);
         }
         m.put("delta", delta(lessonId));

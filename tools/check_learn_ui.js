@@ -579,6 +579,92 @@ const HELPERS = `window.__t = {
   check(jumped.inView, '飛んだ先のクイズが画面に入っている', jumped);
   check(jumped.highlighted, '飛んだ先のクイズが光る（どこへ着いたか分かる）', jumped);
 
+  // ── 復習の最後に続くクイズ（📣の取り返し）─────────────────────────────
+  //
+  // 📣ひらめきメガホンの条件は「1度目の回答で20問連続正解」だけだったので、初回答を
+  // 使い切ると**二度と取れなかった**。復習として出し直したクイズの連続正解でも解放する
+  // ようにしたのがこの経路（`/api/quiz` の `review`）。ここで見るのは3つ ―
+  // 問題のあとに続けて出ること、答える前に正解を見せないこと、そして
+  // **チップも★も動かさないこと**（動かすと「復習では払わない」原則の例外になる）。
+  const answered = await ev(`(async () => {
+    document.querySelector('.quiz-item .quiz-choice').click();
+    await window.__t.until(() => document.querySelector('.quiz-feedback'), 40);
+    const state = await (await fetch('/api/state')).json();
+    let lesson = null;
+    state.chapters.forEach(ch => ch.lessons.forEach(l => {
+      if (l.id === '${QUIZ_LESSON}') { lesson = l; }
+    }));
+    const result = (lesson.quizResults || [])[0] || {};
+    return { answer: result.answer, choice: result.choice,
+             run: state.progress.cafe.quizReviewRun };
+  })()`);
+  check(answered.answer != null && answered.run === 0,
+    'クイズへ1度目の回答をした（復習へ回る前提）', answered);
+
+  await open('#review');
+  const quizNote = await ev(
+    `((document.querySelector('.review-quiz-note') || {}).textContent || '')`);
+  check(quizNote.indexOf('クイズ') >= 0,
+    '復習ホームに「問題のあとにクイズが続く」案内が出る', quizNote);
+
+  const quizPhase = await ev(`(async () => {
+    document.getElementById('reviewStartBtn').click();
+    await window.__t.until(() => location.hash.indexOf('#review/') === 0, 40);
+    await window.__t.sleep(600);
+    for (let i = 0; i < 12 && !document.querySelector('.review-quiz-view'); i++) {
+      const skip = document.getElementById('reviewSkipBtn');
+      if (!skip) { break; }
+      skip.click();
+      await window.__t.sleep(600);
+    }
+    const view = document.querySelector('.review-quiz-view');
+    return {
+      shown: !!view,
+      feedback: !!(view && view.querySelector('.quiz-feedback')),
+      next: !!document.getElementById('reviewFooterBtn'),
+      score: view ? (view.querySelector('.quiz-score') || {}).textContent : '',
+      bar: (document.querySelector('.review-bar-progress') || {}).textContent
+    };
+  })()`);
+  check(quizPhase.shown, '問題を出し切るとクイズが続けて出る', quizPhase);
+  check(!quizPhase.feedback && !quizPhase.next,
+    '答える前は正解も解説も「次へ」も出さない', quizPhase);
+  check(String(quizPhase.score).indexOf('/ 20問') >= 0
+      && String(quizPhase.bar).indexOf('クイズ') >= 0,
+    '📣までの連続と、クイズの段であることが出ている', quizPhase);
+
+  const graded = await ev(`(async () => {
+    const before = await (await fetch('/api/state')).json();
+    document.querySelectorAll('.review-quiz-view .quiz-choice')[${answered.answer}].click();
+    await window.__t.until(() => document.querySelector('.quiz-feedback'), 40);
+    const after = await (await fetch('/api/state')).json();
+    let lesson = null;
+    after.chapters.forEach(ch => ch.lessons.forEach(l => {
+      if (l.id === '${QUIZ_LESSON}') { lesson = l; }
+    }));
+    const view = document.querySelector('.review-quiz-view');
+    return {
+      verdict: (view.querySelector('.quiz-verdict') || {}).textContent || '',
+      explain: !!view.querySelector('.quiz-explain'),
+      disabled: [...view.querySelectorAll('.quiz-choice')].every(b => b.disabled),
+      runBefore: before.progress.cafe.quizReviewRun,
+      runAfter: after.progress.cafe.quizReviewRun,
+      cashBefore: before.progress.cafe.cash,
+      cashAfter: after.progress.cafe.cash,
+      choice: ((lesson.quizResults || [])[0] || {}).choice,
+      next: ((document.getElementById('reviewFooterBtn') || {}).textContent || '')
+    };
+  })()`);
+  check(graded.verdict.indexOf('正解') >= 0 && graded.explain && graded.disabled,
+    '答えるとその回の結果と解説が出て、押し直せなくなる', graded);
+  check(graded.runAfter === graded.runBefore + 1,
+    '復習での連続正解が1つ進む', graded);
+  check(graded.cashAfter === graded.cashBefore,
+    'チップは出ない（残高が動かない）', graded);
+  check(graded.choice === answered.choice,
+    '★と正解数の根拠（選んだ答え）は書き換えない', graded);
+  check(graded.next.length > 0, '答えたあとに次へ進める', graded.next);
+
   // ── サイドバーの検索（打つ → 絞る → 開く → 章の一覧へ戻る）────────────
   //
   // 索引も照合も画面の中だけにあるので、サーバ側の検査には出ない。
@@ -844,6 +930,7 @@ const HELPERS = `window.__t = {
   }
   console.log(`\n${GREEN}LEARN UI OK: 誤答・コンパイルエラー・ヒント・模範解答・`
     + `★と報酬・1問1枚のパネル・獲得の履歴・自動保存・カフェへの寄り道と位置の復元・復習の出題・`
+    + `復習の最後に続くクイズ・`
     + `クイズのしおり・サイドバーの検索を確認しました${RESET}`);
 })().catch(e => {
   console.error(`${RED}検査を実行できませんでした: ${e.message}${RESET}`);

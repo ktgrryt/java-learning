@@ -7,7 +7,8 @@ import java.util.Map;
 
 /**
  * 「今日の1杯目」と、復習がカフェへ渡すもの（ブランド倍率・自動売上の枠・設備費割引）、
- * それに確認クイズのチップが意図どおりに効くか確かめる。
+ * それに確認クイズのチップ（1度目の回答だけ）と、復習として出し直したクイズ
+ * （何も払わず、連続正解だけを進める）が意図どおりに効くか確かめる。
  *
  * <p>どれも「1日1回」「1問1回」「枠は広がらない」という上限が要で、そこが崩れると
  * 無限に稼げてしまう。上限そのものを試すテストなので、増えることより
@@ -104,11 +105,13 @@ public final class ReviewEconomyCheck {
             reviewPassiveWindow(dir.resolve("passive.json"));
             reviewEquipmentDiscount(dir.resolve("discount.json"));
             quizTipFirstAnswerOnly(dir.resolve("quiz.json"));
+            quizReviewPaysNothing(dir.resolve("quiz-review.json"));
             System.out.println(
-                    "\nREVIEW ECONOMY OK: 今日の1杯目・復習の3経路・クイズのチップを確認しました");
+                    "\nREVIEW ECONOMY OK: 今日の1杯目・復習の3経路・クイズのチップ"
+                            + "・復習のクイズを確認しました");
         } finally {
             for (String name : new String[] { "gate.json", "daily.json", "brand.json",
-                    "passive.json", "discount.json", "quiz.json" }) {
+                    "passive.json", "discount.json", "quiz.json", "quiz-review.json" }) {
                 Files.deleteIfExists(dir.resolve(name));
             }
             Files.deleteIfExists(dir);
@@ -335,6 +338,41 @@ public final class ReviewEconomyCheck {
             p.recordQuiz("e-1", 1, 0, true, ZERO);
         }
         checkEquals("何度押しても残高は動かない", value(p, "cash"), before);
+    }
+
+    // ─── 6. 復習として出し直したクイズ ─────────────────────────────────────
+    /**
+     * 復習のクイズは、チップも★も動かさず、連続正解だけを進めること。
+     *
+     * <p>📣ひらめきメガホンの取り逃しを無くすために足した経路（{@code /api/quiz} の
+     * {@code review}）。ここで払ってしまうと、クリア済みの問題を解き直しても
+     * コインが出ないという原則の例外になる。</p>
+     */
+    private static void quizReviewPaysNothing(Path file) {
+        System.out.println("\n[復習として出し直したクイズ]");
+        ProgressStore p = new ProgressStore(file);
+
+        // 1度目の回答でチップを出し、残高を作ってから復習の回答を試す
+        p.recordQuiz("r-1", 0, 0, true, ZERO);
+        long before = value(p, "cash");
+        long streakBefore = value(p, "quizFirstStreak");
+
+        p.recordQuizReview("r-1", 0, true);
+        checkEquals("復習で正解しても残高は動かない", value(p, "cash"), before);
+        checkEquals("復習で正解しても連続（初回答ぶん）は動かない",
+                value(p, "quizFirstStreak"), streakBefore);
+        checkEquals("復習の連続正解が1つ進む", value(p, "quizReviewRun"), 1);
+
+        p.recordQuizReview("r-1", 0, true);
+        checkEquals("同じクイズを解き直しても増えない（覚えた1問の繰り返しを数えない）",
+                value(p, "quizReviewRun"), 1);
+
+        p.recordQuizReview("r-1", 1, true);
+        checkEquals("別のクイズなら進む", value(p, "quizReviewRun"), 2);
+
+        p.recordQuizReview("r-1", 2, false);
+        checkEquals("復習で間違えると0に戻る", value(p, "quizReviewRun"), 0);
+        checkEquals("戻ってもチップは出ない", value(p, "cash"), before);
     }
 
     /** 進捗ファイルの数値フィールドを書き換える（実時間の経過を待たずに状態を作る）。 */
