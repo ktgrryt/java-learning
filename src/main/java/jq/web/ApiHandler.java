@@ -50,7 +50,8 @@ import java.util.function.Supplier;
  *   <li>{@code POST /api/hint}     … ヒントを1つ開示</li>
  *   <li>{@code POST /api/solution} … 模範解答（全ヒント開示後、またはクリア後）</li>
  *   <li>{@code POST /api/preflight} … 外部ツールと開発用ポートの事前確認</li>
- *   <li>{@code POST /api/bookmark} … 問題のブックマークを付け外し（復習モードで絞り込む）</li>
+ *   <li>{@code POST /api/bookmark} … 問題のブックマーク、または確認クイズのしおりを付け外し
+ *       （{@code quizIndex} を入れるとクイズ側。問題は復習モードで絞り込み、クイズは一覧に出す）</li>
  *   <li>{@code POST /api/onboarding/complete} … 初回案内の完了を保存</li>
  *   <li>{@code POST /api/cafe/purchase} … カフェ設備を購入</li>
  *   <li>{@code POST /api/cafe/automation/purchase} … 自動営業設備を購入</li>
@@ -228,6 +229,7 @@ public final class ApiHandler implements HttpHandler {
                 lJson.put("cleared", c.isLessonCleared(lesson, cleared));
                 lJson.put("clearedCount", c.clearedCount(lesson, cleared));
                 lJson.put("quizResults", quizResults(lesson));
+                lJson.put("quizBookmarks", quizBookmarks(lesson));
                 lJson.put("rubric", lessonRubric(c, lesson, cleared));
 
                 @SuppressWarnings("unchecked")
@@ -348,6 +350,7 @@ public final class ApiHandler implements HttpHandler {
         m.put("tasks", tasks);
         m.put("lessonId", lessonId);
         m.put("quizResults", quizResults(lesson));
+        m.put("quizBookmarks", quizBookmarks(lesson));
         return m;
     }
 
@@ -471,6 +474,17 @@ public final class ApiHandler implements HttpHandler {
             dimensions.put(dimension, m);
         }
         return dimensions;
+    }
+
+    /**
+     * クイズのしおりの有無。{@code quizResults} と同じ添字で読めるよう、クイズ数と同じ長さで返す。
+     */
+    private List<Object> quizBookmarks(Lesson lesson) {
+        List<Object> flags = new ArrayList<>();
+        for (int i = 0; i < lesson.quizzes().size(); i++) {
+            flags.add(progress.isQuizBookmarked(lesson.id(), i));
+        }
+        return flags;
     }
 
     /**
@@ -750,7 +764,8 @@ public final class ApiHandler implements HttpHandler {
      * 選択式クイズの答え合わせ。
      *
      * 正解の番号はブラウザへ渡していないので、判定はここでしかできない。
-     * 答え直しは許す（最後に選んだものを記録する）。
+     * 答え直しは許す（最後に選んだものを記録する）。ただしチップは1度目の回答で
+     * 正解したときだけで、誤答のあとに表示される正解を押しても入らない。
      */
     private Object doQuiz(Map<String, Object> body) {
         Curriculum c = curriculum.get();
@@ -769,12 +784,10 @@ public final class ApiHandler implements HttpHandler {
         }
 
         boolean correct = choice == quiz.answer();
-        progress.recordQuiz(lessonId, index, choice, correct);
         ProgressStore.CafeLearningProgress cafeLearning =
                 CafeApi.learningProgress(c, progress.clearedIds());
-        ProgressStore.CafeAward cafeAward = correct
-                ? progress.rewardQuiz(lessonId, index, cafeLearning)
-                : ProgressStore.CafeAward.NONE;
+        ProgressStore.CafeAward cafeAward =
+                progress.recordQuiz(lessonId, index, choice, correct, cafeLearning);
 
         Map<String, Object> m = new LinkedHashMap<>();
         m.put("lessonId", lessonId);
@@ -797,7 +810,7 @@ public final class ApiHandler implements HttpHandler {
     /**
      * 概念レッスンの★（クイズ全問正解）を記録し、応答へ問題クリアと同じ項目を加える。
      *
-     * <p>報酬は1つの通知にまとめる。この回のクイズのチップは {@code rewardQuiz} が既に
+     * <p>報酬は1つの通知にまとめる。この回のクイズのチップは {@code recordQuiz} が既に
      * 払っているので、★と章クリアのぶんを足した合計を {@code cafeAward} として返す
      * （通知を2つ出すと、同じ操作の結果が2回流れて何が起きたか読めなくなる）。
      */
@@ -865,21 +878,31 @@ public final class ApiHandler implements HttpHandler {
     }
 
     /**
-     * 問題のブックマークを付け外しする。
+     * 問題または確認クイズのブックマーク（しおり）を付け外しする。
      *
-     * 進捗の差分（{@link #delta(String)}）は返さない。ブックマークは1問だけの切り替えなので、
+     * {@code quizIndex} が入っていればクイズ、無ければ問題。クイズのしおりは復習の出題には
+     * 関わらず、復習ホームの一覧から見に戻るためだけのものなので、期限も苦手度も動かさない。
+     *
+     * 進捗の差分（{@link #delta(String)}）は返さない。ブックマークは1件だけの切り替えなので、
      * 全問題ぶんの差分を送り返す必要がない（画面側は手元のその1件を直す）。
      */
     private Object doBookmark(Map<String, Object> body) {
         String lessonId = requireString(body, "lessonId");
-        String taskId = taskId(body);
-        requireTask(lessonId, taskId);   // 知らないIDで progress.json を汚さない
-        boolean bookmarked = progress.toggleBookmark(Lesson.taskKey(lessonId, taskId));
+        int quizIndex = MiniJson.intOf(body, "quizIndex", -1);
 
         Map<String, Object> m = new LinkedHashMap<>();
         m.put("lessonId", lessonId);
+        if (quizIndex >= 0) {
+            requireQuiz(lessonId, quizIndex);   // 知らない番号で progress.json を汚さない
+            m.put("quizIndex", quizIndex);
+            m.put("bookmarked", progress.toggleQuizBookmark(lessonId, quizIndex));
+            return m;
+        }
+
+        String taskId = taskId(body);
+        requireTask(lessonId, taskId);   // 知らないIDで progress.json を汚さない
         m.put("taskId", taskId);
-        m.put("bookmarked", bookmarked);
+        m.put("bookmarked", progress.toggleBookmark(Lesson.taskKey(lessonId, taskId)));
         return m;
     }
 
@@ -936,6 +959,15 @@ public final class ApiHandler implements HttpHandler {
                 .orElseThrow(() -> new BadRequest("知らないレッスンです: " + lessonId));
         return lesson.task(taskId)
                 .orElseThrow(() -> new BadRequest("知らない問題です: " + lessonId + "#" + taskId));
+    }
+
+    /** そのレッスンにその番号のクイズがあることを確かめる（無ければ 400）。 */
+    private void requireQuiz(String lessonId, int index) {
+        Lesson lesson = curriculum.get().lesson(lessonId)
+                .orElseThrow(() -> new BadRequest("知らないレッスンです: " + lessonId));
+        if (index < 0 || index >= lesson.quizzes().size()) {
+            throw new BadRequest("そのクイズはありません");
+        }
     }
 
     /** リクエストの taskId。1レッスン1問だった頃のクライアントでも動くよう既定は1問目。 */

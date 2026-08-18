@@ -34,6 +34,7 @@ import java.util.concurrent.TimeUnit;
  *  - 確認クイズで選んだ選択肢（正解かどうかは保存せず、出題側と突き合わせて毎回求める）
  *  - 何か1問クリアした日付の集合（連続学習日数の計算に使う）
  *  - 問題ごとの苦手度とブックマーク（復習モードの出題順に使う）
+ *  - クイズのしおり（復習ホームの一覧に出すだけ。出題順には関わらない）
  *  - Java Café の状態（売上・設備・アイテムなど。規則は {@link CafeEconomy} が持つ）
  *
  * 1レッスンに練習問題が複数あるので、★もコードもヒントも **問題ごと** に持つ。
@@ -150,6 +151,17 @@ public final class ProgressStore {
     private final Map<String, Integer> reviewWeight = new LinkedHashMap<>();
     /** ブックマークした問題キー。復習モードで絞り込める。 */
     private final Set<String> bookmarks = new LinkedHashSet<>();
+    /**
+     * ブックマークした確認クイズのキー（{@link #quizKey}）。復習ホームの一覧に出す。
+     *
+     * <p><b>{@link #bookmarks} と分けてある。</b>クイズキー（{@code 5-2#1} = 2問目）は
+     * 問題キー（{@code 5-2#1} = 問題1）と同じ形なので、同じ集合へ入れると
+     * 「問題1」と「クイズ2問目」が同一視される。</p>
+     *
+     * <p>こちらは復習の出題には一切関わらない（クイズは解き直す提出物を持たないので、
+     * 期限も苦手度も持たない）。押すとそのクイズまで戻れる、しおりだけの役目。</p>
+     */
+    private final Set<String> quizBookmarks = new LinkedHashSet<>();
     /**
      * 問題キー -> 復習の予定。忘却曲線でいつ確認するかを決める。
      *
@@ -391,6 +403,11 @@ public final class ProgressStore {
         return bookmarks.contains(taskKey);
     }
 
+    /** そのクイズにしおりが付いているか。 */
+    public synchronized boolean isQuizBookmarked(String lessonId, int index) {
+        return quizBookmarks.contains(quizKey(lessonId, index));
+    }
+
     /**
      * 初回オンボーディングを表示すべきか。
      *
@@ -568,11 +585,7 @@ public final class ProgressStore {
         return cafe.rewardChapter(chapterId, learning, chapterTaskCount);
     }
 
-    /** クイズに初めて正解したときのチップ。 */
-    public synchronized CafeAward rewardQuiz(
-            String lessonId, int index, CafeLearningProgress learning) {
-        return cafe.rewardQuiz(lessonId, index, learning);
-    }
+    // クイズのチップは回答の記録と同じできごとなので、窓口は recordQuiz の方にある。
 
     public synchronized PurchaseResult purchaseCafeUpgrade(String id) {
         return cafe.purchaseCafeUpgrade(id);
@@ -824,6 +837,22 @@ public final class ProgressStore {
         return bookmarked;
     }
 
+    /**
+     * 確認クイズのしおりを付け外しして、切り替え後の状態を返す。
+     *
+     * 答える前のクイズにも付けられる（気になった問いを後で見に行けるように）。
+     * 復習の出題には関わらないので、期限も苦手度も動かさない。
+     */
+    public synchronized boolean toggleQuizBookmark(String lessonId, int index) {
+        String key = quizKey(lessonId, index);
+        boolean bookmarked = !quizBookmarks.remove(key);
+        if (bookmarked) {
+            quizBookmarks.add(key);
+        }
+        saveSoon();
+        return bookmarked;
+    }
+
     /** ヒントを1つ開示したことを記録し、開示済み総数を返す。 */
     public synchronized int revealHint(String taskKey, int index) {
         int current = hintsRevealed.getOrDefault(taskKey, 0);
@@ -836,15 +865,20 @@ public final class ProgressStore {
     /**
      * クイズの回答を記録する（答え直したら上書きする）。
      *
-     * 初回答の連続記録は従来どおり残す。取り逃した場合は、答え直しを含む
-     * 重複しない20問の連続正解でも復習達成できる。同じクイズの連打では増えない。
+     * <p>何度でも答え直せるが、チップが出るのは<b>1度目の回答で正解したとき</b>だけ。
+     * ここが持っているのは「何度目の回答か」だけで、いくら払うかはカフェが決める
+     * （{@code CafeEconomy#noteQuizAnswered}）。</p>
+     *
+     * @return この回で払ったチップ。2度目以降の回答と不正解では {@link CafeAward#NONE}
      */
-    public synchronized void recordQuiz(String lessonId, int index, int choice, boolean correct) {
+    public synchronized CafeAward recordQuiz(String lessonId, int index, int choice,
+                                             boolean correct, CafeLearningProgress learning) {
         String key = quizKey(lessonId, index);
         boolean firstAnswer = !quizChoices.containsKey(key);
         quizChoices.put(key, choice);
-        cafe.noteQuizAnswered(key, correct, firstAnswer);
+        CafeAward award = cafe.noteQuizAnswered(key, correct, firstAnswer, learning);
         saveSoon();
+        return award;
     }
 
     /** 進捗を全て消す。 */
@@ -885,6 +919,7 @@ public final class ProgressStore {
         clearDates.clear();
         reviewWeight.clear();
         bookmarks.clear();
+        quizBookmarks.clear();
         reviewPlans.clear();
         cafe.reset();
     }
@@ -1019,6 +1054,12 @@ public final class ProgressStore {
             for (Object o : MiniJson.list(root, "bookmarks")) {
                 if (o instanceof String s) {
                     bookmarks.add(migrateKey(s));
+                }
+            }
+            // クイズのしおりは最初から "レッスンID#番号" なので読み替えは要らない
+            for (Object o : MiniJson.list(root, "quizBookmarks")) {
+                if (o instanceof String s) {
+                    quizBookmarks.add(s);
                 }
             }
             // 層の達成日はカフェとは無関係な学習の記録なので、cafe の有無で読み分けない
@@ -1195,6 +1236,7 @@ public final class ProgressStore {
         });
         m.put("reviewPlans", plans);
         m.put("bookmarks", new ArrayList<>(bookmarks));
+        m.put("quizBookmarks", new ArrayList<>(quizBookmarks));
         m.put("layerCompletions", new LinkedHashMap<>(layerCompletions));
 
         m.put("cafe", this.cafe.toJson());
@@ -1212,6 +1254,7 @@ public final class ProgressStore {
                 || !clearDates.isEmpty()
                 || !reviewWeight.isEmpty()
                 || !bookmarks.isEmpty()
+                || !quizBookmarks.isEmpty()
                 || !reviewPlans.isEmpty();
     }
 

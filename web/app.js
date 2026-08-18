@@ -56,6 +56,7 @@
   var reviewSummary = null; // 直前に終えたセッションの結果。復習ホームの先頭に1回だけ出す
   var REVIEW_SESSION_SIZE = 10;
   var REVIEW_LIST_LIMIT = 50; // 一覧に並べる上限。残りは件数だけ知らせる
+  var quizFocus = null;     // しおりから開いたクイズ { lessonId, index }。描画側で1回だけ使う
 
   var activeCafeSection = 'equipment'; // equipment / network / items
   var cafePassiveTimer = null;
@@ -925,9 +926,17 @@
   /**
    * 「続ける」の下に置く復習の入口。
    * まだ1問もクリアしていないうちは解き直せるものが無いので、押せないまま理由を出す。
+   *
+   * ただしクイズのしおりは★0でも付けられて、置き場所は復習ホームしかない。
+   * 押せないままにすると付けた印へ戻れなくなるので、しおりがあるなら開けるようにする。
    */
   function reviewHeroButtonHtml(stars) {
     if (!stars) {
+      var marks = quizBookmarkEntries().length;
+      if (marks) {
+        return '<button class="ghost-btn big review-cta" id="reviewBtn">🔁 復習する' +
+          '<small>クイズのしおり ' + marks + '件</small></button>';
+      }
       return '<button class="ghost-btn big review-cta" id="reviewBtn" disabled' +
         ' title="問題を1問クリアすると復習できます">🔁 復習する' +
         '<small>クリア後に使えます</small></button>';
@@ -1124,6 +1133,7 @@
       '  </header>';
 
     if (!counts.all) {
+      // クイズのしおりは★0でも付けられるので、解き直せる問題が無い日でもここに出す
       main.innerHTML =
         '<div class="menu review-page">' + head +
         '  <section class="menu-section review-empty">' +
@@ -1132,9 +1142,11 @@
         '    <p>問題を1問クリアすると、ここで解き直せるようになります。</p></div>' +
         '    <button class="primary-btn" id="reviewEmptyBtn">章を選ぶ</button>' +
         '  </section>' +
+             quizBookmarkSectionHtml() +
         '</div>';
       document.getElementById('backToLearningBtn').addEventListener('click', goHome);
       document.getElementById('reviewEmptyBtn').addEventListener('click', goHome);
+      bindReviewRows(main);
       main.scrollTop = 0;
       return;
     }
@@ -1181,6 +1193,7 @@
           + '問。「復習を始める」なら一覧に出ていない問題からも出題します。</p>'
         : '') +
       '  </section>' +
+         quizBookmarkSectionHtml() +
       '</div>';
 
     document.getElementById('backToLearningBtn').addEventListener('click', goHome);
@@ -1188,12 +1201,7 @@
       startReviewSession(filter);
     });
     bindReviewFilters(main);
-    Array.prototype.forEach.call(main.getElementsByClassName('review-row-main'), function (button) {
-      button.addEventListener('click', function () {
-        selectReviewTask(button.dataset.lesson, button.dataset.task);
-      });
-    });
-    bindBookmarkButtons(main);
+    bindReviewRows(main);
     // 結果の知らせは1回だけ。開き直すたびに前回の成績が出ると、今の状態が読みにくい
     reviewSummary = null;
     main.scrollTop = 0;
@@ -1301,6 +1309,133 @@
       '</button>' +
       bookmarkButtonHtml(lesson.id, entry.task) +
       '</li>';
+  }
+
+  // ----------------------------------------- ブックマークしたクイズの一覧
+
+  /*
+   * クイズは復習で出題しない（解き直す提出物が無く、期限も苦手度も持たない）。
+   * ここは「あとで見に戻る」ためのしおりの置き場所である。
+   *
+   * 解き直す一覧（1問だけ選んで復習する）と同じ節に混ぜると、押した先が出題なのか
+   * 移動なのか区別が付かなくなるので、節を分けて見出しにもそう書く。
+   */
+
+  /** しおりを付けたクイズを、章の順に並べて返す。 */
+  function quizBookmarkEntries() {
+    var list = [];
+    allLessons().forEach(function (lesson) {
+      (lesson.quizBookmarks || []).forEach(function (on, index) {
+        var quiz = (lesson.quizzes || [])[index];
+        // 教材からクイズが減ったときは、印だけ残っていても出さない
+        if (!on || !quiz) { return; }
+        list.push({
+          lesson: lesson,
+          index: index,
+          question: questionHeadline(quiz.question),
+          result: (lesson.quizResults || [])[index] || null
+        });
+      });
+    });
+    return list;
+  }
+
+  /** 答え合わせの状態。色だけに頼らないよう、言葉も一緒に返す。 */
+  function quizBookmarkState(result) {
+    if (!result) { return { text: '未回答', cls: '' }; }
+    return result.correct
+      ? { text: '✅ 正解', cls: ' is-ok' }
+      : { text: '❌ 不正解', cls: ' is-ng' };
+  }
+
+  function quizBookmarkSectionHtml() {
+    var entries = quizBookmarkEntries();
+    if (!entries.length) { return ''; }
+    var shown = entries.slice(0, REVIEW_LIST_LIMIT);
+    var hidden = entries.length - shown.length;
+    return '  <section class="menu-section review-list-section">' +
+      '    <header class="section-heading">' +
+      '      <div><span class="screen-eyebrow">BOOKMARKED QUIZ</span>' +
+      '      <h2 class="menu-h2">🔖 ブックマークしたクイズ</h2></div>' +
+      '      <p class="menu-note">押すとそのクイズへ移動します（出題はされません）。</p>' +
+      '    </header>' +
+      '    <ul class="review-list">' + shown.map(quizBookmarkRowHtml).join('') + '</ul>' +
+      (hidden ? '    <p class="menu-note review-list-more">ほか ' + hidden + '件。</p>' : '') +
+      '  </section>';
+  }
+
+  function quizBookmarkRowHtml(entry) {
+    var chapter = chapterOf(entry.lesson.id);
+    var state = quizBookmarkState(entry.result);
+    return '<li class="review-row">' +
+      '<button type="button" class="review-row-main" data-lesson="' + esc(entry.lesson.id) + '"' +
+      ' data-quiz="' + entry.index + '">' +
+      '<span class="review-row-id">' + esc(displayLessonId(entry.lesson)) + '</span>' +
+      '<span class="review-row-copy"><strong>' + esc(entry.question) + '</strong>' +
+      '<small>' + (chapter ? '第' + displayChapterNumber(chapter) + '章 · ' : '') +
+      esc(entry.lesson.title) + ' · Q' + (entry.index + 1) + '</small></span>' +
+      '<span class="quiz-bookmark-state' + state.cls + '">' + esc(state.text) + '</span>' +
+      '</button>' +
+      quizBookmarkButtonHtml(entry.lesson, entry.index) +
+      '</li>';
+  }
+
+  /** 一覧の行（問題は解き直す、クイズは見に行く）と、しおりのボタンを繋ぐ。 */
+  function bindReviewRows(host) {
+    Array.prototype.forEach.call(host.getElementsByClassName('review-row-main'), function (button) {
+      button.addEventListener('click', function () {
+        if (button.dataset.quiz != null) {
+          openBookmarkedQuiz(button.dataset.lesson, Number(button.dataset.quiz));
+          return;
+        }
+        selectReviewTask(button.dataset.lesson, button.dataset.task);
+      });
+    });
+    bindBookmarkButtons(host);
+  }
+
+  /**
+   * しおりを付けたクイズを開く。
+   *
+   * スクロールは描き終わったあとに行う（{@link renderLesson} は最後に「読んでいた位置」を
+   * 入れるので、描く前に動かしても上書きされる）。同じレッスン内の移動は
+   * {@link goToTask} と同じ考え方で、控えを1つ置いて描画側で消費する。
+   */
+  function openBookmarkedQuiz(lessonId, index) {
+    if (!findLesson(lessonId)) { return; }
+    quizFocus = { lessonId: lessonId, index: index };
+    selectLesson(lessonId);
+  }
+
+  /** 控えがこのレッスンのものなら、そのクイズまでスクロールして少しの間だけ光らせる。 */
+  function focusBookmarkedQuiz(lesson) {
+    if (!quizFocus || quizFocus.lessonId !== lesson.id) { return; }
+    var item = document.getElementById(quizItemId(quizFocus.index));
+    quizFocus = null;
+    if (!item) { return; }
+    item.scrollIntoView({ block: 'center' });
+    item.classList.add('is-target');
+    setTimeout(function () { item.classList.remove('is-target'); }, 2000);
+  }
+
+  /**
+   * 一覧の1行に出す問い文。
+   *
+   * 問いに ``` のコード欄が付いていることがあるので、最初のコード欄より前だけを使う。
+   * 全体を詰めると「次のコードの出力はどれでしょう。javaSystem.out.print("A"); …」のように
+   * コードが混ざって、どの問いなのか読めなくなる。
+   */
+  function questionHeadline(question) {
+    var text = String(question || '');
+    var head = text.split('```')[0];
+    return plainText(head.trim() ? head : text);
+  }
+
+  /** Markdownの記法を落とした素の文。一覧の1行に詰めるときに使う。 */
+  function plainText(markdown) {
+    var box = document.createElement('div');
+    box.innerHTML = renderMarkdown(markdown || '');
+    return (box.textContent || '').replace(/\s+/g, ' ').trim();
   }
 
   // --------------------------------------------------- 復習で1問を解き直す
@@ -1486,11 +1621,40 @@
     return on ? 'ブックマークを外す' : 'ブックマークに入れて、あとで重点的に復習する';
   }
 
+  /**
+   * クイズの問いに置くしおりボタン。
+   *
+   * クイズは復習で出題しないので、付けても出題順は変わらない（あとで見に戻るための印）。
+   * そのぶん説明文も問題側とは変える。
+   */
+  function quizBookmarkButtonHtml(lesson, index) {
+    var on = quizBookmarked(lesson, index);
+    return '<button type="button" class="bookmark-btn' + (on ? ' on' : '') + '"' +
+      ' data-lesson="' + esc(lesson.id) + '" data-quiz="' + index + '"' +
+      ' aria-pressed="' + on + '" title="' + quizBookmarkTitle(on) + '">' +
+      '<span class="bookmark-mark">' + bookmarkIconSvg(on) + '</span>' +
+      '<span class="bookmark-label">ブックマーク</span></button>';
+  }
+
+  function quizBookmarkTitle(on) {
+    return on ? 'クイズのしおりを外す' : 'しおりを付けて、復習画面からこのクイズへ戻れるようにする';
+  }
+
+  function quizBookmarked(lesson, index) {
+    return !!(lesson.quizBookmarks || [])[index];
+  }
+
+  function quizItemId(index) { return 'quiz-item-' + index; }
+
   function bindBookmarkButtons(host) {
     Array.prototype.forEach.call(host.getElementsByClassName('bookmark-btn'), function (button) {
       button.addEventListener('click', function (event) {
         // 一覧では行そのものが「その問題を復習する」ボタンなので、そちらへ渡さない
         event.stopPropagation();
+        if (button.dataset.quiz != null) {
+          toggleQuizBookmark(button.dataset.lesson, Number(button.dataset.quiz), button);
+          return;
+        }
         toggleBookmark(button.dataset.lesson, button.dataset.task, button);
       });
     });
@@ -1523,9 +1687,42 @@
   function applyBookmarkButton(button, bookmarked) {
     button.classList.toggle('on', bookmarked);
     button.setAttribute('aria-pressed', String(bookmarked));
-    button.title = bookmarkTitle(bookmarked);
+    button.title = button.dataset.quiz != null
+      ? quizBookmarkTitle(bookmarked)
+      : bookmarkTitle(bookmarked);
     var mark = button.querySelector('.bookmark-mark');
     if (mark) { mark.innerHTML = bookmarkIconSvg(bookmarked); }
+  }
+
+  /**
+   * クイズのしおりを付け外しする。
+   *
+   * 手元の状態（{@code lesson.quizBookmarks}）を直すのは問題側と同じ理由で、
+   * レッスン画面では描き直さずボタンの見た目だけ変える（描き直すと解答済みの
+   * 答え合わせとエディタが消える）。復習ホームでは件数と一覧が変わるので描き直す。
+   */
+  function toggleQuizBookmark(lessonId, index, button) {
+    if (button) { button.disabled = true; }
+    api('bookmark', { lessonId: lessonId, quizIndex: index })
+      .then(function (res) {
+        var lesson = findLesson(res.lessonId);
+        if (lesson) {
+          if (!lesson.quizBookmarks) { lesson.quizBookmarks = []; }
+          lesson.quizBookmarks[res.quizIndex] = res.bookmarked;
+        }
+        if (currentView === 'review') {
+          renderReview();
+        } else if (button) {
+          applyBookmarkButton(button, res.bookmarked);
+        }
+        toast(res.bookmarked
+          ? '🔖 クイズにしおりを付けました'
+          : '☆ クイズのしおりを外しました');
+      })
+      .catch(toastError)
+      .then(function () {
+        if (button) { button.disabled = false; }
+      });
   }
 
   // ---------------------------------------------------------- カフェ描画
@@ -1931,7 +2128,8 @@
     },
     tips: {
       name: '正解チップ',
-      body: '確認クイズに初めて正解したときの追加コインが増えます。'
+      body: '確認クイズに1度目の回答で正解したときの追加コインが増えます。'
+        + '答え直しの正解では出ません。'
     },
     streak: {
       name: '今日の1杯目',
@@ -2572,6 +2770,8 @@
     // 直前に離れたレッスンへ帰ってきたときだけ、読んでいた位置から再開する。
     // 中身の高さが足りなければ入れた値は縮められるが、それはその窓での行き止まりなので任せる。
     main.scrollTop = lessonScroll && lessonScroll.lessonId === lesson.id ? lessonScroll.top : 0;
+    // しおりから開いたときは、読んでいた位置より「そのクイズ」を優先する
+    focusBookmarkedQuiz(lesson);
   }
 
   var PREFLIGHT_READY_MAX_AGE = 7 * 24 * 60 * 60 * 1000;
@@ -3075,6 +3275,13 @@
       if (r) { answered++; if (r.correct) { correct++; } }
     });
 
+    // チップの条件は答える前に見えていないと意味がないので、注記へ入れる
+    // （答え直しの正解にも払うと、表示された正解を押すだけでコインが増えてしまう）
+    var note = (lesson.type === 'concept'
+      ? '全問正解すると★が付きます。'
+      : '★ の判定には影響しません。')
+      + '何度でも答え直せますが、チップは1度目の回答で正解したときだけです。';
+
     host.innerHTML =
       '<div class="card card-quiz">' +
       '  <div class="quiz-head">' +
@@ -3083,10 +3290,10 @@
              (answered < quizzes.length ? '（未回答 ' + (quizzes.length - answered) + '）' : '') +
       '    </span>' +
       '  </div>' +
-      '  <p class="quiz-note">' + (lesson.type === 'concept'
-        ? '全問正解すると★が付きます。何度でも答え直せます。'
-        : '★ の判定には影響しません。何度でも答え直せます。') + '</p>' +
-      quizzes.map(function (q, i) { return quizItemHtml(q, i, results[i]); }).join('') +
+      '  <p class="quiz-note">' + note + '</p>' +
+      quizzes.map(function (q, i) {
+        return quizItemHtml(lesson, q, i, results[i]);
+      }).join('') +
       '</div>';
 
     var buttons = host.getElementsByClassName('quiz-choice');
@@ -3095,9 +3302,10 @@
         answerQuiz(Number(btn.dataset.index), Number(btn.dataset.choice));
       });
     });
+    bindBookmarkButtons(host);
   }
 
-  function quizItemHtml(quiz, index, result) {
+  function quizItemHtml(lesson, quiz, index, result) {
     var choices = quiz.choices.map(function (text, i) {
       var cls = 'quiz-choice';
       if (result) {
@@ -3110,8 +3318,12 @@
         '</button>';
     }).join('');
 
-    return '<div class="quiz-item">' +
-      '  <div class="quiz-q"><span class="quiz-no">Q' + (index + 1) + '</span>' + renderMarkdown(quiz.question) + '</div>' +
+    // id は復習ホームのしおりから飛んでくる先（focusBookmarkedQuiz が引く）
+    return '<div class="quiz-item" id="' + quizItemId(index) + '">' +
+      '  <div class="quiz-item-head">' +
+      '    <div class="quiz-q"><span class="quiz-no">Q' + (index + 1) + '</span>' + renderMarkdown(quiz.question) + '</div>' +
+           quizBookmarkButtonHtml(lesson, index) +
+      '  </div>' +
       '  <div class="quiz-choices">' + choices + '</div>' +
          quizFeedbackHtml(result) +
       '</div>';

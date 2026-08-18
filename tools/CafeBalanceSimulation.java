@@ -263,11 +263,13 @@ public final class CafeBalanceSimulation {
                     }
                     for (int i = 0; i < lesson.quizzes().size(); i++) {
                         int answer = lesson.quizzes().get(i).answer();
-                        progress.recordQuiz(lesson.id(), i, answer, true);
-                        progress.rewardQuiz(lesson.id(), i, learning(curriculum, progress));
+                        // 1度目の回答で正解する筋書き（チップが出るのはこのときだけ）
+                        progress.recordQuiz(
+                                lesson.id(), i, answer, true, learning(curriculum, progress));
                         if (review) {
-                            // 初回のチップを払い終えた後の正解＝復習として数えられる回
-                            progress.recordQuiz(lesson.id(), i, answer, true);
+                            // 押し直しても何も入らないことを、試算の側でも通しておく
+                            progress.recordQuiz(
+                                    lesson.id(), i, answer, true, learning(curriculum, progress));
                         }
                         buyAllAffordable(progress, learning(curriculum, progress), strategy);
                     }

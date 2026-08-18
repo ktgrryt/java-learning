@@ -6,8 +6,8 @@ import java.time.LocalDate;
 import java.util.Map;
 
 /**
- * 「今日の1杯目」と、復習がカフェへ渡すもの（ブランド倍率・自動売上の枠・設備費割引）が
- * 意図どおりに効くか確かめる。
+ * 「今日の1杯目」と、復習がカフェへ渡すもの（ブランド倍率・自動売上の枠・設備費割引）、
+ * それに確認クイズのチップが意図どおりに効くか確かめる。
  *
  * <p>どれも「1日1回」「1問1回」「枠は広がらない」という上限が要で、そこが崩れると
  * 無限に稼げてしまう。上限そのものを試すテストなので、増えることより
@@ -103,10 +103,12 @@ public final class ReviewEconomyCheck {
             reviewBrand(dir.resolve("brand.json"));
             reviewPassiveWindow(dir.resolve("passive.json"));
             reviewEquipmentDiscount(dir.resolve("discount.json"));
-            System.out.println("\nREVIEW ECONOMY OK: 今日の1杯目と復習の3経路を確認しました");
+            quizTipFirstAnswerOnly(dir.resolve("quiz.json"));
+            System.out.println(
+                    "\nREVIEW ECONOMY OK: 今日の1杯目・復習の3経路・クイズのチップを確認しました");
         } finally {
-            for (String name : new String[] {
-                    "gate.json", "daily.json", "brand.json", "passive.json", "discount.json" }) {
+            for (String name : new String[] { "gate.json", "daily.json", "brand.json",
+                    "passive.json", "discount.json", "quiz.json" }) {
                 Files.deleteIfExists(dir.resolve(name));
             }
             Files.deleteIfExists(dir);
@@ -304,6 +306,35 @@ public final class ReviewEconomyCheck {
                 value(p, "equipmentDiscountPercent"), 20);
         checkEquals("復習率は画面表示用に数えている",
                 value(p, "reviewedTaskPercent"), 100);
+    }
+
+    // ─── 5. 確認クイズのチップは1度目の回答だけ ────────────────────────────
+    /**
+     * 誤答のあとに表示された正解を押しても、チップが出ないこと。
+     *
+     * <p>不正解のフィードバックは正解の記号を出すので、答え直しにも払うとクイズが
+     * 「読んで押すだけの入金口」になる。復習の提出でコインを払わないのと同じ上限。</p>
+     */
+    private static void quizTipFirstAnswerOnly(Path file) {
+        System.out.println("\n[確認クイズのチップ]");
+        ProgressStore p = new ProgressStore(file);
+
+        ProgressStore.CafeAward first = p.recordQuiz("e-1", 0, 0, true, ZERO);
+        check("1度目の回答で正解 → チップが出る（" + first.cash() + "）", first.cash() > 0);
+        checkEquals("同じクイズを押し直しても増えない",
+                p.recordQuiz("e-1", 0, 0, true, ZERO).cash(), 0);
+
+        checkEquals("不正解ではチップが出ない",
+                p.recordQuiz("e-1", 1, 1, false, ZERO).cash(), 0);
+        checkEquals("答え直して正解してもチップは出ない",
+                p.recordQuiz("e-1", 1, 0, true, ZERO).cash(), 0);
+
+        // 残高でも確かめる（払わないのに他の経路で増えていたら、それも取り逃したい）
+        long before = value(p, "cash");
+        for (int i = 0; i < 10; i++) {
+            p.recordQuiz("e-1", 1, 0, true, ZERO);
+        }
+        checkEquals("何度押しても残高は動かない", value(p, "cash"), before);
     }
 
     /** 進捗ファイルの数値フィールドを書き換える（実時間の経過を待たずに状態を作る）。 */

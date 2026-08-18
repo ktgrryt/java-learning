@@ -5,7 +5,7 @@
  *
  * 見るのは「1問を解き切るまでの経路」全体である。
  *   誤答 → コンパイルエラー → ヒント → 模範解答 → 正解（★・コイン・通知）→ 自動保存
- *   → カフェへ寄り道して同じ位置で再開 → 復習
+ *   → カフェへ寄り道して同じ位置で再開 → 復習 → クイズのしおり
  * サーバー側の採点は `verify-solutions.sh` が見るので、ここでは
  * **画面がその結果をどう受け取って描くか**（`renderJudgement` / `applyDelta` / 通知 / 復習の出題）
  * だけを確かめる。
@@ -31,6 +31,8 @@ const GREEN = '\x1b[32m', RED = '\x1b[31m', RESET = '\x1b[0m';
 /** 検査対象の問題。`1-1` は最初のレッスン（Hello, Java!）。 */
 const LESSON = '1-1';
 const TASK = '1';
+/** クイズのしおりを試すレッスン。`1-1` にはクイズが無いので、クイズを持つ最初のレッスンを使う。 */
+const QUIZ_LESSON = '1-3';
 /** 自動保存が効いているかを見るための目印。模範解答の末尾へ足す。 */
 const SAVE_MARK = '// 自動保存の目印';
 
@@ -414,6 +416,77 @@ const HELPERS = `window.__t = {
   check(session.weightBadge.length > 0, '苦手度のバッジが出る', session.weightBadge);
   check(session.bar, '復習を抜ける／飛ばす操作が出ている', session.bar);
 
+  // ── クイズのしおり（付ける → 復習ホームの一覧 → そのクイズへ戻る）──────
+  //
+  // クイズは復習で出題しないので、この経路（印を付けて、一覧から見に戻る）は
+  // ここでしか通らない。しおりの状態は描き直さずボタンだけ変えるので、
+  // サーバへ届いたかは /api/state を読んで確かめる。
+  await open(`#${QUIZ_LESSON}`);
+  const quizPage = await ev(`(() => ({
+    items: document.querySelectorAll('.quiz-item').length,
+    marks: document.querySelectorAll('.quiz-item-head .bookmark-btn').length,
+    on: document.querySelectorAll('.quiz-item-head .bookmark-btn.on').length
+  }))()`);
+  if (!quizPage.items) {
+    console.log(`${RED}この検査は ${QUIZ_LESSON} に確認クイズがある前提です。`
+      + `教材を変えたなら、対象を差し替えてください（tools/check_learn_ui.js の QUIZ_LESSON）${RESET}`);
+    close();
+    process.exit(1);
+  }
+  check(quizPage.marks === quizPage.items,
+    `${QUIZ_LESSON} のクイズすべてにしおりのボタンがある`, quizPage);
+  check(quizPage.on === 0, '最初はどのクイズにも付いていない', quizPage.on);
+
+  const marked = await ev(`(async () => {
+    const btn = document.querySelector('.quiz-item-head .bookmark-btn');
+    btn.click();
+    const on = await window.__t.until(() => btn.classList.contains('on'), 40);
+    const state = await (await fetch('/api/state')).json();
+    let lesson = null;
+    state.chapters.forEach(ch => ch.lessons.forEach(l => {
+      if (l.id === '${QUIZ_LESSON}') { lesson = l; }
+    }));
+    return { on: !!on, pressed: btn.getAttribute('aria-pressed'),
+             saved: (lesson && lesson.quizBookmarks) || [] };
+  })()`);
+  check(marked.on && marked.pressed === 'true', 'クイズにしおりを付けられる', marked);
+  check(marked.saved[0] === true && marked.saved[1] === false,
+    '付けた1問だけがサーバに残る（/api/state の quizBookmarks）', marked.saved);
+
+  await open('#review');
+  const marks = await ev(`(() => {
+    const rows = [...document.querySelectorAll('.review-row-main[data-quiz]')];
+    const first = rows[0];
+    return {
+      count: rows.length,
+      lesson: first ? first.dataset.lesson : '',
+      index: first ? first.dataset.quiz : '',
+      state: first ? (first.querySelector('.quiz-bookmark-state') || {}).textContent || '' : '',
+      text: first ? ((first.querySelector('.review-row-copy strong') || {}).textContent || '').trim() : ''
+    };
+  })()`);
+  check(marks.count === 1 && marks.lesson === QUIZ_LESSON && marks.index === '0',
+    '復習ホームの一覧にしおりを付けたクイズが出る', marks);
+  check(marks.text.length > 0 && marks.text.indexOf('`') < 0,
+    '一覧の問い文はMarkdownの記法を落として出す', marks.text.slice(0, 40));
+  check(marks.state.indexOf('未回答') >= 0, '答える前は「未回答」と出る', marks.state);
+
+  const jumped = await ev(`(async () => {
+    document.querySelector('.review-row-main[data-quiz]').click();
+    await window.__t.until(() => document.getElementById('quiz-item-0'), 40);
+    const item = document.getElementById('quiz-item-0');
+    const view = document.getElementById('content').getBoundingClientRect();
+    const box = item ? item.getBoundingClientRect() : null;
+    return {
+      hash: location.hash,
+      highlighted: !!(item && item.classList.contains('is-target')),
+      inView: !!box && box.top < view.bottom && box.bottom > view.top
+    };
+  })()`);
+  check(jumped.hash === `#${QUIZ_LESSON}`, 'しおりの行からそのレッスンへ移動する', jumped.hash);
+  check(jumped.inView, '飛んだ先のクイズが画面に入っている', jumped);
+  check(jumped.highlighted, '飛んだ先のクイズが光る（どこへ着いたか分かる）', jumped);
+
   const errors = await ev(`window.__jqErrors || []`);
   check(errors.length === 0, '画面のJavaScriptが例外を出していない', errors);
 
@@ -423,7 +496,8 @@ const HELPERS = `window.__t = {
     process.exit(1);
   }
   console.log(`\n${GREEN}LEARN UI OK: 誤答・コンパイルエラー・ヒント・模範解答・`
-    + `★と報酬・自動保存・カフェへの寄り道と位置の復元・復習の出題を確認しました${RESET}`);
+    + `★と報酬・自動保存・カフェへの寄り道と位置の復元・復習の出題・`
+    + `クイズのしおりを確認しました${RESET}`);
 })().catch(e => {
   console.error(`${RED}検査を実行できませんでした: ${e.message}${RESET}`);
   process.exit(1);

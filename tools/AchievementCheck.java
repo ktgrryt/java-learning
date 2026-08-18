@@ -71,7 +71,7 @@ public final class AchievementCheck {
         }
         p.ensureCafeCompletionCatchUp(300, 300);          // ★条件の2種
         for (int i = 0; i < 20; i++) {
-            p.recordQuiz("allq", i, 0, true);             // quiz_streak_20
+            p.recordQuiz("allq", i, 0, true, ZERO);       // quiz_streak_20
         }
         for (int i = 0; i < 10; i++) {
             p.recordAttempt("all#1");                     // persistent_clear
@@ -249,13 +249,27 @@ public final class AchievementCheck {
 
             // ── 4. クイズ20問連続の初回正解 → ひらめきメガホン ───────────────
             for (int i = 0; i < 19; i++) {
-                fresh.recordQuiz("q-1", i, 0, true);
+                fresh.recordQuiz("q-1", i, 0, true, ZERO);
             }
             check("19問では出ない: quiz_crown", has(fresh, "quiz_crown"), false);
-            fresh.recordQuiz("q-1", 19, 0, true);
+            // 答え直しは1度目の回答ではないので連続へ数えない（不正解のフィードバックは
+            // 正解の記号を出すので、数えると押すだけで20問そろってしまう）
+            fresh.recordQuiz("q-1", 18, 0, true, ZERO);
+            check("答え直しでは伸びない: quiz_crown", has(fresh, "quiz_crown"), false);
+            fresh.recordQuiz("q-1", 19, 0, true, ZERO);
             check("20問連続で初回正解: quiz_crown", has(fresh, "quiz_crown"), true);
-            fresh.recordQuiz("q-2", 0, 1, false);
+            fresh.recordQuiz("q-2", 0, 1, false, ZERO);
             check("間違えても残る: quiz_crown", has(fresh, "quiz_crown"), true);
+
+            // ── 4.5 1度目に間違えたクイズは、正解し直しても連続へ戻らない ─────
+            ProgressStore retried = new ProgressStore(dir.resolve("retry.json"));
+            for (int i = 0; i < 19; i++) {
+                retried.recordQuiz("r-1", i, 0, true, ZERO);
+            }
+            retried.recordQuiz("r-1", 19, 1, false, ZERO);   // 20問目を1度目に間違える
+            retried.recordQuiz("r-1", 19, 0, true, ZERO);    // 正解を押し直す
+            check("答え直しでは20問連続にならない: quiz_crown",
+                    has(retried, "quiz_crown"), false);
 
             // ── 5. 章をヒントなし・同じ日に全問クリア → ケーキとしおり ────────
             check("まだ出ない: first_try_tamper", has(fresh, "first_try_tamper"), false);
@@ -425,7 +439,7 @@ public final class AchievementCheck {
         } finally {
             for (String name : new String[] {
                     "catch-up.json", "dated.json", "spam.json", "review.json", "lucky.json",
-                    "review-lucky.json", "reload-lucky.json",
+                    "review-lucky.json", "reload-lucky.json", "retry.json",
                     "replay.json", "other.json", "progress.json" }) {
                 Files.deleteIfExists(dir.resolve(name));
             }

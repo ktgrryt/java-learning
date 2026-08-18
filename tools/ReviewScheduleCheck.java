@@ -3,7 +3,12 @@ import jq.progress.ProgressStore;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
-/** 忘却曲線の期限と、細かくした苦手度の目盛りを確かめる。 */
+/**
+ * 忘却曲線の期限と、細かくした苦手度の目盛りを確かめる。
+ *
+ * <p>あわせてブックマークも見る。問題のブックマークとクイズのしおりは鍵の形が同じ
+ * （{@code 5-2#1}）なので、別の集合で持てているかをここで見張る。</p>
+ */
 public final class ReviewScheduleCheck {
 
     private static final ProgressStore.CafeLearningProgress ZERO =
@@ -98,9 +103,38 @@ public final class ReviewScheduleCheck {
             ProgressStore migrated = new ProgressStore(dir.resolve("e.json"));
             eq("旧ファイルの3点は12単位へ換算", migrated.reviewWeight("w#1"), 12);
 
-            System.out.println("\nREVIEW SCHEDULE OK: 期限と苦手度の目盛りを確認しました");
+            // ── ブックマーク（問題のブックマークとクイズのしおりは別物）──────────
+            //
+            // 鍵の形が同じ（"5-2#1"）なので、同じ集合で持つと「問題1」と「クイズ2問目」が
+            // 同一視される。取り違えると復習の出題一覧に居ないものが混ざるので、
+            // 別物であることをここで見張る。
+            System.out.println("\n[ブックマーク]");
+            ProgressStore b = new ProgressStore(dir.resolve("f.json"));
+            ok("最初は問題に付いていない", !b.isBookmarked("5-2#1"));
+            ok("最初はクイズにも付いていない", !b.isQuizBookmarked("5-2", 1));
+
+            ok("問題へ付けられる", b.toggleBookmark("5-2#1"));
+            ok("クイズは付かないまま", !b.isQuizBookmarked("5-2", 1));
+            ok("クイズへ付けられる", b.toggleQuizBookmark("5-2", 1));
+            ok("同じ番号でも問題とクイズは別物", b.isBookmarked("5-2#1") && b.isQuizBookmarked("5-2", 1));
+            ok("押し直すと外れる", !b.toggleQuizBookmark("5-2", 1));
+            ok("外したのはクイズだけ", b.isBookmarked("5-2#1") && !b.isQuizBookmarked("5-2", 1));
+
+            b.toggleQuizBookmark("5-2", 1);
+            b.toggleQuizBookmark("12-3", 0);
+            b.flushNow();
+            ProgressStore marks = new ProgressStore(dir.resolve("f.json"));
+            ok("再読込でもクイズのしおりが残る",
+                    marks.isQuizBookmarked("5-2", 1) && marks.isQuizBookmarked("12-3", 0));
+            ok("付けていないクイズは残らない", !marks.isQuizBookmarked("5-2", 0));
+            marks.resetAll();
+            ok("進捗リセットでクイズのしおりも消える", !marks.isQuizBookmarked("5-2", 1));
+
+            System.out.println(
+                    "\nREVIEW SCHEDULE OK: 期限・苦手度の目盛り・ブックマークを確認しました");
         } finally {
-            for (String n : new String[] {"progress.json", "b.json", "c.json", "d.json", "e.json"}) {
+            for (String n : new String[] {
+                    "progress.json", "b.json", "c.json", "d.json", "e.json", "f.json"}) {
                 Files.deleteIfExists(dir.resolve(n));
             }
             Files.deleteIfExists(dir);
