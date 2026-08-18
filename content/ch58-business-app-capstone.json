@@ -545,7 +545,7 @@
           "objectiveIds": [
             "ch58-o4"
           ],
-          "kind": "applied",
+          "kind": "drill",
           "task": "【組み合わせ】注文の更新競合と再送を判定します。入力は`knownKey version expectedVersion status eventWriteFails`です。`knownKey`と`eventWriteFails`は0/1です。次の順で結果を決めます。\n\n1. 同じ冪等キーが処理済み → `200 duplicate`\n2. 現在versionとexpectedVersionが異なる → `409 version_conflict`\n3. statusがNEW以外 → `409 order_not_cancellable`\n4. イベント保存失敗 → `500 rollback`\n5. 成功 → `204 cancelled`、versionを1増やし、outboxを1件にする\n\n1行目に結果、2行目に`version=...`、3行目に`outbox=...`を表示します。失敗と重複ではversionとoutboxを変更しません。",
           "starterCode": "import java.util.*;\n\nrecord ChangeResult(int status, String code, int version, int outbox) { }\n\npublic class Main {\n    static ChangeResult change(boolean knownKey, int version, int expectedVersion,\n                               String status, boolean eventWriteFails) {\n        // TODO: 確定前にすべての失敗条件を判定する\n        return new ChangeResult(500, \"TODO\", version, 0);\n    }\n\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        ChangeResult result = change(sc.nextInt() == 1, sc.nextInt(), sc.nextInt(),\n                sc.next(), sc.nextInt() == 1);\n        System.out.println(result.status() + \" \" + result.code());\n        System.out.println(\"version=\" + result.version());\n        System.out.println(\"outbox=\" + result.outbox());\n    }\n}\n",
           "visibleCases": [

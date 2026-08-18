@@ -407,7 +407,7 @@
       "objectiveIds": [
         "ch59-o5"
       ],
-      "explanation": "## いきなり最後のERRORへ飛びつかない\n\n障害調査では、最も派手な例外や最後のERRORが原因とは限りません。タイムアウトの後に後片付けが失敗するなど、結果として出たエラーもあります。次の順で、事実と推測を分けて進めます。\n\n1. **症状を固定する**: いつから、どの機能で、誰に、何が起きたか\n2. **範囲を決める**: 時刻、環境、URL、requestId・traceId、業務ID\n3. **1件を時系列に並べる**: 受付から失敗まで、サービスをまたいで追う\n4. **最初の異常を読む**: 例外型、`Caused by`、最初の自作コードのフレームを確認\n5. **別の証拠と照合する**: メトリクス、トレース、DB、設定変更、リリース\n6. **仮説を一つずつ検証する**: 再現、反証、修正、回帰テスト\n\n```text\n12:00:01 gateway  request_received\n12:00:02 order    cancel_started\n12:00:03 database connection_timeout   ← 最初の異常\n12:00:04 order    cancel_failed         ← 上の異常を受けた結果\n12:00:04 gateway  response_500          ← 利用者から見た症状\n```\n\nrequestIdが違う行を混ぜると、別利用者の成功と失敗を一つの処理だと誤解します。時計がずれているサービスもあるため、時刻だけを絶対視せず、traceの親子関係やイベントの順序も確認します。\n\n## 変更との近さは仮説であり、原因の証明ではない\n\n「リリース直後に増えた」は重要な手掛かりですが、同じ時刻に負荷や依存サービスが変わった可能性もあります。報告には次のように分けて書きます。\n\n- **事実**: version 2.4配備後、`database_timeout`が3件から120件へ増えた\n- **仮説**: version 2.4の接続プール設定変更が影響した可能性\n- **検証**: 旧設定へ戻した検証環境で再現しないか比較する\n\n相関を原因と断定せず、反証できる確認方法まで書くと、複数人で安全に調査できます。",
+      "explanation": "## いきなり最後のERRORへ飛びつかない\n\n障害調査では、最も派手な例外や最後のERRORが原因とは限りません。タイムアウトの後に後片付けが失敗するなど、結果として出たエラーもあります。次の順で、事実と推測を分けて進めます。\n\n1. **症状を固定する**: いつから、どの機能で、誰に、何が起きたか\n2. **範囲を決める**: 時刻、環境、URL、requestId・traceId、業務ID\n3. **1件を時系列に並べる**: 受付から失敗まで、サービスをまたいで追う\n4. **最初の異常を読む**: 例外型、`Caused by`、最初の自作コードのフレームを確認\n5. **別の証拠と照合する**: メトリクス、トレース、DB、設定変更、リリース\n6. **仮説を一つずつ検証する**: 再現、反証、修正、回帰テスト\n\n```text\n12:00:01 gateway  request_received\n12:00:02 order    cancel_started\n12:00:03 database connection_timeout   ← 最初の異常\n12:00:04 order    cancel_failed         ← 上の異常を受けた結果\n12:00:04 gateway  response_500          ← 利用者から見た症状\n```\n\nrequestIdが違う行を混ぜると、別利用者の成功と失敗を一つの処理だと誤解します。時計がずれているサービスもあるため、時刻だけを絶対視せず、traceの親子関係やイベントの順序も確認します。\n\n> 💡 **同じ時刻の行は、並べ方を式に書いて残します。** 第17章で見たとおり `sorted` は安定なので、時刻だけで並べてもリストに入っていた順序はそのまま保たれます。それでも到着順を比較へ入れるのは、**リストの順序が到着順とは限らない**からです。ログは複数のサービスやファイルから集めるので、読み込んだ順は集め方で変わります。安定性に暗黙に頼った式は、集め方を変えた日に、コードの見た目を変えないまま並びが変わります。\n\n## 変更との近さは仮説であり、原因の証明ではない\n\n「リリース直後に増えた」は重要な手掛かりですが、同じ時刻に負荷や依存サービスが変わった可能性もあります。報告には次のように分けて書きます。\n\n- **事実**: version 2.4配備後、`database_timeout`が3件から120件へ増えた\n- **仮説**: version 2.4の接続プール設定変更が影響した可能性\n- **検証**: 旧設定へ戻した検証環境で再現しないか比較する\n\n相関を原因と断定せず、反証できる確認方法まで書くと、複数人で安全に調査できます。",
       "samples": [
         {
           "caption": "同じrequestIdだけを時刻順に並べる",
@@ -460,9 +460,9 @@
           "message": "別要求を混ぜないよう、targetと同じrequestIdだけを残してください。"
         },
         {
-          "pattern": "thenComparingInt\\s*\\(\\s*LogEvent::sequence\\s*\\)",
+          "pattern": "LogEvent::sequence|\\.\\s*sequence\\s*\\(",
           "minimum": 1,
-          "message": "同時刻のログは入力順を保つため、sequenceも比較してください。"
+          "message": "同時刻のログは到着順を保つため、`sequence` も比較へ入れてください（`thenComparing(LogEvent::sequence)` など）。安定ソートに暗黙に頼った式は、ログの集め方を変えた日に、コードの見た目を変えないまま並びが変わります。"
         }
       ],
       "quiz": [
@@ -551,7 +551,7 @@
           "objectiveIds": [
             "ch59-o3"
           ],
-          "kind": "applied",
+          "kind": "drill",
           "task": "【組み合わせ】スレッドが再利用される状況で、要求文脈を管理します。入力は命令数`n`と、`START requestId`、`LOG event`、`END`のいずれかです。STARTで現在のrequestIdを設定し、LOGで`requestId=<現在値> event=<event>`を表示します。文脈が無ければ現在値は`NONE`です。ENDでは必ず文脈を消し、表示はしません。`RequestContext.end`を実装してください。",
           "starterCode": "import java.util.*;\n\nclass RequestContext {\n    private String requestId;\n\n    void start(String requestId) {\n        this.requestId = requestId;\n    }\n\n    void end() {\n        // TODO: 次の要求へ古いIDを残さない\n    }\n\n    String current() {\n        return requestId == null ? \"NONE\" : requestId;\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n        RequestContext context = new RequestContext();\n        for (int i = 0; i < n; i++) {\n            switch (sc.next()) {\n                case \"START\" -> context.start(sc.next());\n                case \"LOG\" -> System.out.println(\"requestId=\" + context.current()\n                        + \" event=\" + sc.next());\n                case \"END\" -> context.end();\n                default -> throw new IllegalArgumentException();\n            }\n        }\n    }\n}\n",
           "visibleCases": [

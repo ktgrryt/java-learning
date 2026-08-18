@@ -189,6 +189,13 @@
         "failならRuntimeExceptionをthrow。そうでなければouter commit。"
       ],
       "solution": "import jakarta.transaction.Transactional;\nimport java.util.*;\n\nclass AuditService {\n    @Transactional(Transactional.TxType.REQUIRES_NEW)\n    void write() {\n        System.out.println(\"audit commit\");\n    }\n}\n\nclass OrderService {\n    private final AuditService audit = new AuditService();\n\n    @Transactional\n    void order(boolean fail) {\n        System.out.println(\"outer begin\");\n        audit.write();\n        if (fail) throw new RuntimeException();\n        System.out.println(\"outer commit\");\n    }\n}\n\npublic class TxPropagation {\n    public static void main(String[] a) {\n        boolean fail = new Scanner(System.in).nextLine().equals(\"outerFail\");\n        try {\n            new OrderService().order(fail);\n        } catch (RuntimeException e) {\n            System.out.println(\"outer rollback\");\n        }\n    }\n}\n",
+      "sourceChecks": [
+        {
+          "pattern": "audit\\s*\\.\\s*write\\s*\\(",
+          "minimum": 1,
+          "message": "`audit commit` の行を直接書かず、`REQUIRES_NEW` を付けた `audit.write()` を呼んでください。監査を別のトランザクションへ預けることが、外側がrollbackしても記録だけは残る理由です。"
+        }
+      ],
       "extraTasks": [
         {
           "kind": "applied",

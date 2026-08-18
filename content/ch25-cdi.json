@@ -343,6 +343,13 @@
         "greetではrepository.prefix()とnameを連結します。"
       ],
       "solution": "import jakarta.inject.Inject;\nimport java.util.*;\n\ninterface GreetingRepository {\n    String prefix();\n}\n\nclass JapaneseGreetingRepository implements GreetingRepository {\n    public String prefix() {\n        return \"こんにちは\";\n    }\n}\n\nclass GreetingService {\n    private final GreetingRepository repository;\n\n    @Inject\n    GreetingService(GreetingRepository repository) {\n        this.repository = repository;\n    }\n\n    String greet(String name) {\n        return repository.prefix() + \", \" + name;\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        String name = new Scanner(System.in).next();\n        MiniDi di = MiniDi.container().bind(GreetingRepository.class, JapaneseGreetingRepository.class);\n        System.out.println(di.get(GreetingService.class).greet(name));\n    }\n}\n",
+      "sourceChecks": [
+        {
+          "pattern": "repository\\s*\\.\\s*prefix\\s*\\(",
+          "minimum": 1,
+          "message": "あいさつの語を直接書かず、注入された `repository.prefix()` から受け取ってください。`@Inject` で受け取った依存を実際に使うところまでがこの問題です。"
+        }
+      ],
       "extraTasks": [
         {
           "objectiveIds": [
