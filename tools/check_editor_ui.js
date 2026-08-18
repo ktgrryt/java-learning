@@ -585,6 +585,92 @@ const KEYS = {
   const tipErrors = await ev(`window.__jqErrors || []`);
   check(tipErrors.length === 0, '案内を出した画面でも例外が出ていない', tipErrors);
 
+  // ── 編集欄の高さ（書いたコードに合わせて伸びる）────────────────────
+  // 固定11行だと**ひな形の81%が開いた時点から隠れる**（→ docs/guide.md
+  // 「高さは書いたコードに合わせて伸びます」）。行数はここで作るので、教材の長さに依存しない。
+  // 見るのは4つ: 伸びる / 下限で止まる / 上限で止まって中でスクロールする /
+  // つまみで変えたらそれを尊重する。あわせて、行番号と色付けが同じ高さに追いているかも見る
+  // （ここがずれると、色だけの行が下に残るか、行番号が足りなくなる）。
+  // 上限は窓の高さの3分の2なので、窓の大きさで結果が変わる。ここで決め打ちにする
+  // （既定のヘッドレス窓は縦が小さく、20行ぶんが上限に当たってしまう）。
+  await send('Emulation.setDeviceMetricsOverride',
+    { width: 1400, height: 900, deviceScaleFactor: 1, mobile: false });
+  await openLesson(TIP_LESSON);
+  const height = await ev(`(async () => {
+    const ta = document.querySelector('#task-${TASK} .editor-input');
+    const pre = document.querySelector('#task-${TASK} .editor-highlight');
+    const gutter = document.querySelector('#task-${TASK} .editor-gutter');
+    const root = getComputedStyle(document.documentElement);
+    const lineH = parseFloat(root.getPropertyValue('--ed-line-height'));
+    const padY = parseFloat(root.getPropertyValue('--ed-pad-y')) * 2;
+    const set = async n => {
+      ta.value = Array.from({ length: n }, (_, i) => '// ' + (i + 1)).join('\\n');
+      ta.dispatchEvent(new Event('input', { bubbles: true }));
+      await new Promise(r => setTimeout(r, 80));
+      return {
+        box: Math.round(ta.getBoundingClientRect().height),
+        pre: Math.round(pre.getBoundingClientRect().height),
+        gutterLines: gutter.textContent.split('\\n').length,
+        scrolls: ta.scrollHeight > ta.clientHeight + 1
+      };
+    };
+    const short = await set(3);
+    const long = await set(20);
+    const huge = await set(200);
+    ta.style.height = '360px';      // つまみで変えたのと同じ状態を作る
+    const manual = await set(30);
+    return { lineH, padY, short, long, huge, manual,
+             min: parseFloat(getComputedStyle(ta).minHeight),
+             max: parseFloat(getComputedStyle(ta).maxHeight) };
+  })()`);
+  // 1行ぶん余らせている（末尾に置く場所と、横スクロールバーのぶん）
+  check(height.long.box === 21 * height.lineH + height.padY,
+    '書いた行数に合わせて高さが伸びる（20行なら21行ぶん）', height.long);
+  check(height.short.box === height.min && !height.short.scrolls,
+    `短いコードでは下限（${height.min}px）で止まる`, height.short);
+  check(height.huge.box === height.max && height.huge.scrolls,
+    `長いコードでは上限（窓の高さの3分の2 = ${height.max}px）で止まり、中でスクロールする`,
+    height.huge);
+  check(height.manual.box === 360,
+    'つまみで高さを変えたあとは、打っても高さを動かさない', height.manual);
+  check(height.long.pre === height.long.box && height.huge.pre === height.huge.box
+    && height.huge.gutterLines === 200,
+    '色付けと行番号が高さに追いている', height);
+
+  // プロジェクト型の編集欄は高さを列に合わせる。inline の height を入れると列から外れ、
+  // 色付けだけの行が下に残る（style.css の .project-file-pane .editor-input のコメント）。
+  const projectTask = await ev(`(async () => {
+    const state = await (await fetch('/api/state')).json();
+    let found = null;
+    state.chapters.forEach(ch => ch.lessons.forEach(l => (l.tasks || []).forEach(t => {
+      if (!found && t.type === 'project') { found = { lessonId: l.id, taskId: t.id }; }
+    })));
+    return found;
+  })()`);
+  if (!projectTask) {
+    check(false, 'プロジェクト型の問題が見つからない（この検査の前提が崩れている）', projectTask);
+  } else {
+    await openLesson(projectTask.lessonId);
+    const pane = await ev(`(() => {
+      const block = document.getElementById('task-' + ${JSON.stringify(projectTask.taskId)});
+      const p = block && block.querySelector('.project-file-pane:not([hidden])');
+      if (!p) { return { missing: true }; }
+      const ta = p.querySelector('.editor-input');
+      return {
+        inline: ta.style.height || '',
+        maxHeight: getComputedStyle(ta).maxHeight,
+        sameAsBox: Math.round(ta.getBoundingClientRect().height)
+          === Math.round(p.querySelector('.editor').getBoundingClientRect().height),
+        lines: ta.value.split('\\n').length
+      };
+    })()`);
+    check(!pane.missing && pane.inline === '' && pane.maxHeight === 'none' && pane.sameAsBox,
+      `プロジェクト型（${projectTask.lessonId}#${projectTask.taskId}）の編集欄は列の高さのまま`, pane);
+  }
+
+  const heightErrors = await ev(`window.__jqErrors || []`);
+  check(heightErrors.length === 0, '高さを変えた画面でも例外が出ていない', heightErrors);
+
   close();
   if (failures > 0) {
     console.log(`\n${RED}エディタの検査に失敗しました（${failures}件）${RESET}`);
@@ -592,7 +678,8 @@ const KEYS = {
   }
   console.log(`\n${GREEN}EDITOR UI OK: 自動で閉じるかっこと引用符・打ち抜けの条件・`
     + `テキストブロック・位置の追従・候補の移動（↑↓ と Ctrl+P/N）・定型の短縮（sout）・`
-    + `Tabの字下げ・補完の案内（${TIP_LESSON} から、閉じるまで）を確認しました${RESET}`);
+    + `Tabの字下げ・補完の案内（${TIP_LESSON} から、閉じるまで）・`
+    + `編集欄の高さ（行数に追随・下限と上限・つまみを尊重）を確認しました${RESET}`);
 })().catch(e => {
   console.error(`${RED}検査を実行できませんでした: ${e.message}${RESET}`);
   process.exit(1);

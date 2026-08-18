@@ -5,7 +5,7 @@
  *
  * 見るのは「1問を解き切るまでの経路」全体である。
  *   誤答 → コンパイルエラー → ヒント → 模範解答 → 正解（★・コイン・通知）
- *   → 獲得の履歴（消えた通知の読み返し）→ 自動保存
+ *   → 1問1枚のパネル（クリア済みの見分け）→ 獲得の履歴（消えた通知の読み返し）→ 自動保存
  *   → カフェへ寄り道して同じ位置で再開 → 復習 → クイズのしおり
  * サーバー側の採点は `verify-solutions.sh` が見るので、ここでは
  * **画面がその結果をどう受け取って描くか**（`renderJudgement` / `applyDelta` / 通知 / 復習の出題）
@@ -299,6 +299,50 @@ const HELPERS = `window.__t = {
   check(res.delta && res.delta.progress && typeof res.delta.progress.starCount === 'number',
     '提出の応答に delta.progress が入っている（画面はこれで描き直す）',
     res.delta && Object.keys(res.delta));
+
+  // ── 1問1枚のパネルと、クリア済みの見分け ──────────────────────────
+  // クリアの瞬間に緑へ変わることは、**描き直さずに**起きなければならない
+  // （`refreshTaskStatus`）。レッスンを描き直すと画面の先頭へ戻り、いま出た採点結果が
+  // 視界から消えるため、ここは差分更新にしてある。読み直したあとの姿では確かめられない。
+  const panel = await ev(`(() => {
+    const block = document.getElementById('task-${TASK}');
+    const head = block.querySelector('.task-block-head');
+    const task = block.querySelector('.card-task');
+    const rows = [...block.querySelectorAll('.task-block-body > *')];
+    const style = getComputedStyle(block);
+    return {
+      cleared: block.classList.contains('is-cleared'),
+      chip: !!block.querySelector('.task-clear-chip'),
+      mark: (block.querySelector('.task-mark') || {}).textContent,
+      headSticky: getComputedStyle(head).position,
+      headBottomBorder: parseFloat(getComputedStyle(head).borderBottomWidth),
+      panelBorder: parseFloat(style.borderTopWidth),
+      panelRadius: parseFloat(style.borderTopLeftRadius),
+      taskSideBorder: parseFloat(getComputedStyle(task).borderRightWidth),
+      taskRadius: parseFloat(getComputedStyle(task).borderTopLeftRadius),
+      dividers: rows.filter(n => n.offsetHeight > 0 && parseFloat(getComputedStyle(n).borderTopWidth) > 0).length,
+      // 手つかずの2問目で「出ていない段」を見る（1問目はもう結果もヒントも出ている）
+      untouched: (() => {
+        const other = document.getElementById('task-2');
+        if (!other) { return null; }
+        return {
+          cleared: other.classList.contains('is-cleared'),
+          emptyRowsTakeSpace: [...other.querySelectorAll('.task-block-body > *')]
+            .filter(n => !n.textContent.trim() && n.offsetHeight > 0).length
+        };
+      })()
+    };
+  })()`);
+  check(panel.cleared && panel.chip && panel.mark === '✓',
+    'クリアした瞬間に、描き直さずに問題が「クリア済み」の姿になる', panel);
+  check(panel.panelBorder >= 1 && panel.panelRadius >= 10
+    && panel.taskSideBorder === 0 && panel.taskRadius === 0,
+    '1問が1枚のパネルで、中の課題文は枠を持たない（段になっている）', panel);
+  check(panel.headSticky === 'sticky' && panel.headBottomBorder >= 1,
+    '問題の帯がパネルの上辺に貼り付く', panel);
+  check(panel.dividers >= 1 && panel.untouched
+    && panel.untouched.emptyRowsTakeSpace === 0 && panel.untouched.cleared === false,
+    '出ている段は細い線で区切られ、まだ出ていない段（未クリアの問題）は場所を取らない', panel);
 
   // ── 獲得の履歴（消えた通知をあとから読み返せるか）──────────────────
   // 通知は数秒で消えるので、消えたあとに残っているかはここでしか見られない。
@@ -797,7 +841,7 @@ const HELPERS = `window.__t = {
     process.exit(1);
   }
   console.log(`\n${GREEN}LEARN UI OK: 誤答・コンパイルエラー・ヒント・模範解答・`
-    + `★と報酬・獲得の履歴・自動保存・カフェへの寄り道と位置の復元・復習の出題・`
+    + `★と報酬・1問1枚のパネル・獲得の履歴・自動保存・カフェへの寄り道と位置の復元・復習の出題・`
     + `クイズのしおり・サイドバーの検索を確認しました${RESET}`);
 })().catch(e => {
   console.error(`${RED}検査を実行できませんでした: ${e.message}${RESET}`);

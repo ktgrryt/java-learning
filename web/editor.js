@@ -78,6 +78,16 @@
     this.code = this.host.querySelector('.editor-highlight code');
     this.input = this.host.querySelector('.editor-input');
 
+    // 高さの計算に使う寸法は :root の変数から読む（style.css と二重に持たない）。
+    // textarea 自身の computed style は使えない ― この欄は document へ挿す前に
+    // 組み立てるので、そのときは空の値が返る。
+    var root = global.getComputedStyle(document.documentElement);
+    this._lineHeightPx = parseFloat(root.getPropertyValue('--ed-line-height')) || 25;
+    this._padYPx = (parseFloat(root.getPropertyValue('--ed-pad-y')) || 14) * 2;
+    // プロジェクト型の編集欄は高さを列に合わせる（.project-file-pane .editor-input）。
+    // inline の height はその指定に勝ってしまうので、ここでは高さに触らない。
+    this._noAutoHeight = !!(this.host.closest && this.host.closest('.project-file-pane'));
+
     // コード補完。complete.js が読み込まれていなければ、無しで動く
     this.complete = this.language === 'java' && global.JQComplete
       ? new global.JQComplete.Completer(this) : null;
@@ -207,8 +217,34 @@
       for (var i = 0; i < lineCount; i++) { nums[i] = i + 1; }
       this.gutter.textContent = nums.join('\n');
       this._lineCount = lineCount;
+      this._fitHeight(lineCount);   // 行数が変わったときだけ測る（打鍵ごとには測らない）
     }
     this._syncScroll();
+  };
+
+  /**
+   * 書いてあるコードの行数に高さを合わせる。
+   *
+   * 以前は11行の固定だったが、**ひな形の81%（613問中497問）が11行より長い**
+   * （行数の中央値はひな形16行・模範解答23行）。つまりほとんどの問題で、開いた時点から
+   * 中身が隠れていて、書きながら狭い窓をスクロールすることになっていた。
+   *
+   * 下限（11行）と上限（窓の3分の2）は style.css の min-height / max-height が持つ。
+   * ここは「必要な高さ」を入れるだけにして、窓の大きさの追随はCSSへ任せる。
+   *
+   * 1行ぶん余らせているのは、末尾にカーソルを置く場所を残すためと、長い行で出る
+   * 横スクロールバー（wrap="off"）が最後の行に重ならないようにするため。
+   */
+  Editor.prototype._fitHeight = function (lineCount) {
+    if (this._noAutoHeight) { return; }
+    // つまみ（resize: vertical）で高さを変えた跡があれば、そのあとは自分から動かさない。
+    // 見分けは「自分が最後に入れた値と違うか」だけでよい（つまみは inline の height を書く）。
+    if (this._autoHeightCss && this.input.style.height !== this._autoHeightCss) {
+      this._noAutoHeight = true;
+      return;
+    }
+    this._autoHeightCss = ((lineCount + 1) * this._lineHeightPx + this._padYPx) + 'px';
+    this.input.style.height = this._autoHeightCss;
   };
 
   /**

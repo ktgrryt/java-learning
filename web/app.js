@@ -3487,6 +3487,20 @@
       '</div>';
   }
 
+  /**
+   * 問題ヘッダに出す状態チップ。
+   *
+   * 文言を2箇所（描くとき・採点で通ったとき）で組み立てていたので、ここへ寄せた。
+   *
+   * 復習モードでは出さない。あの画面はクリア済みの問題しか出さないので、全部に
+   * 「クリア済み」と付けても何も区別しない（復習での状態は苦手度チップと上の帯が担う）。
+   */
+  function taskStatusHtml(task, cleared) {
+    if (!cleared) { return ''; }
+    return '<b class="task-clear-chip">'
+      + (task.required === false ? '✓ 発展課題完了' : '★ クリア済み') + '</b>';
+  }
+
   function buildTaskBlock(lesson, task, index, options) {
     var n = task.id;
     var review = !!(options && options.review);
@@ -3507,15 +3521,20 @@
       : 'Tab で補完（候補は ' + completionMoveKeysText() + ' で選ぶ）　·　⌘/Ctrl + Enter で実行';
     var showTip = shouldShowCompletionTip(lesson, task, index, review);
 
+    // 復習モードでは緑にしない（→ taskStatusHtml）
+    var cleared = !review && !!task.cleared;
+
     var block = document.createElement('section');
-    block.className = 'task-block' + (task.required === false ? ' task-block-optional' : '');
+    block.className = 'task-block' + (task.required === false ? ' task-block-optional' : '')
+      + (cleared ? ' is-cleared' : '');
     block.id = 'task-' + n;
     block.innerHTML =
       '<div class="task-block-head">' +
+      '  <span class="task-mark" aria-hidden="true">' + (cleared ? '✓' : '') + '</span>' +
       '  <span class="task-no">' + (task.required === false ? '任意' : '問題' + (index + 1)) + '</span>' +
       '  <span class="task-kind task-kind-' + esc(task.kind) + '">' + esc(task.label) + '</span>' +
       '  <span class="task-head-status" id="taskStatus-' + n + '">' +
-           (task.cleared ? (task.required === false ? '✓ 発展課題完了' : '★ クリア済み') : '') +
+           taskStatusHtml(task, cleared) +
       '  </span>' +
       (review
         ? '  <span class="review-weight" id="reviewWeight-' + n + '" data-level="'
@@ -3526,6 +3545,7 @@
 
       '<div class="task-block-body">' +
       '  <div class="card card-task">' +
+      '    <h2 class="card-h"><span class="card-h-icon">📝</span>課題</h2>' +
       '    <div class="task-body">' + renderMarkdown(task.task) + '</div>' +
            renderCasePreview(task) +
       '  </div>' +
@@ -4259,10 +4279,11 @@
   }
 
   /**
-   * 問題ヘッダの「★ クリア済み」を、いまの state に合わせる。
+   * 問題ヘッダの状態（チップ・✓・パネルの緑）を、いまの state に合わせる。
    *
-   * ここでは畳まない。採点結果をこれから読むところなので、通った瞬間に
-   * 閉じられると何が起きたのか分からなくなる。畳むのは開き直したときだけ。
+   * ここでレッスンを描き直さないのは、採点結果をこれから読むところだからである。
+   * 描き直すと画面の先頭へ戻り、いま出た結果が視界から消える。変わるのは
+   * この問題の状態だけなので、そこだけ差し替える。
    */
   function refreshTaskStatus(lessonId, taskId) {
     if (lessonId !== currentId) { return; }
@@ -4270,8 +4291,12 @@
     var task = lesson && findTask(lesson, taskId);
     var status = document.getElementById('taskStatus-' + taskId);
     if (!task || !status) { return; }
-    status.textContent = task.cleared
-      ? (task.required === false ? '✓ 発展課題完了' : '★ クリア済み') : '';
+    var cleared = currentView !== 'reviewTask' && !!task.cleared;
+    status.innerHTML = taskStatusHtml(task, cleared);
+    var block = document.getElementById('task-' + taskId);
+    if (block) { block.classList.toggle('is-cleared', cleared); }
+    var mark = block && block.querySelector('.task-mark');
+    if (mark) { mark.textContent = cleared ? '✓' : ''; }
   }
 
   function renderJudgement(res, taskId) {

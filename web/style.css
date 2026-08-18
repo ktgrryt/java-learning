@@ -76,8 +76,11 @@
   /* エディタの文字寸法。
      textarea・裏の色付け <pre>・行番号の3つで必ず同じ値を使うこと。
      1pxでも食い違うとカーソルが実際の位置とずれる。
-     行高は整数pxにしてある（小数だと要素ごとの丸めがずれて、下の行ほど狂う）。 */
+     行高は整数pxにしてある（小数だと要素ごとの丸めがずれて、下の行ほど狂う）。
+     縦の余白（--ed-pad-y）も変数にしてあるのは、editor.js が
+     「行数 × 行高 + 上下の余白」で高さを決めるため（値を2箇所に持たない）。 */
   --ed-font-size: 15px;
+  --ed-pad-y: 14px;
   --ed-line-height: 25px;
   --ed-gutter-w: 50px;   /* 行番号3桁ぶん + 余白 */
 }
@@ -2296,25 +2299,103 @@ kbd {
   letter-spacing: 0.01em;
 }
 .card-h-icon { font-size: 15px; }
-.card-task { border-left: 3px solid var(--accent); }
 .card-explain { padding-top: 6px; }
 
 /* ── 練習問題のかたまり ─────────────────────────────────────────────
-   1レッスンに複数問あるので、問題ごとに見出しで区切って束ねる。 */
+   **1問＝1枚のパネル。** 枠と角丸を持つのはこのパネルだけで、中の課題文・コード欄・
+   ヒント・採点結果は「段」として細い線で区切る。
 
-.task-block { margin-bottom: 26px; }
+   以前は問題ごとに4枚のカード（帯・課題文・コツ・コード欄）が同じ角丸・同じ間隔で
+   縦に並んでいた。**問題の中の区切りと、問題どうしの区切りが同じ強さ**だったので、
+   どこからどこまでが1問なのか読めなかった。中は線・外は余白、で強さを逆にしてある。
+
+   `overflow: hidden` は付けないこと。付けると中の帯の `position: sticky` が
+   このパネルを基準にしてしまい（スクロールしない箱なので）貼り付かなくなる。 */
+
+.task-block {
+  margin-bottom: 30px;
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--accent);
+  border-radius: 14px;
+  background: var(--bg-elev);
+}
+
+/* 帯はパネルの上辺に接ける。1問はおよそ1400pxあるので、スクロール中も貼り付けて
+   「いま何問目か」を残す。z-index は補完の窓（.cmp-popup 120）より下でよい。
+
+   `top: 0` は狭い画面でもそのままでよい。縦積みになっても `.content` は
+   `flex: 1` ＋ `overflow-y: auto` でスクロールの持ち主のままなので（窓側は
+   スクロールしない）、貼り付く位置はその内側の上端 ―― つまり固定ヘッダのすぐ下になる。
+   ここを `var(--topbar-h)` にすると、その内側でさらに56px下がって帯が浮く。 */
 .task-block-head {
+  position: sticky;
+  top: 0;
+  z-index: 2;
   display: flex;
   align-items: center;
   gap: 10px;
-  width: 100%;
-  padding: 11px 14px;
-  margin-bottom: 14px;
-  border: 1px solid var(--border-soft);
-  border-radius: 11px;
+  padding: 11px 22px;
+  border-bottom: 1px solid var(--border);
+  border-radius: 11px 11px 0 0;
   background: var(--bg-elev-2);
   color: var(--text);
-  text-align: left;
+}
+
+/* 段の余白は横をそろえる（帯・課題文・コード欄の左端が1本の線に見えるように） */
+.task-block-body > * { padding: 18px 22px; }
+/* まだ出ていない段（ヒント・採点結果・模範解答）は場所も区切り線も持たせない */
+.task-block-body > *:empty { display: none; }
+
+/* 中のカードは段になる。角丸と面の色を捨て、枠は**上だけ**残して段の区切り線に使う
+   （.card は元から 1px の枠を持っているので、線を足すのではなく削って作る）。
+   色付きの左端（.card-tip の緑・.card-hint の青）はその段が何かを示すので消さない。 */
+.task-block-body > .card {
+  margin: 0;
+  border-right: 0;
+  border-bottom: 0;
+  border-radius: 0;
+  background: transparent;
+}
+/* 色付きの左端を持たない段（課題文・コード欄）は、枠の左も落として段の余白だけにする */
+.task-block-body > .card-task,
+.task-block-body > .card-code { border-left: 0; }
+/* カード以外の段（ヒント・採点結果・模範解答の入れ物）にも同じ線を引く */
+.task-block-body > *:not(.card) { border-top: 1px solid var(--border-soft); }
+/* 先頭の段（課題文）の上は帯との境目なので、線は帯の下線1本にする */
+.task-block-body > *:first-child { border-top: 0; }
+/* 左端に色を出す段だけ、線のぶん左を詰めて他の段と文字の頭をそろえる */
+.task-block-body > .card-tip { padding-left: 19px; }
+
+/* ヒント・採点結果・模範解答は枠付きのカードのまま段の中に置く。
+   採点結果の枠は合否（緑/赤）を示しているので、ここは平らにしない。 */
+.task-block .hints > .card,
+.task-block .result > .card,
+.task-block .solution-area .card { margin: 0; }
+.task-block .hints > .card + .card { margin-top: 12px; }
+.task-block .solution-row {
+  margin-bottom: 0;
+  padding-top: 0;
+  border-top: 0;
+}
+
+/* クリア済み。緑＝済みはホームの章一覧（.chapter-lesson-row.cleared）と同じ言語。
+   色だけに頼らないよう、帯の先頭に ✓ を出す。 */
+.task-block.is-cleared { border-left-color: var(--ok); }
+.task-block.is-cleared .task-block-head {
+  background: color-mix(in srgb, var(--ok) 12%, var(--bg-elev-2));
+  border-bottom-color: color-mix(in srgb, var(--ok) 32%, var(--border));
+}
+.task-mark { flex: none; color: var(--ok); font-size: 14px; font-weight: 800; line-height: 1; }
+.task-mark:empty { display: none; }
+.task-clear-chip {
+  padding: 2px 9px;
+  border: 1px solid color-mix(in srgb, var(--ok) 38%, transparent);
+  border-radius: 999px;
+  background: var(--ok-bg);
+  color: var(--ok);
+  font-size: 11.5px;
+  font-weight: 700;
+  white-space: nowrap;
 }
 
 .task-no { flex: none; font-size: 13.5px; font-weight: 700; }
@@ -2335,13 +2416,12 @@ kbd {
 .task-block-optional { border-left: 3px solid var(--info); }
 .task-block-optional .task-kind { border-color: var(--info); color: var(--info); }
 
+/* 空きを食べて、右のしおりを端まで押し出すセル。中身は .task-clear-chip（無い場合は空）。 */
 .task-head-status {
   flex: 1;
   min-width: 0;
   font-size: 12px;
   color: var(--accent);
-  overflow: hidden;
-  text-overflow: ellipsis;
   white-space: nowrap;
 }
 
@@ -2776,6 +2856,9 @@ pre.code-plain { color: var(--text-dim); }
 .project-file-pane .editor-input {
   height: 100%;
   min-height: 0;
+  /* 高さは列が決める。上限（.editor-input の max-height）を残すと、列より低い位置で
+     止まって .editor との差が空き、色付けだけの行が下に残る */
+  max-height: none;
   /* 高さは列に合わせる。つまみで伸ばすと .editor（overflow:hidden）から出てしまう */
   resize: none;
 }
@@ -2888,7 +2971,7 @@ pre.code-plain { color: var(--text-dim); }
   bottom: 0;
   left: 0;
   width: var(--ed-gutter-w);
-  padding: 14px 10px 14px 8px;
+  padding: var(--ed-pad-y) 10px var(--ed-pad-y) 8px;
   text-align: right;
   color: var(--text-faint);
   font-size: 12px;
@@ -2907,7 +2990,7 @@ pre.code-plain { color: var(--text-dim); }
 .editor-highlight,
 .editor-input {
   margin: 0;
-  padding: 14px 16px;
+  padding: var(--ed-pad-y) 16px;
   font-family: var(--mono);
   font-size: var(--ed-font-size);
   line-height: var(--ed-line-height);
@@ -2938,11 +3021,18 @@ pre.code-plain { color: var(--text-dim); }
   overflow: hidden;
 }
 
+/* 高さは書いてあるコードに合わせて editor.js が入れる（inline の height）。
+   ここが持つのは下限と上限だけ。
+
+   上限を vh で書いてあるのは、窓の高さに追随させたいため（JSで測ると窓を変えたときに
+   古い値が残る）。上限を超えたぶんは今までどおり中でスクロールする。
+   3分の2ほどに抑えているのは、編集欄と「▶ 実行して採点」を同時に見えるようにするため。 */
 .editor-input {
   position: relative;
   display: block;
   width: 100%;
-  min-height: 275px;          /* 11行ぶん (25px × 11) */
+  min-height: 275px;                /* 11行ぶん (25px × 11) */
+  max-height: min(68vh, 900px);     /* 900pxなら約24行 */
   resize: vertical;
   background: transparent;
   color: transparent;         /* 文字は裏の <pre> が描く */
@@ -3966,9 +4056,15 @@ pre.code-plain { color: var(--text-dim); }
   .overall { display: none; }
   .card { padding: 18px; }
   .quiz-choice { font-size: 13px; padding: 10px 12px; }
+  .task-block-head { padding: 11px 18px; }
+  .task-block-body > * { padding: 16px 18px; }
+  .task-block-body > .card-tip { padding-left: 15px; }
 }
 
 @media (max-width: 700px) {
+  .task-block-head { padding: 10px 16px; }
+  .task-block-body > * { padding: 14px 16px; }
+  .task-block-body > .card-tip { padding-left: 13px; }
   .onboarding-tour-card {
     right: 12px;
     bottom: 12px;
