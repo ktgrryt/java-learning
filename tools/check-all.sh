@@ -34,6 +34,7 @@ CHECKS=(
   check-quiz-fairness.sh
   check-case-fairness.sh
   check-starter-imports.sh
+  check-starter-syntax.sh
   check-constant-output.sh
   check-explanation-output.sh
   check-mini-labels.sh

@@ -1047,7 +1047,7 @@ JDK配布物、migration/outbox、CI/container、TLS/OIDC/OpenAPIを実測でき
 `labs/logging-investigation`では安全な記録と障害報告へ、
 `labs/operations-capstone`では運用の立て直しと判断の記録へつなげます。
 
-必須問題と任意発展を合わせたテストケースと、artifact・project・runtime-labの実テストは全3405件で、そのうち **2033件が隠しテスト**です（`sourceChecks` の619件はこの数に入りません。`Task.totalCaseCount` が数えるのはケースと実テストだけです）。
+必須問題と任意発展を合わせたテストケースと、artifact・project・runtime-labの実テストは全3405件で、そのうち **2033件が隠しテスト**です（`sourceChecks` の620件はこの数に入りません。`Task.totalCaseCount` が数えるのはケースと実テストだけです）。
 `0`、負の数、境界値（「80点ちょうど」「残高とちょうど同じ額の出金」「教材環境での `Integer.valueOf` の `127` と `128`」
 「1月31日の1か月後」など）が仕込まれているので、たまたま通るコードではクリアできません。
 
@@ -1243,6 +1243,43 @@ public class Main {
 ワイルドカード（`import java.util.*;`）だけのひな形は見ません（どのクラスを渡しているかが
 分からず、実践編以降のひな形はこの書き方を前提にしています）。意図してひな形へ残すものは
 検査の `ALLOWED` へ理由付きで入れてください。
+
+#### 初めて習う構文は、ひな形が先に書かない
+
+`import` と同じことが**構文**にも起きます。`4-5`（switch で値ごとに分ける）は `switch` を
+初めて習うレッスンなのに、ひな形が `switch (day) {` を先に書いていて、学習者が書くのは
+`case` の中だけでした。**その構文を教える章を終えても、外枠を一度も打っていない**状態です
+（2026-08-19に利用者から指摘。「雛形に最初から書いてあると書き方を覚えられない」）。
+
+| | ひな形 |
+|---|---|
+| その構文を**初めて書く問題** | 外枠を**書かない**。書く場所と形はコメントで示す |
+| 同じ構文の2問目以降、その構文が目標でないレッスン | 今までどおり書いておく（同じ外枠を何度も打ち直させない） |
+
+書き方は3つあります。どれも「ひな形は単体でコンパイルできる」を守るためのものです。
+
+```java
+// class Dog extends Animal を書く（cry()）      ← ①宣言はコメントで場所と形だけ示す
+
+        // Book クラスを書いたら、下のコメントを外して使う
+        // Book b1 = new Book();                 ← ②消したクラスを使う行はコメントにする
+
+        // switch で case を並べよう              ← ③本体だけなら、そのまま消す
+```
+
+- **コメントに書く形は `class Dog extends Animal` まで書いて構いません。** 打つのは学習者です
+  （`11-3` と `12-1` が先にこの形でした）。ただし**問題文が指定していない名前**を
+  コメントだけで求めるのは、「求める文言は問題文へ書く」と同じ理由で避けてください
+- **インターフェースやクラスを消したら、それを使う `main` の行もコメントにします。**
+  でないとひな形がコンパイルできません（`9-1` が先にこの形でした）
+- **`for` の骨組みや、すでに習った宣言は残して構いません。** 消すのは、そのレッスンが
+  教える構文だけです（`14-4` は `StringBuilder` の生成だけを外し、`for` は残しています）
+
+`./tools/check-starter-syntax.sh` が全件を見張ります（1秒）。構文ごとに
+「学習者が最初に書く問題」を検査の表で決めてあり、①その問題のひな形が書いていないか、
+②模範解答には出てくるか（表が古びていないか）、③それより前の問題のひな形が
+先に書いていないか、の3つを見ます。意図してひな形へ残すものは `ALLOWED` へ
+理由付きで入れてください。
 
 #### 求める文言は問題文へ書く
 
@@ -1777,7 +1814,7 @@ Native Imageのように環境負荷が高く、すべての学習者へ必須�
 「`case LOW_STOCK` を書く」のような**構造**は検査できますが、「`"残りわずか"` と表示する」のような
 **文言**は検査できません。文言はテストケースの出力比較で確認します。
 
-現在 `sourceChecks` は **619件**あり、276問で使っています。
+現在 `sourceChecks` は **620件**あり、276問で使っています。
 出力比較だけで十分な問題には付けず、学習対象の構文を実際に書いたか確かめられる場合だけ使います。
 正規表現が模範解答で本当に成立するかは `tools/CheckCount.java` で確かめられます。これは採点と同じ
 `jq.judge.SourceChecker.codeOnly` と同じ正規表現フラグを使ってヒット数を数えるだけの道具なので、
@@ -2193,10 +2230,11 @@ builder imageを用意した状態で「注意」が1件も出なかった）。
 | このガイドの数（★の総数・問題数・テストケース件数など） | `./tools/check-guide-numbers.sh` （1秒） | 教材を増やすたびに必ず古くなる。実際に一度のレビューで6箇所ずれていた。文を書き換えたときは検査側の正規表現も直す（合致しなくなったら失敗として知らせる） |
 | 問題数の増減・概念レッスンの追加 | 上のいずれか＋ `./tools/simulate-cafe.sh` | ★が増えると1問あたりの報酬が積み上がって投資率は下がるが、★が20の倍数を越えると改装が1段増えて逆に上がる。向きは決めつけず出力を読む |
 | 概念レッスン（`lessonType: concept`）を足した | `./tools/check-layer-completion.sh`・`check-quiz-fairness.sh`・`check-content-inventory.sh`・`verify-solutions.sh --only <章>` | ★の根拠がクイズだけなので、選択肢の手がかりがそのまま★になる。層の数え方（章クリアの分母に★が入るか、コード層へ混ざっていないか）も機械でしか見えない |
-| コードの一括整形・複数章の同時修正・コミット前 | `./tools/check-all.sh`（速い29本）＋ 全件（`--only` なし） | 全章のコードや共通の採点条件を書き換えるので、影響範囲を絞れない |
+| コードの一括整形・複数章の同時修正・コミット前 | `./tools/check-all.sh`（速い30本）＋ 全件（`--only` なし） | 全章のコードや共通の採点条件を書き換えるので、影響範囲を絞れない |
 | 採点条件（`sourceChecks`・`visibleCases`・`hiddenCases`）を書き換えた | `--strict-starters` を付けて対象章 | `single-file`のひな形も全ケースで採点し、ひな形が偶然通る状態を捕まえる（所要はおよそ2倍） |
 | ひな形へ出力（空の `println`）を並べた | `--strict-starters` を付けて対象レッスン（`--only 14-2 19-4` のように並べられる） | ひな形が期待出力に一歩近づくので、**偶然合格しないこと**を確かめる。既定の `single-file` はひな形のコンパイルしか見ていないので、この形はそこをすり抜ける |
 | ひな形から `import` や準備行を外した | `./tools/check-starter-imports.sh` （1秒）＋ `--only <対象レッスン>` | 前者は「道具を初めて使う問題で先に書いていないか」を全件で見る。後者は**外したひな形が単体でコンパイルできること**を確かめる（`import` だけ消すと落ちるので、既定の `single-file` でも捕まる） |
+| ひな形から、そのレッスンが教える構文を外した | `./tools/check-starter-syntax.sh` （1秒）＋ `--strict-starters` を付けて対象レッスン | 前者は「初めて習う構文をひな形が先に書いていないか」を全件で見る。後者は**外したひな形がコンパイルできて、なお合格しないこと**を確かめる（クラスを消すと、それを使う `main` の行が落ちる） |
 | 到達目標を書いた・書き換えた | `./tools/check-objectives.sh` と `./tools/check-objective-terms.sh` （各1秒） | 前者は紐づけの有無、後者は「名指しした構文・APIが問題側に現れるか」を見る。目標だけが広い状態は後者でしか出ない |
 | テストケースを足した・ラベルを書いた | `./tools/check-case-fairness.sh` （1秒） | 隠しケースだけが求める固定文言と、番号だけのケースラベルを探す。模範解答は通るので `verify-solutions.sh` では出ない |
 | `sourceChecks` を足した・書き換えた | `./tools/check-source-checks.sh` （数秒） | ひな形が最初からその検査を満たしていないかを1件ずつ数える。上の`--strict-starters`では、検査が複数ある問題の空振りが他の検査に隠れる |
@@ -2282,12 +2320,13 @@ index名の綴りが違って誰も合格できない検査、要件に書いた
 ./tools/check-dependency-versions.sh # labs の版とJDK baselineを公開情報と突き合わせる（**通信する**）
 ./tools/check-term-consistency.sh  # 散文に裸の英語（container・image…）が残っていないかを検査
 ./tools/check-mini-labels.sh       # mini実装の章に「ここが本物と違う」があるかを検査
+./tools/check-starter-syntax.sh    # 初めて習う構文を、ひな形が先に書いていないかを検査
 ./tools/check-constant-output.sh   # 期待出力を写すだけで通る問題が無いかを検査
 ./tools/check-explanation-output.sh # 解説に書いた出力を実際に実行して照合
 ./tools/check-chapter-refs.sh      # 他の章・他のレッスンへの参照が、学習者に違う番号で見えないかを検査
 ./tools/check-build-jdk.sh         # 古いJDKへ警告するsecurity baseline判定を確認
 ./tools/check-web-security.sh      # 静的配信のpath・symlink境界を確認
-./tools/check-all.sh               # 速い検査29本をまとめて走らせる（1〜2分。コミット前に）
+./tools/check-all.sh               # 速い検査30本をまとめて走らせる（1〜2分。コミット前に）
 ./tools/check-guide-numbers.sh     # このガイドに書いた集計が教材と合っているかを検査
 ./tools/check-cafe-ui.sh           # カフェ画面をブラウザで操作して描画・購入・自動売上を検査
 ./tools/check-learn-ui.sh          # 学習画面をブラウザで操作して採点・ヒント・★・自動保存・復習を検査
@@ -2554,11 +2593,12 @@ plain 27.95%・未解放 28.99% と変わらず、価格も基準額も触って
 │   ├── check-mini-labels.sh   mini実装の「本物との違い」ラベルチェック
 │   ├── check-constant-output.sh 固定出力で通る問題のチェック
 │   ├── check-starter-imports.sh 道具を初めて使う問題のひな形チェック
+│   ├── check-starter-syntax.sh 初めて習う構文のひな形チェック
 │   ├── check-explanation-output.sh 解説に書いた出力の照合
 │   ├── check-chapter-refs.sh  他章参照の表示番号チェック
 │   ├── check-build-jdk.sh     JDK security baselineの回帰チェック
 │   ├── check-web-security.sh  静的配信のpath・symlink境界チェック
-│   ├── check-all.sh           速い検査29本をまとめて走らせる
+│   ├── check-all.sh           速い検査30本をまとめて走らせる
 │   ├── check-guide-numbers.sh このガイドの集計と教材の突き合わせ
 │   ├── check-cafe-ui.sh       カフェ画面のブラウザ操作チェック（Chrome。無ければ省略）
 │   ├── check-learn-ui.sh      学習画面のブラウザ操作チェック（Chrome。無ければ省略）
