@@ -22,10 +22,14 @@ import java.util.Map;
 public final class EnvironmentInfo {
 
     /**
-     * アプリの版。ここが唯一の置き場で、起動時の表示（{@code App}）と設定パネルの
-     * 両方がこれを読む。2箇所に書くと、片方だけ上げた版が画面に出てしまう。
+     * アプリの版。画面に出る版はここが正で、起動時の表示（{@code App}）と設定パネルの
+     * 両方がこれを読む。画面側で2箇所に書くと、片方だけ上げた版が画面に出てしまう。
+     *
+     * <p>ただしリポジトリには、もう1箇所だけ版が書いてある ― README の末尾（配布物の目印）。
+     * 手で上げると片方を忘れるので、上げるときは {@code ./tools/bump-version.sh} を使う。
+     * そろっているかは {@code ./tools/check-version.sh} が見張る。
      */
-    public static final String APP_VERSION = "1.0.1";
+    public static final String APP_VERSION = "1.0.2";
 
     private EnvironmentInfo() {
     }

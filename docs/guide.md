@@ -2320,7 +2320,8 @@ builder imageを用意した状態で「注意」が1件も出なかった）。
 | このガイドの数（★の総数・問題数・テストケース件数など） | `./tools/check-guide-numbers.sh` （1秒） | 教材を増やすたびに必ず古くなる。実際に一度のレビューで6箇所ずれていた。文を書き換えたときは検査側の正規表現も直す（合致しなくなったら失敗として知らせる） |
 | 問題数の増減・概念レッスンの追加 | 上のいずれか＋ `./tools/simulate-cafe.sh` | ★が増えると1問あたりの報酬が積み上がって投資率は下がるが、★が20の倍数を越えると改装が1段増えて逆に上がる。向きは決めつけず出力を読む |
 | 概念レッスン（`lessonType: concept`）を足した | `./tools/check-layer-completion.sh`・`check-quiz-fairness.sh`・`check-content-inventory.sh`・`verify-solutions.sh --only <章>` | ★の根拠がクイズだけなので、選択肢の手がかりがそのまま★になる。層の数え方（章クリアの分母に★が入るか、コード層へ混ざっていないか）も機械でしか見えない |
-| コードの一括整形・複数章の同時修正・コミット前 | `./tools/check-all.sh`（速い33本）＋ 全件（`--only` なし） | 全章のコードや共通の採点条件を書き換えるので、影響範囲を絞れない |
+| 版を上げた・版の書き方を変えた | `./tools/check-version.sh` （1秒） | 版は `APP_VERSION`（画面と起動時の表示）と README の末尾（配布物の目印）の2箇所に見えている。手で上げると片方を忘れ、**利用者に見える2箇所が食い違う**（v1.0.2 では README だけが先に進んでいた）。上げるのは `./tools/bump-version.sh` に任せ、この検査はそれを忘れたときの受け皿にする |
+| コードの一括整形・複数章の同時修正・コミット前 | `./tools/check-all.sh`（速い34本）＋ 全件（`--only` なし） | 全章のコードや共通の採点条件を書き換えるので、影響範囲を絞れない |
 | 採点条件（`sourceChecks`・`visibleCases`・`hiddenCases`）を書き換えた | `--strict-starters` を付けて対象章 | `single-file`のひな形も全ケースで採点し、ひな形が偶然通る状態を捕まえる（所要はおよそ2倍） |
 | ひな形へ出力（空の `println`）を並べた | `--strict-starters` を付けて対象レッスン（`--only 14-2 19-4` のように並べられる） | ひな形が期待出力に一歩近づくので、**偶然合格しないこと**を確かめる。既定の `single-file` はひな形のコンパイルしか見ていないので、この形はそこをすり抜ける |
 | ひな形から `import` や準備行を外した | `./tools/check-starter-imports.sh` （1秒）＋ `--only <対象レッスン>` | 前者は「道具を初めて使う問題で先に書いていないか」を全件で見る。後者は**外したひな形が単体でコンパイルできること**を確かめる（`import` だけ消すと落ちるので、既定の `single-file` でも捕まる） |
@@ -2422,7 +2423,9 @@ index名の綴りが違って誰も合格できない検査、要件に書いた
 ./tools/check-chapter-refs.sh      # 他の章・他のレッスンへの参照が、学習者に違う番号で見えないかを検査
 ./tools/check-build-jdk.sh         # 古いJDKへ警告するsecurity baseline判定を確認
 ./tools/check-web-security.sh      # 静的配信のpath・symlink境界を確認
-./tools/check-all.sh               # 速い検査33本をまとめて走らせる（1〜2分。コミット前に）
+./tools/check-version.sh           # アプリの版が書いてある全部の場所でそろっているかを検査
+./tools/bump-version.sh            # 版を上げる（patch/minor/major。--commit でコミットまで）
+./tools/check-all.sh               # 速い検査34本をまとめて走らせる（1〜2分。コミット前に）
 ./tools/check-guide-numbers.sh     # このガイドに書いた集計が教材と合っているかを検査
 ./tools/check-cafe-ui.sh           # カフェ画面をブラウザで操作して描画・購入・自動売上を検査
 ./tools/check-learn-ui.sh          # 学習画面をブラウザで操作して採点・ヒント・★・自動保存・復習を検査
@@ -2697,7 +2700,9 @@ plain 27.95%・未解放 28.99% と変わらず、価格も基準額も触って
 │   ├── check-chapter-refs.sh  他章参照の表示番号チェック
 │   ├── check-build-jdk.sh     JDK security baselineの回帰チェック
 │   ├── check-web-security.sh  静的配信のpath・symlink境界チェック
-│   ├── check-all.sh           速い検査33本をまとめて走らせる
+│   ├── check-version.sh       アプリの版がそろっているかのチェック
+│   ├── bump-version.sh        アプリの版を上げる（書く場所は1回で全部）
+│   ├── check-all.sh           速い検査34本をまとめて走らせる
 │   ├── check-guide-numbers.sh このガイドの集計と教材の突き合わせ
 │   ├── check-cafe-ui.sh       カフェ画面のブラウザ操作チェック（Chrome。無ければ省略）
 │   ├── check-learn-ui.sh      学習画面のブラウザ操作チェック（Chrome。無ければ省略）
@@ -2743,7 +2748,7 @@ plain 27.95%・未解放 28.99% と変わらず、価格も基準額も触って
 |---|---|
 | 画面の明るさ | ライト / ダーク / システム（`theme.js`。3つ並べて選ばせる。選んでも閉じないので見比べられる） |
 | 報酬の通知 | 表示する / 表示しない（既定は表示する。`jq-reward-toast`。切れるのは通知だけで、コインと獲得の履歴は残る） |
-| このアプリ | バージョン（`EnvironmentInfo.APP_VERSION` が唯一の置き場。起動時の表示もここを読む） |
+| このアプリ | バージョン（`EnvironmentInfo.APP_VERSION` が正。起動時の表示もここを読む。上げるときは `./tools/bump-version.sh`） |
 | 実行環境 | Javaの版・配布元・VM・コンパイラの有無・OS・JDKの場所（`GET /api/env`） |
 | 学習データ | `progress.json` の場所と、進捗のリセット |
 

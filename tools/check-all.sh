@@ -25,6 +25,7 @@ cd "$(dirname "$0")/.."
 
 CHECKS=(
   check-build-jdk.sh
+  check-version.sh
   check-content-inventory.sh
   check-guide-numbers.sh
   check-objectives.sh
