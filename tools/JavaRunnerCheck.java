@@ -16,9 +16,11 @@ public final class JavaRunnerCheck {
         standardInputStillWorks();
         wrapperAddsNothingToStderr();
         importHintNamesThePackage();
+        stackTraceKeepsTheLearnersLine();
         normalExitCleansUpChild();
         timeoutCleansUpChild();
-        System.out.println("java runner（入出力・import忘れのヒント・子プロセス回収）: すべて合格");
+        System.out.println("java runner（入出力・import忘れのヒント・自分の行が残るstack trace・子プロセス回収）"
+                + ": すべて合格");
     }
 
     /**
@@ -116,6 +118,36 @@ public final class JavaRunnerCheck {
                     }
                 }
                 """, "", 3, "異常終了したコードのstderrにwrapperの出力が混ざっています");
+    }
+
+    /**
+     * JDKの中で投げられた例外でも、stack traceに<b>学習者自身の行</b>が残ることを確かめる。
+     *
+     * <p>{@code at} 行は3本までに刈り込んでいる。上から順に3本残す作りだと、
+     * {@code Integer.parseInt("abc")} のように {@code java.base} の行が先に並ぶ例外で
+     * {@code at Main.main(Main.java:N)} が押し出され、<b>いちばん知りたい行が画面から消える</b>。
+     * 第5章（{@code ch64}）は「最初に出てくる自分のファイルの行を探す」ことを教えているので、
+     * ここが戻ると教材の言うとおりに読めなくなる（2026-08-19に「試しに実行」で発覚）。
+     */
+    private static void stackTraceKeepsTheLearnersLine() throws Exception {
+        String source = """
+                public class Main {
+                    public static void main(String[] args) {
+                        System.out.println(Integer.parseInt("abc"));
+                    }
+                }
+                """;
+        JavaRunner runner = new JavaRunner();
+        try (JavaRunner.Compiled compiled = runner.compile(source)) {
+            require(compiled.success(), "stack trace検査用コードをコンパイルできませんでした: "
+                    + compiled.diagnostics());
+            RunResult result = runner.run(compiled, "");
+            String stderr = result.stderr();
+            require(stderr.contains("NumberFormatException"),
+                    "例外の名前が出ていません: " + stderr);
+            require(stderr.contains("at Main.main(Main.java:"),
+                    "学習者自身の行（at Main.main）が刈り込まれています: " + stderr);
+        }
     }
 
     private static void assertStderr(String source, String expectedStderr,

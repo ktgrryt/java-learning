@@ -410,18 +410,68 @@ public final class JavaRunner {
             }
             kept.add(line);
         }
-        // 「at」行は多くても3本まで
-        List<String> result = new ArrayList<>();
-        int atCount = 0;
-        for (String line : kept) {
-            if (line.strip().startsWith("at ")) {
-                if (++atCount > 3) {
-                    continue;
-                }
+        return String.join("\n", capAtLines(kept)).strip();
+    }
+
+    /** 表示する {@code at} 行の上限。多いと初心者は読む前に諦める。 */
+    private static final int AT_LINE_LIMIT = 3;
+
+    /**
+     * {@code at} 行を {@link #AT_LINE_LIMIT} 本まで刈り込む。
+     * <b>落とすのはJDKの中の行からで、学習者自身の行は必ず残す。</b>
+     *
+     * <p>上から順に3本残す作りだと、JDKの中で投げられた例外で<b>学習者の行が消えていた</b>。
+     * {@code Integer.parseInt("abc")} は {@code java.base} の行が3本先に並ぶので、
+     * いちばん知りたい {@code at Main.main(Main.java:9)} が上限に押し出される。
+     * 第5章（{@code ch64}）は「最初に出てくる自分のファイルの行を探す」ことを教えているのに、
+     * その行が画面に出ていなかった（2026-08-19に「試しに実行」で確認）。
+     *
+     * <p>同じ行が並ぶ（再帰した）場合も上限を超えないよう、行の文字列ではなく<b>位置</b>で数える。
+     */
+    private static List<String> capAtLines(List<String> lines) {
+        List<Integer> mine = new ArrayList<>();
+        List<Integer> jvm = new ArrayList<>();
+        for (int i = 0; i < lines.size(); i++) {
+            if (!lines.get(i).strip().startsWith("at ")) {
+                continue;
             }
-            result.add(line);
+            (isJvmFrame(lines.get(i)) ? jvm : mine).add(i);
         }
-        return String.join("\n", result).strip();
+        Set<Integer> keep = new LinkedHashSet<>(mine.subList(0, Math.min(mine.size(), AT_LINE_LIMIT)));
+        // 空いた枠は、落ちた場所に近い（上にある）JDKの行で埋める
+        for (int i : jvm) {
+            if (keep.size() >= AT_LINE_LIMIT) {
+                break;
+            }
+            keep.add(i);
+        }
+        List<String> result = new ArrayList<>();
+        for (int i = 0; i < lines.size(); i++) {
+            if (lines.get(i).strip().startsWith("at ") && !keep.contains(i)) {
+                continue;
+            }
+            result.add(lines.get(i));
+        }
+        return result;
+    }
+
+    /**
+     * その {@code at} 行がJDKの中か判定する。
+     *
+     * 形は {@code at java.base/java.lang.Integer.parseInt(Integer.java:565)} で、
+     * クラス名の前にモジュール名と {@code /} が付く。学習者のコードは名前のないモジュールで
+     * 動くので付かない。モジュール名が出ない環境のために、パッケージ名でも見る。
+     */
+    private static boolean isJvmFrame(String frame) {
+        String head = frame.strip().substring("at ".length());
+        int open = head.indexOf('(');
+        if (open >= 0) {
+            head = head.substring(0, open);
+        }
+        return head.contains("/")
+                || head.startsWith("java.") || head.startsWith("javax.")
+                || head.startsWith("jdk.") || head.startsWith("sun.")
+                || head.startsWith("com.sun.");
     }
 
     /**

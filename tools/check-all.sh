@@ -35,7 +35,9 @@ CHECKS=(
   check-case-fairness.sh
   check-starter-imports.sh
   check-starter-syntax.sh
+  check-hint-dependency.sh
   check-constant-output.sh
+  check-copyable-output.sh
   check-explanation-output.sh
   check-block-alignment.sh
   check-mini-labels.sh

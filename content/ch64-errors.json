@@ -183,7 +183,7 @@
         "ch64-o2",
         "ch64-o4"
       ],
-      "explanation": "## 動かしている途中で止まったとき\n\nコンパイルが通っても、動かしている途中で困ることがあります。\nそのときJavaは**どこで、何に困ったか**を報告します。これが実行時エラーです。\n\n```text\nException in thread \"main\" java.lang.ArithmeticException: ゼロ除算\n\tat Main.main(Main.java:8)\n```\n\n> 💡 `:` の後ろのメッセージの文面は、**JVMの実装によって変わります**。0で割ったときは\n> `ゼロ除算`（OpenJ9系。IBM Semeru など）と `/ by zero`（HotSpot系。Eclipse Temurin など）の\n> どちらかが出ます。手元の表示が上の例と違っても、例外の名前と `at` の行の読み方は同じです。\n\n読む順番は3つです。\n\n| 見るもの | 上の例 | 分かること |\n|---|---|---|\n| 例外の名前 | `ArithmeticException` | 計算で困った |\n| `:` の後ろのメッセージ | `ゼロ除算` | 0で割った |\n| `at` の行 | `Main.java:8` | 8行目で起きた |\n\n**名前とメッセージで「何が」、`at` の行で「どこで」が分かります。** この2つが分かれば、\nあとはその行を読むだけです。\n\n### at の行が何行も出るとき\n\n`at` の行は、**呼ばれた順の逆**に並びます。いちばん上が実際に止まった場所です。\n\n```text\nException in thread \"main\" java.lang.NumberFormatException: For input string: \"abc\"\n\tat java.base/java.lang.Integer.parseInt(Integer.java:652)\n\tat java.base/java.lang.Integer.parseInt(Integer.java:770)\n\tat Main.main(Main.java:9)\n```\n\n上の2行は `java.base/...` で始まっています。これは**Javaが用意した部分**なので、\n直す場所ではありません。探すのは**自分のファイル名が出ている行**（`Main.java:9`）です。\n\n> 💡 上から順に見て、**最初に出てくる自分のファイルの行**を探します。\n> そこが、自分のコードから見た原因の場所です。\n\n### よく出る3つ\n\n| 例外 | 意味 | よくある原因 |\n|---|---|---|\n| `ArithmeticException: ゼロ除算` | 整数を0で割った | 割る数が0になる場合を考えていない |\n| `NumberFormatException` | 文字列を数へ変えられない | 数字でない文字が混ざっている |\n| `InputMismatchException` | 入力の形が期待と違う | `nextInt()` に数字以外が来た |\n\nこの例外は整数の割り算だけで起きます。`double` の割り算は例外にならず `Infinity` になります。\n**同じ「0で割る」でも、型によって結果が違います。**\n\n### 落ちる前に確かめる\n\n実行時エラーは、多くの場合**入力を確かめれば防げます**。\n0で割る前に「割る数が0か」を確かめる、変換する前に「数字か」を確かめる、という形です。\n\n> ⚠️ 間違えやすい点 … エラーが出た行を消せば「動くように」なりますが、それは直したことに\n> なりません。**その入力が来たときに何を返すべきか**を決めてから書きます。\n> 💡 値を目で追うだけでなく、**途中で止めて変数を見る**道具（デバッガ）もあります。IDEでも、JDK同梱の `jdb` でも使えます。操作と使いどきは第68章で扱います。\n\n",
+      "explanation": "## 動かしている途中で止まったとき\n\nコンパイルが通っても、動かしている途中で困ることがあります。\nそのときJavaは**どこで、何に困ったか**を報告します。これが実行時エラーです。\n\n```text\nException in thread \"main\" java.lang.ArithmeticException: ゼロ除算\n\tat Main.main(Main.java:8)\n```\n\n> 💡 `:` の後ろのメッセージの文面は、**JVMの実装によって変わります**。0で割ったときは\n> `ゼロ除算`（OpenJ9系。IBM Semeru など）と `/ by zero`（HotSpot系。Eclipse Temurin など）の\n> どちらかが出ます。手元の表示が上の例と違っても、例外の名前と `at` の行の読み方は同じです。\n\n読む順番は3つです。\n\n| 見るもの | 上の例 | 分かること |\n|---|---|---|\n| 例外の名前 | `ArithmeticException` | 計算で困った |\n| `:` の後ろのメッセージ | `ゼロ除算` | 0で割った |\n| `at` の行 | `Main.java:8` | 8行目で起きた |\n\n**名前とメッセージで「何が」、`at` の行で「どこで」が分かります。** この2つが分かれば、\nあとはその行を読むだけです。\n\n### at の行が何行も出るとき\n\n`at` の行は、**呼ばれた順の逆**に並びます。いちばん上が実際に止まった場所です。\n\n```text\nException in thread \"main\" java.lang.NumberFormatException: For input string: \"abc\"\n\tat java.base/java.lang.Integer.parseInt(Integer.java:652)\n\tat java.base/java.lang.Integer.parseInt(Integer.java:770)\n\tat Main.main(Main.java:9)\n```\n\n上の2行は `java.base/...` で始まっています。これは**Javaが用意した部分**なので、\n直す場所ではありません。探すのは**自分のファイル名が出ている行**（`Main.java:9`）です。\n\n> 💡 上から順に見て、**最初に出てくる自分のファイルの行**を探します。\n> そこが、自分のコードから見た原因の場所です。\n\n> 💡 落ちる場面は自分で再現できます。コード欄の下の「▶ 試しに実行」には\n> **表示ケースの入力が最初から入っている**ので、押すだけでその報告を読めます\n> （提出と違って記録には何も残りません）。\n\n### よく出る3つ\n\n| 例外 | 意味 | よくある原因 |\n|---|---|---|\n| `ArithmeticException: ゼロ除算` | 整数を0で割った | 割る数が0になる場合を考えていない |\n| `NumberFormatException` | 文字列を数へ変えられない | 数字でない文字が混ざっている |\n| `InputMismatchException` | 入力の形が期待と違う | `nextInt()` に数字以外が来た |\n\nこの例外は整数の割り算だけで起きます。`double` の割り算は例外にならず `Infinity` になります。\n**同じ「0で割る」でも、型によって結果が違います。**\n\n### 落ちる前に確かめる\n\n実行時エラーは、多くの場合**入力を確かめれば防げます**。\n0で割る前に「割る数が0か」を確かめる、変換する前に「数字か」を確かめる、という形です。\n\n0かどうかは `==` で比べれば分かります。「数字か」は `String` の `matches` で確かめます。\n**決めた形に文字列全体が当てはまるか**を `true` / `false` で返します。\n\n```java\nString input = \"abc\";\n\n// 変換してよい形かどうかを、変換する前に確かめる\nif (input.matches(\"-?[0-9]+\")) {\n    int n = Integer.parseInt(input);\n    System.out.println(n);\n} else {\n    System.out.println(\"数字ではありません\");\n}\n```\n\n`\"-?[0-9]+\"` が「形」の書き方で、3つの部品から出来ています。\n\n| 部品 | 意味 |\n|---|---|\n| `-?` | 先頭の `-` は、あってもよい（無くてもよい） |\n| `[0-9]` | `0` から `9` までの数字1文字 |\n| `+` | 直前のものが1つ以上続く |\n\nつまり「マイナスがあってもよくて、あとは数字が1つ以上」という形です。\n`\"12\"` と `\"-5\"` は `true`、`\"abc\"` と `\"1.5\"` と空の文字列 `\"\"` は `false` になります。\n\n> 💡 この「形」の書き方を **正規表現** と呼びます。ここでは上の1つを覚えれば足ります。\n> 書き方そのものは第66章で扱います。\n\n> ⚠️ 間違えやすい点 … エラーが出た行を消せば「動くように」なりますが、それは直したことに\n> なりません。**その入力が来たときに何を返すべきか**を決めてから書きます。\n\n> 💡 値を目で追うだけでなく、**途中で止めて変数を見る**道具（デバッガ）もあります。\n> IDEでも、JDK同梱の `jdb` でも使えます。操作と使いどきは第68章で扱います。\n\n",
       "samples": [
         {
           "caption": "整数の0除算は例外、小数の0除算はInfinity（入力は 10 と 0）",
@@ -191,7 +191,7 @@
           "stdin": "10 0"
         }
       ],
-      "task": "割り算のプログラムですが、**ある入力で落ちます**。\n\n2つの整数を読み、`a / b` の商を表示します。`10` と `0` を入れると、いまは\n`ArithmeticException: ゼロ除算` で止まります。\n\n割る数が `0` のときは、計算せずに `0では割れません` と表示するように直してください。\nそれ以外のときは、いまと同じように商を表示します。\n",
+      "task": "割り算のプログラムですが、**ある入力で落ちます**。\n\n2つの整数を読み、`a / b` の商を表示します。\n\nまず**「▶ 試しに実行」を押してください**（入力欄には落ちる入力が入っています）。\n出たエラーの**1行目にある例外の名前**と、**`at` の行が指している行番号**を読んでから直します。\n\n割る数が `0` のときは、計算せずに `0では割れません` と表示するように直してください。\nそれ以外のときは、いまと同じように商を表示します。\n",
       "starterCode": "import java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n\n        int a = sc.nextInt();\n        int b = sc.nextInt();\n\n        System.out.println(a / b);\n    }\n}\n",
       "visibleCases": [
         {
@@ -235,7 +235,7 @@
       "extraTasks": [
         {
           "kind": "drill",
-          "task": "年齢を読んで区分を表示するプログラムですが、**数字以外を入れると落ちます**。\n\n1行を読んで整数に変え、`18` 以上なら `大人`、それ未満なら `子ども` と表示します。\n`abc` を入れると、いまは `NumberFormatException: For input string: \"abc\"` で止まります。\n\n数字に変えられない入力のときは `数字を入れてください` と表示するように直してください。\n\n> `String` が数字だけで出来ているかは、**変換する前**に確かめられます。\n> ここでは1文字ずつ調べる方法は使わず、`Integer.parseInt` を使ってよいかどうかを\n> 先に判断する形にします。ヒントを見てください。\n",
+          "task": "年齢を読んで区分を表示するプログラムですが、**数字以外を入れると落ちます**。\n\n1行を読んで整数に変え、`18` 以上なら `大人`、それ未満なら `子ども` と表示します。\n\nまず**「▶ 試しに実行」を押してください**（入力欄に落ちる入力が入っています）。\n出たエラーの**1行目にある例外の名前**と、**最初に出てくる `Main.java` の行**を読んでから直します。\n\n数字に変えられない入力のときは `数字を入れてください` と表示するように直してください。\n\n> `Integer.parseInt` を呼ぶ**前に**、その文字列が数字だけで出来ているかを\n> `input.matches(\"-?[0-9]+\")` で確かめられます（解説の「落ちる前に確かめる」にある形です）。\n> `true` なら変換してよく、`false` なら数字ではありません。\n",
           "starterCode": "import java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n\n        String input = sc.nextLine().trim();\n\n        int age = Integer.parseInt(input);\n\n        if (age >= 18) {\n            System.out.println(\"大人\");\n        } else {\n            System.out.println(\"子ども\");\n        }\n    }\n}\n",
           "visibleCases": [
             {
@@ -273,7 +273,7 @@
           ],
           "hints": [
             "`NumberFormatException` のメッセージ `For input string: \"abc\"` に、変換できなかった文字列がそのまま出ています。",
-            "`input.matches(\"-?[0-9]+\")` は、文字列が「（マイナスがあってもよい）数字だけ」かどうかを `true` / `false` で返します。これで確かめてから `Integer.parseInt` を呼びます。"
+            "「数字ではないとき」を先に分けると読みやすくなります。`if (!input.matches(\"-?[0-9]+\")) { ... } else { ... }` の外側で分け、`else` の中で `18` 以上かどうかを分けます。"
           ],
           "solution": "import java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n\n        String input = sc.nextLine().trim();\n\n        if (!input.matches(\"-?[0-9]+\")) {\n            System.out.println(\"数字を入れてください\");\n        } else {\n            int age = Integer.parseInt(input);\n            if (age >= 18) {\n                System.out.println(\"大人\");\n            } else {\n                System.out.println(\"子ども\");\n            }\n        }\n    }\n}\n"
         }
@@ -373,47 +373,52 @@
       "extraTasks": [
         {
           "kind": "drill",
-          "task": "【組み合わせ】商品の単価と個数から合計を出すプログラムですが、**ある入力で落ちます**。\n\n単価と個数を読み、`合計=金額` と表示します。さらに、1個あたりの単価を確かめるために\n`単価=金額` も表示します（合計を個数で割ります）。\n\n`500` と `0` を入れると、いまは `ArithmeticException: ゼロ除算` で止まります。\n個数が `0` のときは、合計を `合計=0` と表示し、単価の行は `単価=不明` と表示するように\n直してください。個数が1以上のときの表示はいまと同じです。\n",
-          "starterCode": "import java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n\n        int unit = sc.nextInt();\n        int count = sc.nextInt();\n\n        int total = unit * count;\n\n        System.out.println(\"合計=\" + total);\n        System.out.println(\"単価=\" + total / count);\n    }\n}\n",
+          "task": "【組み合わせ】買った物の代金を人数で割り勘するプログラムですが、**ある入力で落ちます**。\n\n単価・個数・人数を読み、`合計=金額` と `1人あたり=金額` の2行を表示します。\n合計は単価×個数、1人あたりは合計÷人数です（割り切れないときは切り捨てます）。\n\nまず**「▶ 試しに実行」を押して**、出たエラーの例外の名前と `at` の行を読んでください。\n**2つの `println` のどちらで落ちているか**は、`at` の行の行番号を見れば分かります。\n\n人数が `0` のときは、合計はそのまま表示し、1人あたりの行だけ `1人あたり=不明` と\n表示するように直してください。人数が1以上のときの表示はいまと同じです。\n",
+          "starterCode": "import java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n\n        int unit = sc.nextInt();\n        int count = sc.nextInt();\n        int people = sc.nextInt();\n\n        int total = unit * count;\n\n        System.out.println(\"合計=\" + total);\n        System.out.println(\"1人あたり=\" + total / people);\n    }\n}\n",
           "visibleCases": [
             {
-              "label": "500 と 0 のとき（落ちていた入力）",
-              "stdin": "500 0",
-              "expected": "合計=0\n単価=不明"
+              "label": "500円を2個・0人のとき（落ちていた入力）",
+              "stdin": "500 2 0",
+              "expected": "合計=1000\n1人あたり=不明"
             },
             {
-              "label": "300 と 2 のとき",
-              "stdin": "300 2",
-              "expected": "合計=600\n単価=300"
+              "label": "300円を2個・4人で分けるとき",
+              "stdin": "300 2 4",
+              "expected": "合計=600\n1人あたり=150"
             }
           ],
           "hiddenCases": [
             {
-              "label": "0 と 0 のとき",
-              "stdin": "0 0",
-              "expected": "合計=0\n単価=不明"
+              "label": "割り切れないとき（切り捨て）",
+              "stdin": "100 3 7",
+              "expected": "合計=300\n1人あたり=42"
             },
             {
-              "label": "100 と 3 のとき（割り切れない）",
-              "stdin": "100 3",
-              "expected": "合計=300\n単価=100"
+              "label": "単価も個数も人数も0のとき",
+              "stdin": "0 0 0",
+              "expected": "合計=0\n1人あたり=不明"
             },
             {
-              "label": "1 と 1 のとき",
-              "stdin": "1 1",
-              "expected": "合計=1\n単価=1"
+              "label": "1個を1人で買ったとき",
+              "stdin": "1 1 1",
+              "expected": "合計=1\n1人あたり=1"
             },
             {
-              "label": "0 と 5 のとき",
-              "stdin": "0 5",
-              "expected": "合計=0\n単価=0"
+              "label": "合計が0で、人数はいるとき",
+              "stdin": "0 5 2",
+              "expected": "合計=0\n1人あたり=0"
+            },
+            {
+              "label": "人数が合計より多いとき（1人あたりが0になる）",
+              "stdin": "10 1 20",
+              "expected": "合計=10\n1人あたり=0"
             }
           ],
           "hints": [
-            "落ちているのは2つ目の `println` です。`at` の行が指す行番号を確かめてください。",
-            "合計の行は個数に関係なく表示します。単価の行だけを `if` で分けます。"
+            "`ArithmeticException: ゼロ除算` は、整数を0で割ったときに出ます。`at` の行が指す行番号を見ると、落ちているのは2つ目の `println`（`total / people`）だと分かります。",
+            "合計の行は人数に関係なく表示します。`if` で分けるのは1人あたりの行だけです。"
           ],
-          "solution": "import java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n\n        int unit = sc.nextInt();\n        int count = sc.nextInt();\n\n        int total = unit * count;\n\n        System.out.println(\"合計=\" + total);\n        if (count == 0) {\n            System.out.println(\"単価=不明\");\n        } else {\n            System.out.println(\"単価=\" + total / count);\n        }\n    }\n}\n"
+          "solution": "import java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n\n        int unit = sc.nextInt();\n        int count = sc.nextInt();\n        int people = sc.nextInt();\n\n        int total = unit * count;\n\n        System.out.println(\"合計=\" + total);\n\n        if (people == 0) {\n            System.out.println(\"1人あたり=不明\");\n        } else {\n            System.out.println(\"1人あたり=\" + total / people);\n        }\n    }\n}\n"
         },
         {
           "kind": "applied",
