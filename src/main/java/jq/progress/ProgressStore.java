@@ -53,10 +53,12 @@ public final class ProgressStore {
     /**
      * 苦手度の目盛り。1点ぶんを何単位で数えるか。
      *
-     * <p>「実行」＝「採点」にしたので、コードを書いている途中の失敗まで全部数える。
-     * 失敗1回で1点上がると、試行錯誤しただけで最大まで振り切れてしまう。
-     * 内部を4倍の細かさで持ち、<b>失敗1回は1単位（=0.25点）</b>にしてある。
-     * 4回失敗して、ようやく従来の1回ぶん。</p>
+     * <p>提出＝採点なので、コードを書いている途中の失敗まで全部数える。失敗1回で1点上がると、
+     * 試行錯誤しただけで最大まで振り切れてしまう。内部を4倍の細かさで持ち、
+     * <b>失敗1回は1単位（=0.25点）</b>にしてある。4回失敗して、ようやく従来の1回ぶん。</p>
+     *
+     * <p>2026-08-19に画面へ「試しに実行」（採点なし・{@code /api/run}）が戻ったが、この目盛りは
+     * 緩いままにしてある。試しに実行はここを通らないので、緩さが害になることはない。</p>
      */
     private static final int REVIEW_WEIGHT_SCALE = 4;
 
@@ -72,11 +74,40 @@ public final class ProgressStore {
     /**
      * 復習の間隔（日）。レベルが上がるほど間を空ける ― 忘却曲線に合わせた確認。
      *
-     * <p>初クリアの翌日が最初の期限で、正解するたび次のレベルへ進む。最後まで進むと
-     * 4か月ごとの確認になる。期限は「最後に復習した日 + この間隔」で決まるので、
-     * ここを変えれば過去の記録にも新しい間隔がそのまま効く（期限日は保存しない）。</p>
+     * <p>期限は「最後に復習した日 + この間隔」で決まるので、ここを変えれば過去の記録にも
+     * 新しい間隔がそのまま効く（期限日は保存しない）。</p>
+     *
+     * <p>上がり方は一定ではない。<b>できている問題は早く抜ける</b>ようにしてあり、
+     * 詰まった問題にだけ回数を使う（→ {@link #updateReviewPlan}・
+     * {@link #initialReviewLevel}）。最後まで進むと4か月ごとの確認になる。</p>
      */
     private static final int[] REVIEW_INTERVAL_DAYS = {1, 3, 7, 14, 30, 60, 120};
+
+    /**
+     * 何回続けて「一発正解」したら間隔を飛ばすか（2026-08-19・利用者の指示で2連続）。
+     *
+     * <p>1回だけでは足りない。たまたま覚えていた日と、間隔を空けても残っていた日は
+     * 区別したいので、<b>別の日に2回</b>すっと通ったことを条件にしてある
+     * （同じ日に2回通しても、失敗していなければ2連続と数える点は割り切り ―
+     * 期限が来ていない問題を続けて解き直す人を止める理由はない）。</p>
+     */
+    private static final int CLEAN_RUN_FOR_SKIP = 2;
+
+    /**
+     * 飛ばすときに進める段数。
+     *
+     * <p>1段ずつだと 1→3→7→14→30→60→120日 と<b>6回</b>解き直すまで長い間隔にならず、
+     * できている問題にも復習の枠を使い続けることになる。2段にすると、一発正解が続く問題は
+     * 3〜4回で4か月ごとへ抜ける。間違えれば連続は切れて1段ずつに戻るので、
+     * 危ない問題が飛ばされることはない。</p>
+     */
+    private static final int REVIEW_LEVEL_SKIP = 2;
+
+    /**
+     * 一発正解の連続を数える上限。判定に使うのは {@link #CLEAN_RUN_FOR_SKIP} までだが、
+     * 画面が「どれくらい安定しているか」を出せるよう、少しだけ先まで数える。
+     */
+    private static final int MAX_CLEAN_RUN = 9;
 
     /**
      * ★の獲得や購入のような「失うと痛い変更」を書き出すまでの待ち時間。
@@ -329,15 +360,26 @@ public final class ProgressStore {
      * @param lastAt   最後に復習した日。ここに間隔を足したものが次の期限
      * @param lastFailAt 最後に失敗した日。同じ日に失敗してから通した正解は「危なかった」
      *                   とみなしてレベルを1つ戻すために持つ
+     * @param cleanRun 失敗を挟まずに通した回数。{@link #CLEAN_RUN_FOR_SKIP} に届くと
+     *                 間隔を飛ばす。失敗すると0へ戻る
      */
-    public record ReviewPlan(int level, String lastAt, String lastFailAt) {
+    public record ReviewPlan(int level, String lastAt, String lastFailAt, int cleanRun) {
     }
 
-    /** 復習の期限。画面はこれを見て「期限切れ」「あと○日」を出す。 */
-    public record ReviewDue(int level, String dueDate, int daysUntilDue) {
+    /**
+     * 復習の期限。画面はこれを見て「期限切れ」「あと○日」を出す。
+     *
+     * @param cleanRun 一発正解の連続。画面が「定着している」と見せるために持たせている
+     */
+    public record ReviewDue(int level, String dueDate, int daysUntilDue, int cleanRun) {
 
         public boolean overdue() {
             return daysUntilDue <= 0;
+        }
+
+        /** いま間隔を飛ばす側にいるか（画面の印に使う）。 */
+        public boolean onFastTrack() {
+            return cleanRun >= CLEAN_RUN_FOR_SKIP;
         }
     }
 
@@ -350,6 +392,14 @@ public final class ProgressStore {
     }
 
     // ------------------------------------------------------------------ read
+
+    /**
+     * 進捗の保存先。設定パネルに出すためのもので、書き込みには使わない
+     * （書き出しは全てこのクラスの中で行う）。
+     */
+    public Path location() {
+        return file;
+    }
 
     /** 章の層を最初に達成した日（未達成なら null）。キーは {@code 章ID#層}。 */
     public synchronized String layerCompletedAt(String chapterId, String layerId) {
@@ -665,6 +715,17 @@ public final class ProgressStore {
      * 順番を入れ替えるとこの前提が崩れる。</p>
      */
     public synchronized void recordMasterySubmission(String taskKey, boolean passed) {
+        recordMasterySubmission(taskKey, passed, false);
+    }
+
+    /**
+     * @param fromReview 復習モードからの提出なら true。<b>間隔の飛び級はこれだけで数える</b> ―
+     *                   通常のレッスン画面ではクリアした自分の解答が最初から入っているので、
+     *                   そのまま提出して通っても「思い出せた」ことにならない。復習は
+     *                   ひな形から解き直すので、一発で通ったのなら覚えている
+     */
+    public synchronized void recordMasterySubmission(String taskKey, boolean passed,
+                                                     boolean fromReview) {
         // 下げるのはクリア済みの問題に正解したときだけ。まだ通っていない問題で
         // 1ケースだけ通った提出などを「復習で正解」と数えないため。
         // 失敗は1単位（=0.25点）だけ上げる。書いている途中の失敗も全部ここを通るので、
@@ -673,7 +734,7 @@ public final class ProgressStore {
         boolean changed = passed
                 ? cleared.containsKey(taskKey) && addReviewWeight(taskKey, -REVIEW_WEIGHT_SCALE)
                 : addReviewWeight(taskKey, 1);
-        changed |= updateReviewPlan(taskKey, passed);
+        changed |= updateReviewPlan(taskKey, passed, fromReview);
         // カフェは「復習で通したか」だけを見る。★も報酬もここでは動かさない
         changed |= cafe.noteReviewSubmission(taskKey, passed, cleared.containsKey(taskKey));
         if (changed) {
@@ -684,42 +745,72 @@ public final class ProgressStore {
     /**
      * 復習の予定を、提出の結果に応じて進める。
      *
-     * <p>「実行」＝「採点」なので、1問を仕上げるまでに何度も失敗が届く。そのため
+     * <p>提出＝採点なので、1問を仕上げるまでに何度も失敗が届く。そのため
      * <b>期限を動かすのは正解したときだけ</b>にしてある。失敗では日付を触らず、
      * 「その日に失敗した」という印だけを残す。こうすると:</p>
      *
      * <ul>
      *   <li>すっと通れば次のレベルへ（間隔が伸びて、しばらく出てこない）</li>
-     *   <li>同じ日に失敗してから通したら1つ戻す（危なかったので早めにまた出す）</li>
+     *   <li><b>復習で失敗を挟まずに {@link #CLEAN_RUN_FOR_SKIP} 回続けて通したら
+     *       {@link #REVIEW_LEVEL_SKIP} 段まとめて進める</b> ― できている問題を
+     *       1段ずつ確認して回数を使い切らないため（2026-08-19）。数えるのは復習からの
+     *       提出だけで、通常画面の再提出（解答が入っている）は1段のまま</li>
+     *   <li>同じ日に失敗してから通したら1つ戻す（危なかったので早めにまた出す）。
+     *       連続も切れるので、次に通しても飛び級はしない</li>
      *   <li>失敗したまま諦めたら期限は動かない ― 期限切れのまま残るので、次も出てくる</li>
      * </ul>
      *
      * @return 記録が変わったら true
      */
-    private boolean updateReviewPlan(String taskKey, boolean passed) {
+    private boolean updateReviewPlan(String taskKey, boolean passed, boolean fromReview) {
         String today = LocalDate.now().toString();
         ReviewPlan current = reviewPlans.get(taskKey);
         if (!passed) {
             // 期限は動かさない。通せていないのだから、また出てくるのが正しい
             ReviewPlan base = current == null
-                    ? new ReviewPlan(0, clearedDate(taskKey), "")
+                    ? new ReviewPlan(initialReviewLevel(taskKey), clearedDate(taskKey), "", 0)
                     : current;
-            if (today.equals(base.lastFailAt())) {
+            // 失敗した時点で一発正解の連続は切れる。同じ日に何度失敗しても記録は同じなので、
+            // 印も連続も既にその形なら書かない（保存を無駄に呼ばないため）
+            if (today.equals(base.lastFailAt()) && base.cleanRun() == 0) {
                 return false;
             }
-            reviewPlans.put(taskKey, new ReviewPlan(base.level(), base.lastAt(), today));
+            reviewPlans.put(taskKey, new ReviewPlan(base.level(), base.lastAt(), today, 0));
             return true;
         }
         if (!cleared.containsKey(taskKey)) {
             return false;
         }
-        int level = current == null ? 0 : current.level();
+        int level = current == null ? initialReviewLevel(taskKey) : current.level();
         boolean stumbled = current != null && today.equals(current.lastFailAt());
+        int before = current == null ? 0 : current.cleanRun();
+        // 通常画面の再提出では連続を増やさない（増やさないだけで、減らしもしない）
+        int cleanRun = stumbled ? 0
+                : (fromReview ? Math.min(MAX_CLEAN_RUN, before + 1) : before);
+        int step = fromReview && cleanRun >= CLEAN_RUN_FOR_SKIP ? REVIEW_LEVEL_SKIP : 1;
         int next = stumbled
                 ? Math.max(0, level - 1)
-                : Math.min(REVIEW_INTERVAL_DAYS.length - 1, level + 1);
-        reviewPlans.put(taskKey, new ReviewPlan(next, today, ""));
+                : Math.min(REVIEW_INTERVAL_DAYS.length - 1, level + step);
+        reviewPlans.put(taskKey, new ReviewPlan(next, today, "", cleanRun));
         return true;
+    }
+
+    /**
+     * まだ一度も復習していない問題の、最初のレベル。
+     *
+     * <p><b>ヒントを見ずに1回の提出でクリアした問題は、1段上（翌日ではなく3日後）から
+     * 始める。</b>その場で書けた問題を翌日もう一度出すのは、復習の枠の使い方として重い。
+     * ヒントを開いた・何度も提出した問題はこれまでどおり翌日に確認する。</p>
+     *
+     * <p>「試しに実行」は提出回数に入らないので、走らせて直してから1回で通した人も
+     * ここに入る。採点を通さずに自分で直せたのなら、それも「書けた」でよい。</p>
+     */
+    private int initialReviewLevel(String taskKey) {
+        Cleared c = cleared.get(taskKey);
+        if (c == null) {
+            return 0;
+        }
+        return c.hintsUsed() == 0 && c.attempts() <= 1 ? 1 : 0;
     }
 
     /** その問題を初クリアした日。分からなければ今日。復習予定の起点に使う。 */
@@ -731,13 +822,16 @@ public final class ProgressStore {
     /**
      * その問題を次に確認すべき日。
      *
-     * <p>まだ一度も復習していない問題は「初クリアの翌日」が最初の期限になる。
+     * <p>まだ一度も復習していない問題は「初クリアの翌日」が最初の期限になる
+     * （すっとクリアした問題だけ3日後 → {@link #initialReviewLevel}）。
      * 期限日そのものは保存せず、最後の復習日とレベルから毎回引き直す ―
      * {@link #REVIEW_INTERVAL_DAYS} を調整したら過去の記録にもそのまま効く。</p>
      */
     public synchronized ReviewDue reviewDue(String taskKey) {
         ReviewPlan plan = reviewPlans.get(taskKey);
-        int level = plan == null ? 0 : Math.min(plan.level(), REVIEW_INTERVAL_DAYS.length - 1);
+        int level = plan == null
+                ? initialReviewLevel(taskKey)
+                : Math.min(plan.level(), REVIEW_INTERVAL_DAYS.length - 1);
         String from = plan == null || plan.lastAt().isEmpty()
                 ? clearedDate(taskKey)
                 : plan.lastAt();
@@ -750,7 +844,8 @@ public final class ProgressStore {
         LocalDate due = base.plusDays(REVIEW_INTERVAL_DAYS[level]);
         long days = ChronoUnit.DAYS.between(LocalDate.now(), due);
         return new ReviewDue(level, due.toString(),
-                (int) Math.max(Integer.MIN_VALUE, Math.min(Integer.MAX_VALUE, days)));
+                (int) Math.max(Integer.MIN_VALUE, Math.min(Integer.MAX_VALUE, days)),
+                plan == null ? 0 : plan.cleanRun());
     }
 
     /**
@@ -1064,7 +1159,12 @@ public final class ProgressStore {
                 if (!lastFailAt.isEmpty() && !isDate(lastFailAt)) {
                     lastFailAt = "";
                 }
-                reviewPlans.put(migrateKey(id), new ReviewPlan(level, lastAt, lastFailAt));
+                // clean が無いファイル（2026-08-19より前）は0から数え直す。
+                // 飛び級には一発正解2連続が要るので、いきなり間隔が飛ぶことはない
+                int cleanRun = Math.max(0,
+                        Math.min(MAX_CLEAN_RUN, MiniJson.intOf(plan, "clean", 0)));
+                reviewPlans.put(migrateKey(id),
+                        new ReviewPlan(level, lastAt, lastFailAt, cleanRun));
             });
             for (Object o : MiniJson.list(root, "bookmarks")) {
                 if (o instanceof String s) {
@@ -1247,6 +1347,7 @@ public final class ProgressStore {
             pm.put("level", plan.level());
             pm.put("at", plan.lastAt());
             pm.put("failAt", plan.lastFailAt());
+            pm.put("clean", plan.cleanRun());
             plans.put(key, pm);
         });
         m.put("reviewPlans", plans);

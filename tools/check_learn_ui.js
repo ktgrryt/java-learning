@@ -34,6 +34,12 @@ const LESSON = '1-1';
 const TASK = '1';
 /** クイズのしおりを試すレッスン。`1-1` にはクイズが無いので、クイズを持つ最初のレッスンを使う。 */
 const QUIZ_LESSON = '1-3';
+/**
+ * 「試しに実行」の入力欄を見るレッスン。`1-1` は入力を読まないので欄が出ない。
+ * 見えているケースに入力がある問題を使う（無くなったら前提の検査で止まる）。
+ */
+const STDIN_LESSON = '3-2';
+const STDIN_TASK = '1';
 /** 自動保存が効いているかを見るための目印。模範解答の末尾へ足す。 */
 const SAVE_MARK = '// 自動保存の目印';
 
@@ -199,14 +205,47 @@ const HELPERS = `window.__t = {
     title: ((document.querySelector('h1') || {}).textContent || '').replace(/\\s+/g, ' ').trim(),
     editors: document.querySelectorAll('#task-${TASK} .editor-input').length,
     submitLabel: ((document.getElementById('submitBtn-${TASK}') || {}).textContent || '').trim(),
+    tryLabel: ((document.getElementById('tryBtn-${TASK}') || {}).textContent || '').trim(),
+    tryInputs: document.querySelectorAll('#task-${TASK} .try-stdin').length,
     starter: (window.__t.editor() || {}).value || '',
     hintLabel: ((document.querySelector('#task-${TASK} .hint-btn') || {}).textContent || '').trim()
   }))()`);
   check(head.hash === `#${LESSON}` && head.editors === 1 && head.title.length > 0,
     'レッスン画面（見出しとエディタ）が描ける', { hash: head.hash, title: head.title, editors: head.editors });
-  check(head.submitLabel === '▶ 実行して採点', '提出ボタンが「実行して採点」になっている', head.submitLabel);
+  check(head.submitLabel === '✓ 提出して採点', '提出ボタンが「提出して採点」になっている', head.submitLabel);
+  check(head.tryLabel === '▶ 試しに実行', '採点しないで走らせるボタンが並んでいる', head.tryLabel);
+  check(head.tryInputs === 0, '入力を読まない問題では入力欄を出さない', head.tryInputs);
   check(head.starter.length > 0, 'エディタにひな形が入っている', head.starter.slice(0, 60));
   check(/残り\d+/.test(head.hintLabel), 'ヒントの残り件数が出ている', head.hintLabel);
+
+  // ── 試しに実行（採点も記録もしないこと）────────────────────────
+  // ここが壊れると「採点なしのはずが★や苦手度を動かす」ので、提出より先に見る。
+  const tried = await ev(`(async () => {
+    window.__t.type('public class Main {\\n  public static void main(String[] args) {\\n'
+      + '    System.out.println("ためし");\\n  }\\n}');
+    const host = document.getElementById('result-${TASK}');
+    host.innerHTML = '';
+    document.getElementById('tryBtn-${TASK}').click();
+    const card = await window.__t.until(() => {
+      const c = host.querySelector('.card-result');
+      return c && !c.querySelector('.spinner') ? c : null;
+    });
+    return {
+      isTry: !!card && card.classList.contains('card-try'),
+      graded: !!card && card.querySelectorAll('.case-result').length,
+      head: card ? (card.querySelector('.try-result-head') || {}).textContent || '' : '',
+      out: card ? ((card.querySelector('.out-pre') || {}).textContent || '').trim() : '',
+      submits: window.__jqSubmits.length,
+      stars: window.__t.stars(),
+      status: window.__t.status()
+    };
+  })()`);
+  check(tried.isTry && tried.out === 'ためし',
+    '試しに実行すると、書いたコードの出力がそのまま出る', tried);
+  check(tried.graded === 0 && /採点はしていません/.test(tried.head),
+    '採点はしない（ケースの合否を出さず、採点でないと書いてある）', tried);
+  check(tried.submits === 0 && tried.stars === '0' && tried.status === '',
+    '/api/submit を呼ばず、★もクリア済みの印も動かない', tried);
 
   // ── 誤答（採点結果の描画と、★が増えないこと）──────────────────
   const wrong = await ev(`(async () => {
@@ -220,6 +259,10 @@ const HELPERS = `window.__t = {
     '通らなかったケースと、その中身（差分）が出る', wrong);
   check(wrong.stars === '0' && wrong.status === '',
     '誤答では★が増えず、クリア済みの印も付かない', { stars: wrong.stars, status: wrong.status });
+  // 試しに実行を先に1回押している。それが数えられていれば、ここは2回目になってしまう
+  const firstAttempts = await ev(`(window.__jqSubmits[0] || {}).attempts`);
+  check(firstAttempts === 1,
+    '試しに実行は提出回数に入らない（最初の提出が1回目になる）', firstAttempts);
 
   // ── コンパイルエラー（診断の翻訳が画面に出るか）──────────────────
   const broken = await ev(`(async () => {
@@ -920,6 +963,76 @@ const HELPERS = `window.__t = {
   check(sticky.spots.every(s => s.atTop.every(what => what === 'head')),
     '貼り付いた見出しの上に章やレッスンが覗かない（編の切り替わりでも）', sticky);
 
+  // ── 「試しに実行」の入力欄（入力を読む問題だけに出る）──────────────
+  // ここは最後に見る。別のレッスンを開くので、先にやると「続ける」の行き先や
+  // カフェから戻る位置の検査が、この移動のせいで変わってしまう。
+  await open(`#${STDIN_LESSON}`);
+  const stdinBox = await ev(`(async () => {
+    const state = await (await fetch('/api/state')).json();
+    let task = null;
+    state.chapters.forEach(ch => ch.lessons.forEach(l => {
+      if (l.id === '${STDIN_LESSON}') {
+        task = (l.tasks || []).find(t => t.id === '${STDIN_TASK}') || null;
+      }
+    }));
+    const caseStdin = task && (task.visibleCases || []).map(c => c.stdin).filter(Boolean)[0];
+    const box = document.getElementById('tryStdin-${STDIN_TASK}');
+    return {
+      caseStdin: caseStdin || '',
+      value: box ? box.value : null,
+      hasClass: !!document.querySelector('#task-${STDIN_TASK} .card-code.has-try-input'),
+      label: ((document.querySelector('#task-${STDIN_TASK} .try-input-label') || {}).textContent || '').trim()
+    };
+  })()`);
+  check(!!stdinBox.caseStdin,
+    `${STDIN_LESSON}#${STDIN_TASK} は入力を読む問題（この検査の前提）`, stdinBox.caseStdin);
+  check(stdinBox.value === stdinBox.caseStdin && stdinBox.hasClass,
+    '入力を読む問題では、見えているケースの入力が入った欄が出る', stdinBox);
+  check(/試しに実行/.test(stdinBox.label) && /提出/.test(stdinBox.label),
+    '入力欄が「どちらで使う入力か」を書いている', stdinBox.label);
+
+  // 書き換えた入力がそのまま渡る（採点はしない）
+  const echoed = await ev(`(async () => {
+    const box = document.getElementById('tryStdin-${STDIN_TASK}');
+    box.value = '99';
+    const ta = document.querySelector('#task-${STDIN_TASK} .editor-input');
+    ta.value = 'import java.util.Scanner;\\npublic class Main {\\n'
+      + '  public static void main(String[] args) {\\n'
+      + '    Scanner sc = new Scanner(System.in);\\n'
+      + '    System.out.println("read:" + sc.nextInt());\\n  }\\n}';
+    ta.dispatchEvent(new Event('input', { bubbles: true }));
+    const host = document.getElementById('result-${STDIN_TASK}');
+    host.innerHTML = '';
+    document.getElementById('tryBtn-${STDIN_TASK}').click();
+    const card = await window.__t.until(() => {
+      const c = host.querySelector('.card-result');
+      return c && !c.querySelector('.spinner') ? c : null;
+    });
+    return card ? ((card.querySelector('.out-pre') || {}).textContent || '').trim() : null;
+  })()`);
+  check(echoed === 'read:99', '書き換えた入力がそのまま標準入力へ渡る', echoed);
+
+  // ショートカット。⇧を足したときだけ採点なしで走る（素の⌘/Ctrl+Enterは提出のまま）
+  const keys = await ev(`(async () => {
+    const ta = document.querySelector('#task-${STDIN_TASK} .editor-input');
+    const host = document.getElementById('result-${STDIN_TASK}');
+    const press = shift => ta.dispatchEvent(new KeyboardEvent('keydown',
+      { key: 'Enter', metaKey: true, shiftKey: shift, bubbles: true, cancelable: true }));
+    host.innerHTML = '';
+    press(true);
+    const tryCard = await window.__t.until(() => {
+      const c = host.querySelector('.card-result');
+      return c && !c.querySelector('.spinner') ? c : null;
+    });
+    const shifted = !!tryCard && tryCard.classList.contains('card-try');
+    const before = window.__jqSubmits.length;
+    press(false);
+    const submitted = await window.__t.until(() => window.__jqSubmits.length > before);
+    return { shifted: shifted, submitted: !!submitted };
+  })()`);
+  check(keys.shifted, '⇧ + ⌘/Ctrl + Enter で採点なしに走る', keys);
+  check(keys.submitted, '素の ⌘/Ctrl + Enter は提出のまま', keys);
+
   const errors = await ev(`window.__jqErrors || []`);
   check(errors.length === 0, '画面のJavaScriptが例外を出していない', errors);
 
@@ -931,7 +1044,7 @@ const HELPERS = `window.__t = {
   console.log(`\n${GREEN}LEARN UI OK: 誤答・コンパイルエラー・ヒント・模範解答・`
     + `★と報酬・1問1枚のパネル・獲得の履歴・自動保存・カフェへの寄り道と位置の復元・復習の出題・`
     + `復習の最後に続くクイズ・`
-    + `クイズのしおり・サイドバーの検索を確認しました${RESET}`);
+    + `クイズのしおり・サイドバーの検索・試しに実行と入力欄を確認しました${RESET}`);
 })().catch(e => {
   console.error(`${RED}検査を実行できませんでした: ${e.message}${RESET}`);
   process.exit(1);

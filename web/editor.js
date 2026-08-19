@@ -54,6 +54,7 @@
     this.language = options && options.language ? options.language : 'java';
     this.ariaLabel = options && options.ariaLabel ? options.ariaLabel : 'コードを書く欄';
     this.onSubmit = null;
+    this.onTryRun = null;   // 採点なしで走らせる（⇧⌘/Ctrl + Enter）。無ければ提出に落ちる
     this._isComposing = false;
     // 自動で足した閉じ記号がいまどこにあるか。打ち抜けを許すのはこの位置だけ
     this._autoClosed = [];
@@ -311,10 +312,14 @@
     }
 
     // ---- ショートカット ----------------------------------------------------
-    // 実行＝採点なので、⌘/Ctrl + Enter の1つだけ。Shiftの有無では区別しない
+    // ⌘/Ctrl + Enter で提出、Shift を足すと採点なしで走らせる（2026-08-19）。
+    // 素の ⌘/Ctrl + Enter を提出のままにしてあるのは、それまで唯一の実行操作で
+    // 指が覚えているため。onTryRun が無い問題（artifact・複数ファイル）では
+    // Shift 付きでも提出に落ちる ―― 押して何も起きないほうが分かりにくい。
     if (mod && e.key === 'Enter') {
       e.preventDefault();
-      if (this.onSubmit) { this.onSubmit(); }
+      if (e.shiftKey && this.onTryRun) { this.onTryRun(); }
+      else if (this.onSubmit) { this.onSubmit(); }
       return;
     }
     if (mod && (e.key === 's' || e.key === 'S')) {

@@ -44,7 +44,8 @@ import java.util.function.Supplier;
  *
  * <ul>
  *   <li>{@code GET  /api/state}    … 全カリキュラム + 進捗</li>
- *   <li>{@code POST /api/run}      … サンプルを1回実行するだけ（採点も保存もしない）</li>
+ *   <li>{@code GET  /api/env}      … アプリの版と、動いているJDK・OSの情報（設定パネル）</li>
+ *   <li>{@code POST /api/run}      … 1回実行するだけ（採点も保存もしない）</li>
  *   <li>{@code POST /api/submit}   … 全テストケースで採点し、通れば★を付ける</li>
  *   <li>{@code POST /api/save}     … 書きかけのコードを保存</li>
  *   <li>{@code POST /api/hint}     … ヒントを1つ開示</li>
@@ -130,6 +131,11 @@ public final class ApiHandler implements HttpHandler {
             String path = exchange.getRequestURI().getPath();
             String method = exchange.getRequestMethod();
 
+            if ("GET".equals(method) && path.equals("/api/env")) {
+                // 設定パネルの「実行環境」。教材の読み直しは要らない（JVMとOSの話だけ）
+                sendJson(exchange, 200, EnvironmentInfo.of(progress));
+                return;
+            }
             if ("GET".equals(method) && path.equals("/api/state")) {
                 // コンテンツを編集したらブラウザの再読み込みだけで反映されるよう毎回読み直す
                 reloadContent();
@@ -524,13 +530,14 @@ public final class ApiHandler implements HttpHandler {
     }
 
     /**
-     * 採点なしで1回実行する。解説に載せたサンプルの「▶ サンプルを実行」だけが使う。
+     * 採点なしで1回実行する。解説の「▶ サンプルを実行」と、問題の「▶ 試しに実行」が使う。
      *
      * <p><b>進捗には何も書かない。</b>学習者の書いたコードを保存するのは
      * {@code /api/save}（自動保存）と {@code /api/submit}（提出）だけである。
-     * 以前はここでも {@code lessonId} を受けて下書きを保存していたが、
-     * 「実行＝採点」にして試すボタンを畳んだ時点で呼び出し側が無くなった。
-     * 保存する口が2つに絞られていれば、どこで progress.json が変わるかを追いやすい。</p>
+     * 以前はここでも {@code lessonId} を受けて下書きを保存していたが、その口は畳んだままにする。
+     * 2026-08-19に問題側の「試しに実行」を足したときも受け直していない ―― 書いたコードは
+     * 入力ごとの自動保存が拾うので要らないし、保存する口が2つに絞られていれば、
+     * どこで progress.json が変わるかを追いやすい。</p>
      *
      * <p>{@code libLessonId} は同梱ライブラリの引き当てだけに使う参照専用のIDで、
      * 知らないIDでも例外にしない（{@link #libSourcesOf}）。</p>
@@ -575,7 +582,9 @@ public final class ApiHandler implements HttpHandler {
         String code = task.isMultiFile() ? "" : requireCode(body);
         Map<String, String> projectFiles = task.isMultiFile() ? requireProjectFiles(body, task) : Map.of();
 
-        if (body.get("review") != Boolean.TRUE) {
+        // 復習からの提出かどうかは、保存だけでなく復習の間隔（飛び級を数えるか）にも効く
+        boolean review = body.get("review") == Boolean.TRUE;
+        if (!review) {
             progress.saveCode(key, task.isMultiFile() ? MiniJson.write(projectFiles) : code);
         }
         int attempts = progress.recordAttempt(key);
@@ -589,7 +598,7 @@ public final class ApiHandler implements HttpHandler {
             ProjectRunner.Result projectResult = projectRunner.run(task.project(), projectFiles);
             result.putAll(projectResult.toJson());
             progress.recordPassed(key, projectResult.allPass() ? 1 : 0);
-            progress.recordMasterySubmission(key, projectResult.allPass());
+            progress.recordMasterySubmission(key, projectResult.allPass(), review);
             if (projectResult.allPass()) {
                 addClearRewards(result, c, lesson, task, lessonId, taskId, key);
             }
@@ -603,7 +612,7 @@ public final class ApiHandler implements HttpHandler {
             if (runtimeResult.available() && runtimeResult.started()) {
                 progress.recordPassed(key, (int) runtimeResult.checks().stream()
                         .filter(RuntimeLabRunner.CheckResult::pass).count());
-                progress.recordMasterySubmission(key, runtimeResult.allPass());
+                progress.recordMasterySubmission(key, runtimeResult.allPass(), review);
                 if (runtimeResult.allPass()) {
                     addClearRewards(result, c, lesson, task, lessonId, taskId, key);
                 }
@@ -621,7 +630,7 @@ public final class ApiHandler implements HttpHandler {
             result.put("passedCount", validation.passedCount());
             result.put("allPass", validation.allPass());
             progress.recordPassed(key, validation.passedCount());
-            progress.recordMasterySubmission(key, validation.allPass());
+            progress.recordMasterySubmission(key, validation.allPass(), review);
             if (validation.allPass()) {
                 addClearRewards(result, c, lesson, task, lessonId, taskId, key);
             }
@@ -635,7 +644,7 @@ public final class ApiHandler implements HttpHandler {
             if (!compiled.success()) {
                 result.put("allPass", false);
                 result.put("cases", List.of());
-                progress.recordMasterySubmission(key, false);
+                progress.recordMasterySubmission(key, false, review);
                 result.put("delta", delta(lessonId));
                 return result;
             }
@@ -659,7 +668,7 @@ public final class ApiHandler implements HttpHandler {
             result.put("passedCount", passed);
             result.put("allPass", allPass);
             progress.recordPassed(key, passed);
-            progress.recordMasterySubmission(key, allPass);
+            progress.recordMasterySubmission(key, allPass, review);
 
             if (allPass) addClearRewards(result, c, lesson, task, lessonId, taskId, key);
         }
@@ -697,6 +706,7 @@ public final class ApiHandler implements HttpHandler {
             result.put("optionalComplete", firstTime);
             result.put("lessonCleared", false);
             result.put("chapterCleared", false);
+            result.put("chapterBonusCash", 0);
             result.put("chapterTitle", chapter.title());
             result.put("chapterNumber", chapter.partNumber());
             result.put("cafeAward", CafeApi.awardJson(ProgressStore.CafeAward.NONE));
@@ -715,16 +725,21 @@ public final class ApiHandler implements HttpHandler {
             progress.noteChapterAchievements(chapterTaskKeys(chapter));
         }
         boolean chapterCleared = false;
+        // 章クリアのぶんは cafeAward に合算して1枚の通知で出すが、内訳としての金額も返す
+        // （通知に「章制覇ボーナス +N コイン」と出す。合計だけでは何が増えたか読めない）
+        long chapterBonusCash = 0;
         if (chapterCompletedNow) {
             ProgressStore.CafeAward chapterAward = progress.rewardChapter(
                     chapter.id(), cafeLearningAfter, c.taskCount(chapter));
             chapterCleared = chapterAward.cash() > 0 || chapterAward.cups() > 0;
+            chapterBonusCash = chapterAward.cash();
             cafeAward = cafeAward.plus(chapterAward);
         }
 
         result.put("newStar", firstTime);
         result.put("lessonCleared", !lessonWasCleared && c.isLessonCleared(lesson, after));
         result.put("chapterCleared", chapterCleared);
+        result.put("chapterBonusCash", chapterBonusCash);
         result.put("chapterTitle", chapter.title());
         result.put("chapterNumber", chapter.partNumber());
         result.put("cafeAward", CafeApi.awardJson(cafeAward));
@@ -846,6 +861,9 @@ public final class ApiHandler implements HttpHandler {
         target.put("reviewLevel", due.level());
         target.put("reviewDue", due.dueDate());
         target.put("reviewDueDays", due.daysUntilDue());
+        // 一発正解の連続。画面は「間隔を飛ばしている問題」の印に使う（しきい値はサーバ側）
+        target.put("reviewCleanRun", due.cleanRun());
+        target.put("reviewFastTrack", due.onFastTrack());
     }
     /** 削除済み教材の古い進捗キーを数えず、現在の教材だけのクリア数を返す。 */
     private static int currentCurriculumClearedTaskCount(

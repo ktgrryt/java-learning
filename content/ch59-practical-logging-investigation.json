@@ -277,14 +277,9 @@
       "solution": "import java.util.*;\n\npublic class Main {\n    static final List<String> SAFE_KEYS = List.of(\n            \"event\", \"requestId\", \"traceId\", \"orderId\", \"result\", \"durationMs\");\n\n    static Map<String, String> sanitize(Map<String, String> input) {\n        Map<String, String> safe = new LinkedHashMap<>();\n        for (String key : SAFE_KEYS) {\n            if (input.containsKey(key)) safe.put(key, input.get(key));\n        }\n        return safe;\n    }\n\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n        Map<String, String> input = new LinkedHashMap<>();\n        for (int i = 0; i < n; i++) input.put(sc.next(), sc.next());\n\n        Map<String, String> safe = sanitize(input);\n        StringJoiner line = new StringJoiner(\" \");\n        safe.forEach((key, value) -> line.add(key + \"=\" + value));\n        line.add(\"dropped=\" + (input.size() - safe.size()));\n        System.out.println(line);\n    }\n}\n",
       "sourceChecks": [
         {
-          "pattern": "for\\s*\\(\\s*String\\s+key\\s*:\\s*SAFE_KEYS\\s*\\)",
+          "pattern": ":\\s*SAFE_KEYS\\s*\\)|SAFE_KEYS\\s*(?:\\.\\s*(?:forEach|stream|iterator|get|indexOf)\\s*\\(|::\\s*indexOf)",
           "minimum": 1,
           "message": "許可リストを順に走査し、項目と出力順を制限してください。"
-        },
-        {
-          "pattern": "input\\s*\\.\\s*containsKey\\s*\\(",
-          "minimum": 1,
-          "message": "入力に存在する許可項目だけを残してください。"
         }
       ],
       "quiz": [

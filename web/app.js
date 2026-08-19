@@ -65,15 +65,25 @@
                             // quizIndex が 0 以上ならクイズの段（問題を解き終えたあと）
   var reviewTaskId = null;  // 復習で開いている問題ID（レッスンIDは currentId）
   var reviewFilter = 'all'; // 復習の絞り込み（all / weak / bookmark）
-  var reviewSummary = null; // 直前に終えたセッションの結果。復習ホームの先頭に1回だけ出す
-  var REVIEW_SESSION_SIZE = 10;
+  var reviewSummary = null; // 直前に終えたセットの結果。復習ホームの先頭に1回だけ出す
+  var reviewRun = null;     // 続けて重ねたセットの積み上げ（→ startReviewRun）
+
   /**
-   * 1セッションの最後に続けて出すクイズの数。
+   * 1セットの問題数。
    *
-   * 📣の解放は「異なる20問へ連続正解」なので、1回で20問出すと1セッションで取れてしまう。
-   * 問題と同じ10問で切って、2回に分けて届くようにしてある。
+   * 以前は10問だった。1問が数分かかるので、始める前に身構える重さになっていた。
+   * 短いセットにして「もう1セット」で足せるようにすると、やめる場所を自分で選べる。
+   * 解ける総量を減らしたのではなく、区切りを細かくしただけ（何セットでも続けられる）。
    */
-  var REVIEW_QUIZ_SESSION_SIZE = 10;
+  var REVIEW_SESSION_SIZE = 4;
+  /**
+   * 1セットの最後に続けて出すクイズの数。
+   *
+   * 📣の解放は「異なる20問へ連続正解」なので、1回で20問出すと1セットで取れてしまう。
+   * 問題より少なくしてあるのは、セット全体を短く保つほうが「もう1セット」を押しやすく、
+   * クイズは数秒で終わるぶん、1セットに詰めるより回数を重ねたほうが効くため。
+   */
+  var REVIEW_QUIZ_SESSION_SIZE = 3;
   var REVIEW_LIST_LIMIT = 50; // 一覧に並べる上限。残りは件数だけ知らせる
   var quizFocus = null;     // しおりから開いたクイズ { lessonId, index }。描画側で1回だけ使う
 
@@ -433,6 +443,8 @@
           t.reviewLevel = u.reviewLevel;
           t.reviewDue = u.reviewDue;
           t.reviewDueDays = u.reviewDueDays;
+          t.reviewCleanRun = u.reviewCleanRun;
+          t.reviewFastTrack = u.reviewFastTrack;
         }
       });
     });
@@ -501,6 +513,22 @@
     return (Number(basisPoints || 10000) / 10000).toLocaleString('ja-JP', {
       minimumFractionDigits: 2,
       maximumFractionDigits: 2
+    });
+  }
+
+  /**
+   * ブランド倍率が伸びた幅を「これから何%多く受け取れるか」に直す。
+   *
+   * 倍率の差（例 ×1.34 → ×1.51）をそのまま出しても増減の実感に結びつかないので、
+   * 前の倍率を基準にした割合で見せる。基準が0や下がった場合は空文字を返し、
+   * 呼び出し側が行そのものを出さない。
+   */
+  function brandGainPercentText(before, after) {
+    if (!(before > 0) || !(after > before)) { return ''; }
+    var gain = (after / before - 1) * 100;
+    return gain.toLocaleString('ja-JP', {
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 1
     });
   }
 
@@ -1396,8 +1424,6 @@
       '      <section class="chapter-detail" id="chapterDetail"></section>' +
       '    </div>' +
       '  </section>' +
-      '  <footer class="home-utilities"><span>学習データはこの端末に保存されています。</span>' +
-      '  <button class="ghost-btn" id="resetBtn" type="button">進捗をリセット</button></footer>' +
       '</div>';
 
     renderChapterCards();
@@ -1410,7 +1436,6 @@
     if (reviewBtn && !reviewBtn.disabled) {
       reviewBtn.addEventListener('click', goReview);
     }
-    document.getElementById('resetBtn').addEventListener('click', resetProgress);
     main.scrollTop = 0;
   }
 
@@ -1480,8 +1505,16 @@
    * （最後に復習した日 + レベルごとの間隔）、期限が過ぎたものから順に出す。
    * 一度正解すると間隔が伸びるので、しばらく出てこない。
    *
-   * 期限が来たものが10問に足りない日は、期限が近い順で「早めの復習」として補う。
+   * <b>できている問題は早く抜ける。</b>失敗を挟まずに2回続けて通した問題は間隔を2段
+   * まとめて飛ばし（サーバの ProgressStore.updateReviewPlan）、ヒントを見ずに一発で
+   * クリアした問題は最初の期限が翌日ではなく3日後になる。回数は詰まった問題に使う。
+   *
+   * 期限が来たものが1セット分に足りない日は、期限が近い順で「早めの復習」として補う。
    * 0問の画面を見せると復習の習慣が途切れるので、いつでも始められる形にしてある。
+   *
+   * 1回で全部出すのではなく<b>短いセットを重ねる</b>形にしてある。セットを終えるたびに
+   * 復習ホームへ戻り、そこから「もう1セット」で続けられる。続けているあいだは
+   * {@link reviewRun} が「もう出した問題」を覚えていて、同じ問題が続けて出ないようにする。
    *
    * 苦手度と期限はサーバが持つ（web側で数えると再読込でズレる）。ここでは
    * サーバから来た値を読んで、並べ替えと表示に使うだけ。
@@ -1500,6 +1533,8 @@
           weight: Number(task.reviewWeight || 0),
           bookmarked: !!task.bookmarked,
           level: Number(task.reviewLevel || 0),
+          cleanRun: Number(task.reviewCleanRun || 0),
+          fastTrack: !!task.reviewFastTrack,
           dueDays: dueDays,
           overdue: dueDays <= 0
         });
@@ -1529,8 +1564,9 @@
   /**
    * 苦手度は4単位で1点。失敗1回は1単位しか増えないので、表示は点に直して見せる。
    *
-   * 「実行」＝「採点」にしたぶん、書いている途中の失敗も全部届く。1回で1点上げると
-   * 試行錯誤しただけで振り切れてしまうため、サーバ側で細かい目盛りにしてある。
+   * 提出＝採点なので、書いている途中の失敗も全部届く。1回で1点上げると試行錯誤しただけで
+   * 振り切れてしまうため、サーバ側で細かい目盛りにしてある。「試しに実行」はここを通らない
+   * （採点しないので苦手度も動かない）。
    */
   var REVIEW_WEIGHT_SCALE = 4;
 
@@ -1555,6 +1591,23 @@
     return '安定';
   }
 
+  /**
+   * 一覧の右に出す「いまどの扱いか」。苦手度と、間隔を飛ばしている印を同じ枠で出す。
+   *
+   * 枠を増やさないのは、行に並ぶ情報を増やすと期限が読み取りにくくなるため。
+   * 苦手度が付いている問題では苦手度を優先する ―― 飛び級は苦手度0の問題しか到達しないが、
+   * 「安定」と「⚡」が同じ意味の枠に交互に出るより、危ない側を必ず見せるほうがよい。
+   */
+  function reviewStandingHtml(entry) {
+    if (entry.fastTrack && !entry.weight) {
+      return '<span class="review-weight review-fast" data-level="0"'
+        + ' title="失敗を挟まずに' + entry.cleanRun + '回続けて通しました。間隔を2段ずつ飛ばします">'
+        + '⚡ 一発' + entry.cleanRun + '連続</span>';
+    }
+    return '<span class="review-weight" data-level="' + reviewWeightLevel(entry.weight) + '">' +
+      esc(reviewWeightText(entry.weight)) + '</span>';
+  }
+
   /** 期限の見せ方。「いつ確認したいのか」が一目で分かる短い言葉にする。 */
   function reviewDueText(entry) {
     if (entry.dueDays <= -1) { return '⏰ ' + (-entry.dueDays) + '日 過ぎている'; }
@@ -1577,18 +1630,33 @@
   }
 
   /**
-   * 今回の出題を決める。期限が過ぎたものを先に、足りなければ期限が近い順で補う。
+   * 今回のセットの出題を決める。期限が過ぎたものを先に、足りなければ期限が近い順で補う。
    *
-   * 1セッションを {@code REVIEW_SESSION_SIZE} 問で切るのは、終わりが見えないと
-   * 復習を始めにくいため。
+   * 1セットを {@code REVIEW_SESSION_SIZE} 問で切るのは、終わりが見えないと復習を
+   * 始めにくいため。もっと解きたい人は「もう1セット」で足す。
+   *
+   * 続けているあいだは、そのセットまでに出した問題を外す。通せなかった問題は期限切れの
+   * まま先頭に残るので、外さないと次のセットも同じ問題で埋まり、そこで足止めになる。
    */
   function buildReviewQueue(filter) {
+    return nextReviewEntries(filter).map(function (entry) {
+      return { lessonId: entry.lesson.id, taskId: entry.task.id };
+    });
+  }
+
+  /** まだこの回で出していない問題を、出題順に並べて返す。 */
+  function pendingReviewCandidates(filter) {
+    var served = reviewRun ? reviewRun.servedTaskKeys : {};
     return filteredReviewCandidates(filter)
-      .sort(compareReviewEntries)
-      .slice(0, REVIEW_SESSION_SIZE)
-      .map(function (entry) {
-        return { lessonId: entry.lesson.id, taskId: entry.task.id };
-      });
+      .filter(function (entry) {
+        return !served[entry.lesson.id + '#' + entry.task.id];
+      })
+      .sort(compareReviewEntries);
+  }
+
+  /** 次のセットで出る問題。復習ホームの「今回のセット」もこれを見て数える。 */
+  function nextReviewEntries(filter) {
+    return pendingReviewCandidates(filter).slice(0, REVIEW_SESSION_SIZE);
   }
 
   /**
@@ -1601,17 +1669,22 @@
    * （覚えた1問を繰り返すだけで並ばないように）、外さないと20問そろわない。
    *
    * 並びは 誤答 → しおり → 残り で、それぞれ教材の順。抽選はしない（問題側の出題と同じ方針）。
+   *
+   * セットを重ねているあいだは、すでに出したクイズも外す（間違えたクイズは連続の集合に
+   * 入らないので、外さないと次のセットでも同じ問いが先頭に来てしまう）。
    */
   function buildReviewQuizQueue() {
     var inRun = {};
     (cafeState().quizReviewRunKeys || []).forEach(function (key) { inRun[key] = true; });
+    var served = reviewRun ? reviewRun.servedQuizKeys : {};
     var wrong = [];
     var marked = [];
     var rest = [];
     allLessons().forEach(function (lesson) {
       (lesson.quizzes || []).forEach(function (quiz, index) {
         var result = (lesson.quizResults || [])[index];
-        if (!result || inRun[lesson.id + '#' + index]) { return; }
+        var key = lesson.id + '#' + index;
+        if (!result || inRun[key] || served[key]) { return; }
         var entry = { lessonId: lesson.id, index: index };
         if (!result.correct) { wrong.push(entry); }
         else if (quizBookmarked(lesson, index)) { marked.push(entry); }
@@ -1627,10 +1700,32 @@
     renderReview();
   }
 
-  function startReviewSession(filter) {
+  /**
+   * 続けて重ねたセットの控えを作る（作り直す）。
+   *
+   * 「もう1セット」で続けているあいだだけ生きていて、出し終えた問題とクイズ、それまでの
+   * 成績を覚えている。復習ホームから始め直したとき・途中で終えたとき・結果を出さずに
+   * 復習ホームを開いたときに捨てる（{@link renderReview} の先頭）。
+   */
+  function startReviewRun() {
+    reviewRun = {
+      sets: 0, total: 0, cleared: 0, quizTotal: 0, quizCorrect: 0,
+      servedTaskKeys: {}, servedQuizKeys: {}
+    };
+  }
+
+  /**
+   * 1セットを始める。
+   *
+   * @param continued 「もう1セット」から来たなら true（それまでの積み上げを引き継ぐ）
+   */
+  function startReviewSession(filter, continued) {
+    if (!continued || !reviewRun) { startReviewRun(); }
     var queue = buildReviewQueue(filter);
     if (!queue.length) {
-      toast('この絞り込みには復習できる問題がありません');
+      toast(continued
+        ? '続けて出せる問題は出し切りました'
+        : 'この絞り込みには復習できる問題がありません');
       return;
     }
     reviewSummary = null;
@@ -1638,18 +1733,20 @@
       queue: queue, index: 0, cleared: 0, clearedKeys: {},
       quizQueue: buildReviewQuizQueue(), quizIndex: -1, quizCorrect: 0
     };
+    noteReviewServed(reviewSession);
     selectReviewTask(queue[0].lessonId, queue[0].taskId);
   }
 
   /**
-   * クイズだけを解き直すセッション。問題の復習が無い日のための入口。
+   * クイズだけを解き直すセット。問題の復習が無い日と、問題を出し切ったあとの入口。
    *
-   * 問題のキューを空にしてクイズの段から始めるだけで、数え方は通常のセッションと同じ。
+   * 問題のキューを空にしてクイズの段から始めるだけで、数え方は通常のセットと同じ。
    */
-  function startReviewQuizSession() {
+  function startReviewQuizSession(continued) {
+    if (!continued || !reviewRun) { startReviewRun(); }
     var quizQueue = buildReviewQuizQueue();
     if (!quizQueue.length) {
-      toast('解き直せるクイズがありません');
+      toast(continued ? '続けて出せるクイズは出し切りました' : '解き直せるクイズがありません');
       return;
     }
     reviewSummary = null;
@@ -1657,7 +1754,32 @@
       queue: [], index: 0, cleared: 0, clearedKeys: {},
       quizQueue: quizQueue, quizIndex: 0, quizCorrect: 0
     };
+    noteReviewServed(reviewSession);
     renderReviewQuiz();
+  }
+
+  /** このセットで出す問題とクイズを「もう出した」側へ移す（次のセットで外すため）。 */
+  function noteReviewServed(session) {
+    session.queue.forEach(function (item) {
+      reviewRun.servedTaskKeys[item.lessonId + '#' + item.taskId] = true;
+    });
+    session.quizQueue.forEach(function (item) {
+      reviewRun.servedQuizKeys[item.lessonId + '#' + item.index] = true;
+    });
+  }
+
+  /**
+   * 「もう1セット」。問題が残っていれば問題から、無ければクイズだけで続ける。
+   *
+   * 押した先で「もう無い」と言われるのを避けるため、ボタン側でも残りを見て出し分けている
+   * （→ reviewMoreButtonHtml）。ここはその判断をもう一度なぞるだけ。
+   */
+  function continueReviewRun() {
+    if (buildReviewQueue(reviewFilter).length) {
+      startReviewSession(reviewFilter, true);
+      return;
+    }
+    startReviewQuizSession(true);
   }
 
   /**
@@ -1682,27 +1804,44 @@
     selectReviewTask(next.lessonId, next.taskId);
   }
 
-  /** 今回の成績を控えてセッションを閉じ、復習ホームへ戻す。 */
+  /** 今回のセットの成績を控えてセッションを閉じ、復習ホームへ戻す。 */
   function finishReviewSession() {
+    if (!reviewRun) { startReviewRun(); }
+    var quizTotal = reviewSession.quizIndex < 0 ? 0 : reviewSession.quizQueue.length;
+    reviewRun.sets++;
+    reviewRun.total += reviewSession.queue.length;
+    reviewRun.cleared += reviewSession.cleared;
+    reviewRun.quizTotal += quizTotal;
+    reviewRun.quizCorrect += reviewSession.quizCorrect;
     reviewSummary = {
       total: reviewSession.queue.length,
       cleared: reviewSession.cleared,
-      quizTotal: reviewSession.quizIndex < 0 ? 0 : reviewSession.quizQueue.length,
-      quizCorrect: reviewSession.quizCorrect
+      quizTotal: quizTotal,
+      quizCorrect: reviewSession.quizCorrect,
+      sets: reviewRun.sets,
+      runTotal: reviewRun.total,
+      runCleared: reviewRun.cleared,
+      runQuizTotal: reviewRun.quizTotal,
+      runQuizCorrect: reviewRun.quizCorrect
     };
     reviewSession = null;
     goReview();
   }
 
+  /** 途中で切り上げる。積み上げも捨てる（次に開いたときは新しい1セット目から）。 */
   function endReviewSession() {
     reviewSession = null;
     reviewSummary = null;
+    reviewRun = null;
     goReview();
   }
 
   // ------------------------------------------------------- 復習ホームの描画
 
   function renderReview() {
+    // 結果を出さずにここへ来たなら、続けているセットではない（積み上げを捨てる）。
+    // 残しておくと、あとで開き直したときに「もう出した」ぶんが出題から抜けたままになる。
+    if (!reviewSummary) { reviewRun = null; }
     var candidates = reviewCandidates();
     var counts = {
       all: candidates.length,
@@ -1743,7 +1882,8 @@
           ? '  <section class="menu-section review-empty">' +
             '    <span class="review-empty-icon">🧠</span>' +
             '    <div><strong>答えた確認クイズなら解き直せます</strong>' +
-            '    <p>' + quizOnly + '問を、答えと解説を隠して出し直します（チップは出ません）。</p></div>' +
+            '    <p>1セット' + quizOnly + '問を、答えと解説を隠して出し直します'
+            + '（チップは出ません）。終わったら続けられます。</p></div>' +
             '    <button class="primary-btn" id="reviewQuizOnlyBtn">▶ クイズを復習する</button>' +
             '  </section>'
           : '') +
@@ -1752,7 +1892,10 @@
       document.getElementById('backToLearningBtn').addEventListener('click', goHome);
       document.getElementById('reviewEmptyBtn').addEventListener('click', goHome);
       var quizOnlyBtn = document.getElementById('reviewQuizOnlyBtn');
-      if (quizOnlyBtn) { quizOnlyBtn.addEventListener('click', startReviewQuizSession); }
+      if (quizOnlyBtn) {
+        quizOnlyBtn.addEventListener('click', function () { startReviewQuizSession(false); });
+      }
+      bindReviewSummary();
       bindReviewRows(main);
       // 知らせは1回だけ（開き直すたびに前回の成績が出ると、いまの状態が読みにくい）
       reviewSummary = null;
@@ -1760,10 +1903,12 @@
       return;
     }
 
+    // 一覧は全部見せる（1問だけ選ぶ道はいつでも通す）。数えるのは次のセットで出るぶんだけ。
     var pool = filteredReviewCandidates(filter).slice().sort(compareReviewEntries);
-    var sessionSize = Math.min(REVIEW_SESSION_SIZE, pool.length);
-    var sessionOverdue = pool.slice(0, sessionSize)
-      .filter(function (entry) { return entry.overdue; }).length;
+    var pending = pendingReviewCandidates(filter);
+    var next = nextReviewEntries(filter);
+    var sessionSize = next.length;
+    var sessionOverdue = next.filter(function (entry) { return entry.overdue; }).length;
     var hidden = Math.max(0, pool.length - REVIEW_LIST_LIMIT);
     var shown = pool.slice(0, REVIEW_LIST_LIMIT);
 
@@ -1778,15 +1923,16 @@
       '      <span class="screen-eyebrow">SPACED REVIEW</span>' +
       '      <h1 class="hero-title">解き直して定着させる</h1>' +
       '      <p class="hero-sub">忘却曲線で「そろそろ確認したい問題」から出ます · '
-        + '正解すると次に出るまでの間隔が伸びます</p>' +
+        + '正解すると間隔が伸び、⚡ 一発正解が2回続いた問題は2段飛ばして当面出ません</p>' +
+             reviewSetNoteHtml(sessionSize, pending.length, sessionOverdue) +
              reviewQuizNoteHtml() +
              reviewCafeNoteHtml() +
              reviewFilterTabsHtml(counts, filter) +
       '      <div class="hero-action">' +
-      '        <div class="hero-next"><div class="cta-lead">今回の出題</div>' +
+      '        <div class="hero-next"><div class="cta-lead">今回のセット</div>' +
       '        <div class="cta-target">' + reviewQueueBreakdown(sessionSize, sessionOverdue)
                  + '</div></div>' +
-      '        <button class="primary-btn big" id="reviewStartBtn">▶ 復習を始める</button>' +
+               reviewStartButtonHtml(sessionSize, sessionOverdue) +
       '      </div>' +
       '    </div>' +
       '  </section>' +
@@ -1800,21 +1946,73 @@
       '    <ul class="review-list">' + shown.map(reviewRowHtml).join('') + '</ul>' +
       (hidden
         ? '    <p class="menu-note review-list-more">ほか ' + hidden
-          + '問。「復習を始める」なら一覧に出ていない問題からも出題します。</p>'
+          + '問。「1セット復習する」なら一覧に出ていない問題からも出題します。</p>'
         : '') +
       '  </section>' +
          quizBookmarkSectionHtml() +
       '</div>';
 
     document.getElementById('backToLearningBtn').addEventListener('click', goHome);
-    document.getElementById('reviewStartBtn').addEventListener('click', function () {
-      startReviewSession(filter);
+    var startBtn = document.getElementById('reviewStartBtn');
+    // 続けている途中（結果を出したところ）なら積み上げを引き継ぐ。引き継がないと
+    // ここを押しただけで、たったいま解いた問題がもう一度出てくる。
+    // 「はじめから」だけは、その積み上げを捨てるために引き継がない。
+    var restart = startBtn.dataset.mode === 'restart';
+    startBtn.addEventListener('click', function () {
+      startReviewSession(filter, !restart);
     });
+    bindReviewSummary();
     bindReviewFilters(main);
     bindReviewRows(main);
     // 結果の知らせは1回だけ。開き直すたびに前回の成績が出ると、今の状態が読みにくい
     reviewSummary = null;
     main.scrollTop = 0;
+  }
+
+  /**
+   * ヒーローの開始ボタン。
+   *
+   * 続けているあいだに出し切ったら、押せないままにするのではなく<b>積み上げを捨てて
+   * 出し直す</b>ボタンにする。クリア済みが2〜3問しか無い人は1セットで出し切ってしまい、
+   * 押せないボタンだけが残ると、その日はもう復習できないように見えるため。
+   */
+  function reviewStartButtonHtml(sessionSize, sessionOverdue) {
+    if (!sessionSize) {
+      return '      <button class="primary-btn big stacked-cta" id="reviewStartBtn"'
+        + ' data-mode="restart">▶ はじめから復習する'
+        + '<small>出した問題も含める</small></button>';
+    }
+    // 期限が来ていない日は、押さないことも選べると分かる見た目にする（薄いボタン）。
+    // 太いボタンに「やるべきこと」の顔をさせると、期限前の問題まで宿題に見えてしまう
+    if (!sessionOverdue) {
+      return '      <button class="ghost-btn big stacked-cta" id="reviewStartBtn">'
+        + '▶ 早めに1セット復習する<small>期限前・やらなくても大丈夫</small></button>';
+    }
+    return '      <button class="primary-btn big" id="reviewStartBtn">▶ 1セット復習する</button>';
+  }
+
+  /**
+   * 「1セットで終わりではない」ことを、始める前に1行で出す。
+   *
+   * 短いセットにした狙いは「区切りを選べること」なので、続けられると分かっていないと
+   * ただ出題が減ったように読まれてしまう。残りの数もここで見せる。
+   */
+  function reviewSetNoteHtml(sessionSize, poolSize, sessionOverdue) {
+    if (sessionSize && !sessionOverdue) {
+      // 「今日ぶんは終わっている」を言葉で出す。⏰0 の数字だけでは、
+      // 下に4問並んでいるほうが目に入って、まだ宿題が残っているように読める
+      return '      <p class="hero-sub review-set-note">✅ 期限が来た問題はありません。'
+        + 'ここで止めて大丈夫です（続けたいときは下のボタンで期限前の問題を出せます）</p>';
+    }
+    if (!sessionSize) {
+      return '      <p class="hero-sub review-set-note">🧩 続けて出せるぶんは出し切りました。'
+        + 'もう一度回すなら「はじめから」、1問だけなら下の一覧から選べます'
+        + '（正解した問題は期限が伸びたので、日をあけると戻ってきます）</p>';
+    }
+    var rest = Math.max(0, poolSize - sessionSize);
+    return '      <p class="hero-sub review-set-note">🧩 1セットは' + sessionSize
+      + '問。終わると結果が出て、そこから「もう1セット」で続けられます'
+      + (rest ? '（続けて出せるぶんが、ほか ' + rest + '問）' : '') + '</p>';
   }
 
   /**
@@ -1843,7 +2041,8 @@
    * 補充ぶんはそう見えるようにしておく。
    */
   function reviewQueueBreakdown(sessionSize, sessionOverdue) {
-    if (!sessionSize) { return '復習できる問題がありません'; }
+    // クリア済みの問題が無い日はこの画面へ来ないので、0なら「この回で出し切った」ほう
+    if (!sessionSize) { return '続けて出せる問題は出し切りました'; }
     var early = sessionSize - sessionOverdue;
     if (!early) { return '⏰ 期限切れ ' + sessionOverdue + '問'; }
     if (!sessionOverdue) { return '早めの復習 ' + early + '問（期限前）'; }
@@ -1861,11 +2060,19 @@
     if (!quizzes) { return ''; }
     var run = Number(cafeState().quizReviewRun || 0);
     var goal = Number(cafeState().quizStreakGoal || 20);
-    return '      <p class="hero-sub review-quiz-note">🧠 問題のあとに、答えた確認クイズを'
+    return '      <p class="hero-sub review-quiz-note">🧠 セットの問題のあとに、答えた確認クイズを'
       + quizzes + '問続けて出します（答えと解説は隠して出し直します）· '
       + '異なる' + goal + '問に連続正解すると 📣 が解放 · いまの連続 ' + run + '問</p>';
   }
 
+  /**
+   * 直前のセットの結果。ここに「もう1セット」を置く。
+   *
+   * 1セットを短くしたぶん、続ける操作が結果から離れていると、続けたい人が毎回
+   * ヒーローまで目を戻すことになる。結果のすぐ隣に置いて、押すだけで次のセットへ行く。
+   *
+   * 残りが無いときはボタンを出さない（押しても何も起きない操作を置かない）。
+   */
   function reviewSummaryHtml() {
     if (!reviewSummary) { return ''; }
     var perfect = reviewSummary.total > 0 && reviewSummary.cleared === reviewSummary.total;
@@ -1876,15 +2083,55 @@
       quiz = 'クイズは' + reviewSummary.quizTotal + '問のうち '
         + reviewSummary.quizCorrect + '問に正解（連続 ' + run + ' / ' + goal + '問）。';
     }
+    var sets = Number(reviewSummary.sets || 1);
+    var stacked = sets > 1
+      ? 'ここまで' + sets + 'セット'
+        + (reviewSummary.runTotal
+          ? '・問題は' + reviewSummary.runTotal + '問のうち ' + reviewSummary.runCleared + '問'
+          : '')
+        + (reviewSummary.runQuizTotal
+          ? '・クイズは' + reviewSummary.runQuizTotal + '問のうち '
+            + reviewSummary.runQuizCorrect + '問'
+          : '')
+        + 'に正解しています。'
+      : '';
     return '<section class="menu-section review-summary">' +
       '<span class="review-summary-icon">' + (perfect ? '🎉' : '📝') + '</span>' +
-      '<div><strong>復習おつかれさまでした</strong>' +
+      '<div><strong>' + sets + 'セット目が終わりました</strong>' +
       '<p>' + (reviewSummary.total
         ? reviewSummary.total + '問のうち ' + reviewSummary.cleared + '問に正解しました。'
           + (perfect ? '全問正解です！' : '通らなかった問題は、次の復習で出やすくなります。')
         : '') +
       (quiz ? (reviewSummary.total ? '<br>' : '') + quiz : '') +
-      '</p></div></section>';
+      (stacked ? '<br>' + stacked : '') +
+      '</p></div>' +
+      reviewMoreButtonHtml() +
+      '</section>';
+  }
+
+  /**
+   * 「もう1セット」のボタン。問題が残っていれば問題から、無ければクイズだけで続ける。
+   *
+   * 出せるものが何も無いときは何も置かない。理由はこのすぐ下（ヒーローの🧩の行と
+   * 「はじめから」のボタン）に出るので、結果の中で言い直すと同じ話が2つ並ぶ。
+   */
+  function reviewMoreButtonHtml() {
+    var tasks = buildReviewQueue(reviewFilter).length;
+    if (tasks) {
+      return '<button class="primary-btn" id="reviewMoreBtn">▶ もう1セット'
+        + '<small>問題' + tasks + '問</small></button>';
+    }
+    var quizzes = buildReviewQuizQueue().length;
+    if (quizzes) {
+      return '<button class="primary-btn" id="reviewMoreBtn">▶ クイズをもう1セット'
+        + '<small>' + quizzes + '問</small></button>';
+    }
+    return '';
+  }
+
+  function bindReviewSummary() {
+    var more = document.getElementById('reviewMoreBtn');
+    if (more) { more.addEventListener('click', continueReviewRun); }
   }
 
   function reviewFilterTabsHtml(counts, filter) {
@@ -1940,8 +2187,7 @@
       '</small></span>' +
       '<span class="review-due' + (entry.overdue ? ' overdue' : '') + '">' +
       esc(reviewDueText(entry)) + '</span>' +
-      '<span class="review-weight" data-level="' + reviewWeightLevel(entry.weight) + '">' +
-      esc(reviewWeightText(entry.weight)) + '</span>' +
+      reviewStandingHtml(entry) +
       '</button>' +
       bookmarkButtonHtml(lesson.id, entry.task) +
       '</li>';
@@ -2279,7 +2525,7 @@
       '<div class="lesson-next-copy"><small>' + (answered.correct ? '正解' : '不正解') + '</small>' +
       '<b>' + (remaining > 0 ? 'あと' + remaining + '問' : 'これが最後の1問') + '</b></div>' +
       '<button class="primary-btn lesson-next-btn" id="reviewFooterBtn">' +
-      (remaining > 0 ? '次のクイズへ →' : '復習を終える →') + '</button>';
+      (remaining > 0 ? '次のクイズへ →' : 'セットの結果へ →') + '</button>';
     document.getElementById('reviewFooterBtn').addEventListener('click', advanceReviewQuiz);
   }
 
@@ -2351,9 +2597,10 @@
 
     var remaining = reviewSession.queue.length - reviewSession.index - 1;
     var quizzes = reviewSession.quizQueue.length;
+    // 最後の1問でも「復習を終える」とは言わない（このあと結果から続けられる）
     var label = remaining > 0
       ? '次の問題へ →'
-      : (quizzes ? 'クイズの復習へ →' : '復習を終える →');
+      : (quizzes ? 'クイズの復習へ →' : 'セットの結果へ →');
     var lead = remaining > 0
       ? 'あと' + remaining + '問'
       : (quizzes ? '問題はこれで最後（クイズが' + quizzes + '問続きます）' : 'これが最後の1問');
@@ -3738,6 +3985,58 @@
       + (task.required === false ? '✓ 発展課題完了' : '★ クリア済み') + '</b>';
   }
 
+  /**
+   * ボタンの文字。
+   *
+   * 「試しに実行」と「提出して採点」を分けてある（2026-08-19・利用者の指示）。
+   * 分けていなかったあいだの狙い（考えながら書けるように、気軽に走らせる）は
+   * <b>試しに実行が引き受ける</b> ―― こちらは記録に何も残らないので、提出より気軽に押せる。
+   * 提出の側に「✓」と「提出」を入れているのは、押すと記録が動くと分かるようにするため。
+   */
+  var TRY_BUTTON_LABEL = '▶ 試しに実行';
+  var SUBMIT_BUTTON_LABEL = '✓ 提出して採点';
+
+  /** 提出ボタンの文字。問題の型で変わる（組み立てと実行中の戻しで同じものを使う）。 */
+  function submitButtonLabel(task) {
+    if (task && task.type === 'runtime-lab') { return '▶ runtime labを実行'; }
+    if (task && task.type === 'project') { return '▶ テストを実行'; }
+    if (task && task.type === 'artifact') { return '✓ 構成を検証'; }
+    return SUBMIT_BUTTON_LABEL;
+  }
+
+  /**
+   * 「試しに実行」に渡す入力の初期値。見えているケースの入力をそのまま入れておく。
+   *
+   * <b>隠しケースからは取らない。</b>入力そのものが「どんな入力で試されるか」の
+   * 手がかりになるため（→ [[case-fairness-hidden-literals]] と同じ理由）。
+   */
+  function tryStdinSeed(task) {
+    var cases = (task && task.visibleCases) || [];
+    for (var i = 0; i < cases.length; i++) {
+      if (cases[i].stdin) { return cases[i].stdin; }
+    }
+    return '';
+  }
+
+  /**
+   * 「試しに実行」で使う入力欄。<b>入力を使う問題だけ</b>に出す。
+   *
+   * 入力を読まない問題に空の欄を出すと、書かないと動かないように見える。
+   * 書き換えた入力は保存しない（保存する口は自動保存と提出の2つに絞ってある）。
+   * レッスンを開き直すとケースの入力に戻る。
+   */
+  function tryInputHtml(task) {
+    var seed = tryStdinSeed(task);
+    if (!seed) { return ''; }
+    var rows = Math.min(5, Math.max(2, seed.split('\n').length));
+    return '    <div class="try-input">' +
+      '      <label class="try-input-label" for="tryStdin-' + task.id + '">' +
+      '⌨️ 入力（「試しに実行」だけで使います・提出は全ケースの入力で採点します）</label>' +
+      '      <textarea class="try-stdin" id="tryStdin-' + task.id + '" rows="' + rows + '"' +
+      ' spellcheck="false" aria-label="試しに実行するときの入力">' + esc(seed) + '</textarea>' +
+      '    </div>';
+  }
+
   function buildTaskBlock(lesson, task, index, options) {
     var n = task.id;
     var review = !!(options && options.review);
@@ -3749,13 +4048,17 @@
     var workspace = runtimeLab ? task.runtimeLab : task.project;
     var editTitle = runtimeLab ? '実行環境を使うlabを編集'
       : (project ? 'プロジェクトを編集' : (artifact ? 'ファイルを編集' : 'コードを書く'));
-    var submitLabel = runtimeLab ? '▶ runtime labを実行'
-      : (project ? '▶ テストを実行' : (artifact ? '✓ 構成を検証' : '▶ 実行して採点'));
+    var submitLabel = submitButtonLabel(task);
+    // 採点せずに走らせられるのは単一ファイルのJavaだけ。artifactは設定ファイルの検証、
+    // project / runtime-lab は外の道具を動かすので、1回走らせる意味がない
+    var tryable = !artifact && !multiFile;
+    var tryInput = tryable ? tryInputHtml(task) : '';
     var shortcut = multiFile
       ? 'ファイルを切り替えて編集　·　⌘/Ctrl + Enter で実行'
       : artifact
       ? 'Tab で字下げ　·　⌘/Ctrl + Enter で検証'
-      : 'Tab で補完（候補は ' + completionMoveKeysText() + ' で選ぶ）　·　⌘/Ctrl + Enter で実行';
+      : 'Tab で補完（候補は ' + completionMoveKeysText() + ' で選ぶ）　·　'
+        + '⌘/Ctrl + Enter で提出　·　⇧ を足すと試しに実行';
 
     // 復習モードでは緑にしない（→ taskStatusHtml）
     var cleared = !review && !!task.cleared;
@@ -3786,7 +4089,7 @@
            renderCasePreview(task) +
       '  </div>' +
 
-      '  <div class="card card-code">' +
+      '  <div class="card card-code' + (tryInput ? ' has-try-input' : '') + '">' +
       '    <div class="code-head">' +
       '      <h2 class="card-h"><span class="card-h-icon">⌨️</span>' + editTitle + '</h2>' +
       '      <div class="code-head-actions">' +
@@ -3797,7 +4100,12 @@
           (project ? renderProjectHead(task.project) : '') +
           (runtimeLab ? renderRuntimeLabHead(task.runtimeLab) : '') +
       '    <div id="editorHost-' + n + '"></div>' +
+           tryInput +
       '    <div class="actions">' +
+          (tryable
+            ? '      <button class="ghost-btn" id="tryBtn-' + n + '">'
+              + TRY_BUTTON_LABEL + '</button>'
+            : '') +
       '      <button class="primary-btn" id="submitBtn-' + n + '">' + submitLabel + '</button>' +
       '      <span class="spacer"></span>' +
              renderHintButton(task) +
@@ -3826,11 +4134,15 @@
         ? task.savedCode
         : task.starterCode);
       editor.onSubmit = function () { submit(n); };
+      if (tryable) { editor.onTryRun = function () { tryRun(n); }; }
       editor.input.addEventListener('input', function () { scheduleSave(n); });
     }
     editors[n] = editor;
 
     block.querySelector('#submitBtn-' + n).addEventListener('click', function () { submit(n); });
+    if (tryable) {
+      block.querySelector('#tryBtn-' + n).addEventListener('click', function () { tryRun(n); });
+    }
     block.querySelector('[data-role="restore"]').addEventListener('click', function () {
       if (window.confirm((multiFile ? '編集した複数ファイル' : (artifact ? '編集した内容' : '書いたコード'))
           + 'を消して、最初のひな形に戻します。よろしいですか？')) {
@@ -4214,6 +4526,9 @@
       chapterCleared: res.chapterCleared,
       chapterNumber: res.chapterNumber,
       chapterTitle: res.chapterTitle,
+      chapterBonusCash: res.chapterBonusCash,
+      brandBefore: cafeBefore && cafeBefore.brandBasisPoints,
+      brandAfter: cafeAfter.brandBasisPoints,
       next: res.next,
       levelUp: cafeBefore && cafeAfter.level > cafeBefore.level
         ? { before: cafeBefore, after: cafeAfter }
@@ -4428,18 +4743,64 @@
   }
 
   /** 実行（採点）は1問ずつ。走っている問題のボタンだけを止める。 */
-  function setBusy(taskId, on, label) {
+  /**
+   * 走っているあいだ、その問題のボタンを止める。
+   *
+   * ボタンが2つあるので<b>両方止める</b>（片方だけだと、採点中に試しに実行を押せてしまい、
+   * 先に返った方の結果が後から消される）。文字が変わるのは押した方だけ ―― 押していない
+   * 側まで「実行中…」になると、どちらが走っているのか分からなくなる。
+   *
+   * @param who 押したボタン（'try' なら試しに実行、それ以外は提出）
+   */
+  function setBusy(taskId, on, label, who) {
     busyTask = on ? taskId : null;
-    var submitBtn = document.getElementById('submitBtn-' + taskId);
-    if (submitBtn) {
-      submitBtn.disabled = on;
-      var lesson = findLesson(currentId);
-      var task = lesson && findTask(lesson, taskId);
-      var idleLabel = task && task.type === 'runtime-lab' ? '▶ runtime labを実行'
-        : (task && task.type === 'project' ? '▶ テストを実行'
-        : (task && task.type === 'artifact' ? '✓ 構成を検証' : '▶ 実行して採点'));
-      submitBtn.textContent = on ? (label || '実行中…') : idleLabel;
-    }
+    var lesson = findLesson(currentId);
+    var task = lesson && findTask(lesson, taskId);
+    [
+      { el: document.getElementById('submitBtn-' + taskId),
+        idle: submitButtonLabel(task), acting: who !== 'try' },
+      { el: document.getElementById('tryBtn-' + taskId),
+        idle: TRY_BUTTON_LABEL, acting: who === 'try' }
+    ].forEach(function (button) {
+      if (!button.el) { return; }
+      button.el.disabled = on;
+      button.el.textContent = on && button.acting ? (label || '実行中…') : button.idle;
+    });
+  }
+
+  /**
+   * 採点せずに1回だけ走らせる（「▶ 試しに実行」と ⇧⌘/Ctrl + Enter）。
+   *
+   * <b>記録には何も残らない。</b>★・コイン・苦手度・提出回数（`attempts`）・
+   * 忘却曲線の期限はどれも動かない。書いたコードの保存は入力ごとの自動保存に任せる
+   * （進捗を書く口は /api/save と /api/submit の2つに絞ってある）。
+   *
+   * 結果は採点と同じ枠（#result-…）へ出す。1問1枚のパネルに箱を増やすと、どちらが
+   * 最後の結果なのか読めなくなるため。入力は欄の中身をそのまま渡す（末尾の改行は
+   * サーバ側の JavaRunner が足す）。
+   */
+  function tryRun(taskId) {
+    if (busyTask) { return; }
+    var result = document.getElementById('result-' + taskId);
+    setBusy(taskId, true, '実行中…', 'try');
+    result.innerHTML = '<div class="card card-result"><div class="spinner">実行中…</div></div>';
+    var stdinBox = document.getElementById('tryStdin-' + taskId);
+    api('run', {
+      code: editors[taskId].getValue(),
+      stdin: stdinBox ? stdinBox.value : '',
+      // libLessonId は同梱ライブラリの引き当て専用の参照ID（採点も保存もしない口）
+      libLessonId: currentId
+    })
+      .then(function (res) {
+        result.innerHTML =
+          '<div class="card card-result card-try">' +
+          '  <div class="try-result-head"><b>▶ 試しに実行した結果</b>' +
+          '  <small>採点はしていません。★・苦手度・提出回数は動きません</small></div>' +
+          renderRunOutput(res) +
+          '</div>';
+      })
+      .catch(function (e) { showError(e, taskId); })
+      .then(function () { setBusy(taskId, false, null, 'try'); });
   }
 
   function submit(taskId) {
@@ -4833,12 +5194,18 @@
 
   // ---------------------------------------------------------- 右上通知とお祝い演出
 
-  /** 店構えの変化を、進捗の差分を適用する前後で比較するための小さなスナップショット。 */
+  /**
+   * 店構えとブランド倍率を、進捗の差分を適用する前後で比較するための小さなスナップショット。
+   *
+   * ブランド倍率は「章クリアでどれだけ伸びたか」を通知に出すために持つ。サーバは現在値しか
+   * 返さないので、差分を当てる前の値をここで控えておかないと伸び幅が分からない。
+   */
   function cafeLevelSnapshot() {
     var cafe = cafeState();
     return {
       level: Number(cafe.level || 1),
-      title: cafe.levelTitle || '屋台カフェ'
+      title: cafe.levelTitle || '屋台カフェ',
+      brandBasisPoints: Number(cafe.brandMultiplierBasisPoints || 10000)
     };
   }
 
@@ -4864,6 +5231,9 @@
       chapterCleared: res.chapterCleared,
       chapterNumber: res.chapterNumber,
       chapterTitle: res.chapterTitle,
+      chapterBonusCash: res.chapterBonusCash,
+      brandBefore: cafeBefore && cafeBefore.brandBasisPoints,
+      brandAfter: cafeAfter.brandBasisPoints,
       next: res.next,
       levelUp: levelUp
     });
@@ -4883,6 +5253,9 @@
       ? {
         number: options.chapterNumber,
         title: options.chapterTitle || '',
+        bonusCash: Number(options.chapterBonusCash || 0),
+        brandBefore: Number(options.brandBefore || 0),
+        brandAfter: Number(options.brandAfter || 0),
         next: options.next || null
       }
       : null;
@@ -4947,11 +5320,29 @@
         stats.push('<div class="toast-stat"><span aria-hidden="true">☕</span>'
           + '<small>提供したコーヒー</small><b>+' + numberText(notification.cups) + '杯</b></div>');
       }
+      // 章クリアで実際に増えたものを数字で出す。以前は「ボーナスと倍率も伸びています」と
+      // 書いていたが、いくら増えたのか分からず読んでも判断に使えなかった。
+      var chapterDetails = [];
+      if (notification.chapter && notification.chapter.bonusCash > 0) {
+        chapterDetails.push('🪙 章制覇ボーナス +'
+          + numberText(notification.chapter.bonusCash) + 'コイン<small>（上の獲得コインに含む）</small>');
+      }
+      var brandGain = notification.chapter
+        ? brandGainPercentText(notification.chapter.brandBefore, notification.chapter.brandAfter)
+        : '';
+      if (brandGain) {
+        chapterDetails.push('📈 ブランド倍率 ×'
+          + multiplierText(notification.chapter.brandBefore) + ' → ×'
+          + multiplierText(notification.chapter.brandAfter)
+          + '<small>（これからのコイン報酬が +' + brandGain + '%）</small>');
+      }
       var chapterHtml = notification.chapter
         ? '<div class="toast-chapter"><span>🎉 第'
           + numberText(notification.chapter.number) + '章クリア！</span>'
-          + '<b>「' + esc(notification.chapter.title) + '」を全問クリアしました。'
-          + '章制覇ボーナスとブランド倍率も伸びています。</b></div>'
+          + '<b>「' + esc(notification.chapter.title) + '」を全問クリアしました。</b>'
+          + chapterDetails.map(function (line) {
+            return '<em>' + line + '</em>';
+          }).join('') + '</div>'
         : '';
       var actionHtml = notification.chapter && notification.chapter.next
         ? '<div class="toast-actions"><button class="primary-btn toast-action" type="button"'
@@ -5220,7 +5611,7 @@
 
   /**
    * ヘッダのコインを押したときの開閉。箱は body 直下にあるので、位置は自分で測って
-   * ボタンの真下へ寄せる（明るさの3択 setupThemeMenu と同じ作り）。
+   * ボタンの真下へ寄せる（設定パネル setupSettings と同じ作り）。
    */
   function setupCoinLog() {
     var btn = document.getElementById('statCafe');
@@ -5387,7 +5778,7 @@
     rememberLessonScroll();
     // 復習セッション（今回の10問）は、問題を解いている画面の間だけ生きている。
     // ホームやレッスンへ移ったら捨てる。ブラウザの戻るも必ずここを通るので、
-    // 捨てる場所を1つにしておくと「無関係な問題で 3 / 10問 と出る」ような
+    // 捨てる場所を1つにしておくと「無関係な問題で 3 / 4問 と出る」ような
     // 取り残しが起きない。
     var onboarding = !!(state && state.progress && state.progress.onboardingRequired);
     if (onboarding) {
@@ -5538,6 +5929,8 @@
       .then(function (data) {
         setState(data);
         dropStaleCoinLog();
+        // 設定パネルに出す環境の情報。歯車を押した時点では手元にある状態にしておく
+        loadEnvInfo();
         // ハッシュ付きで開いたときだけそのレッスンへ。それ以外はメインメニューから始める
         applyRoute(routeFromHash());
         render();
@@ -5582,8 +5975,13 @@
   applySidebarVisibility();
   bindSidebarSearch();
 
-  // ── 画面の明るさ（ライト / ダーク / システム） ───────────────────
-  // 設定の読み書きと data-theme の管理は theme.js に置いてある。ここは見た目だけ。
+  // ── 設定（明るさ / 版 / 実行環境 / 進捗のリセット） ───────────────
+  //
+  // ヘッダの右端に置く歯車ひとつにまとめてある。以前は明るさだけがヘッダのボタンで、
+  // 進捗のリセットは学習ホームの最下部にあった。設定と呼べるものが2箇所に分かれていて、
+  // しかもリセットは「章を選ぶ」の下まで下がらないと見つからなかった。
+  //
+  // 明るさの読み書きと data-theme の管理は theme.js に置いてある。ここは見た目だけ。
   // 押すたびに順番に回す形にはしていない。3択だと目的の設定まで最大2回押すことになり、
   // 次に何が来るかも読めないので、3つ並べて選ばせる。
   var THEME_LABELS = {
@@ -5592,56 +5990,173 @@
     system: { icon: '💻', label: 'システム' }
   };
 
-  function setupThemeMenu() {
-    var theme = window.JQTheme;
-    var btn = document.getElementById('themeToggle');
-    var pop = document.getElementById('themePop');
-    if (!theme || !btn || !pop) { return; }
+  // 実行環境（/api/env）。動いているJVMとOSの話なので、開くたびに取り直す必要はない。
+  // 起動時に1回だけ取っておき、設定を開いたときには既に手元にある状態にする
+  // （歯車を押してから「読み込み中…」が見えるのは、変わらない情報には大げさすぎる）。
+  var envInfo = null;
+  var envError = null;
+  var envPending = false;
 
-    /** ボタンには「今どれを選んでいるか」を出す。'システム' のときに
-        解決後の☀/🌙を出すと、メニューの ✓ と食い違って混乱する。 */
-    function paintButton() {
-      var pref = theme.get();
-      var meta = THEME_LABELS[pref] || THEME_LABELS.system;
-      btn.textContent = meta.icon;
-      btn.title = '画面の明るさ: ' + meta.label;
-      btn.setAttribute('aria-label', btn.title + '（変更する）');
-    }
+  /** まだ持っていなければ取る。失敗しても学習には関係ないので、画面の中だけで知らせる。 */
+  function loadEnvInfo() {
+    if (envInfo || envPending) { return; }
+    envPending = true;
+    envError = null;   // 取り直しのあいだは前回の失敗ではなく「読み込み中」を出す
+    api('env')
+      .then(function (data) { envInfo = data; envError = null; })
+      .catch(function (e) { envError = e.message; })
+      .then(function () {
+        envPending = false;
+        repaintSettingsInfo();   // 開いている間に届いたら、その場に差し込む
+      });
+  }
 
-    function paintOptions() {
-      var pref = theme.get();
-      pop.innerHTML = theme.CHOICES.map(function (key) {
-        var meta = THEME_LABELS[key];
-        return '<button class="theme-opt" type="button" role="menuitemradio"'
-          + ' data-theme-choice="' + key + '"'
-          + ' aria-checked="' + (key === pref ? 'true' : 'false') + '">'
-          + '<span class="theme-opt-icon" aria-hidden="true">' + meta.icon + '</span>'
-          + '<span class="theme-opt-label">' + esc(meta.label) + '</span>'
-          + '<span class="theme-opt-check" aria-hidden="true">✓</span>'
-          + '</button>';
-      }).join('');
+  function themeChoicesHtml() {
+    var pref = window.JQTheme ? window.JQTheme.get() : 'system';
+    return (window.JQTheme ? window.JQTheme.CHOICES : ['system']).map(function (key) {
+      var meta = THEME_LABELS[key] || THEME_LABELS.system;
+      return '<button class="theme-opt" type="button" role="radio"'
+        + ' data-theme-choice="' + key + '"'
+        + ' aria-checked="' + (key === pref ? 'true' : 'false') + '">'
+        + '<span class="theme-opt-icon" aria-hidden="true">' + meta.icon + '</span>'
+        + '<span class="theme-opt-label">' + esc(meta.label) + '</span>'
+        + '<span class="theme-opt-check" aria-hidden="true">✓</span>'
+        + '</button>';
+    }).join('');
+  }
+
+  /**
+   * ラベルと値の1行。値が空なら「不明」（読めなかった項目を空欄で見せない）。
+   *
+   * ラベルの幅はCSS側で固定してあるので、区画をまたいでも値の左端が1本にそろう。
+   * mono を立てるのは道（パス）だけ ―― 折り返しても字の並びで読めるようにするためで、
+   * 行の形（左にラベル・右に値）は変えない。
+   */
+  function settingsRow(label, value, mono) {
+    return '<div class="settings-row' + (mono ? ' mono' : '') + '">'
+      + '<span>' + esc(label) + '</span>'
+      + '<b>' + esc(value ? String(value) : '不明') + '</b></div>';
+  }
+
+  /**
+   * 「このアプリ」と「実行環境」。版もサーバから受け取る（web側にも書くと、
+   * 上げ忘れた方が画面に出る）。
+   */
+  function settingsInfoHtml() {
+    if (envError) {
+      return '<h3 class="settings-h">実行環境</h3>'
+        + '<p class="settings-note">環境の情報を読めませんでした: ' + esc(envError) + '</p>';
     }
+    if (!envInfo) {
+      return '<h3 class="settings-h">実行環境</h3>'
+        + '<p class="settings-note">読み込み中…</p>';
+    }
+    var os = envInfo.osName
+      ? envInfo.osName + (envInfo.osVersion ? ' ' + envInfo.osVersion : '')
+        + (envInfo.osArch ? '（' + envInfo.osArch + '）' : '')
+      : '';
+    var vm = envInfo.vmName
+      ? envInfo.vmName + (envInfo.vmVersion ? ' ' + envInfo.vmVersion : '')
+      : '';
+    return ''
+      + '<h3 class="settings-h">このアプリ</h3>'
+      + '<div class="settings-rows">'
+      + settingsRow('バージョン', 'v' + (envInfo.appVersion || '?'))
+      + '</div>'
+      + '<h3 class="settings-h settings-h-next">実行環境</h3>'
+      + '<div class="settings-rows">'
+      + settingsRow('Java', envInfo.javaVersion)
+      + settingsRow('配布元', envInfo.javaVendor)
+      + settingsRow('VM', vm)
+      + settingsRow('コンパイラ',
+          envInfo.compilerAvailable ? '利用できます' : '見つかりません（JREで起動しています）')
+      + settingsRow('OS', os)
+      + settingsRow('JDKの場所', envInfo.javaHome, true)   // 道だけ mono
+      + '</div>'
+      // 教材のコードはこのJDKで動く。学習者が別に入れたJDKと食い違うことがあるので、
+      // どれで動いているのかを名指しで書いておく。
+      + '<p class="settings-note">あなたが書いたコードは、上のJDKでコンパイル・実行されます。</p>';
+  }
+
+  function settingsStoreHtml() {
+    if (!envInfo || !envInfo.progressFile) { return ''; }
+    return settingsRow('保存先', envInfo.progressFile, true);
+  }
+
+  /** 環境の情報が後から届いたとき、開いているパネルの該当箇所だけ描き替える。 */
+  function repaintSettingsInfo() {
+    var info = document.getElementById('settingsInfo');
+    if (info) { info.innerHTML = settingsInfoHtml(); }
+    var store = document.getElementById('settingsStore');
+    if (store) { store.innerHTML = settingsStoreHtml(); }
+  }
+
+  function settingsHtml() {
+    return ''
+      + '<div class="settings-top">'
+      + '  <div class="settings-title"><small>SETTINGS</small><strong>設定</strong></div>'
+      + '  <button class="settings-close" type="button" data-role="close"'
+      + '          title="閉じる" aria-label="設定を閉じる">×</button>'
+      + '</div>'
+      + '<div class="settings-body">'
+      + '  <section class="settings-group">'
+      + '    <h3 class="settings-h">画面の明るさ</h3>'
+      + '    <div class="settings-choices" role="radiogroup" aria-label="画面の明るさ">'
+      + themeChoicesHtml()
+      + '    </div>'
+      + '  </section>'
+      + '  <section class="settings-group" id="settingsInfo">' + settingsInfoHtml() + '</section>'
+      + '  <section class="settings-group">'
+      + '    <h3 class="settings-h">学習データ</h3>'
+      + '    <div class="settings-rows" id="settingsStore">' + settingsStoreHtml() + '</div>'
+      + '    <p class="settings-note">★・書いたコード・復習の記録・カフェの資産は、'
+      + 'この端末の progress.json だけに入っています。どこにも送信されません。</p>'
+      + '    <button class="ghost-btn settings-reset" id="resetBtn" type="button">進捗をリセット</button>'
+      + '  </section>'
+      + '</div>';
+  }
+
+  /** 進捗のリセットのように、パネルの外の処理から閉じるための口。 */
+  function closeSettings() {
+    var pop = document.getElementById('settingsPop');
+    var btn = document.getElementById('settingsBtn');
+    if (pop) { pop.hidden = true; }
+    if (btn) { btn.setAttribute('aria-expanded', 'false'); }
+  }
+
+  /**
+   * 歯車を押したときの開閉。箱は body 直下にあるので、位置は自分で測って
+   * ボタンの真下へ寄せる（コインの履歴 setupCoinLog と同じ作り）。
+   */
+  function setupSettings() {
+    var btn = document.getElementById('settingsBtn');
+    var pop = document.getElementById('settingsPop');
+    if (!btn || !pop) { return; }
 
     function isOpen() { return !pop.hidden; }
 
-    function open() {
-      paintOptions();
-      pop.hidden = false;
-      btn.setAttribute('aria-expanded', 'true');
-      // body直下に置いてあるので、ボタンの位置は自分で測って合わせる。
-      // 右端をボタンの右端にそろえ、画面外に出ないよう最低8pxは残す。
+    function place() {
       var r = btn.getBoundingClientRect();
       pop.style.top = Math.round(r.bottom + 8) + 'px';
       pop.style.left = 'auto';
+      // 右端をボタンの右端にそろえ、画面外に出ないよう最低8pxは残す
       pop.style.right = Math.max(8, Math.round(window.innerWidth - r.right)) + 'px';
-      var first = pop.querySelector('.theme-opt[aria-checked="true"]') || pop.querySelector('.theme-opt');
-      if (first) { first.focus(); }
+    }
+
+    function open() {
+      closeCoinLog();          // 同じ列から2枚が重なって出ないように
+      loadEnvInfo();           // 起動時に取れていなかったときの取り直し
+      pop.innerHTML = settingsHtml();
+      pop.hidden = false;
+      btn.setAttribute('aria-expanded', 'true');
+      place();
+      var close = pop.querySelector('[data-role="close"]');
+      if (close) { close.focus(); }
     }
 
     function close(focusBack) {
       if (!isOpen()) { return; }
-      pop.hidden = true;
-      btn.setAttribute('aria-expanded', 'false');
+      closeSettings();
       if (focusBack) { btn.focus(); }
     }
 
@@ -5651,54 +6166,71 @@
     });
 
     pop.addEventListener('click', function (e) {
+      var hit = e.target.closest ? e.target.closest('[data-role="close"]') : null;
+      if (hit) { close(true); return; }
       var opt = e.target.closest ? e.target.closest('.theme-opt') : null;
-      if (!opt) { return; }
-      theme.set(opt.dataset.themeChoice);
-      close(true);
+      // 明るさは選んでも閉じない。3つを見比べながら決められるようにする
+      if (opt && window.JQTheme) { window.JQTheme.set(opt.dataset.themeChoice); return; }
+      var reset = e.target.closest ? e.target.closest('#resetBtn') : null;
+      if (reset) { resetProgress(); }
     });
 
-    // 開いている間の外側クリックと Esc で閉じる。矢印キーで3択を行き来する。
+    // 外側クリックと Esc で閉じる。中を触っても閉じないよう、箱の中は除く。
     document.addEventListener('click', function (e) {
-      if (isOpen() && !pop.contains(e.target) && e.target !== btn) { close(false); }
+      if (isOpen() && !pop.contains(e.target) && !btn.contains(e.target)) { close(false); }
     });
     document.addEventListener('keydown', function (e) {
       if (!isOpen()) { return; }
       if (e.key === 'Escape') { e.preventDefault(); close(true); return; }
       if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') { return; }
-      e.preventDefault();
+      // 明るさの3択の中にいるときだけ、矢印キーで行き来する
       var opts = Array.prototype.slice.call(pop.querySelectorAll('.theme-opt'));
       var at = opts.indexOf(document.activeElement);
-      var step = e.key === 'ArrowDown' ? 1 : -1;
-      var to = opts[(at + step + opts.length) % opts.length];
+      if (at < 0) { return; }
+      e.preventDefault();
+      var to = opts[(at + (e.key === 'ArrowDown' ? 1 : -1) + opts.length) % opts.length];
       if (to) { to.focus(); }
     });
 
-    // 画面を動かすと測った位置がずれるので、開いたままにしない。
-    window.addEventListener('resize', function () { close(false); });
+    // 画面を動かすと測った位置がずれるので、開いたまま置いていかない
+    window.addEventListener('resize', function () { if (isOpen()) { place(); } });
 
-    // 設定が変わったとき、および「システム」追従でOS側が変わったとき。
-    theme.onChange(function () {
-      paintButton();
-      if (isOpen()) { paintOptions(); }
-      // 店内の絵は装備が同じなら描き直さないので、明るさだけ変えても手が入らない。
-      // 中の色はCSS変数を見ていないため、ここでは触らなくてよい（暖色の絵のまま）。
-    });
-
-    paintButton();
+    // 明るさが変わったとき、および「システム」追従でOS側が変わったとき。
+    // ✓の位置を合わせ直すだけ（店内の絵はCSS変数を見ていないので触らなくてよい）。
+    //
+    // ここで innerHTML を作り替えてはいけない。押されたボタンがその場でDOMから消え、
+    // 続いて document まで上がってくるクリックが「パネルの外を押した」と判定されて
+    // 勝手に閉じてしまう（3つを見比べながら決められなくなる）。印だけ書き換える。
+    if (window.JQTheme) {
+      window.JQTheme.onChange(function () {
+        if (!isOpen()) { return; }
+        var pref = window.JQTheme.get();
+        var opts = pop.querySelectorAll('.theme-opt');
+        for (var i = 0; i < opts.length; i++) {
+          opts[i].setAttribute('aria-checked',
+            opts[i].dataset.themeChoice === pref ? 'true' : 'false');
+        }
+      });
+    }
   }
-  setupThemeMenu();
+
+  setupSettings();
   setupCoinLog();
 
   function resetProgress() {
     if (!window.confirm('★・書いたコード・復習の記録・ブックマーク・カフェのコイン・店舗・設備・アイテムがすべて消えます。本当にリセットしますか？')) { return; }
     api('reset', {})
       .then(function (data) {
+        // 設定パネルの中から呼ばれるので、先に閉じる。開いたままだと、下で描き直した
+        // 学習ホームの上にパネルだけが残る（もう用のない状態で画面を覆ってしまう）。
+        closeSettings();
         setState(data);
         sideExpanded = {};
         sideQuery = '';
         sideHitIndex = -1;
         reviewSession = null;
         reviewSummary = null;
+        reviewRun = null;
         try { localStorage.removeItem('jq-last-lesson'); } catch (e) { /* 同上 */ }
         clearCoinLog();
         goHome();

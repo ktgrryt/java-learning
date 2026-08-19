@@ -4,6 +4,7 @@ import com.sun.net.httpserver.HttpServer;
 import jq.content.ContentLoader;
 import jq.progress.ProgressStore;
 import jq.web.ApiHandler;
+import jq.web.EnvironmentInfo;
 import jq.web.StaticHandler;
 
 import java.io.IOException;
@@ -57,7 +58,7 @@ public final class App {
 
         String url = "http://localhost:" + server.getAddress().getPort();
         System.out.println();
-        System.out.println("  ☕  Java Café が起動しました");
+        System.out.println("  ☕  Java Café v" + EnvironmentInfo.APP_VERSION + " が起動しました");
         System.out.println();
         System.out.println("      " + url);
         System.out.println();
