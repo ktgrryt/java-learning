@@ -40,6 +40,12 @@ const QUIZ_LESSON = '1-3';
  */
 const STDIN_LESSON = '3-2';
 const STDIN_TASK = '1';
+/**
+ * 報酬の通知を「表示しない」に切り替えたあとでクリアする問題。上の節で使う `TASK` は
+ * すでにクリア済みで、再提出では報酬が出ない（cash が 0 になる）ので、同じレッスンの
+ * 2問目を取っておく。出力は教材の表示ケースから読むので、文面が変わっても追随する。
+ */
+const PREF_TASK = '2';
 /** 自動保存が効いているかを見るための目印。模範解答の末尾へ足す。 */
 const SAVE_MARK = '// 自動保存の目印';
 
@@ -1033,6 +1039,124 @@ const HELPERS = `window.__t = {
   check(keys.shifted, '⇧ + ⌘/Ctrl + Enter で採点なしに走る', keys);
   check(keys.submitted, '素の ⌘/Ctrl + Enter は提出のまま', keys);
 
+  // ── 報酬の通知の表示/非表示（設定パネルの「報酬の通知」）──────────────
+  // 既定で通知が出ることは上の「正解」の節で見ている。ここでは「表示しない」へ切り替えると
+  // **通知だけ** が消えて、コインと獲得の履歴は残ることを見る。設定が効いていなければ
+  // 上と同じように通知が出るので、この節は必ず落ちる（空振りしない検査になっている）。
+  await open(`#${LESSON}`);
+  const prefTask = await ev(`(async () => {
+    const state = await (await fetch('/api/state')).json();
+    let task = null;
+    state.chapters.forEach(ch => ch.lessons.forEach(l => {
+      if (l.id === '${LESSON}') { task = (l.tasks || []).find(t => t.id === '${PREF_TASK}') || null; }
+    }));
+    if (!task) { return { missing: true }; }
+    const expected = (task.visibleCases || []).map(c => c.expected).filter(Boolean)[0] || '';
+    return { cleared: !!task.cleared, expected: expected };
+  })()`);
+  check(!prefTask.missing && !prefTask.cleared && prefTask.expected.length > 0
+    && !/["\\]/.test(prefTask.expected),
+    `${LESSON}#${PREF_TASK} は未クリアで、出力が決まっている（この検査の前提）`, prefTask);
+  // 期待する出力から、そのまま出すだけのコードを組む（教材の文面が変わっても追随する）
+  const prefCode = 'public class Main {\n  public static void main(String[] args) {\n'
+    + prefTask.expected.split('\n').map(line => `    System.out.println("${line}");\n`).join('')
+    + '  }\n}';
+
+  const toastPref = await ev(`(async () => {
+    document.getElementById('settingsBtn').click();
+    const pop = await window.__t.until(() => {
+      const p = document.getElementById('settingsPop');
+      return p && !p.hidden ? p : null;
+    }, 20);
+    if (!pop) { return { opened: false }; }
+    const read = () => Array.prototype.slice.call(pop.querySelectorAll('[data-toast-choice]'))
+      .map(b => b.dataset.toastChoice + ':' + b.getAttribute('aria-checked')).join(' ');
+    const before = read();
+    const off = pop.querySelector('[data-toast-choice="0"]');
+    if (off) { off.click(); }
+    return {
+      opened: true,
+      count: pop.querySelectorAll('[data-toast-choice]').length,
+      before: before,
+      after: read(),
+      stillOpen: !document.getElementById('settingsPop').hidden,
+      saved: localStorage.getItem('jq-reward-toast')
+    };
+  })()`);
+  check(toastPref.opened && toastPref.count === 2, '設定に「報酬の通知」の2択がある', toastPref);
+  check(toastPref.before === '1:true 0:false', '既定は「表示する」', toastPref.before);
+  check(toastPref.after === '1:false 0:true' && toastPref.saved === '0',
+    '「表示しない」を選ぶと印が移り、保存される', toastPref);
+  check(toastPref.stillOpen, '選んでもパネルは閉じない（明るさと同じ）', toastPref.stillOpen);
+
+  // 矢印キーの行き来は区画の中だけ（明るさの最後から報酬の通知へ飛び移らない）
+  const arrows = await ev(`(() => {
+    const pop = document.getElementById('settingsPop');
+    const themeOpts = pop.querySelectorAll('[data-theme-choice]');
+    const last = themeOpts[themeOpts.length - 1];
+    last.focus();
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
+    const at = document.activeElement;
+    return { movedTo: at ? (at.dataset.themeChoice || at.dataset.toastChoice || '') : '',
+             kind: at && at.dataset.themeChoice ? 'theme' : 'toast' };
+  })()`);
+  check(arrows.kind === 'theme', '矢印キーは選んでいる区画の中だけを回る', arrows);
+
+  const quiet = await ev(`(async () => {
+    document.body.click();                     // 設定を閉じる
+    const ta = document.querySelector('#task-${PREF_TASK} .editor-input');
+    if (!ta) { return { editor: false }; }
+    ta.value = ${JSON.stringify(prefCode)};
+    ta.dispatchEvent(new Event('input', { bubbles: true }));
+    const logBefore = JSON.parse(localStorage.getItem('jq-coin-log') || '[]').length;
+    const host = document.getElementById('result-${PREF_TASK}');
+    host.innerHTML = '';
+    const sent = window.__jqSubmits.length;
+    document.getElementById('submitBtn-${PREF_TASK}').click();
+    const card = await window.__t.until(() => {
+      const c = host.querySelector('.card-result');
+      return c && !c.querySelector('.spinner') ? c : null;
+    });
+    await window.__t.until(() => window.__jqSubmits.length > sent);
+    const res = window.__jqSubmits[window.__jqSubmits.length - 1] || {};
+    await window.__t.sleep(500);               // 出るなら、この間に出ている
+    const el = document.getElementById('toast');
+    return {
+      editor: true,
+      verdict: card && card.classList.contains('ok') ? 'ok' : 'ng',
+      awarded: !!(res.cafeAward && res.cafeAward.cash > 0),
+      newStar: res.newStar === true,
+      stats: !!el.querySelector('.toast-stats'),
+      shown: el.classList.contains('show'),
+      text: (el.textContent || '').replace(/\\s+/g, ' ').trim().slice(0, 60),
+      logBefore: logBefore,
+      logAfter: JSON.parse(localStorage.getItem('jq-coin-log') || '[]').length
+    };
+  })()`);
+  check(quiet.verdict === 'ok' && quiet.awarded && quiet.newStar,
+    '「表示しない」でもクリアと報酬そのものは起きる（この検査の前提）', quiet);
+  check(!quiet.stats, '「表示しない」のときは報酬の通知が出ない', quiet);
+  check(quiet.logAfter === quiet.logBefore + 1,
+    '通知を出さなくても獲得の履歴には残る（あとから読み返せる）', quiet);
+
+  // 読み直しても選んだ設定が残り、「表示する」へ戻せる
+  await open(`#${LESSON}`);
+  const back = await ev(`(async () => {
+    document.getElementById('settingsBtn').click();
+    const pop = await window.__t.until(() => {
+      const p = document.getElementById('settingsPop');
+      return p && !p.hidden ? p : null;
+    }, 20);
+    if (!pop) { return { opened: false }; }
+    const kept = pop.querySelector('[data-toast-choice="0"]').getAttribute('aria-checked');
+    pop.querySelector('[data-toast-choice="1"]').click();
+    const on = pop.querySelector('[data-toast-choice="1"]').getAttribute('aria-checked');
+    document.body.click();
+    return { opened: true, kept: kept, on: on, saved: localStorage.getItem('jq-reward-toast') };
+  })()`);
+  check(back.kept === 'true', '読み直しても「表示しない」が残っている', back);
+  check(back.on === 'true' && back.saved === '1', '「表示する」へ戻せる', back);
+
   const errors = await ev(`window.__jqErrors || []`);
   check(errors.length === 0, '画面のJavaScriptが例外を出していない', errors);
 
@@ -1044,7 +1168,8 @@ const HELPERS = `window.__t = {
   console.log(`\n${GREEN}LEARN UI OK: 誤答・コンパイルエラー・ヒント・模範解答・`
     + `★と報酬・1問1枚のパネル・獲得の履歴・自動保存・カフェへの寄り道と位置の復元・復習の出題・`
     + `復習の最後に続くクイズ・`
-    + `クイズのしおり・サイドバーの検索・試しに実行と入力欄を確認しました${RESET}`);
+    + `クイズのしおり・サイドバーの検索・試しに実行と入力欄・`
+    + `報酬の通知の表示/非表示を確認しました${RESET}`);
 })().catch(e => {
   console.error(`${RED}検査を実行できませんでした: ${e.message}${RESET}`);
   process.exit(1);

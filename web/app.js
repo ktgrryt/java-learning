@@ -5239,6 +5239,25 @@
     });
   }
 
+  // ── 報酬の通知を出すかどうか（設定パネルの「報酬の通知」）──────────────
+  // 既定は表示する。localStorage は保存先としてしか使わず、今の値はこの変数が持つ
+  // （読むたびに localStorage を見る形にすると、保存できない環境で「書き込み失敗 →
+  // 読み直すと元の値 → 画面が変わらない」になる。theme.js と同じ作り）。
+  var REWARD_TOAST_KEY = 'jq-reward-toast';
+  var rewardToastOn = true;
+
+  (function () {
+    var saved = null;
+    try { saved = localStorage.getItem(REWARD_TOAST_KEY); } catch (e) { /* 使えなくても既定で動く */ }
+    rewardToastOn = saved !== '0';   // 未設定・読めない＝表示する
+  })();
+
+  function setRewardToastOn(on) {
+    rewardToastOn = !!on;
+    try { localStorage.setItem(REWARD_TOAST_KEY, rewardToastOn ? '1' : '0'); }
+    catch (e) { /* 保存できなくても、このセッションのあいだは効く */ }
+  }
+
   /**
    * 金額を主役にした報酬通知。問題文を隠しすぎない短さで出し、ホバー中は時間を止める。
    *
@@ -5279,6 +5298,9 @@
     };
     // 消えたあとに読み返せるよう、出すのと同じ場所で控えも取る（→ コインの獲得履歴）
     recordCoinLog(notification);
+    // 設定で切れるのは「その場に出す通知」だけ。控えは必ず残す（消しても 📒 で読み返せる）。
+    // 章クリアはこの1枚にしか「次の章へ進む」導線が無いので、切っていても出す。
+    if (!rewardToastOn && !chapter) { return; }
     enqueueNotification(notification);
   }
 
@@ -6025,6 +6047,36 @@
     }).join('');
   }
 
+  /** 報酬の通知の2択。行の見た目は明るさの3択と同じものを使う（.theme-opt）。 */
+  function rewardToastChoicesHtml() {
+    return [
+      { value: '1', icon: '🔔', label: '表示する' },
+      { value: '0', icon: '🔕', label: '表示しない' }
+    ].map(function (meta) {
+      var on = meta.value === (rewardToastOn ? '1' : '0');
+      return '<button class="theme-opt" type="button" role="radio"'
+        + ' data-toast-choice="' + meta.value + '"'
+        + ' aria-checked="' + (on ? 'true' : 'false') + '">'
+        + '<span class="theme-opt-icon" aria-hidden="true">' + meta.icon + '</span>'
+        + '<span class="theme-opt-label">' + esc(meta.label) + '</span>'
+        + '<span class="theme-opt-check" aria-hidden="true">✓</span>'
+        + '</button>';
+    }).join('');
+  }
+
+  /**
+   * 選び直したときの印。明るさと同じで、選んでもパネルは閉じない。
+   * ここで innerHTML を作り替えないこと（押したボタンがDOMから消え、続いて document へ
+   * 上がるクリックが「外を押した」と判定されて勝手に閉じる）。
+   */
+  function repaintRewardToastChoices(pop) {
+    var opts = pop.querySelectorAll('[data-toast-choice]');
+    for (var i = 0; i < opts.length; i++) {
+      opts[i].setAttribute('aria-checked',
+        opts[i].dataset.toastChoice === (rewardToastOn ? '1' : '0') ? 'true' : 'false');
+    }
+  }
+
   /**
    * ラベルと値の1行。値が空なら「不明」（読めなかった項目を空欄で見せない）。
    *
@@ -6105,6 +6157,15 @@
       + themeChoicesHtml()
       + '    </div>'
       + '  </section>'
+      + '  <section class="settings-group">'
+      + '    <h3 class="settings-h">報酬の通知</h3>'
+      + '    <div class="settings-choices" role="radiogroup" aria-label="報酬の通知">'
+      + rewardToastChoicesHtml()
+      + '    </div>'
+      + '    <p class="settings-note">問題をクリアしたときに右上へ出る「+○○コイン」の通知です。'
+      + '表示しなくてもコインは入り、ヘッダのコインを押せば獲得の履歴で読み返せます'
+      + '（章クリアのお知らせは、次の章へ進む導線があるので表示しないときも出ます）。</p>'
+      + '  </section>'
       + '  <section class="settings-group" id="settingsInfo">' + settingsInfoHtml() + '</section>'
       + '  <section class="settings-group">'
       + '    <h3 class="settings-h">学習データ</h3>'
@@ -6168,7 +6229,14 @@
     pop.addEventListener('click', function (e) {
       var hit = e.target.closest ? e.target.closest('[data-role="close"]') : null;
       if (hit) { close(true); return; }
-      var opt = e.target.closest ? e.target.closest('.theme-opt') : null;
+      var toastOpt = e.target.closest ? e.target.closest('[data-toast-choice]') : null;
+      // 報酬の通知も選んでも閉じない（見比べる相手は無いが、明るさと同じ手触りにする）
+      if (toastOpt) {
+        setRewardToastOn(toastOpt.dataset.toastChoice === '1');
+        repaintRewardToastChoices(pop);
+        return;
+      }
+      var opt = e.target.closest ? e.target.closest('[data-theme-choice]') : null;
       // 明るさは選んでも閉じない。3つを見比べながら決められるようにする
       if (opt && window.JQTheme) { window.JQTheme.set(opt.dataset.themeChoice); return; }
       var reset = e.target.closest ? e.target.closest('#resetBtn') : null;
@@ -6183,8 +6251,12 @@
       if (!isOpen()) { return; }
       if (e.key === 'Escape') { e.preventDefault(); close(true); return; }
       if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') { return; }
-      // 明るさの3択の中にいるときだけ、矢印キーで行き来する
-      var opts = Array.prototype.slice.call(pop.querySelectorAll('.theme-opt'));
+      // 3択・2択の中にいるときだけ、矢印キーで行き来する。範囲はいま居る区画に限る
+      // （パネル全部から集めると、明るさの最後から報酬の通知へ飛び移ってしまう）。
+      var group = document.activeElement && document.activeElement.closest
+        ? document.activeElement.closest('[role="radiogroup"]') : null;
+      if (!group || !pop.contains(group)) { return; }
+      var opts = Array.prototype.slice.call(group.querySelectorAll('.theme-opt'));
       var at = opts.indexOf(document.activeElement);
       if (at < 0) { return; }
       e.preventDefault();
