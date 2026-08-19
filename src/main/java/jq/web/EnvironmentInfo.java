@@ -25,7 +25,7 @@ public final class EnvironmentInfo {
      * アプリの版。ここが唯一の置き場で、起動時の表示（{@code App}）と設定パネルの
      * 両方がこれを読む。2箇所に書くと、片方だけ上げた版が画面に出てしまう。
      */
-    public static final String APP_VERSION = "1.0.0";
+    public static final String APP_VERSION = "1.0.1";
 
     private EnvironmentInfo() {
     }

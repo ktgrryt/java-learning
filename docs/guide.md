@@ -1047,7 +1047,7 @@ JDK配布物、migration/outbox、CI/container、TLS/OIDC/OpenAPIを実測でき
 `labs/logging-investigation`では安全な記録と障害報告へ、
 `labs/operations-capstone`では運用の立て直しと判断の記録へつなげます。
 
-必須問題と任意発展を合わせたテストケースと、artifact・project・runtime-labの実テストは全3405件で、そのうち **2033件が隠しテスト**です（`sourceChecks` の620件はこの数に入りません。`Task.totalCaseCount` が数えるのはケースと実テストだけです）。
+必須問題と任意発展を合わせたテストケースと、artifact・project・runtime-labの実テストは全3405件で、そのうち **2033件が隠しテスト**です（`sourceChecks` の636件はこの数に入りません。`Task.totalCaseCount` が数えるのはケースと実テストだけです）。
 `0`、負の数、境界値（「80点ちょうど」「残高とちょうど同じ額の出金」「教材環境での `Integer.valueOf` の `127` と `128`」
 「1月31日の1か月後」など）が仕込まれているので、たまたま通るコードではクリアできません。
 
@@ -1814,7 +1814,7 @@ Native Imageのように環境負荷が高く、すべての学習者へ必須�
 「`case LOW_STOCK` を書く」のような**構造**は検査できますが、「`"残りわずか"` と表示する」のような
 **文言**は検査できません。文言はテストケースの出力比較で確認します。
 
-現在 `sourceChecks` は **620件**あり、276問で使っています。
+現在 `sourceChecks` は **636件**あり、291問で使っています。
 出力比較だけで十分な問題には付けず、学習対象の構文を実際に書いたか確かめられる場合だけ使います。
 正規表現が模範解答で本当に成立するかは `tools/CheckCount.java` で確かめられます。これは採点と同じ
 `jq.judge.SourceChecker.codeOnly` と同じ正規表現フラグを使ってヒット数を数えるだけの道具なので、
