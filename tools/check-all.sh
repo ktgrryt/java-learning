@@ -37,6 +37,7 @@ CHECKS=(
   check-starter-syntax.sh
   check-constant-output.sh
   check-explanation-output.sh
+  check-block-alignment.sh
   check-mini-labels.sh
   check-source-checks.sh
   check-optional-task.sh
