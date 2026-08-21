@@ -440,6 +440,62 @@ const HELPERS = `window.__t = {
   check(/\+[1-9][\d,]*コイン/.test(coinLog.today), '今日の獲得が合計されている', coinLog.today);
   check(coinLog.closed, '外側を押すと履歴が閉じる', coinLog.closed);
 
+  // ── 1日の区切りは午前4時（2026-08-22・利用者の要望）─────────────────────
+  //
+  // 0時で切ると、0:30 に解いた1問が翌日ぶんになる（連続日数が切れる・履歴の「今日」が
+  // 寝る前と寝たあとで分かれる）。区切りは `LearningDay.START_HOUR` が持ち、画面へは
+  // `/api/state` の `dayStartHour` で渡す ― 画面に数字を書くと片方だけ動いて食い違う。
+  //
+  // **いま何時でも同じ判定になるように書く。** 区切りの前後1分の時刻を今の時刻から
+  // 計算して履歴へ差し込む（固定の時刻を置くと、走らせた時刻で期待値が変わる）。
+  // **差し込んだら読み直す。** 履歴は一度読むと画面の中に残るので（`loadCoinLog` の控え）、
+  // localStorage を書くだけでは描き替わらない。
+  const injected = await ev(`(async () => {
+    const state = await (await fetch('/api/state')).json();
+    const hour = Number(state.progress.dayStartHour);
+    // いまの学習日の始まり（区切りを引いた日付の、その日の hour 時）
+    const shifted = new Date(Date.now() - hour * 3600000);
+    const start = new Date(shifted.getFullYear(), shifted.getMonth(), shifted.getDate(), hour, 0, 0);
+    const log = JSON.parse(localStorage.getItem('jq-coin-log') || '[]');
+    const keptJson = JSON.stringify(log);
+    log.unshift({ at: start.getTime() + 60000, cash: 7, reason: '境目のあと' });
+    log.unshift({ at: start.getTime() - 60000, cash: 999999, reason: '境目のまえ' });
+    localStorage.setItem('jq-coin-log', JSON.stringify(log));
+    // 元の履歴は node 側で預かる（このあと読み直すので、画面の変数には残せない）
+    return { hour: hour, keptJson: keptJson, kept: log.length - 2 };
+  })()`);
+  check(injected.hour === 4, '1日の区切り（午前4時）をサーバから受け取る', injected.hour);
+
+  await open(`#${LESSON}`);
+  const boundary = await ev(`(async () => {
+    document.getElementById('statCafe').click();
+    const pop = await window.__t.until(() => {
+      const p = document.getElementById('coinLog');
+      return p && !p.hidden ? p : null;
+    }, 20);
+    if (!pop) { return { opened: false }; }
+    const whens = [...pop.querySelectorAll('.coin-log-when')].map(n => n.textContent.trim());
+    const today = ((pop.querySelector('.coin-log-sum-cell.today') || {}).textContent || '').trim();
+    const out = {
+      opened: true,
+      items: pop.querySelectorAll('.coin-log-item').length,
+      today: today,
+      todayCash: Number(today.replace(/[^0-9]/g, '')),
+      before: whens[0],
+      after: whens[1]
+    };
+    document.body.click();
+    // 差し込んだぶんは戻す（この先の履歴の件数を見る節が数え違えないように）
+    localStorage.setItem('jq-coin-log', ${JSON.stringify(injected.keptJson)});
+    return out;
+  })()`);
+  check(boundary.opened && boundary.items === injected.kept + 2,
+    '差し込んだ2件が履歴に並ぶ（この検査の前提）', boundary);
+  check(boundary.todayCash >= 7 && boundary.todayCash < 999999,
+    '区切りより前の獲得は「今日ぶん」に入らない', boundary);
+  check(/^昨日/.test(boundary.before || ''), '区切りより前は「昨日」と出る', boundary.before);
+  check(/^今日/.test(boundary.after || ''), '区切りより後は「今日」と出る', boundary.after);
+
   // ── 自動保存（読み直しても書いたコードが残るか）──────────────────
   await ev(`(async () => {
     window.__t.type(window.__t.editor().value + '\\n${SAVE_MARK}\\n');
@@ -571,6 +627,40 @@ const HELPERS = `window.__t = {
   check(session.weightBadge.length > 0, '苦手度のバッジが出る', session.weightBadge);
   check(session.bar, '復習を抜ける／飛ばす操作が出ている', session.bar);
 
+  // ── 前に開いたヒントは畳んで出す（2026-08-21・利用者の指摘）──────────────
+  //
+  // レッスンで開いたヒントは記録に残る（`revealedHints`）。それが開いたまま復習に
+  // 出てくると、答えが見えている状態で解くことになり「いま解けるか」を測れない。
+  // ここまでの節でこの問題のヒントは全部開いているので、そのまま材料になる。
+  //
+  // **本文が見えていないことまで見る。** 属性（`open`）だけでは足りない ― CSSが崩れて
+  // 中身が出ていても属性は同じである。ただし**高さでは測れない**: 閉じた <details> の
+  // 中身は `content-visibility: hidden` なので、描かれていなくても `offsetHeight` は
+  // 値を返す（Chrome 151で実測24px）。`checkVisibility` で見る。
+  const reviewHints = await ev(`(async () => {
+    const cards = [...document.querySelectorAll('#hints-${TASK} [data-hint]')];
+    const head = (n) => n.querySelector('summary');
+    const seen = (n) => n.querySelector('.hint-text')
+      .checkVisibility({ contentVisibilityAuto: true, visibilityProperty: true });
+    const folded = {
+      shown: cards.length,
+      details: cards.every(n => n.tagName === 'DETAILS' && !n.open && !!head(n)),
+      hidden: cards.every(n => !seen(n))
+    };
+    if (!cards.length) { return folded; }
+    head(cards[0]).click();
+    await window.__t.until(() => seen(cards[0]));
+    return Object.assign(folded, { opened: cards[0].open && seen(cards[0]),
+                                   others: !seen(cards[cards.length - 1]) });
+  })()`);
+  check(reviewHints.shown === target.hintCount,
+    '復習でも開示済みのヒントは全部そこにある', reviewHints);
+  check(reviewHints.details && reviewHints.hidden,
+    '前に開いたヒントは畳まれて出る（本文は見えていない）', reviewHints);
+  check(reviewHints.opened, '見出しを押せばその場で開ける', reviewHints);
+  check(target.hintCount < 2 || reviewHints.others,
+    '1枚開いても他のヒントは畳まれたまま', reviewHints);
+
   // ── 解いている途中で抜けても「続きから」戻れる（2026-08-21）───────────────
   //
   // セットの枠（何問目か・ここまでの正解数・積み上げ）は画面側にしか無い。控えが
@@ -636,19 +726,25 @@ const HELPERS = `window.__t = {
   })()`);
   check(backIn.bar === '1 / 1問', '読み直したあとの「続きから」でもセットとして戻る', backIn);
 
-  // ── 復習で通したときは右上の通知を出さない（2026-08-21・利用者の判断）──────
+  // ── 復習で通したときの知らせ（🔁復習クリアのトーストは戻っていない）──────────
   //
-  // 同じ瞬間に採点結果・苦手度バッジ・フッタの3つが「通った」を示すので、4枚目の通知は
-  // 言い直しになる。ここで #toast が開いたら、消したはずのトーストが戻ったということ。
+  // 「通った」ことを言うトーストは2026-08-21に外した（利用者の判断）。同じ瞬間に採点結果・
+  // 苦手度バッジ・フッタの3つが示すので言い直しだった。ここで見るのは、そのトーストが
+  // 戻っていないこと（文面に `復習クリア` が出ない）である。
   //
-  // **報酬の通知が出ないのは「期限前だから」である。** この問題はこの検査の中で
-  // たったいまクリアしたので、次の期限は翌日以降にあり0コインになる（2026-08-21に
-  // 期限が来た問題へは払うようにした）。下で cafeAward が0であることも一緒に確かめる ―
-  // 確かめずに「出ない」だけを見ると、払う側が壊れてもここは通ってしまう。
-  // **入る側（期限が来た問題で通知と履歴が出る）は `check_cafe_ui.js` が見ている**
+  // **コインの通知は別で、出るのが正しい。** この問題はこの検査の中でたったいま
+  // クリアしたので期限前だが、2026-08-22から**期限前の「早めの復習」にも小額を払う**
+  // （1日6問まで）。つまりここは「期限前でも入る」側の経路で、cafeAward が0でないこと・
+  // 満額ではないことを一緒に確かめる ― 額を見ずに通知だけを見ると、
+  // 期限ぶんと早めぶんが入れ替わっても通ってしまう。
+  // **満額の側（期限が来た問題）は `check_cafe_ui.js` が見ている**
   // （あちらの進捗は日付が過去に固定されているので、常に期限切れ）。
-  // 通知そのものの配線は上の節（「報酬の通知が出る」）で確かめてある。
+  // 額は `window.__t.submit()` の戻りに入っていないので（採点結果だけを返す）、
+  // 獲得の履歴（localStorage の jq-coin-log）の最新の1件から読む ― check_cafe_ui.js と同じ手
   const reviewPass = await ev(`(async () => {
+    const logOf = () => { try { return JSON.parse(localStorage.getItem('jq-coin-log') || '[]'); }
+                          catch (e) { return []; } };
+    const before = logOf().length;
     document.getElementById('toast').classList.remove('show');   // 前の節の残りを消す
     window.__t.type(${JSON.stringify(solution.code || '')});
     const r = await window.__t.submit();
@@ -656,9 +752,18 @@ const HELPERS = `window.__t = {
     const el = document.getElementById('toast');
     const foot = document.getElementById('reviewFooter');
     const s = await (await fetch('/api/state')).json();
+    const cafe = s.progress.cafe || {};
+    const log = logOf();
+    const newest = log.length > before ? log[0] : null;
     return Object.assign(r, {
       dueDays: (((s.progress.lessons || {})['${LESSON}'] || {}).tasks || [])
         .reduce((acc, t) => (t.id === '${TASK}' ? t.reviewDueDays : acc), null),
+      logAdded: log.length - before,
+      reason: newest ? newest.reason : '',
+      cash: newest ? newest.cash : 0,
+      nextOrderCash: cafe.nextOrderCash || 0,
+      earlyLeft: cafe.reviewEarlyRewardLeft,
+      earlyPerDay: cafe.reviewEarlyRewardPerDay,
       toastShown: el.classList.contains('show'),
       toastText: (el.textContent || '').replace(/\\s+/g, ' ').trim().slice(0, 80),
       footer: (foot ? foot.textContent : '').replace(/\\s+/g, ' ').trim().slice(0, 60),
@@ -666,10 +771,19 @@ const HELPERS = `window.__t = {
     });
   })()`);
   check(reviewPass.verdict === 'ok', '復習でも模範解答が合格になる（この検査の前提）', reviewPass);
-  check(!reviewPass.toastShown, '復習で通しても右上の通知は出ない', reviewPass);
+  check(reviewPass.toastText.indexOf('復習クリア') < 0,
+    '「🔁 復習クリア」のトーストは戻っていない', reviewPass.toastText);
   check(reviewPass.dueDays === null || reviewPass.dueDays > 0,
-    'たったいまクリアした問題なので期限前（＝0コイン。だから通知も出ない）',
-    reviewPass.dueDays);
+    'たったいまクリアした問題なので期限前（＝「早めの復習」の側）', reviewPass.dueDays);
+  check(reviewPass.logAdded === 1 && reviewPass.reason === '復習の注文',
+    '期限前でもコインは入る（獲得の履歴に「復習の注文」が1件増える）', reviewPass);
+  check(reviewPass.cash > 0, '入った額が0ではない（早めの復習ぶん）', reviewPass.cash);
+  check(reviewPass.cash < reviewPass.nextOrderCash / 2,
+    '早めのぶんは期限ぶん（初クリアの50%）より小さい',
+    `${reviewPass.cash} < ${reviewPass.nextOrderCash / 2}`);
+  check(reviewPass.earlyLeft < reviewPass.earlyPerDay,
+    '1日に払う本数が減っている（早めのぶんは本数で止まる）',
+    `${reviewPass.earlyLeft} / ${reviewPass.earlyPerDay}`);
   check(reviewPass.footer.indexOf('復習クリア') >= 0,
     '通ったことは問題の下のフッタが示す', reviewPass.footer);
   check(reviewPass.badge.length > 0, '苦手度のバッジも残っている', reviewPass.badge);
@@ -1345,6 +1459,48 @@ const HELPERS = `window.__t = {
   check(back.kept === 'true', '読み直しても「表示しない」が残っている', back);
   check(back.on === 'true' && back.saved === '1', '「表示する」へ戻せる', back);
 
+  // ── 1つ前の問題へ戻る（2026-08-22・利用者の要望）───────────────────────────
+  //
+  // ここまでで ${LESSON}#${TASK} と ${LESSON}#${PREF_TASK} の2問がクリア済みなので、
+  // **1セット＝2問**になる（クリア済みの問題は期限前でも補充に入る → buildReviewQueue）。
+  // 2問ないと「戻る」を押せないので、この節はここに置いてある。
+  //
+  // 見るのは4つ ― 1問目では出さない（押せないボタンを残さない）・2問目には出る・
+  // 押すと1問目に戻って何問目かの表示も戻る・戻った位置が控えにも残る
+  // （途中で抜けても「続きから」戻る先が今いる問題になる → jq-review-run）。
+  await open('#review');
+  const stepBack = await ev(`(async () => {
+    const bar = () => ((document.querySelector('.review-bar-progress') || {}).textContent || '').trim();
+    const backBtn = () => document.getElementById('reviewBackBtn');
+    const saved = () => (JSON.parse(localStorage.getItem('jq-review-run') || 'null') || {}).set || {};
+    document.getElementById('reviewStartBtn').click();
+    await window.__t.until(() => location.hash.indexOf('#review/') === 0, 40);
+    await window.__t.sleep(700);
+    const first = { bar: bar(), back: !!backBtn(), hash: location.hash, index: saved().index };
+    document.getElementById('reviewSkipBtn').click();
+    await window.__t.until(() => location.hash !== first.hash, 40);
+    await window.__t.sleep(700);
+    const second = { bar: bar(), back: !!backBtn(), hash: location.hash, index: saved().index };
+    if (!backBtn()) { return { first: first, second: second }; }
+    backBtn().click();
+    await window.__t.until(() => location.hash === first.hash, 40);
+    await window.__t.sleep(700);
+    const third = { bar: bar(), back: !!backBtn(), hash: location.hash, index: saved().index,
+                    forward: ((document.getElementById('reviewFooterBtn') || {}).textContent || '').trim() };
+    return { first: first, second: second, third: third };
+  })()`);
+  check(stepBack.first.bar === '1 / 2問' && stepBack.second.bar === '2 / 2問',
+    '2問のセットが組まれた（この検査の前提）', stepBack);
+  check(!stepBack.first.back, '1問目には「前の問題へ」を出さない', stepBack.first);
+  check(stepBack.second.back, '2問目には「前の問題へ」が出る', stepBack.second);
+  check(!!stepBack.third && stepBack.third.hash === stepBack.first.hash
+      && stepBack.third.bar === '1 / 2問' && !stepBack.third.back,
+    '押すと1つ前の問題へ戻り、何問目かの表示も戻る', stepBack.third);
+  check(!!stepBack.third && stepBack.third.index === 0 && stepBack.second.index === 1,
+    '戻った位置は控えにも残る（抜けても戻る先が今の問題になる）', stepBack);
+  check(!!stepBack.third && stepBack.third.forward.indexOf('次の問題へ') >= 0,
+    '戻ったあとも前へ進める（行き止まりにならない）', stepBack.third);
+
   const errors = await ev(`window.__jqErrors || []`);
   check(errors.length === 0, '画面のJavaScriptが例外を出していない', errors);
 
@@ -1355,7 +1511,7 @@ const HELPERS = `window.__t = {
   }
   console.log(`\n${GREEN}LEARN UI OK: 誤答・コンパイルエラー・ヒント・模範解答・`
     + `★と報酬・1問1枚のパネル・獲得の履歴・自動保存・カフェへの寄り道と位置の復元・復習の出題・`
-    + `途中で抜けたセットの「続きから」・復習の最後に続くクイズ・`
+    + `途中で抜けたセットの「続きから」・1つ前の問題へ戻る・復習の最後に続くクイズ・`
     + `クイズのしおり・サイドバーの検索・試しに実行と入力欄・`
     + `報酬の通知の表示/非表示を確認しました${RESET}`);
 })().catch(e => {

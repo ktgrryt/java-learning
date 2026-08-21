@@ -3,6 +3,7 @@ import jq.content.ContentLoader;
 import jq.content.Curriculum;
 import jq.content.Lesson;
 import jq.content.Task;
+import jq.progress.LearningDay;
 import jq.progress.ProgressStore;
 
 import java.nio.charset.StandardCharsets;
@@ -53,9 +54,10 @@ public final class CafeBalanceSimulation {
      * 復習1問の報酬が、初回クリア1問に対して取っていい割合の上限（%）。
      *
      * <p>{@code CafeEconomy.REVIEW_REWARD_MAX_PERCENT} と同じ値。100%へ届くと
-     * 「新しい問題を解くより復習した方が儲かる」状態になる。</p>
+     * 「新しい問題を解くより復習した方が儲かる」状態になる。設備を買い切った状態が
+     * 94%（50% × 1.88）なので、ここは96%を歯止めとして置く。</p>
      */
-    private static final long REVIEW_REWARD_CEILING_PERCENT = 80;
+    private static final long REVIEW_REWARD_CEILING_PERCENT = 96;
 
     /** 序盤ペースの検査に使う★の範囲。最初の2章が収まる長さにする。 */
     private static final int EARLY_TRACE_STARS = 60;
@@ -334,7 +336,10 @@ public final class CafeBalanceSimulation {
      * 単価で受け取る</b> ―― 実際の利用者も、翌日の復習は翌日の店構えで受け取る。</p>
      *
      * <p>受け取るのは<b>1問につき1回だけ</b>で、「完走した時点で全問を1周ぶん復習し終えた
-     * 状態」を表す。間隔が伸びるあいだに同じ問題から2周目・3周目も入るが、それは
+     * 状態」を表す。<b>「早めの復習」ぶん（期限前の小額）は入らない</b> ―― 同じ問題から
+     * 1日に入るのは1回だけなので、期限ぶんを受け取ったこの問題では0になる。実際の利用者は
+     * 期限切れが足りない日に別の問題で受け取る（1日6問まで）ため、投資率の下限側
+     * （コインが余りすぎていないか）は試算より低く出る。間隔が伸びるあいだに同じ問題から2周目・3周目も入るが、それは
      * 自動売上と同じで<b>時間に対して無制限</b>なので、完走時点のスナップショットには
      * 入れない。期限そのものの上限（期限前は0・同じ日の2回目は0）は
      * {@code tools/check-review-economy.sh} が試している。</p>
@@ -347,16 +352,26 @@ public final class CafeBalanceSimulation {
         ProgressStore.ReviewOutcome outcome = progress.recordMasterySubmission(key, true, true);
         require(!outcome.duePassed(),
                 "クリアした当日の復習で期限ぶんが払われています: " + key);
+        require(outcome.earlyPassed(),
+                "クリアした当日の復習が「早めの復習」に数えられていません: " + key);
         // 一発で思い出せた側（cleanRecall=true）で受け取る。上限側の試算なので、
         // 思い出しのマドレーヌの×2もここで効かせる
         progress.rewardReview(learning, key, true);
+        // 「早めの復習」ぶん（期限前の小額）は**この試算に入らない**。同じ問題から1日に
+        // 入るのは1回だけなので、いま期限ぶんを受け取ったこの問題は0を返す ―
+        // 実際の利用者は「期限切れが足りない日に、別の問題で」受け取る（1日6問まで）。
+        // つまり試算は復習の収入を**下振れで**見ており、上限側（投資率45%）は安全側、
+        // 下限側（コインが余りすぎていないか）は試算より低く出る。だから復習手当系統の
+        // 価格を上げて吸い込みを作ってある。上限そのものは check-review-economy.sh が試す
+        require(progress.rewardEarlyReview(learning, key, true).cash() == 0,
+                "同じ問題へ期限ぶんと早めぶんの両方が払われています: " + key);
     }
 
     /** 抽選を再現可能にし、必要なら直近の連続学習日数も置いた進捗ファイルを作る。 */
     private static void seedProgress(Path progressFile, int days, long luckyUnlockSeed)
             throws Exception {
         StringBuilder dates = new StringBuilder();
-        LocalDate first = LocalDate.now().minusDays(days - 1L);
+        LocalDate first = LearningDay.today().minusDays(days - 1L);
         for (int i = 0; i < days; i++) {
             dates.append(i == 0 ? "\"" : ",\"").append(first.plusDays(i)).append("\"");
         }

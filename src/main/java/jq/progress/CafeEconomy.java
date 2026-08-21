@@ -17,7 +17,6 @@ import jq.progress.ProgressStore.ItemPurchaseResult;
 import jq.progress.ProgressStore.PassiveSalesResult;
 import jq.progress.ProgressStore.PurchaseResult;
 
-import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -69,6 +68,19 @@ final class CafeEconomy {
         this.saver = saver;
     }
 
+    // 30: 復習の1セットに手応えを持たせた（依頼「復習は新規の学習と同じくらい大事なので、
+    //     復習にメリットが生まれるようにしてほしい」）。触ったのは3つ。
+    //     (a) 期限が来た問題の報酬を **30%→50%**（REVIEW_REWARD_PERCENT）。
+    //     (b) **期限前の「早めの復習」にも払う**（REVIEW_EARLY_REWARD_PERCENT = 12%）。
+    //         ただし1日に払うのは REVIEW_EARLY_REWARD_TASKS_PER_DAY 問まで ―
+    //         期限が上限を作らない側なので、上限は日ごとの本数で作る。これで
+    //         **復習ホームを開いた回は必ず実入りになる**（期限切れが0の日でも0コインに
+    //         ならない）。29版では期限前は0コインで、定常状態ではセット4問のうち
+    //         1問しか払われず「1セット＝新問0.3問ぶん」だった。
+    //     (c) 復習手当系統を前寄せで強くした（+4…+100% → +8…+88%）。上限は
+    //         50% × 1.88 = **94%** で、初クリアを超えない不変条件は保っている。
+    //     系統の価格はRank8以降を引き上げてある（復習で増えたコインの行き先。
+    //     reviewer の投資率が下限10%を割らないための吸い込みでもある）。
     // 29: 復習にコインを払うようにした（依頼「復習でもコインがもらえるようにしたい」）。
     //     払うのは**期限が来た問題を復習で通したときだけ**で、額は1問クリアの30%
     //     （REVIEW_REWARD_PERCENT）。通した時点で期限が翌日以降へ動くので、同じ問題を
@@ -130,7 +142,7 @@ final class CafeEconomy {
     //     574問すべて外れても投資率45%以内になるよう、終盤改装の基準額を450億へ下げた。
     // 20: ラッキーコインを「頻繁な小当たり」から「5%の大当たり」へ変更し、価格を77,777にした。
     //     期待売上が下がるぶん、全購入時の投資率を範囲内へ戻すため終盤改装の基準額も下げた。
-    private static final int CAFE_ECONOMY_VERSION = 29;
+    private static final int CAFE_ECONOMY_VERSION = 30;
     private static final int CUP_PRICE = 500;
     private static final int MAX_CAFE_STORES = 512;
     private static final long FIRST_EXPANSION_COST = 2_500L;
@@ -213,21 +225,47 @@ final class CafeEconomy {
      * {@code ProgressStore.recordMasterySubmission}）。通した時点で次の期限が
      * 翌日以降へ動くので、同じ問題を続けて通しても2回目からは0コインになる ―
      * 上限は「期限が来る問題の数」で構造的に決まり、定常状態では1日あたり数問である。
-     * 期限前の「早めの復習」は0コインのままにしてある（稼ぎたければ毎日続けるのが
-     * 一番得、という形にするため）。</p>
+     * 期限前の「早めの復習」は{@link #REVIEW_EARLY_REWARD_PERCENT}へ分けてある。</p>
      */
-    private static final int REVIEW_REWARD_PERCENT = 30;
+    private static final int REVIEW_REWARD_PERCENT = 50;
+    /**
+     * 期限が来ていない問題を復習で通したときに払う割合（1問クリアの売上に対する%）。
+     *
+     * <p><b>期限が上限を作らない側なので、上限は日ごとの本数で作る</b>
+     * （{@link #REVIEW_EARLY_REWARD_TASKS_PER_DAY}）。期限は「1問につき1日1回」を
+     * 保証するが、期限前の問題は何問でも並べられるので、割合だけを決めると
+     * 「1日に全問まわして稼ぐ」が成立してしまう。</p>
+     *
+     * <p>0にしないのは、<b>復習ホームを開いた回が必ず実入りになる</b>ようにするため。
+     * 定常状態で期限が来るのは1日数問なので、セット4問のうち3問が「早めの復習」になる ―
+     * そこが0コインだと、1セット通しても新問0.3問ぶんしか入らなかった（2026-08-22）。
+     * 期限が来た問題（{@link #REVIEW_REWARD_PERCENT}）より必ず小さくしておくこと。
+     * 逆転すると「期限を待たずに回すのが一番得」になり、忘却曲線の意味が消える。</p>
+     */
+    private static final int REVIEW_EARLY_REWARD_PERCENT = 12;
+    /**
+     * 「早めの復習」に払うのは、1日にこの本数まで。
+     *
+     * <p><b>同じ問題は1日1回しか数えない</b>（{@link #cafeReviewPaidTasks}）ので、
+     * 「6問」は6つの異なる問題ぶんである。日付が変わると0に戻る ―
+     * 区切りは午前4時（{@link LearningDay}）。</p>
+     *
+     * <p>6問＝1セット半ぶん。設備を最上位まで積んでも
+     * 6 × 12% × 1.88 = 1問クリアの約1.35問ぶんが1日の上限で、
+     * 新しい問題を解くほうが常に得なままである。</p>
+     */
+    private static final int REVIEW_EARLY_REWARD_TASKS_PER_DAY = 6;
     /**
      * 復習1問で払える上限（1問クリアの売上に対する割合・%）。
      *
-     * <p>復習手当系統は最上位で +100% なので 30→60% までしか伸びず、ここには当たらない。
+     * <p>復習手当系統は最上位で +88% なので 50→94% までしか伸びず、ここには当たらない。
      * <b>将来この値をいじったときの歯止め</b>として置いてある ―
      * 100%に届くと「新しい問題を解くより復習した方が儲かる」状態になる。
      * 比べるのは<b>素の金額どうし</b>である（ラッキーコインと生涯学習トロフィーは
      * trigger を問わず乗るので、初回クリアにも同じように乗る）。
      * {@code tools/check-review-economy.sh} がここを検査する。</p>
      */
-    private static final int REVIEW_REWARD_MAX_PERCENT = 80;
+    private static final int REVIEW_REWARD_MAX_PERCENT = 96;
     /**
      * 自動売上は、次に★を取るまで現在の問題報酬5問分まで。
      * 最上位設備でも上限まで100分かかり、オフライン中は増えない。
@@ -341,6 +379,25 @@ final class CafeEconomy {
     private String cafeMasteryDay = "";
     /** {@link #cafeMasteryDay} に復習で正解した、重複しない問題。 */
     private final Set<String> cafeMasteryDayTasks = new LinkedHashSet<>();
+    /**
+     * 復習のコインを最後に払った日。日が変わると下の2つが空に戻る。
+     *
+     * <p>{@link #cafeMasteryDay} と分けてあるのは、あちらが「復習で正解した問題」
+     * （払ったかどうかに関わらず入る）なのに対し、こちらは<b>払った問題</b>だから。
+     * 同じ集合にすると、期限前で本数を使い切った日の問題まで「払った」に数えてしまう。</p>
+     */
+    private String cafeReviewPaidDay = "";
+    /**
+     * {@link #cafeReviewPaidDay} にコインを払った問題（期限ぶん・早めぶんの両方）。
+     *
+     * <p><b>同じ問題からは1日1回しかコインが入らない</b>という上限をここが持つ。
+     * 期限ぶんは「通すと期限が翌日へ動く」ことで自然にそうなるが、期限前の
+     * 「早めの復習」は何度でも通せるので、集合で押さえないと同じ1問を連打して
+     * 本数ぶん稼げてしまう（2026-08-22）。</p>
+     */
+    private final Set<String> cafeReviewPaidTasks = new LinkedHashSet<>();
+    /** {@link #cafeReviewPaidDay} に「早めの復習」へ払った本数。 */
+    private int cafeReviewEarlyPaid;
     /** チップを払い終えたクイズ。二重払いを防ぐ。 */
     private final Set<String> rewardedQuizzes = new LinkedHashSet<>();
     /** 章制覇ボーナスを受け取った章。同時提出でも重複獲得させない。 */
@@ -433,7 +490,7 @@ final class CafeEconomy {
             return changed;
         }
 
-        String today = LocalDate.now().toString();
+        String today = LearningDay.todayText();
         if (!today.equals(cafeMasteryDay)) {
             cafeMasteryDay = today;
             cafeMasteryDayTasks.clear();
@@ -526,6 +583,13 @@ final class CafeEconomy {
                 cafeMasteryTasks.add(ProgressStore.migrateKey(s));
             }
         }
+        cafeReviewPaidDay = MiniJson.str(cafe, "reviewPaidDay", "");
+        for (Object o : MiniJson.list(cafe, "reviewPaidTasks")) {
+            if (o instanceof String s2) {
+                cafeReviewPaidTasks.add(ProgressStore.migrateKey(s2));
+            }
+        }
+        cafeReviewEarlyPaid = Math.max(0, MiniJson.intOf(cafe, "reviewEarlyPaid", 0));
         cafeMasteryDay = MiniJson.str(cafe, "masteryDay", "");
         for (Object o : MiniJson.list(cafe, "masteryDayTasks")) {
             if (o instanceof String s) {
@@ -581,6 +645,9 @@ final class CafeEconomy {
         cafe.put("masteryTaskRun", new ArrayList<>(cafeMasteryTaskRun));
         cafe.put("quizMasteryRun", new ArrayList<>(cafeQuizMasteryRun));
         cafe.put("masteryTasks", new ArrayList<>(cafeMasteryTasks));
+        cafe.put("reviewPaidDay", cafeReviewPaidDay);
+        cafe.put("reviewPaidTasks", new ArrayList<>(cafeReviewPaidTasks));
+        cafe.put("reviewEarlyPaid", cafeReviewEarlyPaid);
         cafe.put("masteryDay", cafeMasteryDay);
         cafe.put("masteryDayTasks", new ArrayList<>(cafeMasteryDayTasks));
         cafe.put("rewardedQuizzes", new ArrayList<>(rewardedQuizzes));
@@ -612,6 +679,9 @@ final class CafeEconomy {
         cafeMasteryTasks.clear();
         cafeMasteryDay = "";
         cafeMasteryDayTasks.clear();
+        cafeReviewPaidDay = "";
+        cafeReviewPaidTasks.clear();
+        cafeReviewEarlyPaid = 0;
         rewardedQuizzes.clear();
         rewardedChapters.clear();
         cafePassiveSessionId = null;
@@ -658,6 +728,9 @@ final class CafeEconomy {
         cafe.put("salesBonusPercent", cafeSalesBonusPercent());
         cafe.put("reviewBonusPercent", cafeReviewBonusPercent());
         cafe.put("reviewRewardPercent", REVIEW_REWARD_PERCENT);
+        cafe.put("reviewEarlyRewardPercent", REVIEW_EARLY_REWARD_PERCENT);
+        cafe.put("reviewEarlyRewardPerDay", REVIEW_EARLY_REWARD_TASKS_PER_DAY);
+        cafe.put("reviewEarlyRewardLeft", reviewEarlyRewardLeft());
         cafe.put("extraCups", cafeExtraCups());
         cafe.put("chapterBonusPercent", cafeChapterBonusPercent());
         cafe.put("quizTipPercent", cafeQuizTipPercent());
@@ -809,12 +882,69 @@ final class CafeEconomy {
      * @param cleanRecall その日に一度も失敗せず通したか（思い出しのマドレーヌが見る）
      */
     CafeAward rewardReview(CafeLearningProgress learning, String taskKey, boolean cleanRecall) {
+        rollReviewPayDay();
+        // 期限ぶんは「通すと期限が動く」ので1日1回だが、控えておかないと同じ問題へ
+        // 続けて「早めの復習」ぶんが払えてしまう
+        cafeReviewPaidTasks.add(taskKey);
+        return payReview(learning, REVIEW_REWARD_PERCENT, cleanRecall);
+    }
+
+    /**
+     * 期限が来ていない問題（「早めの復習」）を通したときの売上。
+     *
+     * <p>額は {@link #REVIEW_EARLY_REWARD_PERCENT}% で、上限は<b>2つ</b>ある ―
+     * <b>同じ問題からは1日1回まで</b>（{@link #cafeReviewPaidTasks}）と、
+     * <b>1日に払うのは {@link #REVIEW_EARLY_REWARD_TASKS_PER_DAY} 問まで</b>。
+     * どちらかに当たると {@link CafeAward#NONE} を返す。期限のような自然な上限が
+     * 無い側なので、ここが唯一の歯止めである ―― <b>2つとも外さないこと。</b>
+     * 集合だけだと「クリア済みを1日に何周もして稼ぐ」、本数だけだと
+     * 「一番やさしい1問を連打して稼ぐ」がそれぞれ成立する。</p>
+     *
+     * <p>払うのは呼び出し側が「復習モードからの提出で、クリア済みの問題に正解し、
+     * 期限は来ていなかった」と判定した回だけ（{@code ProgressStore.ReviewOutcome}）。</p>
+     *
+     * @param cleanRecall その日に一度も失敗せず通したか（思い出しのマドレーヌが見る）
+     */
+    CafeAward rewardEarlyReview(
+            CafeLearningProgress learning, String taskKey, boolean cleanRecall) {
+        rollReviewPayDay();
+        if (cafeReviewPaidTasks.contains(taskKey)
+                || cafeReviewEarlyPaid >= REVIEW_EARLY_REWARD_TASKS_PER_DAY) {
+            return CafeAward.NONE;
+        }
+        cafeReviewEarlyPaid++;
+        cafeReviewPaidTasks.add(taskKey);
+        // addCafeReward が保存を予約するので、増やした本数もそこで一緒に書き出される
+        return payReview(learning, REVIEW_EARLY_REWARD_PERCENT, cleanRecall);
+    }
+
+    /** 日が変わっていたら、その日に払った問題と本数を空に戻す。区切りは午前4時。 */
+    private void rollReviewPayDay() {
+        String today = LearningDay.todayText();
+        if (!today.equals(cafeReviewPaidDay)) {
+            cafeReviewPaidDay = today;
+            cafeReviewPaidTasks.clear();
+            cafeReviewEarlyPaid = 0;
+        }
+    }
+
+    /** 復習の売上（期限ぶん・早めぶん共通）。割合だけが違う。 */
+    private CafeAward payReview(
+            CafeLearningProgress learning, int percent, boolean cleanRecall) {
         long taskCash = cafeCashForCups(cupsPerNetworkOrderWithUpgrades(), learning);
-        long base = applyPercent(taskCash, REVIEW_REWARD_PERCENT);
+        long base = applyPercent(taskCash, percent);
         long cash = applyPercent(base, 100L + cafeReviewBonusPercent());
         // 素の金額どうしで比べる上限。設備を最大にしても当たらないが、値をいじったときの歯止め
         long cap = applyPercent(taskCash, REVIEW_REWARD_MAX_PERCENT);
         return addCafeReward("review", Math.min(cash, cap), 0, null, cleanRecall);
+    }
+
+    /** その日「早めの復習」へまだ払える本数。画面が残りを出すために読む。 */
+    private int reviewEarlyRewardLeft() {
+        if (!LearningDay.todayText().equals(cafeReviewPaidDay)) {
+            return REVIEW_EARLY_REWARD_TASKS_PER_DAY;
+        }
+        return Math.max(0, REVIEW_EARLY_REWARD_TASKS_PER_DAY - cafeReviewEarlyPaid);
     }
 
     /** 章を初めて制覇したときのまとまったボーナス。 */
@@ -1227,7 +1357,7 @@ final class CafeEconomy {
      */
     boolean refreshCafeAchievements() {
         int busiestDay = learningRecord.busiestDayClears();
-        if (LocalDate.now().toString().equals(cafeMasteryDay)) {
+        if (LearningDay.todayText().equals(cafeMasteryDay)) {
             // 今日は復習で正解した分も「その日に触った問題」に数える。初クリアと同じ問題を
             // 二重に数えないよう、集合に入れてから大きさを見る
             Set<String> todayTasks = new LinkedHashSet<>(cafeMasteryDayTasks);
@@ -1281,7 +1411,7 @@ final class CafeEconomy {
             }
         }
         boolean masteredInReview = cafeMasteryTasks.containsAll(chapterTaskKeys);
-        boolean masteredToday = LocalDate.now().toString().equals(cafeMasteryDay)
+        boolean masteredToday = LearningDay.todayText().equals(cafeMasteryDay)
                 && cafeMasteryDayTasks.containsAll(chapterTaskKeys);
         boolean changed = award("chapter_no_hint", hintFree || masteredInReview);
         changed |= award("chapter_one_day", sameDay || masteredToday);

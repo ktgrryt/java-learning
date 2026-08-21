@@ -1,3 +1,4 @@
+import jq.progress.LearningDay;
 import jq.progress.ProgressStore;
 
 import java.nio.file.Files;
@@ -100,7 +101,7 @@ public final class AchievementCheck {
         p.flushNow();
         String json = Files.readString(file);
         StringBuilder days = new StringBuilder();
-        LocalDate day = LocalDate.now().minusDays(6);
+        LocalDate day = LearningDay.today().minusDays(6);
         for (int i = 0; i < 7; i++) {
             days.append(i == 0 ? "\"" : ",\"").append(day.plusDays(i)).append("\"");
         }
@@ -351,7 +352,7 @@ public final class AchievementCheck {
             fresh.flushNow();
             String json = Files.readString(file);
             StringBuilder days = new StringBuilder();
-            LocalDate day = LocalDate.now().minusDays(6);
+            LocalDate day = LearningDay.today().minusDays(6);
             for (int i = 0; i < 7; i++) {
                 days.append(i == 0 ? "\"" : ",\"").append(day.plusDays(i)).append("\"");
             }
@@ -425,9 +426,9 @@ public final class AchievementCheck {
             }
             dated.flushNow();
             String datedJson = Files.readString(datedFile);
-            String today = LocalDate.now().toString();
+            String today = LearningDay.today().toString();
             for (int i = 1; i <= 14; i++) {
-                String oldDay = LocalDate.now().minusDays(i).toString();
+                String oldDay = LearningDay.today().minusDays(i).toString();
                 datedJson = datedJson.replaceFirst(
                         "\\\"clearedAt\\\":\\\"" + today + "\\\"",
                         "\\\"clearedAt\\\":\\\"" + oldDay + "\\\"");

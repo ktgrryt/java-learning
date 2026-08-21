@@ -389,12 +389,15 @@ public final class ProgressStore {
      * <p>どちらも <b>{@link #updateReviewPlan} が期限を書き換える前</b>にしか分からない。
      * 判定をここへ寄せているのは、期限の計算（{@link #reviewDue}）と同じ場所に置くためである。</p>
      *
-     * @param duePassed   期限が来ていた問題を復習で通した（コインを払う条件）
+     * @param duePassed   期限が来ていた問題を復習で通した（満額を払う条件）
+     * @param earlyPassed 期限は来ていなかったが、復習で通した（「早めの復習」へ小額を払う条件。
+     *                    同じ問題は1日1回・1日にN問までという上限は {@code CafeEconomy} が
+     *                    見るので、ここでは「期限前だった」ことだけを返す）
      * @param cleanRecall その日に一度も失敗せず通した（思い出しのマドレーヌが見る）
      */
-    public record ReviewOutcome(boolean duePassed, boolean cleanRecall) {
+    public record ReviewOutcome(boolean duePassed, boolean earlyPassed, boolean cleanRecall) {
 
-        public static final ReviewOutcome NONE = new ReviewOutcome(false, false);
+        public static final ReviewOutcome NONE = new ReviewOutcome(false, false, false);
     }
 
     public ProgressStore(Path file) {
@@ -430,7 +433,7 @@ public final class ProgressStore {
         if (layerCompletions.containsKey(key)) {
             return false;
         }
-        layerCompletions.put(key, LocalDate.now().toString());
+        layerCompletions.put(key, LearningDay.todayText());
         saveSoon();
         return true;
     }
@@ -486,12 +489,17 @@ public final class ProgressStore {
         return onboardingCompleted;
     }
 
-    /** 今日を含む連続学習日数。今日も昨日も学習していなければ 0。 */
+    /**
+     * 今日を含む連続学習日数。今日も昨日も学習していなければ 0。
+     *
+     * <p>「今日」は暦の日付ではなく学習日（{@link LearningDay}）である ―― 深夜0〜3時台に
+     * 解いたぶんは前日として数えるので、寝る前の1問で連続が切れない。</p>
+     */
     public synchronized int streak() {
         if (clearDates.isEmpty()) {
             return 0;
         }
-        LocalDate today = LocalDate.now();
+        LocalDate today = LearningDay.today();
         LocalDate cursor;
         if (clearDates.contains(today.toString())) {
             cursor = today;
@@ -626,6 +634,9 @@ public final class ProgressStore {
         m.put("onboardingCompleted", onboardingCompleted);
         m.put("starCount", cleared.size());
         m.put("streak", streak());
+        // 1日の区切り（時）。画面も「今日ぶん」を同じ境目で数える必要があるので、
+        // 数字はここから渡す（両方に書くと片方だけ動いて食い違う → LearningDay）
+        m.put("dayStartHour", LearningDay.START_HOUR);
         m.put("attempts", new LinkedHashMap<>(attempts));
         m.put("cafe", cafe.toClientJson(learning));
         return m;
@@ -652,6 +663,18 @@ public final class ProgressStore {
     public synchronized CafeAward rewardReview(
             CafeLearningProgress learning, String taskKey, boolean cleanRecall) {
         return cafe.rewardReview(learning, taskKey, cleanRecall);
+    }
+
+    /**
+     * 期限が来ていない問題（「早めの復習」）を通したときの報酬。
+     *
+     * <p>期限ぶんより小さい額で、上限が2つある ―― <b>同じ問題からは1日1回</b>と
+     * <b>1日に払う本数</b>（どちらかに当たると {@link CafeAward#NONE}）。期限が上限を
+     * 作らない側なので、その2つを {@code CafeEconomy} が日ごとに持っている。</p>
+     */
+    public synchronized CafeAward rewardEarlyReview(
+            CafeLearningProgress learning, String taskKey, boolean cleanRecall) {
+        return cafe.rewardEarlyReview(learning, taskKey, cleanRecall);
     }
 
     /** 章を初めて制覇したときのまとまったボーナス。 */
@@ -757,10 +780,12 @@ public final class ProgressStore {
         // lastFailAt を書き換える前にしか見られない。先に控えておく
         ReviewPlan planBefore = reviewPlans.get(taskKey);
         boolean stumbled = planBefore != null
-                && LocalDate.now().toString().equals(planBefore.lastFailAt());
-        ReviewOutcome outcome = passed && fromReview && cleared.containsKey(taskKey)
-                        && reviewDue(taskKey).overdue()
-                ? new ReviewOutcome(true, !stumbled)
+                && LearningDay.todayText().equals(planBefore.lastFailAt());
+        boolean recalled = passed && fromReview && cleared.containsKey(taskKey);
+        boolean overdue = recalled && reviewDue(taskKey).overdue();
+        // 期限が来ていれば満額、来ていなければ「早めの復習」ぶん（1日の本数に上限あり）
+        ReviewOutcome outcome = recalled
+                ? new ReviewOutcome(overdue, !overdue, !stumbled)
                 : ReviewOutcome.NONE;
         // 下げるのはクリア済みの問題に正解したときだけ。まだ通っていない問題で
         // 1ケースだけ通った提出などを「復習で正解」と数えないため。
@@ -800,7 +825,7 @@ public final class ProgressStore {
      * @return 記録が変わったら true
      */
     private boolean updateReviewPlan(String taskKey, boolean passed, boolean fromReview) {
-        String today = LocalDate.now().toString();
+        String today = LearningDay.todayText();
         ReviewPlan current = reviewPlans.get(taskKey);
         if (!passed) {
             // 期限は動かさない。通せていないのだから、また出てくるのが正しい
@@ -853,7 +878,7 @@ public final class ProgressStore {
     /** その問題を初クリアした日。分からなければ今日。復習予定の起点に使う。 */
     private String clearedDate(String taskKey) {
         Cleared c = cleared.get(taskKey);
-        return c == null ? LocalDate.now().toString() : c.clearedAt();
+        return c == null ? LearningDay.todayText() : c.clearedAt();
     }
 
     /**
@@ -876,10 +901,10 @@ public final class ProgressStore {
         try {
             base = LocalDate.parse(from);
         } catch (RuntimeException e) {
-            base = LocalDate.now();
+            base = LearningDay.today();
         }
         LocalDate due = base.plusDays(REVIEW_INTERVAL_DAYS[level]);
-        long days = ChronoUnit.DAYS.between(LocalDate.now(), due);
+        long days = ChronoUnit.DAYS.between(LearningDay.today(), due);
         return new ReviewDue(level, due.toString(),
                 (int) Math.max(Integer.MIN_VALUE, Math.min(Integer.MAX_VALUE, days)),
                 plan == null ? 0 : plan.cleanRun());
@@ -941,7 +966,7 @@ public final class ProgressStore {
      */
     public synchronized boolean markCleared(String taskKey) {
         boolean isNew = !cleared.containsKey(taskKey);
-        String today = LocalDate.now().toString();
+        String today = LearningDay.todayText();
         if (isNew) {
             cleared.put(taskKey, new Cleared(
                     today,
@@ -1136,7 +1161,7 @@ public final class ProgressStore {
             MiniJson.obj(root, "cleared").forEach((id, v) -> {
                 Map<String, Object> c = MiniJson.asObj(v);
                 cleared.put(migrateClearedKey(id), new Cleared(
-                        MiniJson.str(c, "clearedAt", LocalDate.now().toString()),
+                        MiniJson.str(c, "clearedAt", LearningDay.todayText()),
                         MiniJson.intOf(c, "hintsUsed", 0),
                         MiniJson.intOf(c, "attempts", 1)));
             });

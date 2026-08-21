@@ -696,7 +696,8 @@ public final class ApiHandler implements HttpHandler {
      * 使うためである。★の付き方が変わっても、報酬・章クリア・次の問題の扱いは1箇所に置く。
      *
      * @param outcome 直前の {@code recordMasterySubmission} が返した復習の判定。
-     *                期限が来ていた問題を復習で通した回だけ、初回クリアの代わりに復習ぶんを払う
+     *                初回クリアの代わりに、期限が来ていた回は満額の復習ぶん、
+     *                期限前だった回は「早めの復習」ぶん（1日の本数に上限あり）を払う
      * @return 今回支払った報酬。呼び出し側でクイズのチップと合算するために返す
      */
     private ProgressStore.CafeAward addClearRewards(
@@ -729,12 +730,16 @@ public final class ApiHandler implements HttpHandler {
         boolean chapterCompletedNow = firstTime && !chapterWasCleared
                 && c.isChapterCleared(chapter, after);
         // 初回クリアと復習は同じ提出では起きない（初クリアの時点では期限が明日以降にある）。
-        // 復習ぶんは期限が来ていた回だけで、通すと期限が動くので同じ日の2回目は0コインになる
+        // 期限が来ていた回は満額、期限前の「早めの復習」は小額。どちらも同じ問題からは
+        // 1日1回で、早めのぶんには1日に払う本数の上限もある（当たると0を返す）
         ProgressStore.CafeAward cafeAward = firstTime
                 ? progress.rewardTask(cafeLearningAfter, key)
                 : outcome.duePassed()
                         ? progress.rewardReview(cafeLearningAfter, key, outcome.cleanRecall())
-                        : ProgressStore.CafeAward.NONE;
+                        : outcome.earlyPassed()
+                                ? progress.rewardEarlyReview(
+                                        cafeLearningAfter, key, outcome.cleanRecall())
+                                : ProgressStore.CafeAward.NONE;
         if (c.isChapterCleared(chapter, after)) {
             progress.noteChapterAchievements(chapterTaskKeys(chapter));
         }

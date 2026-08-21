@@ -125,8 +125,8 @@ public final class ReviewScheduleCheck {
             r.markCleared("u#1");
             r.flushNow();
             String json = Files.readString(dir.resolve("c.json"));
-            json = json.replace("\"clearedAt\":\"" + java.time.LocalDate.now() + "\"",
-                    "\"clearedAt\":\"" + java.time.LocalDate.now().minusDays(30) + "\"");
+            json = json.replace("\"clearedAt\":\"" + jq.progress.LearningDay.today() + "\"",
+                    "\"clearedAt\":\"" + jq.progress.LearningDay.today().minusDays(30) + "\"");
             Files.writeString(dir.resolve("c.json"), json);
             r = new ProgressStore(dir.resolve("c.json"));
             ok("30日前にクリアした問題は期限切れ", r.reviewDue("u#1").overdue());

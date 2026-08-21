@@ -1,3 +1,4 @@
+import jq.progress.LearningDay;
 import jq.progress.ProgressStore;
 
 import java.nio.file.Files;
@@ -6,7 +7,7 @@ import java.time.LocalDate;
 import java.util.Map;
 
 /**
- * 「期限が来た問題の復習報酬」と、復習がカフェへ渡すもの
+ * 「期限が来た問題の復習報酬」「期限前の早めの復習ぶん（1日N問まで）」と、復習がカフェへ渡すもの
  * （ブランド倍率・自動売上の枠・設備費割引）、それに確認クイズのチップ（1度目の回答だけ）と、
  * 復習として出し直したクイズ（何も払わず、連続正解だけを進める）が意図どおりに効くか確かめる。
  *
@@ -101,16 +102,18 @@ public final class ReviewEconomyCheck {
         try {
             noStarGate(dir.resolve("gate.json"));
             reviewReward(dir.resolve("review-reward.json"));
+            earlyReviewReward(dir.resolve("early-review.json"));
             reviewBrand(dir.resolve("brand.json"));
             reviewPassiveWindow(dir.resolve("passive.json"));
             reviewEquipmentDiscount(dir.resolve("discount.json"));
             quizTipFirstAnswerOnly(dir.resolve("quiz.json"));
             quizReviewPaysNothing(dir.resolve("quiz-review.json"));
             System.out.println(
-                    "\nREVIEW ECONOMY OK: 期限ぶんの報酬・復習の3経路・クイズのチップ"
-                            + "・復習のクイズを確認しました");
+                    "\nREVIEW ECONOMY OK: 期限ぶんの報酬・早めの復習と1日の本数"
+                            + "・復習の3経路・クイズのチップ・復習のクイズを確認しました");
         } finally {
-            for (String name : new String[] { "gate.json", "review-reward.json", "brand.json",
+            for (String name : new String[] { "gate.json", "review-reward.json",
+                    "early-review.json", "early-review-2.json", "early-review-3.json", "brand.json",
                     "passive.json", "discount.json", "quiz.json", "quiz-review.json" }) {
                 Files.deleteIfExists(dir.resolve(name));
             }
@@ -170,15 +173,16 @@ public final class ReviewEconomyCheck {
         p.markCleared("a-1#2");
         p.markCleared("a-1#3");
 
-        // 今日クリアした問題の期限は明日以降なので、その日のうちに復習しても払わない
+        // 今日クリアした問題の期限は明日以降なので、満額は払わない（「早めの復習」になる）
         long before = value(p, "cash");
         ProgressStore.ReviewOutcome sameDay = p.recordMasterySubmission("a-1#1", true, true);
-        check("今日クリアした問題は期限前（払わない）", !sameDay.duePassed());
-        checkEquals("残高は動かない", value(p, "cash"), before);
+        check("今日クリアした問題は期限前（満額は払わない）", !sameDay.duePassed());
+        check("そのかわり「早めの復習」に数える", sameDay.earlyPassed());
+        checkEquals("判定だけでは残高は動かない", value(p, "cash"), before);
 
         // 期限が来た状態は、クリア日と復習予定を過去へ書き換えて作る（実時間を待たない）
         p.flushNow();
-        rewriteDates(file, LocalDate.now().minusDays(200).toString());
+        rewriteDates(file, LearningDay.today().minusDays(200).toString());
         p = new ProgressStore(file);
 
         long oneTask = value(p, "nextOrderCash");
@@ -186,7 +190,7 @@ public final class ReviewEconomyCheck {
         check("期限が来ていた", due.duePassed());
         check("その日に失敗していない", due.cleanRecall());
         ProgressStore.CafeAward paid = p.rewardReview(ZERO, "a-1#1", due.cleanRecall());
-        checkEquals("1問クリアの30%を払う", paid.cash(), oneTask * 30 / 100);
+        checkEquals("1問クリアの50%を払う", paid.cash(), oneTask * 50 / 100);
         checkEquals("杯は増やさない", paid.cups(), 0);
         check("初回クリアより少ない（" + paid.cash() + " < " + oneTask + "）",
                 paid.cash() < oneTask);
@@ -219,28 +223,101 @@ public final class ReviewEconomyCheck {
 
         // 上限は素の金額どうしで比べる。設備を最上位まで買っても初回クリアを超えないこと
         p.flushNow();
-        rewriteDates(file, LocalDate.now().minusDays(200).toString());
+        rewriteDates(file, LearningDay.today().minusDays(200).toString());
         p = new ProgressStore(file);
         for (String id : new String[] { "morning_playlist", "window_seat", "study_table",
                 "loyalty_board" }) {
             earnUntilAffordable(p, "z-1#", id);
             buyTrack(p, id);
         }
-        checkEquals("復習手当Rank4で+22%", value(p, "reviewBonusPercent"), 22);
+        checkEquals("復習手当Rank4で+35%", value(p, "reviewBonusPercent"), 35);
         long taskCash = value(p, "nextOrderCash");
         ProgressStore.ReviewOutcome outcome = p.recordMasterySubmission("a-1#1", true, true);
         check("期限が来ている（200日前へ戻した）", outcome.duePassed());
         long reviewCash = p.rewardReview(ZERO, "a-1#1", false).cash();
-        checkEquals("30%を+22%で伸ばす", reviewCash, taskCash * 30 / 100 * 122 / 100);
-        check("設備を積んでも初回クリアの80%以下（" + reviewCash + " <= "
-                + (taskCash * 80 / 100) + "）", reviewCash <= taskCash * 80 / 100);
+        checkEquals("50%を+35%で伸ばす", reviewCash, taskCash * 50 / 100 * 135 / 100);
+        check("設備を積んでも初回クリアの96%以下（" + reviewCash + " <= "
+                + (taskCash * 96 / 100) + "）", reviewCash <= taskCash * 96 / 100);
 
         // 最上位まで買った場合は、価格が高すぎてこの検査では作れない。効果値そのものから
-        // 「30% × (100+最上位)% が 80% を超えないか」を数で確かめる（上限そのものの検査）
+        // 「50% × (100+最上位)% が 96% を超えないか」を数で確かめる（上限そのものの検査）
         long topPercent = maxEffectValue(p, "review");
-        checkEquals("復習手当の最上位は+100%", topPercent, 100);
-        check("30% × (100+" + topPercent + ")% ≦ 80%",
-                30 * (100 + topPercent) / 100 <= 80);
+        checkEquals("復習手当の最上位は+88%", topPercent, 88);
+        check("50% × (100+" + topPercent + ")% ≦ 96%",
+                50 * (100 + topPercent) / 100 <= 96);
+        check("最上位でも初回クリア（100%）へ届かない",
+                50 * (100 + topPercent) / 100 < 100);
+    }
+
+    // ─── 1b. 期限前の「早めの復習」は小額を1日N問まで ────────────────────────
+    /**
+     * 期限が来ていない問題を通しても払うが、<b>1日に払う本数に上限がある</b>こと。
+     *
+     * <p>期限は「1問につき1日1回」という上限を作るが、期限前の問題は何問でも並べられる ―
+     * だからこちらの上限は日ごとの本数で作っている（2026-08-22）。ここが抜けると
+     * 「クリア済みを1日に何周もして稼ぐ」が成立するので、<b>止まることを確かめる</b>。</p>
+     */
+    private static void earlyReviewReward(Path file) throws Exception {
+        System.out.println("\n[早めの復習（期限前）の報酬]");
+        ProgressStore p = new ProgressStore(file);
+        for (int i = 1; i <= 12; i++) {
+            p.markCleared("e-1#" + i);
+        }
+        long oneTask = value(p, "nextOrderCash");
+
+        ProgressStore.ReviewOutcome early = p.recordMasterySubmission("e-1#1", true, true);
+        check("期限前だが復習で通した", early.earlyPassed() && !early.duePassed());
+        long paid = p.rewardEarlyReview(ZERO, "e-1#1", early.cleanRecall()).cash();
+        checkEquals("1問クリアの12%を払う", paid, oneTask * 12 / 100);
+        check("期限ぶん（50%）より小さい（" + paid + " < " + (oneTask * 50 / 100) + "）",
+                paid < oneTask * 50 / 100);
+
+        // 1日の本数。2問目〜6問目までは入り、7問目からは0になる
+        checkEquals("1日の残りは5問ぶん", value(p, "reviewEarlyRewardLeft"), 5);
+        for (int i = 2; i <= 6; i++) {
+            check("" + i + "問目も払う",
+                    p.rewardEarlyReview(ZERO, "e-1#" + i, true).cash() > 0);
+        }
+        checkEquals("使い切ると残りは0", value(p, "reviewEarlyRewardLeft"), 0);
+        for (int i = 7; i <= 12; i++) {
+            checkEquals("" + i + "問目は0コイン",
+                    p.rewardEarlyReview(ZERO, "e-1#" + i, true).cash(), 0);
+        }
+        // 同じ問題は1日1回まで。7問目以降が0なのは本数のせいなので、本数が余っている
+        // 状態でも同じ問題が0になることを別の進捗で確かめる（歯止めは2つある）
+        checkEquals("同じ問題を連打しても0",
+                p.rewardEarlyReview(ZERO, "e-1#1", true).cash(), 0);
+
+        ProgressStore q = new ProgressStore(file.resolveSibling("early-review-2.json"));
+        q.markCleared("f-1#1");
+        q.markCleared("f-1#2");
+        check("1問目は払う", q.rewardEarlyReview(ZERO, "f-1#1", true).cash() > 0);
+        checkEquals("本数が余っていても同じ問題は0",
+                q.rewardEarlyReview(ZERO, "f-1#1", true).cash(), 0);
+        checkEquals("本数はまだ残っている", value(q, "reviewEarlyRewardLeft"), 5);
+        check("別の問題なら払う", q.rewardEarlyReview(ZERO, "f-1#2", true).cash() > 0);
+
+        // 期限ぶんを受け取った問題も、同じ日は「早めの復習」ぶんをもらえない
+        // （通した時点で期限が翌日へ動くので、2回目の提出は期限前の側へ回る）
+        ProgressStore r = new ProgressStore(file.resolveSibling("early-review-3.json"));
+        r.markCleared("g-1#1");
+        check("期限ぶんを払った", r.rewardReview(ZERO, "g-1#1", true).cash() > 0);
+        checkEquals("同じ日にもう一度通しても0（期限ぶんで払い終えている）",
+                r.rewardEarlyReview(ZERO, "g-1#1", true).cash(), 0);
+        checkEquals("期限ぶんは早めの本数を食わない", value(r, "reviewEarlyRewardLeft"), 6);
+
+        // 日が変わると本数が戻る（保存した日付を昨日へ書き換えて読み直す）
+        p.flushNow();
+        String json = Files.readString(file);
+        String yesterday = LearningDay.today().minusDays(1).toString();
+        String replaced = json.replaceAll(
+                "\"reviewPaidDay\":\"[^\"]*\"", "\"reviewPaidDay\":\"" + yesterday + "\"");
+        check("払った日が保存されている", !replaced.equals(json));
+        Files.writeString(file, replaced);
+        p = new ProgressStore(file);
+        checkEquals("日が変わると本数が戻る",
+                value(p, "reviewEarlyRewardLeft"), value(p, "reviewEarlyRewardPerDay"));
+        check("翌日はまた払う", p.rewardEarlyReview(ZERO, "e-1#1", true).cash() > 0);
     }
 
     /** その系統の設備が持つ効果値のうち、いちばん大きいもの（＝最上位Rankの効果）。 */

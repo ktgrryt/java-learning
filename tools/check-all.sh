@@ -37,6 +37,7 @@ CHECKS=(
   check-starter-imports.sh
   check-starter-syntax.sh
   check-hint-dependency.sh
+  check-task-reference.sh
   check-constant-output.sh
   check-copyable-output.sh
   check-input-domain.sh
@@ -48,6 +49,7 @@ CHECKS=(
   check-optional-task.sh
   check-layer-completion.sh
   check-onboarding.sh
+  check-learning-day.sh
   check-review-schedule.sh
   check-review-economy.sh
   check-achievements.sh

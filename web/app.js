@@ -466,7 +466,8 @@
   function cafeState() {
     return state.progress.cafe || {
       cash: 0, cups: 0, cupPrice: 500, bonusPercent: 0, salesBonusPercent: 0,
-      reviewBonusPercent: 0, reviewRewardPercent: 30,
+      reviewBonusPercent: 0, reviewRewardPercent: 50,
+      reviewEarlyRewardPercent: 12, reviewEarlyRewardPerDay: 6, reviewEarlyRewardLeft: 6,
       extraCups: 0, chapterBonusPercent: 0,
       quizTipPercent: 0, clearedChapters: 0, brandMultiplierBasisPoints: 10000,
       reviewBrandBasisPoints: 0, reviewedTasks: 0, reviewedTaskPercent: 0,
@@ -1905,6 +1906,29 @@
   }
 
   /**
+   * 1つ前の問題へ戻る（2026-08-22・利用者の要望）。
+   *
+   * 飛ばした問題や、通したあとで「もう一度あれを解きたい」に応える道である。無いと
+   * 前の問題へ戻るには復習を終えて1問だけ選び直すしかなく、そこで抜けるとセットの
+   * 続きが分からなくなる。
+   *
+   * <b>数え直しは起きない。</b>このセットで通した問題は {@code clearedKeys} が覚えて
+   * いるので、戻って解き直しても正解数は増えない（→ {@link onReviewCleared}）。コインも
+   * 通した時点で次の期限が動いているため、同じ日の2回目は0が返る。
+   *
+   * <b>クイズの段からは戻さない。</b>答えたクイズをもう一度出すと、サーバへ投げ直して
+   * 復習の連続正解を数え直せてしまう（→ {@link answerReviewQuiz}）。クイズの段に入ったら
+   * 問題へは戻らない。
+   */
+  function backReviewSession() {
+    if (!reviewSession || inReviewQuizPhase() || reviewSession.index <= 0) { return; }
+    reviewSession.index--;
+    saveReviewRun();
+    var prev = reviewSession.queue[reviewSession.index];
+    selectReviewTask(prev.lessonId, prev.taskId);
+  }
+
+  /**
    * 次の問題へ。問題を出し切ったらクイズの段へ進み、それも終わったら復習ホームへ戻す。
    */
   function advanceReviewSession() {
@@ -2176,9 +2200,10 @@
   /**
    * 復習がカフェへ何を渡すのかを、復習ホームに1行で出す。
    *
-   * 復習はコインを直接くれない（クリア済みの問題は何度でも解けるので、
-   * 払うと無限に稼げてしまう）。代わりに渡しているのは倍率と自動売上の枠なので、
-   * それが見えないと「復習はカフェに無関係」と読まれてしまう。
+   * コインは2段になっている（期限が来た問題は満額・期限前の「早めの復習」は小額で
+   * 1日の本数に上限）。**始める前に両方の額と残りの本数を出す** ―― 通してから
+   * 「これは0コインだったのか」と気づく形にしない。倍率と自動売上の枠は目に見えないので、
+   * それも1行添える（無いと「復習はカフェに無関係」と読まれてしまう）。
    */
   function reviewCafeNoteHtml() {
     var cafe = cafeState();
@@ -2188,13 +2213,22 @@
       ? '復習で仕上げた ' + numberText(reviewed) + '問がブランド倍率を +'
         + multiplierText(brand) + ' 押し上げています'
       : '復習で正解した問題はブランド倍率を育てます（1問につき1回）';
-    // コインは⏰の問題を通したときだけ入る。額の割合と復習手当のぶんは、ここで先に伝える
-    // （期限前の問題を通しても入らないので、通してから気づく形にしない）
-    var percent = Number(cafe.reviewRewardPercent || 0)
-      * (100 + Number(cafe.reviewBonusPercent || 0)) / 100;
+    // 復習手当系統は両方の額へ掛かるので、掛けたあとの割合で出す（設備を買った人の画面が
+    // 動かないと、買った意味が読めない）
+    var withBonus = function (base) {
+      return Number(base || 0) * (100 + Number(cafe.reviewBonusPercent || 0)) / 100;
+    };
+    var percent = withBonus(cafe.reviewRewardPercent);
+    var earlyPercent = withBonus(cafe.reviewEarlyRewardPercent);
+    var left = Number(cafe.reviewEarlyRewardLeft || 0);
+    // 早めのぶんは1日の本数で止まるので、残りを添える。0の日に額だけ出すと約束が食い違う
+    var early = earlyPercent
+      ? ' · 早めの復習は ' + numberText(Math.round(earlyPercent)) + '%'
+        + (left ? '（今日あと' + left + '問ぶん）' : '（今日のぶんは受け取り済み）')
+      : '';
     var coin = percent
-      ? '🪙 期限が来た問題を通すと、初クリアの ' + numberText(Math.round(percent))
-        + '% のコインが入ります（同じ問題は期限が来るたび1回）'
+      ? '🪙 期限が来た問題は初クリアの ' + numberText(Math.round(percent))
+        + '%（期限が来るたび1回）' + early
       : '';
     return (coin ? '      <p class="hero-sub review-cafe-note">' + esc(coin) + '</p>' : '')
       + '      <p class="hero-sub review-cafe-note">☕ ' + esc(detail)
@@ -2252,7 +2286,8 @@
     }
     var cash = Number(reviewSummary.cash || 0);
     var runCash = Number(reviewSummary.runCash || 0);
-    // 期限が来ていた問題のぶんだけ入る。0の回（早めの復習だけだった回）は何も出さない
+    // 期限ぶん＋早めのぶんの合計。1日の本数を使い切ったあとのセットは0になるので、
+    // そのときは何も出さない（0コインを「獲得しました」と書かない）
     var earned = cash
       ? '🪙 ' + cafeNumberText(cash) + ' コインを獲得しました。'
       : '';
@@ -2786,16 +2821,27 @@
     return '<div class="review-bar">' +
       '<span class="review-bar-title">🔁 復習モード</span>' +
       '<span class="review-bar-progress">' + progress + '</span>' +
+      // 問題の段の一言は短く保つ。この帯の幅は本文と同じ830pxで、ボタンが3つ並ぶと
+      // 「復習を終える」が2段目へ落ちる（余りは実測36px。長い一言にすると必ず折り返す）
       '<span class="review-bar-note">' + (quizPhase
         ? '答えと解説は答えたあとに出ます。チップは出ません'
-        : 'ひな形から解き直します。前に書いた解答は残っています') + '</span>' +
+        : 'ひな形から解き直します（前の解答は残ります）') + '</span>' +
       '<span class="spacer"></span>' +
+      // ボタンはひとまとめにする。狭い画面では3つそろって2段目へ落ちる
+      // （ばらばらに折り返すと「復習を終える」だけが下に取り残される）
+      '<span class="review-bar-actions">' +
+      // 1つ前の問題へ戻す（→ backReviewSession）。押せないボタンは置かないので、
+      // 1問目とクイズの段では出さない
+      (reviewSession && !quizPhase && reviewSession.index > 0
+        ? '<button class="ghost-btn small" id="reviewBackBtn">← 前の問題へ</button>'
+        : '') +
       (reviewSession
         ? '<button class="ghost-btn small" id="reviewSkipBtn">'
           + (quizPhase ? 'このクイズを飛ばす' : 'この問題を飛ばす') + '</button>'
         : '') +
       '<button class="ghost-btn small" id="reviewExitBtn">' +
       (reviewSession ? '復習を終える' : '復習メニューへ') + '</button>' +
+      '</span>' +
       '</div>';
   }
 
@@ -2805,6 +2851,8 @@
   }
 
   function bindReviewBar() {
+    var back = document.getElementById('reviewBackBtn');
+    if (back) { back.addEventListener('click', backReviewSession); }
     var skip = document.getElementById('reviewSkipBtn');
     if (skip) {
       skip.addEventListener('click',
@@ -3768,7 +3816,7 @@
 
     var tiles = [
       { icon: '★', value: state.progress.starCount, unit: '個', label: '獲得したスター' },
-      { icon: '🔥', value: state.progress.streak, unit: '日', label: '連続で学習した日数' },
+      { icon: '🔥', value: state.progress.streak, unit: '日', label: '連続で学習した日数（区切りは午前4時）' },
       { icon: '✅', value: casesPassed, unit: '件', label: '通過したテスト・構成検証' },
       { icon: '✍️', value: attempts, unit: '回', label: '実行した回数' }
     ];
@@ -5362,19 +5410,30 @@
     var host = document.getElementById('hints-' + task.id);
     host.innerHTML = '';
     // 開示済みのヒント本文は /api/state に入っているので、開き直しでも通信は要らない
+    // 復習では畳んで置く。前に開いた答えが見えたままだと「いま解けるか」を測れない
+    // （解説を畳むのと同じ理由。読み直したいときは自分で開ける）。
     (task.revealedHints || []).forEach(function (text, index) {
-      appendHint(task.id, index, text);
+      appendHint(task.id, index, text, isReviewing() ? 'closed' : null);
     });
     maybeShowSolutionButton(lesson.id, task.id);
   }
 
-  function appendHint(taskId, index, text) {
+  /**
+   * 開示済みのヒントを1枚足す。
+   *
+   * fold に 'closed' / 'open' を渡すと、開き閉じできる形（&lt;details&gt;）で置く。
+   * 復習では前に開いたヒントを 'closed'、その場で押して出したヒントを 'open' にする
+   * （押した相手はすぐ読みたい。読み終わったら畳める）。
+   */
+  function appendHint(taskId, index, text, fold) {
     var host = document.getElementById('hints-' + taskId);
     if (host.querySelector('[data-hint="' + index + '"]')) { return; }
-    var box = document.createElement('div');
-    box.className = 'card card-hint';
+    var box = document.createElement(fold ? 'details' : 'div');
+    box.className = 'card card-hint' + (fold ? ' card-hint-fold' : '');
+    if (fold === 'open') { box.open = true; }
     box.setAttribute('data-hint', String(index));
-    box.innerHTML = '<div class="hint-no">ヒント ' + (index + 1) + '</div>'
+    var head = fold ? 'summary' : 'div';
+    box.innerHTML = '<' + head + ' class="hint-no">ヒント ' + (index + 1) + '</' + head + '>'
       + '<div class="hint-text">' + renderMarkdown(text) + '</div>';
     host.appendChild(box);
   }
@@ -5390,7 +5449,7 @@
     if (next >= task.hintCount) { return; }
     api('hint', { lessonId: currentId, taskId: taskId, index: next })
       .then(function (res) {
-        appendHint(taskId, res.index, res.text);
+        appendHint(taskId, res.index, res.text, isReviewing() ? 'open' : null);
         task.hintsRevealed = res.hintsRevealed;
         // 手元にも残しておく（このレッスンを開き直したときに再取得しないため）
         task.revealedHints = task.revealedHints || [];
@@ -5502,11 +5561,13 @@
   }
 
   /**
-   * 期限が来た問題を復習で通したときの報酬を通知する。
+   * 復習で通したときの報酬を通知する。
    *
    * ★は動かないので紙吹雪も「次の問題」も出さない。コインだけの短い1枚にしてある。
-   * 期限前の「早めの復習」ではサーバが0コインを返すので、ここは何も出さない ――
-   * 出ない回に通知を出すと「もらえる」という約束と食い違う。
+   * 期限が来ていた回は満額、期限前の「早めの復習」は小額（1日の本数を使い切ると
+   * サーバが0コインを返す）。**額はサーバが決めるので、ここは0でなければ出す** ――
+   * 0の回に通知を出すと「もらえる」という約束と食い違うが、逆に入った回を黙ると
+   * 復習の実入りが画面のどこにも出ない。
    */
   function notifyReviewReward(res, lessonId, taskId) {
     if (!res.cafeAward || !(res.cafeAward.cash > 0)) { return; }
@@ -5803,14 +5864,37 @@
     closeCoinLog();
   }
 
-  /** 「今日ぶん」を数えるための日付の鍵。時刻は見ない。 */
+  /**
+   * 1日の区切り（時）。<b>0時ではなく午前4時で切る</b>ので、深夜0〜3時台の学習は
+   * 前日ぶんとして数える。
+   *
+   * 数字はサーバから受け取る（`LearningDay.START_HOUR` → /api/state の dayStartHour）。
+   * 画面にも書くと片方だけ動いて「今日」が食い違うため、ここは読むだけにする。
+   * 既定の4は、状態を受け取る前に呼ばれたときの受け皿である。
+   */
+  function dayStartHour() {
+    var hour = state && state.progress ? Number(state.progress.dayStartHour) : NaN;
+    return isNaN(hour) ? 4 : hour;
+  }
+
+  /**
+   * 「今日ぶん」を数えるための日付の鍵。
+   *
+   * 区切りぶん戻してから年月日を読む。こうすると 8/22 の 2:30 は 8/21 の鍵になり、
+   * 前の晩に受け取ったぶんと同じ「今日」に入る（連続日数・復習の期限と同じ境目）。
+   */
   function coinLogDayKey(date) {
-    return date.getFullYear() + '-' + date.getMonth() + '-' + date.getDate();
+    var shifted = new Date(date.getTime() - dayStartHour() * 3600000);
+    return shifted.getFullYear() + '-' + shifted.getMonth() + '-' + shifted.getDate();
   }
 
   /**
    * 時刻の見せ方。日付を毎行に出すと、その日のうちに何度も受け取る使い方では
    * 同じ日付が並ぶだけで読みにくい。今日と昨日は言葉にして、それより前だけ日付を出す。
+   *
+   * <b>「今日」も区切り（午前4時）で数える。</b>時刻そのものは時計どおりに出すので、
+   * 朝4時を過ぎてから開くと、その晩の 2:30 のぶんは「昨日 2:30」と出る。
+   * 昨日を暦の日付から作らないのは、区切りをまたぐと1日ずれるためである。
    */
   function coinLogTimeText(at) {
     var when = new Date(Number(at) || 0);
@@ -5818,7 +5902,7 @@
     var hm = when.getHours() + ':' + ('0' + when.getMinutes()).slice(-2);
     var now = new Date();
     if (coinLogDayKey(when) === coinLogDayKey(now)) { return '今日 ' + hm; }
-    var yesterday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1);
+    var yesterday = new Date(now.getTime() - 86400000);
     if (coinLogDayKey(when) === coinLogDayKey(yesterday)) { return '昨日 ' + hm; }
     return (when.getMonth() + 1) + '/' + when.getDate() + ' ' + hm;
   }
