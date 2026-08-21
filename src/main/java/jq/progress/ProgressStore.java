@@ -383,6 +383,20 @@ public final class ProgressStore {
         }
     }
 
+    /**
+     * 復習の提出で分かったこと。カフェの支払いを呼び分けるために返す。
+     *
+     * <p>どちらも <b>{@link #updateReviewPlan} が期限を書き換える前</b>にしか分からない。
+     * 判定をここへ寄せているのは、期限の計算（{@link #reviewDue}）と同じ場所に置くためである。</p>
+     *
+     * @param duePassed   期限が来ていた問題を復習で通した（コインを払う条件）
+     * @param cleanRecall その日に一度も失敗せず通した（思い出しのマドレーヌが見る）
+     */
+    public record ReviewOutcome(boolean duePassed, boolean cleanRecall) {
+
+        public static final ReviewOutcome NONE = new ReviewOutcome(false, false);
+    }
+
     public ProgressStore(Path file) {
         this.file = file;
         load();
@@ -629,6 +643,17 @@ public final class ProgressStore {
         return cafe.rewardTask(learning, taskKey);
     }
 
+    /**
+     * 期限が来た問題を復習で通したときの報酬。
+     *
+     * <p>払うかどうかは {@link #recordMasterySubmission} が返す {@link ReviewOutcome} で決まる。
+     * 期限を書き換える前でないと判定できないため、判定と支払いを分けている。</p>
+     */
+    public synchronized CafeAward rewardReview(
+            CafeLearningProgress learning, String taskKey, boolean cleanRecall) {
+        return cafe.rewardReview(learning, taskKey, cleanRecall);
+    }
+
     /** 章を初めて制覇したときのまとまったボーナス。 */
     public synchronized CafeAward rewardChapter(
             String chapterId, CafeLearningProgress learning, int chapterTaskCount) {
@@ -705,17 +730,19 @@ public final class ProgressStore {
      * 復習チャレンジの方は、同じ問題の連打では数を増やさず、失敗した提出は
      * 10問連続の記録だけを切る。★と通常報酬は呼び出し側の初回判定で引き続き付与しない。
      *
-     * カフェへ渡すのは「倍率」と「自動売上の枠」だけで、コインは1枚も払わない。
-     * クリア済みの問題は何度でも解き直せるので、支払うと無限に稼げてしまう。
-     * どちらも1問につき1回しか数えないため、上限は問題数で構造的に決まる。
+     * カフェへ渡すのは「倍率」と「自動売上の枠」で、どちらも1問につき1回しか数えないため
+     * 上限は問題数で構造的に決まる。<b>コインを払うかどうかもここで決める</b> ―
+     * 期限が来ていた問題を復習で通したかは、下の {@link #updateReviewPlan} が期限を
+     * 書き換える前にしか見られないので、その判定を {@link ReviewOutcome} として返し、
+     * 支払いそのものは呼び出し側（{@code ApiHandler}）が {@code rewardReview} で行う。
      *
      * <p>この関数は {@code ApiHandler.doSubmit} で {@code markCleared} より<b>前</b>に
      * 呼ばれる。初クリアの時点ではまだ {@code cleared} に入っていないので、
      * 下の早期returnで抜ける ― つまり初クリアが復習ぶんの報酬を二重取りしない。
      * 順番を入れ替えるとこの前提が崩れる。</p>
      */
-    public synchronized void recordMasterySubmission(String taskKey, boolean passed) {
-        recordMasterySubmission(taskKey, passed, false);
+    public synchronized ReviewOutcome recordMasterySubmission(String taskKey, boolean passed) {
+        return recordMasterySubmission(taskKey, passed, false);
     }
 
     /**
@@ -724,8 +751,17 @@ public final class ProgressStore {
      *                   そのまま提出して通っても「思い出せた」ことにならない。復習は
      *                   ひな形から解き直すので、一発で通ったのなら覚えている
      */
-    public synchronized void recordMasterySubmission(String taskKey, boolean passed,
-                                                     boolean fromReview) {
+    public synchronized ReviewOutcome recordMasterySubmission(String taskKey, boolean passed,
+                                                              boolean fromReview) {
+        // 期限が来ていたか・その日に失敗していないかは、updateReviewPlan が lastAt と
+        // lastFailAt を書き換える前にしか見られない。先に控えておく
+        ReviewPlan planBefore = reviewPlans.get(taskKey);
+        boolean stumbled = planBefore != null
+                && LocalDate.now().toString().equals(planBefore.lastFailAt());
+        ReviewOutcome outcome = passed && fromReview && cleared.containsKey(taskKey)
+                        && reviewDue(taskKey).overdue()
+                ? new ReviewOutcome(true, !stumbled)
+                : ReviewOutcome.NONE;
         // 下げるのはクリア済みの問題に正解したときだけ。まだ通っていない問題で
         // 1ケースだけ通った提出などを「復習で正解」と数えないため。
         // 失敗は1単位（=0.25点）だけ上げる。書いている途中の失敗も全部ここを通るので、
@@ -740,6 +776,7 @@ public final class ProgressStore {
         if (changed) {
             saveSoon();
         }
+        return outcome;
     }
 
     /**

@@ -598,9 +598,10 @@ public final class ApiHandler implements HttpHandler {
             ProjectRunner.Result projectResult = projectRunner.run(task.project(), projectFiles);
             result.putAll(projectResult.toJson());
             progress.recordPassed(key, projectResult.allPass() ? 1 : 0);
-            progress.recordMasterySubmission(key, projectResult.allPass(), review);
+            ProgressStore.ReviewOutcome outcome =
+                    progress.recordMasterySubmission(key, projectResult.allPass(), review);
             if (projectResult.allPass()) {
-                addClearRewards(result, c, lesson, task, lessonId, taskId, key);
+                addClearRewards(result, c, lesson, task, lessonId, taskId, key, outcome);
             }
             result.put("delta", delta(lessonId));
             return result;
@@ -612,9 +613,10 @@ public final class ApiHandler implements HttpHandler {
             if (runtimeResult.available() && runtimeResult.started()) {
                 progress.recordPassed(key, (int) runtimeResult.checks().stream()
                         .filter(RuntimeLabRunner.CheckResult::pass).count());
-                progress.recordMasterySubmission(key, runtimeResult.allPass(), review);
+                ProgressStore.ReviewOutcome outcome =
+                        progress.recordMasterySubmission(key, runtimeResult.allPass(), review);
                 if (runtimeResult.allPass()) {
-                    addClearRewards(result, c, lesson, task, lessonId, taskId, key);
+                    addClearRewards(result, c, lesson, task, lessonId, taskId, key, outcome);
                 }
             }
             result.put("delta", delta(lessonId));
@@ -630,9 +632,10 @@ public final class ApiHandler implements HttpHandler {
             result.put("passedCount", validation.passedCount());
             result.put("allPass", validation.allPass());
             progress.recordPassed(key, validation.passedCount());
-            progress.recordMasterySubmission(key, validation.allPass(), review);
+            ProgressStore.ReviewOutcome outcome =
+                    progress.recordMasterySubmission(key, validation.allPass(), review);
             if (validation.allPass()) {
-                addClearRewards(result, c, lesson, task, lessonId, taskId, key);
+                addClearRewards(result, c, lesson, task, lessonId, taskId, key, outcome);
             }
             result.put("delta", delta(lessonId));
             return result;
@@ -668,9 +671,12 @@ public final class ApiHandler implements HttpHandler {
             result.put("passedCount", passed);
             result.put("allPass", allPass);
             progress.recordPassed(key, passed);
-            progress.recordMasterySubmission(key, allPass, review);
+            ProgressStore.ReviewOutcome outcome =
+                    progress.recordMasterySubmission(key, allPass, review);
 
-            if (allPass) addClearRewards(result, c, lesson, task, lessonId, taskId, key);
+            if (allPass) {
+                addClearRewards(result, c, lesson, task, lessonId, taskId, key, outcome);
+            }
         }
         result.put("delta", delta(lessonId));
         return result;
@@ -678,8 +684,9 @@ public final class ApiHandler implements HttpHandler {
 
     /** 問題形式に依存しない、初回クリア報酬と次問題の情報を応答へ加える。 */
     private void addClearRewards(Map<String, Object> result, Curriculum c, Lesson lesson, Task task,
-                                 String lessonId, String taskId, String key) {
-        addClearRewards(result, c, lesson, task.isOptional(), lessonId, taskId, key);
+                                 String lessonId, String taskId, String key,
+                                 ProgressStore.ReviewOutcome outcome) {
+        addClearRewards(result, c, lesson, task.isOptional(), lessonId, taskId, key, outcome);
     }
 
     /**
@@ -688,11 +695,14 @@ public final class ApiHandler implements HttpHandler {
      * <p>{@link Task} を受け取らないのは、概念レッスンの★（クイズ全問正解）にも同じ経路を
      * 使うためである。★の付き方が変わっても、報酬・章クリア・次の問題の扱いは1箇所に置く。
      *
+     * @param outcome 直前の {@code recordMasterySubmission} が返した復習の判定。
+     *                期限が来ていた問題を復習で通した回だけ、初回クリアの代わりに復習ぶんを払う
      * @return 今回支払った報酬。呼び出し側でクイズのチップと合算するために返す
      */
     private ProgressStore.CafeAward addClearRewards(
             Map<String, Object> result, Curriculum c, Lesson lesson,
-            boolean optional, String lessonId, String taskId, String key) {
+            boolean optional, String lessonId, String taskId, String key,
+            ProgressStore.ReviewOutcome outcome) {
         Set<String> before = progress.clearedIds();
         Chapter chapter = Objects.requireNonNull(
                 c.chapterOf(lessonId), "章が引けません: " + lessonId);
@@ -718,9 +728,13 @@ public final class ApiHandler implements HttpHandler {
         ProgressStore.CafeLearningProgress cafeLearningAfter = CafeApi.learningProgress(c, after);
         boolean chapterCompletedNow = firstTime && !chapterWasCleared
                 && c.isChapterCleared(chapter, after);
+        // 初回クリアと復習は同じ提出では起きない（初クリアの時点では期限が明日以降にある）。
+        // 復習ぶんは期限が来ていた回だけで、通すと期限が動くので同じ日の2回目は0コインになる
         ProgressStore.CafeAward cafeAward = firstTime
                 ? progress.rewardTask(cafeLearningAfter, key)
-                : ProgressStore.CafeAward.NONE;
+                : outcome.duePassed()
+                        ? progress.rewardReview(cafeLearningAfter, key, outcome.cleanRecall())
+                        : ProgressStore.CafeAward.NONE;
         if (c.isChapterCleared(chapter, after)) {
             progress.noteChapterAchievements(chapterTaskKeys(chapter));
         }
@@ -841,7 +855,8 @@ public final class ApiHandler implements HttpHandler {
     private void addConceptClearRewards(Map<String, Object> m, Curriculum c, Lesson lesson,
                                         ProgressStore.CafeAward quizAward) {
         ProgressStore.CafeAward starAward = addClearRewards(
-                m, c, lesson, false, lesson.id(), Lesson.CONCEPT_TASK_ID, lesson.conceptKey());
+                m, c, lesson, false, lesson.id(), Lesson.CONCEPT_TASK_ID, lesson.conceptKey(),
+                ProgressStore.ReviewOutcome.NONE);
         m.put("cafeAward", CafeApi.awardJson(quizAward.plus(starAward)));
     }
 

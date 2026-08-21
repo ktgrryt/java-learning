@@ -50,6 +50,13 @@ final class CafeCatalog {
             new CafeLevel(11, "世界開発者ラウンジ", 474, 384),
             new CafeLevel(12, "Java Café 殿堂", 505, 512));
 
+    /**
+     * 設備5系統 × 12段。同じ系統は合算されず、一番上のRankへ置き換わる（{@link CafeEconomy}）。
+     *
+     * <p><b>復習手当系統（{@code "review"}）のIDは、以前の常連サービス系統から引き継いでいる</b>
+     * （{@code morning_playlist} … {@code lifelong_academy}）。すでに買った人の所持記録を
+     * 無効にしないためで、IDと表示名がずれているのは意図したものである。</p>
+     */
     static final List<CafeUpgrade> UPGRADES = List.of(
             new CafeUpgrade("welcome_mat", "ウェルカムマット", "🟫",
                     "来店率を上げる · 注文売上 +2%", 6_000, 1, "sales", 2),
@@ -59,8 +66,8 @@ final class CafeCatalog {
                     "常連客を増やす · 章ボーナス +10%", 4_000, 1, "chapter", 10),
             new CafeUpgrade("tip_jar", "小さなチップ瓶", "🫙",
                     "クイズを楽しむお客さんが増える · 正解チップ +25%", 1_800, 1, "tips", 25),
-            new CafeUpgrade("morning_playlist", "朝のプレイリスト", "🎵",
-                    "毎日通いたくなる空間 · 連続1日ごと 今日の1杯目 +3%", 3_000, 1, "streak", 3),
+            new CafeUpgrade("morning_playlist", "おかわりチケット", "🎟️",
+                    "もう一杯を気軽に頼める · 復習報酬 +4%", 3_000, 1, "review", 4),
 
             new CafeUpgrade("signboard", "手書きの看板", "🪧",
                     "店を見つけてもらいやすくする · 注文売上 +6%", 25_000, 2, "sales", 6),
@@ -70,8 +77,8 @@ final class CafeCatalog {
                     "繁忙時の抽出を安定させる · 章ボーナス +20%", 17_000, 2, "chapter", 20),
             new CafeUpgrade("cookie_plate", "試食クッキープレート", "🍪",
                     "正解を祝うひと口サービス · 正解チップ +50%", 7_600, 2, "tips", 50),
-            new CafeUpgrade("window_seat", "窓際の指定席", "🪟",
-                    "毎日の常連席をつくる · 連続1日ごと 今日の1杯目 +6%", 12_700, 2, "streak", 6),
+            new CafeUpgrade("window_seat", "読み返しメモ", "📝",
+                    "前の一杯を思い出す · 復習報酬 +9%", 12_700, 2, "review", 9),
 
             new CafeUpgrade("grinder", "セラミックグラインダー", "⚙️",
                     "豆の品質で客単価アップ · 注文売上 +13%", 106_000, 3, "sales", 13),
@@ -81,8 +88,8 @@ final class CafeCatalog {
                     "章末のまとめ買いを増やす · 章ボーナス +30%", 72_000, 3, "chapter", 30),
             new CafeUpgrade("latte_art", "ラテアート練習台", "🎨",
                     "正解祝いの一杯を特別に · 正解チップ +80%", 32_000, 3, "tips", 80),
-            new CafeUpgrade("study_table", "学習者の大テーブル", "📚",
-                    "学び続ける常連が集まる · 連続1日ごと 今日の1杯目 +9%", 53_000, 3, "streak", 9),
+            new CafeUpgrade("study_table", "復習席のブックシェルフ", "📚",
+                    "読み返す時間をつくる · 復習報酬 +15%", 53_000, 3, "review", 15),
 
             new CafeUpgrade("espresso", "エスプレッソマシン", "☕",
                     "高単価メニューを提供 · 注文売上 +23%", 450_000, 4, "sales", 23),
@@ -92,8 +99,8 @@ final class CafeCatalog {
                     "章末にお客さんを集める · 章ボーナス +45%", 305_000, 4, "chapter", 45),
             new CafeUpgrade("dessert_pairing", "デザートペアリング", "🍰",
                     "知識と味の組み合わせを祝う · 正解チップ +110%", 135_000, 4, "tips", 110),
-            new CafeUpgrade("loyalty_board", "常連ネームボード", "🏷️",
-                    "連続来店を店内で称える · 連続1日ごと 今日の1杯目 +12%", 225_000, 4, "streak", 12),
+            new CafeUpgrade("loyalty_board", "記憶の香りブレンド", "🌿",
+                    "香りで記憶を呼び戻す · 復習報酬 +22%", 225_000, 4, "review", 22),
 
             new CafeUpgrade("roaster", "小型ロースター", "🔥",
                     "自家焙煎でブランド化 · 注文売上 +38%", 1_900_000, 5, "sales", 38),
@@ -103,8 +110,8 @@ final class CafeCatalog {
                     "章末に団体客を呼ぶ · 章ボーナス +60%", 1_300_000, 5, "chapter", 60),
             new CafeUpgrade("tasting_flight", "飲み比べフライト", "🥃",
                     "正解後の体験価値を上げる · 正解チップ +145%", 570_000, 5, "tips", 145),
-            new CafeUpgrade("daily_roast_log", "本日の焙煎ログ", "📋",
-                    "学習と焙煎を毎日記録 · 連続1日ごと 今日の1杯目 +15%", 950_000, 5, "streak", 15),
+            new CafeUpgrade("daily_roast_log", "二杯目のブレンド", "🍵",
+                    "二杯目こそ深く味わう · 復習報酬 +30%", 950_000, 5, "review", 30),
 
             new CafeUpgrade("pos", "POSレジ", "🖥️",
                     "販売データで価格を最適化 · 注文売上 +58%", 8_000_000, 6, "sales", 58),
@@ -114,8 +121,8 @@ final class CafeCatalog {
                     "章末に定期購入が入る · 章ボーナス +80%", 5_600_000, 6, "chapter", 80),
             new CafeUpgrade("barista_school", "バリスタ講座", "🎓",
                     "正解の価値を伝える接客 · 正解チップ +180%", 2_400_000, 6, "tips", 180),
-            new CafeUpgrade("commuter_pass", "常連パスポート", "🪪",
-                    "日々の来店を習慣化 · 連続1日ごと 今日の1杯目 +18%", 4_000_000, 6, "streak", 18),
+            new CafeUpgrade("commuter_pass", "リピーター手帳", "📔",
+                    "通うほど厚くなる記録 · 復習報酬 +39%", 4_000_000, 6, "review", 39),
 
             new CafeUpgrade("second_store", "フランチャイズ本部", "🏢",
                     "全店の販売戦略を統一する · 注文売上 +88%", 40_000_000, 7, "sales", 88),
@@ -125,8 +132,8 @@ final class CafeCatalog {
                     "章末に全店へ豆を出荷 · 章ボーナス +105%", 28_000_000, 7, "chapter", 105),
             new CafeUpgrade("vip_counter", "VIPカウンター", "💎",
                     "クイズ好きの特別席 · 正解チップ +220%", 12_000_000, 7, "tips", 220),
-            new CafeUpgrade("daily_newsletter", "毎朝のニュースレター", "📰",
-                    "常連へ学びの話題を届ける · 連続1日ごと 今日の1杯目 +21%", 20_000_000, 7, "streak", 21),
+            new CafeUpgrade("daily_newsletter", "復習ラウンジのベル", "🛎️",
+                    "読み返す客を呼び戻す · 復習報酬 +49%", 20_000_000, 7, "review", 49),
 
             new CafeUpgrade("flagship_store", "フラッグシップ店", "🏛️",
                     "街の名所になり客単価上昇 · 注文売上 +128%", 260_000_000L, 8, "sales", 128),
@@ -136,8 +143,8 @@ final class CafeCatalog {
                     "章末に大型注文を獲得 · 章ボーナス +135%", 182_000_000L, 8, "chapter", 135),
             new CafeUpgrade("concierge", "コーヒーコンシェルジュ", "🤵",
                     "知識に合わせて一杯を提案 · 正解チップ +260%", 78_000_000L, 8, "tips", 260),
-            new CafeUpgrade("habit_app", "学習習慣アプリ", "📲",
-                    "毎日の来店を楽しく通知 · 連続1日ごと 今日の1杯目 +24%", 130_000_000L, 8, "streak", 24),
+            new CafeUpgrade("habit_app", "記憶のアーカイブ棚", "🗂️",
+                    "学びをいつでも取り出せる · 復習報酬 +60%", 130_000_000L, 8, "review", 60),
 
             new CafeUpgrade("airport_store", "空港ラウンジ店", "✈️",
                     "世界の旅行客へ販売 · 注文売上 +183%", 2_000_000_000L, 9, "sales", 183),
@@ -147,8 +154,8 @@ final class CafeCatalog {
                     "章末に街じゅうを集客 · 章ボーナス +170%", 1_400_000_000L, 9, "chapter", 170),
             new CafeUpgrade("members_lounge", "会員制ラウンジ", "🛋️",
                     "正解を語り合う上質な席 · 正解チップ +300%", 600_000_000L, 9, "tips", 300),
-            new CafeUpgrade("mentor_club", "朝活メンタークラブ", "🌅",
-                    "仲間と毎日学び続ける · 連続1日ごと 今日の1杯目 +27%", 1_000_000_000L, 9, "streak", 27),
+            new CafeUpgrade("mentor_club", "記憶の熟成庫", "🕰️",
+                    "時間をかけて記憶を寝かせる · 復習報酬 +71%", 1_000_000_000L, 9, "review", 71),
 
             new CafeUpgrade("global_brand", "グローバルブランド", "🌍",
                     "世界共通の一杯へ · 注文売上 +258%", 15_000_000_000L, 10, "sales", 258),
@@ -158,8 +165,8 @@ final class CafeCatalog {
                     "章末に世界規模の注文 · 章ボーナス +210%", 10_500_000_000L, 10, "chapter", 210),
             new CafeUpgrade("founders_club", "創業者クラブ", "👑",
                     "最高の学びへ最大級の祝福 · 正解チップ +350%", 4_500_000_000L, 10, "tips", 350),
-            new CafeUpgrade("learning_retreat", "学習リトリート", "🏝️",
-                    "学びを生活の一部にする · 連続1日ごと 今日の1杯目 +30%", 7_500_000_000L, 10, "streak", 30),
+            new CafeUpgrade("learning_retreat", "復習ライブラリー", "📕",
+                    "読み返しを店の看板にする · 復習報酬 +82%", 7_500_000_000L, 10, "review", 82),
 
             new CafeUpgrade("quantum_campaign", "量子級ブランドキャンペーン", "🪐",
                     "開発者コミュニティ全体へ届ける · 注文売上 +360%", 110_000_000_000L, 11, "sales", 360),
@@ -169,8 +176,8 @@ final class CafeCatalog {
                     "章末に世界の学習者が集う · 章ボーナス +260%", 77_000_000_000L, 11, "chapter", 260),
             new CafeUpgrade("knowledge_vault", "知識の宝物庫", "🏆",
                     "正解の知識を価値ある体験へ · 正解チップ +400%", 33_000_000_000L, 11, "tips", 400),
-            new CafeUpgrade("learning_guild", "世界学習ギルド", "🤝",
-                    "仲間と学ぶ文化を世界へ · 連続1日ごと 今日の1杯目 +33%", 55_000_000_000L, 11, "streak", 33),
+            new CafeUpgrade("learning_guild", "世界リピーター協会", "🎗️",
+                    "思い出す文化を世界へ · 復習報酬 +91%", 55_000_000_000L, 11, "review", 91),
 
             new CafeUpgrade("java_legacy", "Javaレガシー殿堂", "🏛️",
                     "積み重ねた学びを永続するブランドへ · 注文売上 +500%", 820_000_000_000L, 12, "sales", 500),
@@ -180,8 +187,8 @@ final class CafeCatalog {
                     "全章の学びを祝う最大イベント · 章ボーナス +320%", 574_000_000_000L, 12, "chapter", 320),
             new CafeUpgrade("hall_of_fame_counter", "殿堂カウンター", "🥇",
                     "最高難度の正解を盛大に祝う · 正解チップ +450%", 246_000_000_000L, 12, "tips", 450),
-            new CafeUpgrade("lifelong_academy", "生涯学習アカデミー", "♾️",
-                    "学び続ける文化を完成させる · 連続1日ごと 今日の1杯目 +36%", 410_000_000_000L, 12, "streak", 36));
+            new CafeUpgrade("lifelong_academy", "長期記憶ロースタリー", "♾️",
+                    "忘れない学びを完成させる · 復習報酬 +100%", 410_000_000_000L, 12, "review", 100));
 
     /**
      * スペシャルアイテム12種。1種類ずつしか持てず、<b>1枚が持つ効果は1つだけ</b>。
@@ -202,6 +209,12 @@ final class CafeCatalog {
      * 同じ期待倍率でも確率を上げるほうが投資率を大きく食うから
      * （当たる回は {@code cafeRewardSequence} だけで決まるので、確率を上げると
      * 章制覇やコンボが乗った大きい回を拾いやすい）。</p>
+     *
+     * <p><b>皆勤の日めくり（連続日数の上限を7→10日）は 思い出しのマドレーヌ へ差し替えた。</b>
+     * 常連サービス系統ごと外したので効果の置き場が無くなったのが直接の理由だが、
+     * もともと「1日1問だけに乗る倍率の、上限を広げる」という修飾の修飾で一番地味な1枚だった。
+     * 解放条件（7日連続で学習）と価格は据え置きで、毎日続ける人へ払う役目も変わっていない ―
+     * 払う先が「その日の1杯目」から「期限が来た復習」へ移っただけである。</p>
      *
      * <p>解放は2通り。{@code unlockAchievement} が空なら★数と累計コイン（学習の節目）、
      * 値があれば {@link #ACHIEVEMENT_NOTES} の達成条件で解放する。
@@ -224,10 +237,11 @@ final class CafeCatalog {
                     "5回以上提出してクリアした問題の獲得コインが2倍",
                     12_000L, 0, 0L, "persistent_clear",
                     List.of(fx("retry_double", 2))),
-            new CafeItem("attendance_calendar", "皆勤の日めくり", "📅",
-                    "「今日の1杯目」に数える連続日数の上限が7日から10日に広がる",
+            // IDは以前の「皆勤の日めくり」から引き継いでいる（所持記録を無効にしないため）
+            new CafeItem("attendance_calendar", "思い出しのマドレーヌ", "🍮",
+                    "復習で、その日に一度も失敗せず通した問題の獲得コインが2倍",
                     120_000L, 0, 0L, "streak_7",
-                    List.of(fx("streak_cap", 10))),
+                    List.of(fx("review_recall_double", 2))),
             new CafeItem("food_truck", "移動販売トラック", "🚚",
                     "注文の集客が2店舗ぶん増える（店舗が少ないうちほど効く）",
                     900_000L, 0, 0L, "store_5",

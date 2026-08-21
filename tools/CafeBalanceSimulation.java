@@ -23,14 +23,15 @@ import java.util.Set;
  * （{@link #verifyEarlyPacing}）。設備の歯止めは価格だけなので、Rank1が1問の報酬に対して
  * 安いと最初の章で店が一気に完成してしまう。</p>
  *
- * <p>2つのシナリオを回す。効果が「学習の仕方」に依存する要素（常連サービス系統の
- * 今日の1杯目、復習が育てるブランド倍率）は、片方だけでは測れないため。</p>
+ * <p>2つのシナリオを回す。効果が「学習の仕方」に依存する要素（期限が来た問題の復習報酬、
+ * 復習が育てるブランド倍率）は、片方だけでは測れないため。</p>
  *
  * <ul>
- *   <li><b>plain</b> … 同じ日に一気に完走し、復習は一度もしない。連続日数も伸びないので
- *       今日の1杯目と復習ぶんが両方0になる。<b>収入の下限</b>で、投資率25〜45%を守る基準。</li>
+ *   <li><b>plain</b> … 同じ日に一気に完走し、復習は一度もしない。復習ぶんの倍率も
+ *       復習報酬も0になる。<b>収入の下限</b>で、投資率25〜45%を守る基準。</li>
  *   <li><b>reviewer</b> … 7日連続で通い、クリアした問題をその場で復習し、確認クイズも
- *       解き直す。復習アイテムが全て効く<b>収入の上限</b>。ここでは投資率の下限を緩め、
+ *       解き直し、<b>期限ぶんの報酬を1問1回ずつ受け取る</b>（{@link #reviewTask}）。
+ *       復習アイテムが全て効く<b>収入の上限</b>。ここでは投資率の下限を緩め、
  *       「全て買えること」と「復習が初回クリアを追い越さないこと」を見る。</li>
  * </ul>
  */
@@ -47,6 +48,14 @@ public final class CafeBalanceSimulation {
 
     /** 初回クリア1問あたりのブランド成長。復習ぶんがこれを超えないことを確かめる。 */
     private static final long FIRST_CLEAR_BRAND_BASIS_POINTS_PER_TASK = 170;
+
+    /**
+     * 復習1問の報酬が、初回クリア1問に対して取っていい割合の上限（%）。
+     *
+     * <p>{@code CafeEconomy.REVIEW_REWARD_MAX_PERCENT} と同じ値。100%へ届くと
+     * 「新しい問題を解くより復習した方が儲かる」状態になる。</p>
+     */
+    private static final long REVIEW_REWARD_CEILING_PERCENT = 80;
 
     /** 序盤ペースの検査に使う★の範囲。最初の2章が収まる長さにする。 */
     private static final int EARLY_TRACE_STARS = 60;
@@ -95,7 +104,7 @@ public final class CafeBalanceSimulation {
          * この試算で到達できるアイテム数（全12種）。
          *
          * 復習しないシナリオでは、重い2つのうち「復習で異なる200問」（復習ノート）と、
-         * 「7日連続で学習」（皆勤の日めくり）へ届かないので10種。
+         * 「7日連続で学習」（思い出しのマドレーヌ）へ届かないので10種。
          * もう1つの重い条件「無傷で25問連続」（生涯学習トロフィー）は、この試算が
          * ヒントをほぼ使わないぶん、どちらのシナリオでも満たす。
          */
@@ -118,10 +127,6 @@ public final class CafeBalanceSimulation {
         verifyEarlyPacing(curriculum, plain);
         require(plain.spendPercent() >= 25.0 && plain.spendPercent() <= 45.0,
                 "復習なしの投資率が目標25〜45%を外れています: " + plain.spendPercent() + "%");
-        // 同じ日に完走するので連続日数は伸びない（皆勤の日めくりの下駄3日だけが効く）。
-        // 今日の1杯目は1回しか発動しないため、収入への寄与はほぼ無い。
-        require(number(plain.cafe().get("streakDays")) < 7,
-                "同じ日に完走したのに連続7日として数えられています");
         require(number(plain.cafe().get("reviewBrandBasisPoints")) == 0,
                 "復習していないのにブランド倍率へ復習ぶんが乗っています");
         require(number(plain.cafe().get("equipmentDiscountPercent")) == 20,
@@ -149,11 +154,9 @@ public final class CafeBalanceSimulation {
         require(reviewer.lifetime() > plain.lifetime(),
                 "復習しても生涯売上が増えていません");
         verifyReviewStaysBehindFirstClear(reviewer);
-        require(number(reviewer.cafe().get("streakDays")) >= 7,
-                "7日連続の履歴を仕込んだのに連続日数が数えられていません");
-        require(number(reviewer.cafe().get("dailyFirstBonusPercent"))
-                        > number(plain.cafe().get("dailyFirstBonusPercent")),
-                "毎日通っても今日の1杯目の倍率が増えていません");
+        require(number(reviewer.cafe().get("reviewBonusPercent"))
+                        == number(plain.cafe().get("reviewBonusPercent")),
+                "復習手当系統は買い方で決まるので、両シナリオで同じRankまで買えるはず");
 
         // ★の解放条件を外したので、歯止めは価格だけになった。ある買い方だけが極端に
         // 得だと「どの系統から伸ばしてもいい」が見かけ倒しになるため、方針を変えて比べる。
@@ -183,7 +186,8 @@ public final class CafeBalanceSimulation {
      * 1シナリオを最後まで走らせる。
      *
      * @param review    クリアした問題をその場で復習し、確認クイズも解き直すか
-     * @param streakDays 進捗ファイルへ先に書いておく連続学習日数（今日の1杯目に効く）
+     * @param streakDays 進捗ファイルへ先に書いておく連続学習日数
+     *                   （7日あると「7日連続で学習」の達成型アイテムが解放される）
      * @param printRows 途中の節目を表として出すか
      */
     private static Outcome simulate(
@@ -246,7 +250,7 @@ public final class CafeBalanceSimulation {
                         ProgressStore.CafeLearningProgress learning = learning(curriculum, progress);
                         progress.rewardTask(learning, key);
                         if (review) {
-                            reviewTask(progress, key);
+                            reviewTask(progress, learning, key);
                         }
                         if (curriculum.isChapterCleared(chapter, progress.clearedIds())) {
                             progress.noteChapterAchievements(chapterTaskKeys(chapter));
@@ -318,15 +322,34 @@ public final class CafeBalanceSimulation {
     }
 
     /**
-     * 1問を「何度も間違えてから復習で仕上げた」形にする。
+     * 1問を「何度も間違えてから復習で仕上げ、のちに期限ぶんを1回受け取った」形にする。
      *
-     * 何度も間違えてから通した形にする（苦手度は復習モードの出題順に効く）。
+     * <p>間違えてから通すのは、苦手度が復習モードの出題順に効くため。</p>
+     *
+     * <p><b>期限ぶんの報酬は、金額の計算だけを直接呼んでいる。</b>クリアした直後は
+     * 期限が翌日以降にあるので {@code duePassed} にはならず（すぐ下で確かめている）、
+     * 日付を戻さないと1コインも入らない。ただし日付を戻して完走後にまとめて払うと、
+     * 末期の単価で584問ぶんが一度に入って上限側を測り損なう（実測 lifetime が
+     * 119兆→297兆、投資率5.66%まで落ちた）。<b>ここで払えば、初回クリアと同じ時点の
+     * 単価で受け取る</b> ―― 実際の利用者も、翌日の復習は翌日の店構えで受け取る。</p>
+     *
+     * <p>受け取るのは<b>1問につき1回だけ</b>で、「完走した時点で全問を1周ぶん復習し終えた
+     * 状態」を表す。間隔が伸びるあいだに同じ問題から2周目・3周目も入るが、それは
+     * 自動売上と同じで<b>時間に対して無制限</b>なので、完走時点のスナップショットには
+     * 入れない。期限そのものの上限（期限前は0・同じ日の2回目は0）は
+     * {@code tools/check-review-economy.sh} が試している。</p>
      */
-    private static void reviewTask(ProgressStore progress, String key) {
+    private static void reviewTask(ProgressStore progress,
+                                  ProgressStore.CafeLearningProgress learning, String key) {
         for (int i = 0; i < 3; i++) {
             progress.recordMasterySubmission(key, false);
         }
-        progress.recordMasterySubmission(key, true);
+        ProgressStore.ReviewOutcome outcome = progress.recordMasterySubmission(key, true, true);
+        require(!outcome.duePassed(),
+                "クリアした当日の復習で期限ぶんが払われています: " + key);
+        // 一発で思い出せた側（cleanRecall=true）で受け取る。上限側の試算なので、
+        // 思い出しのマドレーヌの×2もここで効かせる
+        progress.rewardReview(learning, key, true);
     }
 
     /** 抽選を再現可能にし、必要なら直近の連続学習日数も置いた進捗ファイルを作る。 */
@@ -550,10 +573,10 @@ public final class CafeBalanceSimulation {
                 at + "自動売上が学習1回分の5%/分を超えています");
         require(number(cafe.get("passiveCashCap")) <= taskCash * 5L,
                 at + "次の★までの自動売上が学習5回分を超えています");
-        // 全報酬へ掛かる倍率は販売戦略系統だけが持つ。ここが崩れると常連サービス系統が
-        // 「値段が同じで効果だけ弱い販売戦略」に戻る（2系統が同じ変数を取り合う）。
+        // 全報酬へ掛かる倍率は販売戦略系統だけが持つ。ここが崩れると他の系統が
+        // 「値段が同じで効果だけ弱い販売戦略」になる（2系統が同じ変数を取り合う）。
         require(number(cafe.get("bonusPercent")) == number(cafe.get("salesBonusPercent")),
-                at + "今日の1杯目のボーナスが全報酬へ掛かっています");
+                at + "販売戦略以外のボーナスが全報酬へ掛かっています");
     }
 
     /**
@@ -569,6 +592,14 @@ public final class CafeBalanceSimulation {
         require(perTask < FIRST_CLEAR_BRAND_BASIS_POINTS_PER_TASK,
                 "[reviewer] 復習1問のブランド成長(" + perTask + ")が初回クリア("
                         + FIRST_CLEAR_BRAND_BASIS_POINTS_PER_TASK + ")以上です");
+        // 金額の側も同じ順序でなければならない。買い切った状態の復習手当を含めて、
+        // 復習1問が初回クリア1問（=100%）へ届かないこと
+        long share = number(cafe.get("reviewRewardPercent"))
+                * (100 + number(cafe.get("reviewBonusPercent"))) / 100;
+        require(share > 0, "[reviewer] 復習報酬が0%です");
+        require(share <= REVIEW_REWARD_CEILING_PERCENT,
+                "[reviewer] 復習1問の報酬が初回クリアの" + share + "%まで来ています（上限"
+                        + REVIEW_REWARD_CEILING_PERCENT + "%）");
     }
 
     /**

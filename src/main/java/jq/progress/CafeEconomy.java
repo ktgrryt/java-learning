@@ -69,6 +69,17 @@ final class CafeEconomy {
         this.saver = saver;
     }
 
+    // 29: 復習にコインを払うようにした（依頼「復習でもコインがもらえるようにしたい」）。
+    //     払うのは**期限が来た問題を復習で通したときだけ**で、額は1問クリアの30%
+    //     （REVIEW_REWARD_PERCENT）。通した時点で期限が翌日以降へ動くので、同じ問題を
+    //     連打しても2回目以降は0コイン ― 上限が仕組みとして決まる（「クリア済みは何度でも
+    //     解き直せるから払えない」という以前の前提は、忘却曲線の期限が入って変わった）。
+    //     期限前の「早めの復習」は0コインのままにしてある。
+    //     **常連サービス系統（今日の1杯目）と皆勤の日めくりを外し、その枠へ差し替えた。**
+    //     系統は12段すべてを0%にしても reviewer の生涯コインが 119,219,558,695,422 →
+    //     ...207（-215コイン）しか動かない、実質何もしていない系統だった（クイズ接客を
+    //     同じ手で測ると plain が -30.6%）。価格12段はそのまま復習手当系統が引き継ぐので、
+    //     plain（復習しない筋書き）の支出と収入はどちらも変わらない。
     // 28: コンボスタンプ帳を7倍→5倍へ下げ、下げたぶんをラッキーコインの大当たりへ移した
     //     （依頼「コンボが強すぎるのでラッキーを強くして少し合わせたい」）。ほぼ同じ価格
     //     （80,000と77,777）なのに、生涯コインへの効きは +27.5% と +3.7% で7倍以上離れて
@@ -119,7 +130,7 @@ final class CafeEconomy {
     //     574問すべて外れても投資率45%以内になるよう、終盤改装の基準額を450億へ下げた。
     // 20: ラッキーコインを「頻繁な小当たり」から「5%の大当たり」へ変更し、価格を77,777にした。
     //     期待売上が下がるぶん、全購入時の投資率を範囲内へ戻すため終盤改装の基準額も下げた。
-    private static final int CAFE_ECONOMY_VERSION = 28;
+    private static final int CAFE_ECONOMY_VERSION = 29;
     private static final int CUP_PRICE = 500;
     private static final int MAX_CAFE_STORES = 512;
     private static final long FIRST_EXPANSION_COST = 2_500L;
@@ -143,10 +154,10 @@ final class CafeEconomy {
     /**
      * 復習で再正解した問題1問あたりのブランド成長。
      *
-     * <p>復習にコインは払わない（クリア済みの問題は何度でも解き直せるので、
-     * 1回ごとに支払うと無限に稼げてしまう）。代わりに、ここで倍率だけを育てる。
-     * 対象は {@code cafeMasteryTasks} ―「復習で正解した重複しない問題」の集合なので、
-     * 1問につき1回しか数えない。上限は問題数で構造的に決まる。</p>
+     * <p>復習の<b>コインは期限が来た問題にだけ</b>払う（{@link #rewardReview}）。
+     * こちらの倍率は期限に関係なく育つが、対象は {@code cafeMasteryTasks} ―
+     * 「復習で正解した重複しない問題」の集合なので、1問につき1回しか数えない。
+     * 上限は問題数で構造的に決まる。</p>
      *
      * <p>復習ノートを持つと4倍になるため、1問あたりの上限は 40 * 4 = 160。
      * <b>初回クリアの170を超えないこと</b>が不変条件で、
@@ -195,8 +206,28 @@ final class CafeEconomy {
      * {@code tools/simulate-cafe.sh} の unlucky が見ている。</p>
      */
     private static final int LUCKY_COIN_UNLOCK_CHANCE_PER_MILLE = 3;
-    /** 「今日の1杯目」に数える連続日数の既定の上限。皆勤の日めくりだけがこれを広げる。 */
-    private static final int STREAK_BONUS_CAP_DAYS = 7;
+    /**
+     * 期限が来た問題を復習で通したときに払う、1問クリアの売上に対する割合（%）。
+     *
+     * <p><b>払うのは期限が来た問題を通したときだけ</b>（判定は
+     * {@code ProgressStore.recordMasterySubmission}）。通した時点で次の期限が
+     * 翌日以降へ動くので、同じ問題を続けて通しても2回目からは0コインになる ―
+     * 上限は「期限が来る問題の数」で構造的に決まり、定常状態では1日あたり数問である。
+     * 期限前の「早めの復習」は0コインのままにしてある（稼ぎたければ毎日続けるのが
+     * 一番得、という形にするため）。</p>
+     */
+    private static final int REVIEW_REWARD_PERCENT = 30;
+    /**
+     * 復習1問で払える上限（1問クリアの売上に対する割合・%）。
+     *
+     * <p>復習手当系統は最上位で +100% なので 30→60% までしか伸びず、ここには当たらない。
+     * <b>将来この値をいじったときの歯止め</b>として置いてある ―
+     * 100%に届くと「新しい問題を解くより復習した方が儲かる」状態になる。
+     * 比べるのは<b>素の金額どうし</b>である（ラッキーコインと生涯学習トロフィーは
+     * trigger を問わず乗るので、初回クリアにも同じように乗る）。
+     * {@code tools/check-review-economy.sh} がここを検査する。</p>
+     */
+    private static final int REVIEW_REWARD_MAX_PERCENT = 80;
     /**
      * 自動売上は、次に★を取るまで現在の問題報酬5問分まで。
      * 最上位設備でも上限まで100分かかり、オフライン中は増えない。
@@ -277,8 +308,6 @@ final class CafeEconomy {
      * 復習した時点では数えるだけにして、次に自動売上を集めるときへ持ち越す。
      */
     private int cafeReviewPassiveCredits;
-    /** 「今日の1杯目」ボーナスを既に払った日。1日1回に留めるために保存する。 */
-    private String cafeDailyFirstRewardDay = "";
     /** 現在営業している店舗数。出店するたび、全店ぶんの注文を同時に受ける。 */
     private int cafeStores = 1;
     /** ★520以降の任意の改装・社会貢献プロジェクトを完了した段階。 */
@@ -329,8 +358,7 @@ final class CafeEconomy {
      *
      * <p><b>2度目以降の回答では何も動かない。</b>答え直し自体は歓迎する（覚え直す場が
      * 要る）が、不正解のフィードバックは正解の記号を出すので、答え直しに払うと
-     * クイズが「表示された正解を押すだけの入金口」になってしまう。復習の提出で
-     * コインを払わないのと同じ理由（{@link #noteReviewSubmission}）。</p>
+     * クイズが「表示された正解を押すだけの入金口」になってしまう。</p>
      *
      * <p>連続記録は1度目の回答で必ずどちらかへ動く（伸びるか0へ戻る）ので、
      * 変わったかは返さない。呼び出し側は回答そのものを保存するため常に保存する。</p>
@@ -356,9 +384,11 @@ final class CafeEconomy {
      * 同じクイズを何度解き直しても集合なので1回きり ― でないと、覚えた1問を
      * 繰り返すだけで並んでしまう。間違えたら連続は空に戻る。</p>
      *
-     * <p>チップを払わないのは復習の原則そのまま（クリア済みは何度でも解けるので、
-     * 払うと無限に稼げる）。★と正解数も動かさない ― 呼び出し側は
-     * {@code quizChoices} を書き換えないので、復習で間違えても★を失わない。</p>
+     * <p><b>復習の問題（{@link #rewardReview}）と違ってチップを払わない。</b>
+     * 問題は忘却曲線の期限が「1問につき1日1回まで」という上限を作るが、クイズに期限は無く、
+     * しかも選択肢が並んでいて答えが見えている ― 払うと押すだけの入金口になってしまう。
+     * ★と正解数も動かさない ― 呼び出し側は {@code quizChoices} を書き換えないので、
+     * 復習で間違えても★を失わない。</p>
      *
      * @return 記録が変わったら true（保存の予約に使う）
      */
@@ -378,10 +408,12 @@ final class CafeEconomy {
     }
 
     /**
-     * 復習の提出が届いた。コインは1枚も払わず、倍率と自動売上の枠だけを動かす。
+     * 復習の提出が届いた。倍率と自動売上の枠を動かす。
      *
-     * <p>クリア済みの問題は何度でも解き直せるので、ここで支払うと無限に稼げてしまう。
-     * どちらも1問につき1回しか数えないため、上限は問題数で構造的に決まる。</p>
+     * <p><b>コインを払うのはここではない。</b> 期限が来た問題だけへ払うので、
+     * 期限の記録を持つ {@code ProgressStore} が判定して {@link #rewardReview} を呼ぶ。
+     * こちらが動かす倍率と枠はどちらも1問につき1回しか数えないため、
+     * 上限は問題数で構造的に決まる。</p>
      *
      * @param alreadyCleared すでに★が付いている問題か（初クリアの提出では false）
      * @return 何か変わったら true
@@ -444,7 +476,6 @@ final class CafeEconomy {
         cafePassiveCashSinceTask = longOf(cafe, "passiveCashSinceTask", 0);
         cafeReviewPassiveCredits = Math.min(MAX_REVIEW_PASSIVE_CREDITS,
                 Math.max(0, MiniJson.intOf(cafe, "reviewPassiveCredits", 0)));
-        cafeDailyFirstRewardDay = MiniJson.str(cafe, "dailyFirstRewardDay", "");
         cafeStores = Math.min(MAX_CAFE_STORES,
                 Math.max(1, MiniJson.intOf(cafe, "storeCount", 1)));
         cafeInvestmentLevel = Math.min(1_000,
@@ -539,7 +570,6 @@ final class CafeEconomy {
         cafe.put("taskRewardCount", cafeTaskRewardCount);
         cafe.put("passiveCashSinceTask", cafePassiveCashSinceTask);
         cafe.put("reviewPassiveCredits", cafeReviewPassiveCredits);
-        cafe.put("dailyFirstRewardDay", cafeDailyFirstRewardDay);
         cafe.put("storeCount", cafeStores);
         cafe.put("investmentLevel", cafeInvestmentLevel);
         cafe.put("ownedUpgrades", new ArrayList<>(cafeUpgrades));
@@ -569,7 +599,6 @@ final class CafeEconomy {
         cafeTaskRewardCount = 0;
         cafePassiveCashSinceTask = 0;
         cafeReviewPassiveCredits = 0;
-        cafeDailyFirstRewardDay = "";
         cafeStores = 1;
         cafeInvestmentLevel = 0;
         cafeUpgrades.clear();
@@ -624,13 +653,11 @@ final class CafeEconomy {
         CafeAutomation activeAutomation = currentCafeAutomation();
         cafe.put("passiveRateBasisPoints", activeAutomation == null
                 ? 0 : activeAutomation.rateBasisPointsPerMinute());
-        // 全報酬へ掛かるのは販売戦略だけ。常連サービスは dailyFirstBonusPercent が持つ
+        // 全報酬へ掛かるのは販売戦略だけ。復習手当は reviewBonusPercent が持つ
         cafe.put("bonusPercent", cafeSalesBonusPercent());
         cafe.put("salesBonusPercent", cafeSalesBonusPercent());
-        cafe.put("dailyFirstBonusPercent", cafeDailyFirstBonusPercent());
-        cafe.put("dailyFirstBonusReady",
-                !LocalDate.now().toString().equals(cafeDailyFirstRewardDay));
-        cafe.put("streakDays", effectiveStreakDays());
+        cafe.put("reviewBonusPercent", cafeReviewBonusPercent());
+        cafe.put("reviewRewardPercent", REVIEW_REWARD_PERCENT);
         cafe.put("extraCups", cafeExtraCups());
         cafe.put("chapterBonusPercent", cafeChapterBonusPercent());
         cafe.put("quizTipPercent", cafeQuizTipPercent());
@@ -765,6 +792,29 @@ final class CafeEconomy {
         long cups = cupsPerNetworkOrderWithUpgrades();
         long cash = cafeCashForCups(cups, learning);
         return addCafeReward("task", cash, cups, taskKey);
+    }
+
+    /**
+     * 期限が来た問題を復習で通したときの売上。
+     *
+     * <p>額は1問クリアの {@link #REVIEW_REWARD_PERCENT}% を基準に、復習手当系統で伸びる。
+     * <b>「期限が来ていたか」を見るのはここではない</b> ―
+     * {@code ProgressStore.recordMasterySubmission} が、期限の記録を書き換える前に判定して
+     * 呼び分ける。期限の計算とその判定を同じ場所に置いておくためである。</p>
+     *
+     * <p>杯（cups）は増やさない。杯は初回の注文に紐づけたままにしてある
+     * （クイズのチップと同じ扱い）。自動売上の枠は
+     * {@link #noteReviewSubmission} が既に1問分戻しているので、ここでは触らない。</p>
+     *
+     * @param cleanRecall その日に一度も失敗せず通したか（思い出しのマドレーヌが見る）
+     */
+    CafeAward rewardReview(CafeLearningProgress learning, String taskKey, boolean cleanRecall) {
+        long taskCash = cafeCashForCups(cupsPerNetworkOrderWithUpgrades(), learning);
+        long base = applyPercent(taskCash, REVIEW_REWARD_PERCENT);
+        long cash = applyPercent(base, 100L + cafeReviewBonusPercent());
+        // 素の金額どうしで比べる上限。設備を最大にしても当たらないが、値をいじったときの歯止め
+        long cap = applyPercent(taskCash, REVIEW_REWARD_MAX_PERCENT);
+        return addCafeReward("review", Math.min(cash, cap), 0, null, cleanRecall);
     }
 
     /** 章を初めて制覇したときのまとまったボーナス。 */
@@ -1040,6 +1090,15 @@ final class CafeEconomy {
     }
 
     private CafeAward addCafeReward(String trigger, long cash, long cups, String taskKey) {
+        return addCafeReward(trigger, cash, cups, taskKey, false);
+    }
+
+    /**
+     * @param cleanRecall 復習で、その日に一度も失敗せず通したか。
+     *                    trigger が {@code "review"} のときだけ見る（思い出しのマドレーヌ）
+     */
+    private CafeAward addCafeReward(String trigger, long cash, long cups, String taskKey,
+                                    boolean cleanRecall) {
         cafeRewardSequence = saturatedAdd(cafeRewardSequence, 1L);
         if (trigger.equals("task")) {
             cafeTaskRewardCount = saturatedAdd(cafeTaskRewardCount, 1L);
@@ -1065,18 +1124,15 @@ final class CafeEconomy {
                     + "完成！ " + TASK_COMBO_INTERVAL + "問目ボーナス×" + times);
         }
 
-        // 常連サービス系統は「その日の最初の1問」にだけ乗る。全報酬へ足すと
-        // 販売戦略系統と同じ変数になり、同じ買い物が2系統に分かれてしまう。
-        // ここで初めて払う日を記録するので、同じ日に何問解いても1回で終わる。
-        int dailyFirstPercent = cafeDailyFirstBonusPercent();
-        if (trigger.equals("task") && dailyFirstPercent > 0) {
-            String today = LocalDate.now().toString();
-            if (!today.equals(cafeDailyFirstRewardDay)) {
-                cafeDailyFirstRewardDay = today;
-                rewardedCash = applyPercent(rewardedCash, 100L + dailyFirstPercent);
-                itemEvents.add("☀️ 今日の1杯目 +" + dailyFirstPercent + "%（連続"
-                        + effectiveStreakDays() + "日）");
-            }
+        // 思い出しのマドレーヌは、復習手当系統の伸びとは別に最後へ乗る。倍率なので
+        // 素の金額どうしの上限（REVIEW_REWARD_MAX_PERCENT）の外側 ―
+        // ラッキーコインや生涯学習トロフィーと同じ扱いで、初回クリアにも乗るものと比べる。
+        CafeItem madeleine = ownedItemWithEffect("review_recall_double");
+        if (trigger.equals("review") && cleanRecall && madeleine != null) {
+            int times = madeleine.effectValue("review_recall_double");
+            rewardedCash = saturatedMultiply(rewardedCash, times);
+            itemEvents.add(madeleine.emoji() + " " + madeleine.name()
+                    + "で一発で思い出せた×" + times);
         }
 
         Cleared clearedTask = taskKey == null ? null : learningRecord.cleared(taskKey);
@@ -1309,31 +1365,22 @@ final class CafeEconomy {
     /**
      * 全報酬（問題・章・クイズ・自動売上）に掛かる唯一の売上%。
      *
-     * <p>ここに足せる系統は販売戦略だけにする。以前は常連サービス系統も同じ和へ
-     * 入れていたので、値段が同じで効果だけが弱い「劣化した販売戦略」になっていた。
-     * 常連サービスは {@link #cafeDailyFirstBonusPercent()} が持つ別のスコープ
-     * （その日の最初の1問だけ）へ移した。</p>
+     * <p>ここに足せる系統は販売戦略だけにする。かつて常連サービス系統を同じ和へ
+     * 入れていたときは、値段が同じで効果だけが弱い「劣化した販売戦略」になっていた。
+     * 系統を増やすときは、必ず別のスコープを持たせる ―
+     * 復習手当は {@link #cafeReviewBonusPercent()}（期限が来た問題の復習だけ）である。</p>
      */
     private int cafeSalesBonusPercent() {
         return cafeEffectTotal("sales");
     }
 
     /**
-     * 常連サービス系統の効果。その日最初に初クリアした1問の報酬にだけ掛かる。
+     * 復習手当系統の効果。期限が来た問題を復習で通したときの報酬にだけ掛かる。
      *
-     * 連続日数の数え方（下駄・上限）は皆勤の日めくり1枚が持つ。
+     * 初回クリアへも乗せると販売戦略系統と同じ変数になり、同じ買い物が2系統に分かれる。
      */
-    private int cafeDailyFirstBonusPercent() {
-        return cafeEffectTotal("streak") * effectiveStreakDays();
-    }
-
-    /** ボーナスに数える連続日数。長期離脱で差が開きすぎないよう既定は7日を上限にする。 */
-    private int effectiveStreakDays() {
-        CafeItem calendar = ownedItemWithEffect("streak_cap");
-        int cap = calendar == null
-                ? STREAK_BONUS_CAP_DAYS
-                : Math.max(STREAK_BONUS_CAP_DAYS, calendar.effectValue("streak_cap"));
-        return Math.min(learningRecord.streakDays(), cap);
+    private int cafeReviewBonusPercent() {
+        return cafeEffectTotal("review");
     }
 
     private int cafeExtraCups() {

@@ -200,6 +200,110 @@ function connect(url) {
   }
 
 
+  // ── 復習手当スロットが設備タブに出ているか ────────────────
+  //
+  // 常連サービス系統（今日の1杯目）を差し替えた系統。系統の一覧は
+  // `web/app.js` の trackOrder / effectLabel / EQUIPMENT_HELP の3か所に散っているので、
+  // どれか1つを直し忘れると「スロットが出ない」「?の説明が販売戦略になる」で気づく。
+  await ev(`location.hash = '#cafe'`);
+  await sleep(1200);
+  const reviewTrack = await ev(`(() => {
+    const labels = [...document.querySelectorAll('#cafePanelequipment .upgrade-type')]
+      .map(n => n.textContent.trim());
+    const help = document.getElementById('equipmentHelp-review');
+    const chips = [...document.querySelectorAll('#cafePanelequipment .cafe-effects span')]
+      .map(n => n.textContent.trim());
+    return {
+      labels: labels,
+      helpTitle: help ? (help.textContent || '').trim().slice(0, 40) : '',
+      chip: chips.find(t => t.indexOf('復習報酬') === 0) || ''
+    };
+  })()`);
+  check(reviewTrack.labels.indexOf('復習手当') >= 0,
+    '設備タブに復習手当スロットが出ている', reviewTrack.labels);
+  check(reviewTrack.labels.indexOf('常連サービス') < 0,
+    '差し替えた常連サービスは残っていない', reviewTrack.labels);
+  check(reviewTrack.helpTitle.indexOf('復習手当') >= 0,
+    '「?」の説明が復習手当のものになっている', reviewTrack.helpTitle);
+  check(reviewTrack.chip.length > 0, '概要に「復習報酬 +N%」が出ている', reviewTrack.chip);
+
+  // ── 期限が来た問題を復習で通すとコインが入り、通知と履歴に残るか ──────
+  //
+  // この検査の進捗は「2026-08-10 にクリア」なので、40問すべて期限切れである
+  // （初回の期限は翌日または3日後）。★は増えないので、**入るのはコインだけ**。
+  // `check_learn_ui.js` の復習の節は、その場でクリアした問題＝期限前を見ているので
+  // 「通知が出ない」側しか通らない。出る側はここで見る。
+  // 自動売上が同時に動いているので、残高の差では測らない。**獲得の履歴に1件増えたか**を見る
+  // （履歴の cash は、その回に払われた額そのもの）。
+  const solutionCode = await ev(`(async () => {
+    const r = await fetch('api/solution', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ lessonId: '1-1', taskId: '1' })
+    });
+    return (await r.json()).solution || '';
+  })()`);
+  check(solutionCode.length > 0, '模範解答を取れた（この検査の前提）',
+    solutionCode.slice(0, 40));
+
+  const paid = await ev(`(async () => {
+    const logOf = () => { try { return JSON.parse(localStorage.getItem('jq-coin-log') || '[]'); }
+                          catch (e) { return []; } };
+    const before = logOf().length;
+    location.hash = '#review/1-1/1';
+    for (let i = 0; i < 40 && !document.querySelector('#task-1 .editor-input'); i++) {
+      await new Promise(r => setTimeout(r, 250));
+    }
+    const ta = document.querySelector('#task-1 .editor-input');
+    if (!ta) { return { missing: true }; }
+    ta.value = ${JSON.stringify(solutionCode)};
+    ta.dispatchEvent(new Event('input', { bubbles: true }));
+    document.getElementById('submitBtn-1').click();
+    for (let i = 0; i < 60; i++) {
+      const card = document.querySelector('#result-1 .card-result');
+      if (card && !card.querySelector('.spinner')) { break; }
+      await new Promise(r => setTimeout(r, 250));
+    }
+    await new Promise(r => setTimeout(r, 900));
+    const toast = document.getElementById('toast');
+    const log = logOf();
+    return {
+      added: log.length - before,
+      passed: !!document.querySelector('#result-1 .card-result.ok'),
+      toastShown: toast.classList.contains('show'),
+      toastText: (toast.textContent || '').replace(/\s+/g, ' ').trim().slice(0, 60),
+      newest: log.length ? { reason: log[0].reason, cash: log[0].cash, star: !!log[0].newStar } : null
+    };
+  })()`);
+  check(!paid.missing && paid.passed, '復習でも模範解答が合格になる（この検査の前提）', paid);
+  check(paid.added === 1 && paid.newest && paid.newest.cash > 0,
+    '期限が来た問題を復習で通すとコインが入る', paid);
+  check(paid.toastShown && paid.toastText.indexOf('復習の注文') >= 0,
+    '復習の報酬通知が出る', paid.toastText);
+  check(paid.newest && paid.newest.reason === '復習の注文',
+    '獲得の履歴に「復習の注文」として残る', paid.newest);
+  check(paid.newest && !paid.newest.star, '★は付けない（増えたのはコインだけ）', paid.newest);
+
+  // 同じ問題をもう一度通しても入らない（通した時点で期限が先へ動いている）
+  const second = await ev(`(async () => {
+    const logOf = () => { try { return JSON.parse(localStorage.getItem('jq-coin-log') || '[]'); }
+                          catch (e) { return []; } };
+    const before = logOf().length;
+    document.getElementById('toast').classList.remove('show');
+    document.getElementById('submitBtn-1').click();
+    for (let i = 0; i < 60; i++) {
+      const card = document.querySelector('#result-1 .card-result');
+      if (card && !card.querySelector('.spinner')) { break; }
+      await new Promise(r => setTimeout(r, 250));
+    }
+    await new Promise(r => setTimeout(r, 900));
+    return {
+      added: logOf().length - before,
+      toastShown: document.getElementById('toast').classList.contains('show')
+    };
+  })()`);
+  check(second.added === 0, '同じ日の2回目はコインが入らない', second);
+  check(!second.toastShown, '2回目は通知も出ない', second);
+
   // ── 学習画面へ戻れるか（振り分けが壊れていないか）──────────
   await ev(`location.hash = '#1-1'`);
   await sleep(1500);
@@ -218,7 +322,7 @@ function connect(url) {
     console.log(`\n${RED}カフェ画面の検査に失敗しました（${failures}件）${RESET}`);
     process.exit(1);
   }
-  console.log(`\n${GREEN}CAFE UI OK: 描画・タブ・購入・自動売上・学習画面への復帰を確認しました${RESET}`);
+  console.log(`\n${GREEN}CAFE UI OK: 描画・タブ・購入・自動売上・復習手当スロット・期限ぶんの復習報酬（通知と履歴）・学習画面への復帰を確認しました${RESET}`);
 })().catch(e => {
   console.error(`${RED}検査を実行できませんでした: ${e.message}${RESET}`);
   process.exit(1);
