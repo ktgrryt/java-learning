@@ -2578,6 +2578,27 @@
   }
 
   /**
+   * 通ったときのひとこと。<b>苦手度が付いていた問題にだけ「下がった」と言う。</b>
+   *
+   * 苦手度0の問題は通しても0のまま（{@code addReviewWeight} が0で頭打ち）なので、
+   * 「下がりました」は起きていないことになる。ここは1問だけ復習したときの
+   * 唯一の知らせなので、無条件に言うと嘘になる（2026-08-21）。
+   *
+   * 0の側で「安定しています」と言わないのは、主語が問題になって「問題そのものが
+   * 落ち着いている」と読めるため（一覧のバッジ `安定` は短いラベルなので成り立つ）。
+   * 言いたいのは解く側のことなので、そちらを主語にする。
+   *
+   * 苦手度は提出の応答で入れ替わっているため（{@code applyDelta}）、読むのは今の値でよい。
+   */
+  function reviewClearedLead() {
+    var lesson = findLesson(currentId);
+    var task = lesson && findTask(lesson, reviewTaskId);
+    return Number(task && task.reviewWeight || 0) > 0
+      ? 'お見事！ 出題頻度が下がりました'
+      : 'お見事！ しっかり身についています';
+  }
+
+  /**
    * 問題の下に置く、次へ進む導線。
    *
    * @param justCleared いま提出が通ったところなら true（言葉を変えるだけ）
@@ -2589,7 +2610,7 @@
     if (!reviewSession) {
       host.innerHTML =
         '<div class="lesson-next-copy"><small>' + (justCleared ? '復習クリア' : '復習中') + '</small>' +
-        '<b>' + (justCleared ? 'お見事！ 出題頻度が下がりました' : '解き直せたら提出しましょう') + '</b></div>' +
+        '<b>' + (justCleared ? reviewClearedLead() : '解き直せたら提出しましょう') + '</b></div>' +
         '<button class="primary-btn lesson-next-btn" id="reviewFooterBtn">復習メニューへ →</button>';
       document.getElementById('reviewFooterBtn').addEventListener('click', endReviewSession);
       return;
@@ -2614,13 +2635,13 @@
   /**
    * 復習で通ったとき。
    *
-   * ★はもう付いているので、代わりに「出題頻度が下がった」ことを見せる
-   * （何が起きたのか分からないと、復習した意味が伝わらない）。
+   * <b>右上の通知は出さない</b>（2026-08-21・利用者の判断）。同じ瞬間に採点結果・問題ヘッダの
+   * 苦手度バッジ・フッタの3つが「通った」を示すので、4つ目は言い直しになる。とくに苦手度0の
+   * 問題では通しても0のままで、通知に書くべき変化が無い。★はもう付いているため報酬の通知も無い。
+   *
+   * 状態の変化はその場の画面で見せる ―― バッジ（🔥苦手 → もう一度 → 安定）とフッタが担う。
    */
   function onReviewCleared(taskId) {
-    var lesson = findLesson(currentId);
-    var task = lesson && findTask(lesson, taskId);
-    var weight = Number(task && task.reviewWeight || 0);
     if (reviewSession) {
       var key = currentId + '#' + taskId;
       if (!reviewSession.clearedKeys[key]) {
@@ -2630,7 +2651,6 @@
     }
     refreshReviewWeightBadge(taskId);
     renderReviewFooter(true);
-    toast('🔁 復習クリア！　' + (weight > 0 ? '出題頻度が下がりました' : 'この問題はもう安定しています'));
   }
 
   /** 問題ヘッダの苦手度バッジを、いまの state に合わせる（採点結果は消さない）。 */
@@ -4113,8 +4133,11 @@
       '    <div class="shortcut-note">' + shortcut + '</div>' +
       '  </div>' +
 
-      '  <div class="hints" id="hints-' + n + '"></div>' +
+      // 採点結果はヒントより先。ヒントを開いていると、コード欄（と「試しに実行」の
+      // 入力欄）と出力のあいだにヒントが挟まって、書いたものと結果を見比べられなくなる
+      // （2026-08-21・利用者の指摘）。ヒントは模範解答と続けて下に置く。
       '  <div class="result" id="result-' + n + '"></div>' +
+      '  <div class="hints" id="hints-' + n + '"></div>' +
       '  <div class="solution-area" id="solution-' + n + '"></div>' +
       '</div>';
 

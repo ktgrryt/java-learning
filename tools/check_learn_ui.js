@@ -309,7 +309,9 @@ const HELPERS = `window.__t = {
     copy.click();
     await window.__t.sleep(300);
     return { shown: body.length > 0, copiedIntoEditor: (window.__t.editor().value || '').length > 0,
-             sameAsStarter: window.__t.editor().value === ${JSON.stringify(head.starter)} };
+             sameAsStarter: window.__t.editor().value === ${JSON.stringify(head.starter)},
+             // 復習の節でひな形から解き直すときに使い回す（模範解答を2回開かない）
+             code: window.__t.editor().value };
   })()`);
   check(solution.shown && solution.copiedIntoEditor && !solution.sameAsStarter,
     '模範解答を開いてエディタへ入れられる', solution);
@@ -370,6 +372,13 @@ const HELPERS = `window.__t = {
       taskSideBorder: parseFloat(getComputedStyle(task).borderRightWidth),
       taskRadius: parseFloat(getComputedStyle(task).borderTopLeftRadius),
       dividers: rows.filter(n => n.offsetHeight > 0 && parseFloat(getComputedStyle(n).borderTopWidth) > 0).length,
+      // 段の順番。採点結果はヒントより先に来る（下の check の理由を見ること）
+      order: rows.map(n => n.classList.contains('card-task') ? '課題'
+        : n.classList.contains('card-code') ? 'コード'
+        : n.classList.contains('result') ? '結果'
+        : n.classList.contains('hints') ? 'ヒント'
+        : n.classList.contains('solution-area') ? '模範解答' : '?').join(' '),
+      filled: rows.filter(n => n.textContent.trim().length > 0).length,
       // 手つかずの2問目で「出ていない段」を見る（1問目はもう結果もヒントも出ている）
       untouched: (() => {
         const other = document.getElementById('task-2');
@@ -394,6 +403,11 @@ const HELPERS = `window.__t = {
   check(panel.dividers >= 1 && panel.untouched
     && panel.untouched.emptyRowsTakeSpace === 0 && panel.untouched.cleared === false,
     '出ている段は細い線で区切られ、まだ出ていない段（未クリアの問題）は場所を取らない', panel);
+  // ヒントを開いていると、コード欄（「試しに実行」の入力欄を含む）と出力のあいだに
+  // ヒントが挟まって、書いたものと結果を見比べられなくなる（2026-08-21・利用者の指摘）。
+  // ここは5段すべてに中身がある状態なので、順番を入れ替えれば必ず落ちる。
+  check(panel.order === '課題 コード 結果 ヒント 模範解答' && panel.filled === 5,
+    '採点結果はヒントより先の段に出る（コード欄と出力が離れない）', panel);
 
   // ── 獲得の履歴（消えた通知をあとから読み返せるか）──────────────────
   // 通知は数秒で消えるので、消えたあとに残っているかはここでしか見られない。
@@ -556,6 +570,86 @@ const HELPERS = `window.__t = {
     '復習はひな形から始まる（前に書いた解答が入っていない）', session.code.slice(0, 60));
   check(session.weightBadge.length > 0, '苦手度のバッジが出る', session.weightBadge);
   check(session.bar, '復習を抜ける／飛ばす操作が出ている', session.bar);
+
+  // ── 復習で通したときは右上の通知を出さない（2026-08-21・利用者の判断）──────
+  //
+  // 同じ瞬間に採点結果・苦手度バッジ・フッタの3つが「通った」を示すので、4枚目の通知は
+  // 言い直しになる。復習では報酬の通知も出ない（★はもう付いている）ので、ここで #toast が
+  // 開いたら、消したはずのトーストが戻ったということ。
+  // 通知そのものの配線は上の節（「報酬の通知が出る」）で確かめてあるので、
+  // ここが「出ない」を空振りで通すことはない。
+  const reviewPass = await ev(`(async () => {
+    document.getElementById('toast').classList.remove('show');   // 前の節の残りを消す
+    window.__t.type(${JSON.stringify(solution.code || '')});
+    const r = await window.__t.submit();
+    await window.__t.sleep(700);                                 // 出るなら、この間に出ている
+    const el = document.getElementById('toast');
+    const foot = document.getElementById('reviewFooter');
+    return Object.assign(r, {
+      toastShown: el.classList.contains('show'),
+      toastText: (el.textContent || '').replace(/\\s+/g, ' ').trim().slice(0, 80),
+      footer: (foot ? foot.textContent : '').replace(/\\s+/g, ' ').trim().slice(0, 60),
+      badge: ((document.querySelector('#reviewWeight-${TASK}') || {}).textContent || '').trim()
+    });
+  })()`);
+  check(reviewPass.verdict === 'ok', '復習でも模範解答が合格になる（この検査の前提）', reviewPass);
+  check(!reviewPass.toastShown, '復習で通しても右上の通知は出ない', reviewPass);
+  check(reviewPass.footer.indexOf('復習クリア') >= 0,
+    '通ったことは問題の下のフッタが示す', reviewPass.footer);
+  check(reviewPass.badge.length > 0, '苦手度のバッジも残っている', reviewPass.badge);
+
+  // ── 1問だけ復習したときの「通った」のひとこと（苦手度で出し分ける）──────
+  //
+  // `#review/1-1/1` のようにセット外で1問だけ復習すると、フッタのこの1行が唯一の知らせに
+  // なる（右上の通知は出さないため）。苦手度0の問題は通しても0のままなので、そこへ
+  // 「出題頻度が下がりました」と書くと起きていないことを言うことになる（2026-08-21）。
+  //
+  // **両方の分岐を通す。** わざと5回失敗して苦手度を1点より上へ上げてから2回通すと、
+  // 1回目は 5-4=1単位 で残るので「下がりました」、2回目は0になるので「安定」。
+  // 失敗1回が0.25点・正解が1点ぶん下げ、という目盛りが変わればここで気づける。
+  await open(`#review/${LESSON}/${TASK}`);
+  const single = await ev(`(async () => {
+    const foot = () => (document.getElementById('reviewFooter').textContent || '')
+      .replace(/\\s+/g, ' ').trim();
+    const badge = () => ((document.querySelector('#reviewWeight-${TASK}') || {}).textContent || '').trim();
+    const before = { footer: foot(), badge: badge(),
+                     bar: ((document.querySelector('.review-bar-progress') || {}).textContent || '').trim() };
+    for (let i = 0; i < 5; i++) {
+      window.__t.type('public class Main {\\n  public static void main(String[] args) {\\n'
+        + '    System.out.println("ちがう' + i + '");\\n  }\\n}');
+      await window.__t.submit();
+    }
+    // 失敗では苦手度バッジを描き直さない（描き直すのは通ったときだけ）。
+    // 上がったかどうかはサーバの値で見る
+    const weightNow = async () => {
+      const state = await (await fetch('/api/state')).json();
+      let w = null;
+      state.chapters.forEach(ch => ch.lessons.forEach(l => {
+        if (l.id === '${LESSON}') {
+          (l.tasks || []).forEach(t => { if (t.id === '${TASK}') { w = t.reviewWeight; } });
+        }
+      }));
+      return w;
+    };
+    const failed = { badge: badge(), weight: await weightNow() };
+    window.__t.type(${JSON.stringify(solution.code || '')});
+    const first = await window.__t.submit();
+    const lowered = { verdict: first.verdict, footer: foot(), badge: badge() };
+    const second = await window.__t.submit();
+    const stable = { verdict: second.verdict, footer: foot(), badge: badge() };
+    return { before: before, failed: failed, lowered: lowered, stable: stable };
+  })()`);
+  check(single.before.bar === '1問だけ復習中'
+    && single.before.footer.indexOf('解き直せたら提出しましょう') >= 0,
+    'セット外の1問として開き、提出前はそう案内する', single.before);
+  check(single.failed.weight === 5,
+    '失敗5回で苦手度が5単位（1.25点）まで上がる（この検査の前提）', single.failed);
+  check(single.lowered.verdict === 'ok'
+    && single.lowered.footer.indexOf('出題頻度が下がりました') >= 0,
+    '苦手度が残る問題では「出題頻度が下がりました」と出る', single.lowered);
+  check(single.stable.verdict === 'ok' && single.stable.badge === '安定'
+    && single.stable.footer.indexOf('しっかり身についています') >= 0,
+    '苦手度0になった問題には「下がりました」と言わない', single.stable);
 
   // ── クイズのしおり（付ける → 復習ホームの一覧 → そのクイズへ戻る）──────
   //
