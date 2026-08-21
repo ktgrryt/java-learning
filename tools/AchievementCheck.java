@@ -204,8 +204,8 @@ public final class AchievementCheck {
                             effect -> number(effect.get("value"))));
             check("ラッキーコインは5%で発動",
                     luckyEffectValues.getOrDefault("lucky_chance", 0L) == 5L, true);
-            check("大当たりは獲得コイン+100%",
-                    luckyEffectValues.getOrDefault("lucky_double", 0L) == 2L, true);
+            check("大当たりは獲得コイン+400%",
+                    luckyEffectValues.getOrDefault("lucky_double", 0L) == 5L, true);
             while (number(cafeOf(lucky).get("cash")) < 77_777L) {
                 lucky.rewardTask(ZERO, "luck#fund");
             }
@@ -217,8 +217,8 @@ public final class AchievementCheck {
                 ProgressStore.CafeAward award = lucky.rewardTask(ZERO, "luck#draw");
                 jackpot = award.itemEvents().stream().anyMatch(event -> event.contains("大当たり"));
                 if (jackpot) {
-                    check("大当たり時は実際の報酬も+100%",
-                            award.cash() == normalCash * 2L, true);
+                    check("大当たり時は実際の報酬も+400%",
+                            award.cash() == normalCash * 5L, true);
                 }
             }
             check("大当たり演出が発生する", jackpot, true);
