@@ -39,6 +39,7 @@ CHECKS=(
   check-hint-dependency.sh
   check-constant-output.sh
   check-copyable-output.sh
+  check-input-domain.sh
   check-explanation-output.sh
   check-block-alignment.sh
   check-mini-labels.sh
