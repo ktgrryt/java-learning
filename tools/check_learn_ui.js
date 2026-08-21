@@ -6,7 +6,7 @@
  * 見るのは「1問を解き切るまでの経路」全体である。
  *   誤答 → コンパイルエラー → ヒント → 模範解答 → 正解（★・コイン・通知）
  *   → 1問1枚のパネル（クリア済みの見分け）→ 獲得の履歴（消えた通知の読み返し）→ 自動保存
- *   → カフェへ寄り道して同じ位置で再開 → 復習 → クイズのしおり
+ *   → カフェへ寄り道して同じ位置で再開 → 復習（途中で抜けて「続きから」戻る）→ クイズのしおり
  * サーバー側の採点は `verify-solutions.sh` が見るので、ここでは
  * **画面がその結果をどう受け取って描くか**（`renderJudgement` / `applyDelta` / 通知 / 復習の出題）
  * だけを確かめる。
@@ -571,13 +571,83 @@ const HELPERS = `window.__t = {
   check(session.weightBadge.length > 0, '苦手度のバッジが出る', session.weightBadge);
   check(session.bar, '復習を抜ける／飛ばす操作が出ている', session.bar);
 
+  // ── 解いている途中で抜けても「続きから」戻れる（2026-08-21）───────────────
+  //
+  // セットの枠（何問目か・ここまでの正解数・積み上げ）は画面側にしか無い。控えが
+  // 無かったころは、抜け方によらず次は**新しい1セット目**から始まっていた。
+  //
+  // ここではクリア済みが1問なので**1セット＝問題1問**である（クイズはまだ1問も答えて
+  // いないので付かない）。それでも「途中で抜ける → 復習ホーム → 続きから」の経路は同じ。
+  //
+  // **3つめの再読み込みがこの節の主役。** 控えを localStorage に置いた意味は、本物の
+  // 読み直し（`open` が about:blank を挟む）を通さないと測れない ―― 画面の変数に
+  // 残っているだけでも1つめと2つめは通ってしまう。
+  const leave = await ev(`(async () => {
+    document.getElementById('reviewExitBtn').click();
+    await window.__t.until(() => location.hash === '#review');
+    await window.__t.sleep(300);
+    const card = document.querySelector('.review-resume');
+    return {
+      shown: !!card,
+      text: (card ? card.textContent : '').replace(/\\s+/g, ' ').trim().slice(0, 120),
+      resumeBtn: !!document.getElementById('reviewResumeBtn'),
+      restartBtn: !!document.getElementById('reviewResumeRestartBtn'),
+      startBtn: ((document.getElementById('reviewStartBtn') || {}).textContent || '')
+        .replace(/\\s+/g, ' ').trim()
+    };
+  })()`);
+  check(leave.shown && leave.resumeBtn && leave.restartBtn,
+    '「復習を終える」で抜けても、復習ホームに続きのカードが出る', leave);
+  check(leave.text.indexOf('1セット目の途中です') >= 0 && leave.text.indexOf('1 / 1問目') >= 0,
+    '何問目まで進んでいたかを先に出す', leave.text);
+  check(leave.startBtn.indexOf('はじめから') >= 0,
+    '続きがあるあいだは、ヒーローのボタンが「はじめから」の顔になる', leave.startBtn);
+
+  const resumed = await ev(`(async () => {
+    document.getElementById('reviewResumeBtn').click();
+    await window.__t.until(() => location.hash.indexOf('#review/') === 0);
+    await window.__t.sleep(600);
+    return {
+      hash: location.hash,
+      bar: ((document.querySelector('.review-bar-progress') || {}).textContent || '').trim(),
+      footer: (document.getElementById('reviewFooter') || {}).textContent || ''
+    };
+  })()`);
+  check(resumed.hash === `#review/${LESSON}/${TASK}` && resumed.bar === '1 / 1問',
+    '「続きから」で同じ問題・同じ番号に戻る（1問だけ復習に化けない）', resumed);
+
+  await open('#review');
+  const afterReload = await ev(`(() => ({
+    shown: !!document.querySelector('.review-resume'),
+    text: ((document.querySelector('.review-resume') || {}).textContent || '')
+      .replace(/\\s+/g, ' ').trim().slice(0, 60),
+    saved: !!localStorage.getItem('jq-review-run')
+  }))()`);
+  check(afterReload.shown && afterReload.saved,
+    '再読み込みしても続きが残る（控えは localStorage の jq-review-run）', afterReload);
+
+  // 続きへ戻ってから下の節へ渡す（以降はセットの中で提出したときの見た目を見る）
+  const backIn = await ev(`(async () => {
+    document.getElementById('reviewResumeBtn').click();
+    await window.__t.until(() => location.hash.indexOf('#review/') === 0);
+    await window.__t.sleep(600);
+    return { hash: location.hash,
+             bar: ((document.querySelector('.review-bar-progress') || {}).textContent || '').trim() };
+  })()`);
+  check(backIn.bar === '1 / 1問', '読み直したあとの「続きから」でもセットとして戻る', backIn);
+
   // ── 復習で通したときは右上の通知を出さない（2026-08-21・利用者の判断）──────
   //
   // 同じ瞬間に採点結果・苦手度バッジ・フッタの3つが「通った」を示すので、4枚目の通知は
-  // 言い直しになる。復習では報酬の通知も出ない（★はもう付いている）ので、ここで #toast が
-  // 開いたら、消したはずのトーストが戻ったということ。
-  // 通知そのものの配線は上の節（「報酬の通知が出る」）で確かめてあるので、
-  // ここが「出ない」を空振りで通すことはない。
+  // 言い直しになる。ここで #toast が開いたら、消したはずのトーストが戻ったということ。
+  //
+  // **報酬の通知が出ないのは「期限前だから」である。** この問題はこの検査の中で
+  // たったいまクリアしたので、次の期限は翌日以降にあり0コインになる（2026-08-21に
+  // 期限が来た問題へは払うようにした）。下で cafeAward が0であることも一緒に確かめる ―
+  // 確かめずに「出ない」だけを見ると、払う側が壊れてもここは通ってしまう。
+  // **入る側（期限が来た問題で通知と履歴が出る）は `check_cafe_ui.js` が見ている**
+  // （あちらの進捗は日付が過去に固定されているので、常に期限切れ）。
+  // 通知そのものの配線は上の節（「報酬の通知が出る」）で確かめてある。
   const reviewPass = await ev(`(async () => {
     document.getElementById('toast').classList.remove('show');   // 前の節の残りを消す
     window.__t.type(${JSON.stringify(solution.code || '')});
@@ -585,7 +655,10 @@ const HELPERS = `window.__t = {
     await window.__t.sleep(700);                                 // 出るなら、この間に出ている
     const el = document.getElementById('toast');
     const foot = document.getElementById('reviewFooter');
+    const s = await (await fetch('/api/state')).json();
     return Object.assign(r, {
+      dueDays: (((s.progress.lessons || {})['${LESSON}'] || {}).tasks || [])
+        .reduce((acc, t) => (t.id === '${TASK}' ? t.reviewDueDays : acc), null),
       toastShown: el.classList.contains('show'),
       toastText: (el.textContent || '').replace(/\\s+/g, ' ').trim().slice(0, 80),
       footer: (foot ? foot.textContent : '').replace(/\\s+/g, ' ').trim().slice(0, 60),
@@ -594,9 +667,30 @@ const HELPERS = `window.__t = {
   })()`);
   check(reviewPass.verdict === 'ok', '復習でも模範解答が合格になる（この検査の前提）', reviewPass);
   check(!reviewPass.toastShown, '復習で通しても右上の通知は出ない', reviewPass);
+  check(reviewPass.dueDays === null || reviewPass.dueDays > 0,
+    'たったいまクリアした問題なので期限前（＝0コイン。だから通知も出ない）',
+    reviewPass.dueDays);
   check(reviewPass.footer.indexOf('復習クリア') >= 0,
     '通ったことは問題の下のフッタが示す', reviewPass.footer);
   check(reviewPass.badge.length > 0, '苦手度のバッジも残っている', reviewPass.badge);
+
+  // ── 結果まで進んだセットは「続き」として残さない（2026-08-21）─────────────
+  //
+  // 控えるのは**途中のセット**だけである。続けたい人は結果カードの「もう1セット」で進むので、
+  // 出し終えた回まで控えると、次に開いた1セット目から「もう出した」ぶんが抜けたままになる
+  // （`servedTaskKeys` が残るため）。結果カードと続きのカードが2枚並ぶことも起きない。
+  const finished = await ev(`(async () => {
+    document.getElementById('reviewFooterBtn').click();   // 「セットの結果へ →」
+    await window.__t.until(() => location.hash === '#review');
+    await window.__t.sleep(300);
+    return {
+      summary: !!document.querySelector('.review-summary'),
+      resume: !!document.querySelector('.review-resume'),
+      saved: !!localStorage.getItem('jq-review-run')
+    };
+  })()`);
+  check(finished.summary && !finished.resume && !finished.saved,
+    'セットを終えると結果だけが出て、続きの控えは消えている', finished);
 
   // ── 1問だけ復習したときの「通った」のひとこと（苦手度で出し分ける）──────
   //
@@ -1261,7 +1355,7 @@ const HELPERS = `window.__t = {
   }
   console.log(`\n${GREEN}LEARN UI OK: 誤答・コンパイルエラー・ヒント・模範解答・`
     + `★と報酬・1問1枚のパネル・獲得の履歴・自動保存・カフェへの寄り道と位置の復元・復習の出題・`
-    + `復習の最後に続くクイズ・`
+    + `途中で抜けたセットの「続きから」・復習の最後に続くクイズ・`
     + `クイズのしおり・サイドバーの検索・試しに実行と入力欄・`
     + `報酬の通知の表示/非表示を確認しました${RESET}`);
 })().catch(e => {

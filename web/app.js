@@ -59,7 +59,7 @@
   var COIN_LOG_LIMIT = 40;  // 古いぶんから捨てる。読み返したいのは直近だけ
   var coinLog = null;       // 最初に必要になったときだけ localStorage から読む
 
-  // 復習モード。セッションは画面の中だけで持つ（再読込したら1問復習に戻る）
+  // 復習モード。解いている途中のセットは localStorage にも控える（→ saveReviewRun）
   var reviewSession = null; // { queue: [{lessonId, taskId}], index, cleared, clearedKeys,
                             //   quizQueue: [{lessonId, index}], quizIndex, quizCorrect }
                             // quizIndex が 0 以上ならクイズの段（問題を解き終えたあと）
@@ -67,6 +67,7 @@
   var reviewFilter = 'all'; // 復習の絞り込み（all / weak / bookmark）
   var reviewSummary = null; // 直前に終えたセットの結果。復習ホームの先頭に1回だけ出す
   var reviewRun = null;     // 続けて重ねたセットの積み上げ（→ startReviewRun）
+  var REVIEW_RUN_KEY = 'jq-review-run'; // 途中のセットの控え（→ saveReviewRun）
 
   /**
    * 1セットの問題数。
@@ -465,7 +466,7 @@
   function cafeState() {
     return state.progress.cafe || {
       cash: 0, cups: 0, cupPrice: 500, bonusPercent: 0, salesBonusPercent: 0,
-      dailyFirstBonusPercent: 0, dailyFirstBonusReady: true, streakDays: 0,
+      reviewBonusPercent: 0, reviewRewardPercent: 30,
       extraCups: 0, chapterBonusPercent: 0,
       quizTipPercent: 0, clearedChapters: 0, brandMultiplierBasisPoints: 10000,
       reviewBrandBasisPoints: 0, reviewedTasks: 0, reviewedTaskPercent: 0,
@@ -1704,14 +1705,133 @@
    * 続けて重ねたセットの控えを作る（作り直す）。
    *
    * 「もう1セット」で続けているあいだだけ生きていて、出し終えた問題とクイズ、それまでの
-   * 成績を覚えている。復習ホームから始め直したとき・途中で終えたとき・結果を出さずに
-   * 復習ホームを開いたときに捨てる（{@link renderReview} の先頭）。
+   * 成績を覚えている。画面の中の積み上げは、復習ホームから始め直したとき・途中で終えた
+   * とき・結果を出さずに復習ホームを開いたときに捨てる（{@link renderReview} の先頭）。
+   *
+   * <b>新しい回を始めるときは、途中のセットの控えも差し替える。</b>ここへ来たのは
+   * 「はじめから」を選んだときなので、前の続きを残すと復習ホームに続きのカードが
+   * 出たままになる（→ {@link saveReviewRun}）。
    */
   function startReviewRun() {
+    clearReviewRun();
     reviewRun = {
-      sets: 0, total: 0, cleared: 0, quizTotal: 0, quizCorrect: 0,
+      sets: 0, total: 0, cleared: 0, quizTotal: 0, quizCorrect: 0, cash: 0,
       servedTaskKeys: {}, servedQuizKeys: {}
     };
+  }
+
+  /*
+   * ------------------------------------------- 解いている途中のセットの控え
+   *
+   * 解いている途中で抜けても「続きから」戻れるようにするための控えである（2026-08-21）。
+   * これが無かったころは、抜け方によらず次は<b>新しい1セット目</b>から始まっていた
+   * ―― 3問目まで解いた人が戻ってくると、また別の4問が並ぶ。
+   *
+   * <b>どの抜け方でも戻れる。</b>移動（ヘッダ・サイドバー・ブラウザの戻る）でも、
+   * 帯の「復習を終える」でも、再読み込みでも、タブを閉じても同じように残す。抜け方で
+   * 結果が変わると、押したボタンを後悔する場面ができてしまう（→ 取り返しのつかない
+   * 要素を作らない方針）。だから {@link endReviewSession} はここを消さない。
+   *
+   * 置き場所は localStorage である。サーバの進捗（`progress.json`）が持っているのは
+   * 苦手度と期限で、<b>セットの枠は画面側にしか無い</b>。ここをサーバへ移すと進捗
+   * ファイルの形が増えるいっぽう、控えなので消えても学習の記録は1つも失われない
+   * （＝別のブラウザで開くと続きは無い。獲得の履歴と同じ扱い → COIN_LOG_KEY）。
+   *
+   * <b>控えるのは「途中のセット」だけ。</b>結果まで進んだセットは消す
+   * （{@link finishReviewSession}）―― 続きは結果カードの「もう1セット」が持っているし、
+   * 出し終えた回の `servedTaskKeys` を後日まで残すと、次に開いた1セット目から
+   * 「もう出した」ぶんが抜けたままになる。
+   *
+   * <b>日付が変わったら捨てる。</b>期限（`reviewDueDays`）は日単位で引き直すので、
+   * 昨日組んだ4問は今日の期限と噛み合わない。翌日は新しい1セット目から始める。
+   */
+
+  /** 控えが「いつのものか」。時刻は見ない（獲得の履歴と同じ数え方を使う）。 */
+  function reviewRunDayKey() {
+    return coinLogDayKey(new Date());
+  }
+
+  /**
+   * いま解いているセットを控える。
+   *
+   * 呼ぶのは中身が動いた直後（始めた・次へ進んだ・通した・クイズに答えた）。まとめて
+   * 1か所で書けないのは、どこで抜けられても直前の状態が残っていてほしいため。
+   */
+  function saveReviewRun() {
+    if (!reviewSession || !reviewRun) { return; }
+    try {
+      localStorage.setItem(REVIEW_RUN_KEY, JSON.stringify({
+        day: reviewRunDayKey(), filter: reviewFilter, set: reviewSession, run: reviewRun
+      }));
+    } catch (e) { /* 保存できなくても、開いている間の復習は成立する */ }
+  }
+
+  function clearReviewRun() {
+    try { localStorage.removeItem(REVIEW_RUN_KEY); } catch (e) { /* 同上 */ }
+  }
+
+  /**
+   * 控えを読む。<b>いま出しても成り立つものだけ</b>返し、そうでなければ捨てて null。
+   *
+   * 崩れていたら部分的に直さず丸ごと捨てる。何問目かはキューの並びを前提にした数字なので、
+   * 消えた問題を抜いて詰めると「3 / 4問目」が別の問題を指してしまう。
+   *
+   * 進捗のリセットや別の進捗ファイルで開いた場合も、クリア済みの確認で落ちる
+   * （復習は「クリアした問題を解き直す」場所なので、{@code routeFromHash} が
+   * 復習の1問に対してしている確認と同じものを使う）。
+   */
+  function loadReviewRun() {
+    var saved = null;
+    try { saved = JSON.parse(localStorage.getItem(REVIEW_RUN_KEY) || 'null'); }
+    catch (e) { saved = null; }
+    if (!saved || typeof saved !== 'object') { clearReviewRun(); return null; }
+
+    var set = saved.set;
+    var run = saved.run;
+    var ok = saved.day === reviewRunDayKey()
+      && (saved.filter === 'all' || saved.filter === 'weak' || saved.filter === 'bookmark')
+      && set && run && Array.isArray(set.queue) && Array.isArray(set.quizQueue)
+      // 問題もクイズも出し切った位置なら「途中」ではない（結果まで進んだセット）
+      && (Number(set.index) < set.queue.length
+        || (Number(set.quizIndex) >= 0 && Number(set.quizIndex) < set.quizQueue.length))
+      && set.queue.every(function (item) {
+        var lesson = item && findLesson(item.lessonId);
+        var task = lesson && findTask(lesson, item.taskId);
+        return !!(task && task.cleared);
+      })
+      && set.quizQueue.every(function (item) {
+        var lesson = item && findLesson(item.lessonId);
+        var quiz = lesson && (lesson.quizzes || [])[item.index];
+        // 復習で出すのは「一度答えたクイズ」だけ（→ buildReviewQuizQueue）
+        return !!(quiz && (lesson.quizResults || [])[item.index]);
+      });
+    if (!ok) { clearReviewRun(); return null; }
+    return saved;
+  }
+
+  /**
+   * 「続きから」。控えを画面の状態へ戻し、抜けたところをもう一度開く。
+   *
+   * クイズの段の戻し方は {@link startReviewQuizSession} と同じ（復習ホームの上に
+   * 塗り替えるので、`currentView` は `review` のまま）。
+   */
+  function resumeReviewRun() {
+    var saved = loadReviewRun();
+    if (!saved) {
+      toast('続きが見つかりませんでした（新しい1セットから始められます）');
+      renderReview();
+      return;
+    }
+    reviewFilter = saved.filter;
+    reviewRun = saved.run;
+    reviewSession = saved.set;
+    reviewSummary = null;
+    if (inReviewQuizPhase()) {
+      renderReviewQuiz();
+      return;
+    }
+    var item = reviewSession.queue[reviewSession.index];
+    selectReviewTask(item.lessonId, item.taskId);
   }
 
   /**
@@ -1730,10 +1850,11 @@
     }
     reviewSummary = null;
     reviewSession = {
-      queue: queue, index: 0, cleared: 0, clearedKeys: {},
+      queue: queue, index: 0, cleared: 0, clearedKeys: {}, cash: 0,
       quizQueue: buildReviewQuizQueue(), quizIndex: -1, quizCorrect: 0
     };
     noteReviewServed(reviewSession);
+    saveReviewRun();
     selectReviewTask(queue[0].lessonId, queue[0].taskId);
   }
 
@@ -1751,10 +1872,11 @@
     }
     reviewSummary = null;
     reviewSession = {
-      queue: [], index: 0, cleared: 0, clearedKeys: {},
+      queue: [], index: 0, cleared: 0, clearedKeys: {}, cash: 0,
       quizQueue: quizQueue, quizIndex: 0, quizCorrect: 0
     };
     noteReviewServed(reviewSession);
+    saveReviewRun();
     renderReviewQuiz();
   }
 
@@ -1794,6 +1916,7 @@
     if (reviewSession.index >= reviewSession.queue.length) {
       if (reviewSession.quizQueue.length) {
         reviewSession.quizIndex = 0;
+        saveReviewRun();
         renderReviewQuiz();
         return;
       }
@@ -1801,10 +1924,16 @@
       return;
     }
     var next = reviewSession.queue[reviewSession.index];
+    saveReviewRun();
     selectReviewTask(next.lessonId, next.taskId);
   }
 
-  /** 今回のセットの成績を控えてセッションを閉じ、復習ホームへ戻す。 */
+  /**
+   * 今回のセットの成績を控えてセッションを閉じ、復習ホームへ戻す。
+   *
+   * <b>途中のセットの控えはここで消す。</b>結果まで進んだ回は「続き」ではなく、
+   * 続けたい人は結果カードの「もう1セット」で進む（→ saveReviewRun のまえがき）。
+   */
   function finishReviewSession() {
     if (!reviewRun) { startReviewRun(); }
     var quizTotal = reviewSession.quizIndex < 0 ? 0 : reviewSession.quizQueue.length;
@@ -1813,6 +1942,7 @@
     reviewRun.cleared += reviewSession.cleared;
     reviewRun.quizTotal += quizTotal;
     reviewRun.quizCorrect += reviewSession.quizCorrect;
+    reviewRun.cash += reviewSession.cash;
     reviewSummary = {
       total: reviewSession.queue.length,
       cleared: reviewSession.cleared,
@@ -1822,13 +1952,22 @@
       runTotal: reviewRun.total,
       runCleared: reviewRun.cleared,
       runQuizTotal: reviewRun.quizTotal,
-      runQuizCorrect: reviewRun.quizCorrect
+      runQuizCorrect: reviewRun.quizCorrect,
+      cash: reviewSession.cash,
+      runCash: reviewRun.cash
     };
     reviewSession = null;
+    clearReviewRun();
     goReview();
   }
 
-  /** 途中で切り上げる。積み上げも捨てる（次に開いたときは新しい1セット目から）。 */
+  /**
+   * 途中で切り上げる（帯の「復習を終える」・パンくずの「🔁 復習」）。
+   *
+   * 画面の中のセッションと積み上げは畳むが、<b>控えは消さない</b>。抜け方によって
+   * 続きが残る／残らないが変わると、押したボタンを後悔する場面ができてしまう。
+   * 復習ホームには「▶ 続きから」が出て、新しい1セットも選べる（→ reviewResumeHtml）。
+   */
   function endReviewSession() {
     reviewSession = null;
     reviewSummary = null;
@@ -1839,9 +1978,13 @@
   // ------------------------------------------------------- 復習ホームの描画
 
   function renderReview() {
-    // 結果を出さずにここへ来たなら、続けているセットではない（積み上げを捨てる）。
+    // 結果を出さずにここへ来たなら、続けているセットではない（画面の中の積み上げを捨てる）。
     // 残しておくと、あとで開き直したときに「もう出した」ぶんが出題から抜けたままになる。
+    // 途中のセットの控え（localStorage）はこれとは別で、下の resume がそれを見る。
     if (!reviewSummary) { reviewRun = null; }
+    // 解いている途中で抜けたセット。結果カードとは同時に出ない（結果まで進んだ回は
+    // finishReviewSession が控えを消しているので、ここは必ず null になる）。
+    var resume = loadReviewRun();
     var candidates = reviewCandidates();
     var counts = {
       all: candidates.length,
@@ -1870,8 +2013,11 @@
       var quizOnly = buildReviewQuizQueue().length;
       main.innerHTML =
         '<div class="menu review-page">' + head +
-        // クイズだけの復習もここへ戻ってくるので、成績はこの分岐でも出す
+        // クイズだけの復習もここへ戻ってくるので、成績はこの分岐でも出す。
+        // 続きのカードも同じ理由でここに要る ―― クイズだけのセットはこの分岐から
+        // 始まるので、その途中で抜けた人はここにしか戻る場所が無い
              reviewSummaryHtml() +
+             reviewResumeHtml(resume) +
         '  <section class="menu-section review-empty">' +
         '    <span class="review-empty-icon">📚</span>' +
         '    <div><strong>復習できる問題はまだありません</strong>' +
@@ -1896,6 +2042,7 @@
         quizOnlyBtn.addEventListener('click', function () { startReviewQuizSession(false); });
       }
       bindReviewSummary();
+      bindReviewResume();
       bindReviewRows(main);
       // 知らせは1回だけ（開き直すたびに前回の成績が出ると、いまの状態が読みにくい）
       reviewSummary = null;
@@ -1915,6 +2062,7 @@
     main.innerHTML =
       '<div class="menu review-page">' + head +
       reviewSummaryHtml() +
+      reviewResumeHtml(resume) +
       '  <section class="menu-hero learning-hero review-hero">' +
       '    <div class="hero-milestone" aria-label="期限が来た問題は' + overdue + '問">' +
       '      <span>⏰</span><b>' + overdue + '</b><small>問 期限が来た</small>' +
@@ -1932,7 +2080,7 @@
       '        <div class="hero-next"><div class="cta-lead">今回のセット</div>' +
       '        <div class="cta-target">' + reviewQueueBreakdown(sessionSize, sessionOverdue)
                  + '</div></div>' +
-               reviewStartButtonHtml(sessionSize, sessionOverdue) +
+               reviewStartButtonHtml(sessionSize, sessionOverdue, !!resume) +
       '      </div>' +
       '    </div>' +
       '  </section>' +
@@ -1962,6 +2110,7 @@
       startReviewSession(filter, !restart);
     });
     bindReviewSummary();
+    bindReviewResume();
     bindReviewFilters(main);
     bindReviewRows(main);
     // 結果の知らせは1回だけ。開き直すたびに前回の成績が出ると、今の状態が読みにくい
@@ -1975,12 +2124,21 @@
    * 続けているあいだに出し切ったら、押せないままにするのではなく<b>積み上げを捨てて
    * 出し直す</b>ボタンにする。クリア済みが2〜3問しか無い人は1セットで出し切ってしまい、
    * 押せないボタンだけが残ると、その日はもう復習できないように見えるため。
+   *
+   * <b>途中のセットが残っているあいだは「はじめから」の顔にする</b>（@param resuming）。
+   * 上の続きのカードに「▶ 続きから」があるので、同じ見た目の太いボタンが2つ並ぶと
+   * どちらが続きなのか読めなくなる。押せば控えは差し替わる（→ startReviewRun）。
    */
-  function reviewStartButtonHtml(sessionSize, sessionOverdue) {
+  function reviewStartButtonHtml(sessionSize, sessionOverdue, resuming) {
     if (!sessionSize) {
       return '      <button class="primary-btn big stacked-cta" id="reviewStartBtn"'
         + ' data-mode="restart">▶ はじめから復習する'
         + '<small>出した問題も含める</small></button>';
+    }
+    if (resuming) {
+      return '      <button class="ghost-btn big stacked-cta" id="reviewStartBtn"'
+        + ' data-mode="restart">▶ はじめから1セット復習する'
+        + '<small>途中のセットは終わりにする</small></button>';
     }
     // 期限が来ていない日は、押さないことも選べると分かる見た目にする（薄いボタン）。
     // 太いボタンに「やるべきこと」の顔をさせると、期限前の問題まで宿題に見えてしまう
@@ -2030,7 +2188,16 @@
       ? '復習で仕上げた ' + numberText(reviewed) + '問がブランド倍率を +'
         + multiplierText(brand) + ' 押し上げています'
       : '復習で正解した問題はブランド倍率を育てます（1問につき1回）';
-    return '      <p class="hero-sub review-cafe-note">☕ ' + esc(detail)
+    // コインは⏰の問題を通したときだけ入る。額の割合と復習手当のぶんは、ここで先に伝える
+    // （期限前の問題を通しても入らないので、通してから気づく形にしない）
+    var percent = Number(cafe.reviewRewardPercent || 0)
+      * (100 + Number(cafe.reviewBonusPercent || 0)) / 100;
+    var coin = percent
+      ? '🪙 期限が来た問題を通すと、初クリアの ' + numberText(Math.round(percent))
+        + '% のコインが入ります（同じ問題は期限が来るたび1回）'
+      : '';
+    return (coin ? '      <p class="hero-sub review-cafe-note">' + esc(coin) + '</p>' : '')
+      + '      <p class="hero-sub review-cafe-note">☕ ' + esc(detail)
       + '・自動売上の枠も戻ります</p>';
   }
 
@@ -2083,6 +2250,12 @@
       quiz = 'クイズは' + reviewSummary.quizTotal + '問のうち '
         + reviewSummary.quizCorrect + '問に正解（連続 ' + run + ' / ' + goal + '問）。';
     }
+    var cash = Number(reviewSummary.cash || 0);
+    var runCash = Number(reviewSummary.runCash || 0);
+    // 期限が来ていた問題のぶんだけ入る。0の回（早めの復習だけだった回）は何も出さない
+    var earned = cash
+      ? '🪙 ' + cafeNumberText(cash) + ' コインを獲得しました。'
+      : '';
     var sets = Number(reviewSummary.sets || 1);
     var stacked = sets > 1
       ? 'ここまで' + sets + 'セット'
@@ -2094,6 +2267,7 @@
             + reviewSummary.runQuizCorrect + '問'
           : '')
         + 'に正解しています。'
+        + (runCash > cash ? '獲得コインは合計 ' + cafeNumberText(runCash) + ' です。' : '')
       : '';
     return '<section class="menu-section review-summary">' +
       '<span class="review-summary-icon">' + (perfect ? '🎉' : '📝') + '</span>' +
@@ -2103,6 +2277,7 @@
           + (perfect ? '全問正解です！' : '通らなかった問題は、次の復習で出やすくなります。')
         : '') +
       (quiz ? (reviewSummary.total ? '<br>' : '') + quiz : '') +
+      (earned ? '<br>' + earned : '') +
       (stacked ? '<br>' + stacked : '') +
       '</p></div>' +
       reviewMoreButtonHtml() +
@@ -2132,6 +2307,65 @@
   function bindReviewSummary() {
     var more = document.getElementById('reviewMoreBtn');
     if (more) { more.addEventListener('click', continueReviewRun); }
+  }
+
+  /**
+   * 解いている途中で抜けたセットへ戻る道（→ saveReviewRun のまえがき）。
+   *
+   * <b>何問目まで進んでいたかを先に出す。</b>「続きから」だけでは、押した先が
+   * 前のセットの続きなのか新しいセットなのかが読めない。
+   *
+   * 隣に「はじめから」も置く ―― 続きを見て「これは今やらない」と決めた人が、
+   * 続きを終わらせるためにわざわざ1問開く必要がないように。
+   */
+  function reviewResumeHtml(resume) {
+    if (!resume) { return ''; }
+    var set = resume.set;
+    var quizPhase = Number(set.quizIndex) >= 0;
+    var where = quizPhase
+      ? 'クイズ ' + (Number(set.quizIndex) + 1) + ' / ' + set.quizQueue.length + '問目'
+      : '問題 ' + (Number(set.index) + 1) + ' / ' + set.queue.length + '問目';
+    var detail = [];
+    if (Number(set.cleared || 0)) { detail.push('ここまで' + set.cleared + '問に正解'); }
+    if (!quizPhase && set.quizQueue.length) {
+      detail.push('このあとクイズが' + set.quizQueue.length + '問続きます');
+    }
+    if (resume.filter !== 'all') {
+      detail.push('「' + reviewFilterLabel(resume.filter) + '」で始めたセットです');
+    }
+    return '<section class="menu-section review-resume">' +
+      '<span class="review-summary-icon">🔁</span>' +
+      '<div><strong>' + (Number(resume.run.sets || 0) + 1) + 'セット目の途中です（'
+        + where + '）</strong>' +
+      '<p>' + (detail.length ? detail.join(' · ') + '。' : '') +
+      // 「解いたぶんは消えていない」を先に言う（通した問題があるときだけ ―― 1問も
+      // 通していないセットで言うと、起きていないことを言うことになる）。
+      // そのあとに、この控えが消える条件（日付）を断る
+      (Number(set.cleared || 0) ? '通した問題の期限と苦手度はもう動いています。' : '')
+      + '日付が変わると期限を引き直すので、そのときは新しい1セット目から始まります。</p></div>' +
+      '<div class="review-resume-actions">' +
+      '<button class="primary-btn" id="reviewResumeBtn">▶ 続きから</button>' +
+      '<button class="ghost-btn" id="reviewResumeRestartBtn">はじめから</button>' +
+      '</div>' +
+      '</section>';
+  }
+
+  function bindReviewResume() {
+    var go = document.getElementById('reviewResumeBtn');
+    if (go) { go.addEventListener('click', resumeReviewRun); }
+    var restart = document.getElementById('reviewResumeRestartBtn');
+    // 出せる問題が無ければクイズだけで始める（「もう1セット」と同じ出し分け）。
+    // 控えを捨てるのは始められたときだけ ―― 先に捨てると、何も始まらなかったときに
+    // 続きまで失うことになる（捨てるのは startReviewRun）
+    if (restart) {
+      restart.addEventListener('click', function () {
+        if (buildReviewQueue(reviewFilter).length) {
+          startReviewSession(reviewFilter, false);
+          return;
+        }
+        startReviewQuizSession(false);
+      });
+    }
   }
 
   function reviewFilterTabsHtml(counts, filter) {
@@ -2485,6 +2719,7 @@
         applyDelta(res.delta);
         renderHeader();
         if (res.correct) { reviewSession.quizCorrect++; }
+        saveReviewRun();
         renderReviewQuiz({
           choice: choice, correct: res.correct,
           answer: res.answer, explanation: res.explanation
@@ -2507,6 +2742,7 @@
       finishReviewSession();
       return;
     }
+    saveReviewRun();
     renderReviewQuiz();
   }
 
@@ -2641,13 +2877,17 @@
    *
    * 状態の変化はその場の画面で見せる ―― バッジ（🔥苦手 → もう一度 → 安定）とフッタが担う。
    */
-  function onReviewCleared(taskId) {
+  function onReviewCleared(taskId, res) {
     if (reviewSession) {
       var key = currentId + '#' + taskId;
       if (!reviewSession.clearedKeys[key]) {
         reviewSession.clearedKeys[key] = true;
         reviewSession.cleared++;
       }
+      // 期限が来ていた問題ぶんだけ入る。同じ問題を通し直しても2回目は0が返る
+      reviewSession.cash += res && res.cafeAward ? Number(res.cafeAward.cash || 0) : 0;
+      // 通したところで抜ける人がいちばん多いので、ここは必ず控える
+      saveReviewRun();
     }
     refreshReviewWeightBadge(taskId);
     renderReviewFooter(true);
@@ -3210,11 +3450,11 @@
       body: '確認クイズに1度目の回答で正解したときの追加コインが増えます。'
         + '答え直しの正解では出ません。'
     },
-    streak: {
-      name: '今日の1杯目',
-      body: 'その日いちばん最初に★を取った1問だけ、報酬が大きく増えます。'
-        + '倍率は連続して学習した日数ぶん積み上がり、7日分が上限です。'
-        + '1日1回なので、毎日開くほど得になります。'
+    review: {
+      name: '復習手当',
+      body: '復習で「期限が来た問題」を通したときの報酬が増えます。'
+        + '期限前の早めの復習では出ません。通すと次の期限が先へ動くので、'
+        + '同じ問題を続けて通しても2回目からは出ません。'
     },
     automation: {
       name: '自動売上',
@@ -3294,13 +3534,13 @@
         + (activeCafeSection === 'equipment' ? '' : ' hidden') + '>設備はまだありません。</section>';
     }
 
-    var trackOrder = ['sales', 'cups', 'chapter', 'tips', 'streak'];
+    var trackOrder = ['sales', 'cups', 'chapter', 'tips', 'review'];
 
     function effectLabel(type) {
       if (type === 'cups') { return '抽出力'; }
       if (type === 'chapter') { return 'イベント'; }
       if (type === 'tips') { return 'クイズ接客'; }
-      if (type === 'streak') { return '常連サービス'; }
+      if (type === 'review') { return '復習手当'; }
       return '販売戦略';
     }
 
@@ -3308,7 +3548,7 @@
       if (type === 'cups') { return '毎注文 +' + numberText(value) + '杯'; }
       if (type === 'chapter') { return '章ボーナス +' + numberText(value) + '%'; }
       if (type === 'tips') { return '正解チップ +' + numberText(value) + '%'; }
-      if (type === 'streak') { return '連続1日ごと 今日の1杯目 +' + numberText(value) + '%'; }
+      if (type === 'review') { return '復習報酬 +' + numberText(value) + '%'; }
       return '注文売上 +' + numberText(value) + '%';
     }
 
@@ -3328,9 +3568,7 @@
       '<span>毎注文 +' + (cafe.extraCups || 0) + '杯</span>' +
       '<span>章ボーナス +' + (cafe.chapterBonusPercent || 0) + '%</span>' +
       '<span>正解チップ +' + (cafe.quizTipPercent || 0) + '%</span>' +
-      '<span>今日の1杯目 +' + (cafe.dailyFirstBonusPercent || 0) + '%'
-        + ((cafe.dailyFirstBonusPercent || 0) > 0
-          ? (cafe.dailyFirstBonusReady ? '（未受取）' : '（本日受取済み）') : '') + '</span>' +
+      '<span>復習報酬 +' + (cafe.reviewBonusPercent || 0) + '%</span>' +
       '<span>' + perMinuteText('自動 +' + cafeNumberText(cafe.passiveCashPerMinute), '') + '</span>' +
       '</div></header>' +
       '<p class="menu-note cafe-section-note">コインは学習を進めると入手できます。'
@@ -4860,7 +5098,8 @@
           // 正解した直後にも、問題ブロック末尾から模範解答を確認できるようにする。
           maybeShowSolutionButton(wasCurrent, taskId);
           if (review) {
-            onReviewCleared(taskId);
+            notifyReviewReward(res, wasCurrent, taskId);
+            onReviewCleared(taskId, res);
           } else {
             notifyTaskReward(res, wasCurrent, taskId, cafeBefore);
             celebrate(res);
@@ -5259,6 +5498,27 @@
       brandAfter: cafeAfter.brandBasisPoints,
       next: res.next,
       levelUp: levelUp
+    });
+  }
+
+  /**
+   * 期限が来た問題を復習で通したときの報酬を通知する。
+   *
+   * ★は動かないので紙吹雪も「次の問題」も出さない。コインだけの短い1枚にしてある。
+   * 期限前の「早めの復習」ではサーバが0コインを返すので、ここは何も出さない ――
+   * 出ない回に通知を出すと「もらえる」という約束と食い違う。
+   */
+  function notifyReviewReward(res, lessonId, taskId) {
+    if (!res.cafeAward || !(res.cafeAward.cash > 0)) { return; }
+    var lesson = findLesson(lessonId);
+    var task = lesson && findTask(lesson, taskId);
+    var label = lesson ? lesson.title : '';
+    if (task && lesson && lesson.taskCount > 1) { label += '（' + task.label + '）'; }
+    showCafeRewardNotification(res.cafeAward, {
+      kicker: '復習の注文',
+      title: '思い出せました',
+      label: label,
+      balance: cafeState().cash
     });
   }
 
@@ -6326,6 +6586,7 @@
         reviewSession = null;
         reviewSummary = null;
         reviewRun = null;
+        clearReviewRun();   // 出題の元（クリア済み）が無くなるので、途中のセットも成り立たない
         try { localStorage.removeItem('jq-last-lesson'); } catch (e) { /* 同上 */ }
         clearCoinLog();
         goHome();
