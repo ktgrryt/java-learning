@@ -44,6 +44,7 @@ CHECKS=(
   check-block-alignment.sh
   check-mini-labels.sh
   check-source-checks.sh
+  check-source-alternatives.sh
   check-optional-task.sh
   check-layer-completion.sh
   check-onboarding.sh

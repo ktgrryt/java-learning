@@ -79,7 +79,7 @@
       "solution": "import java.util.*;\n\nenum Level {\n    TRACE(0), DEBUG(1), INFO(2), WARN(3), ERROR(4);\n\n    private final int severity;\n\n    Level(int severity) {\n        this.severity = severity;\n    }\n\n    boolean enabled(Level event) {\n        return event.severity >= severity;\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        Level configured = Level.valueOf(sc.next());\n        Level event = Level.valueOf(sc.next());\n        System.out.println(configured.enabled(event) ? \"EMIT\" : \"SKIP\");\n    }\n}\n",
       "sourceChecks": [
         {
-          "pattern": "event\\s*\\.\\s*severity\\s*>=\\s*severity",
+          "pattern": "event\\s*\\.\\s*severity\\s*>=\\s*(?:this\\s*\\.\\s*)?severity",
           "minimum": 1,
           "message": "イベントの重要度が設定の重要度以上か比較してください。"
         }
@@ -450,7 +450,7 @@
       "solution": "import java.util.*;\n\nrecord LogEvent(int time, String requestId, String service,\n                String level, String event, int sequence) { }\n\npublic class Main {\n    static List<LogEvent> timeline(String target, List<LogEvent> all) {\n        return all.stream()\n                .filter(e -> e.requestId().equals(target))\n                .sorted(Comparator.comparingInt(LogEvent::time)\n                        .thenComparingInt(LogEvent::sequence))\n                .toList();\n    }\n\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        String target = sc.next();\n        int n = sc.nextInt();\n        List<LogEvent> all = new ArrayList<>();\n        for (int i = 0; i < n; i++) {\n            all.add(new LogEvent(sc.nextInt(), sc.next(), sc.next(),\n                    sc.next(), sc.next(), i));\n        }\n\n        List<LogEvent> events = timeline(target, all);\n        if (events.isEmpty()) System.out.println(\"timeline=NONE\");\n        for (LogEvent e : events) {\n            System.out.println(e.time() + \" \" + e.service() + \" \"\n                    + e.level() + \" \" + e.event());\n        }\n        LogEvent first = events.stream()\n                .filter(e -> e.level().equals(\"ERROR\"))\n                .findFirst().orElse(null);\n        System.out.println(first == null ? \"firstError=NONE\"\n                : \"firstError=\" + first.service() + \":\" + first.event() + \"@\" + first.time());\n    }\n}\n",
       "sourceChecks": [
         {
-          "pattern": "requestId\\s*\\(\\s*\\)\\s*\\.\\s*equals\\s*\\(\\s*target\\s*\\)",
+          "pattern": "requestId\\s*\\(\\s*\\)\\s*\\.\\s*equals\\s*\\(\\s*target\\s*\\)|target\\s*\\.\\s*equals\\s*\\(\\s*\\w+\\s*\\.\\s*requestId\\s*\\(\\s*\\)\\s*\\)",
           "minimum": 1,
           "message": "別要求を混ぜないよう、targetと同じrequestIdだけを残してください。"
         },
@@ -635,12 +635,12 @@
           "solution": "import java.util.*;\n\nrecord Deployment(int time, String version) { }\nrecord IncidentLog(int time, String requestId, String level, String event, int sequence) { }\n\npublic class Main {\n    static IncidentLog firstError(String target, List<IncidentLog> logs) {\n        return logs.stream()\n                .filter(log -> log.requestId().equals(target))\n                .filter(log -> log.level().equals(\"ERROR\"))\n                .sorted(Comparator.comparingInt(IncidentLog::time)\n                        .thenComparingInt(IncidentLog::sequence))\n                .findFirst().orElse(null);\n    }\n\n    static Deployment latestBefore(int time, List<Deployment> deployments) {\n        return deployments.stream()\n                .filter(deployment -> deployment.time() <= time)\n                .max(Comparator.comparingInt(Deployment::time))\n                .orElse(null);\n    }\n\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        String target = sc.next();\n        int d = sc.nextInt();\n        List<Deployment> deployments = new ArrayList<>();\n        for (int i = 0; i < d; i++) deployments.add(new Deployment(sc.nextInt(), sc.next()));\n        int n = sc.nextInt();\n        List<IncidentLog> logs = new ArrayList<>();\n        for (int i = 0; i < n; i++) {\n            logs.add(new IncidentLog(sc.nextInt(), sc.next(), sc.next(), sc.next(), i));\n        }\n\n        IncidentLog error = firstError(target, logs);\n        if (error == null) {\n            System.out.println(\"firstError=NONE\");\n            System.out.println(\"hypothesis=NONE\");\n            return;\n        }\n        System.out.println(\"firstError=\" + error.event() + \"@\" + error.time());\n        Deployment deployment = latestBefore(error.time(), deployments);\n        System.out.println(deployment == null ? \"hypothesis=NONE\"\n                : \"hypothesis=deploy:\" + deployment.version() + \"@\" + deployment.time());\n    }\n}\n",
           "sourceChecks": [
             {
-              "pattern": "requestId\\s*\\(\\s*\\)\\s*\\.\\s*equals\\s*\\(\\s*target\\s*\\)",
+              "pattern": "requestId\\s*\\(\\s*\\)\\s*\\.\\s*equals\\s*\\(\\s*target\\s*\\)|target\\s*\\.\\s*equals\\s*\\(\\s*\\w+\\s*\\.\\s*requestId\\s*\\(\\s*\\)\\s*\\)",
               "minimum": 1,
               "message": "対象requestIdのログだけを調べてください。"
             },
             {
-              "pattern": "deployment\\s*->\\s*deployment\\s*\\.\\s*time\\s*\\(\\s*\\)\\s*<=\\s*time",
+              "pattern": "(\\w+)\\s*->\\s*\\1\\s*\\.\\s*time\\s*\\(\\s*\\)\\s*<=\\s*time",
               "minimum": 1,
               "message": "エラー発生時刻より後の配備を原因候補にしないでください。"
             }
