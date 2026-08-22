@@ -33,6 +33,11 @@
   var paintedLessonId = null;    // いま #content に描いてあるレッスンID（位置の持ち主）
   var lessonScroll = null;       // 直前に離れたレッスンで読んでいた位置 { lessonId, top }
   var cafeReturnLessonId = null; // カフェの「📚 学習」で帰るレッスンID（寄り道でなければ null）
+  // 復習を解いている途中でカフェへ寄り道したときの帰り先。レッスンと分けてあるのは、
+  // 帰り方が違うから ―― レッスンは selectLesson で開けるが、復習はセットの何問目か
+  // （reviewSession）ごと戻さないと帯が「3 / 4問」を出せない（→ goLearning）。
+  var paintedReview = null;      // いま #content に描いてある復習 { lessonId, taskId, quiz }
+  var cafeReturnReview = null;   // カフェの「📚 学習」で帰る復習（寄り道でなければ null）
   var editors = {};        // 問題ID -> エディタ（1レッスンに複数問あるので複数持つ）
   var saveTimers = {};     // 問題ID -> 自動保存のタイマー
   var busyTask = null;     // 実行・採点中の問題ID（同時に走らせない）
@@ -567,7 +572,8 @@
       ? 'カフェ（新しいアイテムがあります）' : 'カフェ');
     // 「📚 学習」の行き先は場面で変わる（解いている途中で寄り道したならそのレッスンへ）ので、
     // 押す前に分かるよう説明も合わせる。
-    learningBtn.title = learningReturnLessonId() ? '解いていた問題に戻る' : '学習ホームに戻る';
+    learningBtn.title = learningReturnLessonId() || learningReturnReview()
+      ? '解いていた問題に戻る' : '学習ホームに戻る';
   }
 
   // ---------------------------------------------------- サイドバーの検索
@@ -2637,6 +2643,8 @@
     tasksHost.appendChild(buildTaskBlock(lesson, task, taskIndexOf(lesson, task), { review: true }));
     // 挿してから呼ぶ（開示済みヒントと模範解答ボタンは id で要素を引く）
     renderRevealedHints(lesson, task);
+    // カフェへ寄り道しても「📚 学習」でここへ帰れるようにする（→ rememberLessonScroll）
+    paintedReview = { lessonId: lesson.id, taskId: task.id, quiz: false };
 
     document.getElementById('crumbHome').addEventListener('click', goHome);
     document.getElementById('crumbReview').addEventListener('click', endReviewSession);
@@ -2699,6 +2707,9 @@
       '  <nav class="lesson-next" id="reviewFooter" aria-label="復習の進み方"></nav>' +
       '</article>';
 
+    // カフェへ寄り道しても「📚 学習」でここへ帰れるようにする（→ rememberLessonScroll）。
+    // クイズの段は問題を開いていないので、戻すのは控え（jq-review-run）ごとになる
+    paintedReview = { lessonId: entry.lessonId, taskId: null, quiz: true };
     document.getElementById('crumbHome').addEventListener('click', goHome);
     document.getElementById('crumbReview').addEventListener('click', endReviewSession);
     bindReviewBar();
@@ -6152,11 +6163,17 @@
    *
    * 併せて「📚 学習」の帰り先も決める。レッスンから直接カフェへ寄り道したときだけ、
    * そのレッスンへ帰す。自分でホームや復習へ移ったのなら、帰り先はホームのままでよい。
+   * <b>復習を解いている途中の寄り道も同じように帰す</b>（2026-08-22）。以前は復習の画面が
+   * 目印（paintedLessonId）を置いていなかったので、カフェから「📚 学習」を押すと
+   * 学習ホームへ出てしまい、解いていたセットまで自分で辿り直すことになっていた。
    */
   function rememberLessonScroll() {
     var painted = paintedLessonId;
+    var review = paintedReview;
     paintedLessonId = null;
+    paintedReview = null;
     cafeReturnLessonId = painted && currentView === 'cafe' ? painted : null;
+    cafeReturnReview = review && currentView === 'cafe' ? review : null;
     if (!painted) { return; }
     lessonScroll = { lessonId: painted, top: document.getElementById('content').scrollTop };
   }
@@ -6249,16 +6266,64 @@
   }
 
   /**
+   * 復習を解いている途中でカフェへ寄り道したか（帰り先があるか）。
+   *
+   * レッスンと違って<b>控え（jq-review-run）が要る</b>。カフェへ移った時点で
+   * {@link render} が `reviewSession` を捨てるので、セットの何問目かは localStorage 側
+   * にしか残っていない。控えが無ければ「1問だけ復習していた」ほうなので、その1問へ帰す。
+   */
+  function learningReturnReview() {
+    if (currentView !== 'cafe' || !cafeReturnReview) { return null; }
+    var lesson = findLesson(cafeReturnReview.lessonId);
+    if (!lesson) { return null; }
+    // クイズの段は控えが無いと戻せない（開いていた問題が無いので行き先が作れない）
+    if (cafeReturnReview.quiz) { return loadReviewRun() ? cafeReturnReview : null; }
+    return findTask(lesson, cafeReturnReview.taskId) ? cafeReturnReview : null;
+  }
+
+  /**
    * ヘッダの「📚 学習」。
    *
-   * 解いている途中でカフェへ寄り道したなら、そのレッスンへ1手で帰す（読んでいた位置ごと）。
-   * それ以外はこれまでどおり学習ホームへ。章を選び直したいときは、カフェ画面の
-   * 「📚 章を選ぶ」と左上のロゴがいつでもホームへ戻す。
+   * 解いている途中でカフェへ寄り道したなら、そこへ1手で帰す ―― レッスンなら読んでいた
+   * 位置ごと、復習ならセットの何問目かごと。それ以外はこれまでどおり学習ホームへ。
+   * 章を選び直したいときは、カフェ画面の「📚 章を選ぶ」と左上のロゴがいつでもホームへ戻す。
    */
   function goLearning() {
+    var review = learningReturnReview();
+    if (review) { resumeReviewFromCafe(review); return; }
     var back = learningReturnLessonId();
     if (back) { selectLesson(back); return; }
     goHome();
+  }
+
+  /**
+   * カフェから復習へ帰る。
+   *
+   * 控えの「いま何問目か」がカフェへ寄る前と同じ問題を指しているなら、
+   * {@link resumeReviewRun} でセットごと戻す（帯の「3 / 4問」と「もう1セット」が生きる）。
+   * 指していなければ復習ホームの一覧から1問だけ開いていたほうなので、その1問を開く
+   * ―― 別のセットの続きを勝手に始めない。
+   */
+  function resumeReviewFromCafe(review) {
+    var saved = loadReviewRun();
+    if (review.quiz) {
+      // クイズの段は問題を開いていないので、現在地を復習ホーム（#review）へ移してから上に塗る。
+      // resumeReviewRun は renderReviewQuiz を直接呼ぶ（render を通らない）ので、
+      // goReview を通さないとヘッダとカフェの体裁が残ったままクイズが出る。
+      // 状態を先に合わせてからハッシュを変えるので、hashchange は「同じ現在地」で抜ける。
+      goReview();
+      // 控えが消えていたら復習ホームで止める（押しても何も起きないボタンにしない）
+      if (saved) { resumeReviewRun(); }
+      return;
+    }
+    var set = saved && saved.set;
+    var item = set && set.queue[set.index];
+    if (item && item.lessonId === review.lessonId && item.taskId === review.taskId) {
+      resumeReviewRun();
+      return;
+    }
+    // 復習ホームの一覧から1問だけ開いていたほう。別のセットの続きを勝手に始めない
+    selectReviewTask(review.lessonId, review.taskId);
   }
 
   /** 復習ホームへ。今回のセッションは {@code render} が畳む。 */

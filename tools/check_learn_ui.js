@@ -627,6 +627,45 @@ const HELPERS = `window.__t = {
   check(session.weightBadge.length > 0, '苦手度のバッジが出る', session.weightBadge);
   check(session.bar, '復習を抜ける／飛ばす操作が出ている', session.bar);
 
+  // ── 復習の途中でカフェへ寄り道して帰る（2026-08-22・利用者の指摘）──────────
+  //
+  // 普通のレッスンは上の節で見ているが、復習は目印（`paintedReview`）を置いていなかったので
+  // カフェの「📚 学習」が学習ホームへ出てしまい、解いていたセットを自分で辿り直すことに
+  // なっていた。**帰り先はセットごと**でなければならない ―― カフェへ移った時点で
+  // `render` が `reviewSession` を捨てるため、控え（`jq-review-run`）から戻す
+  // （`resumeReviewFromCafe`）。帯が出ていることで「セットとして戻った」ことを見る。
+  const reviewDetour = await ev(`(async () => {
+    const barText = () => ((document.querySelector('.review-bar-progress') || {}).textContent
+      || '').replace(/\s+/g, ' ').trim();
+    const before = barText();
+    document.getElementById('cafeBtn').click();
+    if (!await window.__t.until(() => document.querySelector('.cafe-page'), 40)) {
+      return { error: 'カフェ画面が描かれない' };
+    }
+    const title = document.getElementById('learningBtn').title;
+    document.getElementById('learningBtn').click();
+    if (!await window.__t.until(() => document.querySelector('.review-view'), 40)) {
+      return { error: '復習画面へ帰れない' };
+    }
+    await window.__t.sleep(400);
+    return {
+      title, before, after: barText(), hash: location.hash,
+      editorEmpty: !((window.__t.editor() || {}).value || '').includes('${SAVE_MARK}')
+    };
+  })()`);
+  check(!reviewDetour.error, 'カフェへ寄り道して復習へ帰れる', reviewDetour.error);
+  if (!reviewDetour.error) {
+    check(reviewDetour.hash === `#review/${LESSON}/${TASK}`,
+      '「📚 学習」が解いていた復習の問題へ帰す', reviewDetour.hash);
+    check(reviewDetour.title === '解いていた問題に戻る',
+      'カフェでの「📚 学習」の説明が行き先に合っている', reviewDetour.title);
+    check(reviewDetour.after === reviewDetour.before && reviewDetour.after.length > 0,
+      'セットとして戻る（帯の「N / M問」が寄り道の前と同じ）',
+      { before: reviewDetour.before, after: reviewDetour.after });
+    check(reviewDetour.editorEmpty,
+      '帰ってきてもひな形のまま（復習の解答は保存しない）', reviewDetour.editorEmpty);
+  }
+
   // ── 前に開いたヒントは畳んで出す（2026-08-21・利用者の指摘）──────────────
   //
   // レッスンで開いたヒントは記録に残る（`revealedHints`）。それが開いたまま復習に
@@ -1510,7 +1549,8 @@ const HELPERS = `window.__t = {
     process.exit(1);
   }
   console.log(`\n${GREEN}LEARN UI OK: 誤答・コンパイルエラー・ヒント・模範解答・`
-    + `★と報酬・1問1枚のパネル・獲得の履歴・自動保存・カフェへの寄り道と位置の復元・復習の出題・`
+    + `★と報酬・1問1枚のパネル・獲得の履歴・自動保存・カフェへの寄り道と位置の復元`
+    + `（レッスンと復習の両方）・復習の出題・`
     + `途中で抜けたセットの「続きから」・1つ前の問題へ戻る・復習の最後に続くクイズ・`
     + `クイズのしおり・サイドバーの検索・試しに実行と入力欄・`
     + `報酬の通知の表示/非表示を確認しました${RESET}`);
