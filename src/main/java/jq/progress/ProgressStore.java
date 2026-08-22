@@ -53,14 +53,31 @@ public final class ProgressStore {
     /**
      * 苦手度の目盛り。1点ぶんを何単位で数えるか。
      *
-     * <p>提出＝採点なので、コードを書いている途中の失敗まで全部数える。失敗1回で1点上がると、
-     * 試行錯誤しただけで最大まで振り切れてしまう。内部を4倍の細かさで持ち、
-     * <b>失敗1回は1単位（=0.25点）</b>にしてある。4回失敗して、ようやく従来の1回ぶん。</p>
-     *
-     * <p>2026-08-19に画面へ「試しに実行」（採点なし・{@code /api/run}）が戻ったが、この目盛りは
-     * 緩いままにしてある。試しに実行はここを通らないので、緩さが害になることはない。</p>
+     * <p>内部を4倍の細かさで持つのは、失敗1回で1点上がると振り切れてしまうため。
+     * 進捗ファイルにもこの目盛りで保存する（{@code reviewWeightScale}）ので、
+     * <b>この値を変えると過去の記録を読み込み時に換算する必要がある</b>
+     * （{@link #loadFrom} の {@code weightFactor}）。1回ぶんの重みを変えたいだけなら
+     * {@link #REVIEW_WEIGHT_PER_FAIL} を動かす ―― あちらは換算が要らない。</p>
      */
     private static final int REVIEW_WEIGHT_SCALE = 4;
+
+    /**
+     * 提出が通らなかった1回で上がる苦手度（単位）。<b>2単位 = 0.5点</b>。
+     *
+     * <p>2026-08-12〜19に「▶ 実行して採点」の1つへ畳んでいたころは<b>1単位（0.25点）</b>
+     * だった ―― 書いている途中の試行錯誤まで採点として届くので、1回1点では振り切れたため。
+     * 8/19に「▶ 試しに実行」（採点なし・{@code /api/run}）へ分けたあとは、
+     * <b>試行錯誤があちらへ移った</b>。ここへ届く1回は「できたと思って出したのに違った」
+     * という強い1回なので、0.25点では軽すぎた ―― 実際の記録では63問を解いて
+     * 苦手度が残ったのが3問・合計0.75点しかなく、画面が「苦手な問題はありません」と
+     * 出ていた（2026-08-22・利用者の指摘）。</p>
+     *
+     * <p>0.5点にすると、失敗 1 / 3 / 6 回でバッジが
+     * `もう一度` / `🔥 苦手` / `🔥 よく間違えた` へ変わる（しきい値は
+     * {@code web/app.js} の {@code reviewWeightLevel}）。<b>片方だけ動かすと表示がずれる。</b>
+     * 復習で正解したときに下がるのは1点（= 失敗2回ぶん）で、そちらは変えていない。</p>
+     */
+    private static final int REVIEW_WEIGHT_PER_FAIL = REVIEW_WEIGHT_SCALE / 2;
 
     /**
      * 苦手度の上限（単位）。表示上は 8点 に相当する。
@@ -789,12 +806,12 @@ public final class ProgressStore {
                 : ReviewOutcome.NONE;
         // 下げるのはクリア済みの問題に正解したときだけ。まだ通っていない問題で
         // 1ケースだけ通った提出などを「復習で正解」と数えないため。
-        // 失敗は1単位（=0.25点）だけ上げる。書いている途中の失敗も全部ここを通るので、
-        // 1回で1点上げると試行錯誤しただけで振り切れてしまう。
-        // 正解したときは1点（=4単位）まとめて下げる。
+        // 失敗は REVIEW_WEIGHT_PER_FAIL（2単位 = 0.5点）だけ上げる。試行錯誤は「試しに実行」が
+        // 引き受けるので、ここへ届くのは「できたと思って出した」1回である。
+        // 正解したときは1点（=4単位）まとめて下げる（＝失敗2回ぶん）。
         boolean changed = passed
                 ? cleared.containsKey(taskKey) && addReviewWeight(taskKey, -REVIEW_WEIGHT_SCALE)
-                : addReviewWeight(taskKey, 1);
+                : addReviewWeight(taskKey, REVIEW_WEIGHT_PER_FAIL);
         changed |= updateReviewPlan(taskKey, passed, fromReview);
         // カフェは「復習で通したか」だけを見る。★も報酬もここでは動かさない
         changed |= cafe.noteReviewSubmission(taskKey, passed, cleared.containsKey(taskKey));
@@ -1290,8 +1307,9 @@ public final class ProgressStore {
      */
     private void seedReviewWeightFromAttempts() {
         cleared.forEach((key, c) -> {
-            // 当時の1回は採点1回ぶんなので、新しい目盛りではそのまま1単位で数える
-            int misses = Math.min(MAX_REVIEW_WEIGHT, c.attempts() - 1);
+            // 当時の1回も採点1回ぶんなので、いまの「失敗1回」と同じ重みで数える
+            int misses = Math.min(MAX_REVIEW_WEIGHT,
+                    (c.attempts() - 1) * REVIEW_WEIGHT_PER_FAIL);
             if (misses > 0) {
                 reviewWeight.put(key, misses);
             }

@@ -39,11 +39,18 @@ public final class ReviewScheduleCheck {
             p.markCleared("t#1");
             eq("初期は0", p.reviewWeight("t#1"), 0);
             p.recordMasterySubmission("t#1", false);
-            eq("失敗1回で1単位（=0.25点）", p.reviewWeight("t#1"), 1);
-            for (int i = 0; i < 3; i++) { p.recordMasterySubmission("t#1", false); }
-            eq("4回失敗で従来の1点ぶん", p.reviewWeight("t#1"), 4);
+            eq("失敗1回で2単位（=0.5点）", p.reviewWeight("t#1"), 2);
+            p.recordMasterySubmission("t#1", false);
+            eq("2回失敗で1点ぶん（4単位）", p.reviewWeight("t#1"), 4);
             p.recordMasterySubmission("t#1", true);
-            eq("正解で1点（4単位）下がる", p.reviewWeight("t#1"), 0);
+            eq("正解で1点（4単位）下がる＝失敗2回ぶん", p.reviewWeight("t#1"), 0);
+            // 「試しに実行」はここを通らない（/api/run は記録を触らない）。もし通す変更が
+            // 入ると、この目盛りでは試行錯誤だけで上限へ届いてしまう
+            for (int i = 0; i < 3; i++) { p.recordMasterySubmission("t#1", false); }
+            eq("3回失敗で1.5点ぶん（🔥苦手のしきい値）", p.reviewWeight("t#1"), 6);
+            p.recordMasterySubmission("t#1", true);
+            p.recordMasterySubmission("t#1", true);
+            eq("正解2回で0まで戻る", p.reviewWeight("t#1"), 0);
             for (int i = 0; i < 200; i++) { p.recordMasterySubmission("t#1", false); }
             eq("上限は8点ぶん（32単位）", p.reviewWeight("t#1"), 32);
 

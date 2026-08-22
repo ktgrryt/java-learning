@@ -851,9 +851,10 @@ const HELPERS = `window.__t = {
   // なる（右上の通知は出さないため）。苦手度0の問題は通しても0のままなので、そこへ
   // 「出題頻度が下がりました」と書くと起きていないことを言うことになる（2026-08-21）。
   //
-  // **両方の分岐を通す。** わざと5回失敗して苦手度を1点より上へ上げてから2回通すと、
-  // 1回目は 5-4=1単位 で残るので「下がりました」、2回目は0になるので「安定」。
-  // 失敗1回が0.25点・正解が1点ぶん下げ、という目盛りが変わればここで気づける。
+  // **両方の分岐を通す。** わざと3回失敗させると 3×2=6単位（1.5点）まで上がり、そこから
+  // 1回通すと 6-4=2単位（0.5点）残るので「下がりました」、2回目で0になるので「安定」。
+  // 失敗1回が0.5点・正解が1点ぶん下げ、という目盛りが変わればここで落ちる
+  // （2回失敗だと1回目で0になり、片方の分岐しか通らない）。
   await open(`#review/${LESSON}/${TASK}`);
   const single = await ev(`(async () => {
     const foot = () => (document.getElementById('reviewFooter').textContent || '')
@@ -861,7 +862,7 @@ const HELPERS = `window.__t = {
     const badge = () => ((document.querySelector('#reviewWeight-${TASK}') || {}).textContent || '').trim();
     const before = { footer: foot(), badge: badge(),
                      bar: ((document.querySelector('.review-bar-progress') || {}).textContent || '').trim() };
-    for (let i = 0; i < 5; i++) {
+    for (let i = 0; i < 3; i++) {
       window.__t.type('public class Main {\\n  public static void main(String[] args) {\\n'
         + '    System.out.println("ちがう' + i + '");\\n  }\\n}');
       await window.__t.submit();
@@ -896,35 +897,33 @@ const HELPERS = `window.__t = {
     window.__t.type(${JSON.stringify(solution.code || '')});
     const first = await window.__t.submit();
     const lowered = { verdict: first.verdict, footer: foot(), badge: badge() };
-    // ここは 5-4=1単位（0.25点）。しきい値の下側（安定へ戻る境目）を見るために取っておく
-    const stableBadge = badge();
     const second = await window.__t.submit();
     const stable = { verdict: second.verdict, footer: foot(), badge: badge() };
     return { before: before, failed: failed, lowered: lowered, stable: stable,
-             stableBadge: stableBadge, listed: listed };
+             listed: listed };
   })()`);
   check(single.before.bar === '1問だけ復習中'
     && single.before.footer.indexOf('解き直せたら提出しましょう') >= 0,
     'セット外の1問として開き、提出前はそう案内する', single.before);
-  check(single.failed.weight === 5,
-    '失敗5回で苦手度が5単位（1.25点）まで上がる（この検査の前提）', single.failed);
+  check(single.failed.weight === 6,
+    '失敗3回で苦手度が6単位（1.5点）まで上がる（失敗1回 = 0.5点）', single.failed);
   check(single.lowered.verdict === 'ok'
     && single.lowered.footer.indexOf('出題頻度が下がりました') >= 0,
     '苦手度が残る問題では「出題頻度が下がりました」と出る', single.lowered);
-  // ── バッジのしきい値が目盛りとずれていないか（2026-08-22・利用者の指摘）──────
+  // ── 目盛りとバッジのしきい値が食い違っていないか（2026-08-22・利用者の指摘）────
   //
-  // 失敗1回=0.25点に対し、しきい値だけが「1回1点」のころの 1 / 3 / 5点 で残っていたため、
-  // **失敗3回まで「安定」**と出ていた（実際の記録では全問が「安定」だった）。
-  // いまは 0.5 / 1.5 / 3点 = 失敗 2 / 6 / 12 回。ここは**両側**を見る ―
-  // 1.25点（失敗5回）が `もう一度`、1回通して0.25点まで下がったら `安定`。
-  // 片側だけだと、しきい値をまとめて上げ下げしても気づけない。
-  check(single.listed.badge === 'もう一度',
-    '1.25点（失敗5回）の行は「もう一度」と出る（以前は「安定」だった）', single.listed.badge);
+  // 目盛りはサーバ（`REVIEW_WEIGHT_PER_FAIL` = 失敗1回0.5点）、しきい値は画面
+  // （`reviewWeightLevel` = 0.5 / 1.5 / 3点）。**別のファイルにあるので片方だけ動くと
+  // 表示がずれる。** 以前は失敗1回0.25点にしきい値1点で、失敗3回まで「安定」と出ていた
+  // （実際の記録では全問が「安定」だった）。ここは3段を順に通す ―
+  // 1.5点（失敗3回）で `🔥 苦手`、1回通して0.5点で `もう一度`、0点で `安定`。
+  check(single.listed.badge === '🔥 苦手',
+    '1.5点（失敗3回）の行は「🔥 苦手」と出る', single.listed.badge);
   check(single.listed.weakChip.indexOf('1') >= 0,
     '同じしきい値で「🔥 苦手」に数える（バッジと絞り込みが食い違わない）',
     single.listed.weakChip);
-  check(single.stableBadge === '安定',
-    '0.25点（失敗1回ぶん）まで下がれば「安定」に戻る', single.stableBadge);
+  check(single.lowered.badge === 'もう一度',
+    '1回通して0.5点まで下がると「もう一度」', single.lowered.badge);
   check(single.stable.verdict === 'ok' && single.stable.badge === '安定'
     && single.stable.footer.indexOf('しっかり身についています') >= 0,
     '苦手度0になった問題には「下がりました」と言わない', single.stable);
