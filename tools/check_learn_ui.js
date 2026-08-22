@@ -879,12 +879,29 @@ const HELPERS = `window.__t = {
       return w;
     };
     const failed = { badge: badge(), weight: await weightNow() };
+    // 一覧のバッジと「🔥 苦手」の件数は描き直すたびに作られるので、復習ホームを開いて読む
+    // （問題の見出しのバッジは失敗では描き直さないため、1.25点の見え方はここでしか見られない）
+    location.hash = '#review';
+    await window.__t.until(() => !!document.querySelector('.review-row'), 40);
+    await window.__t.sleep(300);
+    const listed = {
+      badge: ((document.querySelector('.review-row .review-weight') || {}).textContent || '').trim(),
+      weakChip: [...document.querySelectorAll('.review-filter-btn, .review-filter')]
+        .map(b => b.textContent.replace(/\s+/g, ' ').trim())
+        .find(t => t.indexOf('苦手') >= 0) || ''
+    };
+    location.hash = '#review/${LESSON}/${TASK}';
+    await window.__t.until(() => !!document.querySelector('#task-${TASK}'), 40);
+    await window.__t.sleep(300);
     window.__t.type(${JSON.stringify(solution.code || '')});
     const first = await window.__t.submit();
     const lowered = { verdict: first.verdict, footer: foot(), badge: badge() };
+    // ここは 5-4=1単位（0.25点）。しきい値の下側（安定へ戻る境目）を見るために取っておく
+    const stableBadge = badge();
     const second = await window.__t.submit();
     const stable = { verdict: second.verdict, footer: foot(), badge: badge() };
-    return { before: before, failed: failed, lowered: lowered, stable: stable };
+    return { before: before, failed: failed, lowered: lowered, stable: stable,
+             stableBadge: stableBadge, listed: listed };
   })()`);
   check(single.before.bar === '1問だけ復習中'
     && single.before.footer.indexOf('解き直せたら提出しましょう') >= 0,
@@ -894,6 +911,20 @@ const HELPERS = `window.__t = {
   check(single.lowered.verdict === 'ok'
     && single.lowered.footer.indexOf('出題頻度が下がりました') >= 0,
     '苦手度が残る問題では「出題頻度が下がりました」と出る', single.lowered);
+  // ── バッジのしきい値が目盛りとずれていないか（2026-08-22・利用者の指摘）──────
+  //
+  // 失敗1回=0.25点に対し、しきい値だけが「1回1点」のころの 1 / 3 / 5点 で残っていたため、
+  // **失敗3回まで「安定」**と出ていた（実際の記録では全問が「安定」だった）。
+  // いまは 0.5 / 1.5 / 3点 = 失敗 2 / 6 / 12 回。ここは**両側**を見る ―
+  // 1.25点（失敗5回）が `もう一度`、1回通して0.25点まで下がったら `安定`。
+  // 片側だけだと、しきい値をまとめて上げ下げしても気づけない。
+  check(single.listed.badge === 'もう一度',
+    '1.25点（失敗5回）の行は「もう一度」と出る（以前は「安定」だった）', single.listed.badge);
+  check(single.listed.weakChip.indexOf('1') >= 0,
+    '同じしきい値で「🔥 苦手」に数える（バッジと絞り込みが食い違わない）',
+    single.listed.weakChip);
+  check(single.stableBadge === '安定',
+    '0.25点（失敗1回ぶん）まで下がれば「安定」に戻る', single.stableBadge);
   check(single.stable.verdict === 'ok' && single.stable.badge === '安定'
     && single.stable.footer.indexOf('しっかり身についています') >= 0,
     '苦手度0になった問題には「下がりました」と言わない', single.stable);

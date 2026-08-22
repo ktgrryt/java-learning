@@ -1497,7 +1497,11 @@
         ' title="問題を1問クリアすると復習できます">🔁 復習する' +
         '<small>クリア後に使えます</small></button>';
     }
-    var weak = reviewCandidates().filter(function (entry) { return entry.weight > 0; }).length;
+    // 「苦手」の数え方は復習ホームの絞り込みと同じ（→ reviewMatchesFilter）。
+    // 別に書くと、ホームの「苦手 3問」を押した先が全部「安定」になる
+    var weak = reviewCandidates().filter(function (entry) {
+      return reviewMatchesFilter(entry, 'weak');
+    }).length;
     return '<button class="ghost-btn big review-cta" id="reviewBtn">🔁 復習する' +
       '<small>' + (weak ? '苦手 ' + weak + '問' : '間違えた問題はありません') + '</small></button>';
   }
@@ -1551,8 +1555,17 @@
     return list;
   }
 
+  /**
+   * 絞り込みに残すか。
+   *
+   * <b>「🔥 苦手」はバッジと同じしきい値で判定する</b>（`reviewWeightLevel` が0より上）。
+   * 以前は `weight > 0` だったので、0.25点（失敗1回）の問題が「苦手 3問」に数えられるのに
+   * 行のバッジは `安定` と出ていた ―― 押した先が全部「安定」で、何を絞り込んだのか
+   * 読めなかった（2026-08-22）。しきい値を2か所に書くとまた食い違うので、
+   * ここは段（level）で見る。
+   */
   function reviewMatchesFilter(entry, filter) {
-    if (filter === 'weak') { return entry.weight > 0; }
+    if (filter === 'weak') { return reviewWeightLevel(entry.weight) > 0; }
     if (filter === 'bookmark') { return entry.bookmarked; }
     return true;
   }
@@ -1582,20 +1595,31 @@
     return Number(weight || 0) / REVIEW_WEIGHT_SCALE;
   }
 
+  /**
+   * 苦手度の段（0〜3）。バッジの言葉と色はこの段で決まる。
+   *
+   * <b>しきい値は「失敗した回数」で読むこと</b>（失敗1回 = 0.25点）。
+   * 0.5 / 1.5 / 3点 = 失敗 2 / 6 / 12 回である。
+   *
+   * 以前は 1 / 3 / 5点（失敗 4 / 12 / 20 回）だった。**失敗3回まで「安定」と同じ表示**に
+   * なるため、実際には 63問中の全部が「安定」と出ていた（2026-08-22・利用者の指摘）。
+   * 提出＝採点で1回0.25点しか上がらないのに、しきい値だけが「1回1点」のころの
+   * 目盛りで残っていたのが原因。**目盛りを変えたらここも一緒に動かす。**
+   */
   function reviewWeightLevel(weight) {
     var points = reviewWeightPoints(weight);
-    if (points >= 5) { return 3; }
-    if (points >= 3) { return 2; }
-    if (points >= 1) { return 1; }
+    if (points >= 3) { return 3; }
+    if (points >= 1.5) { return 2; }
+    if (points >= 0.5) { return 1; }
     return 0;
   }
 
   /** 苦手度の見せ方。数字だけでは何回で危ないのか伝わらないので、短い言葉にする。 */
   function reviewWeightText(weight) {
     var points = reviewWeightPoints(weight);
-    if (points >= 5) { return '🔥 よく間違えた'; }
-    if (points >= 3) { return '🔥 苦手'; }
-    if (points >= 1) { return 'もう一度'; }
+    if (points >= 3) { return '🔥 よく間違えた'; }
+    if (points >= 1.5) { return '🔥 苦手'; }
+    if (points >= 0.5) { return 'もう一度'; }
     return '安定';
   }
 
@@ -2016,10 +2040,15 @@
     // finishReviewSession が控えを消しているので、ここは必ず null になる）。
     var resume = loadReviewRun();
     var candidates = reviewCandidates();
+    // 数え方は絞り込みそのものと同じ関数で決める（別に書くと「苦手 3問」と中身が食い違う）
     var counts = {
       all: candidates.length,
-      weak: candidates.filter(function (entry) { return entry.weight > 0; }).length,
-      bookmark: candidates.filter(function (entry) { return entry.bookmarked; }).length
+      weak: candidates.filter(function (entry) {
+        return reviewMatchesFilter(entry, 'weak');
+      }).length,
+      bookmark: candidates.filter(function (entry) {
+        return reviewMatchesFilter(entry, 'bookmark');
+      }).length
     };
     var overdue = candidates.filter(function (entry) { return entry.overdue; }).length;
     // 絞り込んだ先が空になっていたら「すべて」へ戻す（0問の画面を見せないため）
