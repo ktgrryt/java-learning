@@ -6417,6 +6417,8 @@
         dropStaleCoinLog();
         // 設定パネルに出す環境の情報。歯車を押した時点では手元にある状態にしておく
         loadEnvInfo();
+        // 歯車の印は設定を開く前に出したいので、ここで聞いておく（切っていれば何もしない）
+        loadUpdateInfo();
         // ハッシュ付きで開いたときだけそのレッスンへ。それ以外はメインメニューから始める
         applyRoute(routeFromHash());
         render();
@@ -6497,6 +6499,75 @@
       });
   }
 
+  // ── 更新の確認（設定パネルの「更新の確認」）────────────────────────
+  // このアプリが外へ出る唯一の通信。切っていれば /api/update を呼ばないので、
+  // サーバ側は呼ばれたときにしか動かない（→ UpdateCheck）ため、接続そのものが起きない。
+  // localStorage を保存先としてしか使わないのは、報酬の通知と同じ理由（→ REWARD_TOAST_KEY）。
+  var UPDATE_CHECK_KEY = 'jq-update-check';
+  var updateCheckOn = true;
+  var updateInfo = null;
+  var updatePending = false;
+  var updateError = null;
+
+  (function () {
+    var saved = null;
+    try { saved = localStorage.getItem(UPDATE_CHECK_KEY); } catch (e) { /* 使えなくても既定で動く */ }
+    updateCheckOn = saved !== '0';   // 未設定・読めない＝確認する
+  })();
+
+  function setUpdateCheckOn(on) {
+    updateCheckOn = !!on;
+    try { localStorage.setItem(UPDATE_CHECK_KEY, updateCheckOn ? '1' : '0'); }
+    catch (e) { /* 保存できなくても、このセッションのあいだは効く */ }
+    if (updateCheckOn) {
+      loadUpdateInfo();      // 入れた直後に見に行く（次に開くまで空欄で待たせない）
+    } else {
+      updateInfo = null;     // 切ったら印も消す
+      updateError = null;
+      paintUpdateBadge();
+    }
+  }
+
+  /**
+   * GitHubに公開されている版を聞く。失敗しても学習には関係ないので、設定パネルの中だけで知らせる。
+   * 何度呼んでも取りに行くのは1回きりで、失敗したあとの呼び直しもサーバ側が覚えた失敗を
+   * 返すだけなので、GitHubを叩き直すことにはならない（→ UpdateCheck の FAIL_TTL_MS）。
+   */
+  function loadUpdateInfo() {
+    if (!updateCheckOn || updateInfo || updatePending) { return; }
+    updatePending = true;
+    updateError = null;
+    api('update')
+      .then(function (data) { updateInfo = data; updateError = null; })
+      .catch(function (e) { updateError = e.message; })
+      .then(function () {
+        updatePending = false;
+        paintUpdateBadge();
+        repaintSettingsInfo();   // 開いている間に届いたら、その場に差し込む
+      });
+  }
+
+  /**
+   * 新しい版が見つかったときだけ、ヘッダの⚙に印を出す。
+   *
+   * 印はカフェの新着と同じ `.has-notification` を使い回す（同じ「何かあった」の合図を
+   * 2種類の見た目で出さない）。条件付きで出る案内カードは作らない方針なので、
+   * 気づく口はこの印と設定パネルの2つに絞る。
+   *
+   * 印だけでは何の印か分からないので、title と読み上げの名前にも書く。
+   * どちらも属性なので、版の文字列がHTMLとして解釈されることはない
+   * （サーバ側でも `1.2.3` の形だけを通してある → UpdateCheck）。
+   */
+  function paintUpdateBadge() {
+    var btn = document.getElementById('settingsBtn');
+    if (!btn) { return; }
+    var found = !!(updateInfo && updateInfo.updateAvailable && updateInfo.latest);
+    btn.classList.toggle('has-notification', found);
+    btn.title = found ? '設定（新しい版 v' + updateInfo.latest + ' が公開されています）' : '設定';
+    btn.setAttribute('aria-label',
+      found ? '設定を開く（新しい版が公開されています）' : '設定を開く');
+  }
+
   function themeChoicesHtml() {
     var pref = window.JQTheme ? window.JQTheme.get() : 'system';
     return (window.JQTheme ? window.JQTheme.CHOICES : ['system']).map(function (key) {
@@ -6511,34 +6582,67 @@
     }).join('');
   }
 
-  /** 報酬の通知の2択。行の見た目は明るさの3択と同じものを使う（.theme-opt）。 */
-  function rewardToastChoicesHtml() {
-    return [
-      { value: '1', icon: '🔔', label: '表示する' },
-      { value: '0', icon: '🔕', label: '表示しない' }
-    ].map(function (meta) {
-      var on = meta.value === (rewardToastOn ? '1' : '0');
-      return '<button class="theme-opt" type="button" role="radio"'
-        + ' data-toast-choice="' + meta.value + '"'
-        + ' aria-checked="' + (on ? 'true' : 'false') + '">'
-        + '<span class="theme-opt-icon" aria-hidden="true">' + meta.icon + '</span>'
-        + '<span class="theme-opt-label">' + esc(meta.label) + '</span>'
-        + '<span class="theme-opt-check" aria-hidden="true">✓</span>'
-        + '</button>';
-    }).join('');
+  /**
+   * オン/オフの1行（報酬の通知・更新の確認）。切るか入れるかの2つだけなので、
+   * 明るさの3択（.theme-opt）のように選択肢を縦に並べず、行そのものをボタンにして
+   * 右端にスイッチを置く。いまどちらなのかがスイッチの形だけで分かり、
+   * 区画の見出し（.settings-h）も要らなくなる。
+   */
+  function settingsSwitchHtml(key, label, on) {
+    return '<button class="settings-switch" type="button" role="switch"'
+      + ' data-toggle="' + key + '"'
+      + ' aria-checked="' + (on ? 'true' : 'false') + '">'
+      + '<span class="settings-switch-label">' + esc(label) + '</span>'
+      + '<span class="settings-switch-track" aria-hidden="true">'
+      + '<span class="settings-switch-knob"></span>'
+      + '</span>'
+      + '</button>';
   }
 
   /**
-   * 選び直したときの印。明るさと同じで、選んでもパネルは閉じない。
+   * 切り替えたときの印。明るさと同じで、押してもパネルは閉じない。
    * ここで innerHTML を作り替えないこと（押したボタンがDOMから消え、続いて document へ
-   * 上がるクリックが「外を押した」と判定されて勝手に閉じる）。
+   * 上がるクリックが「外を押した」と判定されて閉じる）。
    */
-  function repaintRewardToastChoices(pop) {
-    var opts = pop.querySelectorAll('[data-toast-choice]');
-    for (var i = 0; i < opts.length; i++) {
-      opts[i].setAttribute('aria-checked',
-        opts[i].dataset.toastChoice === (rewardToastOn ? '1' : '0') ? 'true' : 'false');
+  function repaintSettingsSwitch(pop, key, on) {
+    var el = pop.querySelector('[data-toggle="' + key + '"]');
+    if (el) { el.setAttribute('aria-checked', on ? 'true' : 'false'); }
+  }
+
+  /** 「最新版」の行。確認しない設定のときは、行そのものを出さない。 */
+  function updateRowHtml() {
+    if (!updateCheckOn) { return ''; }
+    if (updateInfo && updateInfo.checked && updateInfo.latest) {
+      return settingsRow('最新版', 'v' + updateInfo.latest);
     }
+    // 圏外・GitHub側の都合。利用者にできることは無いので、理由までは書かない
+    if (updateError || (updateInfo && !updateInfo.checked)) {
+      return settingsRow('最新版', '確認できませんでした');
+    }
+    return settingsRow('最新版', '確認中…');
+  }
+
+  /**
+   * 新しい版が出ているときだけ出す案内。**更新そのものは利用者がやる** ――
+   * アプリが取ってきたものでファイルを書き換えると、`content/` のJSONは提出コードと
+   * 一緒に実行されるので、それはそのまま遠隔からのコード実行になる。
+   */
+  function updateNoteHtml() {
+    if (!updateCheckOn || !updateInfo || !updateInfo.updateAvailable || !updateInfo.latest) {
+      return '';
+    }
+    var url = String(updateInfo.repositoryUrl || '');
+    // 出す前に自分で確かめる（サーバ側の定数だが、リンク先は素通しにしない）
+    var link = /^https:\/\/github\.com\//.test(url)
+      ? ' <a href="' + esc(url) + '" target="_blank" rel="noopener noreferrer">GitHubで見る</a>'
+      : '';
+    return '<p class="settings-note settings-note-update">'
+      + '<b>新しい版 v' + esc(updateInfo.latest) + ' が公開されています。</b>'
+      + 'ダウンロードした場所で <code>git pull</code> を実行すると更新できます'
+      + '（ZIPで入れた場合は、あらためてダウンロードしてください）。'
+      + '★や書いたコードは progress.json に入っているので、更新しても残ります。'
+      + link
+      + '</p>';
   }
 
   /**
@@ -6578,6 +6682,7 @@
       + '<h3 class="settings-h">このアプリ</h3>'
       + '<div class="settings-rows">'
       + settingsRow('バージョン', 'v' + (envInfo.appVersion || '?'))
+      + updateRowHtml()
       + '</div>'
       + '<h3 class="settings-h settings-h-next">実行環境</h3>'
       + '<div class="settings-rows">'
@@ -6605,6 +6710,9 @@
     if (info) { info.innerHTML = settingsInfoHtml(); }
     var store = document.getElementById('settingsStore');
     if (store) { store.innerHTML = settingsStoreHtml(); }
+    // 更新の案内はパネルの先頭に別の箱で置いてある（→ settingsHtml）
+    var note = document.getElementById('settingsUpdateNote');
+    if (note) { note.innerHTML = updateNoteHtml(); }
   }
 
   function settingsHtml() {
@@ -6615,6 +6723,10 @@
       + '          title="閉じる" aria-label="設定を閉じる">×</button>'
       + '</div>'
       + '<div class="settings-body">'
+      // 新しい版が出ているときだけ中身が入る。歯車の印は「設定を見て」という合図なので、
+      // 開いた人がまずその理由を読める場所に置く（下に置くと、背の低い画面では
+      // スクロールするまで見えない）。印の付いていない普段は空のまま何も出ない。
+      + '  <div id="settingsUpdateNote">' + updateNoteHtml() + '</div>'
       + '  <section class="settings-group">'
       + '    <h3 class="settings-h">画面の明るさ</h3>'
       + '    <div class="settings-choices" role="radiogroup" aria-label="画面の明るさ">'
@@ -6622,13 +6734,16 @@
       + '    </div>'
       + '  </section>'
       + '  <section class="settings-group">'
-      + '    <h3 class="settings-h">報酬の通知</h3>'
-      + '    <div class="settings-choices" role="radiogroup" aria-label="報酬の通知">'
-      + rewardToastChoicesHtml()
-      + '    </div>'
-      + '    <p class="settings-note">問題をクリアしたときに右上へ出る「+○○コイン」の通知です。'
-      + '表示しなくてもコインは入り、ヘッダのコインを押せば獲得の履歴で読み返せます'
-      + '（章クリアのお知らせは、次の章へ進む導線があるので表示しないときも出ます）。</p>'
+      + settingsSwitchHtml('toast', '報酬の通知', rewardToastOn)
+      + '    <p class="settings-note">クリアしたときに右上へ出る「+○○コイン」です。'
+      + '切ってもコインは入り、ヘッダのコインから履歴を読み返せます'
+      + '（章クリアのお知らせは切っても出ます）。</p>'
+      + '  </section>'
+      + '  <section class="settings-group">'
+      + settingsSwitchHtml('update', '更新の確認', updateCheckOn)
+      + '    <p class="settings-note">GitHubに出ている版を読み、'
+      + '新しければヘッダの⚙に印を出します。送るものはありません。'
+      + '切ればどこへも通信しません。</p>'
       + '  </section>'
       + '  <section class="settings-group" id="settingsInfo">' + settingsInfoHtml() + '</section>'
       + '  <section class="settings-group">'
@@ -6671,6 +6786,7 @@
     function open() {
       closeCoinLog();          // 同じ列から2枚が重なって出ないように
       loadEnvInfo();           // 起動時に取れていなかったときの取り直し
+      loadUpdateInfo();        // 同じく。失敗していた場合もサーバ側の控えが返るだけ
       pop.innerHTML = settingsHtml();
       pop.hidden = false;
       btn.setAttribute('aria-expanded', 'true');
@@ -6693,11 +6809,19 @@
     pop.addEventListener('click', function (e) {
       var hit = e.target.closest ? e.target.closest('[data-role="close"]') : null;
       if (hit) { close(true); return; }
-      var toastOpt = e.target.closest ? e.target.closest('[data-toast-choice]') : null;
-      // 報酬の通知も選んでも閉じない（見比べる相手は無いが、明るさと同じ手触りにする）
-      if (toastOpt) {
-        setRewardToastOn(toastOpt.dataset.toastChoice === '1');
-        repaintRewardToastChoices(pop);
+      // オン/オフのスイッチ。押しても閉じない（明るさと同じ手触り）。
+      // 明るさ（.theme-opt）とは別のクラスなので取り違えは起きないが、受け口は1つにまとめる。
+      var sw = e.target.closest ? e.target.closest('[data-toggle]') : null;
+      if (sw) {
+        var turnOn = sw.getAttribute('aria-checked') !== 'true';
+        if (sw.getAttribute('data-toggle') === 'toast') {
+          setRewardToastOn(turnOn);
+          repaintSettingsSwitch(pop, 'toast', rewardToastOn);
+        } else {
+          setUpdateCheckOn(turnOn);
+          repaintSettingsSwitch(pop, 'update', updateCheckOn);
+          repaintSettingsInfo();   // 「最新版」の行を出し入れする（スイッチは別の区画）
+        }
         return;
       }
       var opt = e.target.closest ? e.target.closest('[data-theme-choice]') : null;
@@ -6715,8 +6839,8 @@
       if (!isOpen()) { return; }
       if (e.key === 'Escape') { e.preventDefault(); close(true); return; }
       if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') { return; }
-      // 3択・2択の中にいるときだけ、矢印キーで行き来する。範囲はいま居る区画に限る
-      // （パネル全部から集めると、明るさの最後から報酬の通知へ飛び移ってしまう）。
+      // 選択肢の並び（いまは明るさの3択だけ）の中にいるときだけ、矢印キーで行き来する。
+      // 範囲はいま居る区画に限る（パネル全部から集めると、区画をまたいで飛び移る）。
       var group = document.activeElement && document.activeElement.closest
         ? document.activeElement.closest('[role="radiogroup"]') : null;
       if (!group || !pop.contains(group)) { return; }

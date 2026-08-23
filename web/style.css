@@ -201,7 +201,8 @@ button:disabled { cursor: default; opacity: 0.5; }
 .top-nav-btn:hover { color: var(--text); }
 .top-nav-btn.active { background: var(--bg-elev-2); color: var(--accent); }
 .top-nav-btn.has-notification::after,
-.cafe-workspace-tab.has-notification::after {
+.cafe-workspace-tab.has-notification::after,
+.settings-toggle.has-notification::after {
   content: '';
   position: absolute;
   top: 6px;
@@ -381,6 +382,24 @@ body.view-menu .overall { visibility: hidden; }   /* メニュー側にリング
 .settings-toggle:hover { color: var(--text); border-color: var(--text-dim); }
 .settings-toggle[aria-expanded="true"] { border-color: var(--accent); }
 
+/* 新しい版が公開されているときの印（→ web/app.js の paintUpdateBadge、
+   版の取得は src/main/java/jq/web/UpdateCheck.java）。
+   丸の見た目はカフェの新着と同じものを使い回す（同じ「何かあった」の合図を2種類作らない。
+   定義は .top-nav-btn.has-notification::after の1箇所）。ここで直すのは2つだけ ――
+
+   ①位置。34pxの枠に対して .top-nav-btn と同じ数値では⚙の字に乗るので、角の外へ出す。
+     .topbar は overflow を切っていないので、はみ出しても欠けない。
+   ②縁取りの地の色。共有の定義は --bg だが、あれは .top-nav（--bg）の上に置く前提である。
+     歯車が乗っているのは .topbar で、こちらは --bg-elev なので、そのままだと
+     丸のまわりに濃い輪が1本見える。 */
+.settings-toggle { position: relative; }
+.settings-toggle.has-notification { color: var(--text); border-color: var(--accent); }
+.settings-toggle.has-notification::after {
+  top: -3px;
+  right: -3px;
+  border-color: var(--bg-elev);
+}
+
 /* ★やコインを隠している学習ホームでは、右端に寄せる相手がいなくなる。
    （.stats の margin-left:auto が消えるため）ここで自分を右端まで押し出す。 */
 body.view-menu:not(.view-cafe) .settings-toggle { margin-left: auto; }
@@ -477,6 +496,31 @@ body.view-menu:not(.view-cafe) .settings-toggle { margin-left: auto; }
   line-height: 1.5;
 }
 
+/* 新しい版が出ているときだけ出る案内（→ web/app.js の updateNoteHtml）。
+   ここに書いてあるのは利用者がこれからやることなので、ほかの添え書きと同じ大きさのまま、
+   左に印と同じ色の帯を立てて面をわずかに敷く。字の色も --text-dim から上げる
+   （--text-dim は「読まなくてもよい説明」の色で、この段はそうではない）。 */
+.settings-note-update {
+  padding: 7px 9px;
+  border-left: 2px solid var(--fx-new);
+  border-radius: 0 6px 6px 0;
+  background: var(--bg-elev-2);
+  color: var(--text);
+}
+.settings-note-update b { color: var(--fx-new-text); }
+.settings-note-update code {
+  padding: 1px 4px;
+  border-radius: 4px;
+  background: var(--bg);
+  font-family: var(--mono);
+  font-size: 10.5px;
+}
+.settings-note-update a { color: var(--accent); }
+
+/* パネルの先頭に置くぶん（→ web/app.js の settingsHtml）。上の余白は要らず、
+   下は「画面の明るさ」の見出しと詰まらないだけ空ける。 */
+#settingsUpdateNote .settings-note-update { margin: 0 0 12px; }
+
 /* リセットは押し間違えると取り返せない。枠だけ赤くして、押すまで面は塗らない
    （設定を開くたびに赤い塊が目に入るほどの用事ではない）。 */
 .settings-reset {
@@ -514,6 +558,65 @@ body.view-menu:not(.view-cafe) .settings-toggle { margin-left: auto; }
 .theme-opt-check { flex: none; width: 12px; text-align: center; opacity: 0; }
 .theme-opt[aria-checked="true"] { color: var(--text); font-weight: 700; }
 .theme-opt[aria-checked="true"] .theme-opt-check { opacity: 1; color: var(--accent); }
+
+/* オン/オフの1行（報酬の通知・更新の確認 → web/app.js の settingsSwitchHtml）。
+   入切の2つしかないものは、選択肢を縦に2つ並べるより行1本のほうが短く読める。
+   ラベルの左端は .theme-opt の padding と同じ 5px にそろえてある（見出しは 0 だが、
+   そろえようと親へ負のmarginを掛けると .settings-body に横スクロールバーが出る）。 */
+.settings-switch {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 5px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--text);
+  font-size: 13px;          /* .theme-opt と同じ大きさ（区画をまたいで字の大きさを変えない） */
+  font-weight: 700;
+  text-align: left;
+  transition: background 0.12s;
+}
+.settings-switch:hover { background: var(--bg-elev-2); }
+.settings-switch:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.settings-switch-label { flex: 1; min-width: 0; }
+/* スイッチ本体。19px の外枠に 1px の縁 → 内側 17px、玉 13px + 上下2px。
+   横は内側 32px なので、入のときは 32 - 2 - 13 = 15px だけ動かす。 */
+.settings-switch-track {
+  position: relative;
+  flex: none;
+  width: 34px;
+  height: 19px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--bg-elev-2);
+  transition: background 0.14s, border-color 0.14s;
+}
+.settings-switch-knob {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 13px;
+  height: 13px;
+  border-radius: 50%;
+  background: var(--text-dim);
+  transition: transform 0.14s, background 0.14s;
+}
+.settings-switch[aria-checked="true"] .settings-switch-track {
+  border-color: var(--accent);
+  background: var(--accent);
+}
+.settings-switch[aria-checked="true"] .settings-switch-knob {
+  transform: translateX(15px);
+  background: var(--on-accent);
+}
+/* 切ってあるときも、玉が枠の中にあると分かる濃さを保つ */
+.settings-switch:hover .settings-switch-track { border-color: var(--text-dim); }
+
+/* スイッチの区画は見出しを持たない（ラベルが見出しの役をする）ので、
+   添え書きはスイッチのすぐ下に詰める。 */
+.settings-switch + .settings-note { margin-top: 4px; }
 
 /* ── コインの獲得履歴 ─────────────────────────────────────────────────
    報酬の通知（.toast）は数秒で消えるので、ヘッダのコインを押せば同じ内容を

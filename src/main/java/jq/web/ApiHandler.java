@@ -45,6 +45,7 @@ import java.util.function.Supplier;
  * <ul>
  *   <li>{@code GET  /api/state}    … 全カリキュラム + 進捗</li>
  *   <li>{@code GET  /api/env}      … アプリの版と、動いているJDK・OSの情報（設定パネル）</li>
+ *   <li>{@code GET  /api/update}   … GitHubに公開されている版と比べる（設定パネル。外へ通信する唯一の口）</li>
  *   <li>{@code POST /api/run}      … 1回実行するだけ（採点も保存もしない）</li>
  *   <li>{@code POST /api/submit}   … 全テストケースで採点し、通れば★を付ける</li>
  *   <li>{@code POST /api/save}     … 書きかけのコードを保存</li>
@@ -134,6 +135,14 @@ public final class ApiHandler implements HttpHandler {
             if ("GET".equals(method) && path.equals("/api/env")) {
                 // 設定パネルの「実行環境」。教材の読み直しは要らない（JVMとOSの話だけ）
                 sendJson(exchange, 200, EnvironmentInfo.of(progress));
+                return;
+            }
+            if ("GET".equals(method) && path.equals("/api/update")) {
+                // 設定パネルの「このアプリ」。ここだけが外（GitHub）へ出る。
+                // 画面側で更新の確認を切っていればこのURLは呼ばれないので、接続も起きない。
+                // /api/env に相乗りさせないのは、あちらをブラウザが起動時に1回だけ取って
+                // 覚える作りで、あとから届く確認の結果を取りこぼすため。
+                sendJson(exchange, 200, UpdateCheck.status());
                 return;
             }
             if ("GET".equals(method) && path.equals("/api/state")) {
