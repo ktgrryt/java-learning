@@ -68,6 +68,14 @@ final class CafeEconomy {
         this.saver = saver;
     }
 
+    // 31: 📣ひらめきメガホンの解放を **20問連続 → 12問連続** へ緩めた（依頼）。あわせて
+    //     クイズにも問題と同じ忘却曲線の期限を入れ、正解したクイズはしばらく復習に出さない
+    //     ようにしている（ProgressStore の quizPlans）。**出る本数が減るので条件も緩める**、
+    //     という組で1つの変更である。緩めたのは復習の道だけでなく「1度目の回答での連続」も
+    //     同じ数 ―― 片方だけ緩めるとアイテムのカードに数字が2つ並ぶ。
+    //     売上は動かない ―― tools/simulate-cafe.sh の3筋書き（plain / reviewer / unlucky）
+    //     すべてで生涯コインも投資率も**1コインも変わらなかった**。📣を買える250,000コインが
+    //     貯まるのは解放よりずっと後なので、解放が8問早まっても購入時期が動かない。
     // 30: 復習の1セットに手応えを持たせた（依頼「復習は新規の学習と同じくらい大事なので、
     //     復習にメリットが生まれるようにしてほしい」）。触ったのは3つ。
     //     (a) 期限が来た問題の報酬を **30%→50%**（REVIEW_REWARD_PERCENT）。
@@ -142,7 +150,7 @@ final class CafeEconomy {
     //     574問すべて外れても投資率45%以内になるよう、終盤改装の基準額を450億へ下げた。
     // 20: ラッキーコインを「頻繁な小当たり」から「5%の大当たり」へ変更し、価格を77,777にした。
     //     期待売上が下がるぶん、全購入時の投資率を範囲内へ戻すため終盤改装の基準額も下げた。
-    private static final int CAFE_ECONOMY_VERSION = 30;
+    private static final int CAFE_ECONOMY_VERSION = 31;
     private static final int CUP_PRICE = 500;
     private static final int MAX_CAFE_STORES = 512;
     private static final long FIRST_EXPANSION_COST = 2_500L;
@@ -203,8 +211,12 @@ final class CafeEconomy {
      *
      * <p>「1度目の回答で連続正解」と「復習で異なるクイズへ連続正解」の<b>どちらでも</b>この数。
      * 初回答は答えるたび永久に減る在庫なので、片方だけでは取り逃しが起きる。</p>
+     *
+     * <p>20から12へ緩めた（2026-08-22・利用者の指示）。クイズにも忘却曲線の期限を入れて
+     * <b>正解したクイズはしばらく出さない</b>ようにしたので、復習で出るクイズの本数が減った
+     * ―― 1セット3問だった以前と同じ20問では、期限を待つあいだ連続が伸びなくなる。</p>
      */
-    private static final int QUIZ_STREAK_ITEM_RUN = 20;
+    private static final int QUIZ_STREAK_ITEM_RUN = 12;
     /**
      * 初回・復習を問わず、問題へ正解したときにラッキーコインを引く確率（<b>千分率</b>）。
      *
@@ -739,12 +751,12 @@ final class CafeEconomy {
         cafe.put("brandMultiplierBasisPoints", brandMultiplierBasisPoints);
         cafe.put("reviewBrandBasisPoints", cafeReviewBrandBasisPoints());
         cafe.put("reviewedTasks", cafeMasteryTasks.size());
-        // 📣の進み具合。keys は「もう連続に入っているクイズ」で、復習の出題から外すのに使う
-        // （集合なので同じクイズを繰り返しても増えない ― 外さないと20問そろわない）
+        // 📣の進み具合。画面はしきい値と「いまいくつ」だけを使う（帯とアイテムのカード）。
+        // 連続に入っているクイズの鍵は渡さない ―― 復習の出題から外すのに使っていたが、
+        // クイズに期限が入ってからは不要で、渡すと「期限が来ても出ないクイズ」を作れてしまう
         cafe.put("quizStreakGoal", QUIZ_STREAK_ITEM_RUN);
         cafe.put("quizFirstStreak", cafeQuizFirstStreak);
         cafe.put("quizReviewRun", cafeQuizMasteryRun.size());
-        cafe.put("quizReviewRunKeys", new ArrayList<>(cafeQuizMasteryRun));
         cafe.put("reviewedTaskPercent", reviewedTaskPercent());
         cafe.put("equipmentDiscountPercent", equipmentDiscountPercent());
         cafe.put("storeCount", cafeStores);
@@ -1366,7 +1378,7 @@ final class CafeEconomy {
         }
         boolean changed = award("same_day_15", busiestDay >= 15);
         changed |= award("streak_7", learningRecord.longestClearStreak() >= 7);
-        // レッスン画面での答え直しは数えない（表示された正解を押すだけで20問そろう）。
+        // レッスン画面での答え直しは数えない（表示された正解を押すだけで必要な問数がそろう）。
         // 数えるのは初回答の連続と、復習として出し直したクイズの連続の2つ
         // ―― 初回答は在庫が減る一方なので、片方だけだと取り逃しが起きる。
         changed |= award("quiz_streak_20",

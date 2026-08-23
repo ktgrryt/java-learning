@@ -85,9 +85,13 @@
   /**
    * 1セットの最後に続けて出すクイズの数。
    *
-   * 📣の解放は「異なる20問へ連続正解」なので、1回で20問出すと1セットで取れてしまう。
-   * 問題より少なくしてあるのは、セット全体を短く保つほうが「もう1セット」を押しやすく、
-   * クイズは数秒で終わるぶん、1セットに詰めるより回数を重ねたほうが効くため。
+   * 📣の解放は「異なるクイズへ連続正解」なので、1回で必要な問数を出すと1セットで取れてしまう
+   * （しきい値はサーバの `quizStreakGoal`）。問題より少なくしてあるのは、セット全体を短く
+   * 保つほうが「もう1セット」を押しやすく、クイズは数秒で終わるぶん、1セットに詰めるより
+   * 回数を重ねたほうが効くため。
+   *
+   * ここに届くのは「期限が来たクイズ」だけなので、実際に出る数はこれより少ない日もある
+   * （→ {@link buildReviewQuizQueue}）。
    */
   var REVIEW_QUIZ_SESSION_SIZE = 3;
   var REVIEW_LIST_LIMIT = 50; // 一覧に並べる上限。残りは件数だけ知らせる
@@ -487,6 +491,19 @@
       passiveCashCap: 0, passiveCashRemaining: 0
     };
   }
+
+  /**
+   * そのアイテムを持っているか。`ownedItems` はIDの一覧で、未発見のアイテムは入らない。
+   *
+   * 使い道は「もう解放したのに解放条件を出し続ける」のを止めること ―― 取り終わった条件は
+   * 進み具合として意味を持たない（例: 📣 の「連続 N / 12問」→ {@link renderReviewQuiz}）。
+   */
+  function hasCafeItem(id) {
+    return (cafeState().ownedItems || []).indexOf(id) >= 0;
+  }
+
+  /** 📣ひらめきメガホン。クイズの連続正解を画面へ出すかどうかの判断に使う。 */
+  var QUIZ_STREAK_ITEM_ID = 'quiz_crown';
 
   /** 最初の出店枠（現行は★4）が解放されるまで、店舗経営は画面に出さない。 */
   function cafeNetworkUnlocked() {
@@ -1700,17 +1717,23 @@
    * <b>一度答えたクイズだけ</b>を対象にする ― まだ答えていないクイズは「1度目の回答」の
    * 在庫で、復習で先に出すとその機会を奪ってしまう（チップも📣の初回答の連続もそこにある）。
    *
-   * すでに「復習の連続正解」に入っているクイズは外す。サーバ側は重複しない集合で数えるので
-   * （覚えた1問を繰り返すだけで並ばないように）、外さないと20問そろわない。
+   * <b>期限が来たクイズだけを出す。</b>問題と同じ忘却曲線を1問ごとに持たせてあり
+   * （サーバの `quizPlans`）、正解したクイズは3日→7日→14日…と間が開く。これが無かった
+   * ころは「もう解いた」印が📣の連続正解の集合だけで、1問間違えて集合が空に戻るたび
+   * 教材の先頭のクイズから出し直していた（2026-08-22・利用者の指摘）。
+   *
+   * <b>「もう連続に入っているクイズ」は外さない（外していた）。</b>📣の連続がそろうように、
+   * 以前は連続正解の集合に入ったクイズを除いていた ―― 期限が無く、同じ並びを上から取ると
+   * 先頭のクイズばかり出て連続が伸びなかったためである。期限が入ってからは、正解したクイズは
+   * その場で先へ動くので除く必要がない。**除いたままにすると、連続を切らずに続けている人の
+   * クイズが期限を過ぎても出てこない**（集合は間違えるまで空にならない）。
    *
    * 並びは 誤答 → しおり → 残り で、それぞれ教材の順。抽選はしない（問題側の出題と同じ方針）。
    *
-   * セットを重ねているあいだは、すでに出したクイズも外す（間違えたクイズは連続の集合に
-   * 入らないので、外さないと次のセットでも同じ問いが先頭に来てしまう）。
+   * セットを重ねているあいだは、すでに出したクイズも外す（間違えたクイズは期限が翌日へ動く
+   * だけなので、外さないと次のセットでも同じ問いが先頭に来てしまう）。
    */
   function buildReviewQuizQueue() {
-    var inRun = {};
-    (cafeState().quizReviewRunKeys || []).forEach(function (key) { inRun[key] = true; });
     var served = reviewRun ? reviewRun.servedQuizKeys : {};
     var wrong = [];
     var marked = [];
@@ -1719,14 +1742,66 @@
       (lesson.quizzes || []).forEach(function (quiz, index) {
         var result = (lesson.quizResults || [])[index];
         var key = lesson.id + '#' + index;
-        if (!result || inRun[key] || served[key]) { return; }
+        if (!result || served[key]) { return; }
+        if (!quizOverdue(result)) { return; }
         var entry = { lessonId: lesson.id, index: index };
         if (!result.correct) { wrong.push(entry); }
         else if (quizBookmarked(lesson, index)) { marked.push(entry); }
         else { rest.push(entry); }
       });
     });
-    return wrong.concat(marked, rest).slice(0, REVIEW_QUIZ_SESSION_SIZE);
+    return spreadQuizLessons(wrong.concat(marked, rest));
+  }
+
+  /** そのクイズの期限が来ているか。期限を持たない古い応答は「来ている」側に置く。 */
+  function quizOverdue(result) {
+    return Number(result.reviewDueDays || 0) <= 0;
+  }
+
+  /**
+   * 1セットに同じレッスンのクイズを詰めない（他に出せるものが無ければ埋める）。
+   *
+   * 期限は日で動くので、同じ日に答えたクイズ＝同じレッスンのクイズが同じ日に並ぶ。
+   * 教材の順に上から取ると1レッスンから3問続けて出て、「同じような問題ばかり」に見える。
+   * 1周目で1レッスン1問ずつ拾い、足りなければ2周目で残りから埋める。
+   */
+  function spreadQuizLessons(entries) {
+    var picked = [];
+    var usedLessons = {};
+    var leftovers = [];
+    entries.forEach(function (entry) {
+      if (picked.length >= REVIEW_QUIZ_SESSION_SIZE) { return; }
+      if (usedLessons[entry.lessonId]) { leftovers.push(entry); return; }
+      usedLessons[entry.lessonId] = true;
+      picked.push(entry);
+    });
+    return picked.concat(leftovers).slice(0, REVIEW_QUIZ_SESSION_SIZE);
+  }
+
+  /**
+   * 期限が来ているクイズが無い日に、次に出る日を知らせるための日数。
+   *
+   * 答えたクイズが1問も無ければ null（案内そのものを出さない）。
+   */
+  function nextQuizDueDays() {
+    var best = null;
+    allLessons().forEach(function (lesson) {
+      (lesson.quizzes || []).forEach(function (quiz, index) {
+        var result = (lesson.quizResults || [])[index];
+        if (!result) { return; }
+        var days = Number(result.reviewDueDays || 0);
+        if (best === null || days < best) { best = days; }
+      });
+    });
+    return best;
+  }
+
+  /** 「次のクイズは…」のひとこと。期限切れが無い日にだけ使う。 */
+  function nextQuizDueText() {
+    var days = nextQuizDueDays();
+    if (days === null) { return ''; }
+    if (days <= 1) { return '次のクイズは明日から出ます'; }
+    return '次のクイズは あと' + days + '日で出ます';
   }
 
   function setReviewFilter(filter) {
@@ -2071,8 +2146,9 @@
     if (!counts.all) {
       // クイズのしおりは★0でも付けられるので、解き直せる問題が無い日でもここに出す。
       // 答えたクイズがあるなら、それだけを解き直せるようにもする ―― 📣の解放は
-      // 「復習で異なる20問に連続正解」でも進むので、問題の復習が無い日に道を塞がない
+      // 「復習で異なるクイズへ連続正解」でも進むので、問題の復習が無い日に道を塞がない
       var quizOnly = buildReviewQuizQueue().length;
+      var quizWait = quizOnly ? '' : nextQuizDueText();
       main.innerHTML =
         '<div class="menu review-page">' + head +
         // クイズだけの復習もここへ戻ってくるので、成績はこの分岐でも出す。
@@ -2094,7 +2170,16 @@
             + '（チップは出ません）。終わったら続けられます。</p></div>' +
             '    <button class="primary-btn" id="reviewQuizOnlyBtn">▶ クイズを復習する</button>' +
             '  </section>'
-          : '') +
+          // 答えたクイズはあるが、どれも期限前という日。押せないボタンは置かず、
+          // いつ出るのかだけ書く（→ 取り返しのつかない要素を作らない方針）
+          : quizWait
+            ? '  <section class="menu-section review-empty">' +
+              '    <span class="review-empty-icon">🧠</span>' +
+              '    <div><strong>確認クイズも今日は出番がありません</strong>' +
+              '    <p>' + esc(quizWait) + '。正解したクイズは間を空けて出し直します。</p>'
+              + '</div>' +
+              '  </section>'
+            : '') +
              quizBookmarkSectionHtml() +
         '</div>';
       document.getElementById('backToLearningBtn').addEventListener('click', goHome);
@@ -2296,12 +2381,23 @@
    */
   function reviewQuizNoteHtml() {
     var quizzes = buildReviewQuizQueue().length;
-    if (!quizzes) { return ''; }
+    // 期限が来たクイズが無い日は、その日は出ないことと次に出る日を書く（黙って消すと
+    // 「クイズが出なくなった」と読めてしまう）
+    if (!quizzes) {
+      var wait = nextQuizDueText();
+      return wait
+        ? '      <p class="hero-sub review-quiz-note">🧠 続けて出すクイズは今日はありません（'
+          + esc(wait) + '）</p>'
+        : '';
+    }
+    var head = '      <p class="hero-sub review-quiz-note">🧠 セットの問題のあとに、そろそろ確認したい'
+      + '確認クイズを' + quizzes + '問続けて出します（答えと解説は隠して出し直します）';
+    // 📣を持っている人へ解放条件を出し続けない（取り終わった条件は進み具合ではない）
+    if (hasCafeItem(QUIZ_STREAK_ITEM_ID)) { return head + '</p>'; }
     var run = Number(cafeState().quizReviewRun || 0);
-    var goal = Number(cafeState().quizStreakGoal || 20);
-    return '      <p class="hero-sub review-quiz-note">🧠 セットの問題のあとに、答えた確認クイズを'
-      + quizzes + '問続けて出します（答えと解説は隠して出し直します）· '
-      + '異なる' + goal + '問に連続正解すると 📣 が解放 · いまの連続 ' + run + '問</p>';
+    var goal = Number(cafeState().quizStreakGoal || 12);
+    return head + ' · 異なる' + goal + '問に連続正解すると 📣 が解放 · いまの連続 '
+      + run + '問</p>';
   }
 
   /**
@@ -2315,13 +2411,12 @@
   function reviewSummaryHtml() {
     if (!reviewSummary) { return ''; }
     var perfect = reviewSummary.total > 0 && reviewSummary.cleared === reviewSummary.total;
-    var quiz = '';
-    if (reviewSummary.quizTotal) {
-      var run = Number(cafeState().quizReviewRun || 0);
-      var goal = Number(cafeState().quizStreakGoal || 20);
-      quiz = 'クイズは' + reviewSummary.quizTotal + '問のうち '
-        + reviewSummary.quizCorrect + '問に正解（連続 ' + run + ' / ' + goal + '問）。';
-    }
+    // 📣の「連続 N / 12問」はここへ出さない。数字だけでは何の連続なのか読めず、
+    // 解放条件はセットに入る前の案内とクイズの段（どちらも説明付き）にある
+    var quiz = reviewSummary.quizTotal
+      ? 'クイズは' + reviewSummary.quizTotal + '問のうち '
+        + reviewSummary.quizCorrect + '問に正解。'
+      : '';
     var cash = Number(reviewSummary.cash || 0);
     var runCash = Number(reviewSummary.runCash || 0);
     // 期限ぶん＋早めのぶんの合計。1日の本数を使い切ったあとのセットは0になるので、
@@ -2704,8 +2799,11 @@
     }
     var chapter = chapterOf(entry.lessonId);
     var main = document.getElementById('content');
+    // 📣を持っている人には連続を出さない（解放条件は取り終わっていて、数字が進み具合を
+    // 表さなくなる）。残るのは「払わない・書き換えない」の一行だけになる
+    var showStreak = !hasCafeItem(QUIZ_STREAK_ITEM_ID);
     var run = Number(cafeState().quizReviewRun || 0);
-    var goal = Number(cafeState().quizStreakGoal || 20);
+    var goal = Number(cafeState().quizStreakGoal || 12);
 
     main.innerHTML =
       '<article class="lesson-view review-view review-quiz-view">' +
@@ -2728,11 +2826,15 @@
       '    <div class="card card-quiz">' +
       '      <div class="quiz-head">' +
       '        <h2 class="card-h"><span class="card-h-icon">🧠</span>確認クイズの復習</h2>' +
-      '        <span class="quiz-score">連続 ' + run + ' / ' + goal + '問</span>' +
+             (showStreak
+               ? '        <span class="quiz-score">連続 ' + run + ' / ' + goal + '問</span>'
+               : '') +
       '      </div>' +
       '      <p class="quiz-note">チップは出ません。★と正解数も動きません。'
-        + '異なる' + goal + '問へ連続で正解すると 📣 ひらめきメガホン が解放されます'
-        + '（間違えると連続は0に戻ります）。</p>' +
+        + (showStreak
+          ? '異なる' + goal + '問へ連続で正解すると 📣 ひらめきメガホン が解放されます'
+            + '（間違えると連続は0に戻ります）。'
+          : '') + '</p>' +
              reviewQuizItemHtml(lesson, quiz, entry.index, answered) +
       '    </div>' +
       '  </section>' +
@@ -2802,9 +2904,13 @@
           choice: choice, correct: res.correct,
           answer: res.answer, explanation: res.explanation
         });
-        toast(res.correct
-          ? '🧠 正解！　連続 ' + Number(cafeState().quizReviewRun || 0) + '問'
-          : '🧠 不正解　連続は0に戻りました');
+        // 通知が足しているのは連続の数だけなので、📣を持っている人には出さない
+        // （正誤と解説はクイズの札にそのまま出ている）
+        if (!hasCafeItem(QUIZ_STREAK_ITEM_ID)) {
+          toast(res.correct
+            ? '🧠 正解！　連続 ' + Number(cafeState().quizReviewRun || 0) + '問'
+            : '🧠 不正解　連続は0に戻りました');
+        }
       })
       .catch(toastError);
   }
@@ -2835,12 +2941,26 @@
         '<b>' + (remaining > 0 ? 'あと' + (remaining + 1) + '問' : 'これが最後の1問') + '</b></div>';
       return;
     }
+    var entry = reviewSession.quizQueue[reviewSession.quizIndex];
+    var easeKey = entry ? 'quiz:' + entry.lessonId + '#' + entry.index : '';
+    // 間違えた回には出さない（理解したと言える回ではない）
+    var ease = answered.correct && entry ? reviewEaseButtonHtml(easeKey) : '';
     host.innerHTML =
       '<div class="lesson-next-copy"><small>' + (answered.correct ? '正解' : '不正解') + '</small>' +
       '<b>' + (remaining > 0 ? 'あと' + remaining + '問' : 'これが最後の1問') + '</b></div>' +
-      '<button class="primary-btn lesson-next-btn" id="reviewFooterBtn">' +
-      (remaining > 0 ? '次のクイズへ →' : 'セットの結果へ →') + '</button>';
+      lessonNextActionsHtml(ease,
+        '<button class="primary-btn lesson-next-btn" id="reviewFooterBtn">' +
+        (remaining > 0 ? '次のクイズへ →' : 'セットの結果へ →') + '</button>');
     document.getElementById('reviewFooterBtn').addEventListener('click', advanceReviewQuiz);
+    var easeBtn = document.getElementById('reviewEaseBtn');
+    if (easeBtn) {
+      easeBtn.addEventListener('click', function () {
+        toggleReviewEase({
+          key: easeKey, lessonId: entry.lessonId, quizIndex: entry.index,
+          render: function () { renderReviewQuizFooter(answered); }
+        });
+      });
+    }
   }
 
   function taskIndexOf(lesson, task) {
@@ -2925,6 +3045,86 @@
       : 'お見事！ しっかり身についています';
   }
 
+  /*
+   * ------------------------------------------------- 「もう理解した」で先送りする
+   *
+   * あまりに簡単な問題が何度も出てくるのが面倒、という声から足した（2026-08-22・利用者の依頼）。
+   * 忘却曲線は通した回数で少しずつ間隔を伸ばすので、最初から書ける問題にも数回付き合うことに
+   * なる ―― その数回を1回で済ませる操作である。飛ばす先はサーバが持つ最上位（120日後）で、
+   * 日数は `/api/state` の `reviewEaseDays` から読む（画面に数字を書かない）。
+   *
+   * <b>押した直後だけ戻せる。</b>控えはサーバのメモリに1つだけあり、次の問題へ進むと
+   * ボタンごと消える。戻せなくなっても期限前の問題は復習ホームの一覧から選び直せるので
+   * 行き止まりにはならない（→ 取り返しのつかない要素を作らない方針）。
+   */
+
+  /**
+   * 直前に先送りした1件。`{ key, days }` か null。
+   *
+   * <b>鍵を持たせて、今出ている問題と一致したときだけ「戻す」を出す。</b>次の問題へ進んだ
+   * ときに消し忘れても、鍵が違えばボタンは押す前の形で出る（消す場所を数え漏らしても
+   * 「別の問題に『戻す』が付いている」画面にはならない）。
+   */
+  var reviewEased = null;
+
+  /** 「もう理解した」で飛ぶ先の日数。サーバが持つ間隔表の最上位。 */
+  function reviewEaseDays() {
+    var days = state && state.progress ? Number(state.progress.reviewEaseDays) : NaN;
+    return isFinite(days) && days > 0 ? days : 120;
+  }
+
+  /**
+   * 「もう理解した」のボタン1つ。押したあとは「戻す」に変わる。
+   *
+   * 見た目を ghost にしてあるのは、復習の主動線があくまで「解いて次へ」で、こちらは
+   * 寄り道の操作だからである（主ボタンと同じ強さで並べると、飛ばすほうへ誘ってしまう）。
+   */
+  function reviewEaseButtonHtml(key) {
+    var eased = reviewEased && reviewEased.key === key ? reviewEased : null;
+    return eased
+      ? '<button class="ghost-btn lesson-next-ease done" id="reviewEaseBtn"'
+        + ' title="次に出るのは' + eased.days + '日後です。押すと元の期限へ戻します">'
+        + '✅ ' + eased.days + '日後まで出しません（戻す）</button>'
+      : '<button class="ghost-btn lesson-next-ease" id="reviewEaseBtn"'
+        + ' title="復習の間隔をいちばん先まで飛ばします（あとで一覧から選べば解き直せます）">'
+        + '🎓 もう理解した（' + reviewEaseDays() + '日後まで出しません）</button>';
+  }
+
+  /** ボタンの並び。次へ進む主ボタンと、寄り道の「もう理解した」をひとまとめにする。 */
+  function lessonNextActionsHtml(easeHtml, nextHtml) {
+    return '<span class="lesson-next-actions">' + easeHtml + nextHtml + '</span>';
+  }
+
+  /**
+   * 「もう理解した」を押した（または「戻す」を押した）。
+   *
+   * 期限はサーバが決めるので、返ってきた日数をそのままボタンへ出す。断られたとき
+   * （未クリア・控えが無い）はボタンの形を戻して理由を出す ―― 黙って何も起きないのが最悪。
+   */
+  function toggleReviewEase(target) {
+    var undo = !!(reviewEased && reviewEased.key === target.key);
+    var body = { lessonId: target.lessonId, undo: undo };
+    if (target.quizIndex >= 0) { body.quizIndex = target.quizIndex; } else { body.taskId = target.taskId; }
+    var btn = document.getElementById('reviewEaseBtn');
+    if (btn) { btn.disabled = true; }
+    api('review/ease', body)
+      .then(function (res) {
+        applyDelta(res.delta);
+        if (res.eased) {
+          reviewEased = { key: target.key, days: Number(res.reviewDueDays || reviewEaseDays()) };
+        } else if (res.undone) {
+          reviewEased = null;
+        } else {
+          reviewEased = null;
+          toast(undo
+            ? '元の期限へ戻せませんでした（次の問題へ進んだあとは戻せません）'
+            : 'この問題はまだ復習の対象ではありません');
+        }
+        target.render();
+      })
+      .catch(function (err) { reviewEased = null; target.render(); toastError(err); });
+  }
+
   /**
    * 問題の下に置く、次へ進む導線。
    *
@@ -2934,12 +3134,28 @@
     var host = document.getElementById('reviewFooter');
     if (!host) { return; }
 
+    // 「もう理解した」は<b>通ったときだけ</b>出す。解く前から出すと、解かずに埋められる
+    var easeKey = 'task:' + currentId + '#' + reviewTaskId;
+    var ease = justCleared ? reviewEaseButtonHtml(easeKey) : '';
+    var bindEase = function () {
+      var btn = document.getElementById('reviewEaseBtn');
+      if (!btn) { return; }
+      btn.addEventListener('click', function () {
+        toggleReviewEase({
+          key: easeKey, lessonId: currentId, taskId: reviewTaskId, quizIndex: -1,
+          render: function () { renderReviewFooter(justCleared); }
+        });
+      });
+    };
+
     if (!reviewSession) {
       host.innerHTML =
         '<div class="lesson-next-copy"><small>' + (justCleared ? '復習クリア' : '復習中') + '</small>' +
         '<b>' + (justCleared ? reviewClearedLead() : '解き直せたら提出しましょう') + '</b></div>' +
-        '<button class="primary-btn lesson-next-btn" id="reviewFooterBtn">復習メニューへ →</button>';
+        lessonNextActionsHtml(ease,
+          '<button class="primary-btn lesson-next-btn" id="reviewFooterBtn">復習メニューへ →</button>');
       document.getElementById('reviewFooterBtn').addEventListener('click', endReviewSession);
+      bindEase();
       return;
     }
 
@@ -2955,8 +3171,10 @@
     host.innerHTML =
       '<div class="lesson-next-copy"><small>' + (justCleared ? '復習クリア' : '復習中') + '</small>' +
       '<b>' + lead + '</b></div>' +
-      '<button class="primary-btn lesson-next-btn" id="reviewFooterBtn">' + label + '</button>';
+      lessonNextActionsHtml(ease,
+        '<button class="primary-btn lesson-next-btn" id="reviewFooterBtn">' + label + '</button>');
     document.getElementById('reviewFooterBtn').addEventListener('click', advanceReviewSession);
+    bindEase();
   }
 
   /**

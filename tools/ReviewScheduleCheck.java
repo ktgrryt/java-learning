@@ -175,6 +175,117 @@ public final class ReviewScheduleCheck {
             ProgressStore migrated = new ProgressStore(dir.resolve("e.json"));
             eq("旧ファイルの3点は12単位へ換算", migrated.reviewWeight("w#1"), 12);
 
+            // ── 「もう理解した」で間隔をいちばん先まで飛ばす（2026-08-22）──────────
+            //
+            // 依頼「あまりにも簡単な問題が何度も出てくると面倒。正解したあと『もう理解したので
+            // しばらく出さない』ボタンが欲しい」。動かすのは**次に出す日だけ**で、★・コイン・
+            // 苦手度・一発正解の連続は触らない（触ると押すだけで得をする操作になる）。
+            System.out.println("\n[もう理解した（先送り）]");
+            ProgressStore e = new ProgressStore(dir.resolve("j.json"));
+            ok("クリアしていない問題は飛ばせない", e.easeTaskReview("m#1") == null);
+            e.recordAttempt("m#1");
+            e.recordAttempt("m#1");
+            e.markCleared("m#1");
+            eq("いまの期限は翌日", e.reviewDue("m#1").daysUntilDue(), 1);
+            int weightBefore = e.reviewWeight("m#1");
+            eq("最上位まで飛ぶ", e.easeTaskReview("m#1").daysUntilDue(), 120);
+            eq("レベルも最上位", e.reviewDue("m#1").level(), 6);
+            eq("苦手度は動かない", e.reviewWeight("m#1"), weightBefore);
+            // 予定が無かった問題を飛ばしたので、戻すと「まだ復習していない」状態へ帰る
+            eq("押した直後は戻せる", e.undoEaseTaskReview("m#1").daysUntilDue(), 1);
+            ok("2回目は戻せない（控えは1つだけ）", e.undoEaseTaskReview("m#1") == null);
+
+            // すでに復習した問題では、戻すと元のレベルと日付に帰る
+            e.recordMasterySubmission("m#1", true, REVIEW);
+            eq("1回復習して3日後", e.reviewDue("m#1").daysUntilDue(), 3);
+            eq("そこから飛ばすと120日後", e.easeTaskReview("m#1").daysUntilDue(), 120);
+            eq("戻すと3日後へ帰る", e.undoEaseTaskReview("m#1").daysUntilDue(), 3);
+            eq("一発正解の連続も元のまま", e.reviewDue("m#1").cleanRun(), 1);
+
+            // 別の問題の「戻す」は受け付けない（鍵が違えば控えは使えない）
+            e.markCleared("m#2");
+            e.easeTaskReview("m#1");
+            ok("別の問題では戻せない", e.undoEaseTaskReview("m#2") == null);
+            eq("飛ばした側はそのまま", e.reviewDue("m#1").daysUntilDue(), 120);
+
+            // クイズも同じ形。答えていないクイズは飛ばせない
+            ok("答えていないクイズは飛ばせない",
+                    e.easeQuizReview("m-1", 0, true) == null);
+            e.recordQuiz("m-1", 0, 0, true, ZERO);
+            ok("答えたクイズは期限切れから始まる", e.quizReviewDue("m-1", 0, true).overdue());
+            eq("クイズも最上位まで飛ぶ",
+                    e.easeQuizReview("m-1", 0, true).daysUntilDue(), 120);
+            ok("戻すと期限切れへ帰る",
+                    e.undoEaseQuizReview("m-1", 0, true).overdue());
+            // 控えは問題とクイズで1つを共有する（最後に押した1件だけ戻せる）
+            e.easeTaskReview("m#1");
+            e.easeQuizReview("m-1", 0, true);
+            ok("あとから押したクイズは戻せる",
+                    e.undoEaseQuizReview("m-1", 0, true) != null);
+            ok("先に押した問題はもう戻せない", e.undoEaseTaskReview("m#1") == null);
+
+            // 飛ばした期限は保存される（読み直しても120日後のまま）
+            e.easeTaskReview("m#2");
+            e.flushNow();
+            ProgressStore easedReloaded = new ProgressStore(dir.resolve("j.json"));
+            eq("再読込でも飛ばした期限が残る",
+                    easedReloaded.reviewDue("m#2").daysUntilDue(), 120);
+            ok("再読込のあとは戻せない（控えは保存しない）",
+                    easedReloaded.undoEaseTaskReview("m#2") == null);
+
+            // ── 確認クイズの期限（2026-08-22）─────────────────────────────────
+            //
+            // クイズにも問題と同じ忘却曲線を持たせた。これが無かったころ「もう復習した」ことを
+            // 覚えているのは📣の連続正解の集合だけで、1問間違えて集合が空に戻るたび、教材の
+            // 先頭のクイズから出し直していた（利用者の指摘「同じような問題ばかり出ている」）。
+            //
+            // 第4引数は「いま記録に残っている回答が正解か」。復習は quizChoices を書き換えない
+            // ので、復習の正誤とは別の値である。
+            System.out.println("\n[確認クイズの期限]");
+            ProgressStore qz = new ProgressStore(dir.resolve("q.json"));
+            ok("まだ復習していないクイズは期限切れ扱い", qz.quizReviewDue("1-3", 0, true).overdue());
+            eq("期限切れの日数は0（今日が期限）", qz.quizReviewDue("1-3", 0, true).daysUntilDue(), 0);
+
+            // 1度目に正解しているクイズは1段上から始まるので、正解し直すと7日後
+            qz.recordQuizReview("1-3", 0, true, true);
+            eq("正解で1段進む", qz.quizReviewDue("1-3", 0, true).level(), 2);
+            eq("次は7日後", qz.quizReviewDue("1-3", 0, true).daysUntilDue(), 7);
+            ok("期限切れではなくなる", !qz.quizReviewDue("1-3", 0, true).overdue());
+            qz.recordQuizReview("1-3", 0, true, true);
+            eq("続けて正解すると14日後", qz.quizReviewDue("1-3", 0, true).daysUntilDue(), 14);
+
+            // 1度目に間違えたまま残っているクイズは0から（正解し直しても3日後に戻ってくる）
+            qz.recordQuizReview("1-3", 1, true, false);
+            eq("誤答のままのクイズは3日後", qz.quizReviewDue("1-3", 1, false).daysUntilDue(), 3);
+
+            // 間違えたら1段戻す。日付は今日へ動かすので、同じ日には出ない
+            qz.recordQuizReview("1-3", 0, false, true);
+            eq("不正解で1段戻る", qz.quizReviewDue("1-3", 0, true).level(), 2);
+            eq("戻っても翌日以降（同じ日には出し直さない）",
+                    qz.quizReviewDue("1-3", 0, true).daysUntilDue(), 7);
+            for (int i = 0; i < 10; i++) { qz.recordQuizReview("1-3", 2, true, true); }
+            eq("最上位で止まる", qz.quizReviewDue("1-3", 2, true).level(), 6);
+            eq("間隔は120日", qz.quizReviewDue("1-3", 2, true).daysUntilDue(), 120);
+
+            // 期限は「最後に復習した日 + 間隔」で引き直すので、保存して読み直しても続く
+            qz.flushNow();
+            ProgressStore qzReloaded = new ProgressStore(dir.resolve("q.json"));
+            eq("再読込でもクイズのレベルが残る",
+                    qzReloaded.quizReviewDue("1-3", 2, true).level(), 6);
+            eq("再読込でも期限が残る",
+                    qzReloaded.quizReviewDue("1-3", 2, true).daysUntilDue(), 120);
+            // 30日前に復習した記録にすると、間隔7日のクイズは23日ぶん過ぎている
+            String qzJson = Files.readString(dir.resolve("q.json"))
+                    .replace("\"at\":\"" + jq.progress.LearningDay.today() + "\"",
+                            "\"at\":\"" + jq.progress.LearningDay.today().minusDays(30) + "\"");
+            Files.writeString(dir.resolve("q.json"), qzJson);
+            ProgressStore qzOld = new ProgressStore(dir.resolve("q.json"));
+            ok("時間が経てば期限切れに戻る", qzOld.quizReviewDue("1-3", 0, true).overdue());
+            eq("23日ぶん過ぎている", qzOld.quizReviewDue("1-3", 0, true).daysUntilDue(), -23);
+            qzOld.resetAll();
+            ok("進捗リセットで期限も消える（また期限切れ扱い）",
+                    qzOld.quizReviewDue("1-3", 0, true).overdue());
+
             // ── ブックマーク（問題のブックマークとクイズのしおりは別物）──────────
             //
             // 鍵の形が同じ（"5-2#1"）なので、同じ集合で持つと「問題1」と「クイズ2問目」が
@@ -203,11 +314,11 @@ public final class ReviewScheduleCheck {
             ok("進捗リセットでクイズのしおりも消える", !marks.isQuizBookmarked("5-2", 1));
 
             System.out.println(
-                    "\nREVIEW SCHEDULE OK: 期限（できている問題の飛び級を含む）・苦手度の目盛り・ブックマークを確認しました");
+                    "\nREVIEW SCHEDULE OK: 期限（できている問題の飛び級を含む）・「もう理解した」の先送りと取り消し・確認クイズの期限・苦手度の目盛り・ブックマークを確認しました");
         } finally {
             for (String n : new String[] {
                     "progress.json", "b.json", "c.json", "d.json", "e.json", "f.json",
-                    "g.json", "h.json", "i.json"}) {
+                    "g.json", "h.json", "i.json", "j.json", "q.json"}) {
                 Files.deleteIfExists(dir.resolve(n));
             }
             Files.deleteIfExists(dir);

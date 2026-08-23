@@ -1,7 +1,7 @@
 /*
  * 学習画面をブラウザで実際に操作して確かめる。check-learn-ui.sh から呼ばれる。
  *
- * 引数: <アプリのポート> <ChromeのCDPポート>
+ * 引数: <アプリのポート> <ChromeのCDPポート> [📣所持の進捗で立てた2台目のポート]
  *
  * 見るのは「1問を解き切るまでの経路」全体である。
  *   誤答 → コンパイルエラー → ヒント → 模範解答 → 正解（★・コイン・通知）
@@ -27,6 +27,11 @@
  */
 const PORT = process.argv[2];
 const CDP = process.argv[3];
+/**
+ * 📣ひらめきメガホンを所持している進捗で立てた2台目のポート（check-learn-ui.sh が渡す）。
+ * 無ければその節を省く（この検査を手で走らせたときのため）。
+ */
+const OWNED_PORT = process.argv[4];
 const GREEN = '\x1b[32m', RED = '\x1b[31m', RESET = '\x1b[0m';
 
 /** 検査対象の問題。`1-1` は最初のレッスン（Hello, Java!）。 */
@@ -173,10 +178,10 @@ const HELPERS = `window.__t = {
   };
 
   /** 画面を開き直す。about:blank を挟まないと同じURLでは読み直されない。 */
-  const open = async hash => {
+  const open = async (hash, port = PORT) => {
     await send('Page.navigate', { url: 'about:blank' });
     await sleep(300);
-    await send('Page.navigate', { url: `http://localhost:${PORT}/${hash}` });
+    await send('Page.navigate', { url: `http://localhost:${port}/${hash}` });
     await sleep(2000);
     await ev(HELPERS);
   };
@@ -928,6 +933,50 @@ const HELPERS = `window.__t = {
     && single.stable.footer.indexOf('しっかり身についています') >= 0,
     '苦手度0になった問題には「下がりました」と言わない', single.stable);
 
+  // ── 問題の「🎓 もう理解した」（2026-08-22・依頼）────────────────────────
+  //
+  // 「あまりにも簡単な問題が何度も出てくると面倒」への手当て。**通ったときだけ**出る
+  // （解く前から出すと、解かずに埋められる）。押すと期限が最上位（120日後）へ飛び、
+  // 押した直後だけ「戻す」で元の期限へ帰せる。動くのは期限だけで、苦手度は触らない。
+  const easeTask = await ev(`(async () => {
+    const btn = () => document.getElementById('reviewEaseBtn');
+    const state = async () => {
+      const s = await (await fetch('/api/state')).json();
+      let t = null;
+      s.chapters.forEach(ch => ch.lessons.forEach(l => l.id === '${LESSON}'
+        ? (l.tasks || []).forEach(x => { if (x.id === '${TASK}') { t = x; } }) : null));
+      return { due: t.reviewDueDays, weight: t.reviewWeight, level: t.reviewLevel };
+    };
+    const passed = { label: (btn() || {}).textContent || '', ...(await state()) };
+    if (!btn()) { return { passed: passed }; }
+    btn().click();
+    await window.__t.until(() => btn() && btn().textContent.indexOf('戻す') >= 0, 40);
+    const eased = { label: btn().textContent.replace(/\s+/g, ' ').trim(),
+                    done: btn().className.indexOf('done') >= 0, ...(await state()) };
+    btn().click();
+    await window.__t.until(() => btn() && btn().textContent.indexOf('もう理解した') >= 0, 40);
+    const undone = await state();
+    // 提出前の画面には出さない（読み直してから確かめる）
+    location.hash = '#review';
+    await window.__t.sleep(300);
+    location.hash = '#review/${LESSON}/${TASK}';
+    await window.__t.until(() => !!document.querySelector('#task-${TASK}'), 40);
+    await window.__t.sleep(300);
+    return { passed: passed, eased: eased, undone: undone, beforeSubmit: !!btn() };
+  })()`);
+  check(easeTask.passed.label.indexOf('もう理解した') >= 0
+      && easeTask.passed.label.indexOf('120日') >= 0,
+    '通ったフッタに「🎓 もう理解した（120日後まで出しません）」が出る', easeTask.passed);
+  check(!!easeTask.eased && easeTask.eased.due === 120 && easeTask.eased.done,
+    '押すと期限が120日後へ飛ぶ', easeTask.eased);
+  check(!!easeTask.eased && easeTask.eased.weight === easeTask.passed.weight,
+    '飛ばしても苦手度は動かない（動くのは次に出す日だけ）', easeTask.eased);
+  check(!!easeTask.undone && easeTask.undone.due === easeTask.passed.due
+      && easeTask.undone.level === easeTask.passed.level,
+    '「戻す」で元の期限とレベルへ帰る', easeTask.undone);
+  check(easeTask.beforeSubmit === false,
+    '提出する前は出さない（解かずに先送りできない）', easeTask);
+
   // ── クイズのしおり（付ける → 復習ホームの一覧 → そのクイズへ戻る）──────
   //
   // クイズは復習で出題しないので、この経路（印を付けて、一覧から見に戻る）は
@@ -1049,9 +1098,11 @@ const HELPERS = `window.__t = {
   check(quizPhase.shown, '問題を出し切るとクイズが続けて出る', quizPhase);
   check(!quizPhase.feedback && !quizPhase.next,
     '答える前は正解も解説も「次へ」も出さない', quizPhase);
-  check(String(quizPhase.score).indexOf('/ 20問') >= 0
+  const quizGoal = await ev(
+    `(async () => (await (await fetch('/api/state')).json()).progress.cafe.quizStreakGoal)()`);
+  check(String(quizPhase.score).indexOf('/ ' + quizGoal + '問') >= 0
       && String(quizPhase.bar).indexOf('クイズ') >= 0,
-    '📣までの連続と、クイズの段であることが出ている', quizPhase);
+    `📣までの連続（/ ${quizGoal}問）と、クイズの段であることが出ている`, quizPhase);
 
   const graded = await ev(`(async () => {
     const before = await (await fetch('/api/state')).json();
@@ -1084,6 +1135,67 @@ const HELPERS = `window.__t = {
   check(graded.choice === answered.choice,
     '★と正解数の根拠（選んだ答え）は書き換えない', graded);
   check(graded.next.length > 0, '答えたあとに次へ進める', graded.next);
+
+  // ── クイズの段の「🎓 もう理解した」（2026-08-22）──────────────────────
+  //
+  // 正解した回にだけ出て、押すと期限が最上位（120日後）へ飛ぶ。押した直後は「戻す」で
+  // 元の期限へ帰せる。問題側の同じボタンは下の節で見る。
+  const easeQuiz = await ev(`(async () => {
+    const btn = () => document.getElementById('reviewEaseBtn');
+    const due = async () => {
+      const s = await (await fetch('/api/state')).json();
+      let d = null;
+      s.chapters.forEach(ch => ch.lessons.forEach(l => {
+        if (l.id === '${QUIZ_LESSON}') { d = ((l.quizResults || [])[0] || {}).reviewDueDays; }
+      }));
+      return d;
+    };
+    const before = { label: (btn() || {}).textContent || '', due: await due() };
+    if (!btn()) { return { before: before }; }
+    btn().click();
+    await window.__t.until(() => btn() && btn().textContent.indexOf('戻す') >= 0, 40);
+    const eased = { label: btn().textContent, due: await due(), done: btn().className };
+    btn().click();
+    await window.__t.until(() => btn() && btn().textContent.indexOf('もう理解した') >= 0, 40);
+    const undone = { label: btn().textContent, due: await due() };
+    return { before: before, eased: eased, undone: undone };
+  })()`);
+  check(easeQuiz.before.label.indexOf('もう理解した') >= 0,
+    'クイズに正解すると「🎓 もう理解した」が出る', easeQuiz.before);
+  check(!!easeQuiz.eased && easeQuiz.eased.due > easeQuiz.before.due
+      && easeQuiz.eased.due >= 120 && easeQuiz.eased.done.indexOf('done') >= 0,
+    '押すと期限がいちばん先（120日後）へ飛ぶ', easeQuiz.eased);
+  check(!!easeQuiz.undone && easeQuiz.undone.due === easeQuiz.before.due,
+    '「戻す」で元の期限へ帰る', easeQuiz.undone);
+
+  // ── 正解したクイズは、続けて出さない（2026-08-22）─────────────────────
+  //
+  // クイズにも問題と同じ忘却曲線の期限を持たせた（`quizPlans`）。これが無かったころ
+  // 「もう復習した」印は📣の連続正解の集合だけで、1問間違えて集合が空に戻るたび教材の
+  // 先頭のクイズから出し直していた（利用者の指摘「同じような問題ばかり出ている」）。
+  //
+  // ここで見るのは2つ ― たったいま正解したクイズが次のセットに並ばないこと、そして
+  // 期限前のクイズしか無い日は**クイズの段を出さずに次に出る日を案内する**こと。
+  const nextSet = await ev(`(async () => {
+    const state = await (await fetch('/api/state')).json();
+    let due = null;
+    state.chapters.forEach(ch => ch.lessons.forEach(l => {
+      (l.quizResults || []).forEach((r, i) => {
+        if (r && (due === null || r.reviewDueDays < due)) { due = r.reviewDueDays; }
+      });
+    }));
+    return { dueDays: due };
+  })()`);
+  check(nextSet.dueDays > 0,
+    '正解したクイズの期限が先へ動いている（次に出るのは数日後）', nextSet);
+
+  await open('#review');
+  const quizGone = await ev(`(async () => {
+    const note = (document.querySelector('.review-quiz-note') || {}).textContent || '';
+    return { note: note.replace(/\s+/g, ' ').trim() };
+  })()`);
+  check(quizGone.note.indexOf('今日はありません') >= 0,
+    '期限前のクイズしか無い日は、クイズの段を出さずに次に出る日を案内する', quizGone.note);
 
   // ── サイドバーの検索（打つ → 絞る → 開く → 章の一覧へ戻る）────────────
   //
@@ -1440,27 +1552,28 @@ const HELPERS = `window.__t = {
       return p && !p.hidden ? p : null;
     }, 20);
     if (!pop) { return { opened: false }; }
-    const read = () => Array.prototype.slice.call(pop.querySelectorAll('[data-toast-choice]'))
-      .map(b => b.dataset.toastChoice + ':' + b.getAttribute('aria-checked')).join(' ');
-    const before = read();
-    const off = pop.querySelector('[data-toast-choice="0"]');
-    if (off) { off.click(); }
+    const sw = pop.querySelector('[data-toggle="toast"]');
+    if (!sw) { return { opened: true, found: false }; }
+    const before = sw.getAttribute('aria-checked');
+    sw.click();
     return {
       opened: true,
-      count: pop.querySelectorAll('[data-toast-choice]').length,
+      found: true,
+      role: sw.getAttribute('role'),
       before: before,
-      after: read(),
+      after: sw.getAttribute('aria-checked'),
       stillOpen: !document.getElementById('settingsPop').hidden,
       saved: localStorage.getItem('jq-reward-toast')
     };
   })()`);
-  check(toastPref.opened && toastPref.count === 2, '設定に「報酬の通知」の2択がある', toastPref);
-  check(toastPref.before === '1:true 0:false', '既定は「表示する」', toastPref.before);
-  check(toastPref.after === '1:false 0:true' && toastPref.saved === '0',
-    '「表示しない」を選ぶと印が移り、保存される', toastPref);
-  check(toastPref.stillOpen, '選んでもパネルは閉じない（明るさと同じ）', toastPref.stillOpen);
+  check(toastPref.opened && toastPref.found && toastPref.role === 'switch',
+    '設定に「報酬の通知」のスイッチがある', toastPref);
+  check(toastPref.before === 'true', '既定は表示する（スイッチが入っている）', toastPref.before);
+  check(toastPref.after === 'false' && toastPref.saved === '0',
+    '押すと切れて、保存される', toastPref);
+  check(toastPref.stillOpen, '押してもパネルは閉じない（明るさと同じ）', toastPref.stillOpen);
 
-  // 矢印キーの行き来は区画の中だけ（明るさの最後から報酬の通知へ飛び移らない）
+  // 矢印キーの行き来は区画の中だけ（明るさの最後から下の区画へ飛び移らない）
   const arrows = await ev(`(() => {
     const pop = document.getElementById('settingsPop');
     const themeOpts = pop.querySelectorAll('[data-theme-choice]');
@@ -1468,8 +1581,8 @@ const HELPERS = `window.__t = {
     last.focus();
     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
     const at = document.activeElement;
-    return { movedTo: at ? (at.dataset.themeChoice || at.dataset.toastChoice || '') : '',
-             kind: at && at.dataset.themeChoice ? 'theme' : 'toast' };
+    return { movedTo: at ? (at.dataset.themeChoice || at.dataset.toggle || '') : '',
+             kind: at && at.dataset.themeChoice ? 'theme' : 'other' };
   })()`);
   check(arrows.kind === 'theme', '矢印キーは選んでいる区画の中だけを回る', arrows);
 
@@ -1519,14 +1632,15 @@ const HELPERS = `window.__t = {
       return p && !p.hidden ? p : null;
     }, 20);
     if (!pop) { return { opened: false }; }
-    const kept = pop.querySelector('[data-toast-choice="0"]').getAttribute('aria-checked');
-    pop.querySelector('[data-toast-choice="1"]').click();
-    const on = pop.querySelector('[data-toast-choice="1"]').getAttribute('aria-checked');
+    const sw = pop.querySelector('[data-toggle="toast"]');
+    const kept = sw.getAttribute('aria-checked');
+    sw.click();
+    const on = sw.getAttribute('aria-checked');
     document.body.click();
     return { opened: true, kept: kept, on: on, saved: localStorage.getItem('jq-reward-toast') };
   })()`);
-  check(back.kept === 'true', '読み直しても「表示しない」が残っている', back);
-  check(back.on === 'true' && back.saved === '1', '「表示する」へ戻せる', back);
+  check(back.kept === 'false', '読み直しても切ったままになっている', back);
+  check(back.on === 'true' && back.saved === '1', 'もう一度押すと表示する側へ戻せる', back);
 
   // ── 1つ前の問題へ戻る（2026-08-22・利用者の要望）───────────────────────────
   //
@@ -1570,6 +1684,70 @@ const HELPERS = `window.__t = {
   check(!!stepBack.third && stepBack.third.forward.indexOf('次の問題へ') >= 0,
     '戻ったあとも前へ進める（行き止まりにならない）', stepBack.third);
 
+  // ── 📣を所持している人には、取り終わった解放条件を出さない（2026-08-22）──────
+  //
+  // 「連続 N / 12問」は📣ひらめきメガホンまでの進み具合なので、手に入れたあとは何の
+  // 進み具合でもなくなる。所持を後から与える経路はアプリに無いので、最初から持っている
+  // 進捗で立てた2台目（check-learn-ui.sh の OWNED_PORT）を見る。
+  if (OWNED_PORT) {
+    await open('#review', OWNED_PORT);
+    const owned = await ev(`(async () => {
+      const state = await (await fetch('/api/state')).json();
+      const note = () => ((document.querySelector('.review-quiz-note') || {}).textContent || '')
+        .replace(/\s+/g, ' ').trim();
+      const before = note();
+      // 問題を飛ばしてクイズの段まで進む（前の節と同じ運び方）
+      const start = document.getElementById('reviewStartBtn');
+      if (start) {
+        start.click();
+        await window.__t.until(() => location.hash.indexOf('#review/') === 0, 40);
+        await window.__t.sleep(600);
+        for (let i = 0; i < 12 && !document.querySelector('.review-quiz-view'); i++) {
+          const skip = document.getElementById('reviewSkipBtn');
+          if (!skip) { break; }
+          skip.click();
+          await window.__t.sleep(600);
+        }
+      }
+      const view = document.querySelector('.review-quiz-view');
+      const toastEl = document.getElementById('toast');
+      let toastShown = null;
+      if (view) {
+        const choice = view.querySelector('.quiz-choice');
+        if (choice) {
+          choice.click();
+          await window.__t.until(() => document.querySelector('.quiz-feedback'), 40);
+          await window.__t.sleep(400);
+          toastShown = !!(toastEl && toastEl.classList.contains('show'));
+        }
+      }
+      return {
+        owns: (state.progress.cafe.ownedItems || []).indexOf('quiz_crown') >= 0,
+        homeNote: before,
+        shown: !!view,
+        score: view ? !!view.querySelector('.quiz-score') : null,
+        quizNote: view ? (view.querySelector('.quiz-note') || {}).textContent || '' : '',
+        answered: !!document.querySelector('.quiz-feedback'),
+        toastShown: toastShown
+      };
+    })()`);
+    check(owned.owns && owned.shown,
+      '📣を所持した進捗でクイズの復習に入れた（この検査の前提）', owned);
+    // 案内そのものが出ていないと、下の「消えている」は空振りになる（1度そうなった）
+    check(owned.homeNote.indexOf('続けて出します') >= 0,
+      '復習ホームにクイズの案内が出ている（この検査の前提）', owned.homeNote);
+    check(owned.homeNote.indexOf('📣') < 0 && owned.homeNote.indexOf('連続') < 0,
+      '復習ホームの案内から解放条件が消えている', owned.homeNote);
+    check(owned.score === false, 'クイズの段に「連続 N / 12問」を出さない', owned);
+    check(owned.quizNote.indexOf('📣') < 0 && owned.quizNote.indexOf('解放') < 0,
+      '「解放されます」の一文も出さない（払わない・書き換えないは残る）', owned.quizNote);
+    check(owned.quizNote.indexOf('チップは出ません') >= 0,
+      '残る一文は「チップは出ません。★と正解数も動きません。」', owned.quizNote);
+    check(owned.answered && owned.toastShown === false,
+      '答えたあとの通知（連続の数だけを足すもの）も出さない', owned);
+    await open(`#${LESSON}`);
+  }
+
   const errors = await ev(`window.__jqErrors || []`);
   check(errors.length === 0, '画面のJavaScriptが例外を出していない', errors);
 
@@ -1583,7 +1761,8 @@ const HELPERS = `window.__t = {
     + `（レッスンと復習の両方）・復習の出題・`
     + `途中で抜けたセットの「続きから」・1つ前の問題へ戻る・復習の最後に続くクイズ・`
     + `クイズのしおり・サイドバーの検索・試しに実行と入力欄・`
-    + `報酬の通知の表示/非表示を確認しました${RESET}`);
+    + `報酬の通知の表示/非表示・「もう理解した」の先送りと取り消し・`
+    + `📣を所持したあとの表示を確認しました${RESET}`);
 })().catch(e => {
   console.error(`${RED}検査を実行できませんでした: ${e.message}${RESET}`);
   process.exit(1);

@@ -100,6 +100,9 @@ public final class ProgressStore {
      */
     private static final int[] REVIEW_INTERVAL_DAYS = {1, 3, 7, 14, 30, 60, 120};
 
+    /** いちばん間隔の空いた段。「もう理解した」（{@link #easeTaskReview}）が飛ばす先。 */
+    private static final int MAX_REVIEW_LEVEL = REVIEW_INTERVAL_DAYS.length - 1;
+
     /**
      * 何回続けて「一発正解」したら間隔を飛ばすか（2026-08-19・利用者の指示で2連続）。
      *
@@ -206,8 +209,9 @@ public final class ProgressStore {
      * 問題キー（{@code 5-2#1} = 問題1）と同じ形なので、同じ集合へ入れると
      * 「問題1」と「クイズ2問目」が同一視される。</p>
      *
-     * <p>こちらは復習の出題には一切関わらない（クイズは解き直す提出物を持たないので、
-     * 期限も苦手度も持たない）。押すとそのクイズまで戻れる、しおりだけの役目。</p>
+     * <p>こちらは復習の出題順に少しだけ関わる（同じ期限のクイズを先に出す）。苦手度は
+     * 持たない ― クイズは4択で、何回目で通ったかを測れないため。押すとそのクイズまで
+     * 戻れる、しおりの役目が主である。</p>
      */
     private final Set<String> quizBookmarks = new LinkedHashSet<>();
     /**
@@ -216,6 +220,29 @@ public final class ProgressStore {
      * 載っていない問題は「初クリアの翌日が期限」として扱う（{@link #reviewDue(String)}）。
      */
     private final Map<String, ReviewPlan> reviewPlans = new LinkedHashMap<>();
+    /**
+     * クイズキー（{@link #quizKey}） -> 復習の予定。問題と同じ忘却曲線で次に出す日を決める。
+     *
+     * <p>載っていないクイズは<b>今日が期限</b>として扱う（{@link #quizReviewDue}）。
+     * クイズを答えた日は記録していないので、初回の起点はここしかない ― 先送りにすると、
+     * この仕組みを入れた日から数日はクイズが1問も出ない画面になる。</p>
+     *
+     * <p>これが無かったころ、復習で「もう解いた」ことを覚えているのは📣の連続正解の集合
+     * だけだった。1問間違えると集合が空に戻るので、そのたびに教材の先頭のクイズから
+     * 出し直していた（2026-08-22・利用者の指摘）。</p>
+     */
+    private final Map<String, QuizPlan> quizPlans = new LinkedHashMap<>();
+    /**
+     * 「もう理解した」で間隔を飛ばす<b>直前</b>の予定。押した直後の「戻す」だけに使う。
+     *
+     * <p><b>保存しない・1つしか持たない。</b>戻せるのは押したその画面にいるあいだだけで
+     * （次の問題へ進むとボタンごと消える）、それ以上さかのぼれる必要がない。ここを増やすと
+     * 「いつまで戻せるのか」が画面から読めなくなる。</p>
+     *
+     * <p>予定が無かった問題を飛ばしたときは {@code plan} が null で入る（戻すときは
+     * 予定そのものを消す ―― 「まだ復習していない」状態へ帰す）。</p>
+     */
+    private EasedBefore easedBefore = null;
 
     /**
      * Java Café の経済。売上・設備・アイテム・自動営業・店舗網・終盤投資の状態と規則。
@@ -381,6 +408,31 @@ public final class ProgressStore {
      *                 間隔を飛ばす。失敗すると0へ戻る
      */
     public record ReviewPlan(int level, String lastAt, String lastFailAt, int cleanRun) {
+    }
+
+    /**
+     * 確認クイズ1問の復習予定。
+     *
+     * <p>問題の {@link ReviewPlan} より短い。クイズは数秒で終わり、選択肢を選ぶだけなので
+     * 苦手度も一発正解の連続も持たない ― 「どの間隔まで進んだか」と「最後に復習した日」で
+     * 次の期限が決まる。間隔の表は問題と同じ {@link #REVIEW_INTERVAL_DAYS} を使う。</p>
+     *
+     * @param level  {@link #REVIEW_INTERVAL_DAYS} の添字
+     * @param lastAt 最後に復習した日。ここに間隔を足したものが次の期限
+     */
+    public record QuizPlan(int level, String lastAt) {
+    }
+
+    /**
+     * 「もう理解した」を押す直前の予定（{@link #easedBefore}）。
+     *
+     * @param quiz  クイズなら true、問題なら false。鍵の形（{@code 5-2#1}）が同じなので、
+     *              どちらの予定なのかを持たないと取り違える
+     * @param key   問題キーまたはクイズキー
+     * @param task  問題の予定。予定が無かった問題なら null
+     * @param quizPlan クイズの予定。予定が無かったクイズなら null
+     */
+    private record EasedBefore(boolean quiz, String key, ReviewPlan task, QuizPlan quizPlan) {
     }
 
     /**
@@ -654,6 +706,8 @@ public final class ProgressStore {
         // 1日の区切り（時）。画面も「今日ぶん」を同じ境目で数える必要があるので、
         // 数字はここから渡す（両方に書くと片方だけ動いて食い違う → LearningDay）
         m.put("dayStartHour", LearningDay.START_HOUR);
+        // 「もう理解した」で飛ぶ先の日数。ボタンの文面に出すので、数字は画面へ持たせない
+        m.put("reviewEaseDays", REVIEW_INTERVAL_DAYS[MAX_REVIEW_LEVEL]);
         m.put("attempts", new LinkedHashMap<>(attempts));
         m.put("cafe", cafe.toClientJson(learning));
         return m;
@@ -910,21 +964,143 @@ public final class ProgressStore {
         ReviewPlan plan = reviewPlans.get(taskKey);
         int level = plan == null
                 ? initialReviewLevel(taskKey)
-                : Math.min(plan.level(), REVIEW_INTERVAL_DAYS.length - 1);
+                : plan.level();
         String from = plan == null || plan.lastAt().isEmpty()
                 ? clearedDate(taskKey)
                 : plan.lastAt();
+        return dueFrom(from, level, plan == null ? 0 : plan.cleanRun());
+    }
+
+    /**
+     * 「最後に確認した日 + 間隔」から期限を引く。問題とクイズで同じ計算を使う。
+     *
+     * <p>期限日そのものは保存しないので、{@link #REVIEW_INTERVAL_DAYS} を調整すると
+     * 過去の記録にもそのまま効く。</p>
+     */
+    private static ReviewDue dueFrom(String from, int level, int cleanRun) {
+        int safe = Math.max(0, Math.min(level, REVIEW_INTERVAL_DAYS.length - 1));
         LocalDate base;
         try {
             base = LocalDate.parse(from);
         } catch (RuntimeException e) {
             base = LearningDay.today();
         }
-        LocalDate due = base.plusDays(REVIEW_INTERVAL_DAYS[level]);
+        LocalDate due = base.plusDays(REVIEW_INTERVAL_DAYS[safe]);
         long days = ChronoUnit.DAYS.between(LearningDay.today(), due);
-        return new ReviewDue(level, due.toString(),
-                (int) Math.max(Integer.MIN_VALUE, Math.min(Integer.MAX_VALUE, days)),
-                plan == null ? 0 : plan.cleanRun());
+        return new ReviewDue(safe, due.toString(),
+                (int) Math.max(Integer.MIN_VALUE, Math.min(Integer.MAX_VALUE, days)), cleanRun);
+    }
+
+    /**
+     * そのクイズを次に確認すべき日。画面はこれを見て復習に出すクイズを選ぶ。
+     *
+     * <p><b>まだ一度も復習していないクイズは「今日が期限」で返す。</b>答えた日を記録して
+     * いないので、これしか起点が無い。</p>
+     *
+     * @param recordedCorrect いま記録に残っている回答が正解か（{@code quizChoices} の値と
+     *                        教材の正解を突き合わせた結果 ― 教材を知らないここでは判定
+     *                        できないので呼び出し側から渡す）。まだ復習していないクイズの
+     *                        最初のレベルを決めるのに使う
+     */
+    public synchronized ReviewDue quizReviewDue(String lessonId, int index,
+                                                boolean recordedCorrect) {
+        QuizPlan plan = quizPlans.get(quizKey(lessonId, index));
+        if (plan == null || plan.lastAt().isEmpty()) {
+            return new ReviewDue(initialQuizLevel(recordedCorrect),
+                    LearningDay.todayText(), 0, 0);
+        }
+        return dueFrom(plan.lastAt(), plan.level(), 0);
+    }
+
+    /**
+     * 「この問題はもう理解した」。復習の間隔を<b>いちばん先まで</b>飛ばす（120日後）。
+     *
+     * <p>あまりに簡単な問題が何度も出てくるのが面倒、という声から足した（2026-08-22・
+     * 利用者の依頼）。忘却曲線は「通した回数」で少しずつ間隔を伸ばすので、最初から書ける
+     * 問題でも数回は付き合うことになる ―― その数回を1回で済ませるための操作である。</p>
+     *
+     * <p><b>取り返しはつく。</b>押した直後は {@link #undoEaseTaskReview} で戻せるし、
+     * 期限前の問題も復習ホームの一覧から選んで解き直せる（解き直せば期限はまた動く）。
+     * 苦手度も一発正解の連続もここでは触らない ―― 動かすのは「次に出す日」だけ。</p>
+     *
+     * @return 飛ばしたあとの期限。クリアしていない問題では null（予定を持てないため）
+     */
+    public synchronized ReviewDue easeTaskReview(String taskKey) {
+        if (!cleared.containsKey(taskKey)) {
+            return null;
+        }
+        ReviewPlan current = reviewPlans.get(taskKey);
+        easedBefore = new EasedBefore(false, taskKey, current, null);
+        int cleanRun = current == null ? 0 : current.cleanRun();
+        reviewPlans.put(taskKey,
+                new ReviewPlan(MAX_REVIEW_LEVEL, LearningDay.todayText(), "", cleanRun));
+        saveSoon();
+        return reviewDue(taskKey);
+    }
+
+    /**
+     * 直前の「もう理解した」を取り消す（問題）。
+     *
+     * @return 戻したあとの期限。控えが無い・別の問題のものなら null（画面はその旨を出す）
+     */
+    public synchronized ReviewDue undoEaseTaskReview(String taskKey) {
+        if (easedBefore == null || easedBefore.quiz() || !easedBefore.key().equals(taskKey)) {
+            return null;
+        }
+        if (easedBefore.task() == null) {
+            reviewPlans.remove(taskKey);
+        } else {
+            reviewPlans.put(taskKey, easedBefore.task());
+        }
+        easedBefore = null;
+        saveSoon();
+        return reviewDue(taskKey);
+    }
+
+    /**
+     * 「このクイズはもう理解した」。問題と同じく間隔をいちばん先まで飛ばす。
+     *
+     * @param recordedCorrect いま記録に残っている回答が正解か（→ {@link #quizReviewDue}）
+     */
+    public synchronized ReviewDue easeQuizReview(String lessonId, int index,
+                                                 boolean recordedCorrect) {
+        String key = quizKey(lessonId, index);
+        if (!quizChoices.containsKey(key)) {
+            // 答えていないクイズは復習に出ないので、飛ばす意味も無い
+            return null;
+        }
+        easedBefore = new EasedBefore(true, key, null, quizPlans.get(key));
+        quizPlans.put(key, new QuizPlan(MAX_REVIEW_LEVEL, LearningDay.todayText()));
+        saveSoon();
+        return quizReviewDue(lessonId, index, recordedCorrect);
+    }
+
+    /** 直前の「もう理解した」を取り消す（クイズ）。 */
+    public synchronized ReviewDue undoEaseQuizReview(String lessonId, int index,
+                                                    boolean recordedCorrect) {
+        String key = quizKey(lessonId, index);
+        if (easedBefore == null || !easedBefore.quiz() || !easedBefore.key().equals(key)) {
+            return null;
+        }
+        if (easedBefore.quizPlan() == null) {
+            quizPlans.remove(key);
+        } else {
+            quizPlans.put(key, easedBefore.quizPlan());
+        }
+        easedBefore = null;
+        saveSoon();
+        return quizReviewDue(lessonId, index, recordedCorrect);
+    }
+
+    /**
+     * まだ一度も復習していないクイズの、最初のレベル。
+     *
+     * <p>記録に残っている回答が正解のクイズは1段上から始める（復習で正解すると、翌日でも
+     * 3日後でもなく<b>7日後</b>）。間違えたまま残っているクイズは0から ― 正解し直しても
+     * 3日後にもう一度出す。問題側の {@link #initialReviewLevel} と同じ考えである。</p>
+     */
+    private static int initialQuizLevel(boolean recordedCorrect) {
+        return recordedCorrect ? 1 : 0;
     }
 
     /**
@@ -1061,13 +1237,45 @@ public final class ProgressStore {
      * <p>通常の回答（{@link #recordQuiz}）と分けてあるのは、<b>残すものが違う</b>ため。
      * ここでは {@code quizChoices} を書き換えない ― 書き換えると、復習で間違えただけで
      * 概念レッスンの★（最後に選んだ答えで数える）を失い、正解数の表示も減る。
-     * チップも払わない（復習の原則）。動くのは「復習で連続正解したクイズ」だけで、
-     * 📣ひらめきメガホンの解放条件になる。</p>
+     * チップも払わない（復習の原則）。動くのは2つだけで、「復習で連続正解したクイズ」
+     * （📣ひらめきメガホンの解放条件）と、<b>そのクイズを次に出す日</b>である。</p>
+     *
+     * @param recordedCorrect いま記録に残っている回答が正解か（→ {@link #quizReviewDue}）
      */
-    public synchronized void recordQuizReview(String lessonId, int index, boolean correct) {
-        if (cafe.noteQuizReviewAnswered(quizKey(lessonId, index), correct)) {
+    public synchronized void recordQuizReview(String lessonId, int index, boolean correct,
+                                              boolean recordedCorrect) {
+        String key = quizKey(lessonId, index);
+        boolean changed = cafe.noteQuizReviewAnswered(key, correct);
+        changed |= updateQuizPlan(key, correct, recordedCorrect);
+        if (changed) {
             saveSoon();
         }
+    }
+
+    /**
+     * クイズの復習予定を進める。正解で間隔を1段伸ばし、不正解で1段戻す。
+     *
+     * <p>問題側（{@link #updateReviewPlan}）と違って「同じ日に失敗してから通した」印は
+     * 持たない。復習のクイズは答えた回でその段が終わるので、失敗してから通す経路が
+     * そもそも無い。</p>
+     *
+     * <p><b>不正解でも日付は今日へ動かす。</b>間違えた直後は正解と解説を読んだところなので、
+     * 同じ日にもう一度出すと「読んで押すだけ」になる（レベルは下がるので、翌日には戻ってくる）。</p>
+     *
+     * @return 記録が変わったら true（保存の予約に使う）
+     */
+    private boolean updateQuizPlan(String key, boolean correct, boolean recordedCorrect) {
+        QuizPlan current = quizPlans.get(key);
+        int level = current == null ? initialQuizLevel(recordedCorrect) : current.level();
+        int next = correct
+                ? Math.min(REVIEW_INTERVAL_DAYS.length - 1, level + 1)
+                : Math.max(0, level - 1);
+        String today = LearningDay.todayText();
+        if (current != null && current.level() == next && today.equals(current.lastAt())) {
+            return false;
+        }
+        quizPlans.put(key, new QuizPlan(next, today));
+        return true;
     }
 
     /** 進捗を全て消す。 */
@@ -1110,6 +1318,8 @@ public final class ProgressStore {
         bookmarks.clear();
         quizBookmarks.clear();
         reviewPlans.clear();
+        quizPlans.clear();
+        easedBefore = null;
         cafe.reset();
     }
 
@@ -1244,6 +1454,18 @@ public final class ProgressStore {
                         Math.min(MAX_CLEAN_RUN, MiniJson.intOf(plan, "clean", 0)));
                 reviewPlans.put(migrateKey(id),
                         new ReviewPlan(level, lastAt, lastFailAt, cleanRun));
+            });
+            // クイズの予定も最初から "レッスンID#番号" なので読み替えは要らない
+            MiniJson.obj(root, "quizPlans").forEach((id, v) -> {
+                Map<String, Object> plan = MiniJson.asObj(v);
+                int level = Math.max(0, Math.min(REVIEW_INTERVAL_DAYS.length - 1,
+                        MiniJson.intOf(plan, "level", 0)));
+                String lastAt = MiniJson.str(plan, "at", "");
+                if (!isDate(lastAt)) {
+                    // 日付が壊れている行は「今日が期限」に落ちる（→ quizReviewDue）
+                    lastAt = "";
+                }
+                quizPlans.put(id, new QuizPlan(level, lastAt));
             });
             for (Object o : MiniJson.list(root, "bookmarks")) {
                 if (o instanceof String s) {
@@ -1431,6 +1653,14 @@ public final class ProgressStore {
             plans.put(key, pm);
         });
         m.put("reviewPlans", plans);
+        Map<String, Object> quizPlansJson = new LinkedHashMap<>();
+        quizPlans.forEach((key, plan) -> {
+            Map<String, Object> pm = new LinkedHashMap<>();
+            pm.put("level", plan.level());
+            pm.put("at", plan.lastAt());
+            quizPlansJson.put(key, pm);
+        });
+        m.put("quizPlans", quizPlansJson);
         m.put("bookmarks", new ArrayList<>(bookmarks));
         m.put("quizBookmarks", new ArrayList<>(quizBookmarks));
         m.put("layerCompletions", new LinkedHashMap<>(layerCompletions));
@@ -1451,7 +1681,8 @@ public final class ProgressStore {
                 || !reviewWeight.isEmpty()
                 || !bookmarks.isEmpty()
                 || !quizBookmarks.isEmpty()
-                || !reviewPlans.isEmpty();
+                || !reviewPlans.isEmpty()
+                || !quizPlans.isEmpty();
     }
 
     private static boolean isDate(String s) {

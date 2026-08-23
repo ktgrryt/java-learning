@@ -26,8 +26,15 @@
   --text-dim:      #9aa2af;
   --text-faint:    #6b7280;
 
-  --accent:        #e8a33d;   /* コーヒー / Javaのカップ色 */
+  --accent:        #e8a33d;   /* コーヒー / Javaのカップ色。線・棒・文字色に使う */
   --accent-dim:    #a9762a;
+  /* アクセントで塗った面のうち、上に文字が乗るもの（主ボタン・設定のスイッチ・開いている
+     レッスン・クリア済みの札）。**線や棒には使わない。**
+     暗い配色では accent と同じ値でよい ―― 焦げ茶の文字に対して 8.6:1 出ている。
+     明るい配色の accent は文字として読める濃さ（4.5:1）まで暗くしてあるので、
+     そのまま面に使うと焦げ茶の文字と 4.9:1 しか離れず、黒に近い字が沈んで見える
+     （2026-08-23・利用者の指摘「茶色が濃くて黒いテキストと合わせると見づらい」）。 */
+  --accent-surface: #e8a33d;
   --ok:            #55c57a;
   --ok-bg:         #16281d;
   --ng:            #ef6b6b;
@@ -35,10 +42,9 @@
   --info:          #63a4ff;
   --lock:          #4b5261;
 
-  /* アクセント色で塗った上に乗る文字（主ボタン・現在のレッスン・クリア済みの札）。
-     明暗どちらのアクセント（#e8a33d / #b5761a）に対してもこの焦げ茶が一番読める。
-     白のほうが明るくて映えそうに見えるが、ライトのアクセントは白との差が
-     3.8:1 しかなく本文の基準（4.5:1）に届かない。焦げ茶なら両方で 4.9:1 以上出る。 */
+  /* アクセントで塗った面（--accent-surface）に乗る文字。明暗どちらの面
+     （#e8a33d / #cb8a20）に対してもこの焦げ茶が一番読める ―― 8.6:1 と 6.4:1。
+     白のほうが明るくて映えそうに見えるが、白は 2.2:1 と 2.9:1 しか出ない。 */
   --on-accent:     #1a1205;
 
   /* カフェの飾りの色。設備の系統（チップ=紫 / 連続日数=朱）と、
@@ -100,9 +106,17 @@
   --text-dim:    #5c636e;
   --text-faint:  #8b929c;
 
-  --accent:      #b5761a;
-  --accent-dim:  #8a5a13;
-  --ok:          #1f8a4c;
+  /* 明るい配色の accent は<b>文字色として</b>成り立つ濃さにする。#b5761a は白地で 3.8:1、
+     カードの地（#f0efec）では 3.28:1 しかなく、本文の基準 4.5:1 を下回っていた
+     （2026-08-23）。#8f5b13 なら 白 5.7:1 / ページ 5.2:1 / カード 5.0:1 出る。
+     塗り面は --accent-surface が別に持つ（暗い面に黒い字を乗せないため）。 */
+  --accent:      #8f5b13;
+  --accent-dim:  #6f4710;
+  --accent-surface: #cb8a20;
+  /* 白地で 4.38:1・薄緑の地（--ok-bg）で 3.97:1 しか出ていなかったので少し濃くした
+     （2026-08-23）。「✅ 120日後まで出しません」のように --ok を字の色として
+     --ok-bg の上に置く場所があるため、両方で 4.5:1 を超える濃さにしてある。 */
+  --ok:          #1b7d45;
   --ok-bg:       #eaf7ee;
   --ng:          #c0392b;
   --ng-bg:       #fdecea;
@@ -258,7 +272,7 @@ body.view-cafe .stat:not(.stat-cafe) { display: none; }
   padding: 9px 20px;
   border: none;
   border-radius: var(--radius);
-  background: var(--accent);
+  background: var(--accent-surface);
   color: var(--on-accent);
   font-weight: 700;
   transition: filter 0.15s, transform 0.08s;
@@ -604,8 +618,8 @@ body.view-menu:not(.view-cafe) .settings-toggle { margin-left: auto; }
   transition: transform 0.14s, background 0.14s;
 }
 .settings-switch[aria-checked="true"] .settings-switch-track {
-  border-color: var(--accent);
-  background: var(--accent);
+  border-color: var(--accent-surface);
+  background: var(--accent-surface);
 }
 .settings-switch[aria-checked="true"] .settings-switch-knob {
   transform: translateX(15px);
@@ -976,7 +990,7 @@ body.sidebar-hidden .content { margin-left: 0; }
 .lesson-cleared .lesson-mark { color: var(--accent); }
 
 .lesson-current {
-  background: var(--accent) !important;
+  background: var(--accent-surface) !important;
   color: var(--on-accent) !important;
   font-weight: 700;
 }
@@ -2479,7 +2493,7 @@ kbd {
   border-radius: 999px;
   white-space: nowrap;
 }
-.badge-clear { background: var(--accent); color: var(--on-accent); }
+.badge-clear { background: var(--accent-surface); color: var(--on-accent); }
 .badge-hidden { background: var(--bg-elev-2); color: var(--text-dim); }
 
 /* ── カード ─────────────────────────────────────────────────────────── */
@@ -3510,6 +3524,25 @@ pre.code-plain { color: var(--text-dim); }
   font: 700 11px var(--mono);
 }
 .lesson-next-btn { flex: none; }
+/* 次へ進む主ボタンと「🎓 もう理解した」を1つの塊にする。ばらばらに折り返すと、
+   狭い画面で「もう理解した」だけが下に取り残される（復習の帯と同じ手当て）。 */
+.lesson-next-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  flex: none;
+  flex-wrap: wrap;
+}
+/* 寄り道の操作なので主ボタンより弱く見せる（ghost のまま少し詰める）。
+   押したあとは ✅ の側だけ色を持たせて、いま何が起きているかを分かるようにする。 */
+.lesson-next-ease { white-space: nowrap; }
+.lesson-next-ease.done {
+  border-color: var(--ok);
+  color: var(--ok);
+  background: var(--ok-bg);
+}
+.lesson-next-ease.done:hover:not(:disabled) { color: var(--ok); border-color: var(--ok); }
 
 /* ── ヒントと模範解答 ───────────────────────────────────────────────── */
 
@@ -4426,6 +4459,10 @@ pre.code-plain { color: var(--text-dim); }
   .cafe-buy { grid-column: 1 / -1; width: 100%; }
   .lesson-next { align-items: stretch; flex-direction: column; }
   .lesson-next-btn { width: 100%; }
+  /* 縦積みになる幅では「もう理解した」も横幅いっぱいにする（半端な幅で並ぶと、
+     どちらが主の操作なのか読めなくなる。順番は主ボタンが先） */
+  .lesson-next-actions { align-items: stretch; flex-direction: column-reverse; }
+  .lesson-next-ease { white-space: normal; }
 }
 
 /* ── 読みやすい文字寸法 ────────────────────────────────────────────────── */

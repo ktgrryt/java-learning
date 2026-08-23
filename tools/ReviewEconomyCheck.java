@@ -495,20 +495,20 @@ public final class ReviewEconomyCheck {
         long before = value(p, "cash");
         long streakBefore = value(p, "quizFirstStreak");
 
-        p.recordQuizReview("r-1", 0, true);
+        p.recordQuizReview("r-1", 0, true, true);
         checkEquals("復習で正解しても残高は動かない", value(p, "cash"), before);
         checkEquals("復習で正解しても連続（初回答ぶん）は動かない",
                 value(p, "quizFirstStreak"), streakBefore);
         checkEquals("復習の連続正解が1つ進む", value(p, "quizReviewRun"), 1);
 
-        p.recordQuizReview("r-1", 0, true);
+        p.recordQuizReview("r-1", 0, true, true);
         checkEquals("同じクイズを解き直しても増えない（覚えた1問の繰り返しを数えない）",
                 value(p, "quizReviewRun"), 1);
 
-        p.recordQuizReview("r-1", 1, true);
+        p.recordQuizReview("r-1", 1, true, false);
         checkEquals("別のクイズなら進む", value(p, "quizReviewRun"), 2);
 
-        p.recordQuizReview("r-1", 2, false);
+        p.recordQuizReview("r-1", 2, false, false);
         checkEquals("復習で間違えると0に戻る", value(p, "quizReviewRun"), 0);
         checkEquals("戻ってもチップは出ない", value(p, "cash"), before);
     }

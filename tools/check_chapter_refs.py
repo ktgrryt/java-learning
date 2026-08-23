@@ -138,6 +138,7 @@ def main():
     problems += check_lesson_translated(lesson_refs, lessons)
     problems += check_lab_lesson_refs(lab_lesson_refs, lessons)
     problems += check_preflight_position()
+    problems += check_part_counts()
 
     print(f'章参照を{len(refs) + len(lab_refs)}件'
           f'（content {len(refs)}件 / labs {len(lab_refs)}件）、'
@@ -313,6 +314,69 @@ def check_labs(lab_refs):
             'labsでは番号を使わず、編名と章タイトル（必要ならレッスン名）で'
             '参照してください'
             for ref in lab_refs]
+
+
+# 「ここまでのN編」「全N編」のように**編の数を名指しした**書き方。編を足すと黙って古くなる
+# （2026-08-23に、8編目の業務アプリ総合演習編が「ここまでの6編」と書いていた ―― 正しくは7編）。
+PART_COUNT_REFS = [
+    (re.compile(r'ここまでの(\d+)編'), 'before'),
+    (re.compile(r'全(\d+)編'), 'total'),
+]
+
+
+def check_part_counts():
+    """編の数を名指しした文が、いまの編の数と合っているか。
+
+    `ここまでのN編` はその編より前にある編の数、`全N編` は編の総数と一致させる。
+    編を足したり並べ替えたりすると数字だけが古くなり、画面（編の見出しの前提知識）に
+    そのまま出る ―― 数え直せば分かることなので、ここで見張る。
+    """
+    manifest = json.loads((CONTENT / 'manifest.json').read_text(encoding='utf-8'))
+    parts = manifest['parts']
+    total = len(parts)
+    # 章ファイル -> その編が何編目か（本文で名指ししていても拾えるように）
+    part_index_of_file = {}
+    for index, part in enumerate(parts, start=1):
+        for file_name in part['chapters']:
+            part_index_of_file[file_name] = index
+
+    problems = []
+
+    def inspect(text, where, part_index):
+        for pattern, kind in PART_COUNT_REFS:
+            for match in pattern.finditer(text):
+                written = int(match.group(1))
+                expected = total if kind == 'total' else part_index - 1
+                if written != expected:
+                    problems.append(
+                        f'{where}: 「{match.group(0)}」は数が合いません'
+                        f'（いまは{expected}編）')
+
+    for index, part in enumerate(parts, start=1):
+        for key, value in part.items():
+            if isinstance(value, str):
+                inspect(value, f'manifest.json {part["id"]}.{key}', index)
+
+    for file_name, part_index in part_index_of_file.items():
+        refs = []
+        walk_part_counts(
+            json.loads((CONTENT / file_name).read_text(encoding='utf-8')), '', refs)
+        for path, text in refs:
+            inspect(text, f'{file_name} {path}', part_index)
+
+    return problems
+
+
+def walk_part_counts(node, path, found):
+    """JSONの文字列をすべて拾う（「編」の数え方は本文のどこに書いても腐る）。"""
+    if isinstance(node, str):
+        found.append((path, node))
+    elif isinstance(node, dict):
+        for key, value in node.items():
+            walk_part_counts(value, f'{path}.{key}' if path else key, found)
+    elif isinstance(node, list):
+        for value in node:
+            walk_part_counts(value, f'{path}[]', found)
 
 
 def load_chapters():

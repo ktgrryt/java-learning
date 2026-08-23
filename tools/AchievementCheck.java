@@ -250,17 +250,18 @@ public final class AchievementCheck {
             check("解放は取り消されない: lifelong_trophy",
                     has(fresh, "lifelong_trophy"), true);
 
-            // ── 4. クイズ20問連続の初回正解 → ひらめきメガホン ───────────────
-            for (int i = 0; i < 19; i++) {
+            // ── 4. クイズ12問連続の初回正解 → ひらめきメガホン ───────────────
+            // しきい値は CafeEconomy.QUIZ_STREAK_ITEM_RUN（20問から12問へ緩めた）
+            for (int i = 0; i < 11; i++) {
                 fresh.recordQuiz("q-1", i, 0, true, ZERO);
             }
-            check("19問では出ない: quiz_crown", has(fresh, "quiz_crown"), false);
+            check("11問では出ない: quiz_crown", has(fresh, "quiz_crown"), false);
             // 答え直しは1度目の回答ではないので連続へ数えない（不正解のフィードバックは
-            // 正解の記号を出すので、数えると押すだけで20問そろってしまう）
-            fresh.recordQuiz("q-1", 18, 0, true, ZERO);
+            // 正解の記号を出すので、数えると押すだけで必要な問数がそろってしまう）
+            fresh.recordQuiz("q-1", 10, 0, true, ZERO);
             check("答え直しでは伸びない: quiz_crown", has(fresh, "quiz_crown"), false);
-            fresh.recordQuiz("q-1", 19, 0, true, ZERO);
-            check("20問連続で初回正解: quiz_crown", has(fresh, "quiz_crown"), true);
+            fresh.recordQuiz("q-1", 11, 0, true, ZERO);
+            check("12問連続で初回正解: quiz_crown", has(fresh, "quiz_crown"), true);
             fresh.recordQuiz("q-2", 0, 1, false, ZERO);
             check("間違えても残る: quiz_crown", has(fresh, "quiz_crown"), true);
             Map<String, Object> crownCard = items(fresh).stream()
@@ -272,17 +273,17 @@ public final class AchievementCheck {
 
             // ── 4.5 1度目に間違えたクイズは、正解し直しても連続へ戻らない ─────
             ProgressStore retried = new ProgressStore(dir.resolve("retry.json"));
-            for (int i = 0; i < 19; i++) {
+            for (int i = 0; i < 11; i++) {
                 retried.recordQuiz("r-1", i, 0, true, ZERO);
             }
-            retried.recordQuiz("r-1", 19, 1, false, ZERO);   // 20問目を1度目に間違える
-            retried.recordQuiz("r-1", 19, 0, true, ZERO);    // 正解を押し直す
-            check("答え直しでは20問連続にならない: quiz_crown",
+            retried.recordQuiz("r-1", 11, 1, false, ZERO);   // 12問目を1度目に間違える
+            retried.recordQuiz("r-1", 11, 0, true, ZERO);    // 正解を押し直す
+            check("答え直しでは12問連続にならない: quiz_crown",
                     has(retried, "quiz_crown"), false);
 
             // ── 4.6 初回答を使い切っても、復習で取り返せる ───────────────────
-            // 📣は「1度目の回答で20問連続」だけが条件だったため、全クイズを答え終えて
-            // 20連続が無ければ二度と取れなかった（初回答は永久に減る在庫）。
+            // 📣は「1度目の回答で連続正解」だけが条件だったため、全クイズを答え終えて
+            // その連続が無ければ二度と取れなかった（初回答は永久に減る在庫）。
             // 復習として出し直したクイズの連続正解でも解放する。
             ProgressStore recovered = new ProgressStore(dir.resolve("recover.json"));
             recovered.recordQuiz("v-1", 0, 1, false, ZERO);   // 1問目を1度目に間違える
@@ -290,7 +291,7 @@ public final class AchievementCheck {
                 recovered.recordQuiz("v-1", i, 0, true, ZERO);
             }
             check("初回答を使い切ってから始める: quiz_crown",
-                    has(recovered, "quiz_crown"), true);   // 19連続+20連続で先に解放される
+                    has(recovered, "quiz_crown"), true);   // 2問目からの連続で先に解放される
 
             // 在庫を使い切った人の状態を作り直す（1度目の回答で20連続を作らせない）
             ProgressStore exhausted = new ProgressStore(dir.resolve("exhausted.json"));
@@ -300,15 +301,17 @@ public final class AchievementCheck {
             }
             check("在庫を使い切っても1度目の連続では出ない: quiz_crown",
                     has(exhausted, "quiz_crown"), false);
-            for (int i = 0; i < 19; i++) {
-                exhausted.recordQuizReview("w-1", i, true);
+            // 4つ目の引数は「いま記録に残っている回答が正解か」（期限の最初のレベルに使う）。
+            // ここは3問ごとに1度目を間違えている筋書きなので、その形をそのまま渡す
+            for (int i = 0; i < 11; i++) {
+                exhausted.recordQuizReview("w-1", i, true, i % 3 != 0);
             }
-            check("復習19問では出ない: quiz_crown", has(exhausted, "quiz_crown"), false);
-            exhausted.recordQuizReview("w-1", 5, true);
+            check("復習11問では出ない: quiz_crown", has(exhausted, "quiz_crown"), false);
+            exhausted.recordQuizReview("w-1", 5, true, true);
             check("同じクイズの解き直しでは伸びない: quiz_crown",
                     has(exhausted, "quiz_crown"), false);
-            exhausted.recordQuizReview("w-1", 19, true);
-            check("復習で異なる20問に連続正解: quiz_crown",
+            exhausted.recordQuizReview("w-1", 11, true, true);
+            check("復習で異なる12問に連続正解: quiz_crown",
                     has(exhausted, "quiz_crown"), true);
 
             // 途中で間違えたら連続はやり直し（覚えていない問題を飛ばして取れない）
@@ -316,11 +319,11 @@ public final class AchievementCheck {
             for (int i = 0; i < 25; i++) {
                 broken.recordQuiz("y-1", i, i % 3 == 0 ? 1 : 0, i % 3 != 0, ZERO);
             }
-            for (int i = 0; i < 19; i++) {
-                broken.recordQuizReview("y-1", i, true);
+            for (int i = 0; i < 11; i++) {
+                broken.recordQuizReview("y-1", i, true, i % 3 != 0);
             }
-            broken.recordQuizReview("y-1", 19, false);
-            broken.recordQuizReview("y-1", 20, true);
+            broken.recordQuizReview("y-1", 11, false, true);
+            broken.recordQuizReview("y-1", 12, true, true);
             check("復習で間違えたら連続はやり直し: quiz_crown",
                     has(broken, "quiz_crown"), false);
 

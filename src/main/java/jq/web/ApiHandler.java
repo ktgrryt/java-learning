@@ -168,6 +168,7 @@ public final class ApiHandler implements HttpHandler {
                 case "/api/quiz" -> sendJson(exchange, 200, doQuiz(body));
                 case "/api/solution" -> sendJson(exchange, 200, doSolution(body));
                 case "/api/bookmark" -> sendJson(exchange, 200, doBookmark(body));
+                case "/api/review/ease" -> sendJson(exchange, 200, doReviewEase(body));
                 case "/api/onboarding/complete" ->
                         sendJson(exchange, 200, doOnboardingComplete());
                 // カフェの経営はまとめて CafeApi が受ける（採点の入口と混ぜない）
@@ -507,6 +508,9 @@ public final class ApiHandler implements HttpHandler {
      *
      * 答えた問題については正解の番号と解説も返す（答え合わせ済みなので隠す意味がない）。
      * 答える前に正解が漏れないよう、null のときは何も入れない。
+     *
+     * 復習の期限も答えたクイズだけに載せる。画面はこれを見て「そろそろ確認したいクイズ」
+     * だけを復習の段へ出す（問題の {@link #putReviewState} と同じ考え）。
      */
     private List<Object> quizResults(Lesson lesson) {
         List<Object> results = new ArrayList<>();
@@ -517,11 +521,16 @@ public final class ApiHandler implements HttpHandler {
                 continue;
             }
             Quiz quiz = lesson.quizzes().get(i);
+            boolean correct = choice == quiz.answer();
             Map<String, Object> r = new LinkedHashMap<>();
             r.put("choice", choice);
-            r.put("correct", choice == quiz.answer());
+            r.put("correct", correct);
             r.put("answer", quiz.answer());
             r.put("explanation", quiz.explanation());
+            ProgressStore.ReviewDue due = progress.quizReviewDue(lesson.id(), i, correct);
+            r.put("reviewLevel", due.level());
+            r.put("reviewDue", due.dueDate());
+            r.put("reviewDueDays", due.daysUntilDue());
             results.add(r);
         }
         return results;
@@ -834,7 +843,11 @@ public final class ApiHandler implements HttpHandler {
                 CafeApi.learningProgress(c, progress.clearedIds());
         ProgressStore.CafeAward cafeAward = ProgressStore.CafeAward.NONE;
         if (review) {
-            progress.recordQuizReview(lessonId, index, correct);
+            // 期限の初回のレベルは「記録に残っている回答」で決まる（→ ProgressStore#quizReviewDue）。
+            // 復習は quizChoices を書き換えないので、ここは復習の正誤とは別の値になる
+            Integer recorded = progress.quizChoice(lessonId, index);
+            progress.recordQuizReview(lessonId, index, correct,
+                    recorded != null && recorded == quiz.answer());
         } else {
             cafeAward = progress.recordQuiz(lessonId, index, choice, correct, cafeLearning);
         }
@@ -959,6 +972,55 @@ public final class ApiHandler implements HttpHandler {
         requireTask(lessonId, taskId);   // 知らないIDで progress.json を汚さない
         m.put("taskId", taskId);
         m.put("bookmarked", progress.toggleBookmark(Lesson.taskKey(lessonId, taskId)));
+        return m;
+    }
+
+    /**
+     * 「この問題（クイズ）はもう理解した」。復習の間隔をいちばん先まで飛ばす。
+     *
+     * <p>{@code undo} が真なら直前の1回を取り消す。取り消せるのは押した直後の1回だけで、
+     * 控えはサーバのメモリにしか無い（→ {@code ProgressStore#easedBefore}）ので、
+     * 別の問題へ進んだあとや再起動後は {@code undone: false} を返す。</p>
+     *
+     * <p><b>間隔しか動かさない。</b>★・コイン・苦手度・正解数はここでは触らない ―
+     * 触ると「押すだけで得をする」操作になる。</p>
+     */
+    private Object doReviewEase(Map<String, Object> body) {
+        String lessonId = requireString(body, "lessonId");
+        int quizIndex = MiniJson.intOf(body, "quizIndex", -1);
+        boolean undo = body.get("undo") == Boolean.TRUE;
+
+        Map<String, Object> m = new LinkedHashMap<>();
+        m.put("lessonId", lessonId);
+        ProgressStore.ReviewDue due;
+        if (quizIndex >= 0) {
+            requireQuiz(lessonId, quizIndex);   // 知らない番号で progress.json を汚さない
+            Quiz quiz = curriculum.get().lesson(lessonId).orElseThrow().quizzes().get(quizIndex);
+            Integer recorded = progress.quizChoice(lessonId, quizIndex);
+            boolean recordedCorrect = recorded != null && recorded == quiz.answer();
+            m.put("quizIndex", quizIndex);
+            due = undo
+                    ? progress.undoEaseQuizReview(lessonId, quizIndex, recordedCorrect)
+                    : progress.easeQuizReview(lessonId, quizIndex, recordedCorrect);
+        } else {
+            String taskId = taskId(body);
+            requireTask(lessonId, taskId);      // 知らないIDで progress.json を汚さない
+            String key = Lesson.taskKey(lessonId, taskId);
+            m.put("taskId", taskId);
+            due = undo
+                    ? progress.undoEaseTaskReview(key)
+                    : progress.easeTaskReview(key);
+        }
+        // 飛ばせなかった（未クリア・未回答）／戻せなかった（控えが無い）ときは false を返す。
+        // 画面はボタンの形を戻し、理由をひとこと出す
+        m.put("eased", !undo && due != null);
+        m.put("undone", undo && due != null);
+        if (due != null) {
+            m.put("reviewLevel", due.level());
+            m.put("reviewDue", due.dueDate());
+            m.put("reviewDueDays", due.daysUntilDue());
+        }
+        m.put("delta", delta(lessonId));
         return m;
     }
 

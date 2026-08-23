@@ -59,18 +59,25 @@ ROOT="$(pwd)"
 WORK="$(mktemp -d /tmp/jq-learn-ui.XXXXXX)"
 APP_PORT="${JQ_LEARN_PORT:-8353}"
 CDP_PORT="${JQ_LEARN_CDP_PORT:-9353}"
+# 📣ひらめきメガホンを**すでに持っている人**の画面を見るための2台目。
+# 進捗を1台で作り替えることはできない（サーバは停止時に書き戻すので、動かしながら
+# ファイルを差し替えても元へ戻る）。1台目は止めず、別のポートと別の進捗で並べて立てる。
+OWNED_PORT="$((APP_PORT + 1))"
 
 cleanup() {
   if [[ "$KEEP_OPEN" == "1" ]]; then
     echo ""
     echo "残してあります: http://localhost:${APP_PORT}/#1-1 （進捗は ${WORK}/progress.json）"
-    echo "止めるときは: kill ${APP_PID:-} ${CHROME_PID:-}"
+    echo "📣を所持している側: http://localhost:${OWNED_PORT}/#review"
+    echo "止めるときは: kill ${APP_PID:-} ${OWNED_PID:-} ${CHROME_PID:-}"
     return
   fi
   [[ -n "${APP_PID:-}" ]] && kill "$APP_PID" 2>/dev/null || true
+  [[ -n "${OWNED_PID:-}" ]] && kill "$OWNED_PID" 2>/dev/null || true
   [[ -n "${CHROME_PID:-}" ]] && kill "$CHROME_PID" 2>/dev/null || true
   # Chromeがプロファイルを掴んだまま消すと消し残るので、終わるのを待ってから片付ける
   wait "$APP_PID" 2>/dev/null || true
+  wait "$OWNED_PID" 2>/dev/null || true
   wait "$CHROME_PID" 2>/dev/null || true
   rm -rf "$WORK"
 }
@@ -131,4 +138,41 @@ if ! curl -fsS -o /dev/null "http://127.0.0.1:${CDP_PORT}/json/version" 2>/dev/n
   exit 0
 fi
 
-node tools/check_learn_ui.js "$APP_PORT" "$CDP_PORT"
+# ── 2台目（📣を所持している進捗）─────────────────────────────────────────
+#
+# 解放条件を取り終わった人に「連続 N / 12問」を出し続けないことを見る。所持を後から
+# 与える経路はアプリに無い（買うには解放と250,000コインが要る）ので、最初から持っている
+# 進捗を用意する。答えたクイズを1問だけ入れてあり、quizPlans が無いので期限切れ扱いになる。
+mkdir -p "$WORK/owned"
+ln -s "$ROOT/content" "$WORK/owned/content"
+ln -s "$ROOT/web" "$WORK/owned/web"
+ln -s "$ROOT/labs" "$WORK/owned/labs"
+# クリア済みの問題を1問入れてある（期限切れになる古い日付）。これが無いと復習ホームが
+# 「復習できる問題はまだありません」の分岐へ行き、案内（.review-quiz-note）自体が出ない
+cat > "$WORK/owned/progress.json" <<'JSON'
+{"onboardingCompleted":true,
+ "cleared":{"1-1#1":{"clearedAt":"2026-07-01","hintsUsed":0,"attempts":1}},
+ "attempts":{"1-1#1":1},"bestPassed":{"1-1#1":1},"clearDates":["2026-07-01"],
+ "quizChoices":{"1-3#0":0},
+ "cafe":{"economyVersion":2,"cash":0,"ownedItems":["quiz_crown"]}}
+JSON
+
+if curl -fsS -o /dev/null "http://localhost:${OWNED_PORT}/api/state" 2>/dev/null; then
+  echo "ポート ${OWNED_PORT} で既に何かが応答しています（📣所持の検査に使います）。" >&2
+  echo "  止めるなら: lsof -ti:${OWNED_PORT} | xargs kill" >&2
+  exit 1
+fi
+(cd "$WORK/owned" && exec "$JQ_JAVA" -Dfile.encoding=UTF-8 -cp "$ROOT/build/classes" \
+  jq.App --port "$OWNED_PORT" --exact-port > "$WORK/owned-server.log" 2>&1) &
+OWNED_PID=$!
+for _ in $(seq 1 40); do
+  curl -fsS -o /dev/null "http://localhost:${OWNED_PORT}/api/state" 2>/dev/null && break
+  sleep 0.5
+done
+if ! curl -fsS -o /dev/null "http://localhost:${OWNED_PORT}/api/state" 2>/dev/null; then
+  echo "2台目のサーバを起動できませんでした。${WORK}/owned-server.log を見てください。" >&2
+  cat "$WORK/owned-server.log" >&2
+  exit 1
+fi
+
+node tools/check_learn_ui.js "$APP_PORT" "$CDP_PORT" "$OWNED_PORT"
