@@ -68,4 +68,4 @@ GitHubの **Code → Download ZIP** からダウンロードし、展開した�
 [詳細ガイド](docs/guide.md)にまとめています。
 
 
-version 1.2.2
+version 1.3.0
