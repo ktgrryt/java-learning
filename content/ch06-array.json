@@ -493,48 +493,34 @@
           "code": "public class Main {\n    public static void main(String[] args) {\n        int[][] jagged = new int[3][];\n        jagged[0] = new int[]{1};\n        jagged[1] = new int[]{2, 3, 4};\n        jagged[2] = new int[]{5, 6};\n\n        for (int i = 0; i < jagged.length; i++) {\n            // 次の行の条件は必ず jagged[i].length にする。jagged[0].length と書くと\n            // 0行目が1個なので、どの行も先頭の1個しか出ない（落ちないので気づきにくい）\n            for (int j = 0; j < jagged[i].length; j++) {\n                System.out.print(jagged[i][j] + \" \");\n            }\n            System.out.println(\"（\" + jagged[i].length + \"個）\");\n        }\n    }\n}\n"
         }
       ],
-      "task": "入力は次の形です。\n\n- 1行目 … 行数 `r`（必ず1以上）\n- 続く `r` 行 … その行の **個数 `k`**、続けて `k` 個の整数（同じ行に半角スペース区切り）\n\n読み込んだ値を **`int[][]` に入れてから**、行ごとの合計と全体の合計を出力してください。\n\n例えば次の入力なら、\n\n```\n2\n3 1 2 3\n1 3\n```\n\n出力はこうなります。\n\n```\n行1 6\n行2 3\n合計 9\n```\n\n- 行の番号は **1から** 数えます\n- ラベルと数字の間は **半角スペース1つ** です\n- **個数が `0` の行**（数が1つもない行）も来ます。その行の合計は `0` です\n- 行ごとに個数は違います。マイナスの数も来ます",
-      "starterCode": "import java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int r = sc.nextInt();\n\n        // r 行ぶんの int[][] を作ろう（内側の配列は行ごとに作る）\n\n        // 各行の個数 k を読んで、その行の配列を作り、値を読む\n\n        // 行ごとの合計と全体の合計を出力する\n    }\n}\n",
+      "task": "次の2次元配列を作り、行ごとの合計と全体の合計を出力してください。\n\n```java\nint[][] table = {\n    {1, 2, 3},\n    {4, 5},\n    {6}\n};\n```\n\n出力は5行です。\n\n```\n行数 3\n行1 個数 3 合計 6\n行2 個数 2 合計 9\n行3 個数 1 合計 6\n全体 21\n```\n\n- 1行目は **行数**、最後の行は **全体の合計** です\n- 行の番号は **1から** 数えます\n- 各行には、その行の **個数** と、その行の **合計** を出します\n- ラベルと数字の間は **半角スペース1つ** です\n- 行数も個数も、数を直接書かずに `length` から求めてください\n- 行ごとに個数が違うので、内側の上限に `table[0].length` を使うことはできません\n\n配列の中身を変えてはいけません。",
+      "starterCode": "public class Main {\n    public static void main(String[] args) {\n        // 問題文の table を作ろう\n\n        // 行数を出力しよう\n\n        // 行ごとに「個数」と「合計」を出力しよう\n\n        // 最後に全体の合計を出力しよう\n    }\n}\n",
       "visibleCases": [
         {
-          "label": "2行（3個と1個）",
-          "stdin": "2\n3 1 2 3\n1 3",
-          "expected": "行1 6\n行2 3\n合計 9"
-        },
-        {
-          "label": "1行（4個）",
-          "stdin": "1\n4 1 1 1 1",
-          "expected": "行1 4\n合計 4"
+          "label": "出力の確認",
+          "stdin": "",
+          "expected": "行数 3\n行1 個数 3 合計 6\n行2 個数 2 合計 9\n行3 個数 1 合計 6\n全体 21"
         }
       ],
-      "hiddenCases": [
-        {
-          "label": "1行目が空（0個）",
-          "stdin": "2\n0\n2 5 5",
-          "expected": "行1 0\n行2 10\n合計 10"
-        },
-        {
-          "label": "後ろの行が長い",
-          "stdin": "2\n1 100\n3 1 2 3",
-          "expected": "行1 100\n行2 6\n合計 106"
-        },
-        {
-          "label": "マイナスばかり",
-          "stdin": "3\n1 -5\n2 -1 -2\n1 0",
-          "expected": "行1 -5\n行2 -3\n行3 0\n合計 -8"
-        },
-        {
-          "label": "1行で0個だけ",
-          "stdin": "1\n0",
-          "expected": "行1 0\n合計 0"
-        }
-      ],
+      "hiddenCases": [],
       "hints": [
-        "外側は `new int[r][]` で作り、行ごとに `table[i] = new int[k];` と作ります。",
-        "内側のループの上限は `table[i].length` です。`table[0].length` にすると、0行目より短い行で落ち、0行目より長い行は黙って読み落とします。",
-        "行の合計を出したら、それを全体の合計に足し込んでいきます。最後に `合計` の行を出力します。"
+        "行数は `table.length`、`i` 行目の個数は `table[i].length` です。**別のもの** なので、両方を使い分けます。",
+        "二重の `for` で回します。外側が行、内側が列で、内側の上限は `table[i].length` です。行が変わるたびに、その行の合計を `0` に戻します。",
+        "行の合計を出力したら、それを全体の合計に足し込みます。最後に `全体` の行を出力します。"
       ],
-      "solution": "import java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int r = sc.nextInt();\n        int[][] table = new int[r][];\n\n        for (int i = 0; i < r; i++) {\n            int k = sc.nextInt();\n            table[i] = new int[k];\n            for (int j = 0; j < k; j++) {\n                table[i][j] = sc.nextInt();\n            }\n        }\n\n        int total = 0;\n        for (int i = 0; i < table.length; i++) {\n            int rowSum = 0;\n            for (int j = 0; j < table[i].length; j++) {\n                rowSum += table[i][j];\n            }\n            System.out.println(\"行\" + (i + 1) + \" \" + rowSum);\n            total += rowSum;\n        }\n        System.out.println(\"合計 \" + total);\n    }\n}\n",
+      "sourceChecks": [
+        {
+          "pattern": "\\.length\\b",
+          "minimum": 2,
+          "message": "行数は `table.length`、行ごとの個数は `table[i].length`（拡張for なら `row.length`）から求めてください（数を直接書かないでください）。"
+        },
+        {
+          "pattern": "\\bfor\\s*\\(",
+          "minimum": 2,
+          "message": "行と列の二重の `for` で回してください（出力を直接並べないでください）。"
+        }
+      ],
+      "solution": "public class Main {\n    public static void main(String[] args) {\n        int[][] table = {\n            {1, 2, 3},\n            {4, 5},\n            {6}\n        };\n\n        System.out.println(\"行数 \" + table.length);\n\n        int total = 0;\n        for (int i = 0; i < table.length; i++) {\n            int rowSum = 0;\n            for (int j = 0; j < table[i].length; j++) {\n                rowSum += table[i][j];\n            }\n            System.out.println(\"行\" + (i + 1) + \" 個数 \" + table[i].length + \" 合計 \" + rowSum);\n            total += rowSum;\n        }\n        System.out.println(\"全体 \" + total);\n    }\n}\n",
       "extraTasks": [
         {
           "kind": "applied",
@@ -729,37 +715,55 @@
         },
         {
           "kind": "applied",
-          "task": "【実践】行数r、列数c、r×c個の整数を読み、各行の合計を1行ずつ表示してください。",
-          "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int r = sc.nextInt(), c = sc.nextInt();\n        int[][] table = new int[r][c];\n        /* 読み込みと集計 */\n    }\n}\n",
+          "task": "【実践】入力から2次元配列を組み立てます。行ごとに長さが違うので、**内側の配列は行ごとに作ります**。\n\n入力は次の形です。\n\n- 1行目 … 行数 `r`（必ず1以上）\n- 続く `r` 行 … その行の **個数 `k`**、続けて `k` 個の整数（同じ行に半角スペース区切り）\n\n読み込んだ値を **`int[][]` に入れてから**、行ごとの合計と全体の合計を出力してください。\n\n例えば次の入力なら、\n\n```\n2\n3 1 2 3\n1 3\n```\n\n出力はこうなります。\n\n```\n行1 6\n行2 3\n合計 9\n```\n\n- 行の番号は **1から** 数えます\n- ラベルと数字の間は **半角スペース1つ** です\n- **個数が `0` の行**（数が1つもない行）も来ます。その行の合計は `0` です\n- 行ごとに個数は違います。マイナスの数も来ます",
+          "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int r = sc.nextInt();\n        /* 行ごとに内側の配列を作って読み込み、行ごとの合計と全体の合計を出す */\n    }\n}\n",
           "visibleCases": [
             {
-              "label": "2行3列",
-              "stdin": "2 3 1 2 3 4 5 6",
-              "expected": "6\n15"
+              "label": "2行（3個と1個）",
+              "stdin": "2\n3 1 2 3\n1 3",
+              "expected": "行1 6\n行2 3\n合計 9"
             },
             {
-              "label": "1行",
-              "stdin": "1 4 2 4 6 8",
-              "expected": "20"
+              "label": "1行（4個）",
+              "stdin": "1\n4 1 1 1 1",
+              "expected": "行1 4\n合計 4"
             }
           ],
           "hiddenCases": [
             {
-              "label": "3行1列",
-              "stdin": "3 1 -1 0 5",
-              "expected": "-1\n0\n5"
+              "label": "1行目が空（0個）",
+              "stdin": "2\n0\n2 5 5",
+              "expected": "行1 0\n行2 10\n合計 10"
             },
             {
-              "label": "0行",
-              "stdin": "0 3",
-              "expected": ""
+              "label": "後ろの行が長い",
+              "stdin": "2\n1 100\n3 1 2 3",
+              "expected": "行1 100\n行2 6\n合計 106"
+            },
+            {
+              "label": "マイナスばかり",
+              "stdin": "3\n1 -5\n2 -1 -2\n1 0",
+              "expected": "行1 -5\n行2 -3\n行3 0\n合計 -8"
+            },
+            {
+              "label": "1行で0個だけ",
+              "stdin": "1\n0",
+              "expected": "行1 0\n合計 0"
             }
           ],
           "hints": [
-            "読み込みには行と列の二重ループを使います。",
-            "集計では各rowごとにsumを0へ戻します。"
+            "外側は `new int[r][]` で作り、行ごとに `table[i] = new int[k];` と作ります。",
+            "内側のループの上限は `table[i].length` です。`table[0].length` にすると、0行目より短い行で落ち、0行目より長い行は黙って読み落とします。",
+            "行の合計を出したら、それを全体の合計に足し込んでいきます。最後に `合計` の行を出力します。"
           ],
-          "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int r = sc.nextInt(), c = sc.nextInt();\n        int[][] table = new int[r][c];\n        for (int i = 0; i < r; i++) for (int j = 0; j < c; j++) table[i][j] = sc.nextInt();\n        for (int[] row : table) {\n            int sum = 0;\n            for (int v : row) sum += v;\n            System.out.println(sum);\n        }\n    }\n}\n"
+          "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int r = sc.nextInt();\n        int[][] table = new int[r][];\n\n        for (int i = 0; i < r; i++) {\n            int k = sc.nextInt();\n            table[i] = new int[k];\n            for (int j = 0; j < k; j++) {\n                table[i][j] = sc.nextInt();\n            }\n        }\n\n        int total = 0;\n        for (int i = 0; i < table.length; i++) {\n            int rowSum = 0;\n            for (int j = 0; j < table[i].length; j++) {\n                rowSum += table[i][j];\n            }\n            System.out.println(\"行\" + (i + 1) + \" \" + rowSum);\n            total += rowSum;\n        }\n        System.out.println(\"合計 \" + total);\n    }\n}\n",
+          "sourceChecks": [
+            {
+              "pattern": "new\\s+int\\s*\\[",
+              "minimum": 2,
+              "message": "外側の配列と、行ごとの内側の配列の両方を作ってください（`new int[r][]` を作ってから、行ごとに `table[i] = new int[k];`）。"
+            }
+          ]
         }
       ]
     }
