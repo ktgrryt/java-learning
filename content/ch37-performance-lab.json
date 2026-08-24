@@ -530,7 +530,7 @@
           "expected": "NEW RUNNABLE BLOCKED WAITING TIMED_WAITING TERMINATED"
         }
       ],
-      "task": "【基本】スレッドダンプを単純化した入力として、件数nと続くn組の `スレッド名 状態` を読みます（状態は `Thread.State` の名前）。まず状態ごとの件数を `Thread.State` の宣言順に、**0件の状態は除いて** `STATE=件数` と表示してください。次に、`BLOCKED`・`WAITING`・`TIMED_WAITING` の合計と `RUNNABLE` の件数を `waiting=合計 runnable=件数` と表示します。最後に、`BLOCKED` が1件以上なら `CHECK_LOCK_CONTENTION`、`BLOCKED` はないが待ちの合計が `RUNNABLE` より多ければ `CHECK_WAITING_CAUSE`、それ以外は `NEEDS_MORE_EVIDENCE` と表示してください。これは原因の断定ではなく、次に集める証拠の候補です。",
+      "task": "【基本】スレッドダンプを単純化した入力として、件数nと続くn組の `スレッド名 状態` を読みます（状態は `Thread.State` の名前）。\n\n次の順に表示してください。\n\n1. 状態ごとの件数を `Thread.State` の宣言順に、**0件の状態は除いて** `STATE=件数`\n2. `BLOCKED`・`WAITING`・`TIMED_WAITING` の合計と `RUNNABLE` の件数を `waiting=合計 runnable=件数`\n3. 次の表を**上から順に**当てはめた判定を1行\n\n| 判定 | 条件 |\n|---|---|\n| `CHECK_LOCK_CONTENTION` | `BLOCKED` が1件以上 |\n| `CHECK_WAITING_CAUSE` | `BLOCKED` は無く、待ちの合計が `RUNNABLE` より多い |\n| `NEEDS_MORE_EVIDENCE` | どちらでもない |\n\n3行目は原因の断定ではなく、次に集める証拠の候補です。",
       "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n        Map<Thread.State, Integer> counts = new EnumMap<>(Thread.State.class);\n        for (int i = 0; i < n; i++) {\n            String name = sc.next();\n            Thread.State state = Thread.State.valueOf(sc.next());\n            /* TODO 集計 */\n        }\n        /* TODO 宣言順に表示（0件は除く） */ /* TODO waiting と runnable、最後の判定 */\n    }\n}\n",
       "visibleCases": [
         {
@@ -584,7 +584,7 @@
             "37-o3"
           ],
           "kind": "drill",
-          "task": "【組み合わせ】GC停止のしきい値thresholdと件数n（1以上）を読み、続けて1秒ごとの記録をn件 `second latencyMs gcPauseMs` の形で読みます。\n\n1行目に、レイテンシのnearest-rank方式のp50・p95・p99を `p50=x p95=y p99=z` と表示してください（順位は `ceil(p*n/100)` の1始まり）。続けて、`gcPauseMs` が threshold 以上の秒を読んだ順に `GC second gcPauseMs` と表示します（1件も無ければ `NO_GC_SPIKE`）。次に、GC停止が起きた秒のレイテンシの最大値を `spikeMaxLatency=値`（起きていなければ0）、全体のレイテンシの最大値を `maxLatency=値` と表示します。最後に、GC停止が1件以上あり、かつ2つの最大値が一致していれば `GC_CORRELATED`、そうでなければ `NOT_CORRELATED` と表示してください。",
+          "task": "【組み合わせ】GC停止のしきい値thresholdと件数n（1以上）を読み、続けて1秒ごとの記録をn件 `second latencyMs gcPauseMs` の形で読みます。\n\n次の順に表示してください。\n\n1. レイテンシのnearest-rank方式のp50・p95・p99を `p50=x p95=y p99=z`（順位は `ceil(p*n/100)` の1始まり）\n2. `gcPauseMs` が threshold 以上の秒を、読んだ順に `GC second gcPauseMs`（1件も無ければ `NO_GC_SPIKE` の1行）\n3. GC停止が起きた秒のレイテンシの最大値を `spikeMaxLatency=値`（起きていなければ0）\n4. 全体のレイテンシの最大値を `maxLatency=値`\n5. GC停止が1件以上あり、かつ3と4の値が一致していれば `GC_CORRELATED`、そうでなければ `NOT_CORRELATED`",
           "starterCode": "import java.util.*;\n\npublic class Main {\n    static long percentile(long[] sorted, int percent) {\n        /* TODO nearest-rank */ return 0;\n    }\n\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        long threshold = sc.nextLong();\n        int n = sc.nextInt();\n        long[] latencies = new long[n];\n        long maxLatency = 0, spikeMax = 0;\n        List<String> gcLines = new ArrayList<>();\n        for (int i = 0; i < n; i++) {\n            int second = sc.nextInt();\n            long latency = sc.nextLong(), gc = sc.nextLong();\n            /* TODO 記録・最大値・GC行 */\n        }\n        /* TODO パーセンタイルの表示 */ /* TODO GC行か NO_GC_SPIKE、2つの最大値、最後の判定 */\n    }\n}\n",
           "visibleCases": [
             {
