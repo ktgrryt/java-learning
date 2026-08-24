@@ -1741,7 +1741,7 @@ const HELPERS = `window.__t = {
     check(owned.owns && owned.shown,
       '📣を所持した進捗でクイズの復習に入れた（この検査の前提）', owned);
     // 案内そのものが出ていないと、下の「消えている」は空振りになる（1度そうなった）
-    check(owned.homeNote.indexOf('続けて出します') >= 0,
+    check(owned.homeNote.indexOf('確認クイズ') >= 0,
       '復習ホームにクイズの案内が出ている（この検査の前提）', owned.homeNote);
     check(owned.homeNote.indexOf('📣') < 0 && owned.homeNote.indexOf('連続') < 0,
       '復習ホームの案内から解放条件が消えている', owned.homeNote);

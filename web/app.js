@@ -1441,7 +1441,6 @@
       '    <header class="section-heading">' +
       '      <div><span class="screen-eyebrow">CURRICULUM</span>' +
       '      <h2 class="menu-h2">章を選ぶ</h2></div>' +
-      '      <p class="menu-note">左で章を選び、右からレッスンへ進めます。</p>' +
       '    </header>' +
       '    <div class="part-tabs" id="partTabs" role="tablist" aria-label="カリキュラムの編"></div>' +
       '    <div class="chapter-browser">' +
@@ -1796,12 +1795,17 @@
     return best;
   }
 
-  /** 「次のクイズは…」のひとこと。期限切れが無い日にだけ使う。 */
+  /**
+   * 「いつ出るか」だけを返す。期限切れが無い日にだけ使う。
+   *
+   * 主語は呼ぶ側が付ける（どちらの呼び先も「確認クイズは…」と続くので、ここに
+   * 「次のクイズは」を持たせると1行のなかで2度クイズと言うことになる）。
+   */
   function nextQuizDueText() {
     var days = nextQuizDueDays();
     if (days === null) { return ''; }
-    if (days <= 1) { return '次のクイズは明日から出ます'; }
-    return '次のクイズは あと' + days + '日で出ます';
+    if (days <= 1) { return '明日から出ます'; }
+    return 'あと' + days + '日で出ます';
   }
 
   function setReviewFilter(filter) {
@@ -2166,8 +2170,7 @@
           ? '  <section class="menu-section review-empty">' +
             '    <span class="review-empty-icon">🧠</span>' +
             '    <div><strong>答えた確認クイズなら解き直せます</strong>' +
-            '    <p>1セット' + quizOnly + '問を、答えと解説を隠して出し直します'
-            + '（チップは出ません）。終わったら続けられます。</p></div>' +
+            '    <p>答えと解説を隠して1セット' + quizOnly + '問出します。</p></div>' +
             '    <button class="primary-btn" id="reviewQuizOnlyBtn">▶ クイズを復習する</button>' +
             '  </section>'
           // 答えたクイズはあるが、どれも期限前という日。押せないボタンは置かず、
@@ -2176,8 +2179,7 @@
             ? '  <section class="menu-section review-empty">' +
               '    <span class="review-empty-icon">🧠</span>' +
               '    <div><strong>確認クイズも今日は出番がありません</strong>' +
-              '    <p>' + esc(quizWait) + '。正解したクイズは間を空けて出し直します。</p>'
-              + '</div>' +
+              '    <p>確認クイズは' + esc(quizWait) + '。</p></div>' +
               '  </section>'
             : '') +
              quizBookmarkSectionHtml() +
@@ -2219,9 +2221,7 @@
       '    <div class="hero-body">' +
       '      <span class="screen-eyebrow">SPACED REVIEW</span>' +
       '      <h1 class="hero-title">解き直して定着させる</h1>' +
-      '      <p class="hero-sub">忘却曲線で「そろそろ確認したい問題」から出ます · '
-        + '正解すると間隔が伸び、⚡ 一発正解が2回続いた問題は2段飛ばして当面出ません</p>' +
-             reviewSetNoteHtml(sessionSize, pending.length, sessionOverdue) +
+             reviewDueDoneNoteHtml(sessionSize, sessionOverdue) +
              reviewQuizNoteHtml() +
              reviewCafeNoteHtml() +
              reviewFilterTabsHtml(counts, filter) +
@@ -2237,13 +2237,11 @@
       '    <header class="section-heading">' +
       '      <div><span class="screen-eyebrow">PICK ONE</span>' +
       '      <h2 class="menu-h2">1問だけ選んで復習する</h2></div>' +
-      '      <p class="menu-note">期限が近い順に並んでいます。'
-        + 'しおりのボタンで印を付けると、上で絞り込めます。</p>' +
+      '      <p class="menu-note">期限が近い順に並んでいます。</p>' +
       '    </header>' +
       '    <ul class="review-list">' + shown.map(reviewRowHtml).join('') + '</ul>' +
       (hidden
-        ? '    <p class="menu-note review-list-more">ほか ' + hidden
-          + '問。「1セット復習する」なら一覧に出ていない問題からも出題します。</p>'
+        ? '    <p class="menu-note review-list-more">ほか ' + hidden + '問</p>'
         : '') +
       '  </section>' +
          quizBookmarkSectionHtml() +
@@ -2299,65 +2297,40 @@
   }
 
   /**
-   * 「1セットで終わりではない」ことを、始める前に1行で出す。
+   * 「今日ぶんは終わっている」だけを1行で出す。
    *
-   * 短いセットにした狙いは「区切りを選べること」なので、続けられると分かっていないと
-   * ただ出題が減ったように読まれてしまう。残りの数もここで見せる。
+   * ⏰0 の数字だけでは、下に4問並んでいるほうが目に入って、まだ宿題が残っているように
+   * 読める。逆に、まだ期限切れが残っている日は数字と `.cta-target` の内訳で足りるので
+   * 何も出さない ―― 1セットの数もボタンとその内訳に出ている（2026-08-24、説明が多すぎる
+   * という指摘で「1セットは4問…」と「出し切りました」の2行をここから外した。後者は
+   * {@link reviewQueueBreakdown} が同じ文を `.cta-target` に出している）。
    */
-  function reviewSetNoteHtml(sessionSize, poolSize, sessionOverdue) {
-    if (sessionSize && !sessionOverdue) {
-      // 「今日ぶんは終わっている」を言葉で出す。⏰0 の数字だけでは、
-      // 下に4問並んでいるほうが目に入って、まだ宿題が残っているように読める
-      return '      <p class="hero-sub review-set-note">✅ 期限が来た問題はありません。'
-        + 'ここで止めて大丈夫です（続けたいときは下のボタンで期限前の問題を出せます）</p>';
-    }
-    if (!sessionSize) {
-      return '      <p class="hero-sub review-set-note">🧩 続けて出せるぶんは出し切りました。'
-        + 'もう一度回すなら「はじめから」、1問だけなら下の一覧から選べます'
-        + '（正解した問題は期限が伸びたので、日をあけると戻ってきます）</p>';
-    }
-    var rest = Math.max(0, poolSize - sessionSize);
-    return '      <p class="hero-sub review-set-note">🧩 1セットは' + sessionSize
-      + '問。終わると結果が出て、そこから「もう1セット」で続けられます'
-      + (rest ? '（続けて出せるぶんが、ほか ' + rest + '問）' : '') + '</p>';
+  function reviewDueDoneNoteHtml(sessionSize, sessionOverdue) {
+    return sessionSize && !sessionOverdue
+      ? '      <p class="hero-sub review-set-note">✅ 期限が来た問題はありません。'
+        + 'ここで止めて大丈夫です</p>'
+      : '';
   }
 
   /**
-   * 復習がカフェへ何を渡すのかを、復習ホームに1行で出す。
+   * 復習がカフェへ何を残したのかを、復習ホームに1行で出す。
    *
-   * コインは2段になっている（期限が来た問題は満額・期限前の「早めの復習」は小額で
-   * 1日の本数に上限）。**始める前に両方の額と残りの本数を出す** ―― 通してから
-   * 「これは0コインだったのか」と気づく形にしない。倍率と自動売上の枠は目に見えないので、
-   * それも1行添える（無いと「復習はカフェに無関係」と読まれてしまう）。
+   * <b>コインの%は出さない</b>（2026-08-24・利用者の判断）。2026-08-22には
+   * 「通してから0コインだったと気づく形にしない」として期限ぶん・早めのぶん両方の額と
+   * 残りの本数を始める前に出していたが、説明が多すぎるとして外した。獲得額は提出時の
+   * 通知とセット結果の「🪙 N コイン」で分かる（→ [[review-pays-coins]]）。
+   *
+   * 残すのは倍率だけ ―― これは<b>この先の報酬に効き続ける</b>ので、他の画面を見ても
+   * 「復習で積み上がったぶん」だとは読めない。まだ0問の日は何も出さない
+   * （起きていないことの説明になる）。
    */
   function reviewCafeNoteHtml() {
     var cafe = cafeState();
     var reviewed = Number(cafe.reviewedTasks || 0);
     var brand = Number(cafe.reviewBrandBasisPoints || 0);
-    var detail = reviewed
-      ? '復習で仕上げた ' + numberText(reviewed) + '問がブランド倍率を +'
-        + multiplierText(brand) + ' 押し上げています'
-      : '復習で正解した問題はブランド倍率を育てます（1問につき1回）';
-    // 復習手当系統は両方の額へ掛かるので、掛けたあとの割合で出す（設備を買った人の画面が
-    // 動かないと、買った意味が読めない）
-    var withBonus = function (base) {
-      return Number(base || 0) * (100 + Number(cafe.reviewBonusPercent || 0)) / 100;
-    };
-    var percent = withBonus(cafe.reviewRewardPercent);
-    var earlyPercent = withBonus(cafe.reviewEarlyRewardPercent);
-    var left = Number(cafe.reviewEarlyRewardLeft || 0);
-    // 早めのぶんは1日の本数で止まるので、残りを添える。0の日に額だけ出すと約束が食い違う
-    var early = earlyPercent
-      ? ' · 早めの復習は ' + numberText(Math.round(earlyPercent)) + '%'
-        + (left ? '（今日あと' + left + '問ぶん）' : '（今日のぶんは受け取り済み）')
-      : '';
-    var coin = percent
-      ? '🪙 期限が来た問題は初クリアの ' + numberText(Math.round(percent))
-        + '%（期限が来るたび1回）' + early
-      : '';
-    return (coin ? '      <p class="hero-sub review-cafe-note">' + esc(coin) + '</p>' : '')
-      + '      <p class="hero-sub review-cafe-note">☕ ' + esc(detail)
-      + '・自動売上の枠も戻ります</p>';
+    if (!reviewed || !brand) { return ''; }
+    return '      <p class="hero-sub review-cafe-note">☕ ブランド倍率 +'
+      + multiplierText(brand) + '（復習で仕上げた ' + numberText(reviewed) + '問ぶん）</p>';
   }
 
   /**
@@ -2388,18 +2361,20 @@
     if (!quizzes) {
       var wait = nextQuizDueText();
       return wait
-        ? '      <p class="hero-sub review-quiz-note">🧠 続けて出すクイズは今日はありません（'
+        ? '      <p class="hero-sub review-quiz-note">🧠 確認クイズは今日はありません（'
           + esc(wait) + '）</p>'
         : '';
     }
-    var head = '      <p class="hero-sub review-quiz-note">🧠 セットの問題のあとに、そろそろ確認したい'
-      + '確認クイズを' + quizzes + '問続けて出します（答えと解説は隠して出し直します）';
+    // 「答えと解説を隠す」は書かない ―― クイズの段に入れば見て分かるし、その札の一言
+    // （チップは出ません…）にも書いてある
+    var head = '      <p class="hero-sub review-quiz-note">🧠 このあと確認クイズ '
+      + quizzes + '問';
     // 📣を持っている人へ解放条件を出し続けない（取り終わった条件は進み具合ではない）
     if (hasCafeItem(QUIZ_STREAK_ITEM_ID)) { return head + '</p>'; }
     var run = Number(cafeState().quizReviewRun || 0);
     var goal = Number(cafeState().quizStreakGoal || 12);
-    return head + ' · 異なる' + goal + '問に連続正解すると 📣 が解放 · いまの連続 '
-      + run + '問</p>';
+    // 「異なるN問へ連続正解で解放」の説明はクイズの札にある。ここは進み具合だけ出す
+    return head + ' · 📣まで連続 ' + run + ' / ' + goal + '問</p>';
   }
 
   /**
@@ -2415,33 +2390,33 @@
     var perfect = reviewSummary.total > 0 && reviewSummary.cleared === reviewSummary.total;
     // 📣の「連続 N / 12問」はここへ出さない。数字だけでは何の連続なのか読めず、
     // 解放条件はセットに入る前の案内とクイズの段（どちらも説明付き）にある
+    // 積み上げの行は数字だけ並べる（2026-08-24。「…問のうち N問に正解しています」を
+    // 文で書くと1行が長く、主文と同じことを言い方を変えて2度読ませることになる）
     var quiz = reviewSummary.quizTotal
-      ? 'クイズは' + reviewSummary.quizTotal + '問のうち '
-        + reviewSummary.quizCorrect + '問に正解。'
+      ? 'クイズ ' + reviewSummary.quizCorrect + ' / ' + reviewSummary.quizTotal + '問正解'
       : '';
     var cash = Number(reviewSummary.cash || 0);
     var runCash = Number(reviewSummary.runCash || 0);
     // 期限ぶん＋早めのぶんの合計。1日の本数を使い切ったあとのセットは0になるので、
     // そのときは何も出さない（0コインを「獲得しました」と書かない）
-    var earned = cash
-      ? '🪙 ' + cafeNumberText(cash) + ' コインを獲得しました。'
-      : '';
+    var earned = cash ? '🪙 ' + cafeNumberText(cash) + ' コイン' : '';
     var sets = Number(reviewSummary.sets || 1);
     var stacked = sets > 1
-      ? 'ここまで' + sets + 'セット'
-        + (reviewSummary.runTotal
-          ? '・問題は' + reviewSummary.runTotal + '問のうち ' + reviewSummary.runCleared + '問'
-          : '')
-        + (reviewSummary.runQuizTotal
-          ? '・クイズは' + reviewSummary.runQuizTotal + '問のうち '
-            + reviewSummary.runQuizCorrect + '問'
-          : '')
-        + 'に正解しています。'
-        + (runCash > cash ? '獲得コインは合計 ' + cafeNumberText(runCash) + ' です。' : '')
+      ? ['ここまで' + sets + 'セット']
+        .concat(reviewSummary.runTotal
+          ? ['問題 ' + reviewSummary.runCleared + ' / ' + reviewSummary.runTotal + '問'] : [])
+        .concat(reviewSummary.runQuizTotal
+          ? ['クイズ ' + reviewSummary.runQuizCorrect + ' / '
+            + reviewSummary.runQuizTotal + '問'] : [])
+        .concat(runCash > cash ? ['🪙 合計 ' + cafeNumberText(runCash)] : [])
+        .join(' · ')
       : '';
     return '<section class="menu-section review-summary">' +
       '<span class="review-summary-icon">' + (perfect ? '🎉' : '📝') + '</span>' +
       '<div><strong>' + sets + 'セット目が終わりました</strong>' +
+      // 全問正解できなかった回だけ、次につながる一言を添える。仕組みの説明としては
+      // 苦手度の札と期限で足りているが、ここを消すと「0問に正解しました。」で文が
+      // 終わって素っ気なく読める（2026-08-24、いったん消して戻した）
       '<p>' + (reviewSummary.total
         ? reviewSummary.total + '問のうち ' + reviewSummary.cleared + '問に正解しました。'
           + (perfect ? '全問正解です！' : '通らなかった問題は、次の復習で出やすくなります。')
@@ -2507,12 +2482,10 @@
       '<span class="review-summary-icon">🔁</span>' +
       '<div><strong>' + (Number(resume.run.sets || 0) + 1) + 'セット目の途中です（'
         + where + '）</strong>' +
-      '<p>' + (detail.length ? detail.join(' · ') + '。' : '') +
-      // 「解いたぶんは消えていない」を先に言う（通した問題があるときだけ ―― 1問も
-      // 通していないセットで言うと、起きていないことを言うことになる）。
-      // そのあとに、この控えが消える条件（日付）を断る
-      (Number(set.cleared || 0) ? '通した問題の期限と苦手度はもう動いています。' : '')
-      + '日付が変わると期限を引き直すので、そのときは新しい1セット目から始まります。</p></div>' +
+      // 期限と苦手度がもう動いていること・日付が変わると1セット目に戻ることは書かない
+      // （2026-08-24。どちらも読んでも操作が変わらない仕組みの説明で、
+      // 「▶ 続きから」と「はじめから」の2つのボタンはそれ無しでも選べる）
+      '<p>' + (detail.length ? detail.join(' · ') + '。' : '') + '</p></div>' +
       '<div class="review-resume-actions">' +
       '<button class="primary-btn" id="reviewResumeBtn">▶ 続きから</button>' +
       '<button class="ghost-btn" id="reviewResumeRestartBtn">はじめから</button>' +
@@ -2834,8 +2807,8 @@
       '      </div>' +
       '      <p class="quiz-note">チップは出ません。★と正解数も動きません。'
         + (showStreak
-          ? '異なる' + goal + '問へ連続で正解すると 📣 ひらめきメガホン が解放されます'
-            + '（間違えると連続は0に戻ります）。'
+          ? '📣 ひらめきメガホンは異なる' + goal + '問への連続正解で解放'
+            + '（間違えると0に戻ります）。'
           : '') + '</p>' +
              reviewQuizItemHtml(lesson, quiz, entry.index, answered) +
       '    </div>' +
@@ -2989,7 +2962,7 @@
       // 問題の段の一言は短く保つ。この帯の幅は本文と同じ830pxしかなく、ボタンが3つ並ぶと
       // 「復習を終える」が2段目へ落ちる（「← 前の問題へ」をフッタへ移したのはこれも理由）
       '<span class="review-bar-note">' + (quizPhase
-        ? '答えと解説は答えたあとに出ます。チップは出ません'
+        ? '答えと解説は答えたあとに出ます'
         : 'ひな形から解き直します（前の解答は残ります）') + '</span>' +
       '<span class="spacer"></span>' +
       // ボタンはひとまとめにする。狭い画面ではそろって2段目へ落ちる
@@ -3638,9 +3611,8 @@
           : (!maximum ? '<small>現在の上限 ' + numberText(cafe.storeLimit) + '店舗</small>' : '')) + '</span></header>' +
       '<div class="cafe-expansion-content">' +
       '<div class="cafe-expansion-copy">' +
+      // 出店枠の解放条件は上の .cafe-section-status（★Nで次の出店枠を解放）に出ている
       '<p class="menu-note">全店舗に設備効果が乗るため、出店するほど1回の学習報酬が大きくなります。'
-        + '出店枠は★で段階的に解放され、ブランド倍率は完成した章の問題数と、'
-        + '復習で仕上げた問題数に応じて育ちます。'
         + 'ブランド倍率はこれからの報酬に掛かるので、復習は早いほど得です。</p>' +
       '<div class="cafe-expansion-stats">' +
       '<span><small>現在</small><b>' + numberText(storeCount) + '店舗</b></span>' +
@@ -3725,8 +3697,7 @@
       (ownedCount ? '<span>所持 ' + ownedCount + '個</span>' : '') +
       '<span title="正確な累計 ' + numberText(cafe.lifetimeCash) + 'コイン">累計獲得 '
         + cafeNumberText(cafe.lifetimeCash) + 'コイン</span></div></header>' +
-      '<p class="menu-note cafe-section-note">新しい品は学習の節目、または特別な達成条件で見つかります。'
-        + '購入した効果は常に有効です。</p>' +
+      '<p class="menu-note cafe-section-note">新しい品は学習の節目や達成条件で見つかります。</p>' +
       '<div class="cafe-item-grid">' + items.map(function (item) {
         var affordable = !item.owned && cafe.cash >= item.cost;
         var buttonText = item.owned ? '所持中'
@@ -3895,9 +3866,12 @@
       '<span>復習報酬 +' + (cafe.reviewBonusPercent || 0) + '%</span>' +
       '<span>' + perMinuteText('自動 +' + cafeNumberText(cafe.passiveCashPerMinute), '') + '</span>' +
       '</div></header>' +
-      '<p class="menu-note cafe-section-note">コインは学習を進めると入手できます。'
-        + ((cafe.equipmentDiscountPercent || 0) > 0
-          ? ' 設備費は現在 ' + cafe.equipmentDiscountPercent + '%OFF です。' : '') + '</p>' +
+      // 割引が出ている日だけ書く（「コインは学習を進めると入手できます」は、
+      // この画面へ来た人がすでに知っていること）
+      ((cafe.equipmentDiscountPercent || 0) > 0
+        ? '<p class="menu-note cafe-section-note">設備費は現在 '
+          + cafe.equipmentDiscountPercent + '%OFF です。</p>'
+        : '') +
       '<div class="equipment-paths">' + trackOrder.map(function (type) {
         var items = upgrades.filter(function (u) { return u.effectType === type; })
           .sort(function (a, b) { return a.tier - b.tier; });
@@ -5009,7 +4983,7 @@
     var note = (lesson.type === 'concept'
       ? '全問正解すると★が付きます。'
       : '★ の判定には影響しません。')
-      + '何度でも答え直せますが、チップは1度目の回答で正解したときだけです。';
+      + 'チップは1度目の回答で正解したときだけです。';
 
     host.innerHTML =
       '<div class="card card-quiz">' +
