@@ -1462,10 +1462,12 @@ body.view-onboarding .content { margin-left: 0; }
 .cafe-balance em { margin-left: 5px; font: 600 11px var(--sans); letter-spacing: 0; }
 .cafe-key-metrics {
   display: grid;
-  grid-template-columns: minmax(0, 0.7fr) minmax(0, 1.1fr) minmax(0, 1.1fr);
+  grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr);
   gap: 8px;
 }
-.cafe-key-metrics.equipment-only { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+/* 出店枠が解放される前は自動売上の1枚だけになる。横いっぱいに伸ばすと、
+   数字の上に出る「+N」（.cafe-passive-gain は枠の右端に付く）が値から離れてしまう。 */
+.cafe-key-metrics.equipment-only { grid-template-columns: minmax(0, 240px); }
 /* 直下の span だけを枠にする。子孫まで拾うと、中の「コイン / 分」のような
    単位表記（.per-minute-unit）にも枠が付いて、枠の中に枠が出てしまう。 */
 .cafe-key-metrics > span {
@@ -1481,7 +1483,7 @@ body.view-onboarding .content { margin-left: 0; }
 .cafe-key-metrics b {
   margin-top: 2px;
   overflow: hidden;
-  font-size: 13px;
+  font-size: 15px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -1497,28 +1499,32 @@ body.view-onboarding .content { margin-left: 0; }
   background: rgba(0, 0, 0, 0.07);
 }
 .cafe-passive-metric.capped b { color: var(--text-faint); }
+/* 累計・ブランド倍率・★は「どこまで積み上がったか」を読む数字である。
+   1行に並べた飾り文字だと10pxで読めなかったので、上の枠と同じ作りにそろえた。
+   枠線は付けない（付けると上の2枚と同じ重さになり、どちらが今の稼ぎか読めない）。 */
 .cafe-meta-row {
-  display: flex;
-  gap: 6px 14px;
-  flex-wrap: wrap;
-  margin: 10px 2px 11px;
-  color: var(--text-faint);
-  font-size: 10px;
-}
-.cafe-numbers {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
+  grid-template-columns: repeat(auto-fit, minmax(112px, 1fr));
   gap: 8px;
-  margin: 8px 0 14px;
+  margin: 8px 0 12px;
 }
-.cafe-numbers span {
-  padding: 9px 10px;
-  border: 1px solid var(--border-soft);
+.cafe-meta-row > span {
+  min-width: 0;
+  padding: 8px 10px;
   border-radius: 9px;
-  background: rgba(0, 0, 0, 0.08);
+  background: rgba(0, 0, 0, 0.07);
 }
-.cafe-numbers small { display: block; color: var(--text-faint); font-size: 10px; line-height: 1.4; }
-.cafe-numbers b { display: block; margin-top: 3px; font-size: 15px; white-space: nowrap; }
+.cafe-meta-row small,
+.cafe-meta-row b { display: block; }
+.cafe-meta-row small { color: var(--text-faint); font-size: 10px; line-height: 1.35; }
+.cafe-meta-row b {
+  margin-top: 2px;
+  overflow: hidden;
+  color: var(--text);
+  font-size: 15px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .cafe-level-progress {
   height: 7px;
   overflow: hidden;
@@ -4558,6 +4564,7 @@ kbd { font-size: 12.5px; }
 /* カフェの飾り文字は縮尺を保ち、操作と説明の文字だけを大きくする。 */
 .cafe-balance small,
 .cafe-key-metrics small,
+.cafe-meta-row small,
 .cafe-next-level,
 .cafe-expansion-stats small,
 .cafe-item-shortage,

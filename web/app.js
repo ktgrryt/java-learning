@@ -3520,12 +3520,6 @@
       .map(function (item) {
         return '<span title="' + esc(item.name) + '">' + esc(item.emoji) + '</span>';
       }).join('');
-    var orderCups = cafe.orderCups == null
-      ? (level.cupsPerOrder + (cafe.extraCups || 0)) * (cafe.storeCount || 1)
-      : cafe.orderCups;
-    var nextOrderCash = cafe.nextOrderCash == null
-      ? Math.floor(orderCups * cafe.cupPrice * (100 + cafe.bonusPercent) / 100)
-      : cafe.nextOrderCash;
     // 残り枠の数字は出さない。見えていると「提出を遅らせて枠を使い切るほうが得」に
     // 見えてしまい、学習を止める動機になる（枠は★を取ると満タンに戻るので、
     // 実際に待ったほうが多く取れてしまう）。止まったことだけは値側で知らせる。
@@ -3537,7 +3531,6 @@
         ? '終盤改装 PROJECT Lv.' + numberText(cafe.investmentLevel) + 'を完了'
         : 'Java学習と店舗ネットワークを制覇しました')
       : '店構えは最高ランクです。次は店舗網を広げましょう';
-    var orderMetricLabel = stars >= Number(state.totalTasks || 0) ? '最高注文' : '次の注文';
 
     // 絵そのものは cafe-scene.js が1枚のSVGとして描く。ここでは置き場所だけ用意して、
     // 描画は mountCafeScene() が担当する（毎回作り直すとアニメーションが頭に戻るため）。
@@ -3567,8 +3560,6 @@
       (networkUnlocked
         ? '      <span><small>営業中</small><b>🏪 ' + numberText(cafe.storeCount || 1) + '店舗</b></span>'
         : '') +
-      '      <span><small>' + orderMetricLabel + '</small><b>' + numberText(orderCups) + '杯 · 約'
-               + cafeNumberText(nextOrderCash) + 'コイン</b></span>' +
       '      <span class="cafe-passive-metric' + (passiveCapped ? ' capped' : '') + '">'
                + '<small>' + passiveLabel + '</small><b id="cafePassiveLive">'
                + (cafe.passiveCashPerMinute <= 0
@@ -3579,13 +3570,15 @@
                + '</b></span>' +
       '    </div>' +
       '    <div class="cafe-meta-row">' +
-      '      <span>☕ 累計 ' + numberText(cafe.cups) + '杯</span>' +
+      '      <span><small>提供したコーヒー</small><b>☕ ' + numberText(cafe.cups) + '杯</b></span>' +
       (networkUnlocked
-        ? '      <span>ブランド ×' + multiplierText(cafe.brandMultiplierBasisPoints) + '</span>'
+        ? '      <span><small>ブランド倍率</small><b>×'
+          + multiplierText(cafe.brandMultiplierBasisPoints) + '</b></span>'
         : '') +
-      '      <span>★ ' + numberText(stars) + '</span>' +
+      '      <span><small>スター</small><b>★ ' + numberText(stars) + '</b></span>' +
       ((cafe.investmentLevel || 0) > 0
-        ? '      <span>🏛️ 終盤改装 Lv.' + numberText(cafe.investmentLevel) + '</span>' : '') +
+        ? '      <span><small>終盤改装</small><b>🏛️ Lv.'
+          + numberText(cafe.investmentLevel) + '</b></span>' : '') +
       '    </div>' +
       '    <div class="cafe-level-progress"><i style="width:' + levelPct + '%"></i></div>' +
       '    <p class="cafe-next-level">' + (level.next
