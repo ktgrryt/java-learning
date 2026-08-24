@@ -472,17 +472,6 @@
           "explanation": "`List` が変更不可と決まっているわけではありません。ジェネリクスに型消去はありますし、`Number` は `final` でもありません。`List<? extends Number>` は「`Integer` のリストかもしれないし `Double` のリストかもしれない」ので、`Integer` を入れると `List<Double>` を壊す可能性があり、追加できません。"
         },
         {
-          "question": "FIFOに最も直接対応するものは？",
-          "choices": [
-            "Set",
-            "Class",
-            "Optional",
-            "Queue"
-          ],
-          "answer": 3,
-          "explanation": "`Set` は重複を持たない集まりで、順番の契約はありません。`Class` は型の情報、`Optional` は値の有無を表します。先に入れたものが先に出る（FIFO）という順番の約束を表すのが `Queue` で、`ArrayDeque` などが実装します。"
-        },
-        {
           "question": "型消去後も直接取得できる情報は？",
           "choices": [
             "オブジェクトがListであること",
@@ -494,15 +483,26 @@
           "explanation": "`List<String>` の `String` や `List<Integer>` の `Integer` は、コンパイル後に消えるので実行時には分かりません。`T.class` も同じ理由で取れません。残るのは「これは `List` である」という素の型だけなので、型引数まで見た分岐は書けません。"
         },
         {
-          "question": "外側インスタンスを暗黙保持するものは？",
+          "question": "`List<? super Integer>` にできることはどれですか。",
           "choices": [
-            "top-level record",
-            "inner class",
-            "static nested class",
-            "enum定数だけ"
+            "`Integer` を追加でき、取り出した要素も `Integer` として使える",
+            "追加はできないが、取り出した要素を `Integer` として使える",
+            "`Integer` を追加できる。取り出した要素を受け取る型は `Object` になる",
+            "`Number` を追加できるが、`Integer` は入れられない"
+          ],
+          "answer": 2,
+          "explanation": "`? super Integer` は「`Integer` かその親のどれか」なので、`Integer`（とその子）は**必ず入れられます**。一方、取り出した要素が `Integer` だとは限らず `Number` や `Object` のこともあるので、受け取れるのは `Object` です。`? extends` はこの逆で、取り出す型は決まりますが追加できません。**入れるなら `super`、取り出すなら `extends`** です。"
+        },
+        {
+          "question": "`List<String>` を `List<Object>` の変数へ代入できないのはなぜですか。",
+          "choices": [
+            "型消去でどちらも素の `List` になり、代入してよいかを判定できないから",
+            "`List<Object>` の顔で `Integer` を追加でき、元のリストが壊れるから",
+            "`String` が `final` なので、`Object` の代わりには使えないから",
+            "`List` が `interface` で、実装クラスが違うと代入できないから"
           ],
           "answer": 1,
-          "explanation": "top-level の record と static nested class は、外側のインスタンスと無関係に作れます。enum定数も外側を保持しません。`static` を付けない inner class だけが外側のインスタンスと結び付き、暗黙の参照を持ちます。この参照が、意図せずメモリを保持し続ける原因になることがあります。"
+          "explanation": "`String` が `final` かどうかは関係ありません。型消去は実行時の話で、代入を止めるのは**コンパイル時**の判定です。`List` が `interface` であることも理由ではありません（`ArrayList<String>` は `List<String>` へ代入できます）。代入できてしまうと `List<Object>` の顔で `Integer` を追加でき、元の `List<String>` が壊れます。だからジェネリクスは**継承関係を引き継ぎません**。この不便を必要な向きだけ緩めるのが `? extends` と `? super` です。"
         }
       ]
     }

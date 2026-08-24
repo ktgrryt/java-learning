@@ -38,6 +38,7 @@ CHECKS=(
   check-starter-imports.sh
   check-starter-syntax.sh
   check-hint-dependency.sh
+  check-forward-terms.sh
   check-task-reference.sh
   check-constant-output.sh
   check-copyable-output.sh

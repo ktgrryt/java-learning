@@ -5175,7 +5175,8 @@
     var usesStdin = task.visibleCases.some(function (c) { return c.stdin !== ''; });
     var rows = task.visibleCases.map(function (c) {
       return '<tr>' +
-        (usesStdin ? '<td class="io"><pre>' + esc(c.stdin) + '</pre></td>' : '') +
+        // 末尾の改行はそのまま `<pre>` へ入れると空行が1本増え、行の高さが不揃いに見える
+        (usesStdin ? '<td class="io"><pre>' + esc(String(c.stdin).replace(/\n$/, '')) + '</pre></td>' : '') +
         '<td class="io"><pre>' + esc(c.expected) + '</pre></td>' +
         '</tr>';
     }).join('');
@@ -5635,9 +5636,16 @@
         '</tr>';
     }).join('');
 
-    var inputRow = c.stdin
-      ? '<div class="diff-input">入力: <code>' + esc(c.stdin).replace(/\n/g, '␤') + '</code></div>'
-      : '';
+    // 入力は「試されること」の表と同じ見せ方にそろえる ― 複数行なら行のまま出す。
+    // 1行へ詰めて `␤`（U+2424）を挟むと、この記号を持たない等幅フォントでは小さな
+    // "NL" に化けて数字と地続きに見え、`2 2 1␤1 2` が一続きの数列に読めてしまう
+    // （5-5 の探索問題は入力が表なので、行が分からないと再現できない）。
+    // 末尾の改行は落とす。表の側では最後に空行が1本増えて行間が不揃いに見えていた。
+    var stdin = String(c.stdin || '').replace(/\n$/, '');
+    var inputRow = !stdin ? ''
+      : stdin.indexOf('\n') >= 0
+        ? '<div class="diff-input">入力<pre class="diff-stdin">' + esc(stdin) + '</pre></div>'
+        : '<div class="diff-input">入力: <code>' + esc(stdin) + '</code></div>';
 
     // 出力が長すぎるときはサーバ側で行を切っている。黙って隠すと
     // 「ここから先は合っている」と誤解させるので、切ったことを書いておく
