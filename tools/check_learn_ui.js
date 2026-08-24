@@ -1648,8 +1648,9 @@ const HELPERS = `window.__t = {
   // **1セット＝2問**になる（クリア済みの問題は期限前でも補充に入る → buildReviewQueue）。
   // 2問ないと「戻る」を押せないので、この節はここに置いてある。
   //
-  // 見るのは4つ ― 1問目では出さない（押せないボタンを残さない）・2問目には出る・
-  // 押すと1問目に戻って何問目かの表示も戻る・戻った位置が控えにも残る
+  // 見るのは5つ ― 1問目では出さない（押せないボタンを残さない）・2問目には出る・
+  // 置き場所が「次の問題へ」と同じフッタである・押すと1問目に戻って何問目かの表示も戻る・
+  // 戻った位置が控えにも残る
   // （途中で抜けても「続きから」戻る先が今いる問題になる → jq-review-run）。
   await open('#review');
   const stepBack = await ev(`(async () => {
@@ -1663,7 +1664,9 @@ const HELPERS = `window.__t = {
     document.getElementById('reviewSkipBtn').click();
     await window.__t.until(() => location.hash !== first.hash, 40);
     await window.__t.sleep(700);
-    const second = { bar: bar(), back: !!backBtn(), hash: location.hash, index: saved().index };
+    const second = { bar: bar(), back: !!backBtn(), hash: location.hash, index: saved().index,
+                     inFooter: !!(backBtn() && document.querySelector('.lesson-next').contains(backBtn())),
+                     inBar: !!(backBtn() && document.querySelector('.review-bar').contains(backBtn())) };
     if (!backBtn()) { return { first: first, second: second }; }
     backBtn().click();
     await window.__t.until(() => location.hash === first.hash, 40);
@@ -1676,6 +1679,10 @@ const HELPERS = `window.__t = {
     '2問のセットが組まれた（この検査の前提）', stepBack);
   check(!stepBack.first.back, '1問目には「前の問題へ」を出さない', stepBack.first);
   check(stepBack.second.back, '2問目には「前の問題へ」が出る', stepBack.second);
+  // 置き場所は帯ではなくフッタ（2026-08-24・利用者の要望）。id で引く検査だけだと、
+  // どこへ移しても通ってしまうので、どちらに入っているかまで見る
+  check(stepBack.second.inFooter && !stepBack.second.inBar,
+    '「前の問題へ」は帯ではなく「次の問題へ」と同じフッタにある', stepBack.second);
   check(!!stepBack.third && stepBack.third.hash === stepBack.first.hash
       && stepBack.third.bar === '1 / 2問' && !stepBack.third.back,
     '押すと1つ前の問題へ戻り、何問目かの表示も戻る', stepBack.third);

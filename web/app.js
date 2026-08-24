@@ -2986,20 +2986,15 @@
     return '<div class="review-bar">' +
       '<span class="review-bar-title">🔁 復習モード</span>' +
       '<span class="review-bar-progress">' + progress + '</span>' +
-      // 問題の段の一言は短く保つ。この帯の幅は本文と同じ830pxで、ボタンが3つ並ぶと
-      // 「復習を終える」が2段目へ落ちる（余りは実測36px。長い一言にすると必ず折り返す）
+      // 問題の段の一言は短く保つ。この帯の幅は本文と同じ830pxしかなく、ボタンが3つ並ぶと
+      // 「復習を終える」が2段目へ落ちる（「← 前の問題へ」をフッタへ移したのはこれも理由）
       '<span class="review-bar-note">' + (quizPhase
         ? '答えと解説は答えたあとに出ます。チップは出ません'
         : 'ひな形から解き直します（前の解答は残ります）') + '</span>' +
       '<span class="spacer"></span>' +
-      // ボタンはひとまとめにする。狭い画面では3つそろって2段目へ落ちる
+      // ボタンはひとまとめにする。狭い画面ではそろって2段目へ落ちる
       // （ばらばらに折り返すと「復習を終える」だけが下に取り残される）
       '<span class="review-bar-actions">' +
-      // 1つ前の問題へ戻す（→ backReviewSession）。押せないボタンは置かないので、
-      // 1問目とクイズの段では出さない
-      (reviewSession && !quizPhase && reviewSession.index > 0
-        ? '<button class="ghost-btn small" id="reviewBackBtn">← 前の問題へ</button>'
-        : '') +
       (reviewSession
         ? '<button class="ghost-btn small" id="reviewSkipBtn">'
           + (quizPhase ? 'このクイズを飛ばす' : 'この問題を飛ばす') + '</button>'
@@ -3016,8 +3011,8 @@
   }
 
   function bindReviewBar() {
-    var back = document.getElementById('reviewBackBtn');
-    if (back) { back.addEventListener('click', backReviewSession); }
+    // 「← 前の問題へ」はフッタ側にある（→ renderReviewFooter）。この帯は
+    // renderReviewFooter より先に紐づけるので、ここで引くと必ず null になる
     var skip = document.getElementById('reviewSkipBtn');
     if (skip) {
       skip.addEventListener('click',
@@ -3092,9 +3087,32 @@
         + '🎓 もう理解した（' + reviewEaseDays() + '日後まで出しません）</button>';
   }
 
-  /** ボタンの並び。次へ進む主ボタンと、寄り道の「もう理解した」をひとまとめにする。 */
-  function lessonNextActionsHtml(easeHtml, nextHtml) {
-    return '<span class="lesson-next-actions">' + easeHtml + nextHtml + '</span>';
+  /**
+   * ボタンの並び。次へ進む主ボタン・寄り道の「もう理解した」・1つ前へ戻る導線を
+   * ひとまとめにする。左から「戻る → 寄り道 → 進む」で、進む先がいつも右端にある。
+   */
+  function lessonNextActionsHtml(easeHtml, nextHtml, backHtml) {
+    return '<span class="lesson-next-actions">' + (backHtml || '') + easeHtml + nextHtml + '</span>';
+  }
+
+  /**
+   * 復習のフッタに置く「← 前の問題へ」（→ {@link backReviewSession}）。
+   *
+   * <b>帯ではなくフッタに置く</b>（2026-08-24・利用者の要望）。進む導線と行き来する
+   * ボタンなので、次へ進むボタンと同じ場所にあるほうが押しやすい。帯の830pxの持ち分も
+   * 空いた（→ {@link reviewBarHtml}）。押せないボタンは置かないので、
+   * 1問目とクイズの段では出さない。
+   */
+  function reviewBackButtonHtml() {
+    return reviewSession && !inReviewQuizPhase() && reviewSession.index > 0
+      ? '<button class="ghost-btn lesson-next-back" id="reviewBackBtn">← 前の問題へ</button>'
+      : '';
+  }
+
+  /** フッタを描き直すたびに紐づける（描き直しで前の要素は捨てられている）。 */
+  function bindReviewBackButton() {
+    var back = document.getElementById('reviewBackBtn');
+    if (back) { back.addEventListener('click', backReviewSession); }
   }
 
   /**
@@ -3174,9 +3192,11 @@
       '<div class="lesson-next-copy"><small>' + (justCleared ? '復習クリア' : '復習中') + '</small>' +
       '<b>' + lead + '</b></div>' +
       lessonNextActionsHtml(ease,
-        '<button class="primary-btn lesson-next-btn" id="reviewFooterBtn">' + label + '</button>');
+        '<button class="primary-btn lesson-next-btn" id="reviewFooterBtn">' + label + '</button>',
+        reviewBackButtonHtml());
     document.getElementById('reviewFooterBtn').addEventListener('click', advanceReviewSession);
     bindEase();
+    bindReviewBackButton();
   }
 
   /**
