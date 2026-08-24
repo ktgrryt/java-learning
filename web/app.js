@@ -2212,7 +2212,9 @@
       reviewResumeHtml(resume) +
       '  <section class="menu-hero learning-hero review-hero">' +
       '    <div class="hero-milestone" aria-label="期限が来た問題は' + overdue + '問">' +
-      '      <span>⏰</span><b>' + overdue + '</b><small>問 期限が来た</small>' +
+      // 単位は数字側に付ける。`<small>` の頭に置くと「59」「問 期限が来た」と
+      // 段が割れて、読むときに数と単位をつなぎ直すことになる
+      '      <span>⏰</span><b>' + overdue + '<em>問</em></b><small>期限が来た</small>' +
       '    </div>' +
       '    <div class="hero-body">' +
       '      <span class="screen-eyebrow">SPACED REVIEW</span>' +
