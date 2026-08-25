@@ -5,11 +5,14 @@ import jq.json.MiniJson;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.nio.ByteBuffer;
+import java.nio.channels.FileChannel;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.nio.file.StandardOpenOption;
 import java.time.LocalDate;
 import java.time.format.DateTimeParseException;
 import java.time.temporal.ChronoUnit;
@@ -42,6 +45,11 @@ import java.util.concurrent.TimeUnit;
  * クイズだけはレッスン単位なので {@code レッスンID#クイズ番号} を別のマップに持つ。
  *
  * サーバは複数リクエストを並行に処理するので、状態変更は全て synchronized で守る。
+ *
+ * ただし錠が効くのは1つのプロセスの中だけで、<b>同じファイルを見るサーバが2つ動くと
+ * 後から書いた側の写しが勝つ</b>（保存がファイル全体の書き直しなので混ぜ合わせようがない）。
+ * そちらは {@link ProgressLock} が防ぐ ―― 本番の入口（{@code jq.App}）は
+ * このクラスを作る前に錠を取る。
  *
  * 保存はファイル全体の書き直しになるため、変更のたびには書かない。
  * {@link #saveSoon()}（★や購入など）と {@link #saveEventually()}（自動売上のtick）で
@@ -139,6 +147,59 @@ public final class ProgressStore {
     private static final long SAVE_DELAY_MS = 1_000L;
 
     /**
+     * 進捗ファイルはJSONとして読めたのに、中身を取り込む途中で落ちた。
+     *
+     * <p>つまり<b>利用者の記録は無事で、落ちたのはこちら側</b>という状態である。
+     * 消して作り直すのは間違いなので、ファイルに手を付けずにこれを投げ、
+     * {@code jq.App} が案内を出して起動を諦める。</p>
+     *
+     * <p>これが出るのは版を上げた直後がほとんどで、直し方は
+     * 「前の版に戻す」か「不具合を直す」のどちらか。どちらにしても進捗は残っている。</p>
+     */
+    public static final class LoadFailedException extends RuntimeException {
+
+        private static final long serialVersionUID = 1L;
+
+        private final transient Path file;
+        private final transient Path suggestedBackup;
+
+        LoadFailedException(Path file, Path suggestedBackup, RuntimeException cause) {
+            super("進捗ファイルを取り込めませんでした: " + file, cause);
+            this.file = file;
+            this.suggestedBackup = suggestedBackup;
+        }
+
+        /** 読めなかった進捗ファイル。 */
+        public Path file() {
+            return file;
+        }
+
+        /**
+         * 「進捗を捨ててでも起動したい」人へ案内する退避先。
+         *
+         * <p>{@link ProgressStore#nextBackupPath(String)} で選んでいるので、
+         * すでにある控えを潰さない名前になっている。</p>
+         */
+        public Path suggestedBackup() {
+            return suggestedBackup;
+        }
+    }
+
+    /**
+     * 控えを取っておく数の上限（{@link #nextBackupPath(String)}）。
+     *
+     * ここまで埋まったら、いちばん新しい番号を上書きする。
+     * 番号なしのもの（＝最初に取った控え）は上書きしない。
+     */
+    private static final int MAX_BACKUPS = 20;
+
+    /** 読めなかった進捗ファイルの控えに付ける名前。 */
+    private static final String BROKEN_SUFFIX = ".broken";
+
+    /** 利用者がリセットする直前の控えに付ける名前。 */
+    private static final String BEFORE_RESET_SUFFIX = ".before-reset";
+
+    /**
      * {@link #saveEventually()} で溜めた変更を書き出す間隔。
      *
      * 自動売上のtickは2.5秒ごとに届く（{@code web/app.js} の CAFE_PASSIVE_INTERVAL_MS）。
@@ -155,6 +216,15 @@ public final class ProgressStore {
 
     /** ディスクに書けていない変更があるか。 */
     private boolean dirty;
+
+    /**
+     * 書き出しを永久に止める札。読み込みが途中で落ちたときに立てる（{@link #load()}）。
+     *
+     * <p>半端に読めた状態を書き戻すと、読めなかった残りを<b>本当に</b>失う。
+     * {@link LoadFailedException} を投げるので普通は誰も使い続けないが、
+     * 万一この store を握ったまま進まれても、ファイルは潰さない。</p>
+     */
+    private boolean writeDisabled;
 
     /** {@link #SAVE_DELAY_MS} 後の書き出しを予約済みか。二重に予約しないための印。 */
     private boolean saveScheduled;
@@ -1278,10 +1348,51 @@ public final class ProgressStore {
         return true;
     }
 
-    /** 進捗を全て消す。 */
-    public synchronized void resetAll() {
-        clearAllState();
-        saveSoon();
+    /**
+     * 進捗を全て消す。消す前に控えを1つ取る。
+     *
+     * <p>壊れたときは {@code .broken} が残るのに、<b>利用者が押したときは何も残らない</b>
+     * 作りだった。設定パネルからワンクリック（確認1回）で、押し間違いが取り返せない。
+     * 「取り返しのつかない要素を作らない」という他の作りと合わないので、
+     * {@code progress.json.before-reset} へ控えを取ってから消す。</p>
+     *
+     * <p>控えを取る前に {@link #flushNow()} を通すのは、直前に取った★が
+     * まだディスクに載っていないことがあるため（保存は1秒ためてから書く）。
+     * 錠は {@code writeLock} → {@code this} の順で取る ―― この順を逆にしてはいけない。</p>
+     *
+     * <p>2度目のリセットでは {@code .before-reset.2} になる（{@link #nextBackupPath(String)}）。
+     * 1度目に取った控え ―― 本物の記録が入っているほう ―― を潰さないため。</p>
+     */
+    public void resetAll() {
+        synchronized (writeLock) {
+            flushNow();                 // ディスクの内容を、いまの状態にそろえる
+            copyBeforeReset();
+        }
+        synchronized (this) {
+            clearAllState();
+            saveSoon();
+        }
+    }
+
+    /**
+     * リセットの直前の進捗ファイルを控えへ写す。
+     *
+     * <p>{@code writeLock} を持った状態で呼ぶこと（書き出しと入れ違わないため）。
+     * 写せなくてもリセットそのものは続ける ―― ここで止めると、
+     * 「消したいのに消せない」という別の行き止まりになる。</p>
+     */
+    private void copyBeforeReset() {
+        if (!Files.exists(file)) {
+            return;     // まだ一度も保存していない。控えを取るものが無い
+        }
+        Path backup = nextBackupPath(BEFORE_RESET_SUFFIX);
+        try {
+            Files.copy(file, backup, StandardCopyOption.REPLACE_EXISTING);
+            System.out.println("進捗をリセットします。直前の状態は "
+                    + backup.getFileName() + " に控えを取りました。");
+        } catch (IOException e) {
+            System.err.println("リセット前の控えを取れませんでした: " + e.getMessage());
+        }
     }
 
     /** オンボーディング完了を記録する。何度呼ばれても状態は変わらない。 */
@@ -1371,152 +1482,234 @@ public final class ProgressStore {
 
     // ------------------------------------------------------------ 永続化本体
 
+    /**
+     * 進捗ファイルを読み込む。失敗の扱いを<b>2通りに分ける</b>のが要点。
+     *
+     * <ul>
+     *   <li><b>JSONとして読めない</b>（切り詰められた・書きかけ）… 救えるものが無いので、
+     *       退避して作り直す。ここで止めてしまうと二度と起動できなくなる。</li>
+     *   <li><b>JSONは読めたのに取り込みで落ちた</b> … 中身は無事なのだから<b>消してはいけない</b>。
+     *       ファイルに手を付けず {@link LoadFailedException} を投げ、起動を諦める。</li>
+     * </ul>
+     *
+     * <p>以前はこの2つをまとめて1つの {@code catch} で受け、どちらでも
+     * 「退避して全消去」していた。{@code catch} の範囲は移行処理や達成条件の再計算まで
+     * 覆っていたので、<b>JSONは正しく読めているのに、こちら側の不具合1つで
+     * 利用者の★もコードもコインも初期化される</b>状態だった。新しい版を出した直後に
+     * いちばん起きやすい事故なので、こちらは消さずに止める側へ寄せている。</p>
+     */
     private void load() {
         if (!Files.exists(file)) {
             return;
         }
+        String text;
         try {
-            String text = Files.readString(file, StandardCharsets.UTF_8);
-            if (text.isBlank()) {
-                return;
-            }
-            Map<String, Object> root = MiniJson.parseObject(text);
-            boolean hasCafeState = root.get("cafe") instanceof Map;
-            onboardingCompleted = root.get("onboardingCompleted") instanceof Boolean completed
-                    && completed;
-
-            MiniJson.obj(root, "cleared").forEach((id, v) -> {
-                Map<String, Object> c = MiniJson.asObj(v);
-                cleared.put(migrateClearedKey(id), new Cleared(
-                        MiniJson.str(c, "clearedAt", LearningDay.todayText()),
-                        MiniJson.intOf(c, "hintsUsed", 0),
-                        MiniJson.intOf(c, "attempts", 1)));
-            });
-            MiniJson.obj(root, "codes").forEach((id, v) -> {
-                if (v instanceof String s) {
-                    codes.put(migrateKey(id), s);
-                }
-            });
-            MiniJson.obj(root, "hintsRevealed").forEach((id, v) -> {
-                if (v instanceof Number n) {
-                    hintsRevealed.put(migrateKey(id), n.intValue());
-                }
-            });
-            MiniJson.obj(root, "attempts").forEach((id, v) -> {
-                if (v instanceof Number n) {
-                    attempts.put(migrateKey(id), n.intValue());
-                }
-            });
-            MiniJson.obj(root, "bestPassed").forEach((id, v) -> {
-                if (v instanceof Number n) {
-                    bestPassed.put(migrateKey(id), n.intValue());
-                }
-            });
-            MiniJson.obj(root, "quizChoices").forEach((key, v) -> {
-                if (v instanceof Number n) {
-                    quizChoices.put(key, n.intValue());
-                }
-            });
-            for (Object o : MiniJson.list(root, "clearDates")) {
-                if (o instanceof String s && isDate(s)) {
-                    clearDates.add(s);
-                }
-            }
-            // 目盛りを細かくする前のファイルは1点=1で入っている。4倍して読み替える
-            int weightScale = MiniJson.intOf(root, "reviewWeightScale", 1);
-            int weightFactor = weightScale >= REVIEW_WEIGHT_SCALE
-                    ? 1
-                    : REVIEW_WEIGHT_SCALE / Math.max(1, weightScale);
-            MiniJson.obj(root, "reviewWeight").forEach((id, v) -> {
-                if (v instanceof Number n) {
-                    int weight = Math.min(MAX_REVIEW_WEIGHT,
-                            Math.max(0, n.intValue() * weightFactor));
-                    if (weight > 0) {
-                        reviewWeight.put(migrateKey(id), weight);
-                    }
-                }
-            });
-            MiniJson.obj(root, "reviewPlans").forEach((id, v) -> {
-                Map<String, Object> plan = MiniJson.asObj(v);
-                int level = Math.max(0, Math.min(REVIEW_INTERVAL_DAYS.length - 1,
-                        MiniJson.intOf(plan, "level", 0)));
-                String lastAt = MiniJson.str(plan, "at", "");
-                String lastFailAt = MiniJson.str(plan, "failAt", "");
-                if (!lastAt.isEmpty() && !isDate(lastAt)) {
-                    lastAt = "";
-                }
-                if (!lastFailAt.isEmpty() && !isDate(lastFailAt)) {
-                    lastFailAt = "";
-                }
-                // clean が無いファイル（2026-08-19より前）は0から数え直す。
-                // 飛び級には一発正解2連続が要るので、いきなり間隔が飛ぶことはない
-                int cleanRun = Math.max(0,
-                        Math.min(MAX_CLEAN_RUN, MiniJson.intOf(plan, "clean", 0)));
-                reviewPlans.put(migrateKey(id),
-                        new ReviewPlan(level, lastAt, lastFailAt, cleanRun));
-            });
-            // クイズの予定も最初から "レッスンID#番号" なので読み替えは要らない
-            MiniJson.obj(root, "quizPlans").forEach((id, v) -> {
-                Map<String, Object> plan = MiniJson.asObj(v);
-                int level = Math.max(0, Math.min(REVIEW_INTERVAL_DAYS.length - 1,
-                        MiniJson.intOf(plan, "level", 0)));
-                String lastAt = MiniJson.str(plan, "at", "");
-                if (!isDate(lastAt)) {
-                    // 日付が壊れている行は「今日が期限」に落ちる（→ quizReviewDue）
-                    lastAt = "";
-                }
-                quizPlans.put(id, new QuizPlan(level, lastAt));
-            });
-            for (Object o : MiniJson.list(root, "bookmarks")) {
-                if (o instanceof String s) {
-                    bookmarks.add(migrateKey(s));
-                }
-            }
-            // クイズのしおりは最初から "レッスンID#番号" なので読み替えは要らない
-            for (Object o : MiniJson.list(root, "quizBookmarks")) {
-                if (o instanceof String s) {
-                    quizBookmarks.add(s);
-                }
-            }
-            // 層の達成日はカフェとは無関係な学習の記録なので、cafe の有無で読み分けない
-            // （以前ここが cafe ブロックの中にあり、cafe を持たないセーブでは消えていた）
-            for (Map.Entry<String, Object> e
-                    : MiniJson.obj(root, "layerCompletions").entrySet()) {
-                if (e.getValue() instanceof String date && !date.isBlank()) {
-                    layerCompletions.put(e.getKey(), date);
-                }
-            }
-            if (!root.containsKey("reviewWeight")) {
-                seedReviewWeightFromAttempts();
-            }
-
-            if (hasCafeState) {
-                cafe.loadFrom(root);
-            } else {
-                cafe.migrateFromLearning();
-            }
-            // フラグ導入前のセーブでも学習履歴があれば既存利用者として扱う。
-            onboardingCompleted = onboardingCompleted || hasLearningProgress();
-            // すでに条件を満たしている人（連続学習や粘った問題の履歴がある人）へ、
-            // 起動した時点でアイテムを解放する。
-            cafe.refreshCafeAchievements();
+            text = Files.readString(file, StandardCharsets.UTF_8);
         } catch (IOException e) {
             throw new UncheckedIOException("進捗ファイルを読めません: " + file, e);
-        } catch (RuntimeException e) {
-            // 壊れたファイルで起動できなくなるのは困るので、退避して作り直す
-            System.err.println("進捗ファイルが壊れているようです (" + e.getMessage() + ")。"
-                    + file.getFileName() + ".broken に退避して作り直します。");
-            try {
-                Files.move(file, file.resolveSibling(file.getFileName() + ".broken"),
-                        StandardCopyOption.REPLACE_EXISTING);
-            } catch (IOException ignored) {
-                // 退避に失敗しても、以降の書き出しで上書きされる
-            }
-            // 途中まで読めていた分が残らないよう、全ての状態を初期値へ戻す。
-            // （例外は最後の refreshCafeAchievements() でも起き得るので、
-            //   達成条件や連続正解数まで消える必要がある）
-            clearAllState();
         }
+        if (text.isBlank()) {
+            return;
+        }
+
+        Map<String, Object> root;
+        try {
+            root = MiniJson.parseObject(text);
+        } catch (RuntimeException e) {
+            retireUnreadable(e);
+            return;
+        }
+
+        try {
+            readFrom(root);
+        } catch (RuntimeException e) {
+            // 中身は無事なのだから、ファイルにも触らず、消しもしない。
+            // 半端に読めたぶんが書き戻されないよう、以後の書き出しは全て止める
+            writeDisabled = true;
+            throw new LoadFailedException(file, nextBackupPath(BROKEN_SUFFIX), e);
+        }
+    }
+
+    /** 読み込んだJSONを状態へ移す。ここで落ちるのは<b>このアプリ側の不具合</b>（→ {@link #load()}）。 */
+    private void readFrom(Map<String, Object> root) {
+        boolean hasCafeState = root.get("cafe") instanceof Map;
+        onboardingCompleted = root.get("onboardingCompleted") instanceof Boolean completed
+                && completed;
+
+        MiniJson.obj(root, "cleared").forEach((id, v) -> {
+            if (!(v instanceof Map)) {
+                return;     // 形の違う1件は飛ばす（周りの instanceof と同じ扱い）
+            }
+            Map<String, Object> c = MiniJson.asObj(v);
+            cleared.put(migrateClearedKey(id), new Cleared(
+                    MiniJson.str(c, "clearedAt", LearningDay.todayText()),
+                    MiniJson.intOf(c, "hintsUsed", 0),
+                    MiniJson.intOf(c, "attempts", 1)));
+        });
+        MiniJson.obj(root, "codes").forEach((id, v) -> {
+            if (v instanceof String s) {
+                codes.put(migrateKey(id), s);
+            }
+        });
+        MiniJson.obj(root, "hintsRevealed").forEach((id, v) -> {
+            if (v instanceof Number n) {
+                hintsRevealed.put(migrateKey(id), n.intValue());
+            }
+        });
+        MiniJson.obj(root, "attempts").forEach((id, v) -> {
+            if (v instanceof Number n) {
+                attempts.put(migrateKey(id), n.intValue());
+            }
+        });
+        MiniJson.obj(root, "bestPassed").forEach((id, v) -> {
+            if (v instanceof Number n) {
+                bestPassed.put(migrateKey(id), n.intValue());
+            }
+        });
+        MiniJson.obj(root, "quizChoices").forEach((key, v) -> {
+            if (v instanceof Number n) {
+                quizChoices.put(key, n.intValue());
+            }
+        });
+        for (Object o : MiniJson.list(root, "clearDates")) {
+            if (o instanceof String s && isDate(s)) {
+                clearDates.add(s);
+            }
+        }
+        // 目盛りを細かくする前のファイルは1点=1で入っている。4倍して読み替える
+        int weightScale = MiniJson.intOf(root, "reviewWeightScale", 1);
+        int weightFactor = weightScale >= REVIEW_WEIGHT_SCALE
+                ? 1
+                : REVIEW_WEIGHT_SCALE / Math.max(1, weightScale);
+        MiniJson.obj(root, "reviewWeight").forEach((id, v) -> {
+            if (v instanceof Number n) {
+                int weight = Math.min(MAX_REVIEW_WEIGHT,
+                        Math.max(0, n.intValue() * weightFactor));
+                if (weight > 0) {
+                    reviewWeight.put(migrateKey(id), weight);
+                }
+            }
+        });
+        MiniJson.obj(root, "reviewPlans").forEach((id, v) -> {
+            if (!(v instanceof Map)) {
+                return;     // 同上
+            }
+            Map<String, Object> plan = MiniJson.asObj(v);
+            int level = Math.max(0, Math.min(REVIEW_INTERVAL_DAYS.length - 1,
+                    MiniJson.intOf(plan, "level", 0)));
+            String lastAt = MiniJson.str(plan, "at", "");
+            String lastFailAt = MiniJson.str(plan, "failAt", "");
+            if (!lastAt.isEmpty() && !isDate(lastAt)) {
+                lastAt = "";
+            }
+            if (!lastFailAt.isEmpty() && !isDate(lastFailAt)) {
+                lastFailAt = "";
+            }
+            // clean が無いファイル（2026-08-19より前）は0から数え直す。
+            // 飛び級には一発正解2連続が要るので、いきなり間隔が飛ぶことはない
+            int cleanRun = Math.max(0,
+                    Math.min(MAX_CLEAN_RUN, MiniJson.intOf(plan, "clean", 0)));
+            reviewPlans.put(migrateKey(id),
+                    new ReviewPlan(level, lastAt, lastFailAt, cleanRun));
+        });
+        // クイズの予定も最初から "レッスンID#番号" なので読み替えは要らない
+        MiniJson.obj(root, "quizPlans").forEach((id, v) -> {
+            if (!(v instanceof Map)) {
+                return;     // 同上
+            }
+            Map<String, Object> plan = MiniJson.asObj(v);
+            int level = Math.max(0, Math.min(REVIEW_INTERVAL_DAYS.length - 1,
+                    MiniJson.intOf(plan, "level", 0)));
+            String lastAt = MiniJson.str(plan, "at", "");
+            if (!isDate(lastAt)) {
+                // 日付が壊れている行は「今日が期限」に落ちる（→ quizReviewDue）
+                lastAt = "";
+            }
+            quizPlans.put(id, new QuizPlan(level, lastAt));
+        });
+        for (Object o : MiniJson.list(root, "bookmarks")) {
+            if (o instanceof String s) {
+                bookmarks.add(migrateKey(s));
+            }
+        }
+        // クイズのしおりは最初から "レッスンID#番号" なので読み替えは要らない
+        for (Object o : MiniJson.list(root, "quizBookmarks")) {
+            if (o instanceof String s) {
+                quizBookmarks.add(s);
+            }
+        }
+        // 層の達成日はカフェとは無関係な学習の記録なので、cafe の有無で読み分けない
+        // （以前ここが cafe ブロックの中にあり、cafe を持たないセーブでは消えていた）
+        for (Map.Entry<String, Object> e
+                : MiniJson.obj(root, "layerCompletions").entrySet()) {
+            if (e.getValue() instanceof String date && !date.isBlank()) {
+                layerCompletions.put(e.getKey(), date);
+            }
+        }
+        if (!root.containsKey("reviewWeight")) {
+            seedReviewWeightFromAttempts();
+        }
+
+        if (hasCafeState) {
+            cafe.loadFrom(root);
+        } else {
+            cafe.migrateFromLearning();
+        }
+        // フラグ導入前のセーブでも学習履歴があれば既存利用者として扱う。
+        onboardingCompleted = onboardingCompleted || hasLearningProgress();
+        // すでに条件を満たしている人（連続学習や粘った問題の履歴がある人）へ、
+        // 起動した時点でアイテムを解放する。
+        cafe.refreshCafeAchievements();
+    }
+
+    /**
+     * JSONとして読めなかった進捗ファイルを退避して、作り直す。
+     *
+     * <p>ここへ来るのは中身が切り詰められている（電源断で書きかけが残ったなど）ときで、
+     * 読み取れるものが無い。起動できないままにするほうが困るので、控えを取って先へ進む。
+     * 控えは上書きしない（{@link #nextBackupPath(String)}）。</p>
+     */
+    private void retireUnreadable(RuntimeException e) {
+        Path backup = nextBackupPath(BROKEN_SUFFIX);
+        System.err.println("進捗ファイルが壊れているようです (" + e.getMessage() + ")。"
+                + backup.getFileName() + " に退避して作り直します。");
+        try {
+            Files.move(file, backup, StandardCopyOption.REPLACE_EXISTING);
+        } catch (IOException ignored) {
+            // 退避に失敗しても、以降の書き出しで上書きされる
+        }
+        // 途中まで読めていた分が残らないよう、全ての状態を初期値へ戻す
+        clearAllState();
+    }
+
+    /**
+     * 控えの置き場所を決める。**既にある控えを上書きしない**のが役目。
+     *
+     * <p>{@code progress.json.broken} が空いていればそれを使い、埋まっていれば
+     * {@code .broken.2}、{@code .broken.3} …と番号を足していく。
+     * 1つの名前を使い回すと、<b>唯一の控えを、リセット直後の空っぽのファイルで
+     * 上書きしてしまう</b> ―― 読み込みで落ちる不具合は同じ版なら毎回起きるので、
+     * 1回目に取っておいた本物の記録が2回目の起動で消える筋があった。
+     * いちばん古い（＝本物である可能性がいちばん高い）控えは必ず残す。
+     * リセットの控え（{@link #BEFORE_RESET_SUFFIX}）も同じ理由で同じ数え方をする ――
+     * 2度目のリセットで、1度目に取った本物の控えを潰してはいけない。</p>
+     *
+     * <p>{@link #MAX_BACKUPS} まで埋まったときは、いちばん新しい番号を
+     * 上書きする。増え続けてフォルダが埋まるほうを避けるためで、
+     * このときも番号なしのものには手を付けない。</p>
+     */
+    private Path nextBackupPath(String suffix) {
+        Path base = file.resolveSibling(file.getFileName() + suffix);
+        if (!Files.exists(base)) {
+            return base;
+        }
+        for (int n = 2; n <= MAX_BACKUPS; n++) {
+            Path candidate = base.resolveSibling(base.getFileName() + "." + n);
+            if (!Files.exists(candidate)) {
+                return candidate;
+            }
+        }
+        return base.resolveSibling(base.getFileName() + "." + MAX_BACKUPS);
     }
 
     /**
@@ -1589,7 +1782,7 @@ public final class ProgressStore {
         synchronized (writeLock) {
             String json;
             synchronized (this) {
-                if (!dirty) {
+                if (writeDisabled || !dirty) {
                     return;
                 }
                 dirty = false;
@@ -1597,7 +1790,7 @@ public final class ProgressStore {
             }
             try {
                 Path tmp = file.resolveSibling(file.getFileName() + ".tmp");
-                Files.writeString(tmp, json, StandardCharsets.UTF_8);
+                writeDurably(tmp, json);
                 replace(tmp, file);
             } catch (IOException e) {
                 System.err.println("進捗を保存できませんでした: " + e.getMessage());
@@ -1605,6 +1798,47 @@ public final class ProgressStore {
                     dirty = true;   // 次の機会に書き直す
                 }
             }
+        }
+    }
+
+    /**
+     * 一時ファイルへ書き、<b>中身がディスクに載るまで待つ</b>。
+     *
+     * <p>{@code force} を呼ばずに差し替えると、名前の差し替えだけが先にディスクへ載ることがある。
+     * その状態で電源が落ちると、次の起動で<b>中身が空か途中で終わっている
+     * {@code progress.json}</b> に出会う。そしてこの壊れ方だけは
+     * <b>控えを取る先が無い</b> ―― 元の内容はもう差し替えで置き換わっていて、
+     * {@code .broken} へ退避できるのは壊れたほうだけである。
+     * 取り返しがつかないのはここだけなので、1回ぶんの待ちは払う。</p>
+     *
+     * <p>待ちは書き出し専用のスレッド（{@code jq-progress-save}）の中で、
+     * かつ {@code this} を持たずに起きる。リクエストの処理は止まらない。
+     * 実測で保存1回が 0.5ms → 5.5ms になる（37KBの進捗ファイル、APFS）。
+     * 保存はいちばん詰まっても1秒に1回なので、待つ人は誰もいない。</p>
+     *
+     * <p><b>ディレクトリの {@code force} は<u>あえて</u>やらない。</b>
+     * 差し替え自体をディスクへ載せると保存1回がさらに 5.5ms → 11.9ms へ倍増するが、
+     * 買えるのは「最後の1回ぶんの保存を失わないこと」だけである ――
+     * 差し替えが失われたときに残るのは<b>差し替える前の（正しい）ファイル</b>で、
+     * 壊れはしない。そして1秒ぶんの取りこぼしは
+     * {@link #SAVE_DELAY_MS} がすでに認めている範囲である。
+     * 毎回2倍払って、設計上すでに諦めている窓を埋める意味は無い。</p>
+     *
+     * <p>なお macOS の {@code fsync} は装置のキャッシュまでで、板まで届いたことは
+     * 保証しない（{@code F_FULLFSYNC} はJavaから呼べない）。ここで防げるのは
+     * OSの巻き添え・パニック・アプリの異常終了までで、
+     * 電源そのものが落ちる場合の最後の一線は残る。</p>
+     */
+    private static void writeDurably(Path tmp, String json) throws IOException {
+        ByteBuffer buffer = ByteBuffer.wrap(json.getBytes(StandardCharsets.UTF_8));
+        try (FileChannel channel = FileChannel.open(tmp,
+                StandardOpenOption.CREATE,
+                StandardOpenOption.WRITE,
+                StandardOpenOption.TRUNCATE_EXISTING)) {
+            while (buffer.hasRemaining()) {
+                channel.write(buffer);
+            }
+            channel.force(true);
         }
     }
 

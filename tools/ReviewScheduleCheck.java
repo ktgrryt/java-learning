@@ -316,12 +316,21 @@ public final class ReviewScheduleCheck {
             System.out.println(
                     "\nREVIEW SCHEDULE OK: 期限（できている問題の飛び級を含む）・「もう理解した」の先送りと取り消し・確認クイズの期限・苦手度の目盛り・ブックマークを確認しました");
         } finally {
-            for (String n : new String[] {
-                    "progress.json", "b.json", "c.json", "d.json", "e.json", "f.json",
-                    "g.json", "h.json", "i.json", "j.json", "q.json"}) {
-                Files.deleteIfExists(dir.resolve(n));
-            }
-            Files.deleteIfExists(dir);
+            deleteTree(dir);
+        }
+    }
+
+    /** 一時ディレクトリをまるごと消す。中のファイル名を数え上げないのは、進捗の作りが
+     *  増えたとき（控えが1つ増えるなど）に後始末だけが落ちるのを避けるため。 */
+    private static void deleteTree(Path dir) throws Exception {
+        try (var paths = Files.walk(dir)) {
+            paths.sorted(java.util.Comparator.reverseOrder()).forEach(p -> {
+                try {
+                    Files.deleteIfExists(p);
+                } catch (Exception ignored) {
+                    // 一時ディレクトリなので消し残っても構わない
+                }
+            });
         }
     }
 }

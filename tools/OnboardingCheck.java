@@ -60,10 +60,21 @@ public final class OnboardingCheck {
 
             System.out.println("\nONBOARDING OK: 初回判定と完了状態の保存を確認しました");
         } finally {
-            Files.deleteIfExists(dir.resolve("fresh.json"));
-            Files.deleteIfExists(dir.resolve("empty.json"));
-            Files.deleteIfExists(dir.resolve("legacy.json"));
-            Files.deleteIfExists(dir);
+            deleteTree(dir);
+        }
+    }
+
+    /** 一時ディレクトリをまるごと消す。中のファイル名を数え上げないのは、進捗の作りが
+     *  増えたとき（控えが1つ増えるなど）に後始末だけが落ちるのを避けるため。 */
+    private static void deleteTree(Path dir) throws Exception {
+        try (var paths = Files.walk(dir)) {
+            paths.sorted(java.util.Comparator.reverseOrder()).forEach(p -> {
+                try {
+                    Files.deleteIfExists(p);
+                } catch (Exception ignored) {
+                    // 一時ディレクトリなので消し残っても構わない
+                }
+            });
         }
     }
 

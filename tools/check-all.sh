@@ -51,6 +51,7 @@ CHECKS=(
   check-optional-task.sh
   check-layer-completion.sh
   check-onboarding.sh
+  check-progress-load.sh
   check-learning-day.sh
   check-review-schedule.sh
   check-review-economy.sh

@@ -43,17 +43,11 @@ fi
 source tools/build.sh
 jq_build
 
-# サーバが立ち上がったらブラウザを開く
-if [[ "$OPEN_BROWSER" == "1" ]] && command -v open >/dev/null 2>&1; then
-  (
-    for _ in $(seq 1 40); do
-      if curl -s -o /dev/null "http://localhost:${PORT}/"; then
-        open "http://localhost:${PORT}/"
-        exit 0
-      fi
-      sleep 0.25
-    done
-  ) &
+# ブラウザを開くのはアプリ側（--open）に任せる。ここで "http://localhost:${PORT}" を
+# 決め打ちで開くと、そのポートが埋まっていたときにアプリは +1 したポートに立つのに、
+# ブラウザは埋めていた側（＝古いサーバ）を開いてしまう。
+if [[ "$OPEN_BROWSER" == "1" ]]; then
+  JAVA_ARGS+=("--open")
 fi
 
 exec "$JQ_JAVA" -Dfile.encoding=UTF-8 -cp build/classes jq.App ${JAVA_ARGS[@]+"${JAVA_ARGS[@]}"}

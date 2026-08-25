@@ -2,6 +2,7 @@ package jq;
 
 import com.sun.net.httpserver.HttpServer;
 import jq.content.ContentLoader;
+import jq.progress.ProgressLock;
 import jq.progress.ProgressStore;
 import jq.web.ApiHandler;
 import jq.web.EnvironmentInfo;
@@ -36,8 +37,13 @@ public final class App {
         requireDirectory(contentDir, "コンテンツ");
         requireDirectory(webDir, "画面ファイル");
 
+        // 進捗を読む前に錠を取る。同じ progress.json を見るサーバが2つ動くと、
+        // 後から書いた側の写しが勝って、もう一方でやったぶんが黙って消える
+        // （保存はファイル全体の書き直しなので、混ぜ合わせようがない）。
+        ProgressLock lock = acquireProgressLock(progressFile);
+
         ContentLoader loader = new ContentLoader(contentDir);
-        ProgressStore progress = new ProgressStore(progressFile);
+        ProgressStore progress = openProgress(progressFile, lock);
 
         // 起動時に一度読み込んで、コンテンツの書式ミスをここで気づけるようにする
         int lessonCount = loader.load().totalLessonCount();
@@ -67,10 +73,20 @@ public final class App {
         System.out.println("      終了するには Ctrl+C");
         System.out.println();
 
+        // ブラウザを開くのはここだけにする。指定ポートが埋まっていると bind が +1 して
+        // ずれるので、呼ぶ側（run.sh）が同じポートを決め打ちで開くと、すでに動いている
+        // 別のサーバを開いてしまう（8123 にアプリが残っていると必ずこうなる）。
+        // 実際に使ったポートを知っているのはここだけなので、開く役もここに置く。
+        if (hasFlag(args, "--open")) {
+            openBrowser(url);
+        }
+
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
             server.stop(0);
             // 進捗の書き出しはまとめて遅らせているので、終了前に必ず1回吐き出す
             progress.flushNow();
+            // 錠を手放すのは書き出したあと。先に手放すと、書いている途中に次のプロセスが入れる
+            lock.close();
             System.out.println("Java Café を終了しました。おつかれさまでした。");
         }));
     }
@@ -112,6 +128,102 @@ public final class App {
         }
         throw new IOException("ポート " + startPort + " から " + (startPort + PORT_ATTEMPTS - 1)
                 + " まで全て使用中でした", last);
+    }
+
+    /**
+     * 進捗ファイルの錠を取る。取れなければ案内を出して終了する。
+     *
+     * <p>ここで止めるのは親切のためではなく、続けると<b>進捗が消える</b>ためである。
+     * サーバは進捗を丸ごとメモリに持ち、保存はファイル全体の書き直しなので、
+     * 2つ動いていると後から書いた側の写しが勝つ。混ぜ合わせる手立ては無い。</p>
+     *
+     * <p>ポートではなく進捗ファイルを見張るのは、{@link #bind} が埋まっているポートの
+     * 隣へずれる（＝2つ立つ）作りで、しかも {@code --port} で別のポートを指定されると
+     * ポート側の見張りはすり抜けてしまうから。</p>
+     */
+    private static ProgressLock acquireProgressLock(Path progressFile) throws IOException {
+        try {
+            return ProgressLock.acquire(progressFile);
+        } catch (ProgressLock.AlreadyRunningException e) {
+            String holder = e.holder();
+            System.out.println();
+            System.out.println("  ☕  Java Café はすでに動いています");
+            System.out.println();
+            System.out.println("      進捗ファイルを別のプロセスが使っています"
+                    + (holder == null ? "" : "（" + holder + "）") + "。");
+            System.out.println("      2つ同時に動かすと、あとから保存した側で上書きされて");
+            System.out.println("      進捗（★・書いたコード・コイン）が消えます。");
+            System.out.println();
+            System.out.println("      動いているほうをそのまま使ってください。");
+            System.out.println("      止めてから立て直すなら:");
+            System.out.println("        tools/launch.sh --stop");
+            System.out.println();
+            System.out.println("      進捗ファイル: " + progressFile.toAbsolutePath());
+            System.out.println();
+            System.exit(1);
+            throw new IllegalStateException("到達しない");   // exit したあとの形式上の戻り
+        }
+    }
+
+    /**
+     * 進捗を読み込む。取り込みに失敗したときは<b>ファイルに手を付けずに</b>終了する。
+     *
+     * <p>ここへ来るのは「JSONとしては読めたのに、こちらの取り込みで落ちた」ときだけである
+     * （読めないファイルは {@code ProgressStore} が退避して作り直す）。
+     * <b>利用者の記録は無事なのだから、消してはいけない</b>。黙って作り直すと、
+     * 版を上げた直後の不具合1つで★もコードもコインも失われる。</p>
+     *
+     * <p>そのまま起動しないので、代わりに逃げ道を必ず添える ―― 進捗を捨ててよいなら
+     * どこへ退避すればよいかまで出す（退避先は既にある控えを潰さない名前になっている）。</p>
+     */
+    private static ProgressStore openProgress(Path progressFile, ProgressLock lock) {
+        try {
+            return new ProgressStore(progressFile);
+        } catch (ProgressStore.LoadFailedException e) {
+            Throwable cause = e.getCause() == null ? e : e.getCause();
+            System.out.println();
+            System.out.println("  ☕  進捗を読み込めませんでした");
+            System.out.println();
+            System.out.println("      " + progressFile.toAbsolutePath());
+            System.out.println("      は JSON としては読めましたが、中身の取り込みに失敗しました。");
+            System.out.println();
+            System.out.println("        原因: " + cause);
+            System.out.println();
+            System.out.println("      進捗を守るため、起動しません。");
+            System.out.println("      ファイルには手を付けていません"
+                    + "（★・書いたコード・コインはそのまま残っています）。");
+            System.out.println();
+            System.out.println("      アプリを新しくした直後なら、これはアプリ側の不具合です。");
+            System.out.println("      前の版に戻すか、上の「原因」ごと知らせてください。");
+            System.out.println();
+            System.out.println("      進捗を捨ててでも起動したいときは、退避してから起動してください:");
+            System.out.println("        mv \"" + progressFile.toAbsolutePath() + "\" \\");
+            System.out.println("           \"" + e.suggestedBackup().toAbsolutePath() + "\"");
+            System.out.println();
+            lock.close();
+            System.exit(1);
+            throw new IllegalStateException("到達しない");   // exit したあとの形式上の戻り
+        }
+    }
+
+    /**
+     * 既定のブラウザで URL を開く。開けなくても起動は続ける（URL は画面に出してある）。
+     */
+    private static void openBrowser(String url) {
+        String os = System.getProperty("os.name", "").toLowerCase(java.util.Locale.ROOT);
+        String[] command;
+        if (os.contains("mac")) {
+            command = new String[] {"open", url};
+        } else if (os.contains("win")) {
+            command = new String[] {"rundll32", "url.dll,FileProtocolHandler", url};
+        } else {
+            command = new String[] {"xdg-open", url};
+        }
+        try {
+            new ProcessBuilder(command).start();
+        } catch (IOException e) {
+            System.out.println("      （ブラウザを開けませんでした。上のURLを開いてください）");
+        }
     }
 
     private static boolean hasFlag(String[] args, String flag) {
