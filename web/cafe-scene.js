@@ -779,28 +779,45 @@
     }
 
     // 記章は看板の左端へ寄せ、文字は「記章の右、音符があればその左」に残った幅へ収める。
-    // 板の中央に固定すると、幅の狭い低ランクの看板でカップが JAVA の頭に重なり、
+    // 板の中央に固定すると、幅の狭い低ランクの看板でカップが Java の頭に重なり、
     // 音符とも食い合う。残り幅から字送りと大きさを決めて、必ず収まるようにする。
     var markSize = big ? 17 : 14;
     var markX = x0 + 14;
     var textLeft = markX + markSize * 0.62 + 4;
     var textRight = x0 + width - (flags.music ? 22 : 6);
     var room = textRight - textLeft;
-    // 等幅なので1文字の送りは 0.602em。JAVA CAFÉ の9文字が収まる寸法を選ぶ
-    var fontSize = Math.min(big ? 13 : 11, room / 9 / 0.602);
+    /* 縦は文字の墨（インク）の高さで積む。板の中央から目分量でずらすと、背の高い字
+       （Java の J・f、Café の é）が縁の内側からはみ出す。実測した墨の高さは大きさに
+       比例する ― Java Café は上に 0.80em、COFFEE & CODE は 0.742em、下へ出る量は
+       どちらも 0.02em 未満。縁（stroke-width 2）の内側に pad を残す。 */
+    var pad = 2;
+    var subSize = 5.5;
+    var subInk = subSize * 0.742;
+    var LEAD_MIN = 1.6;                  // 2行のあいだに最低これだけ空ける
+    var inkRoom = height - pad * 2 - (big ? subInk + LEAD_MIN : 0);
+
+    // 大きさは幅と高さの両方で抑える。等幅なので1文字の送りは 0.602em で、
+    // Java Café の9文字が収まる寸法を選ぶ。高さも見ておかないと、板の高さを
+    // 変えたとき（2行になるランク4は残りが 0.1 しかない）に文字が縁を越える
+    var fontSize = Math.min(big ? 13 : 11, room / 9 / 0.602, inkRoom / 0.8);
     var tracking = Math.max(0, Math.min(big ? 1.6 : 0.8, room / 9 - fontSize * 0.602));
     var textX = round((textLeft + textRight) / 2);
-    var textY = y0 + height / 2 + (big ? -1 : 4);
+
+    var mainInk = fontSize * 0.8;
+    var lead = big ? clamp(height - pad * 2 - mainInk - subInk, LEAD_MIN, 2.2) : 0;
+    var block = mainInk + lead + (big ? subInk : 0);
+    var textY = y0 + pad + Math.max(0, (height - pad * 2 - block) / 2) + mainInk;
+
     // 記章は受け皿ぶん下に長いので、その差を戻して看板の高さの中央へ収める
     out += cupMark(markX, y0 + height / 2 - markSize * 0.115, markSize, era.awningAlt, '#241b18', null)
       + '<text x="' + textX + '" y="' + round(textY)
       + '" text-anchor="middle" fill="#f4d89d" font-family="' + FONT
       + '" font-size="' + round(fontSize) + '" font-weight="700" letter-spacing="'
-      + round(tracking) + '">JAVA CAFÉ</text>';
+      + round(tracking) + '">Java Café</text>';
     if (big) {
-      out += '<text x="' + textX + '" y="' + round(y0 + height - 5)
+      out += '<text x="' + textX + '" y="' + round(textY + lead + subInk)
         + '" text-anchor="middle" fill="#d9b97e" font-family="' + FONT
-        + '" font-size="5.5" letter-spacing="1.4">COFFEE &amp; CODE</text>';
+        + '" font-size="' + subSize + '" letter-spacing="1.4">COFFEE &amp; CODE</text>';
     }
 
     // 音符（朝のプレイリスト）
@@ -1174,7 +1191,7 @@
       + '<rect x="-15" y="-30" width="30" height="7" rx="2.5" fill="' + trim + '"/>'
       + '<rect x="-11" y="-21" width="22" height="7" rx="1.4" fill="#2f3238"/>'
       + '<text y="-15.4" text-anchor="middle" fill="' + (era.neon || '#f0d078') + '" font-family="' + FONT
-      + '" font-size="5" font-weight="700" letter-spacing="0.6">JAVA</text>'
+      + '" font-size="5" font-weight="700" letter-spacing="0.6">Java</text>'
       + '<rect x="-9" y="-11" width="18" height="3" rx="1.5" fill="' + trim + '"/>'
       + '<rect x="-6" y="-8" width="4" height="5" fill="' + trim + '"/>'
       + '<rect x="2" y="-8" width="4" height="5" fill="' + trim + '"/>'
@@ -1373,10 +1390,14 @@
 
   /** 軒先の電飾。設備または内装レベル5以上で灯る。 */
   function festoonLayer(era, st) {
-    var x0 = st.x0 - 14;
-    var x1 = st.x1 + 14;
-    var y = st.top + 4;
-    var sag = 22;
+    // 紐の端は軒の下端（屋根 x0-11 〜 x1+11、下端 st.top）の内側へ留める。
+    // ここを外に出すと、端が軒の外の空で切れて店構えから浮いて見える。
+    var x0 = st.x0 - 9;
+    var x1 = st.x1 + 9;
+    var y = st.top;
+    // 端を4上げたぶん sag も足す。垂れ下がりの底（y + sag）を動かさないと、
+    // 電球の列が看板の文字の上まで上がってくる
+    var sag = 26;
     var out = '<path d="M' + x0 + ' ' + y + ' Q' + MIDX + ' ' + (y + sag * 2) + ' ' + x1 + ' ' + y
       + '" fill="none" stroke="' + era.trim + '" stroke-width="1.4" opacity="0.8"/>';
 

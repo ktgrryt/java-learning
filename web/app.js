@@ -3645,7 +3645,7 @@
       }) +
       '</div>' +
       '<div class="cafe-network-caption">' +
-      '<b>' + (maximum ? 'WORLDWIDE NETWORK' : (progressLocked ? 'NEXT AREA LOCKED' : 'JAVA CAFÉ NETWORK')) + '</b>' +
+      '<b>' + (maximum ? 'WORLDWIDE NETWORK' : (progressLocked ? 'NEXT AREA LOCKED' : 'Java Café NETWORK')) + '</b>' +
       '<small>' + (progressLocked ? '問題を解くと次の地域へ出店できます' : '1 → 2 → 3 → 5 → 8… と出店規模も加速') + '</small>' +
       '</div>' +
       '</div>' +
@@ -5882,7 +5882,7 @@
       : null;
     var notification = {
       type: 'reward',
-      kicker: options.kicker || 'JAVA CAFÉ',
+      kicker: options.kicker || 'Java Café',
       title: options.title || '報酬を獲得',
       label: options.label || '',
       cash: Number(award.cash || 0),
@@ -6202,7 +6202,7 @@
     }).join('');
 
     return '<div class="coin-log-top">'
-      + '<div class="coin-log-title"><small>JAVA CAFÉ</small>'
+      + '<div class="coin-log-title"><small>Java Café</small>'
       + '<strong>コインの獲得履歴</strong></div>'
       + '<button class="coin-log-close" type="button" data-role="close"'
       + ' aria-label="履歴を閉じる">×</button></div>'
