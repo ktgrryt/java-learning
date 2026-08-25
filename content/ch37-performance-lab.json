@@ -156,7 +156,7 @@
             "外れ値の影響で平均が下がる"
           ],
           "answer": 2,
-          "explanation": "件数が分かれば十分ということはなく、JITも無効になりません。外れ値は平均を**上げる**方向に働くので「下がる」は逆です。平均は、少数の非常に遅い要求をならして見えなくします。だから分布と p95 / p99 を合わせて、裾の遅さを観察します。"
+          "explanation": "件数が分かれば十分ということはなく、JITも無効になりません。外れ値は平均を**上げる**方向に働くので「下がる」は逆です。平均は、少数の非常に遅い要求をならして見えなくします。そのため分布と p95 / p99 を合わせて、裾の遅さを観察します。"
         },
         {
           "question": "多数のThreadが同じロックでBLOCKEDなら疑うものは？",
@@ -623,7 +623,7 @@
           "hints": [
             "順位の切り上げは `(percent*n+99)/100` で整数のまま計算できます。取り出すのは `sorted[rank-1]` です。",
             "GC停止の行はいったんリストへ貯めます。パーセンタイルより後に表示するので、集計と表示を分けます。",
-            "2つの最大値が一致しても、それは相関の候補が見つかっただけです。だから出力は `CORRELATED`（相関あり）で止め、原因だと言い切っていません。"
+            "2つの最大値が一致しても、それは相関の候補が見つかっただけです。そのため出力は `CORRELATED`（相関あり）で止め、原因だと言い切っていません。"
           ],
           "solution": "import java.util.*;\n\npublic class Main {\n    static long percentile(long[] sorted, int percent) {\n        int rank = (percent * sorted.length + 99) / 100;\n        return sorted[rank - 1];\n    }\n\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        long threshold = sc.nextLong();\n        int n = sc.nextInt();\n        long[] latencies = new long[n];\n        long maxLatency = 0, spikeMax = 0;\n        List<String> gcLines = new ArrayList<>();\n        for (int i = 0; i < n; i++) {\n            int second = sc.nextInt();\n            long latency = sc.nextLong(), gc = sc.nextLong();\n            latencies[i] = latency;\n            maxLatency = Math.max(maxLatency, latency);\n            if (gc >= threshold) {\n                gcLines.add(\"GC \" + second + \" \" + gc);\n                spikeMax = Math.max(spikeMax, latency);\n            }\n        }\n        long[] sorted = Arrays.copyOf(latencies, n);\n        Arrays.sort(sorted);\n        System.out.println(\"p50=\" + percentile(sorted, 50) + \" p95=\" + percentile(sorted, 95) + \" p99=\" + percentile(sorted, 99));\n        if (gcLines.isEmpty()) System.out.println(\"NO_GC_SPIKE\");\n        else for (String line : gcLines) System.out.println(line);\n        System.out.println(\"spikeMaxLatency=\" + spikeMax);\n        System.out.println(\"maxLatency=\" + maxLatency);\n        System.out.println(!gcLines.isEmpty() && spikeMax == maxLatency ? \"GC_CORRELATED\" : \"NOT_CORRELATED\");\n    }\n}\n"
         },

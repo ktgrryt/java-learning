@@ -161,7 +161,7 @@
           "code": "record Greeting(String message) { }\n\nfinal class Greet {\n    Greeting execute(String name) {\n        if (name == null || name.isBlank()) throw new IllegalArgumentException();\n        return new Greeting(\"Hello, \" + name);\n    }\n}\n\npublic class Main {\n    public static void main(String[] a) {\n        System.out.println(new Greet().execute(\"Java\").message());\n    }\n}\n"
         }
       ],
-      "task": "**同じ業務ルールを、2つの外側から使います。** 入力は1行に `item count`（`item` の `_` は空文字）。\n\n`OrderDomain.check` に業務ルールを書きます。上から順に判定してください（在庫は `book=3` `pen=1`）。\n\n1. `item` が空 … `EMPTY_ITEM`\n2. `count` が `1`〜`10` の外 … `INVALID_COUNT`\n3. 在庫に無い、または足りない … `OUT_OF_STOCK`\n4. それ以外 … `OK`\n\n次に、同じ `OrderResult` を2つのアダプターへ渡し、**2行**出力します。\n\n| 判断 | `HttpAdapter` | `CliAdapter` |\n|---|---|---|\n| `OK` | `200 OK` | `注文を受け付けました` |\n| `EMPTY_ITEM` | `400 INVALID_ITEM` | `商品を指定してください` |\n| `INVALID_COUNT` | `400 INVALID_COUNT` | `個数は1〜10で指定してください` |\n| `OUT_OF_STOCK` | `409 OUT_OF_STOCK` | `在庫が足りません` |\n\n**ここが要点です。** `OrderDomain` の戻り値は `OrderResult` なので、ステータスコードや日本語の文言をドメインへ書くことはできません。だから外側をHTTPから画面へ替えても、業務ルールは1文字も変わりません。逆に、判定をアダプター側へ書くと同じルールを2か所へ書くことになります。",
+      "task": "**同じ業務ルールを、2つの外側から使います。** 入力は1行に `item count`（`item` の `_` は空文字）。\n\n`OrderDomain.check` に業務ルールを書きます。上から順に判定してください（在庫は `book=3` `pen=1`）。\n\n1. `item` が空 … `EMPTY_ITEM`\n2. `count` が `1`〜`10` の外 … `INVALID_COUNT`\n3. 在庫に無い、または足りない … `OUT_OF_STOCK`\n4. それ以外 … `OK`\n\n次に、同じ `OrderResult` を2つのアダプターへ渡し、**2行**出力します。\n\n| 判断 | `HttpAdapter` | `CliAdapter` |\n|---|---|---|\n| `OK` | `200 OK` | `注文を受け付けました` |\n| `EMPTY_ITEM` | `400 INVALID_ITEM` | `商品を指定してください` |\n| `INVALID_COUNT` | `400 INVALID_COUNT` | `個数は1〜10で指定してください` |\n| `OUT_OF_STOCK` | `409 OUT_OF_STOCK` | `在庫が足りません` |\n\n**ここが要点です。** `OrderDomain` の戻り値は `OrderResult` なので、ステータスコードや日本語の文言をドメインへ書くことはできません。そのため外側をHTTPから画面へ替えても、業務ルールは1文字も変わりません。逆に、判定をアダプター側へ書くと同じルールを2か所へ書くことになります。",
       "starterCode": "import java.util.*;\n\n/** 業務の判断の結果。HTTPもCLIも知らない。 */\nenum OrderResult { OK, EMPTY_ITEM, INVALID_COUNT, OUT_OF_STOCK }\n\n/** 業務ルールだけを持つ。戻り値が OrderResult なので、HTTPのことは書けない。 */\nclass OrderDomain {\n    private final Map<String, Integer> stock = new HashMap<>(Map.of(\"book\", 3, \"pen\", 1));\n\n    OrderResult check(String item, int count) {\n        /* TODO 上から順に判定する */\n        return OrderResult.OK;\n    }\n}\n\n/** 業務の判断をHTTPの応答へ翻訳する。ここに業務ルールは書かない。 */\nclass HttpAdapter {\n    String render(OrderResult result) {\n        /* TODO */\n        return \"\";\n    }\n}\n\n/** 同じ判断を、画面向けの文へ翻訳する。 */\nclass CliAdapter {\n    String render(OrderResult result) {\n        /* TODO */\n        return \"\";\n    }\n}\n\npublic class Main {\n    public static void main(String[] a) {\n        Scanner sc = new Scanner(System.in);\n        String item = sc.next();\n        if (item.equals(\"_\")) item = \"\";\n        int count = sc.nextInt();\n        OrderResult result = new OrderDomain().check(item, count);\n        System.out.println(new HttpAdapter().render(result));\n        System.out.println(new CliAdapter().render(result));\n    }\n}\n",
       "visibleCases": [
         {
@@ -295,7 +295,7 @@
             "テストのときに、アプリ全体を起動する必要が生じてしまう"
           ],
           "answer": 2,
-          "explanation": "版をそろえるのも、サーバーを組み込むのも、Spring Bootが助けてくれる側です。テストは範囲を絞って起動できます。代償は、条件が見えないまま設定が決まることです。だから条件レポートを読みます。"
+          "explanation": "版をそろえるのも、サーバーを組み込むのも、Spring Bootが助けてくれる側です。テストは範囲を絞って起動できます。代償は、条件が見えないまま設定が決まることです。そのため条件レポートを読みます。"
         },
         {
           "question": "アプリ全体を起動するテストと、Web層だけを起動するテストを使い分ける理由はどれでしょう。",
@@ -599,7 +599,7 @@
           "hints": [
             "`-` を先に空文字へ置き換えてから長さを見ると、判定が1か所で済みます。",
             "件数は `fails.merge(framework,1,Integer::sum)` で足せます。表示は `frameworks` の順に回します。",
-            "契約テストは、フレームワークが違っても同じ入力へ同じ答えを返すことを確かめるものです。だからフレームワークごとに期待値を変えません。"
+            "契約テストは、フレームワークが違っても同じ入力へ同じ答えを返すことを確かめるものです。そのためフレームワークごとに期待値を変えません。"
           ],
           "solution": "import java.util.*;\n\npublic class Main {\n    static int expected(String name) {\n        String v = name.equals(\"-\") ? \"\" : name;\n        return !v.isEmpty() && v.length() <= 20 ? 200 : 400;\n    }\n\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n        List<String> frameworks = List.of(\"spring\", \"liberty\", \"quarkus\");\n        Map<String, Integer> fails = new LinkedHashMap<>();\n        for (String f : frameworks) fails.put(f, 0);\n        boolean broken = false;\n        for (int k = 1; k <= n; k++) {\n            String name = sc.next(), framework = sc.next();\n            int actual = sc.nextInt(), want = expected(name);\n            boolean pass = want == actual;\n            if (!pass) {\n                fails.merge(framework, 1, Integer::sum);\n                broken = true;\n            }\n            System.out.println(k + \" \" + framework + \" expected=\" + want + \" actual=\" + actual + \" \" + (pass ? \"PASS\" : \"FAIL\"));\n        }\n        for (String f : frameworks) System.out.println(f + \" \" + fails.get(f));\n        System.out.println(broken ? \"CONTRACT_BROKEN\" : \"CONTRACT_OK\");\n    }\n}\n",
           "rubric": [

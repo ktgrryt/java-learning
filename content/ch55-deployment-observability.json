@@ -421,7 +421,7 @@
           "hints": [
             "`heap>0` かどうかで表示を切り替えます。コンテナの上限ぎりぎりに `-Xmx` を置かないための計算です。",
             "ステータスは `switch` 式で書けます。`starting` と `draining` は同じ503です。",
-            "livenessは「再起動すべきか」、readinessは「トラフィックを受けられるか」です。`draining` が503でもプロセスは生きています。だから状態とステータスを別に持っています。"
+            "livenessは「再起動すべきか」、readinessは「トラフィックを受けられるか」です。`draining` が503でもプロセスは生きています。そのため状態とステータスを別に持っています。"
           ],
           "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int limit = sc.nextInt(), nonHeap = sc.nextInt(), margin = sc.nextInt(), heap = limit - nonHeap - margin;\n        System.out.println(heap > 0 ? \"HEAP \" + heap : \"HEAP INVALID\");\n        int n = sc.nextInt(), ready = 0;\n        for (int k = 1; k <= n; k++) {\n            String state = sc.next();\n            int status = switch (state) {\n                case \"ready\" -> 200;\n                case \"failed\" -> 500;\n                default -> 503;\n            };\n            if (state.equals(\"ready\")) ready++;\n            System.out.println(k + \" \" + state + \" \" + status);\n        }\n        System.out.println(ready > 0 ? \"RECEIVED_TRAFFIC \" + ready : \"NO_TRAFFIC\");\n    }\n}\n"
         },

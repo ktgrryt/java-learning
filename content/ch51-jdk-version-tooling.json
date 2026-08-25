@@ -193,7 +193,7 @@
             "外部依存のバージョンをそろえてくれる"
           ],
           "answer": 2,
-          "explanation": "テストの実行や外部依存の版とは関係がなく、実行するJVMを新しくしてくれるわけでもありません。`--release 17` は、クラスファイルの形式と**コンパイル時に見える標準API**を17相当へそろえます。だから新しいJDKで作っても、17に無いAPIを誤って呼んだ時点で止められます。"
+          "explanation": "テストの実行や外部依存の版とは関係がなく、実行するJVMを新しくしてくれるわけでもありません。`--release 17` は、クラスファイルの形式と**コンパイル時に見える標準API**を17相当へそろえます。そのため新しいJDKで作っても、17に無いAPIを誤って呼んだ時点で止められます。"
         },
         {
           "question": "Java 21でビルドしたクラスファイルを、Java 17のJVMで実行するとどうなるでしょう。",
@@ -496,7 +496,7 @@
             "負荷と必要な権限、本番の手順を確認し、取得の記録を残すこと"
           ],
           "answer": 3,
-          "explanation": "同じ機器でIDEを起動しておく必要はありません。再起動してから取ると、調べたい状態が消えます。そして「取得そのものは無害」も誤りで、コマンド次第で停止時間と負荷が変わります。だから負荷と必要な権限、本番での手順を先に確認し、いつ何を取ったか（PID・時刻・コマンド）を記録します。"
+          "explanation": "同じ機器でIDEを起動しておく必要はありません。再起動してから取ると、調べたい状態が消えます。そして「取得そのものは無害」も誤りで、コマンド次第で停止時間と負荷が変わります。そのため負荷と必要な権限、本番での手順を先に確認し、いつ何を取ったか（PID・時刻・コマンド）を記録します。"
         }
       ]
     },
@@ -633,7 +633,7 @@
       "hints": [
         "並べ替えは `Comparator.comparingInt(Candidate::version).reversed().thenComparing(Candidate::vendor)` です。",
         "LTSだけを集めたリストを作り、空だったら全体のリストに切り替えてから先頭を採ります。",
-        "LTSは言語仕様の区分ではなく、ベンダーが長期サポートを出すという運用上の区分です。だから `supported` と `lts` を別の項目として持っています。"
+        "LTSは言語仕様の区分ではなく、ベンダーが長期サポートを出すという運用上の区分です。そのため `supported` と `lts` を別の項目として持っています。"
       ],
       "solution": "import java.util.*;\n\nrecord Candidate(int version, String vendor, boolean lts) { }\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int minVersion = sc.nextInt(), n = sc.nextInt();\n        List<Candidate> ok = new ArrayList<>();\n        for (int i = 0; i < n; i++) {\n            int version = sc.nextInt();\n            String vendor = sc.next();\n            boolean supported = sc.next().equals(\"yes\"), lts = sc.next().equals(\"yes\");\n            if (supported && version >= minVersion) ok.add(new Candidate(version, vendor, lts));\n        }\n        ok.sort(Comparator.comparingInt(Candidate::version).reversed().thenComparing(Candidate::vendor));\n        if (ok.isEmpty()) System.out.println(\"NONE\");\n        else for (Candidate c : ok) System.out.println(c.version() + \" \" + c.vendor() + \" \" + (c.lts() ? \"LTS\" : \"-\"));\n        List<Candidate> pool = new ArrayList<>();\n        for (Candidate c : ok) if (c.lts()) pool.add(c);\n        if (pool.isEmpty()) pool = ok;\n        System.out.println(pool.isEmpty() ? \"PICK NONE\" : \"PICK \" + pool.get(0).version() + \" \" + pool.get(0).vendor());\n    }\n}\n",
       "extraTasks": [
