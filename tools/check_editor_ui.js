@@ -380,6 +380,99 @@ const KEYS = {
   check(/^System\.out\.[A-Za-z]+\("x"\)\|$/.test(closed),
     '補完が入れた `)` も通り抜ける（`))` にならない）', closed);
 
+  // ── 宣言の書き方。名前のあとに `[]` を書く形（`int table[][]`）────────
+  //
+  // C由来の書き方で、Javaでも通る（第6章のクイズでも「許されているが `int[] a` が一般的」と
+  // 説明している）。宣言を拾う正規表現が**型の側だけ**を見ていると、前置は通るのに後置だけ
+  // 落ちて、`table.` の候補がまるごと出なくなる ―― 型が分からないので、どのオブジェクトにも
+  // ある `equals` だけが並び、`length` が消える。IDEでは出るので「補完が壊れている」と読める。
+  //
+  // 窓を開かずに `JQComplete.suggest` を直接呼ぶ。打鍵で作ると1件ごとに数行かかるうえ、
+  // ここで見たいのは窓の挙動ではなく**宣言の読み取り**である。
+  const arrayDecls = await ev(`(() => {
+    var labels = function (code) {
+      var r = window.JQComplete.suggest(code, code.length);
+      return r ? r.items.map(function (i) { return i.label; }) : [];
+    };
+    return {
+      pre:   labels('int[][] table = new int[3][3];\\n    table.'),
+      post2: labels('int table[][] = new int[3][3];\\n    table.'),
+      post1: labels('int table[] = new int[3];\\n    table.'),
+      param: labels('void f(int a[]) {\\n    a.'),
+      field: labels('class K { int grid[][]; void f() { grid.'),
+      inner: labels('int table[][] = new int[3][3];\\n    table[0].'),
+      elem:  labels('String names[] = {"a"};\\n    names[0].tr')
+    };
+  })()`);
+  check(arrayDecls.pre.indexOf('length') === 0,
+    '前置（`int[][] table`）で `length` が出る', arrayDecls.pre);
+  check(arrayDecls.post2.indexOf('length') === 0,
+    '後置（`int table[][]`）でも `length` が出る', arrayDecls.post2);
+  check(arrayDecls.post1.indexOf('length') === 0,
+    '後置の1次元（`int table[]`）でも出る', arrayDecls.post1);
+  check(arrayDecls.param.indexOf('length') === 0,
+    '引数の後置（`void f(int a[])`）でも出る', arrayDecls.param);
+  check(arrayDecls.field.indexOf('length') === 0,
+    'フィールドの後置（`int grid[][];`）でも出る', arrayDecls.field);
+  check(arrayDecls.inner.indexOf('length') === 0,
+    '後置の2次元は `table[0].` でも1段減って配列のまま', arrayDecls.inner);
+  check(arrayDecls.elem.indexOf('trim') === 0,
+    '後置（`String names[]`）の要素は String として追える', arrayDecls.elem);
+
+  // ── 型が辿れる範囲（2026-08-25の棚卸しで足したぶん）──────────────────
+  //
+  // どれも「窓が出ない」形で落ちていた。**型が分からないと、このファイルのメンバと
+  // `equals` だけを出す**作りなので、ラベルの有無では通ったことにならない。
+  // 候補の origin（解決した型）で見る。
+  const resolves = await ev(`(() => {
+    var origins = function (code) {
+      var r = window.JQComplete.suggest(code, code.length);
+      if (!r || !r.items.length) { return []; }
+      var seen = {}, out = [];
+      r.items.forEach(function (i) { if (!seen[i.origin]) { seen[i.origin] = 1; out.push(i.origin); } });
+      return out;
+    };
+    return {
+      newCall:   origins('int n = new Scanner(System.in).nex'),
+      declared2: origins('String mode = "a", text = "b";\\n    text.'),
+      declared3: origins('int a = 1, b = 2;\\n    String s = "x", t = "y";\\n    t.'),
+      casePat:   origins('Object o = null;\\n    String r = switch (o) { case String s -> s.'),
+      ownCall:   origins('class M { String tag() { return ""; } void f() { tag().'),
+      cast:      origins('Object o = null;\\n    ((String) o).'),
+      twoIndex:  origins('String[][] g = null;\\n    g[0][1].'),
+      varChain:  origins('String s = "x";\\n    var t = s.trim();\\n    t.'),
+      varForEach: origins('String[] ns = {"a"};\\n    for (var n : ns) { n.'),
+      varNewArray: origins('var a = new String[]{"x"};\\n    a.'),
+      varEntry:  origins('Map<String, Integer> m = null;\\n    for (var e : m.entrySet()) { e.getKey().'),
+      primitive: origins('int n = 3;\\n    n.')
+    };
+  })()`);
+  const only = (got, want) => got.length === 1 && got[0] === want;
+  check(only(resolves.newCall, 'Scanner'),
+    '`new Scanner(System.in).` は Scanner として続けられる', resolves.newCall);
+  check(only(resolves.declared2, 'String'),
+    '1行に2つ書いた宣言の2つ目（`String mode = "a", text = "b";`）も型が付く', resolves.declared2);
+  check(only(resolves.declared3, 'String'),
+    '前の行に別の複数宣言があっても取り違えない', resolves.declared3);
+  check(only(resolves.casePat, 'String'),
+    '`case String s ->` のパターン変数も型が付く', resolves.casePat);
+  check(only(resolves.ownCall, 'String'),
+    '自分で書いたメソッドの戻り（`tag().`）を辿れる', resolves.ownCall);
+  check(only(resolves.cast, 'String'),
+    'かっこで囲んだキャスト（`((String) o).`）を辿れる', resolves.cast);
+  check(only(resolves.twoIndex, 'String'),
+    '添字2つ（`g[0][1].`）で2次元ぶん減る', resolves.twoIndex);
+  check(only(resolves.varChain, 'String'),
+    '`var t = s.trim();` の型を右辺から辿れる', resolves.varChain);
+  check(only(resolves.varForEach, 'String'),
+    '`for (var n : ns)` は要素の型になる', resolves.varForEach);
+  check(only(resolves.varNewArray, 'String[]'),
+    '`var a = new String[]{…}` は配列のまま（要素の型にしない）', resolves.varNewArray);
+  check(only(resolves.varEntry, 'String'),
+    '`for (var e : m.entrySet())` の `e.getKey()` は Map の型引数を引き継ぐ', resolves.varEntry);
+  check(resolves.primitive.length === 0,
+    '基本型（`int n.`）には候補を出さない', resolves.primitive);
+
   // ── 定型の短縮（`sysout`）──────────────────────────────────────────
   // `);` まで入れるので、通り抜けさせる `)` は**末尾ではなく caret の位置**である。
   // ここを末尾から数えると `;` を覚えてしまい、打った `)` が消える。
@@ -642,6 +735,7 @@ const KEYS = {
   }
   console.log(`\n${GREEN}EDITOR UI OK: 自動で閉じるかっこと引用符・打ち抜けの条件・`
     + `テキストブロック・位置の追従・候補の移動（↑↓ と Ctrl+P/N）・定型の短縮（sysout）・`
+    + `後置の \`[]\` を含む配列の宣言・型を辿れる範囲（new・複数宣言・case・自分のメソッド・キャスト・var）・`
     + `Tabの字下げ・${TIP_LESSON} の解説にある \`sysout\` の案内・`
     + `編集欄の高さ（行数に追随・下限と上限・つまみを尊重）を確認しました${RESET}`);
 })().catch(e => {

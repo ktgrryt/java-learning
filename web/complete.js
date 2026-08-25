@@ -158,8 +158,14 @@
 
   var MODIFIERS = '(?:(?:public|private|protected|static|final|abstract|synchronized|native|default|strictfp)\\s+)*';
 
-  // `Type name` の並び。後ろが `= ; , ) :` のいずれかなら宣言と見なす
-  var VAR_RE = new RegExp('\\b(' + TYPE + ')\\s+([A-Za-z_$][\\w$]*)\\s*(?==|;|,|\\)|:)', 'g');
+  // `Type name` の並び。後ろが `= ; , ) : ->` のいずれかなら宣言と見なす。
+  // 名前のあとに付く `[]`（`int table[][]` というC由来の書き方）も拾って3組目に入れる ―
+  // 型の側（TYPE）だけを見ていると、前置（`int[][] table`）は通るのに後置だけ落ちて、
+  // その変数の補完がまるごと効かなくなる（`table.` に `length` が出ない）。
+  // `->` は `case String s -> …`（switchのパターン）のため。`case` は予約語として弾かれる
+  // ので、`case RED -> …`（enum定数）を変数と見なす心配はない。
+  var VAR_RE = new RegExp('\\b(' + TYPE + ')\\s+([A-Za-z_$][\\w$]*)' +
+    '((?:\\s*\\[\\s*\\])*)\\s*(?==|;|,|\\)|:|->)', 'g');
 
   // `修飾子 戻り値 名前(引数)` の並び。後ろが `{`（本体あり）か `;`（抽象）
   var METHOD_RE = new RegExp(MODIFIERS + '(' + TYPE + ')\\s+([A-Za-z_$][\\w$]*)\\s*' +
@@ -210,8 +216,8 @@
     var start = 0;
     for (var i = 0; i < text.length; i++) {
       var c = text.charAt(i);
-      if (c === '<' || c === '(' || c === '[') { depth++; continue; }
-      if (c === '>' || c === ')' || c === ']') { depth--; continue; }
+      if (c === '<' || c === '(' || c === '[' || c === '{') { depth++; continue; }
+      if (c === '>' || c === ')' || c === ']' || c === '}') { depth--; continue; }
       if (c === sep && depth === 0) { out.push(text.slice(start, i)); start = i + 1; }
     }
     out.push(text.slice(start));
@@ -223,11 +229,22 @@
     return trimmed;
   }
 
-  /** `var` の型を、右辺から推し量る。 */
+  /**
+   * `var` の型を、右辺から推し量る。
+   *
+   * ここで分かるのは「見ただけで決まる形」だけである。変数のメソッドの戻り
+   * （`var t = s.trim()`）や拡張for（`for (var n : ns)`）は、他の変数の型が
+   * 決まってからでないと辿れないので、`scan` の最後の {@link resolvePendingVars} で扱う。
+   */
   function inferVarType(code, afterName) {
     var rest = code.slice(afterName, afterName + 120);
-    var m = /^\s*=\s*new\s+([A-Za-z_$][\w$]*(?:\s*<[^<>]*>)?)/.exec(rest);
-    if (m) { return m[1]; }
+    // `new` の後ろの `[]` まで数える。落とすと `var a = new String[]{"x"}` が String になり、
+    // **配列に String のメソッドを出す**（取りこぼしより悪い）
+    var m = /^\s*=\s*new\s+([A-Za-z_$][\w$]*(?:\s*<[^<>]*>)?)((?:\s*\[[^\]]*\])*)/.exec(rest);
+    if (m) {
+      var dims = (m[2] || '').match(/\[/g);
+      return m[1] + (dims ? new Array(dims.length + 1).join('[]') : '');
+    }
     if (/^\s*=\s*"/.test(rest)) { return 'String'; }
     if (/^\s*=\s*'/.test(rest)) { return 'char'; }
     if (/^\s*=\s*\d+\.\d/.test(rest)) { return 'double'; }
@@ -358,6 +375,7 @@
       var v;
       while ((v = re.exec(code)) !== null) {
         var typeRaw = v[1].replace(/\s+/g, '');
+        var postfix = (v[3] || '').replace(/\s+/g, '');   // `int table[][]` の `[][]`
         var base = typeRaw.replace(/[<\[].*$/, '').replace(/^.*\./, '');
         if (RESERVED[typeRaw] && typeRaw !== 'var') { continue; }
         if (RESERVED[base] && base !== 'var') { continue; }
@@ -365,30 +383,77 @@
 
         var at = v.index;
         var nameAt = v.index + v[0].indexOf(v[2], v[1].length);
-        if (typeRaw === 'var') {
+        var wasVar = typeRaw === 'var';
+        if (wasVar) {
           typeRaw = inferVarType(code, nameAt + v[2].length) || '';
         }
+        // 後置の `[]` は型の次元として足す。`var` に後置は書けない（文法違反）ので、
+        // 推論した型へ足すと嘘の次元になる。そのときだけ無視する。
+        if (postfix && !wasVar) { typeRaw += postfix; }
 
-        var owner = ownerAt(at);
-        var inParens = !!parens[at];
-        var kind = 'var';
-        if (inParens) {
-          kind = inParamList(at) ? 'param' : 'var';
-        } else if (owner && depth[at] === owner.innerDepth) {
-          kind = 'field';
+        var entry = addVar(v[2], typeRaw, at, nameAt);
+        if (wasVar && !typeRaw) {
+          // 右辺を見ただけでは決まらなかった `var`。他の変数の型が出来てから辿る
+          entry.pendingFrom = nameAt + v[2].length;
         }
+        // 同じ文に続く宣言（`String a = "x", b = "y";` の `b`）。型は前に書いた1つだけで、
+        // 2つ目以降には付かないので、ここで同じ型を配って回る。
+        if (!wasVar) { addFollowingDeclarators(v[1].replace(/\s+/g, ''), v.index + v[0].length); }
+      }
+    }
 
-        var entry = {
-          name: v[2],
-          kind: kind,
-          type: typeRaw,
-          pos: at,
-          scopePos: inParens ? scopeStartOf(at) : at,
-          owner: owner ? owner.name : '',
-          isStatic: false
-        };
-        result.vars.push(entry);
-        if (owner && kind === 'field') { owner.fields.push(entry); }
+    /** 変数1つを登録する。ローカル・引数・フィールドの区別はここで付ける。 */
+    function addVar(name, typeRaw, at, nameAt) {
+      var owner = ownerAt(at);
+      var inParens = !!parens[at];
+      var kind = 'var';
+      if (inParens) {
+        kind = inParamList(at) ? 'param' : 'var';
+      } else if (owner && depth[at] === owner.innerDepth) {
+        kind = 'field';
+      }
+
+      var entry = {
+        name: name,
+        kind: kind,
+        type: typeRaw,
+        pos: at,
+        nameAt: nameAt,
+        scopePos: inParens ? scopeStartOf(at) : at,
+        owner: owner ? owner.name : '',
+        isStatic: false
+      };
+      result.vars.push(entry);
+      if (owner && kind === 'field') { owner.fields.push(entry); }
+      return entry;
+    }
+
+    /**
+     * `型 名前` のあとに `, 名前` と続くぶんを、同じ型で登録する。
+     *
+     * `String mode = sc.next(), text = sc.next();` の `text` には型が書かれていないので、
+     * 宣言を正規表現1つで拾う作りでは落ちる（`text.` の候補が出ない）。教材では
+     * 参照型で86件あり、`int a = 1, b = 2;` の形は基本型なので候補が要らないだけである。
+     *
+     * かっこ・角かっこ・波かっこの中の `,` は数えない（`f(a, b)` や `{1, 2}`）。
+     * `<` `>` は数えない ―― 初期値の中では大小比較の記号として現れるので、
+     * 深さに数えると `a < b ? …` で狂う。代わりに、名前として読めない形が来たらそこで諦める
+     * （`new HashMap<String, Integer>()` を跨ぐぶんは拾わないが、嘘の変数も作らない）。
+     */
+    function addFollowingDeclarators(baseType, from) {
+      var d = 0;
+      for (var i = from; i < code.length; i++) {
+        var c = code.charAt(i);
+        if (c === '(' || c === '[' || c === '{') { d++; continue; }
+        if (c === ')' || c === ']' || c === '}') { d--; if (d < 0) { return; } continue; }
+        if (d > 0) { continue; }
+        if (c === ';') { return; }
+        if (c !== ',') { continue; }
+        var m = /^\s*([A-Za-z_$][\w$]*)((?:\s*\[\s*\])*)\s*(?==|,|;|\))/
+          .exec(code.slice(i + 1, i + 120));
+        if (!m || RESERVED[m[1]]) { return; }
+        var nameAt = i + 1 + m[0].indexOf(m[1]);
+        addVar(m[1], baseType + m[2].replace(/\s+/g, ''), nameAt, nameAt);
       }
     }
 
@@ -463,9 +528,83 @@
       }
     }
 
+    // 右辺を見ただけでは決まらない `var`（`var t = s.trim()` / `for (var n : ns)`）は、
+    // 他の変数の型が出来てからでないと辿れない。走査結果が揃ったここで解く。
+    resolvePendingVars(result);
+
     lastScan.text = text;
     lastScan.result = result;
     return result;
+  }
+
+  /**
+   * 型の書き方（`{name, args, dims}`）を、宣言に書いてあるのと同じ文字列へ戻す。
+   * 変数の `type` は文字列で持っているので、解いた結果を入れるときに要る。
+   */
+  function typeText(type) {
+    if (!type || !type.name) { return ''; }
+    var text = type.name;
+    if (type.args && type.args.length) { text += '<' + type.args.join(',') + '>'; }
+    for (var i = 0; i < type.dims; i++) { text += '[]'; }
+    return text;
+  }
+
+  /** 拡張forで1つずつ取り出したときの型。配列なら1次元減らし、`List<T>` なら T。 */
+  function elementType(type) {
+    if (!type) { return null; }
+    if (type.dims > 0) { return { name: type.name, args: type.args, dims: type.dims - 1 }; }
+    if (type.args && type.args.length) { return parseType(type.args[type.args.length - 1]); }
+    return null;
+  }
+
+  /**
+   * 変数・呼び出し・添字だけが並ぶ式か。`k / 2` や `switch (day) { … }` を弾くために使う。
+   *
+   * 弾かずに {@link resolveReceiver} へ渡すと、`s.trim() + 1` のように**途中まで読めて
+   * しまう式**で最後の演算を無視した型が付く。分からないままにしておくほうが害が小さい。
+   */
+  var CHAIN_ONLY = /^[A-Za-z_$][\w$]*(?:\s*(?:\.\s*[A-Za-z_$][\w$]*(?:\s*\([^()]*\))?|\[[^\]]*\]))*\s*$/;
+
+  /** 文の終わり（深さ0の `;` `,` `)`）までを切り出す。 */
+  function firstExpression(text) {
+    var d = 0;
+    for (var i = 0; i < text.length; i++) {
+      var c = text.charAt(i);
+      if (c === '(' || c === '[' || c === '{') { d++; continue; }
+      if (c === ')' || c === ']' || c === '}') {
+        if (d === 0) { return text.slice(0, i); }
+        d--; continue;
+      }
+      if (d === 0 && (c === ';' || c === ',')) { return text.slice(0, i); }
+    }
+    return text;
+  }
+
+  /**
+   * 右辺を見ただけでは決まらなかった `var` を、組み上がった走査結果から解く。
+   *
+   * 対象は2つ ―― `var t = s.trim();`（変数のメソッドの戻り）と
+   * `for (var n : ns)`（1つずつ取り出したもの）。どちらも他の変数の型を辿るので、
+   * 変数を集めている途中では解けない。宣言は前から順に登録されているので、
+   * 1度なめれば `var a = s.trim(); var b = a.trim();` まで届く。
+   */
+  function resolvePendingVars(info) {
+    var code = info.code;
+    for (var i = 0; i < info.vars.length; i++) {
+      var entry = info.vars[i];
+      if (entry.type || !entry.pendingFrom) { continue; }
+      var rest = code.slice(entry.pendingFrom, entry.pendingFrom + 200);
+      var eq = /^\s*=\s*([\s\S]+)$/.exec(rest);
+      var each = eq ? null : /^\s*:\s*([\s\S]+)$/.exec(rest);
+      var m = eq || each;
+      if (!m) { continue; }
+      var expr = firstExpression(m[1]).replace(/^\s+|\s+$/g, '');
+      if (!CHAIN_ONLY.test(expr)) { continue; }
+      var resolved = resolveReceiver(expr, info, entry.pos);
+      if (!resolved) { continue; }
+      var type = each ? elementType(resolved.type) : resolved.type;
+      entry.type = typeText(type);
+    }
   }
 
   // ── 型の解決 ───────────────────────────────────────────────────────
@@ -515,7 +654,13 @@
       }
     }
     for (var j = 0; j < parsed.args.length; j++) {
-      if (map[parsed.args[j]]) { parsed.args[j] = map[parsed.args[j]]; }
+      if (map[parsed.args[j]]) { parsed.args[j] = map[parsed.args[j]]; continue; }
+      // 型引数の中にさらに型変数が入っている形（`Map` の `entrySet()` は `Set<Entry<K,V>>`）。
+      // ここを置き換えないと `for (var e : m.entrySet())` の `e.getKey()` が K のままになり、
+      // 型を書いた場合（`Map.Entry<String, Integer> e`）とふるまいが食い違う。
+      parsed.args[j] = parsed.args[j].replace(/[A-Za-z_$][\w$]*/g, function (word) {
+        return map[word] ? map[word] : word;
+      });
     }
     return parsed;
   }
@@ -627,18 +772,38 @@
       if (!target) { return null; }
       type = target;
     } else {
-      var bare = first.replace(/\s*\[[^\]]*\]\s*$/, '');
-      var indexed = bare !== first;
+      // 末尾の添字は、付いている数だけ次元を減らす（`g[0][1]` は2つ）
+      var bare = first;
+      var indexes = 0;
+      var idx = /(?:\s*\[[^\]]*\])+\s*$/.exec(bare);
+      if (idx) {
+        indexes = (idx[0].match(/\[/g) || []).length;
+        bare = bare.slice(0, idx.index);
+      }
       var byVar = findVar(info, bare, pos);
+      // `((String) o).` ―― かっこで囲んだキャストだけを見る。`(String) o.x()` は
+      // `o.x()` に掛かるキャストなので、囲んでいない形を型として読むと逆さになる
+      var cast = /^\(\s*\(\s*([A-Za-z_$][\w$.]*(?:\s*<[^<>]*>)?(?:\s*\[\s*\])*)\s*\)/.exec(bare);
+      var callName = /^([A-Za-z_$][\w$]*)\s*\(/.exec(bare);
+      var ownMethod = callName ? findMethodNamed(info, callName[1], pos) : null;
       if (byVar) {
         type = parseType(byVar.type);
-        if (type && indexed && type.dims > 0) { type.dims--; }
+      } else if (cast) {
+        type = parseType(cast[1]);
+      } else if (ownMethod) {
+        // 自分で書いたメソッドを呼んだ戻り（`tag().`）
+        type = parseType(ownMethod.type);
+      } else if (callName && (info.classes[callName[1]] || api.has(callName[1]))) {
+        // `new Scanner(System.in).` ―― readReceiver は `new` を含めずに
+        // `Scanner(System.in)` を返すので、クラス名＋かっこはその型が出来たものとして読む
+        type = { name: callName[1], args: [], dims: 0 };
       } else if (info.classes[bare] || api.has(bare)) {
         type = { name: bare, args: [], dims: 0 };
         isStatic = true;
       } else {
         return null;
       }
+      if (type && indexes) { type.dims = Math.max(0, type.dims - indexes); }
     }
     if (!type) { return null; }
 
@@ -662,6 +827,24 @@
     }
 
     return { type: type, isStatic: isStatic };
+  }
+
+  /**
+   * 名前でメソッドを1つ引く。今いるクラスのものを先に見る（`tag().` の解決に使う）。
+   * 予約語の名前は走査の時点で弾いてあるので、`if (…)` のような形は掛からない。
+   */
+  function findMethodNamed(info, name, pos) {
+    var owner = info.ownerAt ? info.ownerAt(pos) : null;
+    var i;
+    if (owner) {
+      for (i = 0; i < owner.methods.length; i++) {
+        if (owner.methods[i].name === name) { return owner.methods[i]; }
+      }
+    }
+    for (i = 0; i < info.methods.length; i++) {
+      if (info.methods[i].name === name) { return info.methods[i]; }
+    }
+    return null;
   }
 
   function findVar(info, name, pos) {
