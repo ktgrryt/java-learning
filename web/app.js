@@ -4064,10 +4064,15 @@
     }, 0);
     var attempts = sumValues(state.progress.attempts);
 
+    // ラベルは1行で収まる長さにする（`.stat-label` は nowrap + ellipsis で、はみ出すと
+    // 「連続で学習した日数（…」のように読めなくなる）。枠の幅は5枚並べても足りる
+    // 170pxを下限にしてあるので、目安は9文字まで。入り切らない補足は `note`（title）へ置く。
     var tiles = [
       { icon: '★', value: state.progress.starCount, unit: '個', label: '獲得したスター' },
-      { icon: '🔥', value: state.progress.streak, unit: '日', label: '連続で学習した日数（区切りは午前4時）' },
-      { icon: '✅', value: casesPassed, unit: '件', label: '通過したテスト・構成検証' },
+      { icon: '🔥', value: state.progress.streak, unit: '日', label: '連続で学習した日数',
+        note: '連続で学習した日数（1日の区切りは午前4時）' },
+      { icon: '✅', value: casesPassed, unit: '件', label: '通過したテスト',
+        note: '通過したテストケースと構成検証の数' },
       { icon: '✍️', value: attempts, unit: '回', label: '実行した回数' }
     ];
     if (state.quizTotal) {
@@ -4082,7 +4087,8 @@
     return '' +
       '<section class="menu-section stat-grid" aria-label="学習の記録">' +
       tiles.map(function (t) {
-        return '<div class="stat-tile"><span class="stat-icon">' + t.icon + '</span>' +
+        var title = t.note ? ' title="' + esc(t.note) + '"' : '';
+        return '<div class="stat-tile"' + title + '><span class="stat-icon">' + t.icon + '</span>' +
           '<span class="stat-copy"><span class="stat-label">' + esc(t.label) + '</span>' +
           '<strong class="stat-value">' + t.value + '<span class="stat-unit">' + esc(t.unit) + '</span></strong>' +
           '</span></div>';
