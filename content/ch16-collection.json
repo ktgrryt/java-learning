@@ -170,6 +170,19 @@
           "minimum": 1,
           "message": "配列ではなく `List`（`ArrayList`）へ読み込んでください（伸び縮みする入れ物の練習です）。"
         }
+      ],
+      "quiz": [
+        {
+          "question": "長さや件数の取り出し方の組み合わせで、正しいのはどれでしょう。",
+          "choices": [
+            "配列 `length()` / `String` `length()` / `List` `size()`",
+            "配列 `size()` / `String` `size()` / `List` `size()`",
+            "配列 `length` / `String` `size()` / `List` `length()`",
+            "配列 `length` / `String` `length()` / `List` `size()`"
+          ],
+          "answer": 3,
+          "explanation": "配列の `length` はフィールドなのでかっこが付きません（`length()` と書くとコンパイルエラーです）。`String` と `List` はどちらもメソッドですが、名前が `length()` と `size()` で違います。3つとも書き方が違うので、まとめて覚えるのではなく、対象を見て選びます。"
+        }
       ]
     },
     {
@@ -303,6 +316,19 @@
               "message": "`null` という文字列が来たら、文字列ではなく **本物の `null`** を `add(null)` で入れてください。"
             }
           ]
+        }
+      ],
+      "quiz": [
+        {
+          "question": "ジェネリクスの型引数のうち、**コンパイルエラーになる** のはどれでしょう。",
+          "choices": [
+            "`List<Integer> a = new ArrayList<>();`",
+            "`Map<String, Integer> d = new HashMap<>();`",
+            "`List<String> c = new ArrayList<String>();`",
+            "`List<int> b = new ArrayList<>();`"
+          ],
+          "answer": 3,
+          "explanation": "型引数には **参照型しか書けません**。`int` は基本型なのでエラーで、`Integer` を使います。出し入れはオートボクシングのおかげで `int` のまま書けます。"
         }
       ]
     },
@@ -442,6 +468,30 @@
               "message": "`remove(int)`（位置で消す）と `remove(Object)`（値で消す）の違いを見るので、両方の形で呼んでください。"
             }
           ]
+        }
+      ],
+      "quiz": [
+        {
+          "question": "次のコードの実行後、`list` の中身はどれでしょう。\n\n```java\nList<Integer> list = new ArrayList<>(List.of(10, 20, 30));\nlist.remove(1);\n```",
+          "choices": [
+            "`[10, 30]`",
+            "`[20, 30]`",
+            "`[10, 20]`",
+            "`[10, 20, 30]`"
+          ],
+          "answer": 0,
+          "explanation": "`1` は `int` なので **`remove(int index)`** が選ばれ、位置1（`20`）が消えます。値で消したいときは `list.remove(Integer.valueOf(20))` と書きます。オーバーロードによる意味の違いに注意します。"
+        },
+        {
+          "question": "次のコードを実行するとどうなるでしょう。\n\n```java\nList<String> list = new ArrayList<>(List.of(\"a\", \"b\", \"c\"));\nfor (String s : list) {\n    if (s.equals(\"a\")) list.remove(s);\n}\n```",
+          "choices": [
+            "`ConcurrentModificationException` が出る",
+            "`UnsupportedOperationException` が出る",
+            "`[b, c]` になり、そのまま終わる",
+            "変更は無視されるが、例外にはならない"
+          ],
+          "answer": 0,
+          "explanation": "`UnsupportedOperationException` は `List.of` のような変更できないリストへ `add` や `remove` をしたときです。ここは `ArrayList` なので、消すこと自体はできます。ただし拡張forは裏で `Iterator` を使っていて、回している最中に**要素の数が変わる**と次の `next()` で気づいて例外を投げます。消しながら回すときは `removeIf` を使うか、`Iterator` の `remove()` を使います。"
         }
       ]
     },
@@ -612,6 +662,17 @@
           ],
           "answer": 1,
           "explanation": "無いキーには `null` が返ります。数え上げのように `0` として扱いたいときは `m.getOrDefault(\"z\", 0)` を使います。`null` のまま計算すると `NullPointerException` になります。"
+        },
+        {
+          "question": "`Map<String, Integer> m = new HashMap<>();` のとき `int n = m.get(\"なにか\");` はどうなるでしょう（キーは未登録）。",
+          "choices": [
+            "コンパイルエラーになる",
+            "実行時に `NullPointerException` になる",
+            "実行時に `NoSuchElementException` になる",
+            "`n` が `0` になる"
+          ],
+          "answer": 1,
+          "explanation": "`get` はキーがないと `null` を返し、それを `int` に入れようとしてアンボクシングで落ちます。`m.getOrDefault(\"なにか\", 0)` を使えば安全です。"
         }
       ]
     },
@@ -803,39 +864,6 @@
       ],
       "quiz": [
         {
-          "question": "次のコードの実行後、`list` の中身はどれでしょう。\n\n```java\nList<Integer> list = new ArrayList<>(List.of(10, 20, 30));\nlist.remove(1);\n```",
-          "choices": [
-            "`[10, 30]`",
-            "`[20, 30]`",
-            "`[10, 20]`",
-            "`[10, 20, 30]`"
-          ],
-          "answer": 0,
-          "explanation": "`1` は `int` なので **`remove(int index)`** が選ばれ、位置1（`20`）が消えます。値で消したいときは `list.remove(Integer.valueOf(20))` と書きます。オーバーロードによる意味の違いに注意します。"
-        },
-        {
-          "question": "ジェネリクスの型引数のうち、**コンパイルエラーになる** のはどれでしょう。",
-          "choices": [
-            "`List<Integer> a = new ArrayList<>();`",
-            "`Map<String, Integer> d = new HashMap<>();`",
-            "`List<String> c = new ArrayList<String>();`",
-            "`List<int> b = new ArrayList<>();`"
-          ],
-          "answer": 3,
-          "explanation": "型引数には **参照型しか書けません**。`int` は基本型なのでエラーで、`Integer` を使います。出し入れはオートボクシングのおかげで `int` のまま書けます。"
-        },
-        {
-          "question": "`Map<String, Integer> m = new HashMap<>();` のとき `int n = m.get(\"なにか\");` はどうなるでしょう（キーは未登録）。",
-          "choices": [
-            "コンパイルエラーになる",
-            "実行時に `NullPointerException` になる",
-            "実行時に `NoSuchElementException` になる",
-            "`n` が `0` になる"
-          ],
-          "answer": 1,
-          "explanation": "`get` はキーがないと `null` を返し、それを `int` に入れようとしてアンボクシングで落ちます。`m.getOrDefault(\"なにか\", 0)` を使えば安全です。"
-        },
-        {
           "question": "`List<String> fixed = List.of(\"a\", \"b\");` に対して `fixed.add(\"c\")` を実行するとどうなるでしょう。",
           "choices": [
             "`c` が末尾に追加されてサイズが3になる",
@@ -847,26 +875,15 @@
           "explanation": "`List.of` で作ったリストは不変です。`List` インターフェースに `add` があるのでコンパイルは通り、**実行時に** 断られます。変更したいなら `new ArrayList<>(List.of(...))` で詰め替えます。断るときの例外は `UnsupportedOperationException` で、「その操作には対応していない」という意味です。"
         },
         {
-          "question": "長さや件数の取り出し方の組み合わせで、正しいのはどれでしょう。",
+          "question": "自作クラスを `HashSet` へ入れて重複を取り除きたいとき、必ず要るのはどれでしょう。",
           "choices": [
-            "配列 `length()` / `String` `length()` / `List` `size()`",
-            "配列 `size()` / `String` `size()` / `List` `size()`",
-            "配列 `length` / `String` `size()` / `List` `length()`",
-            "配列 `length` / `String` `length()` / `List` `size()`"
+            "`equals` だけを上書きする",
+            "`equals` と `hashCode` の両方を上書きする",
+            "`Comparable` を実装する",
+            "`toString` を上書きする"
           ],
-          "answer": 3,
-          "explanation": "配列の `length` はフィールドなのでかっこが付きません（`length()` と書くとコンパイルエラーです）。`String` と `List` はどちらもメソッドですが、名前が `length()` と `size()` で違います。3つとも書き方が違うので、まとめて覚えるのではなく、対象を見て選びます。"
-        },
-        {
-          "question": "次のコードを実行するとどうなるでしょう。\n\n```java\nList<String> list = new ArrayList<>(List.of(\"a\", \"b\", \"c\"));\nfor (String s : list) {\n    if (s.equals(\"a\")) list.remove(s);\n}\n```",
-          "choices": [
-            "`ConcurrentModificationException` が出る",
-            "`UnsupportedOperationException` が出る",
-            "`[b, c]` になり、そのまま終わる",
-            "変更は無視されるが、例外にはならない"
-          ],
-          "answer": 0,
-          "explanation": "`UnsupportedOperationException` は `List.of` のような変更できないリストへ `add` や `remove` をしたときです。ここは `ArrayList` なので、消すこと自体はできます。ただし拡張forは裏で `Iterator` を使っていて、回している最中に**要素の数が変わる**と次の `next()` で気づいて例外を投げます。消しながら回すときは `removeIf` を使うか、`Iterator` の `remove()` を使います。"
+          "answer": 1,
+          "explanation": "`HashSet` はまず `hashCode` で置き場所を決め、同じ場所にあるものだけ `equals` で比べます。`hashCode` を上書きしないと中身が同じ2つが別の場所へ入り、`equals` が一度も呼ばれません。並べ替えたいときに要るのが `Comparable` です。"
         }
       ]
     },

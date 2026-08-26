@@ -292,6 +292,30 @@
             }
           ]
         }
+      ],
+      "quiz": [
+        {
+          "question": "次のコードはどうなるでしょう。\n\n```java\ntry {\n    ...\n} catch (Exception e) {\n    ...\n} catch (ArithmeticException e) {\n    ...\n}\n```",
+          "choices": [
+            "実行時にどちらも動く",
+            "2つ目の `catch` でコンパイルエラーになる",
+            "`ArithmeticException` の方が優先される",
+            "問題なくコンパイルできる"
+          ],
+          "answer": 1,
+          "explanation": "`catch (Exception e)` が先にすべてを受け止めるので、2つ目の `catch` には到達できません。コンパイラが「到達不能」と判断してエラーにします。**狭い例外を先** に書きます。"
+        },
+        {
+          "question": "次の `catch` はどうなるでしょう。\n\n```java\ntry {\n    ...\n} catch (Exception | ArithmeticException e) {\n    ...\n}\n```",
+          "choices": [
+            "広い方が優先されて動く",
+            "両方の catch が順に実行される",
+            "親子を並べたのでコンパイルエラー",
+            "どちらの例外も受け止められない"
+          ],
+          "answer": 2,
+          "explanation": "広い方が優先される仕組みはなく、`catch` は1つしか実行されないので順に動くこともありません。受け止められないわけでもありません。`ArithmeticException` は `Exception` の子なので、`Exception` だけで足ります。親子をマルチキャッチへ並べるとコンパイルエラーです。"
+        }
       ]
     },
     {
@@ -423,6 +447,19 @@
             }
           ]
         }
+      ],
+      "quiz": [
+        {
+          "question": "次のメソッドを呼んで出力される順番はどれでしょう。\n\n```java\nstatic String f() {\n    try {\n        return \"A\";\n    } finally {\n        System.out.println(\"B\");\n    }\n}\n// 呼び出し側\nSystem.out.println(f());\n```",
+          "choices": [
+            "`A` だけ",
+            "`B` だけ",
+            "`A` → `B`",
+            "`B` → `A`"
+          ],
+          "answer": 3,
+          "explanation": "`return` で戻り値は決まりますが、呼び出し元へ戻る **直前に `finally` が実行されます**。そのため `B` が先に出力され、そのあと `A` が出力されます。"
+        }
       ]
     },
     {
@@ -551,6 +588,19 @@
               "message": "非検査例外のほうは `throw new NegativeException(...)` で投げてください（`throws` は要りません）。"
             }
           ]
+        }
+      ],
+      "quiz": [
+        {
+          "question": "検査例外（`Exception` を継承した独自例外など）について正しいのはどれでしょう。",
+          "choices": [
+            "`try-catch` か `throws` のどちらかが必ず要る",
+            "必ず `try-catch` が必要（`throws` では不可）",
+            "`RuntimeException` と同じ扱いになる",
+            "`try-catch` も `throws` も書かなくてよい"
+          ],
+          "answer": 0,
+          "explanation": "検査例外は「受け止める（`try-catch`）」か「呼び出し元に投げる（`throws`）」のどちらかが必須です。どちらもしないとコンパイルエラーになります。`RuntimeException` 系（非検査例外）は強制されません。"
         }
       ]
     },
@@ -686,39 +736,6 @@
       ],
       "quiz": [
         {
-          "question": "次のコードはどうなるでしょう。\n\n```java\ntry {\n    ...\n} catch (Exception e) {\n    ...\n} catch (ArithmeticException e) {\n    ...\n}\n```",
-          "choices": [
-            "実行時にどちらも動く",
-            "2つ目の `catch` でコンパイルエラーになる",
-            "`ArithmeticException` の方が優先される",
-            "問題なくコンパイルできる"
-          ],
-          "answer": 1,
-          "explanation": "`catch (Exception e)` が先にすべてを受け止めるので、2つ目の `catch` には到達できません。コンパイラが「到達不能」と判断してエラーにします。**狭い例外を先** に書きます。"
-        },
-        {
-          "question": "次のメソッドを呼んで出力される順番はどれでしょう。\n\n```java\nstatic String f() {\n    try {\n        return \"A\";\n    } finally {\n        System.out.println(\"B\");\n    }\n}\n// 呼び出し側\nSystem.out.println(f());\n```",
-          "choices": [
-            "`A` だけ",
-            "`B` だけ",
-            "`A` → `B`",
-            "`B` → `A`"
-          ],
-          "answer": 3,
-          "explanation": "`return` で戻り値は決まりますが、呼び出し元へ戻る **直前に `finally` が実行されます**。そのため `B` が先に出力され、そのあと `A` が出力されます。"
-        },
-        {
-          "question": "検査例外（`Exception` を継承した独自例外など）について正しいのはどれでしょう。",
-          "choices": [
-            "`try-catch` か `throws` のどちらかが必ず要る",
-            "必ず `try-catch` が必要（`throws` では不可）",
-            "`RuntimeException` と同じ扱いになる",
-            "`try-catch` も `throws` も書かなくてよい"
-          ],
-          "answer": 0,
-          "explanation": "検査例外は「受け止める（`try-catch`）」か「呼び出し元に投げる（`throws`）」のどちらかが必須です。どちらもしないとコンパイルエラーになります。`RuntimeException` 系（非検査例外）は強制されません。"
-        },
-        {
           "question": "try-with-resources について **誤っている** のはどれでしょう。",
           "choices": [
             "`try` のカッコで宣言した変数は実質 `final` になる",
@@ -730,15 +747,15 @@
           "explanation": "`try` のカッコに書けるのは **`AutoCloseable`（または `Closeable`）を実装したもの** だけです。それ以外を書くとコンパイルエラーになります。"
         },
         {
-          "question": "次の `catch` はどうなるでしょう。\n\n```java\ntry {\n    ...\n} catch (Exception | ArithmeticException e) {\n    ...\n}\n```",
+          "question": "`try (A a = new A(); B b = new B()) { ... }` のとき、`close()` はどの順で呼ばれるでしょう。",
           "choices": [
-            "広い方が優先されて動く",
-            "両方の catch が順に実行される",
-            "親子を並べたのでコンパイルエラー",
-            "どちらの例外も受け止められない"
+            "`a` → `b`（書いた順）",
+            "どちらが先かは決まっていない",
+            "`b` → `a`（逆順）",
+            "ブロックを抜けても呼ばれない"
           ],
           "answer": 2,
-          "explanation": "広い方が優先される仕組みはなく、`catch` は1つしか実行されないので順に動くこともありません。受け止められないわけでもありません。`ArithmeticException` は `Exception` の子なので、`Exception` だけで足ります。親子をマルチキャッチへ並べるとコンパイルエラーです。"
+          "explanation": "後から開いたものを先に閉じます（逆順）。`b` は `a` を使って作られていることがあるので、この順が安全です。`close()` は例外が出た場合でも呼ばれます。"
         }
       ]
     },

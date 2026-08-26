@@ -1092,17 +1092,21 @@ const HELPERS = `window.__t = {
       feedback: !!(view && view.querySelector('.quiz-feedback')),
       next: !!document.getElementById('reviewFooterBtn'),
       score: view ? (view.querySelector('.quiz-score') || {}).textContent : '',
+      quizNote: view ? (view.querySelector('.quiz-note') || {}).textContent || '' : '',
       bar: (document.querySelector('.review-bar-progress') || {}).textContent
     };
   })()`);
   check(quizPhase.shown, '問題を出し切るとクイズが続けて出る', quizPhase);
   check(!quizPhase.feedback && !quizPhase.next,
     '答える前は正解も解説も「次へ」も出さない', quizPhase);
-  const quizGoal = await ev(
-    `(async () => (await (await fetch('/api/state')).json()).progress.cafe.quizStreakGoal)()`);
-  check(String(quizPhase.score).indexOf('/ ' + quizGoal + '問') >= 0
-      && String(quizPhase.bar).indexOf('クイズ') >= 0,
-    `📣までの連続（/ ${quizGoal}問）と、クイズの段であることが出ている`, quizPhase);
+  // 📣ひらめきメガホンの解放条件（連続正解の数）は出さない ―― まだ手に入れていない
+  // アイテムの話なので、学習の画面で明かさない（2026-08-26に利用者から「ネタバレ」と指摘）
+  check(!quizPhase.score && String(quizPhase.bar).indexOf('クイズ') >= 0,
+    '連続正解の数を出さず、クイズの段であることだけが出ている', quizPhase);
+  check(String(quizPhase.quizNote).indexOf('📣') < 0
+      && String(quizPhase.quizNote).indexOf('連続') < 0
+      && String(quizPhase.quizNote).indexOf('チップは出ません') >= 0,
+    'クイズの札に📣も連続も出さない（払わない・書き換えないだけ残る）', quizPhase.quizNote);
 
   const graded = await ev(`(async () => {
     const before = await (await fetch('/api/state')).json();
@@ -1691,11 +1695,12 @@ const HELPERS = `window.__t = {
   check(!!stepBack.third && stepBack.third.forward.indexOf('次の問題へ') >= 0,
     '戻ったあとも前へ進める（行き止まりにならない）', stepBack.third);
 
-  // ── 📣を所持している人には、取り終わった解放条件を出さない（2026-08-22）──────
+  // ── 📣の解放条件は誰にも出さない（2026-08-22に所持者へ、2026-08-26に全員へ）──────
   //
-  // 「連続 N / 12問」は📣ひらめきメガホンまでの進み具合なので、手に入れたあとは何の
-  // 進み具合でもなくなる。所持を後から与える経路はアプリに無いので、最初から持っている
-  // 進捗で立てた2台目（check-learn-ui.sh の OWNED_PORT）を見る。
+  // 「連続 N / 12問」は📣ひらめきメガホンまでの進み具合で、**まだ手に入れていない
+  // アイテムの話**なので学習の画面には出さない（利用者から「ネタバレ」と指摘）。
+  // 所持している側でも同じ表示になることを、最初から持っている進捗で立てた2台目
+  // （check-learn-ui.sh の OWNED_PORT）で見る。
   if (OWNED_PORT) {
     await open('#review', OWNED_PORT);
     const owned = await ev(`(async () => {
@@ -1745,7 +1750,7 @@ const HELPERS = `window.__t = {
       '復習ホームにクイズの案内が出ている（この検査の前提）', owned.homeNote);
     check(owned.homeNote.indexOf('📣') < 0 && owned.homeNote.indexOf('連続') < 0,
       '復習ホームの案内から解放条件が消えている', owned.homeNote);
-    check(owned.score === false, 'クイズの段に「連続 N / 12問」を出さない', owned);
+    check(owned.score === false, '所持していてもクイズの段に連続を出さない', owned);
     check(owned.quizNote.indexOf('📣') < 0 && owned.quizNote.indexOf('解放') < 0,
       '「解放されます」の一文も出さない（払わない・書き換えないは残る）', owned.quizNote);
     check(owned.quizNote.indexOf('チップは出ません') >= 0,

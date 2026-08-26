@@ -1471,6 +1471,132 @@ public final class ProgressStore {
         return CONCEPT_MIGRATED_TASK_KEYS;
     }
 
+    /**
+     * 別のレッスンへ移した確認クイズの、旧キー（{@link #quizKey}）→ 新キー。
+     *
+     * <p>クイズのキーは「レッスンID#番号」なので、教材でクイズを移したり詰め直したりすると
+     * <b>記録した回答が別の問いの答えとして読まれる</b>（正解が誤答に化け、復習の期限もずれる）。
+     * 移した回はここへ1段足す。</p>
+     *
+     * <p><b>段ごとに印（id）を持つ。</b> 適用済みの印は進捗ファイルへ書き、2度目は読み替えない ――
+     * 表には `7-5#3` → `7-5#0` のような<b>同じレッスン内の詰め直し</b>が入るので、印が無いと
+     * 読み替え後に保存したファイルをもう一度読み替えて、移動先で答えた記録がさらに動く。</p>
+     *
+     * @param id  進捗ファイルへ残す印
+     * @param map 旧キー → 新キー
+     */
+    private record QuizMove(String id, Map<String, String> map) { }
+
+    /**
+     * クイズの置き場所を直した履歴。古い順に並べる。
+     *
+     * <ul>
+     *   <li>2026-08-26a … `7-5`（可変長引数）の5問のうち4問が、オーバーロード（`7-3`）と
+     *       引数のコピー（`7-4`）の内容だったので移した。</li>
+     *   <li>2026-08-26b … 同じ形が基礎編とファイル入出力の16レッスンにあった
+     *       （章の最後のレッスンへクイズを寄せる作りだったため）。<b>クイズはその内容を
+     *       教えたレッスンへ置く</b>方針にそろえ、40問を移して残りを詰め直した。</li>
+     * </ul>
+     */
+    private static final List<QuizMove> QUIZ_MOVES = List.of(
+            new QuizMove("ch07-varargs-2026-08-26", Map.of(
+                    "7-5#0", "7-3#0",       // オーバーロードとして成立しないのはどれか
+                    "7-5#1", "7-3#1",       // f('A') はどちらが呼ばれるか（拡張変換）
+                    "7-5#2", "7-4#0",       // 配列の中身の書き換えは呼び出し元にも見える
+                    "7-5#4", "7-4#1",       // 別の配列を代入しても呼び出し元は変わらない
+                    "7-5#3", "7-5#0")),     // 可変長引数の決まり（移動先で先頭へ来た）
+            new QuizMove("quiz-placement-2026-08-26", Map.ofEntries(
+                    Map.entry("1-3#0", "1-1#0"),
+                    Map.entry("1-3#1", "1-2#0"),
+                    Map.entry("1-3#2", "1-3#0"),
+                    Map.entry("1-3#3", "1-3#1"),
+                    Map.entry("2-5#0", "2-2#0"),
+                    Map.entry("2-5#1", "2-3#0"),
+                    Map.entry("2-5#2", "2-1#0"),
+                    Map.entry("2-5#3", "2-4#0"),
+                    Map.entry("2-5#4", "2-5#0"),
+                    Map.entry("2-5#5", "2-5#1"),
+                    Map.entry("3-5#0", "3-1#0"),
+                    Map.entry("3-5#1", "3-5#0"),
+                    Map.entry("3-5#2", "3-5#1"),
+                    Map.entry("3-5#3", "3-1#1"),
+                    Map.entry("4-6#0", "4-4#0"),
+                    Map.entry("4-6#1", "4-6#0"),
+                    Map.entry("4-6#2", "4-5#0"),
+                    Map.entry("4-6#3", "4-6#1"),
+                    Map.entry("5-6#0", "5-3#0"),
+                    Map.entry("5-6#1", "5-6#0"),
+                    Map.entry("5-6#2", "5-1#0"),
+                    Map.entry("5-6#3", "5-4#0"),
+                    Map.entry("6-5#0", "6-1#0"),
+                    Map.entry("6-5#1", "6-1#1"),
+                    Map.entry("6-5#2", "6-5#0"),
+                    Map.entry("6-5#3", "6-5#1"),
+                    Map.entry("8-5#0", "8-2#0"),
+                    Map.entry("8-5#1", "8-2#1"),
+                    Map.entry("8-5#2", "8-3#0"),
+                    Map.entry("8-5#3", "8-5#0"),
+                    Map.entry("8-5#4", "8-1#0"),
+                    Map.entry("10-4#0", "10-2#0"),
+                    Map.entry("10-4#1", "10-4#0"),
+                    Map.entry("10-4#2", "10-3#0"),
+                    Map.entry("10-4#3", "10-4#1"),
+                    Map.entry("12-4#0", "12-1#0"),
+                    Map.entry("12-4#1", "12-3#0"),
+                    Map.entry("12-4#2", "12-4#0"),
+                    Map.entry("12-4#3", "12-4#1"),
+                    Map.entry("13-5#0", "13-2#0"),
+                    Map.entry("13-5#1", "13-3#0"),
+                    Map.entry("13-5#2", "13-4#0"),
+                    Map.entry("13-5#3", "13-5#0"),
+                    Map.entry("13-5#4", "13-2#1"),
+                    Map.entry("15-3#2", "15-2#0"),
+                    Map.entry("15-3#3", "15-1#2"),
+                    Map.entry("15-3#4", "15-3#2"),
+                    Map.entry("16-5#0", "16-3#0"),
+                    Map.entry("16-5#1", "16-2#0"),
+                    Map.entry("16-5#2", "16-4#2"),
+                    Map.entry("16-5#3", "16-5#0"),
+                    Map.entry("16-5#4", "16-1#0"),
+                    Map.entry("16-5#5", "16-3#1"),
+                    Map.entry("17-4#0", "17-1#0"),
+                    Map.entry("17-4#1", "17-1#1"),
+                    Map.entry("17-4#2", "17-3#0"),
+                    Map.entry("17-4#3", "17-4#0"),
+                    Map.entry("17-4#4", "17-4#1"),
+                    Map.entry("18-5#0", "18-1#0"),
+                    Map.entry("18-5#1", "18-2#0"),
+                    Map.entry("18-5#2", "18-4#0"),
+                    Map.entry("18-5#3", "18-5#0"),
+                    Map.entry("19-4#0", "19-1#1"),
+                    Map.entry("19-4#1", "19-2#0"),
+                    Map.entry("19-4#2", "19-3#1"),
+                    Map.entry("19-4#3", "19-4#0"),
+                    Map.entry("57-3#1", "57-1#0"),
+                    Map.entry("57-3#2", "57-2#0"),
+                    Map.entry("57-3#3", "57-3#1"))));
+
+    /** 適用済みの読み替えの印。ファイルへそのまま書き戻す。 */
+    private final Set<String> appliedQuizMoves = new LinkedHashSet<>();
+
+    /** すべての段を適用済みにする。読み替えるものが無いときと、読み終えたあとに呼ぶ。 */
+    private void markQuizMovesApplied() {
+        for (QuizMove move : QUIZ_MOVES) {
+            appliedQuizMoves.add(move.id());
+        }
+    }
+
+    /** 移したクイズのキーを読み替える。適用済みの段は飛ばし、対象外はそのまま返す。 */
+    private String migrateQuizKey(String key) {
+        String moved = key;
+        for (QuizMove move : QUIZ_MOVES) {
+            if (!appliedQuizMoves.contains(move.id())) {
+                moved = move.map().getOrDefault(moved, moved);
+            }
+        }
+        return moved;
+    }
+
     /** 昔の問題キーを、概念レッスンの★のキーへ読み替える。対象外はそのまま返す。 */
     private static String migrateClearedKey(String key) {
         String migrated = migrateKey(key);
@@ -1500,6 +1626,9 @@ public final class ProgressStore {
      */
     private void load() {
         if (!Files.exists(file)) {
+            // まだ何も記録が無いファイルには読み替えるものが無い。印だけ立てておく
+            // （立てないと、この実行で書いた新しいキーを次の起動で読み替えてしまう）
+            markQuizMovesApplied();
             return;
         }
         String text;
@@ -1509,6 +1638,7 @@ public final class ProgressStore {
             throw new UncheckedIOException("進捗ファイルを読めません: " + file, e);
         }
         if (text.isBlank()) {
+            markQuizMovesApplied();
             return;
         }
 
@@ -1532,6 +1662,12 @@ public final class ProgressStore {
 
     /** 読み込んだJSONを状態へ移す。ここで落ちるのは<b>このアプリ側の不具合</b>（→ {@link #load()}）。 */
     private void readFrom(Map<String, Object> root) {
+        // クイズの読み替えより先に読む（読み替えるかどうかの判断に使う）
+        for (Object o : MiniJson.list(root, "appliedQuizMoves")) {
+            if (o instanceof String s) {
+                appliedQuizMoves.add(s);
+            }
+        }
         boolean hasCafeState = root.get("cafe") instanceof Map;
         onboardingCompleted = root.get("onboardingCompleted") instanceof Boolean completed
                 && completed;
@@ -1568,7 +1704,7 @@ public final class ProgressStore {
         });
         MiniJson.obj(root, "quizChoices").forEach((key, v) -> {
             if (v instanceof Number n) {
-                quizChoices.put(key, n.intValue());
+                quizChoices.put(migrateQuizKey(key), n.intValue());
             }
         });
         for (Object o : MiniJson.list(root, "clearDates")) {
@@ -1625,17 +1761,17 @@ public final class ProgressStore {
                 // 日付が壊れている行は「今日が期限」に落ちる（→ quizReviewDue）
                 lastAt = "";
             }
-            quizPlans.put(id, new QuizPlan(level, lastAt));
+            quizPlans.put(migrateQuizKey(id), new QuizPlan(level, lastAt));
         });
         for (Object o : MiniJson.list(root, "bookmarks")) {
             if (o instanceof String s) {
                 bookmarks.add(migrateKey(s));
             }
         }
-        // クイズのしおりは最初から "レッスンID#番号" なので読み替えは要らない
+        // クイズのしおりは最初から "レッスンID#番号" なので、移したクイズの読み替えだけでよい
         for (Object o : MiniJson.list(root, "quizBookmarks")) {
             if (o instanceof String s) {
-                quizBookmarks.add(s);
+                quizBookmarks.add(migrateQuizKey(s));
             }
         }
         // 層の達成日はカフェとは無関係な学習の記録なので、cafe の有無で読み分けない
@@ -1660,6 +1796,9 @@ public final class ProgressStore {
         // すでに条件を満たしている人（連続学習や粘った問題の履歴がある人）へ、
         // 起動した時点でアイテムを解放する。
         cafe.refreshCafeAchievements();
+        // ここまで読めたら、すべての段の読み替えは済んだものとして印を立てる
+        // （次に保存したファイルには新しいキーが載るので、二度と読み替えない）
+        markQuizMovesApplied();
     }
 
     /**
@@ -1869,6 +2008,8 @@ public final class ProgressStore {
             clearedJson.put(id, cm);
         });
         m.put("cleared", clearedJson);
+        // 適用済みのクイズ読み替え（→ QUIZ_MOVE_ID）。次に読むときは読み替えない
+        m.put("appliedQuizMoves", new ArrayList<>(appliedQuizMoves));
         m.put("codes", new LinkedHashMap<>(codes));
         m.put("hintsRevealed", new LinkedHashMap<>(hintsRevealed));
         m.put("attempts", new LinkedHashMap<>(attempts));

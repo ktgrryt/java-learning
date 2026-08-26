@@ -537,24 +537,32 @@ public final class ApiHandler implements HttpHandler {
     }
 
     /**
-     * 画面で「クリア済み」と見せる条件。必須問題を全部通し、<b>確認クイズも全問正解</b>したか。
+     * 画面で「クリア済み」と見せる条件。必須問題を全部通し、<b>確認クイズも全部答えた</b>か。
      *
-     * <p>2026-08-26に利用者から「クイズを解いていない単元でもクリア済みと表示される」と
-     * 指摘があって足した。それまでは問題だけで判定していたので、章の確認クイズを1問も
-     * 解かずに章クリアの面になった。</p>
+     * <p><b>見るのは「答えたか」だけで、正誤は見ない。</b> 正解で縛ると、一度間違えた人には
+     * クリアできなくなったように見える（実際は選び直せるが、正解が表示されたあとに押し直すだけ
+     * なので条件として機能しない）。2026-08-26に利用者と3往復して決めた形。</p>
      *
-     * <p><b>★の数・カフェの報酬・章クリアのボーナスは {@link Curriculum#isLessonCleared} の
-     * ままにしてある</b>（必須問題だけで数える）。報酬側もクイズで縛ると、クイズを飛ばして
-     * 章を終えていた利用者のブランド倍率がその場で下がり、すでに得たものを取り上げることに
-     * なる。表示と道案内（次にやるレッスン）だけを新しい条件で出す。</p>
+     * <p>★の数・カフェの報酬・章クリアのボーナスは {@link Curriculum#isLessonCleared} の
+     * ままにしてある（必須問題だけで数える）。報酬側もクイズで縛ると、クイズを飛ばして章を
+     * 終えていた利用者のブランド倍率がその場で下がり、すでに得たものを取り上げることになる。</p>
+     *
+     * <p><b>通知はクリアした瞬間に出す。</b> クイズが残っている状態で最後の問題を通したときは
+     * 章クリアの通知を出さず（コインは払う）、残りのクイズに答え終えた回に出す
+     * （{@code doQuiz}）。「通知が出たのに一覧は学習中」という食い違いを作らないため。</p>
      */
     private boolean lessonComplete(Curriculum c, Lesson lesson, Set<String> cleared) {
-        return c.isLessonCleared(lesson, cleared) && quizzesComplete(lesson);
+        return c.isLessonCleared(lesson, cleared) && quizzesAnswered(lesson);
     }
 
-    /** そのレッスンの確認クイズを全問正解しているか（クイズが無ければ true）。 */
-    private boolean quizzesComplete(Lesson lesson) {
-        return correctQuizCount(lesson) == lesson.quizzes().size();
+    /** そのレッスンの確認クイズを全部答えているか（正誤は見ない。クイズが無ければ true）。 */
+    private boolean quizzesAnswered(Lesson lesson) {
+        for (int i = 0; i < lesson.quizzes().size(); i++) {
+            if (progress.quizChoice(lesson.id(), i) == null) {
+                return false;
+            }
+        }
+        return true;
     }
 
     /** 章の「クリア済み」。必須問題を全部通し、章のどのレッスンにもクイズの残りが無いこと。 */
@@ -563,7 +571,7 @@ public final class ApiHandler implements HttpHandler {
             return false;
         }
         for (Lesson lesson : chapter.lessons()) {
-            if (!quizzesComplete(lesson)) {
+            if (!quizzesAnswered(lesson)) {
                 return false;
             }
         }
@@ -760,7 +768,10 @@ public final class ApiHandler implements HttpHandler {
         Chapter chapter = Objects.requireNonNull(
                 c.chapterOf(lessonId), "章が引けません: " + lessonId);
         boolean chapterWasCleared = c.isChapterCleared(chapter, before);
-        boolean lessonWasCleared = c.isLessonCleared(lesson, before);
+        // 通知に出す「クリアした」は表示と同じ条件（問題＋クイズ全部回答）で見る。
+        // ボーナスの支払いは下の chapterCompletedNow（必須問題だけ）で決める
+        boolean chapterWasComplete = chapterComplete(c, chapter, before);
+        boolean lessonWasComplete = lessonComplete(c, lesson, before);
 
         boolean firstTime = progress.markCleared(key);
         Set<String> after = progress.clearedIds();
@@ -808,8 +819,11 @@ public final class ApiHandler implements HttpHandler {
         }
 
         result.put("newStar", firstTime);
-        result.put("lessonCleared", !lessonWasCleared && c.isLessonCleared(lesson, after));
-        result.put("chapterCleared", chapterCleared);
+        result.put("lessonCleared", !lessonWasComplete && lessonComplete(c, lesson, after));
+        // 章クリアの通知は「クイズまで含めて終わった瞬間」に出す。クイズが残っているときは
+        // ここでは出さず（ボーナスは払う）、最後のクイズへ答えた回に doQuiz が出す
+        result.put("chapterCleared", chapterCleared && !chapterWasComplete
+                && chapterComplete(c, chapter, after));
         result.put("chapterBonusCash", chapterBonusCash);
         result.put("chapterTitle", chapter.title());
         result.put("chapterNumber", chapter.partNumber());
@@ -870,6 +884,11 @@ public final class ApiHandler implements HttpHandler {
         }
 
         boolean correct = choice == quiz.answer();
+        Set<String> clearedNow = progress.clearedIds();
+        Chapter quizChapter = c.chapterOf(lessonId);
+        boolean wasLessonComplete = lessonComplete(c, lesson, clearedNow);
+        boolean wasChapterComplete = quizChapter != null
+                && chapterComplete(c, quizChapter, clearedNow);
         // 復習として出し直したクイズ（復習セッションの最後に続けて出る）。チップは払わず、
         // 選んだ答えも残さない ―― 残す・払うの判断はカフェ側にある（recordQuizReview）。
         boolean review = body.get("review") == Boolean.TRUE;
@@ -901,9 +920,33 @@ public final class ApiHandler implements HttpHandler {
         // すでに付いている★の報酬をもう一度なぞるだけになる。
         if (!review && lesson.concept() && correctQuizCount(lesson) == lesson.quizzes().size()) {
             addConceptClearRewards(m, c, lesson, cafeAward);
+        } else if (!review) {
+            // このクイズで「問題＋クイズ全部回答」がそろったら、クリアの知らせをここで出す
+            addQuizClearFlags(m, c, lesson, wasLessonComplete, wasChapterComplete);
         }
         m.put("delta", delta(lessonId));
         return m;
+    }
+
+    /**
+     * 確認クイズへ答えて「クリア済み」がそろった回に、知らせるためのフラグを応答へ入れる。
+     *
+     * <p>報酬（★・コイン・章クリアのボーナス）は問題側で払い終えているので、ここでは金額を
+     * 持たせない。画面は金額なしの短い知らせとして出す（`web/app.js` の `answerQuiz`）。</p>
+     */
+    private void addQuizClearFlags(Map<String, Object> m, Curriculum c, Lesson lesson,
+                                   boolean wasLessonComplete, boolean wasChapterComplete) {
+        Set<String> cleared = progress.clearedIds();
+        Chapter chapter = c.chapterOf(lesson.id());
+        boolean lessonNow = !wasLessonComplete && lessonComplete(c, lesson, cleared);
+        boolean chapterNow = chapter != null && !wasChapterComplete
+                && chapterComplete(c, chapter, cleared);
+        m.put("lessonCleared", lessonNow);
+        m.put("chapterCleared", chapterNow);
+        if (chapter != null) {
+            m.put("chapterTitle", chapter.title());
+            m.put("chapterNumber", chapter.partNumber());
+        }
     }
 
     /**

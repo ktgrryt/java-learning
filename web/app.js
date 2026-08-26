@@ -492,18 +492,6 @@
     };
   }
 
-  /**
-   * そのアイテムを持っているか。`ownedItems` はIDの一覧で、未発見のアイテムは入らない。
-   *
-   * 使い道は「もう解放したのに解放条件を出し続ける」のを止めること ―― 取り終わった条件は
-   * 進み具合として意味を持たない（例: 📣 の「連続 N / 12問」→ {@link renderReviewQuiz}）。
-   */
-  function hasCafeItem(id) {
-    return (cafeState().ownedItems || []).indexOf(id) >= 0;
-  }
-
-  /** 📣ひらめきメガホン。クイズの連続正解を画面へ出すかどうかの判断に使う。 */
-  var QUIZ_STREAK_ITEM_ID = 'quiz_crown';
 
   /** 最初の出店枠（現行は★4）が解放されるまで、店舗経営は画面に出さない。 */
   function cafeNetworkUnlocked() {
@@ -1108,8 +1096,7 @@
           return partChapter.lessons.some(function (l) { return l.id === focusId; });
         });
         var progress = partProgress(part);
-        // ✓ は章の「クリア済み」（確認クイズ込み）でそろえる。問題の数だけで判定すると、
-        // クイズが残っている章を含む編に ✓ が付いてしまう
+        // ✓ は章の「クリア済み」でそろえる（★と同じく必須問題で決まる）
         var partDone = progress.total > 0 && chaptersOfPart(part).every(function (x) {
           return x.cleared;
         });
@@ -1230,6 +1217,13 @@
   /**
    * 複数問あるレッスンも分母は見せず、途中なら現在の状態だけを示す。
    */
+  /** まだ答えていない確認クイズが残っているか（正誤は見ない）。 */
+  function quizPending(lesson) {
+    var results = lesson.quizResults || [];
+    if (!results.length) { return false; }
+    return results.some(function (r) { return !r; });
+  }
+
   function lessonTaskProgress(lesson) {
     if (lesson.type === 'preflight') { return '<span class="lesson-frac">準備</span>'; }
     // 概念レッスンは提出課題を持たないので、開く前に「クイズで★が付く」と分かるようにする。
@@ -1237,11 +1231,8 @@
       return lesson.cleared ? '' : '<span class="lesson-frac">クイズ</span>';
     }
     if (lesson.cleared) { return ''; }
-    // 問題は全部通したのに未クリアなら、残っているのは確認クイズだけ。
-    // これを出さないと「なぜクリアにならないのか」が画面から分からない。
-    if (lesson.taskCount > 0 && lesson.clearedCount >= lesson.taskCount) {
-      return '<span class="lesson-frac">クイズ</span>';
-    }
+    // 未クリアの理由がクイズだけなら、そう分かるように札を出す（→ ApiHandler#lessonComplete）
+    if (quizPending(lesson)) { return '<span class="lesson-frac">クイズ</span>'; }
     if (lesson.taskCount < 2) { return ''; }
     return lesson.clearedCount ? '<span class="lesson-frac">学習中</span>' : '';
   }
@@ -1250,9 +1241,7 @@
     if (lesson.type === 'preflight') { return '環境の事前確認（★対象外）: ' + lesson.title; }
     if (lesson.cleared) { return 'クリア済み: ' + lesson.title; }
     if (lesson.type === 'concept') { return 'クイズ全問正解で★: ' + lesson.title; }
-    if (lesson.taskCount > 0 && lesson.clearedCount >= lesson.taskCount) {
-      return lesson.title + '（確認クイズが残っています）';
-    }
+    if (quizPending(lesson)) { return lesson.title + '（確認クイズが残っています）'; }
     return lesson.clearedCount ? lesson.title + '（学習中）' : lesson.title;
   }
 
@@ -2380,14 +2369,12 @@
     }
     // 「答えと解説を隠す」は書かない ―― クイズの段に入れば見て分かるし、その札の一言
     // （チップは出ません…）にも書いてある
-    var head = '      <p class="hero-sub review-quiz-note">🧠 このあと確認クイズ '
-      + quizzes + '問';
-    // 📣を持っている人へ解放条件を出し続けない（取り終わった条件は進み具合ではない）
-    if (hasCafeItem(QUIZ_STREAK_ITEM_ID)) { return head + '</p>'; }
-    var run = Number(cafeState().quizReviewRun || 0);
-    var goal = Number(cafeState().quizStreakGoal || 12);
-    // 「異なるN問へ連続正解で解放」の説明はクイズの札にある。ここは進み具合だけ出す
-    return head + ' · 📣まで連続 ' + run + ' / ' + goal + '問</p>';
+    // 📣ひらめきメガホンの解放条件（連続正解の数）はここへ出さない。まだ手に入れていない
+    // アイテムとその条件を学習の画面で明かすのは、先の楽しみを削るため
+    // （2026-08-26に利用者から「ネタバレなので消してほしい」と指摘）。
+    // 条件はカフェのアイテム一覧で読める。
+    return '      <p class="hero-sub review-quiz-note">🧠 このあと確認クイズ '
+      + quizzes + '問</p>';
   }
 
   /**
@@ -2713,6 +2700,87 @@
   // --------------------------------------------------- 復習で1問を解き直す
 
   /**
+   * この問題で読み直したい単元。<b>同じ到達目標を掲げる、それより前のレッスン</b>を集める。
+   *
+   * <p>章末演習や総合問題の解説は「この章の知識を、自分の手で組み合わせよう」で、読み直しても
+   * 中身がない（2026-08-26に利用者から指摘）。実際に読みたいのは、その問題が使う文法を
+   * 教えたレッスンの解説である。</p>
+   *
+   * <p>紐づけは教材の `objectiveIds` から引く（章末演習は自分が測る目標を並べていて、
+   * その目標を教えたレッスンが前にある）。**前のレッスンだけ**を見るのが要点で、後ろも
+   * 拾うと「`20-2` の復習で `20-5` の解説が出る」ように逆流する。</p>
+   */
+  /**
+   * 章末演習・総合問題の見分け。教材の題名の付け方（`章末演習：…`）と、
+   * <b>掲げている目標をすべて前のレッスンが教えていること</b>の両方で判断する。
+   * 題名だけだと将来の改名で外れ、目標の共有だけだと `2-2`（`2-1` と同じ目標を持つ
+   * ふつうのレッスン）まで拾ってしまう。
+   */
+  var EXERCISE_TITLE = /^(章末演習|総合演習|総合問題|最終問題|中間演習)/;
+
+  function isCombinationLesson(lesson) {
+    return EXERCISE_TITLE.test(lesson.title || '') && sourceLessonsFor(lesson).length > 0;
+  }
+
+  function sourceLessonsFor(lesson) {
+    var ids = lesson.objectiveIds || [];
+    if (!ids.length) { return []; }
+    var lessons = allLessons();
+    var here = lessons.indexOf(lesson);
+    if (here < 0) { return []; }
+    var earlier = lessons.slice(0, here);
+    var shares = earlier.filter(function (other) {
+      return (other.objectiveIds || []).some(function (id) { return ids.indexOf(id) >= 0; });
+    });
+    // 掲げた目標を1つでも自分で教えていれば、ふつうのレッスン（自分の解説を読ませる）
+    if (!shares.length) { return []; }
+    // 章末演習は章の内容を組み合わせる回なので、同じ章の前のレッスンをすべて並べる。
+    // 目標の紐づけだけに絞ると、`7-6` で「オーバーロード」の単元が落ちてしまう
+    // （章末演習が掲げているのは `ch07-o1` と `ch07-o5` の2つだけ）。
+    var chapter = chapterOf(lesson.id);
+    var sameChapter = chapter ? earlier.filter(function (other) {
+      var own = chapterOf(other.id);
+      return own && own.id === chapter.id && (other.objectiveIds || []).length > 0;
+    }) : [];
+    return earlier.filter(function (other) {
+      return shares.indexOf(other) >= 0 || sameChapter.indexOf(other) >= 0;
+    });
+  }
+
+  /**
+   * 復習の「解説をもう一度読む」。章末演習では、元の単元の解説を畳んで並べる。
+   */
+  function reviewExplainHtml(lesson) {
+    var sources = isCombinationLesson(lesson) ? sourceLessonsFor(lesson) : [];
+    if (!sources.length) {
+      return '  <details class="card review-explain">' +
+        '    <summary>📖 このレッスンの解説をもう一度読む</summary>' +
+        '    <div class="review-explain-body">' + renderMarkdown(lesson.explanation) + '</div>' +
+        '  </details>';
+    }
+    var shown = [];
+    // 章末演習の解説が「この章の知識を、自分の手で組み合わせよう」だけの回は並べない
+    // （読み直しても中身が無い ―― これが今回の指摘）。後半の章のように自前の説明を
+    // 持つ回は先頭へ残す
+    if ((lesson.explanation || '').indexOf('自分の手で組み合わせ') < 0) {
+      shown.push(lesson);
+    }
+    sources.forEach(function (source) { shown.push(source); });
+    return '  <details class="card review-explain">' +
+      '    <summary>📖 この問題で使う単元の解説をもう一度読む</summary>' +
+      '    <div class="review-explain-body">' +
+             shown.map(function (source) {
+               return '<details class="review-explain-source">' +
+                 '<summary><span class="lesson-h1-id">' + esc(displayLessonId(source))
+                 + '</span>' + esc(source.title) + '</summary>' +
+                 '<div class="review-explain-source-body">'
+                 + renderMarkdown(source.explanation) + '</div></details>';
+             }).join('') +
+      '    </div>' +
+      '  </details>';
+  }
+
+  /**
    * 復習で開く1問。
    *
    * 通常のレッスン画面と違い、その問題だけを出す（解説は畳んでおく）。
@@ -2746,10 +2814,7 @@
       '      <span class="lesson-h1-id">' + esc(displayLessonId(lesson)) + '</span>' + esc(lesson.title) +
       '    </h1>' +
       '  </div>' +
-      '  <details class="card review-explain">' +
-      '    <summary>📖 このレッスンの解説をもう一度読む</summary>' +
-      '    <div class="review-explain-body">' + renderMarkdown(lesson.explanation) + '</div>' +
-      '  </details>' +
+         reviewExplainHtml(lesson) +
       '  <section class="tasks" id="tasks"></section>' +
       '  <nav class="lesson-next" id="reviewFooter" aria-label="復習の進み方"></nav>' +
       '</article>';
@@ -2787,11 +2852,6 @@
     }
     var chapter = chapterOf(entry.lessonId);
     var main = document.getElementById('content');
-    // 📣を持っている人には連続を出さない（解放条件は取り終わっていて、数字が進み具合を
-    // 表さなくなる）。残るのは「払わない・書き換えない」の一行だけになる
-    var showStreak = !hasCafeItem(QUIZ_STREAK_ITEM_ID);
-    var run = Number(cafeState().quizReviewRun || 0);
-    var goal = Number(cafeState().quizStreakGoal || 12);
 
     main.innerHTML =
       '<article class="lesson-view review-view review-quiz-view">' +
@@ -2814,15 +2874,8 @@
       '    <div class="card card-quiz">' +
       '      <div class="quiz-head">' +
       '        <h2 class="card-h"><span class="card-h-icon">🧠</span>確認クイズの復習</h2>' +
-             (showStreak
-               ? '        <span class="quiz-score">連続 ' + run + ' / ' + goal + '問</span>'
-               : '') +
       '      </div>' +
-      '      <p class="quiz-note">チップは出ません。★と正解数も動きません。'
-        + (showStreak
-          ? '📣 ひらめきメガホンは異なる' + goal + '問への連続正解で解放'
-            + '（間違えると0に戻ります）。'
-          : '') + '</p>' +
+      '      <p class="quiz-note">チップは出ません。★と正解数も動きません。</p>' +
              reviewQuizItemHtml(lesson, quiz, entry.index, answered) +
       '    </div>' +
       '  </section>' +
@@ -2892,13 +2945,9 @@
           choice: choice, correct: res.correct,
           answer: res.answer, explanation: res.explanation
         });
-        // 通知が足しているのは連続の数だけなので、📣を持っている人には出さない
-        // （正誤と解説はクイズの札にそのまま出ている）
-        if (!hasCafeItem(QUIZ_STREAK_ITEM_ID)) {
-          toast(res.correct
-            ? '🧠 正解！　連続 ' + Number(cafeState().quizReviewRun || 0) + '問'
-            : '🧠 不正解　連続は0に戻りました');
-        }
+        // 通知は出さない。足せるのは連続正解の数だけで、それは📣ひらめきメガホンの
+        // 解放条件（＝まだ手に入れていないアイテムの話）なので画面に出さない。
+        // 正誤と解説はクイズの札にそのまま出ている
       })
       .catch(toastError);
   }
@@ -5086,6 +5135,16 @@
             label: lesson ? lesson.title : '',
             balance: cafeState().cash
           });
+        }
+        // クイズを答え切って「クリア済み」がそろった瞬間に知らせる。報酬は問題側で払い終えて
+        // いるので、金額は出さない（コインの通知と二重にならないよう短い知らせにする）。
+        if (res.chapterCleared) {
+          dropConfetti();
+          toast('🎉 第' + res.chapterNumber + '章クリア！「' + res.chapterTitle
+            + '」の問題と確認クイズをすべて終えました。');
+        } else if (res.lessonCleared) {
+          if (lesson && lessonId === currentId) { markLessonCleared(lesson); }
+          toast('★ ' + (lesson ? lesson.title : '') + ' をクリアしました（確認クイズまで完了）。');
         }
       })
       .catch(toastError);

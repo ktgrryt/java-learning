@@ -423,6 +423,30 @@
             }
           ]
         }
+      ],
+      "quiz": [
+        {
+          "question": "次のうち **オーバーロードとして成立しない** のはどれでしょう（`int f(int a)` がすでにあるとします）。",
+          "choices": [
+            "`int f(int a, int b)`",
+            "`int f(String a)`",
+            "`int f(double a)`",
+            "`long f(int a)`"
+          ],
+          "answer": 3,
+          "explanation": "引数の数が違う `f(int, int)`、型が違う `f(String)` と `f(double)` は、どれも見分けられるので成立します。成立しないのは戻り値の型だけが違う `long f(int a)` です。メソッドを見分ける手がかりは **名前と引数の型・数・並び順** だけなので、`int f(int)` と区別できずコンパイルエラーになります。"
+        },
+        {
+          "question": "`static void f(int n)` と `static void f(double d)` があるとき、`f('A')` はどちらが呼ばれるでしょう。",
+          "choices": [
+            "どちらにも一致せずコンパイルエラーになる",
+            "`double` を受け取るほう（`char` は `double` へ拡張される）",
+            "`int` を受け取るほう（`char` は `int` へ拡張される）",
+            "実行時に引数の値を見て決まる"
+          ],
+          "answer": 2,
+          "explanation": "ぴったり一致がないときは **拡張変換で近い方** が選ばれます。`char` → `int` → `long` → `float` → `double` の順なので `int` を受け取るほうです。`'A'` の文字コードが渡るので `65` が出力されます。"
+        }
       ]
     },
     {
@@ -541,6 +565,30 @@
               "message": "`static void swap(int[] pair)` も作ってください（同じ名前で引数が違うオーバーロードです）。"
             }
           ]
+        }
+      ],
+      "quiz": [
+        {
+          "question": "次のコードの出力はどれでしょう。\n\n```java\nstatic void addTen(int[] a) { a[0] += 10; }\n\npublic static void main(String[] args) {\n    int[] arr = {5};\n    addTen(arr);\n    System.out.println(arr[0]);\n}\n```",
+          "choices": [
+            "`10`",
+            "`5`",
+            "コンパイルエラー",
+            "`15`"
+          ],
+          "answer": 3,
+          "explanation": "渡されるのは **参照のコピー** で、指している本体は同じです。そのため中身の書き換えは呼び出し元にも見えて `15` になります。メソッドの中で `a = new int[]{999};` と別の配列を代入した場合は、呼び出し元は変わりません。"
+        },
+        {
+          "question": "次のコードの出力はどれでしょう。\n\n```java\nstatic void replace(int[] a) { a = new int[]{9, 9}; }\n\npublic static void main(String[] args) {\n    int[] arr = {1, 2};\n    replace(arr);\n    System.out.println(arr[0]);\n}\n```",
+          "choices": [
+            "`9`",
+            "`0`",
+            "`1`",
+            "コンパイルエラー"
+          ],
+          "answer": 2,
+          "explanation": "`9` になるのは参照渡しのときですが、Javaに参照渡しはありません。`0` は新しい配列の既定値で、作り直したのはメソッド側の変数だけです。型は合っているのでコンパイルエラーにもなりません。引数に渡るのは「参照という値」のコピーなので、中で別の配列を代入しても呼び出し元の `arr` は元の配列を指したままです（`a[0] = 9;` なら呼び出し元にも見えます）。"
         }
       ]
     },
@@ -664,39 +712,6 @@
       ],
       "quiz": [
         {
-          "question": "次のうち **オーバーロードとして成立しない** のはどれでしょう（`int f(int a)` がすでにあるとします）。",
-          "choices": [
-            "`int f(int a, int b)`",
-            "`int f(String a)`",
-            "`int f(double a)`",
-            "`long f(int a)`"
-          ],
-          "answer": 3,
-          "explanation": "引数の数が違う `f(int, int)`、型が違う `f(String)` と `f(double)` は、どれも見分けられるので成立します。成立しないのは戻り値の型だけが違う `long f(int a)` です。メソッドを見分ける手がかりは **名前と引数の型・数・並び順** だけなので、`int f(int)` と区別できずコンパイルエラーになります。"
-        },
-        {
-          "question": "`static void f(int n)` と `static void f(double d)` があるとき、`f('A')` はどちらが呼ばれるでしょう。",
-          "choices": [
-            "どちらにも一致せずコンパイルエラーになる",
-            "`double` を受け取るほう（`char` は `double` へ拡張される）",
-            "`int` を受け取るほう（`char` は `int` へ拡張される）",
-            "実行時に引数の値を見て決まる"
-          ],
-          "answer": 2,
-          "explanation": "ぴったり一致がないときは **拡張変換で近い方** が選ばれます。`char` → `int` → `long` → `float` → `double` の順なので `int` を受け取るほうです。`'A'` の文字コードが渡るので `65` が出力されます。"
-        },
-        {
-          "question": "次のコードの出力はどれでしょう。\n\n```java\nstatic void addTen(int[] a) { a[0] += 10; }\n\npublic static void main(String[] args) {\n    int[] arr = {5};\n    addTen(arr);\n    System.out.println(arr[0]);\n}\n```",
-          "choices": [
-            "`10`",
-            "`5`",
-            "コンパイルエラー",
-            "`15`"
-          ],
-          "answer": 3,
-          "explanation": "渡されるのは **参照のコピー** で、指している本体は同じです。そのため中身の書き換えは呼び出し元にも見えて `15` になります。メソッドの中で `a = new int[]{999};` と別の配列を代入した場合は、呼び出し元は変わりません。"
-        },
-        {
           "question": "可変長引数について正しいのはどれでしょう。",
           "choices": [
             "`void f(int... a, String b)` と書ける",
@@ -708,15 +723,26 @@
           "explanation": "可変長引数は **引数リストの最後に1つだけ** 置けます。引数なしで呼べて、そのときは `length` が `0` の配列が渡ってきます（`null` ではありません）。"
         },
         {
-          "question": "次のコードの出力はどれでしょう。\n\n```java\nstatic void replace(int[] a) { a = new int[]{9, 9}; }\n\npublic static void main(String[] args) {\n    int[] arr = {1, 2};\n    replace(arr);\n    System.out.println(arr[0]);\n}\n```",
+          "question": "`static void f(int a, int b)` と `static void f(int... a)` の両方があるとき、`f(1, 2)` はどちらが呼ばれるでしょう。",
           "choices": [
-            "`9`",
-            "`0`",
-            "`1`",
-            "コンパイルエラー"
+            "可変長引数のほう（`int...`）",
+            "固定引数2つのほう",
+            "どちらにも一致せずコンパイルエラー",
+            "実行するたびに変わる"
           ],
-          "answer": 2,
-          "explanation": "`9` になるのは参照渡しのときですが、Javaに参照渡しはありません。`0` は新しい配列の既定値で、作り直したのはメソッド側の変数だけです。型は合っているのでコンパイルエラーにもなりません。引数に渡るのは「参照という値」のコピーなので、中で別の配列を代入しても呼び出し元の `arr` は元の配列を指したままです（`a[0] = 9;` なら呼び出し元にも見えます）。"
+          "answer": 1,
+          "explanation": "ぴったり合う固定引数があるときは、そちらが優先されます。可変長引数が選ばれるのは **ほかに合うものが無いとき** だけなので、`f(1, 2, 3)` や `f()` はこちらへ来ます。"
+        },
+        {
+          "question": "`static int sum(int... nums)` に、すでに持っている配列 `int[] a = {1, 2, 3}` を渡したいときはどう書くでしょう。",
+          "choices": [
+            "`sum(a)` と書けばそのまま渡せる",
+            "`sum(a[0], a[1], a[2])` と展開する",
+            "`sum(new int[]{a})` と包み直す",
+            "配列は渡せないのでリストに変える"
+          ],
+          "answer": 0,
+          "explanation": "可変長引数の中身は **配列そのもの** なので、配列をそのまま渡せます。逆にメソッドの中では `nums.length` や拡張for で扱えます。"
         }
       ]
     },
