@@ -29,7 +29,7 @@ public final class EnvironmentInfo {
      * 手で上げると片方を忘れるので、上げるときは {@code ./tools/bump-version.sh} を使う。
      * そろっているかは {@code ./tools/check-version.sh} が見張る。
      */
-    public static final String APP_VERSION = "1.3.7";
+    public static final String APP_VERSION = "1.3.8";
 
     private EnvironmentInfo() {
     }
