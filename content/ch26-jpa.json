@@ -80,7 +80,7 @@
           "code": "import jakarta.persistence.*;\n\n@Entity\nclass JpaUser {\n    @Id\n    @GeneratedValue\n    Long id;\n    @Column(nullable = false)\n    String name;\n\n    protected JpaUser() { }\n\n    JpaUser(String n) {\n        name = n;\n    }\n}\n\npublic class EntitySample {\n    public static void main(String[] a) {\n        EntityManager em = MiniJpa.open();\n        JpaUser u = new JpaUser(\"山田\");\n        em.persist(u);\n        System.out.println(u.id + \":\" + u.name);\n    }\n}\n"
         }
       ],
-      "task": "教材用の `MiniJpa` を使い、Product Entityの注釈と `persist` の形を練習します。`products` テーブル、idは自動採番、nameはnull不可・長さ80、priceはそのまま列にします。入力 `name price` から作り `id=1 name=... price=...` と出力してください。MiniJpaは直後にIDを設定しますが、実JPAではトランザクション内で処理し、IDが確定する時点は採番方式などに依存します。",
+      "task": "教材用の `MiniJpa` を使い、Product Entityの注釈と `persist` の形を練習します。`products` テーブル、idは自動採番、nameはnull不可・長さ80、priceはそのまま列にします。1行に入力される `name price`（`name` は空白を含まない1語、`price` は `0` 以上の整数）から作り、`id=1 name=... price=...` と出力してください。MiniJpaは直後にIDを設定しますが、実JPAではトランザクション内で処理し、IDが確定する時点は採番方式などに依存します。",
       "starterCode": "import jakarta.persistence.*;\nimport java.util.*;\n// TODO Entity/Table\nclass Product {\n    // TODO id annotations\n    Long id;\n    // TODO name column\n    String name;\n    int price;\n\n    protected Product() { }\n\n    Product(String n, int p) {\n        name = n;\n        price = p;\n    }\n}\n\npublic class JpaEntity {\n    public static void main(String[] a) {\n        Scanner sc = new Scanner(System.in);\n        Product p = new Product(sc.next(), sc.nextInt());\n        EntityManager em = MiniJpa.open();\n        // TODO persist\n        System.out.println(\"id=\" + p.id + \" name=\" + p.name + \" price=\" + p.price);\n    }\n}\n",
       "visibleCases": [
         {
@@ -105,8 +105,8 @@
       "extraTasks": [
         {
           "kind": "applied",
-          "task": "EntityにはpasswordHashを持たせつつ、外へ返すUserDtoにはnameだけを詰め替え、機密値を出力しないでください。",
-          "starterCode": "import jakarta.persistence.*;\nimport java.util.*;\n\n@Entity\nclass User {\n    @Id\n    @GeneratedValue\n    Long id;\n    String name;\n    String passwordHash;\n\n    protected User() { }\n\n    User(String n, String h) {\n        name = n;\n        passwordHash = h;\n    }\n}\n\nrecord UserDto(Long id, String name) { }\n\npublic class JpaDto {\n    static UserDto toDto(User u) {\n        // TODO\n        return null;\n    }\n\n    public static void main(String[] a) {\n        Scanner sc = new Scanner(System.in);\n        User u = new User(sc.next(), sc.next());\n        EntityManager em = MiniJpa.open();\n        em.persist(u);\n        System.out.println(toDto(u));\n    }\n}\n",
+          "task": "1行に、利用者名とパスワードのハッシュ（どちらも空白を含まない1語）が、この順で入力されます。EntityにはpasswordHashを持たせつつ、外へ返すUserDtoにはnameだけを詰め替え、機密値を出力しないでください。",
+          "starterCode": "import jakarta.persistence.*;\nimport java.util.*;\n\n@Entity\nclass User {\n    @Id\n    @GeneratedValue\n    Long id;\n    String name;\n    String passwordHash;\n\n    protected User() { }\n\n    User(String n, String h) {\n        name = n;\n        passwordHash = h;\n    }\n}\n\nrecord UserDto(Long id, String name) { }\n\npublic class JpaDto {\n    static UserDto toDto(User u) {\n        // TODO\n        return null;   // 仮の値。書けたら消す\n    }\n\n    public static void main(String[] a) {\n        Scanner sc = new Scanner(System.in);\n        User u = new User(sc.next(), sc.next());\n        EntityManager em = MiniJpa.open();\n        em.persist(u);\n        System.out.println(toDto(u));\n    }\n}\n",
           "visibleCases": [
             {
               "label": "機密を除外",
@@ -277,7 +277,7 @@
         {
           "kind": "applied",
           "task": "**JPAそのものではなく、楽観ロックの考え方を単純化したメモリ上の模擬問題**です。現在のversionと画面が送ったversionが一致すれば更新してversionを1増やし、不一致なら `競合: 再読込してください` と出します。入力は `currentVersion requestVersion` です。実JPAの `@Version` フィールドはプロバイダーが比較・更新するため、アプリがこのように手動で `version++` するコードは書きません。",
-          "starterCode": "import java.util.*;\n\nclass Document {\n    int version;\n    String text;\n\n    Document(int v, String t) {\n        version = v;\n        text = t;\n    }\n\n    boolean update(int expected, String next) {\n        // TODO: 楽観ロックの概念を模擬\n        return false;\n    }\n}\n\npublic class JpaVersion {\n    public static void main(String[] a) {\n        Scanner sc = new Scanner(System.in);\n        Document d = new Document(sc.nextInt(), \"old\");\n        int expected = sc.nextInt();\n        if (d.update(expected, \"new\")) System.out.println(\"更新 version=\" + d.version);\n        else System.out.println(\"競合: 再読込してください\");\n    }\n}\n",
+          "starterCode": "import java.util.*;\n\nclass Document {\n    int version;\n    String text;\n\n    Document(int v, String t) {\n        version = v;\n        text = t;\n    }\n\n    boolean update(int expected, String next) {\n        // TODO: 楽観ロックの概念を模擬\n        return false;   // 仮の値。書けたら消す\n    }\n}\n\npublic class JpaVersion {\n    public static void main(String[] a) {\n        Scanner sc = new Scanner(System.in);\n        Document d = new Document(sc.nextInt(), \"old\");\n        int expected = sc.nextInt();\n        if (d.update(expected, \"new\")) System.out.println(\"更新 version=\" + d.version);\n        else System.out.println(\"競合: 再読込してください\");\n    }\n}\n",
           "visibleCases": [
             {
               "label": "一致",
@@ -444,7 +444,7 @@
           "code": "import jakarta.persistence.*;\n\n@Entity\nclass Person {\n    @Id\n    @GeneratedValue\n    Long id;\n    String name;\n\n    protected Person() { }\n\n    Person(String n) {\n        name = n;\n    }\n}\n\npublic class JpqlSample {\n    public static void main(String[] a) {\n        EntityManager em = MiniJpa.open();\n        em.persist(new Person(\"A\"));\n        em.persist(new Person(\"B\"));\n        System.out.println(em.createQuery(\"SELECT p FROM Person p WHERE p.name = :name\", Person.class).setParameter(\"name\", \"B\").getResultList().size());\n    }\n}\n"
         }
       ],
-      "task": "【基本】`@Entity` なBookに自動採番のid、title、priceを持たせます。入力から生成してpersistし、`id=1 title=... price=...` と表示してください。引数なしコンストラクタも用意します。",
+      "task": "【基本】1行に、`title` と `price`（`0` 以上の整数）が、この順で入力されます。`@Entity` なBookに自動採番のid、title、priceを持たせ、入力から生成してpersistし、`id=1 title=... price=...` と表示してください。引数なしコンストラクタも用意します。",
       "starterCode": "import jakarta.persistence.*;\nimport java.util.*;\n\n@Entity\nclass Book {\n    @Id\n    @GeneratedValue\n    Long id;\n    String title;\n    int price;\n\n    protected Book() { }\n\n    Book(String title, int price) {\n        /* TODO: フィールドへ保存 */\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        Book book = new Book(sc.next(), sc.nextInt());\n        EntityManager em = MiniJpa.open();\n        em.persist(book);\n        System.out.println(\"id=\" + book.id + \" title=\" + book.title + \" price=\" + book.price);\n    }\n}\n",
       "visibleCases": [
         {

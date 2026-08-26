@@ -84,7 +84,7 @@
           "stdin": "GET /info\nGET /info?name=Yamada&age=20\nPOST /info"
         }
       ],
-      "task": "はじめてのサーブレットを完成させてください。やることは2つです。\n\n1. クラスに **`@WebServlet(\"/hello\")`** を付けて、`/hello` の担当だと宣言する\n2. **`doGet`** を上書きして、本文に `Hello, Servlet!` を出力する\n\n`main` は書いてあるので触らなくてよいです。\n\n出力は疑似コンテナが付ける **ステータス行から始まります**。\n\n```\n入力:  GET /hello\n出力:  200 OK\n      Hello, Servlet!\n```\n\n`doGet` のシグネチャは次のとおりです。**`throws ServletException, IOException` を\nそのまま書く**のが大事です（親より広い例外を投げるとコンパイルエラーになります）。\n\n```java\n@Override\nprotected void doGet(HttpServletRequest req, HttpServletResponse res)\n        throws ServletException, IOException {\n```\n\n> `/hello` 以外のパスに来たリクエストは、担当がいないので `404` になります。",
+      "task": "入力は **1行が1リクエスト**（`METHOD /パス?クエリ` の形）で、上から順に処理されます。\n\nはじめてのサーブレットを完成させてください。やることは2つです。\n\n1. クラスに **`@WebServlet(\"/hello\")`** を付けて、`/hello` の担当だと宣言する\n2. **`doGet`** を上書きして、本文に `Hello, Servlet!` を出力する\n\n`main` は書いてあるので触らなくてよいです。\n\n出力は疑似コンテナが付ける **ステータス行から始まります**。\n\n```\n入力:  GET /hello\n出力:  200 OK\n      Hello, Servlet!\n```\n\n`doGet` のシグネチャは次のとおりです。**`throws ServletException, IOException` を\nそのまま書く**のが大事です（親より広い例外を投げるとコンパイルエラーになります）。\n\n```java\n@Override\nprotected void doGet(HttpServletRequest req, HttpServletResponse res)\n        throws ServletException, IOException {\n```\n\n> `/hello` 以外のパスに来たリクエストは、担当がいないので `404` になります。",
       "starterCode": "import jakarta.servlet.ServletException;\nimport jakarta.servlet.annotation.WebServlet;\nimport jakarta.servlet.http.HttpServlet;\nimport jakarta.servlet.http.HttpServletRequest;\nimport jakarta.servlet.http.HttpServletResponse;\n\nimport java.io.IOException;\n\n// TODO: @WebServlet で \"/hello\" を担当すると宣言する\npublic class HelloServlet extends HttpServlet {\n\n    // TODO: doGet を上書きして \"Hello, Servlet!\" を出力する\n\n    public static void main(String[] args) {\n        MiniWeb.app().register(HelloServlet.class).serve();\n    }\n}\n",
       "visibleCases": [
         {
@@ -119,7 +119,7 @@
       "extraTasks": [
         {
           "kind": "applied",
-          "task": "解説では「サーブレットは **1つのURLに対する処理**」と説明しました。\nということは、URLが増えればサーブレットも増えます。**2つ目のサーブレット**を作ってみましょう。\n\n1. `ByeServlet` に **`@WebServlet(\"/bye\")`** を付け、`doGet` で `Goodbye!` を出力する\n2. `main` で **`ByeServlet` も登録**する（`.register(ByeServlet.class)` を足す）\n\n```\nGET /hello  →  200 OK / Hello!\nGET /bye    →  200 OK / Goodbye!\nGET /nope   →  404\n```\n\n`ByeServlet` に **`public` は付けません**。1つのファイルに `public` なクラスは1つだけ\nという決まりがあるためです（`HelloServlet` がその1つです）。\n`public` なしでも同じファイル内から使えるので問題ありません。\n\n> 本物のアプリサーバなら `@WebServlet` を書くだけで自動的に見つけてくれます。\n> この教材は走査をしないので、`register(...)` で明示的に登録します。",
+          "task": "入力は **1行が1リクエスト**（`METHOD /パス?クエリ` の形）で、上から順に処理されます。\n\n解説では「サーブレットは **1つのURLに対する処理**」と説明しました。\nということは、URLが増えればサーブレットも増えます。**2つ目のサーブレット**を作ってみましょう。\n\n1. `ByeServlet` に **`@WebServlet(\"/bye\")`** を付け、`doGet` で `Goodbye!` を出力する\n2. `main` で **`ByeServlet` も登録**する（`.register(ByeServlet.class)` を足す）\n\n```\nGET /hello  →  200 OK / Hello!\nGET /bye    →  200 OK / Goodbye!\nGET /nope   →  404\n```\n\n`ByeServlet` に **`public` は付けません**。1つのファイルに `public` なクラスは1つだけ\nという決まりがあるためです（`HelloServlet` がその1つです）。\n`public` なしでも同じファイル内から使えるので問題ありません。\n\n> 本物のアプリサーバなら `@WebServlet` を書くだけで自動的に見つけてくれます。\n> この教材は走査をしないので、`register(...)` で明示的に登録します。",
           "starterCode": "import jakarta.servlet.ServletException;\nimport jakarta.servlet.annotation.WebServlet;\nimport jakarta.servlet.http.HttpServlet;\nimport jakarta.servlet.http.HttpServletRequest;\nimport jakarta.servlet.http.HttpServletResponse;\n\nimport java.io.IOException;\n\n@WebServlet(\"/hello\")\npublic class HelloServlet extends HttpServlet {\n\n    @Override\n    protected void doGet(HttpServletRequest req, HttpServletResponse res)\n            throws ServletException, IOException {\n        res.getWriter().println(\"Hello!\");\n    }\n\n    public static void main(String[] args) {\n        // TODO: ByeServlet も登録する\n        MiniWeb.app()\n               .register(HelloServlet.class)\n               .serve();\n    }\n}\n\n// TODO: \"/bye\" を担当し、\"Goodbye!\" を出力するサーブレットを作る\n// （public は付けない。1つのファイルに public クラスは1つだけ）\nclass ByeServlet extends HttpServlet {\n}\n",
           "visibleCases": [
             {
@@ -185,7 +185,7 @@
           "stdin": "GET /greet?name=Yamada&age=20\nGET /greet\nGET /greet?name=&age=abc\nGET /greet?color=red&color=blue"
         }
       ],
-      "task": "パラメータを受け取って挨拶を返すサーブレットを作ります。\n\n| 入力 | 出力（ステータス行のあと） |\n|---|---|\n| `GET /greet?name=Yamada&age=20` | `ようこそ、Yamadaさん (20歳)` |\n| `GET /greet` | `ようこそ、ゲストさん (年齢不明)` |\n| `GET /greet?name=&age=abc` | `ようこそ、ゲストさん (年齢不明)` |\n\n仕様はこうです。\n\n- `name` … 無い、または **空文字** なら `ゲスト`\n- `age` … 無い、または **数字として読めない** なら「年齢不明」とする\n- `age` が **0以上** なら `(20歳)` の形、そうでなければ `(年齢不明)`\n\n**`?name=` のようにイコールの後ろが空のときは `null` ではなく空文字が来ます。**\nそのため `null` チェックだけでは足りません。両方を見てください。\n\n`Integer.parseInt` は数字でない文字列で `NumberFormatException` を投げます。\n`try-catch` で囲んで、失敗したら「年齢不明」として扱ってください。\n\n> `age=-5` のような負の数は「年齢不明」になります（0以上のときだけ歳を出す仕様です）。",
+      "task": "入力は1行で、`METHOD /パス?クエリ` の形のリクエストが1つ来ます。\n\nパラメータを受け取って挨拶を返すサーブレットを作ります。\n\n| 入力 | 出力（ステータス行のあと） |\n|---|---|\n| `GET /greet?name=Yamada&age=20` | `ようこそ、Yamadaさん (20歳)` |\n| `GET /greet` | `ようこそ、ゲストさん (年齢不明)` |\n| `GET /greet?name=&age=abc` | `ようこそ、ゲストさん (年齢不明)` |\n\n仕様はこうです。\n\n- `name` … 無い、または **空文字** なら `ゲスト`\n- `age` … 無い、または **数字として読めない** なら「年齢不明」とする\n- `age` が **0以上** なら `(20歳)` の形、そうでなければ `(年齢不明)`\n\n**`?name=` のようにイコールの後ろが空のときは `null` ではなく空文字が来ます。**\nそのため `null` チェックだけでは足りません。両方を見てください。\n\n`Integer.parseInt` は数字でない文字列で `NumberFormatException` を投げます。\n`try-catch` で囲んで、失敗したら「年齢不明」として扱ってください。\n\n> `age=-5` のような負の数は「年齢不明」になります（0以上のときだけ歳を出す仕様です）。",
       "starterCode": "import jakarta.servlet.ServletException;\nimport jakarta.servlet.annotation.WebServlet;\nimport jakarta.servlet.http.HttpServlet;\nimport jakarta.servlet.http.HttpServletRequest;\nimport jakarta.servlet.http.HttpServletResponse;\n\nimport java.io.IOException;\n\n@WebServlet(\"/greet\")\npublic class GreetServlet extends HttpServlet {\n\n    @Override\n    protected void doGet(HttpServletRequest req, HttpServletResponse res)\n            throws ServletException, IOException {\n        // TODO: name を取り、無い/空なら \"ゲスト\" にする\n        // TODO: age を取り、無い/数字でないなら -1 にする\n        // TODO: age が 0 以上なら \"ようこそ、<name>さん (<age>歳)\"\n        //       そうでなければ    \"ようこそ、<name>さん (年齢不明)\"\n        res.getWriter().println(\"\");\n    }\n\n    public static void main(String[] args) {\n        MiniWeb.app().register(GreetServlet.class).serve();\n    }\n}\n",
       "visibleCases": [
         {
@@ -306,7 +306,7 @@
           "stdin": "GET /items\nPOST /items\nDELETE /items\nPUT /items"
         }
       ],
-      "task": "`/items?id=...` をGETとDELETEに対応させてください。ID 1,2は存在します。GETは200と `item-<id>`、DELETEは204、存在しなければ404、不正なIDは400です。",
+      "task": "入力は **1行が1リクエスト**（`METHOD /パス?クエリ` の形）で、上から順に処理されます。\n\n`/items?id=...` をGETとDELETEに対応させてください。ID 1,2は存在します。GETは200と `item-<id>`、DELETEは204、存在しなければ404、不正なIDは400です。",
       "starterCode": "import jakarta.servlet.annotation.WebServlet;\nimport jakarta.servlet.http.*;\nimport java.io.*;\nimport java.util.*;\n\n@WebServlet(\"/items\")\npublic class ItemServlet extends HttpServlet {\n    private final Set<Integer> ids = new HashSet<>(Set.of(1, 2));\n\n    private Integer id(HttpServletRequest req, HttpServletResponse res) throws IOException {\n        return null;\n    }\n\n    protected void doGet(HttpServletRequest req, HttpServletResponse res) throws IOException {\n        // TODO\n    }\n\n    protected void doDelete(HttpServletRequest req, HttpServletResponse res) throws IOException {\n        // TODO\n    }\n\n    public static void main(String[] a) {\n        MiniWeb.app().register(ItemServlet.class).serve();\n    }\n}\n",
       "visibleCases": [
         {
@@ -351,7 +351,7 @@
       "extraTasks": [
         {
           "kind": "applied",
-          "task": "POST `/users?name=...` で利用者を作成します。name必須、既存名は409、成功は201と `作成: name`。エラー本文は、必須違反が `nameは必須です`、既存名が `nameは使用済みです` です。",
+          "task": "入力は **1行が1リクエスト**（`METHOD /パス?クエリ` の形）で、上から順に処理されます。\n\nPOST `/users?name=...` で利用者を作成します。name必須、既存名は409、成功は201と `作成: name`。エラー本文は、必須違反が `nameは必須です`、既存名が `nameは使用済みです` です。",
           "starterCode": "import jakarta.servlet.annotation.WebServlet;\nimport jakarta.servlet.http.*;\nimport java.io.*;\nimport java.util.*;\n\n@WebServlet(\"/users\")\npublic class UserCreateServlet extends HttpServlet {\n    private final Set<String> names = new HashSet<>(Set.of(\"admin\"));\n\n    protected void doPost(HttpServletRequest q, HttpServletResponse s) throws IOException {\n        // TODO\n    }\n\n    public static void main(String[] a) {\n        MiniWeb.app().register(UserCreateServlet.class).serve();\n    }\n}\n",
           "visibleCases": [
             {
@@ -422,7 +422,7 @@
           "stdin": "GET /life\nGET /life"
         }
       ],
-      "task": "共有フィールド `lastName` を使っているServletを直し、リクエストごとのローカル変数だけで `こんにちは、nameさん` と返してください。名前なしはゲストです。",
+      "task": "入力は **1行が1リクエスト**（`METHOD /パス?クエリ ブラウザ名` の形）で、上から順に処理されます。3つ目の語はブラウザ名で、利用者ごとに分かれます。\n\n共有フィールド `lastName` を使っているServletを直し、リクエストごとのローカル変数だけで `こんにちは、nameさん` と返してください。名前なしはゲストです。",
       "starterCode": "import jakarta.servlet.annotation.WebServlet;\nimport jakarta.servlet.http.*;\nimport java.io.*;\n\n@WebServlet(\"/hello\")\npublic class SafeServlet extends HttpServlet {\n    private String lastName = \"ゲスト\";\n\n    protected void doGet(HttpServletRequest q, HttpServletResponse s) throws IOException {\n        // TODO: フィールドを使わずローカル変数にする\n        s.getWriter().println(\"こんにちは、\" + lastName + \"さん\");\n    }\n\n    public static void main(String[] a) {\n        MiniWeb.app().register(SafeServlet.class).serve();\n    }\n}\n",
       "visibleCases": [
         {
@@ -447,7 +447,7 @@
       "extraTasks": [
         {
           "kind": "applied",
-          "task": "init parameter `appName` を `init()` で1回読み、フィールドへ保存して各リクエストで表示してください。これは初期化後に変えない安全なフィールドです。",
+          "task": "入力は **1行が1リクエスト**（`METHOD /パス?クエリ` の形）で、上から順に処理されます。\n\ninit parameter `appName` を `init()` で1回読み、フィールドへ保存して各リクエストで表示してください。これは初期化後に変えない安全なフィールドです。",
           "starterCode": "import jakarta.servlet.*;\nimport jakarta.servlet.annotation.WebServlet;\nimport jakarta.servlet.http.*;\nimport java.io.*;\n\n@WebServlet(\"/info\")\npublic class InfoServlet extends HttpServlet {\n    private String appName;\n\n    public void init() throws ServletException {\n        // TODO\n    }\n\n    protected void doGet(HttpServletRequest q, HttpServletResponse s) throws IOException {\n        s.getWriter().println(\"app=\" + appName);\n    }\n\n    public static void main(String[] a) {\n        MiniWeb.app().initParameter(\"appName\", \"Shop\").register(InfoServlet.class).serve();\n    }\n}\n",
           "visibleCases": [
             {
@@ -502,7 +502,7 @@
           "stdin": "GET /api"
         }
       ],
-      "task": "`/search?q=...` でHTMLを返します。qのアンパサンド・山括弧・二重引用符・単一引用符をHTMLエスケープし、`検索: <安全な文字列>` と表示してください。Content-Typeも設定します。",
+      "task": "入力は1行で、`METHOD /パス?クエリ` の形のリクエストが1つ来ます。\n\n`/search?q=...` でHTMLを返します。qのアンパサンド・山括弧・二重引用符・単一引用符をHTMLエスケープし、`検索: <安全な文字列>` と表示してください。Content-Typeも設定します。",
       "starterCode": "import jakarta.servlet.annotation.WebServlet;\nimport jakarta.servlet.http.*;\nimport java.io.*;\n\n@WebServlet(\"/search\")\npublic class SearchServlet extends HttpServlet {\n    static String escapeHtml(String s) {\n        return s;\n    }\n\n    protected void doGet(HttpServletRequest q, HttpServletResponse s) throws IOException {\n        // TODO\n    }\n\n    public static void main(String[] a) {\n        MiniWeb.app().register(SearchServlet.class).showHeaders().serve();\n    }\n}\n",
       "visibleCases": [
         {
@@ -537,7 +537,7 @@
       "extraTasks": [
         {
           "kind": "applied",
-          "task": "例外の詳細を漏らさないAPI境界を書きます。`mode=missing` は404、`mode=fail` はログにだけ原因を出して500 `処理に失敗しました`、通常は200 `ok`。404の本文は `データが見つかりません`、ログへ出す原因は `internal: database password=secret` とします（この文字列がログにだけ出て、応答本文には出ないことを確かめます）。",
+          "task": "入力は1行で、`METHOD /パス?クエリ` の形のリクエストが1つ来ます。\n\n例外の詳細を漏らさないAPI境界を書きます。`mode=missing` は404、`mode=fail` はログにだけ原因を出して500 `処理に失敗しました`、通常は200 `ok`。404の本文は `データが見つかりません`、ログへ出す原因は `internal: database password=secret` とします（この文字列がログにだけ出て、応答本文には出ないことを確かめます）。",
           "starterCode": "import jakarta.servlet.annotation.WebServlet;\nimport jakarta.servlet.http.*;\nimport java.io.*;\n\n@WebServlet(\"/work\")\npublic class WorkServlet extends HttpServlet {\n    protected void doGet(HttpServletRequest q, HttpServletResponse s) throws IOException {\n        // TODO\n    }\n\n    public static void main(String[] a) {\n        MiniWeb.app().register(WorkServlet.class).serve();\n    }\n}\n",
           "visibleCases": [
             {
@@ -640,7 +640,7 @@
           "stdin": "GET /api"
         }
       ],
-      "task": "【基本】GET `/greet?name=...` を処理するサーブレットを作ります。nameが無いか空なら400、あれば `Hello, name!` と表示してください。",
+      "task": "【基本】入力は1行で、`METHOD /パス?クエリ` の形のリクエストが1つ来ます。\n\nGET `/greet?name=...` を処理するサーブレットを作ります。nameが無いか空なら400、あれば `Hello, name!` と表示してください。",
       "starterCode": "import jakarta.servlet.annotation.WebServlet;\nimport jakarta.servlet.http.*;\nimport java.io.*;\n\n@WebServlet(\"/greet\")\npublic class Main extends HttpServlet {\n    protected void doGet(HttpServletRequest req, HttpServletResponse res) throws IOException {\n        /* TODO */\n    }\n\n    public static void main(String[] args) {\n        MiniWeb.app().register(Main.class).serve();\n    }\n}\n",
       "visibleCases": [
         {
@@ -677,7 +677,7 @@
             "ch22-o3"
           ],
           "kind": "drill",
-          "task": "【組み合わせ】POST `/notes?text=...` なら201と `created: text` を返します。textが空なら400です。GETなどPOST以外はMiniWebの既定動作で405になるよう、`doPost` だけを実装してください。",
+          "task": "【組み合わせ】入力は1行で、`METHOD /パス?クエリ` の形のリクエストが1つ来ます。\n\nPOST `/notes?text=...` なら201と `created: text` を返します。textが空なら400です。GETなどPOST以外はMiniWebの既定動作で405になるよう、`doPost` だけを実装してください。",
           "starterCode": "import jakarta.servlet.annotation.WebServlet;\nimport jakarta.servlet.http.*;\nimport java.io.*;\n\n@WebServlet(\"/notes\")\npublic class Main extends HttpServlet {\n    protected void doPost(HttpServletRequest req, HttpServletResponse res) throws IOException {\n        /* TODO */\n    }\n\n    public static void main(String[] args) {\n        MiniWeb.app().register(Main.class).serve();\n    }\n}\n",
           "visibleCases": [
             {
@@ -727,8 +727,8 @@
             "ch22-o5"
           ],
           "kind": "applied",
-          "task": "【実践】GET `/search?q=...` で、qをHTMLエスケープして `検索: q` と返してください。Content-Typeは `text/html; charset=UTF-8` にします。最低限 `&`、`<`、`>` をこの順で変換します。",
-          "starterCode": "import jakarta.servlet.annotation.WebServlet;\nimport jakarta.servlet.http.*;\nimport java.io.*;\n\n@WebServlet(\"/search\")\npublic class Main extends HttpServlet {\n    static String escape(String s) {\n        /* TODO */ return \"\";\n    }\n\n    protected void doGet(HttpServletRequest req, HttpServletResponse res) throws IOException {\n        /* TODO */\n    }\n\n    public static void main(String[] args) {\n        MiniWeb.app().register(Main.class).showHeaders().serve();\n    }\n}\n",
+          "task": "【実践】入力は1行で、`METHOD /パス?クエリ` の形のリクエストが1つ来ます。\n\nGET `/search?q=...` で、qをHTMLエスケープして `検索: q` と返してください。Content-Typeは `text/html; charset=UTF-8` にします。最低限 `&`、`<`、`>` をこの順で変換します。",
+          "starterCode": "import jakarta.servlet.annotation.WebServlet;\nimport jakarta.servlet.http.*;\nimport java.io.*;\n\n@WebServlet(\"/search\")\npublic class Main extends HttpServlet {\n    static String escape(String s) {\n        // TODO\n        return \"\";   // 仮の値。書けたら消す\n    }\n\n    protected void doGet(HttpServletRequest req, HttpServletResponse res) throws IOException {\n        /* TODO */\n    }\n\n    public static void main(String[] args) {\n        MiniWeb.app().register(Main.class).showHeaders().serve();\n    }\n}\n",
           "visibleCases": [
             {
               "label": "通常文字",

@@ -1576,14 +1576,115 @@ public final class ProgressStore {
                     Map.entry("57-3#2", "57-2#0"),
                     Map.entry("57-3#3", "57-3#1"))));
 
+    /**
+     * 選択肢を並べ替えたクイズの、<b>入れ替えた相手の位置</b>（クイズキー → `t`）。
+     *
+     * <p>{@code quizChoices} が持っているのは学習者が選んだ<b>番号</b>なので、教材側で
+     * 選択肢を並べ替えると、同じ番号が別の文を指すようになる（正解した記録が誤答に化け、
+     * 復習の苦手度もずれる）。並べ替えた回はここへ1段足し、記録した番号を新しい位置へ
+     * 読み替える ―― 記録を捨てるより安全で、★・正解数・払ったチップ・復習の期限が
+     * どれも動かない。</p>
+     *
+     * <p>入っているのは<b>2つの位置の入れ替えだけ</b>（正解を置きたい場所へ動かすので、
+     * 3つ以上を回す必要がない）。読み替えは「片方なら相手、相手なら片方、ほかはそのまま」で
+     * 済む（{@link #migrateQuizChoice}）。</p>
+     *
+     * @param id  進捗ファイルへ残す印（{@link #appliedQuizSwaps}）
+     * @param map クイズキー → 入れ替えた2つの位置
+     */
+    private record QuizSwap(String id, Map<String, List<Integer>> map) { }
+
+    /**
+     * 選択肢を並べ替えた履歴。古い順に並べる。
+     *
+     * <ul>
+     *   <li>2026-08-26 … `ch60`（Spring Boot）・`ch61`（Open Liberty）・`ch62`（Quarkus）の
+     *       確認クイズ36問が、<b>すべて正解が先頭</b>だった（先頭を選び続けるだけで36問正解に
+     *       なる）。章ごとに正解を4か所へ3問ずつ散らした。全体の分布は健全に見えていたので、
+     *       <b>章単位で数えないと出ない</b>偏りだった。同じ検査で見つかった `ch08`（6問中5問が
+     *       4番目）と `ch63`（9問中7問が2番目）も同時に散らした（→ `check_quiz_fairness.py`）。</li>
+     * </ul>
+     */
+    private static final List<QuizSwap> QUIZ_SWAPS = List.of(
+            new QuizSwap("quiz-positions-2026-08-26", Map.ofEntries(
+                    Map.entry("60-1#1", List.of(0, 2)),
+                    Map.entry("60-2#0", List.of(0, 1)),
+                    Map.entry("60-2#1", List.of(0, 3)),
+                    Map.entry("60-3#0", List.of(0, 2)),
+                    Map.entry("60-4#0", List.of(0, 3)),
+                    Map.entry("60-4#1", List.of(0, 1)),
+                    Map.entry("60-5#0", List.of(0, 3)),
+                    Map.entry("60-5#1", List.of(0, 1)),
+                    Map.entry("60-6#1", List.of(0, 2)),
+                    Map.entry("61-1#0", List.of(0, 1)),
+                    Map.entry("61-1#1", List.of(0, 3)),
+                    Map.entry("61-2#0", List.of(0, 2)),
+                    Map.entry("61-3#0", List.of(0, 3)),
+                    Map.entry("61-3#1", List.of(0, 1)),
+                    Map.entry("61-4#1", List.of(0, 2)),
+                    Map.entry("61-5#1", List.of(0, 2)),
+                    Map.entry("61-6#0", List.of(0, 1)),
+                    Map.entry("61-6#1", List.of(0, 3)),
+                    Map.entry("62-1#0", List.of(0, 2)),
+                    Map.entry("62-2#0", List.of(0, 3)),
+                    Map.entry("62-2#1", List.of(0, 1)),
+                    Map.entry("62-3#1", List.of(0, 2)),
+                    Map.entry("62-4#0", List.of(0, 1)),
+                    Map.entry("62-4#1", List.of(0, 3)),
+                    Map.entry("62-5#0", List.of(0, 1)),
+                    Map.entry("62-5#1", List.of(0, 3)),
+                    Map.entry("62-6#0", List.of(0, 2)),
+                    Map.entry("8-1#0", List.of(3, 0)),
+                    Map.entry("8-3#0", List.of(3, 1)),
+                    Map.entry("8-5#0", List.of(3, 2)),
+                    Map.entry("8-5#1", List.of(3, 0)),
+                    Map.entry("63-1#1", List.of(2, 3)),
+                    Map.entry("63-3#0", List.of(1, 0)),
+                    Map.entry("63-3#1", List.of(1, 2)),
+                    Map.entry("63-3#2", List.of(2, 1)),
+                    Map.entry("63-4#0", List.of(1, 3)),
+                    Map.entry("63-4#1", List.of(1, 0)),
+                    Map.entry("63-5#0", List.of(1, 2)))));
+
     /** 適用済みの読み替えの印。ファイルへそのまま書き戻す。 */
     private final Set<String> appliedQuizMoves = new LinkedHashSet<>();
+
+    /** 適用済みの並べ替えの印（→ {@link QuizSwap}）。ファイルへそのまま書き戻す。 */
+    private final Set<String> appliedQuizSwaps = new LinkedHashSet<>();
 
     /** すべての段を適用済みにする。読み替えるものが無いときと、読み終えたあとに呼ぶ。 */
     private void markQuizMovesApplied() {
         for (QuizMove move : QUIZ_MOVES) {
             appliedQuizMoves.add(move.id());
         }
+        for (QuizSwap swap : QUIZ_SWAPS) {
+            appliedQuizSwaps.add(swap.id());
+        }
+    }
+
+    /**
+     * 記録してある「選んだ番号」を、選択肢を並べ替えたあとの位置へ読み替える。
+     *
+     * <p>キーの読み替え（{@link #migrateQuizKey}）を済ませたあとの新しいキーで引く。
+     * 適用済みの段は飛ばす（二度読み替えると元の位置へ戻ってしまう）。</p>
+     */
+    private int migrateQuizChoice(String key, int choice) {
+        int moved = choice;
+        for (QuizSwap swap : QUIZ_SWAPS) {
+            if (appliedQuizSwaps.contains(swap.id())) {
+                continue;
+            }
+            List<Integer> pair = swap.map().get(key);
+            if (pair == null) {
+                continue;
+            }
+            if (moved == pair.get(0)) {
+                moved = pair.get(1);
+            } else if (moved == pair.get(1)) {
+                moved = pair.get(0);
+            }
+        }
+        return moved;
     }
 
     /** 移したクイズのキーを読み替える。適用済みの段は飛ばし、対象外はそのまま返す。 */
@@ -1668,6 +1769,11 @@ public final class ProgressStore {
                 appliedQuizMoves.add(s);
             }
         }
+        for (Object o : MiniJson.list(root, "appliedQuizSwaps")) {
+            if (o instanceof String s) {
+                appliedQuizSwaps.add(s);
+            }
+        }
         boolean hasCafeState = root.get("cafe") instanceof Map;
         onboardingCompleted = root.get("onboardingCompleted") instanceof Boolean completed
                 && completed;
@@ -1704,7 +1810,14 @@ public final class ProgressStore {
         });
         MiniJson.obj(root, "quizChoices").forEach((key, v) -> {
             if (v instanceof Number n) {
-                quizChoices.put(migrateQuizKey(key), n.intValue());
+                String migrated = migrateQuizKey(key);
+                int choice = migrateQuizChoice(migrated, n.intValue());
+                quizChoices.put(migrated, choice);
+                if (choice != n.intValue()) {
+                    // 読み替えた形を次の保存で載せる（載るまでは毎回の起動で同じ読み替えが
+                    // 走るだけなので、結果は変わらない）。ここでタイマーは起こさない
+                    saveEventually();
+                }
             }
         });
         for (Object o : MiniJson.list(root, "clearDates")) {
@@ -2008,8 +2121,9 @@ public final class ProgressStore {
             clearedJson.put(id, cm);
         });
         m.put("cleared", clearedJson);
-        // 適用済みのクイズ読み替え（→ QUIZ_MOVE_ID）。次に読むときは読み替えない
+        // 適用済みのクイズ読み替え（→ QUIZ_MOVES / QUIZ_SWAPS）。次に読むときは読み替えない
         m.put("appliedQuizMoves", new ArrayList<>(appliedQuizMoves));
+        m.put("appliedQuizSwaps", new ArrayList<>(appliedQuizSwaps));
         m.put("codes", new LinkedHashMap<>(codes));
         m.put("hintsRevealed", new LinkedHashMap<>(hintsRevealed));
         m.put("attempts", new LinkedHashMap<>(attempts));

@@ -192,7 +192,7 @@
           "code": "import java.sql.*;\n\npublic class JdbcUpdateSample {\n    public static void main(String[] a) throws Exception {\n        try (Connection c = MiniJdbc.open(); PreparedStatement p = c.prepareStatement(\"UPDATE users SET balance = ? WHERE id = ?\")) {\n            p.setInt(1, 800);\n            p.setInt(2, 2);\n            System.out.println(\"updated=\" + p.executeUpdate());\n        }\n    }\n}\n"
         }
       ],
-      "task": "入力 `id 新残高` をPreparedStatementで更新し、1件なら `更新しました`、0件なら `対象なし`。負の残高はSQLを実行せず `不正な残高` としてください。",
+      "task": "1行に、`id` と新残高が、この順で入力されます（新残高はマイナスも来ます。`id` は登録の無い番号も来ます）。PreparedStatementで更新し、1件なら `更新しました`、0件なら `対象なし`。負の残高はSQLを実行せず `不正な残高` としてください。",
       "starterCode": "import java.sql.*;\nimport java.util.*;\n\npublic class JdbcUpdate {\n    public static void main(String[] a) throws Exception {\n        Scanner sc = new Scanner(System.in);\n        int id = sc.nextInt(), balance = sc.nextInt();\n        // TODO\n    }\n}\n",
       "visibleCases": [
         {
@@ -289,7 +289,7 @@
           "code": "import java.sql.*;\n\npublic class JdbcTxSample {\n    public static void main(String[] a) throws Exception {\n        try (Connection c = MiniJdbc.open()) {\n            c.setAutoCommit(false);\n            try (PreparedStatement p = c.prepareStatement(\"UPDATE users SET balance = ? WHERE id = ?\")) {\n                p.setInt(1, 0);\n                p.setInt(2, 1);\n                p.executeUpdate();\n            }\n            c.rollback();\n            try (PreparedStatement p = c.prepareStatement(\"SELECT id, name, balance FROM users WHERE id = ?\")) {\n                p.setInt(1, 1);\n                try (ResultSet r = p.executeQuery()) {\n                    r.next();\n                    System.out.println(r.getInt(\"balance\"));\n                }\n            }\n        }\n    }\n}\n"
         }
       ],
-      "task": "入力 `from to amount` で送金してください。残高不足またはIDなしならrollbackして `送金失敗`。成功ならcommitし、`from=<残高> to=<残高>` を表示します。",
+      "task": "1行に、`from` `to` `amount` が、この順で入力されます（`amount` はマイナスも来ます。`from` `to` は登録の無い番号も来ます）。この内容で送金してください。残高不足またはIDなしならrollbackして `送金失敗`。成功ならcommitし、`from=<残高> to=<残高>` を表示します。",
       "starterCode": "import java.sql.*;\nimport java.util.*;\n\npublic class JdbcTransfer {\n    static Integer balance(Connection c, int id) throws SQLException {\n        try (PreparedStatement p = c.prepareStatement(\"SELECT id, name, balance FROM users WHERE id = ?\")) {\n            p.setInt(1, id);\n            try (ResultSet r = p.executeQuery()) {\n                return r.next() ? r.getInt(\"balance\") : null;\n            }\n        }\n    }\n\n    static void set(Connection c, int id, int value) throws SQLException {\n        try (PreparedStatement p = c.prepareStatement(\"UPDATE users SET balance = ? WHERE id = ?\")) {\n            p.setInt(1, value);\n            p.setInt(2, id);\n            p.executeUpdate();\n        }\n    }\n\n    public static void main(String[] a) throws Exception {\n        Scanner sc = new Scanner(System.in);\n        int from = sc.nextInt(), to = sc.nextInt(), amount = sc.nextInt();\n        try (Connection c = MiniJdbc.open()) {\n            c.setAutoCommit(false);\n            // TODO\n        }\n    }\n}\n",
       "visibleCases": [
         {
@@ -472,7 +472,7 @@
       "extraTasks": [
         {
           "kind": "drill",
-          "task": "【組み合わせ】IDと加算額を読み、`UPDATE users SET balance = balance + ? WHERE id = ?` で残高を変更します。更新後の残高を同じConnectionで検索し、`updated=件数 balance=残高`、対象なしなら `updated=0` と表示してください。",
+          "task": "【組み合わせ】1行に、IDと加算額が、この順で入力されます（加算額はマイナスも来ます。IDは登録の無い番号も来ます）。`UPDATE users SET balance = balance + ? WHERE id = ?` で残高を変更します。更新後の残高を同じConnectionで検索し、`updated=件数 balance=残高`、対象なしなら `updated=0` と表示してください。",
           "starterCode": "import java.sql.*;\nimport java.util.*;\n\npublic class Main {\n    public static void main(String[] args) throws Exception {\n        Scanner sc = new Scanner(System.in);\n        int id = sc.nextInt(), amount = sc.nextInt();\n        try (Connection c = MiniJdbc.open()) {\n            /* 更新して再検索 */\n        }\n    }\n}\n",
           "visibleCases": [
             {
@@ -527,8 +527,8 @@
             "ch24-o3"
           ],
           "kind": "applied",
-          "task": "【実践】from、to、amountを読み、2口座間で送金します。どちらかが無い、amountが0以下、残高不足ならrollbackして `failed`、成功ならcommitして `from=残高 to=残高` と表示してください。",
-          "starterCode": "import java.sql.*;\nimport java.util.*;\n\npublic class Main {\n    static Integer balance(Connection c, int id) throws Exception {\n        /* TODO */ return null;\n    }\n\n    static void add(Connection c, int id, int amount) throws Exception {\n        /* TODO */\n    }\n\n    public static void main(String[] args) throws Exception {\n        Scanner sc = new Scanner(System.in);\n        int from = sc.nextInt(), to = sc.nextInt(), amount = sc.nextInt();\n        try (Connection c = MiniJdbc.open()) {\n            c.setAutoCommit(false);\n            /* TODO */\n        }\n    }\n}\n",
+          "task": "【実践】1行に、`from` `to` `amount` が、この順で入力されます（`amount` は `0` 以下も来ます。`from` `to` は登録の無い番号も来ます）。2口座間で送金します。どちらかが無い、amountが0以下、残高不足ならrollbackして `failed`、成功ならcommitして `from=残高 to=残高` と表示してください。",
+          "starterCode": "import java.sql.*;\nimport java.util.*;\n\npublic class Main {\n    static Integer balance(Connection c, int id) throws Exception {\n        // TODO\n        return null;   // 仮の値。書けたら消す\n    }\n\n    static void add(Connection c, int id, int amount) throws Exception {\n        /* TODO */\n    }\n\n    public static void main(String[] args) throws Exception {\n        Scanner sc = new Scanner(System.in);\n        int from = sc.nextInt(), to = sc.nextInt(), amount = sc.nextInt();\n        try (Connection c = MiniJdbc.open()) {\n            c.setAutoCommit(false);\n            /* TODO */\n        }\n    }\n}\n",
           "visibleCases": [
             {
               "label": "送金成功",

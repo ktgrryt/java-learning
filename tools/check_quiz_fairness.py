@@ -19,12 +19,17 @@ tools/check-quiz-fairness.sh から呼ばれる。
      （1文字未満の差は見分けられないので数えない。数えるのは全角2文字ぶん以上の差）
   2. 断定語（必ず・常に・すべて・絶対）が誤答にだけ出る … 断定を避けるだけで当たってしまう
 
-## 数えないもの
+## 正解の位置は「章単位」で見る
 
-**正解の位置の偏り**は数えるが、失敗にはしない。並べ替えれば直るが、`progress.json` の
-`quizChoices` は学習者が選んだ**番号**を保存しているので、並べ替えると過去の解答の意味が
-変わってしまう（正解した記録が誤答になり、復習の苦手度がずれる）。新しく足すクイズで
-位置を散らすほかないため、状況だけ表示する。
+**全体の分布は失敗にしない**（544問で 27/28/24/20 のように、足していけば自然に均れる）。
+見るのは**章ごとの偏り**である。2026-08-26の精査で、`ch60`（Spring Boot）・`ch61`
+（Open Liberty）・`ch62`（Quarkus）の**36問すべてが `answer: 0`** だったのが見つかった ――
+先頭を選び続けるだけで36問正解になるのに、全体の集計では 27/28/24/20 で健全に見えていた。
+**1章ずつ数えないと出ない**種類なので、ここで数える。
+
+並べ替えるときは `progress.json` の `quizChoices`（学習者が選んだ**番号**）を新しい位置へ
+読み替える段を `ProgressStore` の `QUIZ_SWAPS` へ足す。読み替えれば、正解した記録が誤答へ
+化けることはない（記録を捨てる必要もない）。
 
 ## 基準
 
@@ -55,6 +60,11 @@ MAX_LONG = 5           # 目に見えて長い問題を許す数
 PERCEPTIBLE = 4        # 見分けられる差（全角2文字ぶん）
 MAX_PERCEPTIBLE_RATE = 0.30
 MAX_ASSERTIVE_WRONG = 0.75   # 断定語を含む選択肢が誤答である割合の上限（4択の偶然の水準）
+# 章単位の偏り。1章のクイズが少ないと偏って見えるのは当たり前なので、数える下限を置く。
+# 4択で5問なら、同じ位置が4問（80%）来る確率は偶然でも十分あるが、7割を超え続ける章は
+# 作り方の癖である（ch60〜62は12問すべてが同じ位置だった）。
+MIN_CHAPTER_QUIZZES = 5      # これ未満の章は数えない
+MAX_CHAPTER_SHARE = 0.7      # 1つの位置に集まっていい割合の上限
 
 
 def main():
@@ -78,7 +88,15 @@ def main():
           f'（{perceptible_rate*100:.1f}% / 上限{MAX_PERCEPTIBLE_RATE*100:.0f}%、偶然の水準25%）')
     print(f'  断定語を含む選択肢: {len(assertive)}件、うち誤答 {len(assertive_wrong)}件'
           f'（{ratio*100:.1f}% / 上限{MAX_ASSERTIVE_WRONG*100:.0f}%）')
-    print(f'  正解の位置: {position_summary(quizzes)}（並べ替えられないため参考値）')
+    print(f'  正解の位置（全体）: {position_summary(quizzes)}')
+    skewed = skewed_chapters(quizzes)
+    if skewed:
+        print(f'  正解の位置が1か所へ集まっている章: {len(skewed)}章')
+        for file_name, counts, share, position in skewed:
+            print(f'      {file_name} {counts} … 位置{position}が{share*100:.0f}%')
+    else:
+        print(f'  正解の位置が1か所へ集まっている章: なし'
+              f'（{MIN_CHAPTER_QUIZZES}問以上の章で上限{MAX_CHAPTER_SHARE*100:.0f}%）')
 
     if listing:
         show(long_ones, assertive_wrong)
@@ -96,6 +114,10 @@ def main():
         problems.append(f'断定語を含む選択肢のうち誤答が{ratio*100:.1f}%です'
                         f'（上限{MAX_ASSERTIVE_WRONG*100:.0f}%）。'
                         '断定を避けるだけで当たってしまいます')
+    for file_name, counts, share, position in skewed:
+        problems.append(f'{file_name} は正解の位置が{position}へ{share*100:.0f}%集まっています'
+                        f'（{sum(counts)}問中{counts[position]}問 / 上限'
+                        f'{MAX_CHAPTER_SHARE*100:.0f}%）。同じ番号を選び続けるだけで通ります')
 
     if not problems:
         print('  Javaを知らなくても使える手がかりは基準内です。')
@@ -119,6 +141,25 @@ def margin(quiz):
 def width(text):
     """画面に出したときのおおよその幅。全角・全角相当を2、それ以外を1として数える。"""
     return sum(2 if unicodedata.east_asian_width(ch) in 'WF' else 1 for ch in text)
+
+
+def skewed_chapters(quizzes):
+    """正解の位置が1か所へ集まっている章。(ファイル名, 位置ごとの件数, 割合, 位置) を返す。"""
+    per_file = {}
+    for quiz in quizzes:
+        counts = per_file.setdefault(quiz['file'], [0, 0, 0, 0])
+        if quiz['answer'] < 4:
+            counts[quiz['answer']] += 1
+    skewed = []
+    for file_name, counts in per_file.items():
+        total = sum(counts)
+        if total < MIN_CHAPTER_QUIZZES:
+            continue
+        position = counts.index(max(counts))
+        share = counts[position] / total
+        if share > MAX_CHAPTER_SHARE:
+            skewed.append((file_name, counts, share, position))
+    return sorted(skewed, key=lambda row: -row[2])
 
 
 def position_summary(quizzes):

@@ -35,7 +35,7 @@
           "code": "import java.time.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Instant i = Instant.parse(\"2026-01-01T00:00:00Z\");\n        System.out.println(i.atZone(ZoneId.of(\"Asia/Tokyo\")));\n        System.out.println(i.atZone(ZoneId.of(\"Europe/London\")));\n    }\n}\n"
         }
       ],
-      "task": "ISO形式のInstantとzone IDを読み、その地域の `yyyy-MM-dd HH:mm offset` を表示してください。",
+      "task": "1行に、ISO形式のInstantとzone IDが、この順で入力されます。その地域の `yyyy-MM-dd HH:mm offset` を表示してください。",
       "starterCode": "import java.time.*;\nimport java.time.format.*;\nimport java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        Instant instant = Instant.parse(sc.next());\n        ZoneId zone = ZoneId.of(sc.next());\n        /* TODO */\n    }\n}\n",
       "visibleCases": [
         {
@@ -150,7 +150,7 @@
           "code": "import java.time.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        var z = ZonedDateTime.of(2026, 3, 7, 12, 0, 0, 0, ZoneId.of(\"America/New_York\"));\n        System.out.println(Duration.between(z.toInstant(), z.plusDays(1).toInstant()).toHours());\n    }\n}\n"
         }
       ],
-      "task": "zone、開始Instant、終了Instantを読み、その地域での開始/終了時刻と実経過時間（時間）を表示してください。",
+      "task": "1行に、zone、開始Instant、終了Instant（Instantはどちらも ISO形式）が、この順で入力されます。その地域での開始/終了時刻と実経過時間（時間）を表示してください。",
       "starterCode": "import java.time.*;\nimport java.time.format.*;\nimport java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        ZoneId zone = ZoneId.of(sc.next());\n        Instant from = Instant.parse(sc.next()), to = Instant.parse(sc.next());\n        /* TODO */\n    }\n}\n",
       "visibleCases": [
         {
@@ -189,7 +189,7 @@
       "extraTasks": [
         {
           "kind": "applied",
-          "task": "ローカル日時とzoneを読み、ZonedDateTimeへ変換してoffsetとInstantを表示してください。DST gapではJavaの標準調整後の時刻も表示します。",
+          "task": "1行に、ローカル日時（`2026-01-01T09:00` の形）とzoneが、この順で入力されます。ZonedDateTimeへ変換してoffsetとInstantを表示してください。DST gapではJavaの標準調整後の時刻も表示します。",
           "starterCode": "import java.time.*;\nimport java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        LocalDateTime local = LocalDateTime.parse(sc.next());\n        ZoneId zone = ZoneId.of(sc.next());\n        /* TODO */\n    }\n}\n",
           "visibleCases": [
             {
@@ -270,8 +270,8 @@
           "code": "import java.time.*;\n\nclass Service {\n    Clock clock;\n\n    Service(Clock c) {\n        clock = c;\n    }\n\n    boolean expired(Instant limit) {\n        return !Instant.now(clock).isBefore(limit);\n    }\n}\n\npublic class Main {\n    public static void main(String[] a) {\n        Clock c = Clock.fixed(Instant.parse(\"2026-01-01T00:00:00Z\"), ZoneOffset.UTC);\n        System.out.println(new Service(c).expired(Instant.parse(\"2026-01-01T00:00:00Z\")));\n    }\n}\n"
         }
       ],
-      "task": "固定now、期限limitをInstantで読み、Clock.fixedを注入した `ExpiryService` で、nowがlimit以上なら `expired`、未満なら `active` と表示してください。",
-      "starterCode": "import java.time.*;\nimport java.util.*;\n\nclass ExpiryService {\n    private final Clock clock;\n\n    ExpiryService(Clock clock) {\n        this.clock = clock;\n    }\n\n    String status(Instant limit) {\n        return \"\";\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        Instant now = Instant.parse(sc.next()), limit = Instant.parse(sc.next());\n        Clock clock = Clock.fixed(now, ZoneOffset.UTC);\n        System.out.println(new ExpiryService(clock).status(limit));\n    }\n}\n",
+      "task": "1行に、固定now と期限 `limit`（どちらもISO形式のInstant）が、この順で入力されます。Clock.fixedを注入した `ExpiryService` で、nowがlimit以上なら `expired`、未満なら `active` と表示してください。",
+      "starterCode": "import java.time.*;\nimport java.util.*;\n\nclass ExpiryService {\n    private final Clock clock;\n\n    ExpiryService(Clock clock) {\n        this.clock = clock;\n    }\n\n    String status(Instant limit) {\n        // TODO: clock の現在時刻が limit 以上なら expired、未満なら active を返す\n        return \"\";   // 仮の値。書けたら消す\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        Instant now = Instant.parse(sc.next()), limit = Instant.parse(sc.next());\n        Clock clock = Clock.fixed(now, ZoneOffset.UTC);\n        System.out.println(new ExpiryService(clock).status(limit));\n    }\n}\n",
       "visibleCases": [
         {
           "label": "期限前",
@@ -309,8 +309,8 @@
       "extraTasks": [
         {
           "kind": "applied",
-          "task": "固定Clockとzoneを受けるGreetingServiceを作り、その地域の時刻が5〜11時ならmorning、12〜17時ならafternoon、それ以外nightを返してください。",
-          "starterCode": "import java.time.*;\nimport java.util.*;\n\nclass GreetingService {\n    private final Clock clock;\n    private final ZoneId zone;\n\n    GreetingService(Clock c, ZoneId z) {\n        clock = c;\n        zone = z;\n    }\n\n    String greeting() {\n        return \"\";\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        Instant now = Instant.parse(sc.next());\n        ZoneId zone = ZoneId.of(sc.next());\n        System.out.println(new GreetingService(Clock.fixed(now, ZoneOffset.UTC), zone).greeting());\n    }\n}\n",
+          "task": "1行に、固定Clockに使うInstant（ISO形式）とzoneが、この順で入力されます。これを受けるGreetingServiceを作り、その地域の時刻が5〜11時ならmorning、12〜17時ならafternoon、それ以外nightを返してください。",
+          "starterCode": "import java.time.*;\nimport java.util.*;\n\nclass GreetingService {\n    private final Clock clock;\n    private final ZoneId zone;\n\n    GreetingService(Clock c, ZoneId z) {\n        clock = c;\n        zone = z;\n    }\n\n    String greeting() {\n        // TODO: zone での時刻に応じて morning / afternoon / night を返す\n        return \"\";   // 仮の値。書けたら消す\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        Instant now = Instant.parse(sc.next());\n        ZoneId zone = ZoneId.of(sc.next());\n        System.out.println(new GreetingService(Clock.fixed(now, ZoneOffset.UTC), zone).greeting());\n    }\n}\n",
           "visibleCases": [
             {
               "label": "東京朝",
@@ -395,7 +395,7 @@
           "code": "import java.time.*;\n\npublic class Main {\n    public static void main(String[] a) {\n        Instant stored = Instant.parse(\"2026-08-09T00:00:00Z\");\n        System.out.println(stored.atZone(ZoneId.of(\"Asia/Tokyo\")).toLocalDate());\n    }\n}\n"
         }
       ],
-      "task": "【基本】2つのOffsetDateTimeを読み、同じ瞬間ならsame、前後ならbefore/afterと表示してください。",
+      "task": "【基本】1行に、OffsetDateTimeが2つ入力されます（オフセットは `Z` や `+09:00` の形）。同じ瞬間ならsame、前後ならbefore/afterと表示してください。",
       "starterCode": "import java.time.*;\nimport java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        OffsetDateTime a = OffsetDateTime.parse(sc.next()), b = OffsetDateTime.parse(sc.next());\n        /* TODO */\n    }\n}\n",
       "visibleCases": [
         {
@@ -432,7 +432,7 @@
             "ch44-o4"
           ],
           "kind": "drill",
-          "task": "【組み合わせ】開始Instant、分数、表示zoneを読み、終了Instantと地域時刻を表示してください。",
+          "task": "【組み合わせ】1行に、開始Instant（ISO形式）、分数（整数。マイナスも来ます）、表示zoneが、この順で入力されます。終了Instantと地域時刻を表示してください。",
           "starterCode": "import java.time.*;\nimport java.time.format.*;\nimport java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        Instant start = Instant.parse(sc.next());\n        long minutes = sc.nextLong();\n        ZoneId zone = ZoneId.of(sc.next());\n        /* TODO */\n    }\n}\n",
           "visibleCases": [
             {
@@ -487,7 +487,7 @@
             "ch44-o4"
           ],
           "kind": "applied",
-          "task": "【実践】固定now、zone、期限のローカル日付を読み、その地域で期限日の23:59:59まで有効（＝**翌日0時より前なら有効**）としactive/expiredを判定してください。",
+          "task": "【実践】1行に、固定now（ISO形式のInstant）、zone、期限のローカル日付（`yyyy-MM-dd` の形）が、この順で入力されます。その地域で期限日の23:59:59まで有効（＝**翌日0時より前なら有効**）としactive/expiredを判定してください。",
           "starterCode": "import java.time.*;\nimport java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        Instant now = Instant.parse(sc.next());\n        ZoneId zone = ZoneId.of(sc.next());\n        LocalDate date = LocalDate.parse(sc.next());\n        /* TODO */\n    }\n}\n",
           "visibleCases": [
             {

@@ -124,8 +124,8 @@
       "extraTasks": [
         {
           "kind": "applied",
-          "task": "POST create(CreateProduct)を作り、nameとpriceからID 3のDTOを返すResponseを201で構築してください。Locationは `/products/3`。不正priceは次レッスンで扱うためここでは入力済みとします。",
-          "starterCode": "import jakarta.ws.rs.*;\nimport jakarta.ws.rs.core.*;\nimport java.util.*;\n\nrecord CreateProduct(String name, int price) { }\n\nrecord ProductDto(long id, String name, int price) { }\n\n@Path(\"/products\")\nclass ProductResource {\n    // TODO POST/Consumes\n    Response create(CreateProduct in) {\n        return null;\n    }\n}\n\npublic class RestCreate {\n    public static void main(String[] a) {\n        Scanner sc = new Scanner(System.in);\n        Response r = new ProductResource().create(new CreateProduct(sc.next(), sc.nextInt()));\n        ProductDto p = (ProductDto) r.getEntity();\n        System.out.println(r.getStatus() + \" \" + r.getHeaderString(\"Location\") + \" \" + p.id() + \":\" + p.name() + \":\" + p.price());\n    }\n}\n",
+          "task": "1行に、`name` と `price`（`0` 以上の整数）が、この順で入力されます。POST create(CreateProduct)を作り、この2つからID 3のDTOを返すResponseを201で構築してください。Locationは `/products/3`。不正priceは次レッスンで扱うためここでは入力済みとします。",
+          "starterCode": "import jakarta.ws.rs.*;\nimport jakarta.ws.rs.core.*;\nimport java.util.*;\n\nrecord CreateProduct(String name, int price) { }\n\nrecord ProductDto(long id, String name, int price) { }\n\n@Path(\"/products\")\nclass ProductResource {\n    // TODO POST/Consumes\n    Response create(CreateProduct in) {\n        return null;   // 仮の値。書けたら消す\n    }\n}\n\npublic class RestCreate {\n    public static void main(String[] a) {\n        Scanner sc = new Scanner(System.in);\n        Response r = new ProductResource().create(new CreateProduct(sc.next(), sc.nextInt()));\n        ProductDto p = (ProductDto) r.getEntity();\n        System.out.println(r.getStatus() + \" \" + r.getHeaderString(\"Location\") + \" \" + p.id() + \":\" + p.name() + \":\" + p.price());\n    }\n}\n",
           "visibleCases": [
             {
               "label": "作成",
@@ -183,8 +183,8 @@
           "code": "import jakarta.ws.rs.core.*;\nimport jakarta.ws.rs.ext.*;\n\nclass Missing extends RuntimeException {\n    Missing(String m) {\n        super(m);\n    }\n}\n\nrecord ApiError(String code, String message) { }\n\n@Provider\nclass MissingMapper implements ExceptionMapper<Missing> {\n    public Response toResponse(Missing e) {\n        return Response.status(404).entity(new ApiError(\"NOT_FOUND\", e.getMessage())).build();\n    }\n}\n\npublic class MapperSample {\n    public static void main(String[] a) {\n        Response r = new MissingMapper().toResponse(new Missing(\"ありません\"));\n        System.out.println(r.getStatus() + \" \" + r.getEntity());\n    }\n}\n"
         }
       ],
-      "task": "`find(id)` の結果をResponseにします。ID 1なら200とProductDto、無ければ404とApiError(`NOT_FOUND`,`商品が見つかりません`)。mainは `status entity` を表示します。",
-      "starterCode": "import jakarta.ws.rs.core.*;\nimport java.util.*;\n\nrecord ProductDto(long id, String name) { }\n\nrecord ApiError(String code, String message) { }\n\nclass ProductApi {\n    Response find(long id) {\n        // TODO\n        return null;\n    }\n}\n\npublic class RestResponse {\n    public static void main(String[] a) {\n        long id = new Scanner(System.in).nextLong();\n        Response r = new ProductApi().find(id);\n        System.out.println(r.getStatus() + \" \" + r.getEntity());\n    }\n}\n",
+      "task": "商品IDの整数が1つ入力されます（`0` や登録の無いIDも来ます）。`find(id)` の結果をResponseにします。ID 1なら200とProductDto、無ければ404とApiError(`NOT_FOUND`,`商品が見つかりません`)。mainは `status entity` を表示します。",
+      "starterCode": "import jakarta.ws.rs.core.*;\nimport java.util.*;\n\nrecord ProductDto(long id, String name) { }\n\nrecord ApiError(String code, String message) { }\n\nclass ProductApi {\n    Response find(long id) {\n        // TODO\n        return null;   // 仮の値。書けたら消す\n    }\n}\n\npublic class RestResponse {\n    public static void main(String[] a) {\n        long id = new Scanner(System.in).nextLong();\n        Response r = new ProductApi().find(id);\n        System.out.println(r.getStatus() + \" \" + r.getEntity());\n    }\n}\n",
       "visibleCases": [
         {
           "label": "成功",
@@ -212,7 +212,7 @@
       "extraTasks": [
         {
           "kind": "applied",
-          "task": "1〜10の一覧を `offset limit` でページングします。offsetは0以上、limitは1〜5へ丸め（0以下は1、6以上は5）、範囲外なら空。`items=[...] nextOffset=n` と表示し、次が無ければnextOffset=-1。",
+          "task": "1行に、`offset` と `limit` が、この順で入力されます（`offset` は範囲外の大きい値、`limit` は `0` 以下や `6` 以上も来ます）。1〜10の一覧をこれでページングします。offsetは0以上、limitは1〜5へ丸め（0以下は1、6以上は5）、範囲外なら空。`items=[...] nextOffset=n` と表示し、次が無ければnextOffset=-1。",
           "starterCode": "import java.util.*;\n\npublic class RestPaging {\n    public static void main(String[] a) {\n        Scanner sc = new Scanner(System.in);\n        int offset = sc.nextInt(), limit = sc.nextInt();\n        // TODO\n    }\n}\n",
           "visibleCases": [
             {
@@ -271,7 +271,7 @@
           "code": "record Order(long id, String owner) { }\n\npublic class AuthorizationSample {\n    static boolean canRead(String caller, Order order) {\n        return caller != null && caller.equals(order.owner());\n    }\n\n    public static void main(String[] a) {\n        System.out.println(canRead(\"alice\", new Order(1, \"bob\")));\n    }\n}\n"
         }
       ],
-      "task": "入力 `caller role owner` の認可判定をします。adminは全件、userはcaller==ownerだけ許可。callerが `-` は401、ログイン済みだが不許可は403、許可は200。",
+      "task": "1行に、`caller` `role` `owner` が、この順で入力されます（`caller` が `-` なら未ログイン、`role` は `admin` `user` `guest` のいずれか）。この認可判定をします。adminは全件、userはcaller==ownerだけ許可。callerが `-` は401、ログイン済みだが不許可は403、許可は200。",
       "starterCode": "import java.util.*;\n\npublic class RestAuth {\n    public static void main(String[] a) {\n        Scanner sc = new Scanner(System.in);\n        String caller = sc.next(), role = sc.next(), owner = sc.next();\n        // TODO\n    }\n}\n",
       "visibleCases": [
         {
@@ -311,7 +311,7 @@
       "extraTasks": [
         {
           "kind": "applied",
-          "task": "セッション内CSRF tokenと送信tokenを比較します。状態変更POSTは一致時だけ200、不一致・欠落は403。入力では欠落を `-` と表します。比較は定数側equalsでnull安全にしてください。",
+          "task": "1行に、セッション内のCSRF tokenと送信tokenが、この順で入力されます。この2つを比較します。状態変更POSTは一致時だけ200、不一致・欠落は403。入力では欠落を `-` と表します。比較は定数側equalsでnull安全にしてください。",
           "starterCode": "import java.util.*;\n\npublic class RestCsrf {\n    public static void main(String[] a) {\n        Scanner sc = new Scanner(System.in);\n        String sessionToken = sc.next(), submitted = sc.next();\n        if (submitted.equals(\"-\")) submitted = null;\n        // TODO\n    }\n}\n",
           "visibleCases": [
             {
@@ -406,8 +406,8 @@
           "code": "record Order(long id, String owner) { }\n\npublic class AuthorizationSample {\n    static boolean canRead(String caller, Order order) {\n        return caller != null && caller.equals(order.owner());\n    }\n\n    public static void main(String[] a) {\n        System.out.println(canRead(\"alice\", new Order(1, \"bob\")));\n    }\n}\n"
         }
       ],
-      "task": "【基本】BookResourceの `find(int id)` を作ります。ID 1はJava、2はAPIです。見つかれば200と名前、無ければ404と `not found` を持つResponseを返し、mainで `status entity` と表示してください。",
-      "starterCode": "import jakarta.ws.rs.*;\nimport jakarta.ws.rs.core.*;\nimport java.util.*;\n\n@Path(\"/books\")\nclass BookResource {\n    private final Map<Integer, String> books = Map.of(1, \"Java\", 2, \"API\");\n\n    @GET\n    @Path(\"/{id}\")\n    Response find(@PathParam(\"id\") int id) {\n        /* TODO */ return null;\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Response r = new BookResource().find(new Scanner(System.in).nextInt());\n        System.out.println(r.getStatus() + \" \" + r.getEntity());\n    }\n}\n",
+      "task": "【基本】書籍IDの整数が1つ入力されます（`0` や登録の無いIDも来ます）。BookResourceの `find(int id)` を作ります。ID 1はJava、2はAPIです。見つかれば200と名前、無ければ404と `not found` を持つResponseを返し、mainで `status entity` と表示してください。",
+      "starterCode": "import jakarta.ws.rs.*;\nimport jakarta.ws.rs.core.*;\nimport java.util.*;\n\n@Path(\"/books\")\nclass BookResource {\n    private final Map<Integer, String> books = Map.of(1, \"Java\", 2, \"API\");\n\n    @GET\n    @Path(\"/{id}\")\n    Response find(@PathParam(\"id\") int id) {\n        // TODO\n        return null;   // 仮の値。書けたら消す\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Response r = new BookResource().find(new Scanner(System.in).nextInt());\n        System.out.println(r.getStatus() + \" \" + r.getEntity());\n    }\n}\n",
       "visibleCases": [
         {
           "label": "存在",
@@ -443,7 +443,7 @@
             "ch28-o2"
           ],
           "kind": "drill",
-          "task": "【組み合わせ】1〜10の整数一覧に対し、0始まりのpageと正のsizeを読みます。該当ページをリスト形式で表示し、範囲外なら空リストにしてください。`page` が負、または `size` が0以下なら、一覧を出さずに `400 Bad Request` と表示してください。",
+          "task": "【組み合わせ】1行に、0始まりの `page` と `size` が、この順で入力されます（`page` はマイナスも来ます）。1〜10の整数一覧に対し、該当ページをリスト形式で表示し、範囲外なら空リストにしてください。`page` が負、または `size` が0以下なら、一覧を出さずに `400 Bad Request` と表示してください。",
           "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int page = sc.nextInt(), size = sc.nextInt();\n        List<Integer> all = new ArrayList<>();\n        for (int i = 1; i <= 10; i++) all.add(i);\n        /* TODO */\n    }\n}\n",
           "visibleCases": [
             {
@@ -485,7 +485,7 @@
             "ch28-o3"
           ],
           "kind": "applied",
-          "task": "【実践】caller、role、ownerを読みます。callerが `-` なら401、roleがadminまたはcallerとownerが同じなら200、それ以外は403を表示してください。これは認証後に所有者も確認する処理です。",
+          "task": "【実践】1行に、`caller` `role` `owner` が、この順で入力されます（`caller` が `-` なら未ログイン）。callerが `-` なら401、roleがadminまたはcallerとownerが同じなら200、それ以外は403を表示してください。これは認証後に所有者も確認する処理です。",
           "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        String caller = sc.next(), role = sc.next(), owner = sc.next();\n        /* TODO */\n    }\n}\n",
           "visibleCases": [
             {

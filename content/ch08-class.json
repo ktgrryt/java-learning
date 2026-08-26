@@ -32,11 +32,16 @@
       "objectiveIds": [
         "ch08-o1"
       ],
-      "explanation": "## 関係のあるデータをひとまとめにする\n\n本の情報を扱うとして、これまでの道具ではこう書くしかありませんでした。\n\n```java\nString title1 = \"Java入門\";\nint price1 = 2500;\nString title2 = \"Python入門\";\nint price2 = 3000;\n```\n\n冊数が増えるたびに変数も増え、「どのタイトルとどの価格が組なのか」は\n名前の付け方で祈るしかありません。\n\nそこで **自分で新しい型を作ります**。それが **クラス** です。\n\n```java\nclass Book {\n    String title;   // フィールド（このクラスが持つデータ）\n    int price;\n}\n```\n\nこれで `Book` という型ができました。`int` や `String` と同じように使える、自作の型です。\n\n## クラスは設計図、インスタンスは実体\n\nクラスは「どんなデータを持つか」を書いた **設計図** にすぎません。\n実際のデータを入れる箱は `new` で作ります。作られた箱を **インスタンス**（またはオブジェクト）と呼びます。\n\n```java\nBook b = new Book();      // 設計図から実体を1つ作る\nb.title = \"Java入門\";     // ドットでフィールドにアクセスする\nb.price = 2500;\nSystem.out.println(b.title + \" \" + b.price);\n```\n\n`new Book()` を2回書けば、独立した箱が2つできます。\n\n```java\nBook b1 = new Book();\nBook b2 = new Book();\nb1.price = 2500;\nb2.price = 3000;      // b1 には影響しない\n```\n\n```svg クラスは設計図。データが入る箱は `new` のたびに新しくできる\n<svg viewBox=\"0 0 720 240\">\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"145\" y=\"26\" text-anchor=\"middle\">クラス＝設計図</text>\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"530\" y=\"26\" text-anchor=\"middle\">インスタンス＝データが入る箱</text>\n\n  <rect class=\"fig-box-accent\" x=\"20\" y=\"44\" width=\"250\" height=\"110\" rx=\"6\"/>\n  <text class=\"fig-t fig-mono fig-t-accent\" x=\"145\" y=\"66\" text-anchor=\"middle\">class Book</text>\n  <text class=\"fig-t fig-mono fig-small\" x=\"40\" y=\"96\">String title;</text>\n  <text class=\"fig-t fig-mono fig-small\" x=\"40\" y=\"120\">int price;</text>\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"40\" y=\"142\">値は入っていない</text>\n\n  <line class=\"fig-line-accent\" x1=\"274\" y1=\"90\" x2=\"352\" y2=\"80\" marker-end=\"arrow-accent\"/>\n  <text class=\"fig-t fig-mono fig-small fig-t-accent\" x=\"313\" y=\"66\" text-anchor=\"middle\">new Book()</text>\n  <path class=\"fig-line-accent\" d=\"M 274 116 L 420 152 L 534 142\" marker-end=\"arrow-accent\"/>\n\n  <rect class=\"fig-box\" x=\"356\" y=\"50\" width=\"160\" height=\"88\" rx=\"6\"/>\n  <text class=\"fig-t fig-mono\" x=\"436\" y=\"72\" text-anchor=\"middle\">b1</text>\n  <text class=\"fig-t fig-mono fig-small\" x=\"372\" y=\"98\">title = \"Java入門\"</text>\n  <text class=\"fig-t fig-mono fig-small\" x=\"372\" y=\"120\">price = 2500</text>\n\n  <rect class=\"fig-box\" x=\"536\" y=\"50\" width=\"160\" height=\"88\" rx=\"6\"/>\n  <text class=\"fig-t fig-mono\" x=\"616\" y=\"72\" text-anchor=\"middle\">b2</text>\n  <text class=\"fig-t fig-mono fig-small\" x=\"552\" y=\"98\">title = \"Python入門\"</text>\n  <text class=\"fig-t fig-mono fig-small\" x=\"552\" y=\"120\">price = 3000</text>\n\n  <text class=\"fig-t fig-t-dim fig-small\" x=\"356\" y=\"176\">b2.price を変えても b1 は変わらない（別の箱だから）</text>\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"20\" y=\"212\">メソッドは設計図の側に1つ書いておき、呼ぶときに「どの箱に対してか」を指定する（<tspan class=\"fig-mono\">b1.show()</tspan>）</text>\n</svg>\n```\n\n## インスタンスメソッド — データにくっついた処理\n\nクラスの中にはメソッドも書けます。第7章では `static` を付けていましたが、\n`static` を **付けない** メソッドは「そのインスタンスに対する処理」になります。\n\n```java\nclass Book {\n    String title;\n    int price;\n\n    void show() {                                   // static を付けない\n        System.out.println(title + \" \" + price + \"円\");\n    }\n}\n```\n\n`show()` の中では、自分のフィールドを名前だけで使えます。\n呼び出すときは「どのインスタンスに対してか」を書きます。\n\n```java\nBook b = new Book();\nb.title = \"Java入門\";\nb.price = 2500;\nb.show();            // Java入門 2500円\n```\n\n> 💡 `System.out.println(...)` も、`System.out` というインスタンスに対して `println` を呼んでいます。同じ形です。\n\n### ファイルの書き方\n\nこのアプリでは1つのファイルにまとめて書きます。`public` を付けるのは `Main` だけです。\n\n```java\nclass Book {          // public は付けない\n    String title;\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Book b = new Book();\n    }\n}\n```\n\n> ⚠️ 間違えやすい点 … 1つのファイルに `public` なクラスを2つ書くとコンパイルエラーです。`public` はファイル名と同じ名前のクラスだけに付けられます。",
+      "explanation": "## 関係のあるデータをひとまとめにする\n\n本の情報を扱うとして、これまでの道具ではこう書くしかありませんでした。\n\n```java\nString title1 = \"Java入門\";\nint price1 = 2500;\nString title2 = \"Python入門\";\nint price2 = 3000;\n```\n\n冊数が増えるたびに変数も増え、「どのタイトルとどの価格が組なのか」は\n変数名を見て判断するしかありません。ほとんど命名頼みです。\n\nそこで **自分で新しい型を作ります**。それが **クラス** です。\n\n```java\nclass Book {\n    String title;   // フィールド（このクラスが持つデータ）\n    int price;\n}\n```\n\nこれで `Book` という型ができました。`int` や `String` と同じように使える、自作の型です。\n\n## クラスは設計図、インスタンスは実体\n\nクラスは「どんなデータを持つか」を書いた **設計図** にすぎません。\n実際のデータを入れる箱は `new` で作ります。作られた箱を **インスタンス**（またはオブジェクト）と呼びます。\n\n```java\nBook b = new Book();      // 設計図から実体を1つ作る\nb.title = \"Java入門\";     // ドットでフィールドにアクセスする\nb.price = 2500;\nSystem.out.println(b.title + \" \" + b.price);\n```\n\n`new Book()` を2回書けば、独立した箱が2つできます。\n\n```java\nBook b1 = new Book();\nBook b2 = new Book();\nb1.price = 2500;\nb2.price = 3000;      // b1 には影響しない\n```\n\n```svg クラスは設計図。データが入る箱は `new` のたびに新しくできる\n<svg viewBox=\"0 0 720 240\">\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"145\" y=\"26\" text-anchor=\"middle\">クラス＝設計図</text>\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"530\" y=\"26\" text-anchor=\"middle\">インスタンス＝データが入る箱</text>\n\n  <rect class=\"fig-box-accent\" x=\"20\" y=\"44\" width=\"250\" height=\"110\" rx=\"6\"/>\n  <text class=\"fig-t fig-mono fig-t-accent\" x=\"145\" y=\"66\" text-anchor=\"middle\">class Book</text>\n  <text class=\"fig-t fig-mono fig-small\" x=\"40\" y=\"96\">String title;</text>\n  <text class=\"fig-t fig-mono fig-small\" x=\"40\" y=\"120\">int price;</text>\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"40\" y=\"142\">値は入っていない</text>\n\n  <line class=\"fig-line-accent\" x1=\"274\" y1=\"90\" x2=\"352\" y2=\"80\" marker-end=\"arrow-accent\"/>\n  <text class=\"fig-t fig-mono fig-small fig-t-accent\" x=\"313\" y=\"66\" text-anchor=\"middle\">new Book()</text>\n  <path class=\"fig-line-accent\" d=\"M 274 116 L 420 152 L 534 142\" marker-end=\"arrow-accent\"/>\n\n  <rect class=\"fig-box\" x=\"356\" y=\"50\" width=\"160\" height=\"88\" rx=\"6\"/>\n  <text class=\"fig-t fig-mono\" x=\"436\" y=\"72\" text-anchor=\"middle\">b1</text>\n  <text class=\"fig-t fig-mono fig-small\" x=\"372\" y=\"98\">title = \"Java入門\"</text>\n  <text class=\"fig-t fig-mono fig-small\" x=\"372\" y=\"120\">price = 2500</text>\n\n  <rect class=\"fig-box\" x=\"536\" y=\"50\" width=\"160\" height=\"88\" rx=\"6\"/>\n  <text class=\"fig-t fig-mono\" x=\"616\" y=\"72\" text-anchor=\"middle\">b2</text>\n  <text class=\"fig-t fig-mono fig-small\" x=\"552\" y=\"98\">title = \"Python入門\"</text>\n  <text class=\"fig-t fig-mono fig-small\" x=\"552\" y=\"120\">price = 3000</text>\n\n  <text class=\"fig-t fig-t-dim fig-small\" x=\"356\" y=\"176\">b2.price を変えても b1 は変わらない（別の箱だから）</text>\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"20\" y=\"212\">メソッドは設計図の側に1つ書いておき、呼ぶときに「どの箱に対してか」を指定する（<tspan class=\"fig-mono\">b1.show()</tspan>）</text>\n</svg>\n```\n\n## インスタンスメソッド — データにくっついた処理\n\nクラスの中にはメソッドも書けます。第7章で書いていたメソッドには `static` が付いていました。\n`static` を **付けない** メソッドは、**呼び方** と **中から見えるデータ** が変わります。\n2つを並べて見ると違いがはっきりします。\n\nまず、第7章のやり方で「本の情報を表示する」処理を書くとこうなります。\n\n```java\nstatic void show(String title, int price) {         // static を付ける\n    System.out.println(title + \" \" + price + \"円\");\n}\n\nshow(b.title, b.price);        // 表示したいデータを、呼ぶ側が全部渡す\n```\n\n同じことを、`Book` の中に `static` なしで書くとこうなります。\n\n```java\nclass Book {\n    String title;\n    int price;\n\n    void show() {                                   // static を付けない\n        System.out.println(title + \" \" + price + \"円\");\n    }\n}\n\nb.show();                      // 「b について show せよ」\n```\n\n**引数が消えました。** `show()` の中の `title` は `b.title` のことです。渡していないのに\n使えるのは、呼ぶときに `b.show()` と書いて「どのインスタンスに対してか」を指定しているからです。\n\n| | `static` を付けたメソッド | `static` を付けないメソッド（インスタンスメソッド） |\n|---|---|---|\n| 呼び方 | `show(...)` … インスタンスは要らない | `b.show()` … **前にインスタンスを置く** |\n| 扱えるデータ | 引数で受け取ったものだけ | 呼ぶときに置いたインスタンスのフィールド |\n| フィールドの書き方 | 書けない（`title` はコンパイルエラー） | `title` と名前だけで書ける |\n| 向いている処理 | 引数だけで答えが決まる計算 | そのインスタンスのデータを使う処理 |\n\n表のうち上の3行は書き方の話です。実際にいちばん効いてくるのは「扱えるデータ」の行で、\n**メソッドは設計図の側に1つしかないのに、呼ぶインスタンスを変えると別の値で動きます。**\n\n```java\nBook b1 = new Book();\nb1.title = \"Java入門\";\nb1.price = 2500;\n\nBook b2 = new Book();\nb2.title = \"Python入門\";\nb2.price = 3000;\n\nb1.show();      // Java入門 2500円\nb2.show();      // Python入門 3000円\n```\n\n`show()` を2つ書いたわけではありません。`b1.show()` と書いた回は `title` が `b1.title` を指し、\n`b2.show()` と書いた回は `b2.title` を指します。**「自分」が呼ぶたびに切り替わる** ―― これが\n「データにくっついた処理」という意味です。`static` なメソッドにはこの「自分」がいないので、\n必要な値は引数で受け取るしかありません。\n\n> 💡 `System.out.println(...)` も、`System.out` というインスタンスに対して `println` を呼んでいます。同じ形です。\n\n`static` の付いた **フィールド**（クラスに1つだけの持ち物）と、どちらを選ぶかの使い分けは\n`8-5` で扱います。ここでは「インスタンスのデータを使う処理は `static` を付けない」と\n覚えておけば十分です。\n\n### ファイルの書き方\n\nこのアプリでは1つのファイルにまとめて書きます。`public` を付けるのは `Main` だけです。\n\n```java\nclass Book {          // public は付けない\n    String title;\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Book b = new Book();\n    }\n}\n```\n\n> ⚠️ 間違えやすい点 … 1つのファイルに `public` なクラスを2つ書くとコンパイルエラーです。`public` はファイル名と同じ名前のクラスだけに付けられます。",
       "samples": [
         {
           "caption": "Book クラスを作って2冊分の実体を作る",
           "code": "class Book {\n    String title;\n    int price;\n\n    void show() {\n        System.out.println(title + \" \" + price + \"円\");\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Book b1 = new Book();\n        b1.title = \"Java入門\";\n        b1.price = 2500;\n\n        Book b2 = new Book();\n        b2.title = \"Python入門\";\n        b2.price = 3000;\n\n        b1.show();\n        b2.show();\n\n        // それぞれ独立している\n        b1.price = 1980;\n        b1.show();\n        b2.show();\n    }\n}\n"
+        },
+        {
+          "caption": "同じ表示を static あり／なしの両方で書いて比べる",
+          "code": "class Book {\n    String title;\n    int price;\n\n    // static なし … 自分のフィールドをそのまま使える\n    void show() {\n        System.out.println(title + \" \" + price + \"円\");\n    }\n}\n\npublic class Main {\n    // static あり … 使う値は全部引数で受け取る\n    static void showStatic(String title, int price) {\n        System.out.println(title + \" \" + price + \"円\");\n    }\n\n    public static void main(String[] args) {\n        Book b = new Book();\n        b.title = \"Java入門\";\n        b.price = 2500;\n\n        b.show();                       // 「b について show せよ」\n        showStatic(b.title, b.price);   // 値を渡して呼ぶ\n\n        // static な main の中では、フィールドを名前だけで書けない\n        // System.out.println(title);   // ← 外すとコンパイルエラー\n    }\n}\n",
+          "expected": "Java入門 2500円\nJava入門 2500円"
         },
         {
           "caption": "インスタンスメソッドは自分のフィールドを使える",
@@ -153,12 +158,12 @@
         {
           "question": "1つの `.java` ファイルに次のように書くとどうなるでしょう。\n\n```java\npublic class Main { }\npublic class Book { }\n```",
           "choices": [
-            "両方 `public` のままコンパイルできる",
+            "`public` が2つなのでコンパイルエラー",
             "後ろの `Book` だけが読み込まれる",
             "警告は出るが、実行には影響しない",
-            "`public` が2つなのでコンパイルエラー"
+            "両方 `public` のままコンパイルできる"
           ],
-          "answer": 3,
+          "answer": 0,
           "explanation": "両方を `public` にはできず、後ろだけが読み込まれることも、警告で済むこともありません。`public` なクラスはファイル名と同じ名前の1つだけです。同じファイルへ複数のクラスを置きたいときは、`Main` 以外の `public` を外します（`class Book { }` と書きます）。"
         }
       ]
@@ -169,7 +174,7 @@
       "objectiveIds": [
         "ch08-o2"
       ],
-      "explanation": "## new のときに走る初期化 — コンストラクタ\n\n前のレッスンでは、`new` したあとにフィールドを1つずつ埋めました。\n\n```java\nBook b = new Book();\nb.title = \"Java入門\";\nb.price = 2500;\n```\n\n埋め忘れると中身が空のままです。そこで **作るときに必ず値を渡させる** ようにします。\nそのための特別なメソッドが **コンストラクタ** です。\n\n```java\nclass Book {\n    String title;\n    int price;\n\n    Book(String title, int price) {      // ← コンストラクタ\n        this.title = title;\n        this.price = price;\n    }\n}\n```\n\nこれで `new` のときに値を渡せます。というより、**渡さないと作れなくなります**。\n\n```java\nBook b = new Book(\"Java入門\", 2500);     // 1行で完成\n```\n\n### コンストラクタの決まり\n\n- 名前は **クラス名とまったく同じ**\n- **戻り値の型を書かない**（`void` すら書かない）\n\n> ⚠️ 間違えやすい点 … 戻り値の型を書くと、それはコンストラクタではなく **ただのメソッド** になります。\n\n```java\nclass Book {\n    void Book(String t) { }    // ❌ これはメソッド。new Book(\"x\") では呼ばれない\n}\n```\n\n見た目がそっくりで間違えやすいので、`void` があるかどうかを必ず確認してください。\n\n## this — 自分自身を指す\n\n`this.title = title;` の `this` は「**いま処理しているこのインスタンス**」を指します。\n\n引数の名前とフィールドの名前が同じとき、`title` だけ書くと **引数** の方が優先されます。\nそのため `this.` を付けてフィールドだと示す必要があります。\n\n```java\nBook(String title, int price) {\n    title = title;          // ❌ 引数を引数に代入している。フィールドは空のまま\n    this.title = title;     // ✅ フィールド ← 引数\n}\n```\n\n名前が違えば `this` は省略できますが、同じ名前にして `this` を付けるのが定番です。\n\n## デフォルトコンストラクタ\n\n第8章の最初では `new Book()` と引数なしで書けました。コンストラクタを1つも書かなかったので、\nJavaが **引数なしのコンストラクタを自動で用意していた** からです。これを\n**デフォルトコンストラクタ** といいます。\n\n> ⚠️ 間違えやすい点 … 自分でコンストラクタを1つでも書くと、デフォルトコンストラクタは **作られなくなります**。\n\n```java\nclass Book {\n    Book(String title) { }\n}\n\nBook b = new Book();          // ❌ コンパイルエラー：引数なしの版はもう存在しない\n```\n\n引数なしでも作りたいなら、自分で両方書きます。コンストラクタもオーバーロードできます。\n\n## this(...) で別のコンストラクタを呼ぶ\n\n似たコンストラクタを2つ書くと、同じ初期化が重複します。\n`this(...)` を使うと、**同じクラスの別のコンストラクタ** に処理を任せられます。\n\n```java\nclass Book {\n    String title;\n    int price;\n\n    Book(String title, int price) {\n        this.title = title;\n        this.price = price;\n    }\n\n    Book(String title) {\n        this(title, 0);        // 価格 0 として上のコンストラクタに任せる\n    }\n}\n```\n\n`this(...)` は **コンストラクタの先頭** で呼びます。まだ初期化が終わっていないので、`this(...)` より前で自分のフィールドを読んだり、自分のメソッドを呼んだりはできません。",
+      "explanation": "## new のときに走る初期化 — コンストラクタ\n\n前のレッスンでは、`new` したあとにフィールドを1つずつ埋めました。\n\n```java\nBook b = new Book();\nb.title = \"Java入門\";\nb.price = 2500;\n```\n\n埋め忘れると中身が空のままです。そこで **作るときに必ず値を渡させる** ようにします。\nそのための特別なメソッドが **コンストラクタ** です。\n\n```java\nclass Book {\n    String title;\n    int price;\n\n    Book(String title, int price) {      // ← コンストラクタ\n        this.title = title;\n        this.price = price;\n    }\n}\n```\n\nこれで `new` のときに値を渡せます。というより、**渡さないと作れなくなります**。\n\n```java\nBook b = new Book(\"Java入門\", 2500);     // 1行で完成\n```\n\n### コンストラクタの決まり\n\n- 名前は **クラス名とまったく同じ**\n- **戻り値の型を書かない**（`void` すら書かない）\n\n> ⚠️ 間違えやすい点 … 戻り値の型を書くと、それはコンストラクタではなく **ただのメソッド** になります。\n\n```java\nclass Book {\n    void Book(String t) { }    // ❌ これはメソッド。new Book(\"x\") では呼ばれない\n}\n```\n\n見た目がそっくりで間違えやすいので、`void` があるかどうかを必ず確認してください。\n\n## this — 自分自身を指す\n\n`this.title = title;` の `this` は「**いま処理しているこのインスタンス**」を指します。\n\n引数の名前とフィールドの名前が同じとき、`title` だけ書くと **引数** の方が優先されます。\nそのため `this.` を付けてフィールドだと示す必要があります。\n\n```java\nBook(String title, int price) {\n    title = title;          // ❌ 引数を引数に代入している。フィールドは空のまま\n    this.title = title;     // ✅ フィールド ← 引数\n}\n```\n\n名前が違えば `this` は省略できますが、同じ名前にして `this` を付けるのが定番です。\n\n## デフォルトコンストラクタ\n\n`8-1` では `new Book()` と引数なしで書けました。コンストラクタを1つも書かなかったので、\nJavaが **引数なしのコンストラクタを自動で用意していた** からです。これを\n**デフォルトコンストラクタ** といいます。\n\n> ⚠️ 間違えやすい点 … 自分でコンストラクタを1つでも書くと、デフォルトコンストラクタは **作られなくなります**。\n\n```java\nclass Book {\n    Book(String title) { }\n}\n\nBook b = new Book();          // ❌ コンパイルエラー：引数なしの版はもう存在しない\n```\n\n引数なしでも作りたいなら、自分で両方書きます。コンストラクタもオーバーロードできます。\n\n## this(...) で別のコンストラクタを呼ぶ\n\n似たコンストラクタを2つ書くと、同じ初期化が重複します。\n`this(...)` を使うと、**同じクラスの別のコンストラクタ** に処理を任せられます。\n\n```java\nclass Book {\n    String title;\n    int price;\n\n    Book(String title, int price) {\n        this.title = title;\n        this.price = price;\n    }\n\n    Book(String title) {\n        this(title, 0);        // 価格 0 として上のコンストラクタに任せる\n    }\n}\n```\n\n`this(...)` は **コンストラクタの先頭** で呼びます。まだ初期化が終わっていないので、`this(...)` より前で自分のフィールドを読んだり、自分のメソッドを呼んだりはできません。",
       "samples": [
         {
           "caption": "コンストラクタ2つと this(...)",
@@ -286,7 +291,7 @@
             "実行時に例外になる"
           ],
           "answer": 2,
-          "explanation": "コンストラクタを **1つでも自分で書くと**、引数なしのデフォルトコンストラクタは作られません。`new Book()` はコンパイルエラーです。両方使いたいなら自分で2つ書きます。"
+          "explanation": "コンストラクタを **1つでも自分で書くと**、引数なしのデフォルトコンストラクタは作られません。`new Book()` はコンパイルエラーです。両方使いたいなら自分で2つ書きます。（選択肢にある `null` は「まだ何も指していない」という状態です。フィールドの既定値は `8-3`、`null` そのものは `8-4` で扱います。）"
         },
         {
           "question": "次のうち **コンストラクタではない** のはどれでしょう（クラス名は `Book`）。",
@@ -434,11 +439,11 @@
           "question": "初期化していない変数について正しいのはどれでしょう。",
           "choices": [
             "フィールドもローカル変数も、宣言だけで既定値が入る",
-            "フィールドは宣言だけだとコンパイルエラー、ローカル変数は既定値",
+            "フィールドは必ず既定値、ローカル変数は代入前に読むとエラー",
             "どちらも代入する前に読むとコンパイルエラーになる",
-            "フィールドは必ず既定値、ローカル変数は代入前に読むとエラー"
+            "フィールドは宣言だけだとコンパイルエラー、ローカル変数は既定値"
           ],
-          "answer": 3,
+          "answer": 1,
           "explanation": "フィールドは宣言だけで既定値（`int` なら0、参照型なら `null`）が入ります。ローカル変数には既定値が無く、値を代入する前に読むとコンパイルエラーになります。"
         }
       ]
@@ -686,21 +691,21 @@
           "choices": [
             "`static` メソッドはインスタンスを作らずに呼べる",
             "`static` メソッドから `static` フィールドは使える",
-            "`static` フィールドは全インスタンスで共有される",
-            "`static` メソッドの中で `this` が使える"
+            "`static` メソッドの中で `this` が使える",
+            "`static` フィールドは全インスタンスで共有される"
           ],
-          "answer": 3,
+          "answer": 2,
           "explanation": "`static` メソッドは「どのインスタンスに対してでもない」処理なので `this` がありません。同じ理由でインスタンスフィールドも直接使えません。`main` が `static` なのもこのためです。"
         },
         {
           "question": "`static int count;` を持つクラスを3つ `new` して、どのコンストラクタでも `count++` すると、`count` はいくつになるでしょう。",
           "choices": [
-            "`1`（インスタンスごとに数える）",
+            "`3`（クラスに1つだけの持ち物）",
             "`0`（コンストラクタでは増えない）",
             "インスタンスごとに `1` `2` `3`",
-            "`3`（クラスに1つだけの持ち物）"
+            "`1`（インスタンスごとに数える）"
           ],
-          "answer": 3,
+          "answer": 0,
           "explanation": "`static` フィールドは **クラスに1つ** なので、どのインスタンスから増やしても同じ場所が増えて `3` になります。インスタンスごとに持たせたいなら `static` を外します。"
         }
       ],
@@ -726,8 +731,8 @@
           "code": "class Counter {\n    static int total;\n    int count;\n\n    void add() {\n        total++;\n        count++;\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Counter c1 = new Counter();\n        Counter c2 = new Counter();\n\n        c1.add();\n        c1.add();\n        c2.add();\n\n        System.out.println(\"c1.count = \" + c1.count);\n        System.out.println(\"c2.count = \" + c2.count);\n        System.out.println(\"Counter.total = \" + Counter.total);\n    }\n}\n"
         }
       ],
-      "task": "【基本】nameとpriceを持ち、個数を受け取って合計を返す `total(int count)` を持つProductクラスを作ってください。商品名、価格、個数を読み、`商品名=合計` と表示します。",
-      "starterCode": "import java.util.*;\n\nclass Product {\n    String name;\n    int price;\n\n    Product(String name, int price) {\n        /* TODO */\n    }\n\n    int total(int count) {\n        return 0;\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        Product p = new Product(sc.next(), sc.nextInt());\n        System.out.println(p.name + \"=\" + p.total(sc.nextInt()));\n    }\n}\n",
+      "task": "【基本】商品名 `name`（空白を含まない1語）、価格 `price`、個数 `count` の3つが、この順で1行に入力されます（`price` と `count` は `0` 以上の整数）。\n\n`name` と `price` を持ち、個数を受け取って合計を返す `total(int count)` を持つ `Product` クラスを作り、`商品名=合計` と表示してください。",
+      "starterCode": "import java.util.*;\n\nclass Product {\n    String name;\n    int price;\n\n    Product(String name, int price) {\n        /* TODO */\n    }\n\n    int total(int count) {\n        // TODO: price × count を返す\n        return 0;   // 仮の値。書けたら消す\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        Product p = new Product(sc.next(), sc.nextInt());\n        System.out.println(p.name + \"=\" + p.total(sc.nextInt()));\n    }\n}\n",
       "visibleCases": [
         {
           "label": "りんご",
@@ -760,8 +765,8 @@
       "extraTasks": [
         {
           "kind": "drill",
-          "task": "【組み合わせ】幅widthと高さheightを持つRectangleを作り、`area()` と `perimeter()` を実装してください。2整数を読み `area=... perimeter=...` と表示します。",
-          "starterCode": "import java.util.*;\n\nclass Rectangle {\n    int width, height;\n\n    Rectangle(int width, int height) {\n        this.width = width;\n        this.height = height;\n    }\n\n    int area() {\n        return 0;\n    }\n\n    int perimeter() {\n        return 0;\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        Rectangle r = new Rectangle(sc.nextInt(), sc.nextInt());\n        System.out.println(\"area=\" + r.area() + \" perimeter=\" + r.perimeter());\n    }\n}\n",
+          "task": "【組み合わせ】`0` 以上の整数が2つ、幅 `width`、高さ `height` の順で1行に入力されます。\n\n`width` と `height` を持つ `Rectangle` を作り、面積を返す `area()` と周の長さを返す `perimeter()` を実装して、`area=... perimeter=...` と表示してください。",
+          "starterCode": "import java.util.*;\n\nclass Rectangle {\n    int width, height;\n\n    Rectangle(int width, int height) {\n        this.width = width;\n        this.height = height;\n    }\n\n    int area() {\n        // TODO: 面積（幅 × 高さ）を返す\n        return 0;   // 仮の値。書けたら消す\n    }\n\n    int perimeter() {\n        // TODO: 周の長さ（(幅 + 高さ) × 2）を返す\n        return 0;   // 仮の値。書けたら消す\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        Rectangle r = new Rectangle(sc.nextInt(), sc.nextInt());\n        System.out.println(\"area=\" + r.area() + \" perimeter=\" + r.perimeter());\n    }\n}\n",
           "visibleCases": [
             {
               "label": "長方形",
@@ -812,7 +817,7 @@
         {
           "kind": "applied",
           "task": "【実践】作るたびに1、2、3…と番号が増えるTicketクラスを作ってください。個数nを読み、各Ticketの `T番号` を1行ずつ表示します。次の番号はstaticフィールドで共有します。",
-          "starterCode": "import java.util.*;\n\nclass Ticket {\n    static int next = 1;\n    int number;\n\n    Ticket() {\n        /* TODO */\n    }\n\n    String label() {\n        return \"\";\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        int n = new Scanner(System.in).nextInt();\n        for (int i = 0; i < n; i++) System.out.println(new Ticket().label());\n    }\n}\n",
+          "starterCode": "import java.util.*;\n\nclass Ticket {\n    static int next = 1;\n    int number;\n\n    Ticket() {\n        /* TODO */\n    }\n\n    String label() {\n        // TODO: T のあとに自分の番号を付けた文字列を返す\n        return \"\";   // 仮の値。書けたら消す\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        int n = new Scanner(System.in).nextInt();\n        for (int i = 0; i < n; i++) System.out.println(new Ticket().label());\n    }\n}\n",
           "visibleCases": [
             {
               "label": "3枚",

@@ -69,7 +69,7 @@
         {
           "kind": "applied",
           "task": "本番実装を変えずにテスト用 `StubPriceRepository` を注入し、どの入力にも999を返してください。MiniDiのbind先だけを変えます。",
-          "starterCode": "import jakarta.inject.Inject;\nimport java.util.*;\n\ninterface PriceRepository {\n    Integer find(String n);\n}\n\nclass RealPriceRepository implements PriceRepository {\n    public Integer find(String n) {\n        throw new IllegalStateException(\"DBへ接続してはいけません\");\n    }\n}\n\nclass StubPriceRepository implements PriceRepository {\n    public Integer find(String n) {\n        // TODO: 999を返す\n        return 0;\n    }\n}\n\nclass PriceService {\n    private final PriceRepository r;\n\n    @Inject\n    PriceService(PriceRepository r) {\n        this.r = r;\n    }\n\n    int price(String n) {\n        return r.find(n);\n    }\n}\n\npublic class DiTest {\n    public static void main(String[] a) {\n        String n = new Scanner(System.in).nextLine();\n        // TODO: Stubをbindして結果を表示\n    }\n}\n",
+          "starterCode": "import jakarta.inject.Inject;\nimport java.util.*;\n\ninterface PriceRepository {\n    Integer find(String n);\n}\n\nclass RealPriceRepository implements PriceRepository {\n    public Integer find(String n) {\n        throw new IllegalStateException(\"DBへ接続してはいけません\");\n    }\n}\n\nclass StubPriceRepository implements PriceRepository {\n    public Integer find(String n) {\n        // TODO: 999を返す\n        return 0;   // 仮の値。書けたら消す\n    }\n}\n\nclass PriceService {\n    private final PriceRepository r;\n\n    @Inject\n    PriceService(PriceRepository r) {\n        this.r = r;\n    }\n\n    int price(String n) {\n        return r.find(n);\n    }\n}\n\npublic class DiTest {\n    public static void main(String[] a) {\n        String n = new Scanner(System.in).nextLine();\n        // TODO: Stubをbindして結果を表示\n    }\n}\n",
           "visibleCases": [
             {
               "label": "差し替え",
@@ -229,7 +229,7 @@
       "extraTasks": [
         {
           "kind": "applied",
-          "task": "注文作成後に2つのObserver（メールと監査ログ）へイベントを通知する簡易EventBusを完成させてください。主処理の戻り値は変えず副作用を分離します。",
+          "task": "注文IDの整数が1つ入力されます。その注文の作成後に、2つのObserver（メールと監査ログ）へイベントを通知する簡易EventBusを完成させてください。主処理の戻り値は変えず副作用を分離します。",
           "starterCode": "import java.util.*;\n\nrecord OrderCreated(int id) { }\n\ninterface Observer {\n    void on(OrderCreated e);\n}\n\nclass MailObserver implements Observer {\n    public void on(OrderCreated e) {\n        System.out.println(\"mail order=\" + e.id());\n    }\n}\n\nclass AuditObserver implements Observer {\n    public void on(OrderCreated e) {\n        System.out.println(\"audit order=\" + e.id());\n    }\n}\n\nclass EventBus {\n    private final List<Observer> observers;\n\n    EventBus(List<Observer> o) {\n        observers = o;\n    }\n\n    void fire(OrderCreated e) {\n        // TODO\n    }\n}\n\npublic class DiEvent {\n    public static void main(String[] a) {\n        int id = new Scanner(System.in).nextInt();\n        EventBus bus = new EventBus(List.of(new MailObserver(), new AuditObserver()));\n        System.out.println(\"created=\" + id);\n        bus.fire(new OrderCreated(id));\n    }\n}\n",
           "visibleCases": [
             {
@@ -324,7 +324,7 @@
         }
       ],
       "task": "【基本】GreetingRepositoryとその実装を作り、GreetingServiceへ `@Inject` でコンストラクタ注入します。MiniDiで結び、nameを読み `こんにちは, name` と表示してください（あいさつの語はRepositoryが返します）。",
-      "starterCode": "import jakarta.inject.Inject;\nimport java.util.*;\n\ninterface GreetingRepository {\n    String prefix();\n}\n\nclass JapaneseGreetingRepository implements GreetingRepository {\n    public String prefix() {\n        return \"こんにちは\";\n    }\n}\n\nclass GreetingService {\n    private final GreetingRepository repository;\n\n    @Inject\n    GreetingService(GreetingRepository repository) {\n        this.repository = repository;\n    }\n\n    String greet(String name) {\n        return \"\";\n        /* TODO */\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        String name = new Scanner(System.in).next();\n        MiniDi di = MiniDi.container().bind(GreetingRepository.class, JapaneseGreetingRepository.class);\n        System.out.println(di.get(GreetingService.class).greet(name));\n    }\n}\n",
+      "starterCode": "import jakarta.inject.Inject;\nimport java.util.*;\n\ninterface GreetingRepository {\n    String prefix();\n}\n\nclass JapaneseGreetingRepository implements GreetingRepository {\n    public String prefix() {\n        return \"こんにちは\";\n    }\n}\n\nclass GreetingService {\n    private final GreetingRepository repository;\n\n    @Inject\n    GreetingService(GreetingRepository repository) {\n        this.repository = repository;\n    }\n\n    String greet(String name) {\n        // TODO: Repository のあいさつ語と name をつないで返す\n        return \"\";   // 仮の値。書けたら消す\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        String name = new Scanner(System.in).next();\n        MiniDi di = MiniDi.container().bind(GreetingRepository.class, JapaneseGreetingRepository.class);\n        System.out.println(di.get(GreetingService.class).greet(name));\n    }\n}\n",
       "visibleCases": [
         {
           "label": "挨拶",
@@ -357,7 +357,7 @@
           ],
           "kind": "drill",
           "task": "【組み合わせ】`@ApplicationScoped` なSequenceを作り、`next()` で1から増える番号を返します。MiniDiからSequenceを2回取得し、同じインスタンスであることと2つの番号を `same=true values=1,2` と表示してください。",
-          "starterCode": "import jakarta.enterprise.context.ApplicationScoped;\n\n@ApplicationScoped\nclass Sequence {\n    private int value;\n\n    int next() {\n        return 0;\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        MiniDi di = MiniDi.container();\n        Sequence a = di.get(Sequence.class), b = di.get(Sequence.class);\n        System.out.println(\"same=\" + (a == b) + \" values=\" + a.next() + \",\" + b.next());\n    }\n}\n",
+          "starterCode": "import jakarta.enterprise.context.ApplicationScoped;\n\n@ApplicationScoped\nclass Sequence {\n    private int value;\n\n    int next() {\n        // TODO: 1から増える番号を返す\n        return 0;   // 仮の値。書けたら消す\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        MiniDi di = MiniDi.container();\n        Sequence a = di.get(Sequence.class), b = di.get(Sequence.class);\n        System.out.println(\"same=\" + (a == b) + \" values=\" + a.next() + \",\" + b.next());\n    }\n}\n",
           "visibleCases": [
             {
               "label": "共有",
@@ -394,8 +394,8 @@
             "ch25-o2"
           ],
           "kind": "applied",
-          "task": "【実践】PaymentインターフェースにCardPaymentとTestPaymentを用意します。modeが `test` ならTestPayment、それ以外はCardPaymentをMiniDiへbindし、PaymentServiceから `card:金額` または `test:金額` と表示してください。",
-          "starterCode": "import jakarta.inject.Inject;\nimport java.util.*;\n\ninterface Payment {\n    String pay(int amount);\n}\n\nclass CardPayment implements Payment {\n    public String pay(int amount) {\n        return \"card:\" + amount;\n    }\n}\n\nclass TestPayment implements Payment {\n    public String pay(int amount) {\n        return \"test:\" + amount;\n    }\n}\n\nclass PaymentService {\n    private final Payment payment;\n\n    @Inject\n    PaymentService(Payment payment) {\n        this.payment = payment;\n    }\n\n    String execute(int amount) {\n        /* TODO */ return \"\";\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        String mode = sc.next();\n        int amount = sc.nextInt();\n        Class<? extends Payment> type = mode.equals(\"test\") ? TestPayment.class : CardPayment.class;\n        MiniDi di = MiniDi.container().bind(Payment.class, type);\n        System.out.println(di.get(PaymentService.class).execute(amount));\n    }\n}\n",
+          "task": "【実践】1行に、`mode`（`test` か、それ以外の語）と金額（`0` 以上の整数）が、この順で入力されます。PaymentインターフェースにCardPaymentとTestPaymentを用意します。`mode` が `test` ならTestPayment、それ以外はCardPaymentをMiniDiへbindし、PaymentServiceから `card:金額` または `test:金額` と表示してください。",
+          "starterCode": "import jakarta.inject.Inject;\nimport java.util.*;\n\ninterface Payment {\n    String pay(int amount);\n}\n\nclass CardPayment implements Payment {\n    public String pay(int amount) {\n        return \"card:\" + amount;\n    }\n}\n\nclass TestPayment implements Payment {\n    public String pay(int amount) {\n        return \"test:\" + amount;\n    }\n}\n\nclass PaymentService {\n    private final Payment payment;\n\n    @Inject\n    PaymentService(Payment payment) {\n        this.payment = payment;\n    }\n\n    String execute(int amount) {\n        // TODO\n        return \"\";   // 仮の値。書けたら消す\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        String mode = sc.next();\n        int amount = sc.nextInt();\n        Class<? extends Payment> type = mode.equals(\"test\") ? TestPayment.class : CardPayment.class;\n        MiniDi di = MiniDi.container().bind(Payment.class, type);\n        System.out.println(di.get(PaymentService.class).execute(amount));\n    }\n}\n",
           "visibleCases": [
             {
               "label": "テスト決済",

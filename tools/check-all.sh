@@ -43,6 +43,8 @@ CHECKS=(
   check-constant-output.sh
   check-copyable-output.sh
   check-input-domain.sh
+  check-task-input.sh
+  check-starter-placeholder.sh
   check-explanation-output.sh
   check-block-alignment.sh
   check-markdown-lists.sh

@@ -52,10 +52,12 @@ public final class ProgressLoadCheck {
             emptyFileIsLeftAlone(dir);
             resetKeepsABackup(dir);
             writesLandOnDiskBeforeTheSwap(dir);
+            shuffledChoicesKeepPointingAtTheSameAnswer(dir);
             System.out.println();
             System.out.println("PROGRESS LOAD OK: 読めないファイルの退避（控えを上書きしない）・"
                     + "形の違う1件で全体を捨てないこと・リセット前の控え・"
-                    + "差し替える前に中身をディスクへ載せることを確認しました");
+                    + "差し替える前に中身をディスクへ載せること・"
+                    + "選択肢を並べ替えたクイズの回答の読み替え（1度だけ）を確認しました");
         } finally {
             deleteTree(dir);
         }
@@ -177,6 +179,54 @@ public final class ProgressLoadCheck {
         ok("途中で終わっていない", read(file).strip().endsWith("}"));
         ok("読み直しても同じ", "// ディスクまで届いているか"
                 .equals(new ProgressStore(file).savedCode("9-9#1")));
+    }
+
+    /**
+     * 選択肢を並べ替えたクイズで、記録した回答が<b>同じ選択肢を指したまま</b>になる。
+     *
+     * <p>`quizChoices` が持つのは選んだ<b>番号</b>なので、教材で選択肢を並べ替えると
+     * そのままでは別の文を指す（正解が誤答に化ける）。{@code QUIZ_SWAPS} で番号を読み替え、
+     * 印を進捗ファイルへ残して<b>二度は読み替えない</b>ことを確かめる。
+     * ここで使う `60-2#0` は 0番と1番を入れ替えた回で、正解は1番へ移っている。</p>
+     */
+    private static void shuffledChoicesKeepPointingAtTheSameAnswer(Path dir) throws Exception {
+        Path file = dir.resolve("quiz-swap.json");
+        // 並べ替える前に「0番（当時の正解）」を選んで正解していた記録
+        write(file, "{\"onboardingCompleted\":true,\"quizChoices\":{\"60-2#0\":0,\"60-1#0\":0}}");
+
+        ProgressStore store = new ProgressStore(file);
+        ok("並べ替えた回の回答は新しい位置へ動く", store.quizChoice("60-2", 0) == 1);
+        ok("並べ替えていない回はそのまま", store.quizChoice("60-1", 0) == 0);
+
+        store.flushNow();
+        ok("適用済みの印が残る", read(file).contains("quiz-positions-2026-08-26"));
+
+        ProgressStore again = new ProgressStore(file);
+        ok("2度目は読み替えない（元へ戻らない）", again.quizChoice("60-2", 0) == 1);
+
+        // 先頭以外の入れ替えも同じように動く（`8-5#0` は4番目と3番目の入れ替え）。
+        // キーの読み替え（QUIZ_MOVES）は済んだ印を入れて、番号の読み替えだけを見る
+        Path other = dir.resolve("quiz-swap-mid.json");
+        write(other, "{\"onboardingCompleted\":true,"
+                + "\"appliedQuizMoves\":[\"ch07-varargs-2026-08-26\",\"quiz-placement-2026-08-26\"],"
+                + "\"quizChoices\":{\"8-5#0\":3,\"8-5#1\":1}}");
+        ProgressStore mid = new ProgressStore(other);
+        ok("入れ替えた側は相手の位置へ", mid.quizChoice("8-5", 0) == 2);
+        ok("入れ替えに関わらない番号はそのまま", mid.quizChoice("8-5", 1) == 1);
+
+        // 印が1つも無い古いファイルでは、キーの読み替え → 番号の読み替えの順で通る
+        // （旧 `8-5#3` はいまの `8-5#0` で、そこは4番目と3番目を入れ替えた）
+        Path both = dir.resolve("quiz-swap-legacy.json");
+        write(both, "{\"onboardingCompleted\":true,\"quizChoices\":{\"8-5#3\":3}}");
+        ProgressStore legacy = new ProgressStore(both);
+        ok("キーと番号の両方が読み替わる", legacy.quizChoice("8-5", 0) == 2);
+
+        // 記録が無いファイルにも印だけ立てる（この実行で書いた番号を次に読み替えないため）
+        Path fresh = dir.resolve("quiz-swap-fresh.json");
+        ProgressStore blank = new ProgressStore(fresh);
+        blank.saveCode("60-2#1", "// 何か書いた");
+        blank.flushNow();
+        ok("新しいファイルにも印が入る", read(fresh).contains("quiz-positions-2026-08-26"));
     }
 
     private static long cash(ProgressStore store) {

@@ -75,7 +75,7 @@
           "stdin": "GET /start"
         }
       ],
-      "task": "`/user?id=...` で利用者を検索し、見つかったときだけ `userName` をリクエスト属性に入れて `/user-view` へforwardしてください。ID 1は山田、2は佐藤。それ以外と不正なIDは404を返します。",
+      "task": "入力は1行で、`METHOD /パス?クエリ` の形のリクエストが1つ来ます。\n\n`/user?id=...` で利用者を検索し、見つかったときだけ `userName` をリクエスト属性に入れて `/user-view` へforwardしてください。ID 1は山田、2は佐藤。それ以外と不正なIDは404を返します。",
       "starterCode": "import jakarta.servlet.*;\nimport jakarta.servlet.annotation.WebServlet;\nimport jakarta.servlet.http.*;\nimport java.io.*;\nimport java.util.*;\n\n@WebServlet(\"/user\")\npublic class UserServlet extends HttpServlet {\n    private final Map<Integer, String> users = Map.of(1, \"山田\", 2, \"佐藤\");\n\n    protected void doGet(HttpServletRequest req, HttpServletResponse res) throws ServletException, IOException {\n        // TODO: idを安全に数値化して検索。見つからなければ404\n        // TODO: userName属性を設定して /user-view へforward\n    }\n\n    public static void main(String[] args) {\n        MiniWeb.app().register(UserServlet.class).register(UserView.class).serve();\n    }\n}\n\n@WebServlet(\"/user-view\")\nclass UserView extends HttpServlet {\n    protected void doGet(HttpServletRequest req, HttpServletResponse res) throws IOException {\n        res.getWriter().println(\"利用者: \" + req.getAttribute(\"userName\"));\n    }\n}\n",
       "visibleCases": [
         {
@@ -115,7 +115,7 @@
       "extraTasks": [
         {
           "kind": "applied",
-          "task": "POST `/orders?item=book` で、itemが空なら400、正常なら `/orders/complete?item=book` へリダイレクトしてください。保存後にforwardせずredirectするPRGの形です。",
+          "task": "入力は1行で、`METHOD /パス?クエリ` の形のリクエストが1つ来ます。\n\nPOST `/orders?item=book` で、itemが空なら400、正常なら `/orders/complete?item=book` へリダイレクトしてください。保存後にforwardせずredirectするPRGの形です。",
           "starterCode": "import jakarta.servlet.*;\nimport jakarta.servlet.annotation.WebServlet;\nimport jakarta.servlet.http.*;\nimport java.io.*;\n\n@WebServlet(\"/orders\")\npublic class OrderServlet extends HttpServlet {\n    protected void doPost(HttpServletRequest req, HttpServletResponse res) throws IOException {\n        // TODO\n    }\n\n    public static void main(String[] args) {\n        MiniWeb.app().register(OrderServlet.class).serve();\n    }\n}\n",
           "visibleCases": [
             {
@@ -177,7 +177,7 @@
           "stdin": "GET /count alice\nGET /count alice\nGET /count bob"
         }
       ],
-      "task": "`/cart?add=商品名` でセッション内のカート（`List<String>`）に追加し、現在の中身を `カート(n件): a, b` と表示してください。addが無いリクエストは追加せず表示だけします。利用者ごとにカートが分かれることもテストします。",
+      "task": "入力は **1行が1リクエスト**（`METHOD /パス?クエリ ブラウザ名` の形）で、上から順に処理されます。3つ目の語はブラウザ名で、利用者ごとに分かれます。\n\n`/cart?add=商品名` でセッション内のカート（`List<String>`）に追加し、現在の中身を `カート(n件): a, b` と表示してください。addが無いリクエストは追加せず表示だけします。利用者ごとにカートが分かれることもテストします。",
       "starterCode": "import jakarta.servlet.annotation.WebServlet;\nimport jakarta.servlet.http.*;\nimport java.io.*;\nimport java.util.*;\n\n@WebServlet(\"/cart\")\npublic class CartServlet extends HttpServlet {\n    protected void doGet(HttpServletRequest req, HttpServletResponse res) throws IOException {\n        // TODO: セッションからcartを取得。無ければ作って保存\n        // TODO: addがあれば追加し、件数と内容を表示\n    }\n\n    public static void main(String[] args) {\n        MiniWeb.app().register(CartServlet.class).serve();\n    }\n}\n",
       "visibleCases": [
         {
@@ -212,7 +212,7 @@
       "extraTasks": [
         {
           "kind": "applied",
-          "task": "1つのServlet `/account` で、`op` パラメータによってログイン・確認・ログアウトを扱います。\n\n| 入力 | すること | 出力 |\n|---|---|---|\n| POST `/account?op=login&user=名前` | `loginUser` をセッションへ保存 | `ログイン: 名前` |\n| POST `/account?op=login`（`user` なし） | 何もしない | 400 `userは必須です` |\n| GET `/account?op=me` | セッションから読む | `利用者: 名前` |\n| GET `/account?op=me`（未ログイン） | 何もしない | 401 `ログインが必要です` |\n| POST `/account?op=logout` | `invalidate()` でセッションごと破棄 | `ログアウトしました` |",
+          "task": "入力は **1行が1リクエスト**（`METHOD /パス?クエリ ブラウザ名` の形）で、上から順に処理されます。3つ目の語はブラウザ名で、利用者ごとに分かれます。\n\n1つのServlet `/account` で、`op` パラメータによってログイン・確認・ログアウトを扱います。\n\n| 入力 | すること | 出力 |\n|---|---|---|\n| POST `/account?op=login&user=名前` | `loginUser` をセッションへ保存 | `ログイン: 名前` |\n| POST `/account?op=login`（`user` なし） | 何もしない | 400 `userは必須です` |\n| GET `/account?op=me` | セッションから読む | `利用者: 名前` |\n| GET `/account?op=me`（未ログイン） | 何もしない | 401 `ログインが必要です` |\n| POST `/account?op=logout` | `invalidate()` でセッションごと破棄 | `ログアウトしました` |",
           "starterCode": "import jakarta.servlet.annotation.WebServlet;\nimport jakarta.servlet.http.*;\nimport java.io.*;\n\n@WebServlet(\"/account\")\npublic class AccountServlet extends HttpServlet {\n    protected void doGet(HttpServletRequest req, HttpServletResponse res) throws IOException {\n        // TODO: /account?op=me。未ログインなら401\n    }\n\n    protected void doPost(HttpServletRequest req, HttpServletResponse res) throws IOException {\n        // TODO: op=login または logout\n    }\n\n    public static void main(String[] args) {\n        MiniWeb.app().register(AccountServlet.class).serve();\n    }\n}\n",
           "visibleCases": [
             {
@@ -282,7 +282,7 @@
           "stdin": "GET /theme?set=dark alice\nGET /theme alice"
         }
       ],
-      "task": "`/lang?set=ja` または `en` でlang Cookieを30日保存し、指定が無いときはCookie、Cookieも無ければ `ja` を表示してください。不正値は400です。",
+      "task": "入力は **1行が1リクエスト**（`METHOD /パス?クエリ ブラウザ名` の形）で、上から順に処理されます。3つ目の語はブラウザ名で、利用者ごとに分かれます。\n\n`/lang?set=ja` または `en` でlang Cookieを30日保存し、指定が無いときはCookie、Cookieも無ければ `ja` を表示してください。不正値は400です。",
       "starterCode": "import jakarta.servlet.annotation.WebServlet;\nimport jakarta.servlet.http.*;\nimport java.io.*;\n\n@WebServlet(\"/lang\")\npublic class LangServlet extends HttpServlet {\n    protected void doGet(HttpServletRequest req, HttpServletResponse res) throws IOException {\n        // TODO\n    }\n\n    public static void main(String[] a) {\n        MiniWeb.app().register(LangServlet.class).showCookies().serve();\n    }\n}\n",
       "visibleCases": [
         {
@@ -317,7 +317,7 @@
       "extraTasks": [
         {
           "kind": "applied",
-          "task": "`/consent?accept=yes` でconsent CookieをHttpOnly付きで保存し、`clear=yes` で削除してください。通常表示は `consent=yes` または `consent=none`。",
+          "task": "入力は **1行が1リクエスト**（`METHOD /パス?クエリ ブラウザ名` の形）で、上から順に処理されます。3つ目の語はブラウザ名で、利用者ごとに分かれます。\n\n`/consent?accept=yes` でconsent CookieをHttpOnly付きで保存し、`clear=yes` で削除してください。通常表示は `consent=yes` または `consent=none`。",
           "starterCode": "import jakarta.servlet.annotation.WebServlet;\nimport jakarta.servlet.http.*;\nimport java.io.*;\n\n@WebServlet(\"/consent\")\npublic class ConsentServlet extends HttpServlet {\n    protected void doGet(HttpServletRequest req, HttpServletResponse res) throws IOException {\n        res.getWriter().println(\"\");\n    }\n\n    public static void main(String[] a) {\n        MiniWeb.app().register(ConsentServlet.class).showCookies().serve();\n    }\n}\n",
           "visibleCases": [
             {
@@ -378,7 +378,7 @@
           "stdin": "GET /hello"
         }
       ],
-      "task": "`/admin/*` を守るAuthFilterを作ってください。セッションの `role` が `admin` のときだけchainへ進め、未ログインは401 `ログインが必要です`、別roleは403 `権限がありません` です。`/login?role=...` は対象外です。",
+      "task": "入力は **1行が1リクエスト**（`METHOD /パス?クエリ ブラウザ名` の形）で、上から順に処理されます。3つ目の語はブラウザ名で、利用者ごとに分かれます。\n\n`/admin/*` を守るAuthFilterを作ってください。セッションの `role` が `admin` のときだけchainへ進め、未ログインは401 `ログインが必要です`、別roleは403 `権限がありません` です。`/login?role=...` は対象外です。",
       "starterCode": "import jakarta.servlet.*;\nimport jakarta.servlet.annotation.*;\nimport jakarta.servlet.http.*;\nimport java.io.*;\n\n@WebServlet(\"/admin/home\")\npublic class AdminServlet extends HttpServlet {\n    protected void doGet(HttpServletRequest q, HttpServletResponse s) throws IOException {\n        s.getWriter().println(\"管理画面\");\n    }\n\n    public static void main(String[] a) {\n        MiniWeb.app().register(AuthFilter.class).register(AdminServlet.class).register(LoginServlet.class).serve();\n    }\n}\n\n@WebServlet(\"/login\")\nclass LoginServlet extends HttpServlet {\n    protected void doGet(HttpServletRequest q, HttpServletResponse s) throws IOException {\n        q.getSession().setAttribute(\"role\", q.getParameter(\"role\"));\n        s.getWriter().println(\"login\");\n    }\n}\n\n@WebFilter(\"/admin/*\")\nclass AuthFilter implements Filter {\n    public void doFilter(HttpServletRequest q, HttpServletResponse s, FilterChain chain) throws ServletException, IOException {\n        // TODO\n        chain.doFilter(q, s);\n    }\n}\n",
       "visibleCases": [
         {
@@ -408,7 +408,7 @@
       "extraTasks": [
         {
           "kind": "applied",
-          "task": "全URLの前後を記録するFilterを作り、`[開始] GET /hello`、Servlet本文、`[終了] status=200` の順で出してください。",
+          "task": "入力は1行で、`METHOD /パス?クエリ` の形のリクエストが1つ来ます。\n\n全URLの前後を記録するFilterを作り、`[開始] GET /hello`、Servlet本文、`[終了] status=200` の順で出してください。",
           "starterCode": "import jakarta.servlet.*;\nimport jakarta.servlet.annotation.*;\nimport jakarta.servlet.http.*;\nimport java.io.*;\n\n@WebServlet(\"/hello\")\npublic class HelloServlet extends HttpServlet {\n    protected void doGet(HttpServletRequest q, HttpServletResponse s) throws IOException {\n        s.getWriter().println(\"Hello\");\n    }\n\n    public static void main(String[] a) {\n        MiniWeb.app().register(LogFilter.class).register(HelloServlet.class).serve();\n    }\n}\n\n@WebFilter(\"/*\")\nclass LogFilter implements Filter {\n    public void doFilter(HttpServletRequest q, HttpServletResponse s, FilterChain c) throws ServletException, IOException {\n        // TODO\n    }\n}\n",
           "visibleCases": [
             {
@@ -510,7 +510,7 @@
           "stdin": "GET /hello"
         }
       ],
-      "task": "【基本】GET `/profile?name=...` でnameをリクエスト属性 `displayName` に入れ、`/profile-view` へforwardしてください。表示側は `利用者: 名前` を返します。nameが無ければ400です。",
+      "task": "【基本】入力は1行で、`METHOD /パス?クエリ` の形のリクエストが1つ来ます。\n\nGET `/profile?name=...` でnameをリクエスト属性 `displayName` に入れ、`/profile-view` へforwardしてください。表示側は `利用者: 名前` を返します。nameが無ければ400です。",
       "starterCode": "import jakarta.servlet.*;\nimport jakarta.servlet.annotation.WebServlet;\nimport jakarta.servlet.http.*;\nimport java.io.*;\n\n@WebServlet(\"/profile\")\npublic class Main extends HttpServlet {\n    protected void doGet(HttpServletRequest req, HttpServletResponse res) throws ServletException, IOException {\n        /* TODO */\n    }\n\n    public static void main(String[] args) {\n        MiniWeb.app().register(Main.class).register(ProfileView.class).serve();\n    }\n}\n\n@WebServlet(\"/profile-view\")\nclass ProfileView extends HttpServlet {\n    protected void doGet(HttpServletRequest req, HttpServletResponse res) throws IOException {\n        res.getWriter().println(\"利用者: \" + req.getAttribute(\"displayName\"));\n    }\n}\n",
       "visibleCases": [
         {
@@ -542,7 +542,7 @@
             "ch23-o2"
           ],
           "kind": "drill",
-          "task": "【組み合わせ】GET `/visits` のたびにセッション属性countを1増やし、`visits=n` と表示してください。3つ目の入力語が異なるブラウザ名なら別に数えられます。",
+          "task": "【組み合わせ】入力は **1行が1リクエスト**（`METHOD /パス?クエリ ブラウザ名` の形）で、上から順に処理されます。3つ目の語はブラウザ名で、利用者ごとに分かれます。\n\nGET `/visits` のたびにセッション属性countを1増やし、`visits=n` と表示してください。3つ目の入力語が異なるブラウザ名なら別に数えられます。",
           "starterCode": "import jakarta.servlet.annotation.WebServlet;\nimport jakarta.servlet.http.*;\nimport java.io.*;\n\n@WebServlet(\"/visits\")\npublic class Main extends HttpServlet {\n    protected void doGet(HttpServletRequest req, HttpServletResponse res) throws IOException {\n        /* TODO */\n    }\n\n    public static void main(String[] args) {\n        MiniWeb.app().register(Main.class).serve();\n    }\n}\n",
           "visibleCases": [
             {
@@ -591,7 +591,7 @@
             "ch23-o3"
           ],
           "kind": "applied",
-          "task": "【実践】GET `/theme?set=dark` またはlightでCookie `theme` を保存し、`theme=値` と表示します。setがないときはCookieを読み、未保存ならlightを使います。不正なsetは400 `themeはlightまたはdarkです` です。CookieのPathは `/` にしてください。",
+          "task": "【実践】入力は **1行が1リクエスト**（`METHOD /パス?クエリ ブラウザ名` の形）で、上から順に処理されます。3つ目の語はブラウザ名で、利用者ごとに分かれます。\n\nGET `/theme?set=dark` またはlightでCookie `theme` を保存し、`theme=値` と表示します。setがないときはCookieを読み、未保存ならlightを使います。不正なsetは400 `themeはlightまたはdarkです` です。CookieのPathは `/` にしてください。",
           "starterCode": "import jakarta.servlet.annotation.WebServlet;\nimport jakarta.servlet.http.*;\nimport java.io.*;\n\n@WebServlet(\"/theme\")\npublic class Main extends HttpServlet {\n    protected void doGet(HttpServletRequest req, HttpServletResponse res) throws IOException {\n        /* TODO */\n    }\n\n    public static void main(String[] args) {\n        MiniWeb.app().register(Main.class).showCookies().serve();\n    }\n}\n",
           "visibleCases": [
             {

@@ -80,8 +80,8 @@
           "code": "import jakarta.transaction.Transactional;\n\nclass BusinessException extends Exception { }\n\nclass PaymentService {\n    @Transactional(rollbackOn = BusinessException.class)\n    void pay(boolean fail) throws BusinessException {\n        if (fail) throw new BusinessException();\n    }\n}\n\npublic class TransactionAnnotationSample {\n    public static void main(String[] a) throws Exception {\n        Transactional t = PaymentService.class.getDeclaredMethod(\"pay\", boolean.class).getAnnotation(Transactional.class);\n        System.out.println(t.rollbackOn()[0].getSimpleName());\n    }\n}\n"
         }
       ],
-      "task": "口座残高Mapを使う送金Serviceを完成させてください。amount<=0、IDなし、残高不足なら元のMapへ一切変更を残さず `失敗`。成功なら `A=残高 B=残高`。メソッドへ@Transactionalも付けます。",
-      "starterCode": "import jakarta.transaction.Transactional;\nimport java.util.*;\n\nclass TransferService {\n    private final Map<String, Integer> balances = new LinkedHashMap<>(Map.of(\"A\", 1000, \"B\", 500));\n\n    String transfer(String from, String to, int amount) {\n        // TODO annotation and atomic update\n        return \"\";\n    }\n}\n\npublic class TxTransfer {\n    public static void main(String[] a) {\n        Scanner sc = new Scanner(System.in);\n        TransferService service = new TransferService();\n        System.out.println(service.transfer(sc.next(), sc.next(), sc.nextInt()));\n    }\n}\n",
+      "task": "1行に、送金元ID、送金先ID、金額が、この順で入力されます（金額は `0` 以下も来ます。登録の無いIDも来ます）。口座残高Mapを使う送金Serviceを完成させてください。amount<=0、IDなし、残高不足なら元のMapへ一切変更を残さず `失敗`。成功なら `A=残高 B=残高`。メソッドへ@Transactionalも付けます。",
+      "starterCode": "import jakarta.transaction.Transactional;\nimport java.util.*;\n\nclass TransferService {\n    private final Map<String, Integer> balances = new LinkedHashMap<>(Map.of(\"A\", 1000, \"B\", 500));\n\n    String transfer(String from, String to, int amount) {\n        // TODO annotation and atomic update\n        return \"\";   // 仮の値。書けたら消す\n    }\n}\n\npublic class TxTransfer {\n    public static void main(String[] a) {\n        Scanner sc = new Scanner(System.in);\n        TransferService service = new TransferService();\n        System.out.println(service.transfer(sc.next(), sc.next(), sc.nextInt()));\n    }\n}\n",
       "visibleCases": [
         {
           "label": "成功",
@@ -261,7 +261,7 @@
           "code": "import java.util.*;\n\npublic class IdempotencySample {\n    public static void main(String[] a) {\n        Set<String> done = new HashSet<>();\n        for (String k : List.of(\"req-1\", \"req-1\")) System.out.println(done.add(k) ? \"created\" : \"same result\");\n    }\n}\n"
         }
       ],
-      "task": "複数行の `key item` を処理します。同じkeyの初回は連番注文を作り `created key=... order=n item=...`、再送はitemが違っても初回結果を `replay key=... order=n item=初回値` と返してください。",
+      "task": "入力は1行に `key item` の2語で、複数行が上から順に来ます。同じkeyの初回は連番注文を作り `created key=... order=n item=...`、再送はitemが違っても初回結果を `replay key=... order=n item=初回値` と返してください。",
       "starterCode": "import java.util.*;\n\nrecord Result(int order, String item) { }\n\npublic class TxIdempotency {\n    public static void main(String[] a) {\n        Scanner sc = new Scanner(System.in);\n        Map<String, Result> done = new LinkedHashMap<>();\n        int sequence = 0;\n        while (sc.hasNext()) {\n            String key = sc.next(), item = sc.next();\n            // TODO\n        }\n    }\n}\n",
       "visibleCases": [
         {
@@ -285,7 +285,7 @@
       "extraTasks": [
         {
           "kind": "applied",
-          "task": "在庫5から複数の購入数を順に受け、在庫以上なら原子的に減らして `ok rest=n`、不足なら変更せず `ng rest=n`。0以下もngです。",
+          "task": "1行に、購入数が空白区切りで並びます（`0` 以下も来ます）。在庫5から順に受け、在庫以上なら原子的に減らして `ok rest=n`、不足なら変更せず `ng rest=n`。0以下もngです。",
           "starterCode": "import java.util.*;\n\npublic class TxStock {\n    public static void main(String[] a) {\n        Scanner sc = new Scanner(System.in);\n        int stock = 5;\n        while (sc.hasNextInt()) {\n            int count = sc.nextInt();\n            // TODO\n        }\n    }\n}\n",
           "visibleCases": [
             {
@@ -476,7 +476,7 @@
             "ch27-o1"
           ],
           "kind": "drill",
-          "task": "【組み合わせ】初期残高1000円から、n件の出金額を順に処理します。各出金は1トランザクションと考え、正の金額かつ残高以内ならcommitして `commit balance=...`、それ以外は残高を変えず `rollback balance=...` と表示してください。",
+          "task": "【組み合わせ】1行に、件数 `n`（`1` 以上）、続けて `n` 件の出金額（マイナスも来ます）が入力されます。初期残高1000円から、この出金額を順に処理します。各出金は1トランザクションと考え、正の金額かつ残高以内ならcommitして `commit balance=...`、それ以外は残高を変えず `rollback balance=...` と表示してください。",
           "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt(), balance = 1000;\n        for (int i = 0; i < n; i++) {\n            int amount = sc.nextInt();\n            /* TODO */\n        }\n    }\n}\n",
           "visibleCases": [
             {
@@ -525,7 +525,7 @@
             "ch27-o3"
           ],
           "kind": "applied",
-          "task": "【実践】n件の `冪等性キー 商品名` を読みます。初めてのキーなら注文番号を採番して `created key=... order=... item=...`、同じキーなら最初の結果を `replay` として返してください。",
+          "task": "【実践】1行に、件数 `n`（`0` 以上）、続けて `n` 件ぶんの `冪等性キー 商品名` が入力されます。初めてのキーなら注文番号を採番して `created key=... order=... item=...`、同じキーなら最初の結果を `replay` として返してください。",
           "starterCode": "import java.util.*;\n\nrecord Order(int number, String item) { }\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt(), sequence = 0;\n        Map<String, Order> done = new LinkedHashMap<>();\n        for (int i = 0; i < n; i++) {\n            String key = sc.next(), item = sc.next();\n            /* TODO */\n        }\n    }\n}\n",
           "visibleCases": [
             {
