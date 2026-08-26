@@ -290,9 +290,9 @@ final class CafeCatalog {
             Map.entry("lucky_coin_draw", "問題または復習問題へ正解するたび、0.3%の確率で解放"),
             Map.entry("same_day_15", "同じ日に異なる15問を初クリアまたは復習で正解"),
             Map.entry("streak_7", "7日連続で学習"),
-            // 数は CafeEconomy.QUIZ_STREAK_ITEM_RUN（12問）。緩めたらこの文面も直す
+            // 数は CafeEconomy.QUIZ_STREAK_ITEM_RUN（10問）。緩めたらこの文面も直す
             Map.entry("quiz_streak_20",
-                    "確認クイズの12問へ1度目の回答で連続正解、または復習で異なる12問に連続正解"),
+                    "確認クイズの10問へ1度目の回答で連続正解、または復習で異なる10問に連続正解"),
             Map.entry("chapter_no_hint", "1つの章をヒントなしで初制覇、または復習で全問に再正解"),
             Map.entry("chapter_one_day", "1つの章を同じ日に初制覇、または同じ日に全問復習"),
             Map.entry("store_5", "店舗を5店まで広げる"),

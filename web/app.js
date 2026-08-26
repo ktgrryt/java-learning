@@ -1231,9 +1231,14 @@
       return lesson.cleared ? '' : '<span class="lesson-frac">クイズ</span>';
     }
     if (lesson.cleared) { return ''; }
-    // 未クリアの理由がクイズだけなら、そう分かるように札を出す（→ ApiHandler#lessonComplete）
-    if (quizPending(lesson)) { return '<span class="lesson-frac">クイズ</span>'; }
+    // 通常レッスンでは「クイズが残っている」ことを札にしない ―― 問題を解き終えた回に
+    // 一覧が「クイズ」で埋まって読みにくいという指摘（2026-08-26）。理由は
+    // ツールチップ（→ lessonTooltip）に残してあり、開けばクイズの段が待っている。
+    // 概念レッスンだけは上で札を出す（提出課題が無いので、開く前の手がかりが他に無い）。
     if (lesson.taskCount < 2) { return ''; }
+    // 問題は全部★で、残っているのがクイズだけなら何も出さない（「学習中」も出さない）。
+    // 手を動かす分は終わっているので、一覧では終わったものと同じ見た目にする
+    if (lesson.clearedCount >= lesson.taskCount) { return ''; }
     return lesson.clearedCount ? '<span class="lesson-frac">学習中</span>' : '';
   }
 
@@ -2388,7 +2393,7 @@
   function reviewSummaryHtml() {
     if (!reviewSummary) { return ''; }
     var perfect = reviewSummary.total > 0 && reviewSummary.cleared === reviewSummary.total;
-    // 📣の「連続 N / 12問」はここへ出さない。数字だけでは何の連続なのか読めず、
+    // 📣の「連続 N / 10問」はここへ出さない。数字だけでは何の連続なのか読めず、
     // 解放条件はセットに入る前の案内とクイズの段（どちらも説明付き）にある
     // 積み上げの行は数字だけ並べる（2026-08-24。「…問のうち N問に正解しています」を
     // 文で書くと1行が長く、主文と同じことを言い方を変えて2度読ませることになる）
