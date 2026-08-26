@@ -229,7 +229,7 @@ public final class ApiHandler implements HttpHandler {
         List<Object> chapters = new ArrayList<>();
         for (Chapter ch : c.chapters()) {
             Map<String, Object> chJson = ch.toPublicJson();
-            chJson.put("cleared", c.isChapterCleared(ch, cleared));
+            chJson.put("cleared", chapterComplete(c, ch, cleared));
             chJson.put("clearedCount", c.clearedCount(ch, cleared));
             chJson.put("taskCount", c.taskCount(ch));
             chJson.put("layers", chapterLayers(c, ch, cleared));
@@ -242,7 +242,7 @@ public final class ApiHandler implements HttpHandler {
                 Map<String, Object> lJson = (Map<String, Object>) lo;
                 String id = (String) lJson.get("id");
                 Lesson lesson = c.lesson(id).orElseThrow();
-                lJson.put("cleared", c.isLessonCleared(lesson, cleared));
+                lJson.put("cleared", lessonComplete(c, lesson, cleared));
                 lJson.put("clearedCount", c.clearedCount(lesson, cleared));
                 lJson.put("quizResults", quizResults(lesson));
                 lJson.put("quizBookmarks", quizBookmarks(lesson));
@@ -336,13 +336,13 @@ public final class ApiHandler implements HttpHandler {
 
         Map<String, Object> cm = new LinkedHashMap<>();
         cm.put("id", chapter.id());
-        cm.put("cleared", c.isChapterCleared(chapter, cleared));
+        cm.put("cleared", chapterComplete(c, chapter, cleared));
         cm.put("clearedCount", c.clearedCount(chapter, cleared));
         cm.put("layers", chapterLayers(c, chapter, cleared));
 
         Map<String, Object> lm = new LinkedHashMap<>();
         lm.put("id", lesson.id());
-        lm.put("cleared", c.isLessonCleared(lesson, cleared));
+        lm.put("cleared", lessonComplete(c, lesson, cleared));
         lm.put("clearedCount", c.clearedCount(lesson, cleared));
 
         // 同じレッスンの他の問題も入れる。ヒントや★は問題ごとだが、まとめて送っても数件で済む
@@ -534,6 +534,40 @@ public final class ApiHandler implements HttpHandler {
             results.add(r);
         }
         return results;
+    }
+
+    /**
+     * 画面で「クリア済み」と見せる条件。必須問題を全部通し、<b>確認クイズも全問正解</b>したか。
+     *
+     * <p>2026-08-26に利用者から「クイズを解いていない単元でもクリア済みと表示される」と
+     * 指摘があって足した。それまでは問題だけで判定していたので、章の確認クイズを1問も
+     * 解かずに章クリアの面になった。</p>
+     *
+     * <p><b>★の数・カフェの報酬・章クリアのボーナスは {@link Curriculum#isLessonCleared} の
+     * ままにしてある</b>（必須問題だけで数える）。報酬側もクイズで縛ると、クイズを飛ばして
+     * 章を終えていた利用者のブランド倍率がその場で下がり、すでに得たものを取り上げることに
+     * なる。表示と道案内（次にやるレッスン）だけを新しい条件で出す。</p>
+     */
+    private boolean lessonComplete(Curriculum c, Lesson lesson, Set<String> cleared) {
+        return c.isLessonCleared(lesson, cleared) && quizzesComplete(lesson);
+    }
+
+    /** そのレッスンの確認クイズを全問正解しているか（クイズが無ければ true）。 */
+    private boolean quizzesComplete(Lesson lesson) {
+        return correctQuizCount(lesson) == lesson.quizzes().size();
+    }
+
+    /** 章の「クリア済み」。必須問題を全部通し、章のどのレッスンにもクイズの残りが無いこと。 */
+    private boolean chapterComplete(Curriculum c, Chapter chapter, Set<String> cleared) {
+        if (!c.isChapterCleared(chapter, cleared)) {
+            return false;
+        }
+        for (Lesson lesson : chapter.lessons()) {
+            if (!quizzesComplete(lesson)) {
+                return false;
+            }
+        }
+        return true;
     }
 
     private int correctQuizCount(Lesson lesson) {

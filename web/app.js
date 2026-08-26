@@ -1108,8 +1108,12 @@
           return partChapter.lessons.some(function (l) { return l.id === focusId; });
         });
         var progress = partProgress(part);
-        var partStatus = progress.cleared === progress.total && progress.total > 0
-          ? '✓' : (progress.cleared > 0 ? '学習中' : '');
+        // ✓ は章の「クリア済み」（確認クイズ込み）でそろえる。問題の数だけで判定すると、
+        // クイズが残っている章を含む編に ✓ が付いてしまう
+        var partDone = progress.total > 0 && chaptersOfPart(part).every(function (x) {
+          return x.cleared;
+        });
+        var partStatus = partDone ? '✓' : (progress.cleared > 0 ? '学習中' : '');
         partSection = document.createElement('section');
         partSection.className = 'side-part' + (currentPart ? ' current' : '');
         var partHead = document.createElement('div');
@@ -1232,7 +1236,13 @@
     if (lesson.type === 'concept') {
       return lesson.cleared ? '' : '<span class="lesson-frac">クイズ</span>';
     }
-    if (lesson.taskCount < 2 || lesson.cleared) { return ''; }
+    if (lesson.cleared) { return ''; }
+    // 問題は全部通したのに未クリアなら、残っているのは確認クイズだけ。
+    // これを出さないと「なぜクリアにならないのか」が画面から分からない。
+    if (lesson.taskCount > 0 && lesson.clearedCount >= lesson.taskCount) {
+      return '<span class="lesson-frac">クイズ</span>';
+    }
+    if (lesson.taskCount < 2) { return ''; }
     return lesson.clearedCount ? '<span class="lesson-frac">学習中</span>' : '';
   }
 
@@ -1240,6 +1250,9 @@
     if (lesson.type === 'preflight') { return '環境の事前確認（★対象外）: ' + lesson.title; }
     if (lesson.cleared) { return 'クリア済み: ' + lesson.title; }
     if (lesson.type === 'concept') { return 'クイズ全問正解で★: ' + lesson.title; }
+    if (lesson.taskCount > 0 && lesson.clearedCount >= lesson.taskCount) {
+      return lesson.title + '（確認クイズが残っています）';
+    }
     return lesson.clearedCount ? lesson.title + '（学習中）' : lesson.title;
   }
 
