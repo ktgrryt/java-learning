@@ -45,6 +45,7 @@ CHECKS=(
   check-input-domain.sh
   check-explanation-output.sh
   check-block-alignment.sh
+  check-markdown-lists.sh
   check-mini-labels.sh
   check-source-checks.sh
   check-source-alternatives.sh
