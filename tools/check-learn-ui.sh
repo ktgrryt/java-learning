@@ -127,8 +127,11 @@ if ! curl -fsS -o /dev/null "http://localhost:${APP_PORT}/api/state" 2>/dev/null
   exit 1
 fi
 
+# 窓の幅は明示する。目次（右の柱）は「読む列を狭めない広さがあるか」で出す/出さないを
+# 決めるので、既定の窓の大きさに任せると環境で結果が変わる。
 "$CHROME" --headless=new --remote-debugging-port="$CDP_PORT" \
   --user-data-dir="$WORK/chrome" --no-first-run --disable-gpu \
+  --window-size=1500,960 \
   about:blank > "$WORK/chrome.log" 2>&1 &
 CHROME_PID=$!
 

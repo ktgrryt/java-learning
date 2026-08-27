@@ -78,6 +78,8 @@
   --radius: 10px;
   --topbar-h: 56px;
   --sidebar-w: 288px;
+  /* 目次の柱の幅。読む列（860px）とサイドバーの合計より窓が広いときだけ出す（app.js） */
+  --toc-w: 210px;
 
   /* エディタの文字寸法。
      textarea・裏の色付け <pre>・行番号の3つで必ず同じ値を使うこと。
@@ -346,6 +348,64 @@ body.view-cafe .stat:not(.stat-cafe) { display: none; }
 }
 
 .lesson-view { max-width: 860px; margin: 0 auto; }
+
+/* ════════════════════════════════════════════════════════════════════
+   目次（レッスン画面の右）
+   ═══════════════════════════════════════════════════════════════════
+
+   サイドバーと同じく position:fixed の柱にしてある。#content の中へ入れると
+   読む列（860px）の外に置き場所が無く、sticky にしても解説の高さに縛られる。
+   出すかどうかは app.js が決める（レッスン画面 + 窓が広いときだけ body.toc-open）。 */
+.toc {
+  position: fixed;
+  top: var(--topbar-h);
+  right: 0;
+  bottom: 0;
+  width: var(--toc-w);
+  padding: 22px 16px 28px 10px;
+  overflow-y: auto;
+  border-left: 1px solid var(--border-soft);
+  background: var(--bg);
+  z-index: 20;
+}
+.toc-title {
+  margin: 0 0 8px 8px;
+  color: var(--text-faint);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+}
+.toc-list { display: flex; flex-direction: column; gap: 1px; }
+.toc-link {
+  display: block;
+  width: 100%;
+  padding: 5px 8px;
+  border: 0;
+  border-left: 2px solid transparent;
+  border-radius: 0 6px 6px 0;
+  background: none;
+  color: var(--text-dim);
+  font-family: inherit;
+  font-size: 12px;
+  line-height: 1.45;
+  text-align: left;
+  cursor: pointer;
+}
+.toc-link:hover { background: var(--bg-elev-2); color: var(--text); }
+/* いま読んでいる段（app.js が付け替える）。色だけでなく左の線でも示す */
+.toc-link[aria-current="true"] {
+  border-left-color: var(--accent);
+  background: var(--bg-elev);
+  color: var(--text);
+  font-weight: 700;
+}
+.toc-link-sub { padding-left: 20px; font-size: 11.5px; }
+/* 問題とクイズは、解説の見出しと見分けが付くように少し離して番号を太く出す */
+.toc-link-task { margin-top: 6px; }
+.toc-link-task b { color: var(--text); font-weight: 700; }
+.toc-link-task small { color: var(--text-faint); font-size: 10.5px; }
+
+body.toc-open .content { padding-right: calc(var(--toc-w) + 12px); }
 .loading { padding: 60px; text-align: center; color: var(--text-dim); }
 
 /* メインメニューでもサイドバーの表示は sidebar-hidden トグルに任せる。

@@ -4458,10 +4458,13 @@
 
     renderQuiz(lesson);
     renderLessonNext(lesson);
+    renderToc(lesson);
     paintedLessonId = lesson.id;
     // 直前に離れたレッスンへ帰ってきたときだけ、読んでいた位置から再開する。
     // 中身の高さが足りなければ入れた値は縮められるが、それはその窓での行き止まりなので任せる。
     main.scrollTop = lessonScroll && lessonScroll.lessonId === lesson.id ? lessonScroll.top : 0;
+    // 目次の印は、位置を戻したあとの見え方で決める（戻す前に測ると必ず先頭になる）
+    updateTocCurrent();
     // しおりから開いたときは、読んでいた位置より「そのクイズ」を優先する
     focusBookmarkedQuiz(lesson);
   }
@@ -4560,6 +4563,157 @@
   }
 
   /** レッスン全体の末尾に置く、次のページへの導線。 */
+  // ------------------------------------------------------------------ 目次
+
+  /*
+   * レッスンの右に出す目次。押すとその段へスクロールし、読んでいる段には印が付く。
+   *
+   * **出すのはレッスン画面だけ**（復習は1問だけを出すので目次にする物が無い）。
+   * 窓が狭いときは出さない ―― 読む列（860px）とサイドバーで埋まるので、柱を足すと
+   * 本文が縮む。しきい値は「サイドバー + 読む列 + 柱 + 余白」で決める（TOC_MIN_WIDTH）。
+   *
+   * 段の見出しは**描いたDOMから拾う**（解説のMarkdownを2回解析しない）。`h2` `h3` に
+   * id を振り、問題は `buildTaskBlock` が付けた `task-<id>` をそのまま使う。
+   */
+  var TOC_READING_WIDTH = 860;   // .lesson-view の max-width と合わせる
+  // #content の余白ぶん（左 32px ＋ 柱との隙間 12px）に、少しの余裕を足した値。
+  // 大きすぎると広い窓でも目次が出ず、小さすぎると読む列が縮む。
+  var TOC_SPARE = 64;
+  var tocLinks = [];          // { button, target } の並び。追従で使う
+  var tocScrollRaf = null;
+
+  /**
+   * 目次を出せる広さがあるか。
+   *
+   * 「窓が何px以上か」ではなく **読む列（860px）を狭めずに置けるか** で決める。
+   * サイドバーを開いていると使える幅がその分減るので、開閉でも判定が変わる。
+   * 寸法は :root から読む（CSSと二重に持たない）。
+   */
+  function tocFits() {
+    var root = getComputedStyle(document.documentElement);
+    var tocWidth = parseFloat(root.getPropertyValue('--toc-w')) || 210;
+    var sidebar = document.body.classList.contains('sidebar-hidden')
+      ? 0
+      : (parseFloat(root.getPropertyValue('--sidebar-w')) || 288);
+    return window.innerWidth - sidebar >= TOC_READING_WIDTH + tocWidth + TOC_SPARE;
+  }
+
+  /** 目次を消す（レッスン以外の画面と、窓が狭いとき）。 */
+  function hideToc() {
+    var host = document.getElementById('toc');
+    if (!host) { return; }
+    host.hidden = true;
+    host.innerHTML = '';
+    tocLinks = [];
+    document.body.classList.remove('toc-open');
+  }
+
+  /** いま描いてあるレッスンから目次を組み立てて出す。 */
+  function renderToc(lesson) {
+    var host = document.getElementById('toc');
+    if (!host) { return; }
+    if (!tocFits()) { hideToc(); return; }
+
+    var entries = [];
+    // 解説の見出し（h2 / h3）
+    var explain = document.querySelector('.card-explain');
+    if (explain) {
+      var index = 0;
+      // 階層はタグではなく class で見る ―― markdown.js は `##` を h3、`###` を h4 として
+      // 描く（見た目の大きさをそろえるため）。`md-h2` / `md-h3` が本文での段の深さである。
+      [].forEach.call(explain.querySelectorAll('.md-h2, .md-h3'), function (head) {
+        index += 1;
+        if (!head.id) { head.id = 'sec-' + index; }
+        entries.push({
+          id: head.id,
+          text: head.textContent.trim(),
+          sub: head.classList.contains('md-h3')
+        });
+      });
+    }
+    // 実行できるサンプル
+    var samples = document.getElementById('samples');
+    if (samples && samples.children.length) {
+      entries.push({ id: 'samples', text: 'サンプル' });
+    }
+    // 問題（パネルの帯に出ている「問題1」と種別をそのまま使う）
+    [].forEach.call(document.querySelectorAll('#tasks .task-block'), function (block) {
+      var no = block.querySelector('.task-no');
+      var kind = block.querySelector('.task-kind');
+      entries.push({
+        id: block.id,
+        text: (no ? no.textContent.trim() : '問題'),
+        note: kind ? kind.textContent.trim() : '',
+        task: true
+      });
+    });
+    // 確認クイズ
+    var quiz = document.getElementById('quiz');
+    if (quiz && quiz.children.length) {
+      entries.push({ id: 'quiz', text: '確認クイズ', task: true });
+    }
+    if (entries.length < 2) { hideToc(); return; }   // 1つだけの目次は案内にならない
+
+    host.innerHTML = '<p class="toc-title">このレッスン</p><div class="toc-list">'
+      + entries.map(function (entry) {
+        return '<button class="toc-link'
+          + (entry.sub ? ' toc-link-sub' : '')
+          + (entry.task ? ' toc-link-task' : '')
+          + '" type="button" data-target="' + esc(entry.id) + '">'
+          + (entry.task ? '<b>' + esc(entry.text) + '</b>' : esc(entry.text))
+          + (entry.note ? ' <small>' + esc(entry.note) + '</small>' : '')
+          + '</button>';
+      }).join('') + '</div>';
+    host.hidden = false;
+    document.body.classList.add('toc-open');
+
+    tocLinks = [].map.call(host.querySelectorAll('.toc-link'), function (button) {
+      var target = document.getElementById(button.dataset.target);
+      button.addEventListener('click', function () { scrollToSection(target); });
+      return { button: button, target: target };
+    });
+    updateTocCurrent();
+  }
+
+  /**
+   * その段の先頭へスクロールする。スクロールしているのは #content なので、
+   * 窓ではなくその中で動かす（offsetTop は #content 基準になる）。
+   */
+  function scrollToSection(target) {
+    var main = document.getElementById('content');
+    if (!target || !main) { return; }
+    var top = target.getBoundingClientRect().top - main.getBoundingClientRect().top
+      + main.scrollTop - 8;
+    // 「動きを控える」設定のときは一気に飛ばす（CSSの @media と同じ扱い）
+    var calm = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    main.scrollTo({ top: Math.max(0, top), behavior: calm ? 'auto' : 'smooth' });
+  }
+
+  /** いちばん上に来ている段へ印を移す。 */
+  function updateTocCurrent() {
+    if (!tocLinks.length) { return; }
+    var main = document.getElementById('content');
+    if (!main) { return; }
+    var line = main.getBoundingClientRect().top + 24;   // この線を越えた最後の段が「いま」
+    var current = tocLinks[0];
+    tocLinks.forEach(function (link) {
+      if (link.target && link.target.getBoundingClientRect().top <= line) { current = link; }
+    });
+    tocLinks.forEach(function (link) {
+      if (link === current) { link.button.setAttribute('aria-current', 'true'); }
+      else { link.button.removeAttribute('aria-current'); }
+    });
+  }
+
+  /** スクロールのたびに走るので、1フレームに1回へ間引く。 */
+  function onContentScroll() {
+    if (tocScrollRaf || !tocLinks.length) { return; }
+    tocScrollRaf = requestAnimationFrame(function () {
+      tocScrollRaf = null;
+      updateTocCurrent();
+    });
+  }
+
   function renderLessonNext(lesson) {
     var host = document.getElementById('lessonNext');
     var next = nextLesson(lesson.id);
@@ -6598,6 +6752,8 @@
       // サイドバーはメニュー画面でも描いておく（☰で開けるように）。
       renderSidebar();
     }
+    // 目次はレッスン画面だけのもの。ほかの画面へ移る前に消す（renderLesson が出し直す）
+    if (currentView !== 'lesson') { hideToc(); }
     if (currentView === 'menu') {
       renderMenu();
     } else if (currentView === 'cafe') {
@@ -6813,6 +6969,11 @@
     // 開いた瞬間に初めて寸法が測れるようになる。閉じている間の描画ではスクロール
     // できていないので、ここで目印の単元まで寄せる。
     if (!hidden) { scrollSidebarToFocus(); }
+    // 使える幅が変わるので、目次を出せるかを見直す（読む列を狭めないのが条件）
+    if (currentView === 'lesson') {
+      var lesson = findLesson(currentId);
+      if (lesson) { renderToc(lesson); } else { hideToc(); }
+    }
   }
   document.getElementById('sidebarToggle').addEventListener('click', function () {
     setSidebarHidden(!isSidebarHidden());
@@ -7274,7 +7435,14 @@
   });
   window.addEventListener('resize', function () {
     requestAnimationFrame(repositionOnboardingTour);
+    // 窓の幅が変わったら目次を出し直す（狭くなったら消し、広くなったら戻す）
+    if (currentView === 'lesson') {
+      var lesson = findLesson(currentId);
+      if (lesson) { renderToc(lesson); } else { hideToc(); }
+    }
   });
+  // 読んでいる段の印を追従させる。#content がスクロールしている要素
+  document.getElementById('content').addEventListener('scroll', onContentScroll, { passive: true });
 
   function beaconCafePassiveStop() {
     var sessionId = cafePassiveSessionId;

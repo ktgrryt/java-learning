@@ -1696,6 +1696,50 @@ const HELPERS = `window.__t = {
   check(!!stepBack.third && stepBack.third.forward.indexOf('次の問題へ') >= 0,
     '戻ったあとも前へ進める（行き止まりにならない）', stepBack.third);
 
+  // ── 目次（右の柱）──────────────────────────────────────────────
+  //
+  // 押した段の先頭へ #content が動くこと、読んでいる段に印が移ることを見る。
+  // 出す条件は「読む列（860px）を狭めない広さがあるか」なので、窓を広げてから確かめる。
+  // **レッスン画面へ戻してから見る** ―― 直前の節は復習（1問だけ）で、そこでは目次を出さない。
+  await open(`#${LESSON}`);
+  const toc = await ev(`(async () => {
+    const before = { width: window.innerWidth, hidden: document.getElementById('toc').hidden };
+    const host = document.getElementById('toc');
+    if (host.hidden) { return { skipped: true, before: before }; }
+    const links = [].slice.call(host.querySelectorAll('.toc-link'));
+    const labels = links.map(b => b.textContent.trim().replace(/\s+/g, ' '));
+    const main = document.getElementById('content');
+    main.scrollTop = 0;
+    await window.__t.sleep(200);
+    const first = (host.querySelector('.toc-link[aria-current="true"]') || {}).textContent || '';
+    // 問題の項目を押すと、その問題の帯が窓の上へ来る
+    const taskLink = links.filter(b => /問題/.test(b.textContent))[0];
+    if (!taskLink) { return { labels: labels, error: '問題の項目が無い' }; }
+    taskLink.click();
+    await window.__t.until(() => main.scrollTop > 40 ? true : null);
+    await window.__t.sleep(400);
+    const id = taskLink.dataset.target;
+    const head = document.querySelector('#' + id + ' .task-block-head') || document.getElementById(id);
+    const offset = Math.round(head.getBoundingClientRect().top - main.getBoundingClientRect().top);
+    return {
+      labels: labels,
+      first: first.trim().replace(/\s+/g, ' '),
+      jumped: main.scrollTop > 40,
+      offset: offset,
+      current: ((host.querySelector('.toc-link[aria-current="true"]') || {}).textContent || '')
+        .trim().replace(/\s+/g, ' ')
+    };
+  })()`);
+  if (toc.skipped) {
+    check(false, '目次が出ている（窓が狭いと出ない設計だが、この検査では出したい）', toc);
+  } else {
+    check(!toc.error && toc.labels.length >= 2 && toc.labels.some(l => /問題1/.test(l)),
+      '目次に解説の見出しと「問題1」が並ぶ', toc.labels);
+    check(toc.jumped && Math.abs(toc.offset) <= 24,
+      '目次を押すとその段の先頭へスクロールする', { offset: toc.offset, jumped: toc.jumped });
+    check(/問題/.test(toc.current), '読んでいる段へ印が移る', { first: toc.first, current: toc.current });
+  }
+
   // ── クイズで章が終わったときも、お祝いのカードと「次の章へ進む」が出る ────────
   //
   // 章クリアは**問題で終わる場合とクイズで終わる場合**があり、以前は後者だけ1行の短い通知で、
@@ -1832,6 +1876,7 @@ const HELPERS = `window.__t = {
     + `クイズのしおり・サイドバーの検索・試しに実行と入力欄・`
     + `報酬の通知の表示/非表示・「もう理解した」の先送りと取り消し・`
     + `クイズで章が終わった回のお祝いのカードと「次の章へ進む」・`
+    + `目次（押した段へスクロール・読んでいる段の印）・`
     + `📣を所持したあとの表示を確認しました${RESET}`);
 })().catch(e => {
   console.error(`${RED}検査を実行できませんでした: ${e.message}${RESET}`);
