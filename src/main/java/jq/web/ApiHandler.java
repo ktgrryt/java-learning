@@ -29,6 +29,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -947,6 +948,30 @@ public final class ApiHandler implements HttpHandler {
             m.put("chapterTitle", chapter.title());
             m.put("chapterNumber", chapter.partNumber());
         }
+        // 章が終わった回は「次の章へ進む」の行き先も返す。問題で終わったときと同じカードを
+        // 出せるようにするため（→ `web/app.js` の showChapterClearNotification）。
+        if (chapterNow) {
+            Curriculum.TaskRef next = taskAfterChapter(c, chapter);
+            m.put("next", next == null ? null : next.toJson());
+        }
+    }
+
+    /**
+     * その章の最後の問題の、次の問題（＝次の章の1問目）。最後の章なら null。
+     *
+     * <p>問題を提出したときは {@code Curriculum#nextTask} で足りるが、クイズには問題IDが
+     * 無いので、章に属する問題のうち出題順でいちばん後ろのものを探してから次を取る。</p>
+     */
+    private static Curriculum.TaskRef taskAfterChapter(Curriculum c, Chapter chapter) {
+        Set<String> keys = new HashSet<>(chapterTaskKeys(chapter));
+        List<Curriculum.TaskRef> order = c.taskOrder();
+        int last = -1;
+        for (int i = 0; i < order.size(); i++) {
+            if (keys.contains(order.get(i).key())) {
+                last = i;
+            }
+        }
+        return (last >= 0 && last + 1 < order.size()) ? order.get(last + 1) : null;
     }
 
     /**

@@ -63,21 +63,25 @@ CDP_PORT="${JQ_LEARN_CDP_PORT:-9353}"
 # 進捗を1台で作り替えることはできない（サーバは停止時に書き戻すので、動かしながら
 # ファイルを差し替えても元へ戻る）。1台目は止めず、別のポートと別の進捗で並べて立てる。
 OWNED_PORT="$((APP_PORT + 1))"
+# 3台目（章クリアの一手前の進捗）。クイズで章が終わったときのカードを見る
+CLEAR_PORT="$((APP_PORT + 2))"
 
 cleanup() {
   if [[ "$KEEP_OPEN" == "1" ]]; then
     echo ""
     echo "残してあります: http://localhost:${APP_PORT}/#1-1 （進捗は ${WORK}/progress.json）"
     echo "📣を所持している側: http://localhost:${OWNED_PORT}/#review"
-    echo "止めるときは: kill ${APP_PID:-} ${OWNED_PID:-} ${CHROME_PID:-}"
+    echo "止めるときは: kill ${APP_PID:-} ${OWNED_PID:-} ${CLEAR_PID:-} ${CHROME_PID:-}"
     return
   fi
   [[ -n "${APP_PID:-}" ]] && kill "$APP_PID" 2>/dev/null || true
   [[ -n "${OWNED_PID:-}" ]] && kill "$OWNED_PID" 2>/dev/null || true
+  [[ -n "${CLEAR_PID:-}" ]] && kill "$CLEAR_PID" 2>/dev/null || true
   [[ -n "${CHROME_PID:-}" ]] && kill "$CHROME_PID" 2>/dev/null || true
   # Chromeがプロファイルを掴んだまま消すと消し残るので、終わるのを待ってから片付ける
   wait "$APP_PID" 2>/dev/null || true
   wait "$OWNED_PID" 2>/dev/null || true
+  wait "$CLEAR_PID" 2>/dev/null || true
   wait "$CHROME_PID" 2>/dev/null || true
   rm -rf "$WORK"
 }
@@ -175,4 +179,75 @@ if ! curl -fsS -o /dev/null "http://localhost:${OWNED_PORT}/api/state" 2>/dev/nu
   exit 1
 fi
 
-node tools/check_learn_ui.js "$APP_PORT" "$CDP_PORT" "$OWNED_PORT"
+# ── 3台目（章クリアの一手前の進捗）───────────────────────────────────────
+#
+# **クイズで章が終わったとき**の知らせを見る。第1章の問題を全部クリアし、確認クイズも
+# 最後の1問だけ残した状態を作る。その1問へ答えると章クリアが成立するので、お祝いのカードと
+# 「次の章へ進む」が出るかをその回で確かめられる（2026-08-27まで、この経路は1行の短い
+# 通知だけで、導線も無く5秒で消えていた）。
+mkdir -p "$WORK/clear"
+ln -s "$ROOT/content" "$WORK/clear/content"
+ln -s "$ROOT/web" "$WORK/clear/web"
+ln -s "$ROOT/labs" "$WORK/clear/labs"
+python3 - "$WORK/clear" <<'SEED'
+import json, sys
+
+# 問題の★だけを置く。**クイズの回答はここへ書かない** ―― 進捗ファイルのクイズキーは
+# 読み込み時に読み替えられる（ProgressStore の QUIZ_MOVES）ので、印を立てずに書くと
+# 別の問いの回答として移ってしまう。クイズはサーバが起きたあとAPIで答える（下）。
+work = sys.argv[1]
+chapter = json.load(open('content/ch01-hello.json', encoding='utf-8'))
+cleared = {}
+for lesson in chapter['lessons']:
+    tasks = ([lesson] if lesson.get('task') is not None else []) + list(lesson.get('extraTasks') or [])
+    for index, _ in enumerate(tasks, start=1):
+        cleared[f"{lesson['id']}#{index}"] = {
+            'clearedAt': '2026-08-10', 'hintsUsed': 0, 'attempts': 1}
+json.dump({'onboardingCompleted': True, 'cleared': cleared, 'clearDates': ['2026-08-10'],
+           'cafe': {'economyVersion': 2, 'cash': 0}},
+          open(f'{work}/progress.json', 'w'), ensure_ascii=False)
+SEED
+
+if curl -fsS -o /dev/null "http://localhost:${CLEAR_PORT}/api/state" 2>/dev/null; then
+  echo "ポート ${CLEAR_PORT} で既に何かが応答しています（章クリアの検査に使います）。" >&2
+  echo "  止めるなら: lsof -ti:${CLEAR_PORT} | xargs kill" >&2
+  exit 1
+fi
+(cd "$WORK/clear" && exec "$JQ_JAVA" -Dfile.encoding=UTF-8 -cp "$ROOT/build/classes" \
+  jq.App --port "$CLEAR_PORT" --exact-port > "$WORK/clear-server.log" 2>&1) &
+CLEAR_PID=$!
+for _ in $(seq 1 40); do
+  curl -fsS -o /dev/null "http://localhost:${CLEAR_PORT}/api/state" 2>/dev/null && break
+  sleep 0.5
+done
+if ! curl -fsS -o /dev/null "http://localhost:${CLEAR_PORT}/api/state" 2>/dev/null; then
+  echo "3台目のサーバを起動できませんでした。${WORK}/clear-server.log を見てください。" >&2
+  cat "$WORK/clear-server.log" >&2
+  exit 1
+fi
+
+# 第1章のクイズを、**最後の1問だけ残して**APIで答える。正誤は見ない判定なので選択肢は0でよい。
+# APIを通すのは、進捗ファイルへ直接書くとキーの読み替えで別の問いへ移ってしまうため。
+python3 - "$CLEAR_PORT" <<'PRIME'
+import json, sys, urllib.request
+
+port = sys.argv[1]
+state = json.load(urllib.request.urlopen(f'http://localhost:{port}/api/state'))
+quizzes = []
+for chapter in state['chapters']:
+    if chapter['id'] != 'ch01':
+        continue
+    for lesson in chapter['lessons']:
+        for index, _ in enumerate(lesson.get('quizzes') or []):
+            quizzes.append((lesson['id'], index))
+if len(quizzes) < 2:
+    raise SystemExit('第1章のクイズが2問未満です（検査の前提が崩れています）')
+for lesson_id, index in quizzes[:-1]:
+    body = json.dumps({'lessonId': lesson_id, 'index': index, 'choice': 0}).encode()
+    request = urllib.request.Request(f'http://localhost:{port}/api/quiz', data=body,
+                                     headers={'Content-Type': 'application/json'})
+    urllib.request.urlopen(request).read()
+print(f'残した1問: {quizzes[-1][0]}#{quizzes[-1][1]}')
+PRIME
+
+node tools/check_learn_ui.js "$APP_PORT" "$CDP_PORT" "$OWNED_PORT" "$CLEAR_PORT"

@@ -5149,8 +5149,9 @@
         // いるので、金額は出さない（コインの通知と二重にならないよう短い知らせにする）。
         if (res.chapterCleared) {
           dropConfetti();
-          toast('🎉 第' + res.chapterNumber + '章クリア！「' + res.chapterTitle
-            + '」の問題と確認クイズをすべて終えました。');
+          showChapterClearNotification({
+            number: res.chapterNumber, title: res.chapterTitle, next: res.next
+          });
         } else if (res.lessonCleared) {
           if (lesson && lessonId === currentId) { markLessonCleared(lesson); }
           toast('★ ' + (lesson ? lesson.title : '') + ' をクリアしました（確認クイズまで完了）。');
@@ -5993,6 +5994,43 @@
     enqueueNotification(notification);
   }
 
+  /**
+   * クイズで章が終わった回に出す、金額の無い章クリアのカード。
+   *
+   * <p>報酬（★・コイン・章制覇ボーナス）は問題側で払い終えているので金額は出さない。
+   * それでも**問題で終わったときと同じ見た目**にするのは、お祝いと「次の章へ進む」の導線が
+   * 経路によって消えるのを避けるため（2026-08-27・利用者の指摘「クイズで全部終わったときは
+   * 演出が出ない」）。以前は1行の短い通知だけで、5秒で消え、次への導線も無かった。</p>
+   *
+   * <p>コインの獲得履歴（📒）へは記録しない ―― 1コインも動いていないため。</p>
+   */
+  function showChapterClearNotification(options) {
+    enqueueNotification({
+      type: 'reward',
+      moneyless: true,
+      kicker: '章クリア',
+      title: '確認クイズまで終えました',
+      label: '',
+      cash: 0,
+      cups: 0,
+      balance: 0,
+      newStar: false,
+      chapter: {
+        number: options.number,
+        title: options.title || '',
+        summary: '「' + (options.title || '') + '」の問題と確認クイズをすべて終えました。',
+        bonusCash: 0,
+        brandBefore: 0,
+        brandAfter: 0,
+        next: options.next || null
+      },
+      levelUp: null,
+      events: [],
+      // 章クリアは節目なので時間では消さない（画面を移れば閉じる → render）
+      duration: 0
+    });
+  }
+
   /** 従来の短い操作結果も同じ右上通知へ送り、同時発生時の上書きを防ぐ。 */
   function toast(message) {
     enqueueNotification({ type: 'message', message: String(message), duration: 5000 });
@@ -6050,7 +6088,8 @@
       var chapterHtml = notification.chapter
         ? '<div class="toast-chapter"><span>🎉 第'
           + numberText(notification.chapter.number) + '章クリア！</span>'
-          + '<b>「' + esc(notification.chapter.title) + '」を全問クリアしました。</b>'
+          + '<b>' + esc(notification.chapter.summary
+            || ('「' + notification.chapter.title + '」を全問クリアしました。')) + '</b>'
           + chapterDetails.map(function (line) {
             return '<em>' + line + '</em>';
           }).join('') + '</div>'
@@ -6071,18 +6110,26 @@
           return '<span>✨ ' + esc(event) + '</span>';
         }).join('') + '</div>'
         : '';
+      // クイズで章が終わった回は、報酬を問題側で払い終えているので金額の段を出さない
+      // （出すと同じコインを2回もらったように読める）。お祝いと導線だけを残す。
+      var moneyHtml = notification.moneyless
+        ? ''
+        : '<div class="toast-earned"><span class="toast-earned-icon" aria-hidden="true">🪙</span>'
+          + '<div><small>獲得コイン</small><strong><b>+' + numberText(notification.cash)
+          + '</b><span>コイン</span></strong></div></div>'
+          + (stats.length ? '<div class="toast-stats">' + stats.join('') + '</div>' : '');
+      var balanceHtml = notification.moneyless
+        ? ''
+        : '<div class="toast-balance"><span>現在の残高</span><b>'
+          + numberText(notification.balance) + 'コイン</b></div>';
       el.innerHTML = '<div class="toast-head">'
         + '<div class="toast-title"><small>' + esc(notification.kicker)
         + '</small><strong>' + esc(notification.title) + '</strong></div>'
         + toastCloseButtonHtml() + '</div>'
         + (notification.label ? '<p class="toast-label">' + esc(notification.label) + '</p>' : '')
-        + '<div class="toast-earned"><span class="toast-earned-icon" aria-hidden="true">🪙</span>'
-        + '<div><small>獲得コイン</small><strong><b>+' + numberText(notification.cash)
-        + '</b><span>コイン</span></strong></div></div>'
-        + (stats.length ? '<div class="toast-stats">' + stats.join('') + '</div>' : '')
+        + moneyHtml
         + chapterHtml + levelHtml + eventsHtml
-        + '<div class="toast-balance"><span>現在の残高</span><b>'
-        + numberText(notification.balance) + 'コイン</b></div>'
+        + balanceHtml
         + actionHtml;
     } else {
       el.innerHTML = '<div class="toast-message-body"><span>' + esc(notification.message) + '</span>'

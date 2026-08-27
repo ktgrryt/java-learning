@@ -32,6 +32,7 @@ const CDP = process.argv[3];
  * 無ければその節を省く（この検査を手で走らせたときのため）。
  */
 const OWNED_PORT = process.argv[4];
+const CLEAR_PORT = process.argv[5];
 const GREEN = '\x1b[32m', RED = '\x1b[31m', RESET = '\x1b[0m';
 
 /** 検査対象の問題。`1-1` は最初のレッスン（Hello, Java!）。 */
@@ -1695,6 +1696,62 @@ const HELPERS = `window.__t = {
   check(!!stepBack.third && stepBack.third.forward.indexOf('次の問題へ') >= 0,
     '戻ったあとも前へ進める（行き止まりにならない）', stepBack.third);
 
+  // ── クイズで章が終わったときも、お祝いのカードと「次の章へ進む」が出る ────────
+  //
+  // 章クリアは**問題で終わる場合とクイズで終わる場合**があり、以前は後者だけ1行の短い通知で、
+  // 「次の章へ進む」も無く5秒で消えていた（2026-08-27に利用者から「演出が出ない」と指摘）。
+  // 報酬は問題側で払い終えているので**金額の段は出さない**のが正しい ―― そこも一緒に見る。
+  if (CLEAR_PORT) {
+    // 未回答が1問だけ残っているレッスンを state から探して開く（残る位置は教材で変わる）
+    await open('#menu', CLEAR_PORT);
+    const pending = await ev(`(async () => {
+      const state = await (await fetch('/api/state')).json();
+      for (const chapter of state.chapters) {
+        if (chapter.id !== 'ch01') { continue; }
+        for (const lesson of chapter.lessons) {
+          const results = lesson.quizResults || [];
+          const index = results.findIndex(r => !r);
+          if (index >= 0) { return { lessonId: lesson.id, index: index, pendingCount: results.filter(r => !r).length }; }
+        }
+      }
+      return null;
+    })()`);
+    check(!!pending && pending.pendingCount === 1,
+      '第1章に未回答の確認クイズが1問だけ残っている（この検査の前提）', pending);
+    await open('#' + (pending ? pending.lessonId : '1-3'), CLEAR_PORT);
+    const pendingIndex = pending ? pending.index : 0;
+    const cleared = await ev(`(async () => {
+      let confetti = 0;
+      const host = document.getElementById('confetti');
+      new MutationObserver(() => {
+        confetti = Math.max(confetti, host.querySelectorAll('i').length);
+      }).observe(host, { childList: true });
+      const items = [].slice.call(document.querySelectorAll('.quiz-item'));
+      const target = items[${pendingIndex}];
+      if (!target) { return { error: 'クイズが描かれていない' }; }
+      target.querySelectorAll('.quiz-choice')[0].click();
+      const toast = document.getElementById('toast');
+      await window.__t.until(() => toast.classList.contains('show') ? true : null);
+      await window.__t.sleep(600);
+      return {
+        type: toast.className,
+        chapter: ((toast.querySelector('.toast-chapter') || {}).textContent || '').trim(),
+        next: !!toast.querySelector('[data-role="next"]'),
+        earned: !!toast.querySelector('.toast-earned'),
+        balance: !!toast.querySelector('.toast-balance'),
+        confetti: confetti
+      };
+    })()`);
+    check(!cleared.error && /toast-reward/.test(cleared.type || ''),
+      'クイズで章が終わった回も、お祝いのカードで知らせる', cleared);
+    check(cleared.chapter.indexOf('🎉') >= 0 && cleared.chapter.indexOf('章クリア') >= 0,
+      'カードに「第N章クリア」の段がある', cleared.chapter);
+    check(cleared.next === true, '「次の章へ進む」の導線がある', cleared.next);
+    check(cleared.earned === false && cleared.balance === false,
+      '金額の段は出さない（報酬は問題側で払い終えている）', cleared);
+    check(cleared.confetti > 0, '紙吹雪も降る', cleared.confetti);
+  }
+
   // ── 📣の解放条件は誰にも出さない（2026-08-22に所持者へ、2026-08-26に全員へ）──────
   //
   // 「連続 N / 12問」は📣ひらめきメガホンまでの進み具合で、**まだ手に入れていない
@@ -1774,6 +1831,7 @@ const HELPERS = `window.__t = {
     + `途中で抜けたセットの「続きから」・1つ前の問題へ戻る・復習の最後に続くクイズ・`
     + `クイズのしおり・サイドバーの検索・試しに実行と入力欄・`
     + `報酬の通知の表示/非表示・「もう理解した」の先送りと取り消し・`
+    + `クイズで章が終わった回のお祝いのカードと「次の章へ進む」・`
     + `📣を所持したあとの表示を確認しました${RESET}`);
 })().catch(e => {
   console.error(`${RED}検査を実行できませんでした: ${e.message}${RESET}`);
