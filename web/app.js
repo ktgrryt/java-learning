@@ -37,6 +37,10 @@
   // 帰り方が違うから ―― レッスンは selectLesson で開けるが、復習はセットの何問目か
   // （reviewSession）ごと戻さないと帯が「3 / 4問」を出せない（→ goLearning）。
   var paintedReview = null;      // いま #content に描いてある復習 { lessonId, taskId, quiz }
+  // いま描いてある画面の鍵（画面／レッスン／復習の問題）。**画面を移ったかどうか**を見るためだけに
+  // 持つ。render() は採点や自動保存のあとにも同じ画面をもう一度描くので、「render が呼ばれた」を
+  // 画面遷移と見なすと、出したばかりの報酬の通知をその場で消してしまう。
+  var paintedScreenKey = null;
   var cafeReturnReview = null;   // カフェの「📚 学習」で帰る復習（寄り道でなければ null）
   var editors = {};        // 問題ID -> エディタ（1レッスンに複数問あるので複数持つ）
   var saveTimers = {};     // 問題ID -> 自動保存のタイマー
@@ -6523,6 +6527,14 @@
       reviewTaskId = null;
     }
     if (currentView !== 'reviewTask') { reviewSession = null; }
+
+    // 画面を移ったら、右上の通知は残さない（2026-08-27・利用者の指摘）。
+    // 章クリアの通知は自動で消さない作り（`duration` なし。「次の章へ進む」の導線がここにしか
+    // 無いため）なので、閉じずに別の画面へ行くと出たままになっていた。**同じ画面を描き直した
+    // ときは閉じない** ―― 採点の直後にも render() を通るので、閉じると報酬の通知が読めない。
+    var screenKey = currentView + '\u0000' + (currentId || '') + '\u0000' + (reviewTaskId || '');
+    if (paintedScreenKey !== null && paintedScreenKey !== screenKey) { dismissNotification(); }
+    paintedScreenKey = screenKey;
 
     var isHub = currentView !== 'lesson' && currentView !== 'reviewTask';
     document.body.classList.toggle('view-menu', isHub);
