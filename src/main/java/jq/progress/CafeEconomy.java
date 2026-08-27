@@ -68,6 +68,11 @@ final class CafeEconomy {
         this.saver = saver;
     }
 
+    // 33: 複数ファイルのlabを3問足した（基礎編のパッケージ境界・モジュール、実践編のロケール）。
+    //     必須問題が680→683へ増え、1問ぶんの報酬が積み上がるほうが先に効いて投資率が
+    //     23.73%（下限25%割れ）へ落ちたので、終盤改装の基準額を 3,000億→4,200億 へ上げた。
+    //     ★683では改装は9段目のままなので跳ねる側は動かず、上限側は余裕がある
+    //     （plain 27.04% / ラッキーコイン未解放 36.48%）。傾き（1.2倍）は触っていない。
     // 32: 📣ひらめきメガホンの解放を **12問連続 → 10問連続** へ緩めた（依頼「入手条件が
     //     結構難しい」）。1セット3問なので、必要なセット数が5→4へ1つ減る。31と同じ理由で
     //     初回答の連続も同じ数にしてある（片方だけ緩めるとカードに数字が2つ並ぶ）。
@@ -156,7 +161,7 @@ final class CafeEconomy {
     //     574問すべて外れても投資率45%以内になるよう、終盤改装の基準額を450億へ下げた。
     // 20: ラッキーコインを「頻繁な小当たり」から「5%の大当たり」へ変更し、価格を77,777にした。
     //     期待売上が下がるぶん、全購入時の投資率を範囲内へ戻すため終盤改装の基準額も下げた。
-    private static final int CAFE_ECONOMY_VERSION = 32;
+    private static final int CAFE_ECONOMY_VERSION = 33;
     private static final int CUP_PRICE = 500;
     private static final int MAX_CAFE_STORES = 512;
     private static final long FIRST_EXPANSION_COST = 2_500L;
@@ -311,10 +316,15 @@ final class CafeEconomy {
      * こんどは下限25%へ寄るので、2,000億→3,000億へ上げて戻している。
      * 上げすぎると最初の1段（★520）だけが重くなるので、傾きで直せない分だけにする。</p>
      *
+     * <p>2026-08-27に 3,000億→4,200億 へ上げた。複数ファイルのlabを3問足して★が680→683へ増え、
+     * <b>1問ぶんの報酬が積み上がるほうが先に効いて</b>投資率が 23.73%（下限25%割れ）へ落ちたため。
+     * ★683では9段目のままなので跳ねる側は動かず、上限側は余裕がある
+     * （実測: plain 27.04%、ラッキーコイン未解放 36.48%）。</p>
+     *
      * <p>触ったら {@code tools/simulate-cafe.sh} を通すこと。plainより先に、
      * ラッキーコイン未解放（生涯売上が最も小さい）の投資率が上限45%へ当たる。</p>
      */
-    private static final long ENDGAME_INVESTMENT_BASE_COST = 300_000_000_000L;
+    private static final long ENDGAME_INVESTMENT_BASE_COST = 420_000_000_000L;
     private static final long ENDGAME_INVESTMENT_STEP_NUMERATOR = 6L;
     private static final long ENDGAME_INVESTMENT_STEP_DENOMINATOR = 5L;
     /*

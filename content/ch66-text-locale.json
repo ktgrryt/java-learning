@@ -146,7 +146,7 @@
       "objectiveIds": [
         "ch66-o2"
       ],
-      "explanation": "## 表示と言語をコードから分離する\n\n同じ値でも表示は地域で変わります。`NumberFormat` は数値・通貨・百分率をLocaleに合わせて整形します。内部計算値までローカライズされた文字列で持たず、境界でだけ変換します。\n\n```java\nNumberFormat nf = NumberFormat.getNumberInstance(Locale.US);\nSystem.out.println(nf.format(1234567)); // 1,234,567\n```\n\nメッセージは `ResourceBundle` へ分けると、コードを変えずに言語を切り替えられます。実プロジェクトでは `messages_ja.properties`、`messages_en.properties` のようなresourcesを使います。`MessageFormat` は `{0}` へ値を埋め込みます。大文字小文字変換のように言語非依存の機械処理では `Locale.ROOT` を明示します。\n\n### 同じ値が、地域で違う見た目になる\n\n```java\ndouble amount = 1234567.891;\nfor (Locale loc : List.of(Locale.JAPAN, Locale.US, Locale.GERMANY)) {\n    System.out.println(loc + \" \" + NumberFormat.getNumberInstance(loc).format(amount)\n            + \"  \" + NumberFormat.getCurrencyInstance(loc).format(amount));\n}\n```\n\n```\nja_JP 1,234,567.891  ￥1,234,568\nen_US 1,234,567.891  $1,234,567.89\nde_DE 1.234.567,891  1.234.567,89 €\n```\n\nドイツ語圏では **小数点がカンマ、桁区切りがピリオド** です。日本の通貨表示は\n小数を持たないので、`1,234,568` へ丸められています。同じ `double` でも、\nどう見せるかは地域の規則で決まります。\n\nパーセントも既定では整数に丸められます。\n\n```java\nNumberFormat.getPercentInstance(Locale.JAPAN).format(0.075);   // 8%\n```\n\n### 大文字化にも地域がある\n\n```java\n\"istanbul\".toUpperCase(Locale.forLanguageTag(\"tr\"));   // İSTANBUL（点付きのI）\n\"istanbul\".toUpperCase(Locale.ROOT);                   // ISTANBUL\n```\n\nトルコ語では `i` の大文字が `İ` です。そのため **識別子の比較を\n`toUpperCase()`（引数なし）でやると、地域によって結果が変わります**。\n\n> ⚠️ 間違えやすい点 … 引数なしの `toUpperCase()` / `toLowerCase()` は既定ロケールに\n> 依存します。**表示のためなら利用者のロケール、比較や識別のためなら `Locale.ROOT`** を\n> 明示的に渡します。\n> 文言そのものは `ResourceBundle`（`messages_ja.properties` など）へ出し、\n> コードに埋め込まないようにします。",
+      "explanation": "## 表示と言語をコードから分離する\n\n同じ値でも表示は地域で変わります。`NumberFormat` は数値・通貨・百分率をLocaleに合わせて整形します。内部計算値までローカライズされた文字列で持たず、境界でだけ変換します。\n\n```java\nNumberFormat nf = NumberFormat.getNumberInstance(Locale.US);\nSystem.out.println(nf.format(1234567)); // 1,234,567\n```\n\nメッセージは `ResourceBundle` へ分けると、コードを変えずに言語を切り替えられます。実プロジェクトでは `messages_ja.properties`、`messages_en.properties` のようなresourcesを使います。`MessageFormat` は `{0}` へ値を埋め込みます。大文字小文字変換のように言語非依存の機械処理では `Locale.ROOT` を明示します。\n\n### 同じ値が、地域で違う見た目になる\n\n```java\ndouble amount = 1234567.891;\nfor (Locale loc : List.of(Locale.JAPAN, Locale.US, Locale.GERMANY)) {\n    System.out.println(loc + \" \" + NumberFormat.getNumberInstance(loc).format(amount)\n            + \"  \" + NumberFormat.getCurrencyInstance(loc).format(amount));\n}\n```\n\n```\nja_JP 1,234,567.891  ￥1,234,568\nen_US 1,234,567.891  $1,234,567.89\nde_DE 1.234.567,891  1.234.567,89 €\n```\n\nドイツ語圏では **小数点がカンマ、桁区切りがピリオド** です。日本の通貨表示は\n小数を持たないので、`1,234,568` へ丸められています。同じ `double` でも、\nどう見せるかは地域の規則で決まります。\n\nパーセントも既定では整数に丸められます。\n\n```java\nNumberFormat.getPercentInstance(Locale.JAPAN).format(0.075);   // 8%\n```\n\n### 大文字化にも地域がある\n\n```java\n\"istanbul\".toUpperCase(Locale.forLanguageTag(\"tr\"));   // İSTANBUL（点付きのI）\n\"istanbul\".toUpperCase(Locale.ROOT);                   // ISTANBUL\n```\n\nトルコ語では `i` の大文字が `İ` です。そのため **識別子の比較を\n`toUpperCase()`（引数なし）でやると、地域によって結果が変わります**。\n\n> ⚠️ 間違えやすい点 … 引数なしの `toUpperCase()` / `toLowerCase()` は既定ロケールに\n> 依存します。**表示のためなら利用者のロケール、比較や識別のためなら `Locale.ROOT`** を\n> 明示的に渡します。**このレッスンの最後の問題では、同じコードを3つの環境で走らせて\n> 「変わらないこと」を確かめます。**\n> 文言そのものは `ResourceBundle`（`messages_ja.properties` など）へ出し、\n> コードに埋め込まないようにします。",
       "samples": [
         {
           "caption": "地域別の数値表示",
@@ -238,6 +238,37 @@
               "minimum": 1,
               "message": "`{0}` へ名前を埋めるのは `MessageFormat.format` です。文字列連結で組み立てると、語順の違う言語に対応できません。"
             }
+          ]
+        },
+        {
+          "objectiveIds": [
+            "ch66-o2"
+          ],
+          "kind": "applied",
+          "type": "project",
+          "task": "【複数ファイル演習】`labs/text-locale/receipt-exercise` で、**どのロケールで動かしても同じ1行になる**領収書を作ります。解説の「引数なしの `toUpperCase()` は既定ロケールに依存します」を、実際に確かめます。（ファイルの木の使い方は基礎編の第10章の演習と同じです。）\n\n編集するのは `src/cafe/report/Receipt.java` の1ファイルで、直すのは2か所です。\n\n| TODO | 直すところ |\n|---|---|\n| ① | 曜日の言語。`ofPattern` に `Locale` を渡して日本語に固定する |\n| ② | 大文字化と桁区切り。`Locale.ROOT` を渡す（桁区切りは `String.format` でも `NumberFormat` でもよい） |\n\n採点では、**同じ `.class` を3つのロケールで走らせて出力を比べます**。`java -Duser.language=… -Duser.country=…` を切り替えるので、明示していないところがあると必ず出ます。\n\n| ロケール | ひな形のまま |\n|---|---|\n| `ja_JP` | 通る（自分の環境では正しく見える） |\n| `en_US` | 曜日が `(木)` ではなく **`(Thu)`** になる |\n| `tr_TR` | `ISHIDA` が **`İSHİDA`**、桁区切りが **`1.234.567`** になる |\n\n3つのロケールすべてで `2026/01/01(木) ISHIDA 1,234,567円` から始まる同じ2行になれば合格です。最後に参考として、何も明示しない書き方（`Loose`）を同じ3ロケールで走らせた結果も出ます（採点対象外）。",
+          "project": {
+            "name": "receipt-exercise",
+            "source": "labs/text-locale/receipt-exercise",
+            "exclude": [
+              "reference"
+            ],
+            "command": [
+              "./run-tests.sh"
+            ],
+            "timeoutSeconds": 60,
+            "verification": "同じコードを ja_JP / en_US / tr_TR の3ロケールで走らせて、4つの確認がすべて通る（出力が3ロケールで一致する）",
+            "editableFiles": [
+              {
+                "path": "src/cafe/report/Receipt.java",
+                "solutionPath": "reference/src/cafe/report/Receipt.java"
+              }
+            ]
+          },
+          "hints": [
+            "`DateTimeFormatter.ofPattern(パターン, Locale.JAPAN)` のように、`ofPattern` は `Locale` を受け取れます。",
+            "`toUpperCase(Locale.ROOT)` です。トルコ語では `i` の大文字が `İ` になるので、識別や比較のための大文字化は必ずロケールを渡します。",
+            "桁区切りは `String.format(Locale.ROOT, \"%,d\", 金額)`、または `NumberFormat.getNumberInstance(Locale.JAPAN).format(金額)` です。トルコ語では桁区切りが `.` になります。"
           ]
         }
       ],

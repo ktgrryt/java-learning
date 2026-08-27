@@ -6,7 +6,7 @@
   "objectives": [
     {
       "id": "ch20-o1",
-      "text": "`import` と `import static` を使い分け、`*` では読み込めないクラスを完全修飾名で書ける"
+      "text": "`import` と `import static` を使い分け、`*` では読み込めないクラスを完全修飾名で書ける。モジュールの `exports` と `requires` で公開範囲を宣言できる"
     },
     {
       "id": "ch20-o2",
@@ -28,7 +28,7 @@
       "objectiveIds": [
         "ch20-o1"
       ],
-      "explanation": "## import の復習\n\n第9章で見たように、`import` は **名前を短く書くための宣言** です。\n何かを読み込んでいるわけではないので、完全修飾名で書けば省略できます。\n\n```java\nimport java.util.Scanner;\nScanner sc = new Scanner(System.in);                     // 短く書ける\n\njava.util.Scanner sc = new java.util.Scanner(System.in); // import なしでもOK\n```\n\n### アスタリスクの範囲\n\n`import java.util.*;` はそのパッケージの **クラス全部** を対象にします。\nただし **サブパッケージは含みません**。\n\n```java\nimport java.util.*;              // List, Map, Scanner ... は使える\n                                 // java.util.function.Predicate は使えない\nimport java.util.function.*;     // これも別に必要\n```\n\n> ⚠️ 間違えやすい点 … `java.util.*` を import しても `java.util.function.Predicate` は短く書けません。パッケージは階層ではなく「別の名前」だからです。\n\n### 名前がぶつかったら\n\n`java.util.Date` と `java.sql.Date` のように同名のクラスがあるとき、\n両方を `import` するとコンパイルエラーです。片方だけ `import` して、\nもう片方は完全修飾名で書きます。\n\n## import static\n\n**クラスの `static` メンバーを、クラス名なしで使える** ようにする書き方があります。\n\n```java\nimport static java.lang.Math.abs;\nimport static java.lang.Math.max;\n\nSystem.out.println(abs(-5));        // Math. が要らない\nSystem.out.println(max(3, 8));\n```\n\nまとめて指定もできます。\n\n```java\nimport static java.lang.Math.*;     // abs, max, min, PI ... すべて\n```\n\n`Math` は `java.lang` なので普通の `import` は不要ですが、\n**`import static` は別に必要** です。ここは混同しやすいところです。\n\n便利ですが、どのクラスのメソッドか分からなくなるので、使いすぎには注意します。\n\n## モジュールの概要\n\nJava 9 から **モジュールシステム（JPMS）** が入りました。\nパッケージをさらにまとめる、より大きな単位です。\n\n宣言は `module-info.java` という専用のファイルに書きます。\n\n```java\nmodule com.example.app {\n    requires java.sql;              // 使うモジュール\n    exports com.example.api;        // 外に公開するパッケージ\n}\n```\n\n- `requires` … このモジュールが依存するモジュール\n- `exports` … 他のモジュールから使わせるパッケージ\n\nねらいは **「公開するものを絞れる」** ことです。\n`public` なクラスでも、`exports` していないパッケージのものは外から使えません。\n第9章のアクセス修飾子より上の層で、公開範囲をコントロールする仕組みです。\n\n標準ライブラリもモジュールに分割されています。\n\n| モジュール | 中身 |\n|---|---|\n| `java.base` | `java.lang` `java.util` `java.io` `java.time` など基本 |\n| `java.sql` | データベース関連 |\n| `java.desktop` | GUI 関連 |\n\n**`java.base` は暗黙的に requires される** ので、いつでも使えます。\nそのため `String` や `List` や `LocalDate` を使うのに宣言は要りません。\n\n> ⚠️ 間違えやすい点 … `module-info.java` を置かなければ、そのコードは「名前のないモジュール（unnamed module）」として扱われ、**従来どおりクラスパスで動きます**。モジュールは必須ではありません。\n\nこのアプリも `module-info.java` を置いていないので、モジュールを意識せずに動いています。\nまずは「何のための仕組みか」と `requires` / `exports` の意味を押さえておけば十分です。\n\n> 💡 まとめると入れ物は3段階です。**クラス → パッケージ → モジュール**。それぞれに「どこまで見せるか」を決める仕組み（アクセス修飾子 / `exports`）があります。",
+      "explanation": "## import の復習\n\n第9章で見たように、`import` は **名前を短く書くための宣言** です。\n何かを読み込んでいるわけではないので、完全修飾名で書けば省略できます。\n\n```java\nimport java.util.Scanner;\nScanner sc = new Scanner(System.in);                     // 短く書ける\n\njava.util.Scanner sc = new java.util.Scanner(System.in); // import なしでもOK\n```\n\n### アスタリスクの範囲\n\n`import java.util.*;` はそのパッケージの **クラス全部** を対象にします。\nただし **サブパッケージは含みません**。\n\n```java\nimport java.util.*;              // List, Map, Scanner ... は使える\n                                 // java.util.function.Predicate は使えない\nimport java.util.function.*;     // これも別に必要\n```\n\n> ⚠️ 間違えやすい点 … `java.util.*` を import しても `java.util.function.Predicate` は短く書けません。パッケージは階層ではなく「別の名前」だからです。\n\n### 名前がぶつかったら\n\n`java.util.Date` と `java.sql.Date` のように同名のクラスがあるとき、\n両方を `import` するとコンパイルエラーです。片方だけ `import` して、\nもう片方は完全修飾名で書きます。\n\n## import static\n\n**クラスの `static` メンバーを、クラス名なしで使える** ようにする書き方があります。\n\n```java\nimport static java.lang.Math.abs;\nimport static java.lang.Math.max;\n\nSystem.out.println(abs(-5));        // Math. が要らない\nSystem.out.println(max(3, 8));\n```\n\nまとめて指定もできます。\n\n```java\nimport static java.lang.Math.*;     // abs, max, min, PI ... すべて\n```\n\n`Math` は `java.lang` なので普通の `import` は不要ですが、\n**`import static` は別に必要** です。ここは混同しやすいところです。\n\n便利ですが、どのクラスのメソッドか分からなくなるので、使いすぎには注意します。\n\n## モジュールの概要\n\nJava 9 から **モジュールシステム（JPMS）** が入りました。\nパッケージをさらにまとめる、より大きな単位です。\n\n宣言は `module-info.java` という専用のファイルに書きます。\n\n```java\nmodule com.example.app {\n    requires java.sql;              // 使うモジュール\n    exports com.example.api;        // 外に公開するパッケージ\n}\n```\n\n- `requires` … このモジュールが依存するモジュール\n- `exports` … 他のモジュールから使わせるパッケージ\n\nねらいは **「公開するものを絞れる」** ことです。\n`public` なクラスでも、`exports` していないパッケージのものは外から使えません。\n第9章のアクセス修飾子より上の層で、公開範囲をコントロールする仕組みです。\n\n標準ライブラリもモジュールに分割されています。\n\n| モジュール | 中身 |\n|---|---|\n| `java.base` | `java.lang` `java.util` `java.io` `java.time` など基本 |\n| `java.sql` | データベース関連 |\n| `java.desktop` | GUI 関連 |\n\n**`java.base` は暗黙的に requires される** ので、いつでも使えます。\nそのため `String` や `List` や `LocalDate` を使うのに宣言は要りません。\n\n> ⚠️ 間違えやすい点 … `module-info.java` を置かなければ、そのコードは「名前のないモジュール（unnamed module）」として扱われ、**従来どおりクラスパスで動きます**。モジュールは必須ではありません。\n\nこのアプリも `module-info.java` を置いていないので、モジュールを意識せずに動いています。\nこのレッスンの最後の問題では、**`module-info.java` を実際に2行書いて**、`exports` していないパッケージが本当に見えないことを確かめます。\n\n> 💡 まとめると入れ物は3段階です。**クラス → パッケージ → モジュール**。それぞれに「どこまで見せるか」を決める仕組み（アクセス修飾子 / `exports`）があります。",
       "samples": [
         {
           "caption": "import static で Math を短く書く",
@@ -147,6 +147,41 @@
               "minimum": 1,
               "message": "`import` せずに使うところは、完全修飾名で `java.util.function.Predicate` と書いてください。"
             }
+          ]
+        },
+        {
+          "objectiveIds": [
+            "ch20-o1"
+          ],
+          "kind": "applied",
+          "type": "project",
+          "task": "【複数ファイル演習】`labs/basics/module-first-exercise` で、**`module-info.java` を2行書いて**モジュールの公開範囲を宣言します。解説の「`public` なクラスでも、`exports` していないパッケージのものは外から使えません」を、実際に確かめます。（ファイルの木の使い方は第10章の演習と同じです。）\n\nモジュールは2つあります。\n\n```text\ncafe.core   cafe.core          … 外へ見せるAPI（Greeter）\n            cafe.core.internal … 内部実装（Style）。public だが外へ出さない\ncafe.app    cafe.app           … Greeter を使って2行出す（Main）\n```\n\n編集するのは `module-info.java` の2つだけです。\n\n| ファイル | 書くこと |\n|---|---|\n| `src/cafe.core/module-info.java` | 外へ見せるパッケージを `exports` で1行（**`cafe.core.internal` は見せません**） |\n| `src/cafe.app/module-info.java` | 使うモジュールを `requires` で1行 |\n\n採点は3つです。2つのモジュールがまとめてコンパイルできること、モジュールとして実行した出力が `☕ いらっしゃいませ、田中さん` から始まる2行になること、そして `probe-internal/`（モジュールの外から `cafe.core.internal` を使うコード）が**コンパイルできないこと**です。`java.base` は暗黙に `requires` されるので書きません。",
+          "project": {
+            "name": "module-first-exercise",
+            "source": "labs/basics/module-first-exercise",
+            "exclude": [
+              "reference"
+            ],
+            "command": [
+              "./run-tests.sh"
+            ],
+            "timeoutSeconds": 60,
+            "verification": "2モジュールのコンパイル・モジュールとしての実行・公開していないパッケージが外から使えないことの3つが通る",
+            "editableFiles": [
+              {
+                "path": "src/cafe.core/module-info.java",
+                "solutionPath": "reference/src/cafe.core/module-info.java"
+              },
+              {
+                "path": "src/cafe.app/module-info.java",
+                "solutionPath": "reference/src/cafe.app/module-info.java"
+              }
+            ]
+          },
+          "hints": [
+            "`exports` は「このモジュールが外へ見せるパッケージ」です。見せるのは `cafe.core` の1つだけで、`cafe.core.internal` を並べると probe-internal が通ってしまいます。",
+            "`requires` は「このモジュールが使うモジュール」です。パッケージ名ではなくモジュール名（`cafe.core`）を書きます。",
+            "書き方は解説の例と同じ形です。`module cafe.core { exports ...; }` のように、波かっこの中に1行ずつ書きます。"
           ]
         }
       ],
