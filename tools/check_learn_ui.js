@@ -6,7 +6,8 @@
  * 見るのは「1問を解き切るまでの経路」全体である。
  *   誤答 → コンパイルエラー → ヒント → 模範解答 → 正解（★・コイン・通知）
  *   → 1問1枚のパネル（クリア済みの見分け）→ 獲得の履歴（消えた通知の読み返し）→ 自動保存
- *   → カフェへ寄り道して同じ位置で再開 → 復習（途中で抜けて「続きから」戻る）→ クイズのしおり
+ *   → カフェへ寄り道して同じ位置で再開 → 復習（途中で抜けて「続きから」戻る）
+ *   → 回答済みクイズの一覧としおり（種類の絞り込みと、クイズ項目のURL）
  * サーバー側の採点は `verify-solutions.sh` が見るので、ここでは
  * **画面がその結果をどう受け取って描くか**（`renderJudgement` / `applyDelta` / 通知 / 復習の出題）
  * だけを確かめる。
@@ -624,7 +625,7 @@ const HELPERS = `window.__t = {
       hash: location.hash,
       code: (editor || {}).value || '',
       weightBadge: ((document.querySelector('#reviewWeight-${TASK}') || {}).textContent || '').trim(),
-      bar: !!document.querySelector('#reviewSkipBtn') || !!document.querySelector('#reviewExitBtn')
+      bar: !!document.querySelector('#reviewExitBtn')
     };
   })()`);
   check(session.hash === `#review/${LESSON}/${TASK}`, '復習セッションが始まる', session.hash);
@@ -733,7 +734,7 @@ const HELPERS = `window.__t = {
   })()`);
   check(leave.shown && leave.resumeBtn && leave.restartBtn,
     '「復習を終える」で抜けても、復習ホームに続きのカードが出る', leave);
-  check(leave.text.indexOf('1セット目の途中です') >= 0 && leave.text.indexOf('1 / 1問目') >= 0,
+  check(leave.text.indexOf('1セット目の途中です') >= 0 && leave.text.indexOf('1 / 1項目目') >= 0,
     '何問目まで進んでいたかを先に出す', leave.text);
   check(leave.startBtn.indexOf('はじめから') >= 0,
     '続きがあるあいだは、ヒーローのボタンが「はじめから」の顔になる', leave.startBtn);
@@ -748,7 +749,7 @@ const HELPERS = `window.__t = {
       footer: (document.getElementById('reviewFooter') || {}).textContent || ''
     };
   })()`);
-  check(resumed.hash === `#review/${LESSON}/${TASK}` && resumed.bar === '1 / 1問',
+  check(resumed.hash === `#review/${LESSON}/${TASK}` && resumed.bar === '1 / 1項目',
     '「続きから」で同じ問題・同じ番号に戻る（1問だけ復習に化けない）', resumed);
 
   await open('#review');
@@ -769,7 +770,7 @@ const HELPERS = `window.__t = {
     return { hash: location.hash,
              bar: ((document.querySelector('.review-bar-progress') || {}).textContent || '').trim() };
   })()`);
-  check(backIn.bar === '1 / 1問', '読み直したあとの「続きから」でもセットとして戻る', backIn);
+  check(backIn.bar === '1 / 1項目', '読み直したあとの「続きから」でもセットとして戻る', backIn);
 
   // ── 復習で通したときの知らせ（🔁復習クリアのトーストは戻っていない）──────────
   //
@@ -809,6 +810,13 @@ const HELPERS = `window.__t = {
       nextOrderCash: cafe.nextOrderCash || 0,
       earlyLeft: cafe.reviewEarlyRewardLeft,
       earlyPerDay: cafe.reviewEarlyRewardPerDay,
+      // 提出した問題には「もう解いた」印が付く（飛ばしただけの項目とは扱いが違う）
+      servedTasks: (() => {
+        try {
+          const run = JSON.parse(localStorage.getItem('jq-review-run') || 'null');
+          return run ? Object.keys(run.run.servedTaskKeys) : null;
+        } catch (e) { return null; }
+      })(),
       toastShown: el.classList.contains('show'),
       toastText: (el.textContent || '').replace(/\\s+/g, ' ').trim().slice(0, 80),
       footer: (foot ? foot.textContent : '').replace(/\\s+/g, ' ').trim().slice(0, 60),
@@ -816,6 +824,11 @@ const HELPERS = `window.__t = {
     });
   })()`);
   check(reviewPass.verdict === 'ok', '復習でも模範解答が合格になる（この検査の前提）', reviewPass);
+  // 飛ばしただけの項目には印を付けないが、提出した問題には付ける ―― 付けないと
+  // 通せなかった問題が期限切れのまま先頭に残り、次のセットも同じ問題で埋まる
+  check(!reviewPass.servedTasks
+      || reviewPass.servedTasks.indexOf(`${LESSON}#${TASK}`) >= 0,
+    '提出した問題には「もう解いた」印が付く', reviewPass.servedTasks);
   check(reviewPass.toastText.indexOf('復習クリア') < 0,
     '「🔁 復習クリア」のトーストは戻っていない', reviewPass.toastText);
   check(reviewPass.dueDays === null || reviewPass.dueDays > 0,
@@ -835,9 +848,9 @@ const HELPERS = `window.__t = {
 
   // ── 結果まで進んだセットは「続き」として残さない（2026-08-21）─────────────
   //
-  // 控えるのは**途中のセット**だけである。続けたい人は結果カードの「もう1セット」で進むので、
-  // 出し終えた回まで控えると、次に開いた1セット目から「もう出した」ぶんが抜けたままになる
-  // （`servedTaskKeys` が残るため）。結果カードと続きのカードが2枚並ぶことも起きない。
+  // 控えるのは**途中のセット**だけである。出し終えた回まで控えると、次に開いた1セット目から
+  // 「もう出した」ぶんが抜けたままになる（`servedTaskKeys` が残るため）。また、正誤や獲得額は
+  // 各項目ですでに分かるので、復習ホームに重複する結果カードは出さない。
   const finished = await ev(`(async () => {
     document.getElementById('reviewFooterBtn').click();   // 「セットの結果へ →」
     await window.__t.until(() => location.hash === '#review');
@@ -848,8 +861,8 @@ const HELPERS = `window.__t = {
       saved: !!localStorage.getItem('jq-review-run')
     };
   })()`);
-  check(finished.summary && !finished.resume && !finished.saved,
-    'セットを終えると結果だけが出て、続きの控えは消えている', finished);
+  check(!finished.summary && !finished.resume && !finished.saved,
+    'セットを終えると重複する結果カードを出さず、続きの控えも消えている', finished);
 
   // ── 1問だけ復習したときの「通った」のひとこと（苦手度で出し分ける）──────
   //
@@ -893,8 +906,8 @@ const HELPERS = `window.__t = {
     await window.__t.sleep(300);
     const listed = {
       badge: ((document.querySelector('.review-row .review-weight') || {}).textContent || '').trim(),
-      weakChip: [...document.querySelectorAll('.review-filter-btn, .review-filter')]
-        .map(b => b.textContent.replace(/\s+/g, ' ').trim())
+      weakChip: [...((document.getElementById('reviewFilterSelect') || {}).options || [])]
+        .map(o => o.text.replace(/\s+/g, ' ').trim())
         .find(t => t.indexOf('苦手') >= 0) || ''
     };
     location.hash = '#review/${LESSON}/${TASK}';
@@ -978,10 +991,9 @@ const HELPERS = `window.__t = {
   check(easeTask.beforeSubmit === false,
     '提出する前は出さない（解かずに先送りできない）', easeTask);
 
-  // ── クイズのしおり（付ける → 復習ホームの一覧 → そのクイズへ戻る）──────
+  // ── クイズのしおりと復習一覧（未回答は出さず、回答後はしおり無しでも出す）────
   //
-  // クイズは復習で出題しないので、この経路（印を付けて、一覧から見に戻る）は
-  // ここでしか通らない。しおりの状態は描き直さずボタンだけ変えるので、
+  // クイズのしおりは復習一覧の絞り込みにも使う。しおりの状態は描き直さずボタンだけ変えるので、
   // サーバへ届いたかは /api/state を読んで確かめる。
   await open(`#${QUIZ_LESSON}`);
   const quizPage = await ev(`(() => ({
@@ -1016,49 +1028,27 @@ const HELPERS = `window.__t = {
     '付けた1問だけがサーバに残る（/api/state の quizBookmarks）', marked.saved);
 
   await open('#review');
-  const marks = await ev(`(() => {
-    const rows = [...document.querySelectorAll('.review-row-main[data-quiz]')];
-    const first = rows[0];
-    return {
-      count: rows.length,
-      lesson: first ? first.dataset.lesson : '',
-      index: first ? first.dataset.quiz : '',
-      state: first ? (first.querySelector('.quiz-bookmark-state') || {}).textContent || '' : '',
-      text: first ? ((first.querySelector('.review-row-copy strong') || {}).textContent || '').trim() : ''
-    };
-  })()`);
-  check(marks.count === 1 && marks.lesson === QUIZ_LESSON && marks.index === '0',
-    '復習ホームの一覧にしおりを付けたクイズが出る', marks);
-  check(marks.text.length > 0 && marks.text.indexOf('`') < 0,
-    '一覧の問い文はMarkdownの記法を落として出す', marks.text.slice(0, 40));
-  check(marks.state.indexOf('未回答') >= 0, '答える前は「未回答」と出る', marks.state);
+  const unansweredQuizRows = await ev(
+    `document.querySelectorAll('.review-row-main[data-quiz]').length`);
+  check(unansweredQuizRows === 0,
+    'しおりがあっても未回答クイズは復習一覧へ先回りさせない', unansweredQuizRows);
 
-  const jumped = await ev(`(async () => {
-    document.querySelector('.review-row-main[data-quiz]').click();
-    await window.__t.until(() => document.getElementById('quiz-item-0'), 40);
-    const item = document.getElementById('quiz-item-0');
-    const view = document.getElementById('content').getBoundingClientRect();
-    const box = item ? item.getBoundingClientRect() : null;
-    return {
-      hash: location.hash,
-      highlighted: !!(item && item.classList.contains('is-target')),
-      inView: !!box && box.top < view.bottom && box.bottom > view.top
-    };
-  })()`);
-  check(jumped.hash === `#${QUIZ_LESSON}`, 'しおりの行からそのレッスンへ移動する', jumped.hash);
-  check(jumped.inView, '飛んだ先のクイズが画面に入っている', jumped);
-  check(jumped.highlighted, '飛んだ先のクイズが光る（どこへ着いたか分かる）', jumped);
-
-  // ── 復習の最後に続くクイズ（📣の取り返し）─────────────────────────────
+  // ── 問題と同じセットで、問題のあとに続けて出すクイズ（📣の取り返し）──────
   //
   // 📣ひらめきメガホンの条件は「1度目の回答で20問連続正解」だけだったので、初回答を
   // 使い切ると**二度と取れなかった**。復習として出し直したクイズの連続正解でも解放する
   // ようにしたのがこの経路（`/api/quiz` の `review`）。ここで見るのは3つ ―
-  // 問題のあとに続けて出ること、答える前に正解を見せないこと、そして
+  // 問題と同じキューで問題のあとに続くこと、答える前に正解を見せないこと、そして
   // **チップも★も動かさないこと**（動かすと「復習では払わない」原則の例外になる）。
+  await open(`#${QUIZ_LESSON}`);
   const answered = await ev(`(async () => {
     document.querySelector('.quiz-item .quiz-choice').click();
     await window.__t.until(() => document.querySelector('.quiz-feedback'), 40);
+    const bookmark = document.querySelector('.quiz-item-head .bookmark-btn');
+    if (bookmark && bookmark.classList.contains('on')) {
+      bookmark.click();
+      await window.__t.until(() => !bookmark.classList.contains('on'), 40);
+    }
     const state = await (await fetch('/api/state')).json();
     let lesson = null;
     state.chapters.forEach(ch => ch.lessons.forEach(l => {
@@ -1066,44 +1056,436 @@ const HELPERS = `window.__t = {
     }));
     const result = (lesson.quizResults || [])[0] || {};
     return { answer: result.answer, choice: result.choice,
-             run: state.progress.cafe.quizReviewRun };
+             run: state.progress.cafe.quizReviewRun,
+             bookmarked: !!(bookmark && bookmark.classList.contains('on')) };
   })()`);
-  check(answered.answer != null && answered.run === 0,
-    'クイズへ1度目の回答をした（復習へ回る前提）', answered);
+  check(answered.answer != null && answered.run === 0 && !answered.bookmarked,
+    'クイズへ1度目の回答をし、ブックマークを外した（復習へ回る前提）', answered);
 
   await open('#review');
+  const quizRows = await ev(`(() => {
+    const rows = [...document.querySelectorAll('.review-row-main[data-quiz]')];
+    const first = rows.find(row => row.dataset.lesson === '${QUIZ_LESSON}' && row.dataset.quiz === '0');
+    return {
+      count: rows.length,
+      found: !!first,
+      state: first ? (first.querySelector('.quiz-bookmark-state') || {}).textContent || '' : '',
+      due: first ? (first.querySelector('.review-due') || {}).textContent || '' : '',
+      text: first ? ((first.querySelector('.review-row-copy strong') || {}).textContent || '').trim() : '',
+      bookmarked: !!(first && first.parentElement.querySelector('.bookmark-btn.on'))
+    };
+  })()`);
+  check(quizRows.found && !quizRows.bookmarked,
+    '回答済みクイズはブックマークなしでも通常の復習一覧に出る', quizRows);
+  check(quizRows.text.length > 0 && quizRows.text.indexOf('`') < 0 && quizRows.due.length > 0,
+    'クイズの行にも問い文と復習期限が表示される', quizRows);
+  check(quizRows.state.indexOf('正解') >= 0 || quizRows.state.indexOf('不正解') >= 0,
+    'クイズの行に前回の正誤が言葉で表示される', quizRows.state);
+
+  const singleQuiz = await ev(`(async () => {
+    document.querySelector('.review-row-main[data-quiz="0"][data-lesson="${QUIZ_LESSON}"]').click();
+    await window.__t.until(() => document.querySelector('.review-quiz-view'), 40);
+    const view = document.querySelector('.review-quiz-view');
+    return {
+      shown: !!view,
+      feedback: !!(view && view.querySelector('.quiz-feedback')),
+      progress: ((document.querySelector('.review-bar-progress') || {}).textContent || '').trim()
+    };
+  })()`);
+  check(singleQuiz.shown && !singleQuiz.feedback && singleQuiz.progress === '1問だけ復習中',
+    '一覧のクイズ行を押すと、答えを隠して1問だけ復習できる', singleQuiz);
+
+  // ── クイズの1項目も問題と同じ扱い（自分のURL・戻る・読み直し）──────────────
+  //
+  // 以前のクイズ項目は自分のURLを持たず、復習ホームの上へ直接塗っていた
+  // （`currentView` は `'review'` のまま）。そのため**ブラウザの戻るが復習の外へ出て**、
+  // 同じ `'#review'` を入れても描き直せなかった（2026-09-02に問題と揃えた）。
+  // 番号は画面の「Q1」と同じ1から数える。
+  const quizRoute = await ev(`(async () => {
+    const hash = location.hash;
+    history.back();
+    await window.__t.until(() => document.querySelector('.review-page'), 40);
+    await window.__t.sleep(300);
+    const back = { hash: location.hash, home: !!document.querySelector('.review-page') };
+    return { hash: hash, back: back };
+  })()`);
+  check(quizRoute.hash === `#review/${QUIZ_LESSON}/quiz/1`,
+    'クイズの1項目が自分のURLを持つ（#review/<レッスン>/quiz/<番号>）', quizRoute.hash);
+  check(quizRoute.back.home && quizRoute.back.hash === '#review',
+    'クイズからブラウザの戻るで復習ホームへ帰る（復習の外へ出ない）', quizRoute.back);
+
+  // URLを直接開いても、読み直しても同じクイズが開く（問題の #review/3-2/1 と同じ扱い）
+  await open(`#review/${QUIZ_LESSON}/quiz/1`);
+  const quizDirect = await ev(`({
+    hash: location.hash,
+    shown: !!document.querySelector('.review-quiz-view'),
+    feedback: !!document.querySelector('.quiz-feedback'),
+    progress: ((document.querySelector('.review-bar-progress') || {}).textContent || '').trim(),
+    hub: document.body.classList.contains('view-menu')
+  })`);
+  check(quizDirect.shown && quizDirect.progress === '1問だけ復習中' && !quizDirect.feedback,
+    'クイズのURLを直接開いてもそのクイズが開く（答えは隠したまま）', quizDirect);
+  check(!quizDirect.hub,
+    'クイズの画面はハブ扱いにしない（問題の復習と同じヘッダになる）', quizDirect.hub);
+
+  // 1項目だけ開いたときの体裁が、問題とクイズで揃っているか。
+  // **帯の文言をセッションの有無で決めない**ことがここで効く ―― クイズは1項目でも
+  // セッションの形が要る（出題の位置をそこから引く）ので、有無で見分けると
+  // 問題は「復習メニューへ」・クイズは「復習を終える」と食い違う。
+  const chrome = `(() => {
+    const vis = sel => { const n = document.querySelector(sel);
+      if (!n) { return 'なし'; }
+      const st = getComputedStyle(n);
+      return st.display === 'none' ? '非表示' : st.visibility === 'hidden' ? '隠し' : '表示'; };
+    return { hub: document.body.classList.contains('view-menu'),
+             stats: vis('.stats'), bar: !!document.querySelector('.review-bar'),
+             progress: ((document.querySelector('.review-bar-progress') || {}).textContent || '').trim(),
+             exit: ((document.getElementById('reviewExitBtn') || {}).textContent || '').trim(),
+             skipInBar: !!document.getElementById('reviewSkipBtn'),
+             next: ((document.getElementById('reviewFooterBtn') || {}).textContent || '').trim(),
+             crumb: [...document.querySelectorAll('.crumb-home')].map(b => b.textContent.trim()).join('/'),
+             footer: !!document.getElementById('reviewFooter') };
+  })()`;
+  const quizChrome = await ev(chrome);
+  check(!quizChrome.skipInBar && quizChrome.next.length > 0,
+    '帯に「飛ばす」を置かない（フッタの次へと同じ動きの重複だった）',
+    { skipInBar: quizChrome.skipInBar, next: quizChrome.next });
+  await open(`#review/${LESSON}/${TASK}`);
+  const taskChrome = await ev(chrome);
+  check(JSON.stringify(quizChrome) === JSON.stringify(taskChrome),
+    '1項目だけ開いたときの体裁が問題とクイズで揃っている',
+    { quiz: quizChrome, task: taskChrome });
+
+  // 成り立たないURLは復習ホームへ落とす。**未回答のクイズも受け付けない** ――
+  // 初回の回答は学習の機会なので、URLから復習として先回りさせない
+  await open(`#review/${QUIZ_LESSON}/quiz/99`);
+  const quizOutOfRange = await ev(`!!document.querySelector('.review-page')`);
+  check(quizOutOfRange, '範囲外の番号は復習ホームへ落とす', quizOutOfRange);
+  const unanswered = await ev(`(async () => {
+    const state = await (await fetch('/api/state')).json();
+    let found = null;
+    state.chapters.forEach(ch => ch.lessons.forEach(l => {
+      (l.quizzes || []).forEach((q, i) => {
+        if (!found && !((l.quizResults || [])[i])) { found = { lesson: l.id, index: i }; }
+      });
+    }));
+    return found;
+  })()`);
+  if (!unanswered) {
+    console.log('  注意: 未回答のクイズが無いため、その検査を省きました。');
+  } else {
+    await open(`#review/${unanswered.lesson}/quiz/${unanswered.index + 1}`);
+    const blocked = await ev(`({ home: !!document.querySelector('.review-page'),
+                                 quiz: !!document.querySelector('.review-quiz-view') })`);
+    check(blocked.home && !blocked.quiz,
+      '未回答のクイズは復習のURLでも開かない（初回の回答の機会を奪わない）',
+      Object.assign({}, unanswered, blocked));
+  }
+
+  await open('#review');
+  // 続けて出るクイズの数は「今回のセット」の内訳に出る（2026-09-02の刷新で、
+  // 同じことを言っていたヒーローの1行をやめて内訳へ寄せた → reviewQueueBreakdown）
   const quizNote = await ev(
-    `((document.querySelector('.review-quiz-note') || {}).textContent || '')`);
+    `((document.querySelector('.cta-target') || {}).textContent || '')`);
   check(quizNote.indexOf('クイズ') >= 0,
-    '復習ホームに「問題のあとにクイズが続く」案内が出る', quizNote);
+    '今回のセットの内訳に、続けて出るクイズの数が出る', quizNote);
+
+  // ── 一覧の読み分け（種類の札と、右端の札の位置）──────────────────────────
+  //
+  // 問題とクイズは同じ一覧に混ざる。ここで見るのは2つ ―
+  // 行だけを見てどちらなのか分かること、そして**期限の札の位置が行の種類で
+  // 変わらないこと**である。後者は実際に崩れていた ―― `.review-due` と
+  // `.quiz-bookmark-state` の両方に `margin-left: auto` が付いていたため、
+  // 札が2つ並ぶクイズの行では余白が半分ずつ配られ、期限が行の真ん中あたりへ
+  // 浮いていた（2026-09-02・利用者の指摘）。位置は px で測らないと気づけない。
+  const rowShape = await ev(`(() => {
+    const rows = [...document.querySelectorAll('.review-row')];
+    const kindOf = row => row.querySelector('.review-row-main').dataset.quiz != null
+      ? 'quiz' : 'task';
+    const gapOf = row => Math.round(
+      row.querySelector('.review-row-main').getBoundingClientRect().right
+      - row.querySelector('.review-row-tail').getBoundingClientRect().right);
+    const marks = { task: new Set(), quiz: new Set() };
+    const gaps = { task: new Set(), quiz: new Set() };
+    rows.forEach(row => {
+      const kind = kindOf(row);
+      const mark = row.querySelector('.review-row-kind');
+      marks[kind].add(mark ? mark.textContent.replace(/\\s+/g, ' ').trim() : '(なし)');
+      gaps[kind].add(gapOf(row));
+    });
+    return { rows: rows.length,
+             taskMarks: [...marks.task], quizMarks: [...marks.quiz],
+             taskGaps: [...gaps.task], quizGaps: [...gaps.quiz] };
+  })()`);
+  // 札は絵と言葉が別の要素なので（狭い幅で言葉だけ隠すため）、textContent は「📝問題」に
+  // なる。字面で固定せず「その言葉を含むか」で見る
+  check(rowShape.taskMarks.length === 1 && rowShape.taskMarks[0].indexOf('問題') >= 0
+      && rowShape.quizMarks.length === 1 && rowShape.quizMarks[0].indexOf('クイズ') >= 0,
+    '一覧の行に種類の札が出る（問題 / クイズ）', rowShape);
+  check(rowShape.taskGaps.length === 1 && rowShape.quizGaps.length === 1
+      && rowShape.taskGaps[0] === rowShape.quizGaps[0],
+    '右端の札の位置は行の種類で変わらない（期限が中央へ浮かない）',
+    { task: rowShape.taskGaps, quiz: rowShape.quizGaps });
+
+  // ── 種類の絞り込み（問題だけ / クイズだけ）────────────────────────────────
+  //
+  // 状態（苦手・ブックマーク）とは別の軸である。**一覧だけでなく出題にも効く**ことを見る
+  // ―― 一覧だけの絞り込みだと、「クイズ」を選んでボタンを押したときに問題が出てくる。
+  const kindFilter = await ev(`(async () => {
+    const snap = () => {
+      const rows = [...document.querySelectorAll('.review-row-main')];
+      const value = id => { const s = document.getElementById(id); return s ? s.value : null; };
+      return { rows: rows.length,
+               quiz: rows.filter(r => r.dataset.quiz != null).length,
+               task: rows.filter(r => r.dataset.task != null).length,
+               state: value('reviewFilterSelect'), kind: value('reviewKindSelect'),
+               sort: value('reviewSortSelect'),
+               count: (document.querySelector('.review-toolbar-count') || {}).textContent || '',
+               pager: !!document.querySelector('.review-pager'),
+               overdue: ((document.querySelector('.hero-milestone b') || {}).textContent || '').trim(),
+               quizNote: (document.querySelector('.review-quiz-note') || {}).textContent || '' };
+    };
+    const pick = async (axis, filter) => {
+      const select = document.getElementById(
+        axis === 'kind' ? 'reviewKindSelect' : 'reviewFilterSelect');
+      const option = select && [...select.options].find(o => o.value === filter);
+      if (!option || option.disabled) { return null; }
+      select.value = filter;
+      select.dispatchEvent(new Event('change'));
+      await window.__t.sleep(300);
+      return snap();
+    };
+    const both = snap();
+    const onlyQuiz = await pick('kind', 'quiz');
+    const onlyTask = await pick('kind', 'task');
+    await pick('kind', 'quiz');
+    // 期限が来たクイズが1問も無い日はボタンそのものが出ない（押しても始まらない
+    // ボタンを置かない作り → reviewStartButtonHtml）。その日はこの節を省く
+    const start = document.getElementById('reviewStartBtn');
+    if (start) { start.click(); await window.__t.sleep(700); }
+    const saved = JSON.parse(localStorage.getItem('jq-review-run') || 'null');
+    return { both: both, onlyQuiz: onlyQuiz, onlyTask: onlyTask,
+             startable: !!start,
+             startedKinds: saved && saved.set
+               ? [...new Set(saved.set.items.map(item => item.kind))] : null,
+             savedKind: saved ? saved.kind : null };
+  })()`);
+  check(kindFilter.both.kind === 'all' && kindFilter.both.rows > 0
+      && kindFilter.both.quiz > 0 && kindFilter.both.task > 0,
+    '既定は「両方」で、問題とクイズが同じ一覧に並ぶ', kindFilter.both);
+  check(kindFilter.onlyQuiz && kindFilter.onlyQuiz.task === 0
+      && kindFilter.onlyQuiz.quiz === kindFilter.onlyQuiz.rows
+      && kindFilter.onlyQuiz.rows > 0,
+    '種類「クイズ」で一覧がクイズだけになる', kindFilter.onlyQuiz);
+  check(kindFilter.onlyTask && kindFilter.onlyTask.quiz === 0
+      && kindFilter.onlyTask.task === kindFilter.onlyTask.rows
+      && kindFilter.onlyTask.rows > 0,
+    '種類「問題」で一覧が問題だけになる', kindFilter.onlyTask);
+  // 絞り込んだ本人が外したものなので、「クイズは今日はありません」と書かない
+  check(kindFilter.onlyTask && kindFilter.onlyTask.quizNote === '',
+    '問題だけに絞ったらクイズの案内は出さない', kindFilter.onlyTask);
+  check(kindFilter.onlyQuiz
+      && kindFilter.onlyQuiz.count === kindFilter.onlyQuiz.rows + '件',
+    '絞り込んだ件数が一覧の上に出る',
+    kindFilter.onlyQuiz && { count: kindFilter.onlyQuiz.count, rows: kindFilter.onlyQuiz.rows });
+  check(kindFilter.both.sort === 'set',
+    '一覧の既定の並びは「復習セットの順」（そろそろ確認したいものが上）', kindFilter.both.sort);
+  // この検査の進捗はクリア済みが数問しかないので、1ページに収まる＝ページ送りは出ない
+  check(kindFilter.both.rows <= 50 && !kindFilter.both.pager,
+    '1ページに収まるときはページ送りを出さない',
+    { rows: kindFilter.both.rows, pager: kindFilter.both.pager });
+  // ⏰「期限が来た」は学習全体の溜まり具合なので、一覧の絞り込みでは動かさない。
+  // 絞り込みは localStorage に残るので、追従させると前回の選択のせいで
+  // 溜まり具合が小さく見え続ける（2026-09-02・利用者の指摘で全体へ戻した）。
+  // 「いま何件を見ているか」はツールバーの表示件数が持つ
+  check(kindFilter.onlyQuiz && kindFilter.onlyTask
+      && kindFilter.onlyQuiz.overdue === kindFilter.both.overdue
+      && kindFilter.onlyTask.overdue === kindFilter.both.overdue,
+    '⏰「期限が来た」の件数は絞り込みで動かない',
+    { both: kindFilter.both.overdue, quiz: kindFilter.onlyQuiz && kindFilter.onlyQuiz.overdue,
+      task: kindFilter.onlyTask && kindFilter.onlyTask.overdue });
+  if (!kindFilter.startable) {
+    console.log('  注意: 期限が来たクイズが無いため、クイズだけのセットの検査を省きました。');
+  } else {
+    check(kindFilter.startedKinds && kindFilter.startedKinds.length === 1
+        && kindFilter.startedKinds[0] === 'quiz',
+      '「クイズ」で始めたセットにはクイズしか入らない（一覧だけの絞り込みではない）',
+      kindFilter.startedKinds);
+    check(kindFilter.savedKind === 'quiz',
+      '控えに種類が残る（続きから戻しても絞り込みが変わらない）', kindFilter.savedKind);
+  }
+
+  // ── 並び替え（一覧だけに効き、出題の順は動かさない）──────────────────────
+  //
+  // 既定は教材の順。「復習セットの順」を選んだときの先頭が、実際にそのセットで
+  // 最初に出る項目と一致するかを見る ―― 一致しないと、並べて見えた順と
+  // 出てくる順が食い違う（どちらも compareReviewEntries で決めている）。
+  await ev(`localStorage.removeItem('jq-review-kind');
+            localStorage.removeItem('jq-review-run');`);
+  await open('#review');
+  const sorting = await ev(`(async () => {
+    const keyOf = el => el.dataset.lesson
+      + (el.dataset.quiz != null ? '#q' + el.dataset.quiz : '#' + el.dataset.task);
+    const pickSort = async value => {
+      const select = document.getElementById('reviewSortSelect');
+      select.value = value;
+      select.dispatchEvent(new Event('change'));
+      await window.__t.sleep(300);
+      return [...document.querySelectorAll('.review-row-main')].map(keyOf);
+    };
+    const options = [...document.getElementById('reviewSortSelect').options].map(o => o.value);
+    const lessonKeys = await pickSort('lesson');
+    const setKeys = await pickSort('set');
+    // 「復習セットの順」のまま1セット始めて、セットに入った問題が
+    // 一覧の問題の上から順になっているかを見る
+    localStorage.removeItem('jq-review-run');
+    const start = document.getElementById('reviewStartBtn');
+    let setTasks = null;
+    if (start) {
+      start.click();
+      await window.__t.sleep(800);
+      const saved = JSON.parse(localStorage.getItem('jq-review-run') || 'null');
+      setTasks = saved
+        ? saved.set.items.filter(i => i.kind === 'task').map(i => i.lessonId + '#' + i.taskId)
+        : null;
+    }
+    localStorage.removeItem('jq-review-run');
+    return { options: options, lessonKeys: lessonKeys, setKeys: setKeys,
+             listTasks: setKeys.filter(k => k.indexOf('#q') < 0), setTasks: setTasks };
+  })()`);
+  check(sorting.options.join(',') === 'set,lesson,weak',
+    '並び順に「復習セットの順・教材の順・苦手な順」があり、先頭が既定', sorting.options);
+  // 揃うのは「セットに入る問題は、一覧の問題のうち上から順」まで。
+  // 一覧の1行目とセットの1問目は違うことがある ―― 優先順の先頭がクイズでも、
+  // セットは問題から出すため（→ mixReviewItems / sortReviewPool）
+  check(!sorting.setTasks || sorting.setTasks.length === 0
+      || JSON.stringify(sorting.listTasks.slice(0, sorting.setTasks.length))
+         === JSON.stringify(sorting.setTasks),
+    '「復習セットの順」では、セットに入る問題が一覧の問題の上から順に並ぶ',
+    { list: sorting.listTasks.slice(0, 6), set: sorting.setTasks });
+  // <b>種類でまとめない。</b>まとめると問題114件のうしろにクイズ53件が埋まり、
+  // 1ページ50件では3ページ目より後ろへ落ちる。そうなっていないことを、
+  // 「期限が近い順に並んでいる」で見る ―― 種類でまとめるとこの並びが崩れる
+  const dueOrder = await ev(`(async () => {
+    const state = await (await fetch('/api/state')).json();
+    const due = {};
+    state.chapters.forEach(ch => ch.lessons.forEach(l => {
+      (l.tasks || []).forEach(t => {
+        if (t.cleared) { due[l.id + '#' + t.id] = Number(t.reviewDueDays || 0); }
+      });
+      (l.quizResults || []).forEach((r, i) => {
+        if (r) { due[l.id + '#q' + i] = Number(r.reviewDueDays || 0); }
+      });
+    }));
+    const keys = [...document.querySelectorAll('.review-row-main')].map(el => el.dataset.lesson
+      + (el.dataset.quiz != null ? '#q' + el.dataset.quiz : '#' + el.dataset.task));
+    const days = keys.map(k => due[k]);
+    let bad = null;
+    for (let i = 1; i < days.length; i++) {
+      if (days[i] < days[i - 1]) { bad = { at: i, prev: days[i - 1], here: days[i] }; break; }
+    }
+    return { days: days, bad: bad };
+  })()`);
+  check(!dueOrder.bad,
+    '「復習セットの順」は期限が近い順に並ぶ（種類でまとめない）',
+    { bad: dueOrder.bad, days: dueOrder.days.slice(0, 10) });
+
+  // ── 解かずに飛ばした項目は、今日の出題から外れない ──────────────────────
+  //
+  // セットを始めた時点で**全項目**に「もう出した」印を付けていたので、1問も解かずに
+  // 「次へ」で結果まで通り抜けた回でも、その項目が今日の出題から消えていた
+  // （2026-09-02・利用者の指摘）。飛ばした項目は期限も苦手度も動いていないのだから、
+  // 順番はそのままでなければならない。印を付けるのは提出／回答したときだけにした。
+  await ev(`localStorage.removeItem('jq-review-kind');
+            localStorage.removeItem('jq-review-sort');
+            localStorage.removeItem('jq-review-run');`);
+  await open('#review');
+  const skipping = await ev(`(async () => {
+    const keyOf = item => item.lessonId
+      + (item.kind === 'quiz' ? '#q' + item.index : '#' + item.taskId);
+    const saved = () => JSON.parse(localStorage.getItem('jq-review-run') || 'null');
+    const start = document.getElementById('reviewStartBtn');
+    if (!start) { return { noStart: true }; }
+    start.click();
+    await window.__t.sleep(800);
+    const before = saved();
+    if (!before) { return { noSave: true }; }
+    const firstKeys = before.set.items.map(keyOf);
+    // 1問も解かず・1問も答えず、フッタの「次へ」だけで結果（＝復習ホーム）まで進む
+    for (let i = 0; i < 24; i++) {
+      const next = document.getElementById('reviewFooterBtn');
+      if (!next) { break; }
+      next.click();
+      await window.__t.sleep(450);
+      if (document.querySelector('.review-page')) { break; }
+    }
+    const atHome = !!document.querySelector('.review-page');
+    const again = document.getElementById('reviewStartBtn');
+    if (!again) { return { firstKeys: firstKeys, atHome: atHome, noSecond: true }; }
+    again.click();
+    await window.__t.sleep(800);
+    const after = saved();
+    return {
+      firstKeys: firstKeys, atHome: atHome,
+      secondKeys: after ? after.set.items.map(keyOf) : null,
+      servedTasks: after ? Object.keys(after.run.servedTaskKeys) : null,
+      servedQuizzes: after ? Object.keys(after.run.servedQuizKeys) : null
+    };
+  })()`);
+  if (skipping.noStart || skipping.noSave || skipping.noSecond) {
+    console.log('  注意: セットを2回続けられなかったため、飛ばしたときの検査を省きました。'
+      + JSON.stringify(skipping));
+  } else {
+    check(skipping.atHome && skipping.firstKeys.length > 0,
+      '1問も解かずに「次へ」だけでセットの結果まで進める（この検査の前提）', skipping.firstKeys);
+    check(skipping.servedTasks.length === 0 && skipping.servedQuizzes.length === 0,
+      '飛ばしただけの項目に「もう解いた」印を付けない',
+      { tasks: skipping.servedTasks, quizzes: skipping.servedQuizzes });
+    check(JSON.stringify(skipping.secondKeys) === JSON.stringify(skipping.firstKeys),
+      '飛ばした項目は次のセットでも同じ順番で出る（後回しにならない）',
+      { first: skipping.firstKeys, second: skipping.secondKeys });
+  }
+
+  // このあとの節は既定の復習ホームを前提にするので、途中のセットを捨てて開き直す
+  await ev(`localStorage.removeItem('jq-review-run');`);
+
+  await open('#review');
 
   const quizPhase = await ev(`(async () => {
     document.getElementById('reviewStartBtn').click();
     await window.__t.until(() => location.hash.indexOf('#review/') === 0, 40);
     await window.__t.sleep(600);
+    // 次の項目へ進むのはフッタのボタン。帯の「この問題を飛ばす」は同じ
+    // advanceReviewItem を呼ぶだけの重複だったので外した（2026-09-02）
     for (let i = 0; i < 12 && !document.querySelector('.review-quiz-view'); i++) {
-      const skip = document.getElementById('reviewSkipBtn');
-      if (!skip) { break; }
-      skip.click();
+      const next = document.getElementById('reviewFooterBtn');
+      if (!next) { break; }
+      next.click();
       await window.__t.sleep(600);
     }
     const view = document.querySelector('.review-quiz-view');
+    const saved = JSON.parse(localStorage.getItem('jq-review-run') || 'null');
     return {
       shown: !!view,
       feedback: !!(view && view.querySelector('.quiz-feedback')),
       next: !!document.getElementById('reviewFooterBtn'),
       score: view ? (view.querySelector('.quiz-score') || {}).textContent : '',
       quizNote: view ? (view.querySelector('.quiz-note') || {}).textContent || '' : '',
-      bar: (document.querySelector('.review-bar-progress') || {}).textContent
+      bar: (document.querySelector('.review-bar-progress') || {}).textContent,
+      kinds: saved && saved.set ? saved.set.items.map(item => item.kind) : []
     };
   })()`);
-  check(quizPhase.shown, '問題を出し切るとクイズが続けて出る', quizPhase);
-  check(!quizPhase.feedback && !quizPhase.next,
-    '答える前は正解も解説も「次へ」も出さない', quizPhase);
+  check(quizPhase.shown, '問題と同じセットで、問題のあとにクイズが出る', quizPhase);
+  const firstQuiz = quizPhase.kinds.indexOf('quiz');
+  check(firstQuiz >= 0 && quizPhase.kinds.slice(0, firstQuiz).every(kind => kind === 'task')
+      && quizPhase.kinds.slice(firstQuiz).every(kind => kind === 'quiz'),
+    '共通の出題順は問題を先、クイズを後にまとめる', quizPhase.kinds);
+  check(!quizPhase.feedback && quizPhase.next,
+    '答える前も正解と解説は隠し、画面下から次へ進める', quizPhase);
   // 📣ひらめきメガホンの解放条件（連続正解の数）は出さない ―― まだ手に入れていない
   // アイテムの話なので、学習の画面で明かさない（2026-08-26に利用者から「ネタバレ」と指摘）
-  check(!quizPhase.score && String(quizPhase.bar).indexOf('クイズ') >= 0,
-    '連続正解の数を出さず、クイズの段であることだけが出ている', quizPhase);
+  check(!quizPhase.score && String(quizPhase.bar).indexOf('項目') >= 0,
+    '連続正解の数を出さず、問題と共通の項目数を出している', quizPhase);
   check(String(quizPhase.quizNote).indexOf('📣') < 0
       && String(quizPhase.quizNote).indexOf('連続') < 0
       && String(quizPhase.quizNote).indexOf('チップは出ません') >= 0,
@@ -1141,7 +1523,33 @@ const HELPERS = `window.__t = {
     '★と正解数の根拠（選んだ答え）は書き換えない', graded);
   check(graded.next.length > 0, '答えたあとに次へ進める', graded.next);
 
-  // ── クイズの段の「🎓 もう理解した」（2026-08-22）──────────────────────
+  // 回答済みクイズへ戻ってもAPIへ再送信しない。問題と共通の前後移動にするうえで、
+  // 連続正解を二重計上しないための要所。
+  const revisitedQuiz = await ev(`(async () => {
+    const run = async () => (await (await fetch('/api/state')).json()).progress.cafe.quizReviewRun;
+    const before = await run();
+    const back = document.getElementById('reviewBackBtn');
+    if (!back) { return { moved: false, before: before }; }
+    back.click();
+    await window.__t.until(() => document.querySelector('.review-view:not(.review-quiz-view)'), 40);
+    const task = !!document.querySelector('.review-view:not(.review-quiz-view)');
+    document.getElementById('reviewFooterBtn').click();
+    await window.__t.until(() => document.querySelector('.review-quiz-view .quiz-feedback'), 40);
+    const view = document.querySelector('.review-quiz-view');
+    return {
+      moved: task && !!view,
+      feedback: !!(view && view.querySelector('.quiz-feedback')),
+      disabled: !!view && [...view.querySelectorAll('.quiz-choice')].every(b => b.disabled),
+      before: before,
+      after: await run()
+    };
+  })()`);
+  check(revisitedQuiz.moved && revisitedQuiz.feedback && revisitedQuiz.disabled,
+    'クイズから前の問題へ戻り、進み直すと回答結果が復元される', revisitedQuiz);
+  check(revisitedQuiz.after === revisitedQuiz.before,
+    '回答済みクイズへ戻っても連続正解を二重計上しない', revisitedQuiz);
+
+  // ── クイズ項目の「🎓 もう理解した」（2026-08-22）─────────────────────
   //
   // 正解した回にだけ出て、押すと期限が最上位（120日後）へ飛ぶ。押した直後は「戻す」で
   // 元の期限へ帰せる。問題側の同じボタンは下の節で見る。
@@ -1180,7 +1588,7 @@ const HELPERS = `window.__t = {
   // 先頭のクイズから出し直していた（利用者の指摘「同じような問題ばかり出ている」）。
   //
   // ここで見るのは2つ ― たったいま正解したクイズが次のセットに並ばないこと、そして
-  // 期限前のクイズしか無い日は**クイズの段を出さずに次に出る日を案内する**こと。
+  // 期限前のクイズしか無い日は**クイズ項目を出さずに次に出る日を案内する**こと。
   const nextSet = await ev(`(async () => {
     const state = await (await fetch('/api/state')).json();
     let due = null;
@@ -1200,7 +1608,7 @@ const HELPERS = `window.__t = {
     return { note: note.replace(/\s+/g, ' ').trim() };
   })()`);
   check(quizGone.note.indexOf('今日はありません') >= 0,
-    '期限前のクイズしか無い日は、クイズの段を出さずに次に出る日を案内する', quizGone.note);
+    '期限前のクイズしか無い日は、クイズ項目を出さずに次に出る日を案内する', quizGone.note);
 
   // ── サイドバーの検索（打つ → 絞る → 開く → 章の一覧へ戻る）────────────
   //
@@ -1647,54 +2055,102 @@ const HELPERS = `window.__t = {
   check(back.kept === 'false', '読み直しても切ったままになっている', back);
   check(back.on === 'true' && back.saved === '1', 'もう一度押すと表示する側へ戻せる', back);
 
-  // ── 1つ前の問題へ戻る（2026-08-22・利用者の要望）───────────────────────────
+  // ── 1つ前の項目へ戻る（2026-08-22・利用者の要望）───────────────────────────
   //
   // ここまでで ${LESSON}#${TASK} と ${LESSON}#${PREF_TASK} の2問がクリア済みなので、
   // **1セット＝2問**になる（クリア済みの問題は期限前でも補充に入る → buildReviewQueue）。
   // 2問ないと「戻る」を押せないので、この節はここに置いてある。
   //
-  // 見るのは5つ ― 1問目では出さない（押せないボタンを残さない）・2問目には出る・
-  // 置き場所が「次の問題へ」と同じフッタである・押すと1問目に戻って何問目かの表示も戻る・
-  // 戻った位置が控えにも残る
+  // 見るのは、1問目では戻るボタンを出さないこと、2問目には出ること、置き場所が
+  // 「次の問題へ」と同じフッタであること、押すと1問目に戻って何問目かの表示も戻ること、
+  // 戻った位置が控えにも残ること。さらに1問目を正解してから進み、戻ったときには
+  // 正解時のコード・採点結果・「復習クリア」の表示がそろって戻ることを見る。
   // （途中で抜けても「続きから」戻る先が今いる問題になる → jq-review-run）。
   await open('#review');
   const stepBack = await ev(`(async () => {
     const bar = () => ((document.querySelector('.review-bar-progress') || {}).textContent || '').trim();
     const backBtn = () => document.getElementById('reviewBackBtn');
     const saved = () => (JSON.parse(localStorage.getItem('jq-review-run') || 'null') || {}).set || {};
+    const codes = ${JSON.stringify({ [TASK]: solution.code || '', [PREF_TASK]: prefCode })};
     document.getElementById('reviewStartBtn').click();
     await window.__t.until(() => location.hash.indexOf('#review/') === 0, 40);
     await window.__t.sleep(700);
-    const first = { bar: bar(), back: !!backBtn(), hash: location.hash, index: saved().index };
-    document.getElementById('reviewSkipBtn').click();
+    const firstTask = location.hash.split('/').pop();
+    const editor = document.querySelector('.review-view .editor-input');
+    const submittedCode = codes[firstTask] || '';
+    if (editor) {
+      editor.value = submittedCode;
+      editor.dispatchEvent(new Event('input', { bubbles: true }));
+    }
+    const resultHost = document.querySelector('.review-view .result');
+    document.querySelector('.review-view [id^="submitBtn-"]').click();
+    const passed = await window.__t.until(() => {
+      const card = resultHost && resultHost.querySelector('.card-result.ok');
+      return card && !card.querySelector('.spinner') ? card : null;
+    });
+    await window.__t.sleep(150);
+    const first = { bar: bar(), back: !!backBtn(), hash: location.hash, position: saved().position,
+                    task: firstTask, submittedCode: submittedCode, passed: !!passed,
+                    savedAnswer: !!((saved().answers || {})['${LESSON}#' + firstTask]) };
+    document.getElementById('reviewFooterBtn').click();
     await window.__t.until(() => location.hash !== first.hash, 40);
     await window.__t.sleep(700);
-    const second = { bar: bar(), back: !!backBtn(), hash: location.hash, index: saved().index,
+    const second = { bar: bar(), back: !!backBtn(), hash: location.hash, position: saved().position,
                      inFooter: !!(backBtn() && document.querySelector('.lesson-next').contains(backBtn())),
                      inBar: !!(backBtn() && document.querySelector('.review-bar').contains(backBtn())) };
     if (!backBtn()) { return { first: first, second: second }; }
     backBtn().click();
     await window.__t.until(() => location.hash === first.hash, 40);
     await window.__t.sleep(700);
-    const third = { bar: bar(), back: !!backBtn(), hash: location.hash, index: saved().index,
-                    forward: ((document.getElementById('reviewFooterBtn') || {}).textContent || '').trim() };
+    const third = { bar: bar(), back: !!backBtn(), hash: location.hash, position: saved().position,
+                    forward: ((document.getElementById('reviewFooterBtn') || {}).textContent || '').trim(),
+                    code: ((document.querySelector('.review-view .editor-input') || {}).value || ''),
+                    result: !!document.querySelector('.review-view .card-result.ok'),
+                    footer: ((document.getElementById('reviewFooter') || {}).textContent || '').trim() };
     return { first: first, second: second, third: third };
   })()`);
-  check(stepBack.first.bar === '1 / 2問' && stepBack.second.bar === '2 / 2問',
+  check(stepBack.first.bar === '1 / 2項目' && stepBack.second.bar === '2 / 2項目',
     '2問のセットが組まれた（この検査の前提）', stepBack);
-  check(!stepBack.first.back, '1問目には「前の問題へ」を出さない', stepBack.first);
-  check(stepBack.second.back, '2問目には「前の問題へ」が出る', stepBack.second);
+  check(!stepBack.first.back, '1項目目には「前の項目へ」を出さない', stepBack.first);
+  check(stepBack.second.back, '2項目目には「前の項目へ」が出る', stepBack.second);
   // 置き場所は帯ではなくフッタ（2026-08-24・利用者の要望）。id で引く検査だけだと、
   // どこへ移しても通ってしまうので、どちらに入っているかまで見る
   check(stepBack.second.inFooter && !stepBack.second.inBar,
-    '「前の問題へ」は帯ではなく「次の問題へ」と同じフッタにある', stepBack.second);
+    '「前の項目へ」は帯ではなく「次へ」と同じフッタにある', stepBack.second);
   check(!!stepBack.third && stepBack.third.hash === stepBack.first.hash
-      && stepBack.third.bar === '1 / 2問' && !stepBack.third.back,
-    '押すと1つ前の問題へ戻り、何問目かの表示も戻る', stepBack.third);
-  check(!!stepBack.third && stepBack.third.index === 0 && stepBack.second.index === 1,
+      && stepBack.third.bar === '1 / 2項目' && !stepBack.third.back,
+    '押すと1つ前の項目へ戻り、何項目目かの表示も戻る', stepBack.third);
+  check(!!stepBack.third && stepBack.third.position === 0 && stepBack.second.position === 1,
     '戻った位置は控えにも残る（抜けても戻る先が今の問題になる）', stepBack);
   check(!!stepBack.third && stepBack.third.forward.indexOf('次の問題へ') >= 0,
     '戻ったあとも前へ進める（行き止まりにならない）', stepBack.third);
+  check(stepBack.first.passed && stepBack.first.savedAnswer,
+    '1問目の正解時に、このセットの控えへ回答を保存する', stepBack.first);
+  check(!!stepBack.third && stepBack.third.code === stepBack.first.submittedCode,
+    '前の問題へ戻ると、正解時に提出したコードが残っている', stepBack.third);
+  check(!!stepBack.third && stepBack.third.result && stepBack.third.footer.indexOf('復習クリア') >= 0,
+    '前の問題へ戻ると、正解の採点結果と表示が残っている', stepBack.third);
+
+  // セットの控えは再読み込みにも耐える。画面の変数だけに回答を置く実装では、ここで消える。
+  await open('#review');
+  const restoredReviewAnswer = await ev(`(async () => {
+    const resume = document.getElementById('reviewResumeBtn');
+    if (!resume) { return { resumed: false }; }
+    resume.click();
+    await window.__t.until(() => location.hash.indexOf('#review/') === 0, 40);
+    await window.__t.sleep(700);
+    return {
+      resumed: true,
+      hash: location.hash,
+      code: ((document.querySelector('.review-view .editor-input') || {}).value || ''),
+      result: !!document.querySelector('.review-view .card-result.ok'),
+      footer: ((document.getElementById('reviewFooter') || {}).textContent || '').trim()
+    };
+  })()`);
+  check(restoredReviewAnswer.resumed && restoredReviewAnswer.hash === stepBack.first.hash
+      && restoredReviewAnswer.code === stepBack.first.submittedCode
+      && restoredReviewAnswer.result && restoredReviewAnswer.footer.indexOf('復習クリア') >= 0,
+    'セットの途中で再読み込みしても、正解時のコードと表示が残っている', restoredReviewAnswer);
 
   // ── 目次（右の柱）──────────────────────────────────────────────
   //
@@ -1806,19 +2262,21 @@ const HELPERS = `window.__t = {
     await open('#review', OWNED_PORT);
     const owned = await ev(`(async () => {
       const state = await (await fetch('/api/state')).json();
-      const note = () => ((document.querySelector('.review-quiz-note') || {}).textContent || '')
+      // クイズの数は「今回のセット」の内訳に出る（2026-09-02の刷新で、
+      // ヒーローの「問題のあとに確認クイズ N問が続きます」の1行はやめた）
+      const note = () => ((document.querySelector('.cta-target') || {}).textContent || '')
         .replace(/\s+/g, ' ').trim();
       const before = note();
-      // 問題を飛ばしてクイズの段まで進む（前の節と同じ運び方）
+      // 問題を飛ばして、同じセット内のクイズ項目まで進む（前の節と同じ運び方）
       const start = document.getElementById('reviewStartBtn');
       if (start) {
         start.click();
         await window.__t.until(() => location.hash.indexOf('#review/') === 0, 40);
         await window.__t.sleep(600);
         for (let i = 0; i < 12 && !document.querySelector('.review-quiz-view'); i++) {
-          const skip = document.getElementById('reviewSkipBtn');
-          if (!skip) { break; }
-          skip.click();
+          const next = document.getElementById('reviewFooterBtn');
+          if (!next) { break; }
+          next.click();
           await window.__t.sleep(600);
         }
       }
@@ -1847,11 +2305,11 @@ const HELPERS = `window.__t = {
     check(owned.owns && owned.shown,
       '📣を所持した進捗でクイズの復習に入れた（この検査の前提）', owned);
     // 案内そのものが出ていないと、下の「消えている」は空振りになる（1度そうなった）
-    check(owned.homeNote.indexOf('確認クイズ') >= 0,
-      '復習ホームにクイズの案内が出ている（この検査の前提）', owned.homeNote);
+    check(owned.homeNote.indexOf('クイズ') >= 0,
+      '復習ホームの内訳にクイズが並んでいる（この検査の前提）', owned.homeNote);
     check(owned.homeNote.indexOf('📣') < 0 && owned.homeNote.indexOf('連続') < 0,
       '復習ホームの案内から解放条件が消えている', owned.homeNote);
-    check(owned.score === false, '所持していてもクイズの段に連続を出さない', owned);
+    check(owned.score === false, '所持していてもクイズ項目に連続を出さない', owned);
     check(owned.quizNote.indexOf('📣') < 0 && owned.quizNote.indexOf('解放') < 0,
       '「解放されます」の一文も出さない（払わない・書き換えないは残る）', owned.quizNote);
     check(owned.quizNote.indexOf('チップは出ません') >= 0,
@@ -1872,7 +2330,12 @@ const HELPERS = `window.__t = {
   console.log(`\n${GREEN}LEARN UI OK: 誤答・コンパイルエラー・ヒント・模範解答・`
     + `★と報酬・1問1枚のパネル・獲得の履歴・自動保存・カフェへの寄り道と位置の復元`
     + `（レッスンと復習の両方）・復習の出題・`
-    + `途中で抜けたセットの「続きから」・1つ前の問題へ戻る・復習の最後に続くクイズ・`
+    + `途中で抜けたセットの「続きから」・1つ前の項目へ戻る・問題と混在するクイズ・`
+    + `復習の絞り込み（状態と種類の2軸・一覧と出題の両方に効くこと）・`
+    + `一覧の並び替え（復習セットの順が既定・期限順で種類でまとめない・教材の順）・ページ送り・`
+    + `飛ばした項目を後回しにしないこと・`
+    + `一覧の行の見え方（種類の札・右端の札の位置）・`
+    + `クイズ項目のURL（戻る・直接開く・成り立たないURL）・`
     + `クイズのしおり・サイドバーの検索・試しに実行と入力欄・`
     + `報酬の通知の表示/非表示・「もう理解した」の先送りと取り消し・`
     + `クイズで章が終わった回のお祝いのカードと「次の章へ進む」・`

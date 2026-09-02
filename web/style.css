@@ -4116,35 +4116,46 @@ pre.code-plain { color: var(--text-dim); }
 
 /* ── 復習ホーム ──────────────────────────────────────────────────── */
 
-.review-filters { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0 14px; }
-.review-filter {
+/* 一覧の上の1列 ―― 並び順・状態・種類・件数（→ reviewToolbarHtml）。
+   札を並べるのをやめて選択にした（2026-09-02の刷新）。3つが1行に収まり、件数は
+   選択肢の中に入る。見出しは意味を持つ字なので --text-faint は使わない ―― あの色は
+   添え書き専用で、明るい配色では 2.88:1 しかない（→ check_contrast.py） */
+.review-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 14px;
+  margin: 0 0 12px;
+}
+.review-select { display: flex; min-width: 0; align-items: center; gap: 7px; }
+.review-select-label { flex: none; color: var(--text-dim); font-size: 12px; }
+/* 選択そのものはブラウザのものを使う（自作の一覧より、キーボードでも触りやすい）。
+   見た目だけ他の枠に合わせる */
+.review-select select {
+  max-width: 100%;
+  padding: 6px 9px;
+  border: 1px solid var(--border-soft);
+  border-radius: 9px;
+  background: var(--bg-elev-2);
+  color: var(--text);
+  font: inherit;
+  font-size: 12.5px;
+}
+.review-select select:hover { border-color: var(--text-faint); }
+.review-select select:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+/* 表示件数は右端へ。絞り込みを変えたときに動く数字なので、選択のとなりに置く */
+.review-toolbar-count { margin-left: auto; color: var(--text-dim); font-size: 12.5px; }
+
+/* ページ送り。番号は並べない（20ページを超えると帯が一覧より長くなる） */
+.review-pager {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 7px 13px;
-  border: 1px solid var(--border-soft);
-  border-radius: 10px;
-  background: var(--bg-elev-2);
-  color: var(--text-dim);
-  text-align: left;
-  transition: color 0.15s, border-color 0.15s;
+  justify-content: center;
+  gap: 12px;
+  margin-top: 14px;
 }
-.review-filter:hover:not(:disabled):not(.active) {
-  border-color: var(--text-faint);
-  color: var(--text);
-}
-.review-filter.active {
-  border-color: color-mix(in srgb, var(--accent) 55%, var(--border));
-  background: color-mix(in srgb, var(--accent) 12%, var(--bg-elev-2));
-  color: var(--text);
-}
-.review-filter:disabled { opacity: 0.45; }
-.review-filter-icon { display: flex; align-items: center; font-size: 14px; line-height: 1; }
-.review-filter-copy { display: flex; flex-direction: column; line-height: 1.25; }
-.review-filter-copy strong { font-size: 12.5px; font-weight: 600; }
-.review-filter-copy small { color: var(--text-faint); font-size: 10.5px; }
+.review-pager-at { color: var(--text-dim); font-size: 12.5px; font-variant-numeric: tabular-nums; }
 
-.review-summary,
 .review-resume,
 .review-empty {
   display: flex;
@@ -4155,30 +4166,17 @@ pre.code-plain { color: var(--text-dim); }
   border-radius: 14px;
   background: var(--bg-elev);
 }
-.review-summary-icon,
+.review-resume-icon,
 .review-empty-icon { flex: none; font-size: 28px; }
-.review-summary strong,
 .review-resume strong,
 .review-empty strong { font-size: 14px; }
-.review-summary p,
 .review-resume p,
 .review-empty p { margin: 4px 0 0; color: var(--text-dim); font-size: 12.5px; }
-/* 途中のセットへ戻る道。「続きから」と「はじめから」を並べるので、
-   結果カードの1つボタン（下の .review-summary .primary-btn）とは別に組む */
+/* 途中のセットへ戻る道。「続きから」と「はじめから」を横に並べる。 */
 .review-resume-actions { display: flex; flex: none; gap: 8px; margin-left: auto; }
 .review-resume-actions .primary-btn,
 .review-resume-actions .ghost-btn { flex: none; white-space: nowrap; }
 .review-empty .primary-btn { flex: none; margin-left: auto; }
-/* 「もう1セット」は結果のすぐ隣。続ける操作が結果から離れると毎回上へ目を戻すことになる */
-.review-summary .primary-btn {
-  display: flex;
-  flex: none;
-  flex-direction: column;
-  align-items: center;
-  gap: 1px;
-  margin-left: auto;
-}
-.review-summary .primary-btn small { font-size: 10.5px; opacity: 0.75; }
 /* 添え書きのあるボタンは2行に積む（「はじめから」「早めに1セット」）。
    ひとことだけのボタン（1セット復習する）は1行のままにする */
 .stacked-cta {
@@ -4220,6 +4218,25 @@ pre.code-plain { color: var(--text-dim); }
   font-family: var(--mono);
   font-size: 11.5px;
 }
+/* 行の種類（📝 問題 / 🧠 クイズ）。混ざった一覧でどちらなのかを言葉と絵で出す。
+   色は分けない ―― 右の札が期限と苦手度で色を使っているので、ここまで色を足すと
+   どの色が何の意味なのか読めなくなる。幅を決めてあるのは題名の始まりを揃えるため。 */
+.review-row-kind {
+  position: relative;   /* 狭い幅で隠す言葉（下の .review-row-kind-text）の位置の基準 */
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  min-width: 6.1em;   /* 「🧠 クイズ」の実測 75px（12.5px時）より広く取り、題名の始まりを揃える */
+  padding: 2px 8px;
+  border: 1px solid var(--border-soft);
+  border-radius: 7px;
+  color: var(--text-dim);
+  font-size: 11.5px;
+  white-space: nowrap;
+}
+.review-row-kind-icon { display: flex; align-items: center; line-height: 1; }
 .review-row-copy { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .review-row-copy strong {
   overflow: hidden;
@@ -4229,12 +4246,20 @@ pre.code-plain { color: var(--text-dim); }
   white-space: nowrap;
 }
 .review-row-copy small { color: var(--text-faint); font-size: 11px; }
-.review-list-more { margin-top: 10px; }
-
+/* 行の右端の枠。**寄せ方を決めるのはここだけ**にする。
+   以前は札それぞれに margin-left:auto が付いていて、札が2つ並ぶクイズの行では
+   余白が半分ずつ配られ、期限の札が行の真ん中あたりへ浮いていた
+   （問題の行では右へ寄っていたので、行の種類で位置が変わっていた → reviewRowTailHtml）。 */
+.review-row-tail {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+}
 /* 次に確認したい日。期限を過ぎたものだけ色を変える（色だけに頼らず言葉も入れる）。 */
 .review-due {
   flex: none;
-  margin-left: auto;
   padding: 3px 9px;
   border: 1px solid var(--border-soft);
   border-radius: 999px;
@@ -4242,10 +4267,9 @@ pre.code-plain { color: var(--text-dim); }
   white-space: nowrap;
   color: var(--text-faint);
 }
-/* しおりを付けたクイズの答え合わせの状態。同じ形のピルで、こちらは期限ではなく正誤を出す */
+/* 回答済みクイズの答え合わせの状態。同じ形のピルで、こちらは期限ではなく正誤を出す */
 .quiz-bookmark-state {
   flex: none;
-  margin-left: auto;
   padding: 3px 9px;
   border: 1px solid var(--border-soft);
   border-radius: 999px;
@@ -4253,6 +4277,13 @@ pre.code-plain { color: var(--text-dim); }
   white-space: nowrap;
   color: var(--text-faint);
 }
+/* 一覧の中だけ、2つの札の幅を決めて縦の列にする。右端が揃っているだけでは、
+   期限の札の長さ（「⏰ 12日 過ぎている」〜「あと3日」）のぶん左端が行ごとにずれて、
+   100行を超える一覧では期限を目で追えない。幅は em で持つので、
+   下の「読みやすい文字寸法」で字を大きくしても札の比率は変わらない。 */
+.review-row .review-due { min-width: 10.6em; text-align: center; }
+.review-row .review-weight,
+.review-row .quiz-bookmark-state { min-width: 9.2em; text-align: center; }
 .quiz-bookmark-state.is-ok {
   border-color: color-mix(in srgb, var(--ok) 45%, var(--border));
   color: var(--ok);
@@ -4467,6 +4498,12 @@ pre.code-plain { color: var(--text-dim); }
   .chapter-detail { display: block; overflow: visible; padding: 22px 20px; }
   .chapter-start-btn { align-self: auto; }
   .chapter-lesson-list { overflow: visible; scrollbar-gutter: auto; }
+  /* この幅から札の幅を列に揃えない。揃えたままだと題名に残るのが12文字ぶんしかない
+     （実測：700pxで168px）。右端は .review-row-tail が揃えるので、
+     期限の位置が行の種類で変わることはこの幅でも起きない */
+  .review-row .review-due,
+  .review-row .review-weight,
+  .review-row .quiz-bookmark-state { min-width: 0; }
 }
 
 @media (max-width: 560px) {
@@ -4499,18 +4536,34 @@ pre.code-plain { color: var(--text-dim); }
   .hero-action { align-items: stretch; flex-direction: column; gap: 12px; }
   .primary-btn.big { width: 100%; }
   .hero-buttons { min-width: 0; }
-  .review-filters { gap: 6px; }
-  .review-filter { flex: 1 1 auto; justify-content: center; padding: 7px 10px; }
-  .review-summary,
+  /* 選択は縦に積んで横幅いっぱいにする（横に並べたままだと選択肢の字が読めない） */
+  .review-toolbar { flex-direction: column; align-items: stretch; gap: 8px; }
+  .review-select { justify-content: space-between; }
+  .review-select select { flex: 1 1 auto; min-width: 0; }
+  .review-toolbar-count { margin-left: 0; }
   .review-resume,
   .review-empty { align-items: flex-start; flex-direction: column; gap: 12px; }
-  .review-empty .primary-btn,
-  .review-summary .primary-btn { width: 100%; margin-left: 0; }
+  .review-empty .primary-btn { width: 100%; margin-left: 0; }
   .review-resume-actions { width: 100%; margin-left: 0; }
   .review-resume-actions .primary-btn,
   .review-resume-actions .ghost-btn { flex: 1 1 auto; }
   .review-row-main { gap: 8px; padding: 9px 11px; }
   .review-row-id { min-width: 0; }
+  /* 種類は絵だけにする。札ごと消すと問題とクイズが見分けられなくなるので、言葉は
+     読み上げ用に残す（しおりのラベルと同じ手 → .review-row .bookmark-label）。
+     位置の基準は札自身（.review-row-kind の position:relative）―― 基準が無いと
+     この1pxが .content の切り取りから逃げて、ページの終わりより先へスクロールできてしまう */
+  .review-row-kind { min-width: 0; padding: 2px 5px; }
+  .review-row-kind-text {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
   .review-bar-note { display: none; }
   .part-tab-sub { display: none; }
   .screen-heading { align-items: flex-start; flex-direction: column; gap: 12px; }
@@ -4615,22 +4668,20 @@ kbd { font-size: 12.5px; }
 
 /* 復習モード。苦手度と件数は判断に使う文字なので、飾りより大きめに保つ。 */
 .review-cta small,
-.review-filter-copy small,
 .review-row-copy small,
-.review-bar-note,
-.review-list-more { font-size: 12px; }
-.review-filter-copy strong,
+.review-bar-note { font-size: 12px; }
 .review-row-copy strong,
 .review-bar-title,
-.review-summary strong,
 .review-resume strong,
 .review-empty strong { font-size: 14px; }
 .review-weight,
 .review-due,
+/* 期限と同じ列に並ぶ札なので、同じ寸法にする（外すと列の高さと幅が食い違う） */
+.quiz-bookmark-state,
+.review-row-kind,
 .review-row-id,
 .review-bar-progress { font-size: 12.5px; }
 .review-cta { font-size: 15px; }
-.review-summary p,
 .review-resume p,
 .review-empty p { font-size: 13px; }
 
