@@ -40,12 +40,11 @@ public final class CafeBalanceSimulation {
 
     /** 117回目でラッキーコインを引く、再現可能な通常試算用シード。 */
     private static final long STANDARD_LUCKY_UNLOCK_SEED = 77_777L;
-    /** 584回の初回正解では引かない（初当たりは812回目）、最も不運な場合の境界試算用シード。 */
+    /** 初当たりが812回目で、現行の全課程では引かない境界試算用シード。 */
     private static final long UNLUCKY_UNLOCK_SEED = 47L;
 
     private static final Set<Integer> MILESTONES = Set.of(
-            1, 20, 50, 100, 170, 240, 310, 370, 420, 460, 480, 493, 500, 503, 507,
-            520, 540, 560, 574, 578, 580, 581, 583, 584);
+            1, 20, 50, 100, 170, 240, 310, 370, 420, 460, 480, 493, 500);
 
     /** 初回クリア1問あたりのブランド成長。復習ぶんがこれを超えないことを確かめる。 */
     private static final long FIRST_CLEAR_BRAND_BASIS_POINTS_PER_TASK = 170;
@@ -134,7 +133,8 @@ public final class CafeBalanceSimulation {
         require(number(plain.cafe().get("equipmentDiscountPercent")) == 20,
                 "マイスター工具箱の設備費20%OFFが効いていません");
 
-        // 0.3%抽選なので、全584問を解いても外れ続ける人が約17%いる（1%のころは約0.3%）。
+        // 0.3%抽選なので、現行の復習対象の必須課題600問を解いても外れ続ける人が約17%いる
+        // （1%のころは約0.2%）。
         // 珍しい筋書きではないので、未解放でも必須設備・店舗・終盤投資を買えて、
         // 投資率が破綻しないことをここで見る。
         Outcome unlucky = simulate(
@@ -238,7 +238,7 @@ public final class CafeBalanceSimulation {
                         String key = Lesson.taskKey(lesson.id(), task.id());
                         // 粘りのドリッパーは「1問へ累計10回提出」で解放される。最初の1問だけ
                         // 粘った形にしておく（無傷の連続はここで1回切れるだけで、
-                        // 584問あれば25問連続はその後いくらでも成立する）
+                        // 全課程には十分な問題数があり、25問連続はその後に成立する）
                         if (firstTask) {
                             for (int i = 0; i < 10; i++) {
                                 progress.recordAttempt(key);
@@ -264,7 +264,8 @@ public final class CafeBalanceSimulation {
                             earlyFacilities.add(facilityCount(
                                     cafe(progress, learning(curriculum, progress))));
                         }
-                        if (printRows && MILESTONES.contains(progress.clearedIds().size())) {
+                        if (printRows && isMilestone(
+                                progress.clearedIds().size(), curriculum.totalTaskCount())) {
                             printRow(progress, learning(curriculum, progress));
                         }
                     }
@@ -299,7 +300,8 @@ public final class CafeBalanceSimulation {
                             earlyFacilities.add(facilityCount(
                                     cafe(progress, learning(curriculum, progress))));
                         }
-                        if (printRows && MILESTONES.contains(progress.clearedIds().size())) {
+                        if (printRows && isMilestone(
+                                progress.clearedIds().size(), curriculum.totalTaskCount())) {
                             printRow(progress, learning(curriculum, progress));
                         }
                     }
@@ -314,6 +316,10 @@ public final class CafeBalanceSimulation {
                     Math.max(0, (curriculum.totalTaskCount() - 500) / 20);
             System.out.printf("FINAL[%s] spend=%,d (%.2f%%) cash=%,d lifetime=%,d%n",
                     label, lifetime - cash, spendPercent, cash, lifetime);
+            // 予約済みの非同期保存が一時ディレクトリの削除後に走ると、成功した試算へ
+            // 「進捗を保存できませんでした」という紛らわしい警告が混ざる。削除前に
+            // dirtyを落としておけば、後から起きたタイマーは何も書かない。
+            progress.flushNow();
             return new Outcome(label, cafe, spendPercent,
                     progress.clearedIds().size(), expectedInvestments, streakDays >= 7,
                     List.copyOf(earlyFacilities));
@@ -331,7 +337,7 @@ public final class CafeBalanceSimulation {
      * <p><b>期限ぶんの報酬は、金額の計算だけを直接呼んでいる。</b>クリアした直後は
      * 期限が翌日以降にあるので {@code duePassed} にはならず（すぐ下で確かめている）、
      * 日付を戻さないと1コインも入らない。ただし日付を戻して完走後にまとめて払うと、
-     * 末期の単価で584問ぶんが一度に入って上限側を測り損なう（実測 lifetime が
+     * 末期の単価で全必須課題ぶんが一度に入って上限側を測り損なう（実測 lifetime が
      * 119兆→297兆、投資率5.66%まで落ちた）。<b>ここで払えば、初回クリアと同じ時点の
      * 単価で受け取る</b> ―― 実際の利用者も、翌日の復習は翌日の店構えで受け取る。</p>
      *
@@ -495,6 +501,13 @@ public final class CafeBalanceSimulation {
                 number(cafe.get("nextOrderCash")), number(cafe.get("storeCount")),
                 list(cafe.get("ownedUpgrades")).size(), list(cafe.get("ownedAutomation")).size(),
                 list(cafe.get("ownedItems")).size(), number(cafe.get("investmentLevel")));
+    }
+
+    /** 固定の経営節目、20★ごとの終盤投資、現在の最終★を表示する。 */
+    private static boolean isMilestone(int stars, int totalStars) {
+        return MILESTONES.contains(stars)
+                || stars >= 520 && (stars - 500) % 20 == 0
+                || stars == totalStars;
     }
 
     /** どちらのシナリオでも、買えるものは最後まで全部買えていること。 */

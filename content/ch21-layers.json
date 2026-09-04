@@ -467,126 +467,11 @@
       "objectiveIds": [
         "ch21-o5"
       ],
-      "explanation": "## Mavenで依存関係とビルドを管理する\n\nMavenは `pom.xml` にプロジェクト情報、成果物の種類、依存ライブラリなどを記述します。\n\n```xml\n<project>\n  <groupId>com.example</groupId>\n  <artifactId>inventory</artifactId>\n  <version>1.0.0</version>\n  <packaging>war</packaging>\n\n  <dependencies>\n    <dependency>\n      <groupId>jakarta.platform</groupId>\n      <artifactId>jakarta.jakartaee-api</artifactId>\n      <version>11.0.0</version>\n      <scope>provided</scope>\n    </dependency>\n  </dependencies>\n</project>\n```\n\n`groupId`、`artifactId`、`version` の組をGAVと呼びます。依存ライブラリがさらに必要とする依存も、\nMavenが推移的依存として解決します。実際に選ばれた構成は `mvn dependency:tree` で確認できます。\n\n## scope\n\n| scope | 主な意味 |\n|---|---|\n| `compile`（既定） | コンパイル時と実行時に必要 |\n| `provided` | コンパイルには必要だが、実行環境から提供されるので成果物へ通常同梱しない |\n| `runtime` | コンパイルには不要だが実行時に必要 |\n| `test` | テストのコンパイル・実行だけで必要 |\n\n### Jakarta EEサーバーとTomcatを区別する\n\nWildFly、Open Liberty、Payaraなど、対象のJakarta EE Platform/Profileに対応するサーバーへ\n従来型WARを配置する場合、そのサーバーが提供するAPIは `provided` にするのが一般的です。\n完全なJakarta EE APIを使うなら、配置先も対応するJakarta EEランタイムでなければなりません。\n\n**TomcatはJakarta EEフルプラットフォームのサーバーではなく、Servletコンテナです。**\nTomcatへ配置するアプリでは、Tomcatが実装するServlet等のAPIには `jakarta.servlet-api` を `provided` で使えますが、\nCDI（第25章）、JPA（第26章）、Jakarta REST（第28章）などは別の実装を追加するか、それらを提供する互換サーバーを選びます。\n`jakarta.jakartaee-api` を宣言しただけでは、Tomcatに各仕様の実装が追加されるわけではありません。\n\nまた、`provided` が常に正解とは限りません。組み込みサーバーや自己完結型アプリでは、実行に必要な実装を\n実行可能JARなどへ含める構成があります。**配置先が何を提供するか**に合わせてscopeとパッケージを決めます。\n\n## Mavenの標準ディレクトリ\n\n```\ninventory/\n├── pom.xml\n└── src/\n    ├── main/\n    │   ├── java/\n    │   ├── resources/\n    │   └── webapp/\n    └── test/\n        ├── java/\n        └── resources/\n```\n\n`src/main/resources` はビルド後にクラスパスへ置かれます。WARではWeb資源を `src/main/webapp` に置きます。\n\n## JARとWAR\n\n| | JAR | WAR |\n|---|---|---|\n| 形式 | クラスやリソースをまとめる一般的な形式 | Webアプリ向けで `WEB-INF` などの構造を持つ |\n| 代表例 | ライブラリ、バッチ、実行可能Webアプリ | 外部Servlet/Jakarta EEサーバーへ配置するWebアプリ |\n\nJARはライブラリやバッチに限らず、組み込みWebサーバーを含む実行可能アプリにも使われます。\nWARは通常、対応する外部コンテナやサーバーへ配置します。`WEB-INF/classes` にアプリのクラス、\n`WEB-INF/lib` に同梱する依存JARが入ります。\n\n## よく使うコマンド\n\n| コマンド | 何をするか |\n|---|---|\n| `mvn compile` | コンパイル |\n| `mvn test` | テスト |\n| `mvn package` | JAR/WARを作成 |\n| `mvn clean package` | 生成物を消してから再ビルド |\n| `mvn dependency:tree` | 解決された依存関係を表示 |\n\n同じライブラリへ複数のバージョンが要求されたとき、Mavenは**宣言がいちばん近いもの**を1つ選びます\n（同じ距離なら先に書いたものが勝ちます）。選ばれなかった側を前提にしたコードは、\nコンパイル時に見えず、実行時の `NoSuchMethodError` などで現れます。実際に選ばれた版は\n`mvn dependency:tree` で確かめます。バージョン番号も単純な文字列比較ではなく、\n使用するエコシステムの規則に従って扱います。",
+      "explanation": "## Mavenで依存関係とビルドを管理する\n\nMavenは `pom.xml` にプロジェクト情報、成果物の種類、依存ライブラリなどを記述します。\n\n```xml\n<project>\n  <groupId>com.example</groupId>\n  <artifactId>inventory</artifactId>\n  <version>1.0.0</version>\n  <packaging>war</packaging>\n\n  <dependencies>\n    <dependency>\n      <groupId>jakarta.platform</groupId>\n      <artifactId>jakarta.jakartaee-api</artifactId>\n      <version>11.0.0</version>\n      <scope>provided</scope>\n    </dependency>\n  </dependencies>\n</project>\n```\n\n`groupId`、`artifactId`、`version` の組をGAVと呼びます。依存ライブラリがさらに必要とする依存も、\nMavenが推移的依存として解決します。実際に選ばれた構成は `mvn dependency:tree` で確認できます。\n\n## scope\n\n| scope | 主な意味 |\n|---|---|\n| `compile`（既定） | コンパイル時と実行時に必要 |\n| `provided` | コンパイルには必要だが、実行環境から提供されるので成果物へ通常同梱しない |\n| `runtime` | コンパイルには不要だが実行時に必要 |\n| `test` | テストのコンパイル・実行だけで必要 |\n\n### Jakarta EEサーバーとTomcatを区別する\n\nWildFly、Open Liberty、Payaraなど、対象のJakarta EE Platform/Profileに対応するサーバーへ\n従来型WARを配置する場合、そのサーバーが提供するAPIは `provided` にするのが一般的です。\n完全なJakarta EE APIを使うなら、配置先も対応するJakarta EEランタイムでなければなりません。\n\n**TomcatはJakarta EEフルプラットフォームのサーバーではなく、Servletコンテナです。**\nTomcatへ配置するアプリでは、Tomcatが実装するServlet等のAPIには `jakarta.servlet-api` を `provided` で使えますが、\nCDI（第25章）、JPA（第26章）、Jakarta REST（第28章）などは別の実装を追加するか、それらを提供する互換サーバーを選びます。\n`jakarta.jakartaee-api` を宣言しただけでは、Tomcatに各仕様の実装が追加されるわけではありません。\n\nまた、`provided` が常に正解とは限りません。組み込みサーバーや自己完結型アプリでは、実行に必要な実装を\n実行可能JARなどへ含める構成があります。**配置先が何を提供するか**に合わせてscopeとパッケージを決めます。\n\n## Mavenの標準ディレクトリ\n\n```\ninventory/\n├── pom.xml\n└── src/\n    ├── main/\n    │   ├── java/\n    │   ├── resources/\n    │   └── webapp/\n    └── test/\n        ├── java/\n        └── resources/\n```\n\n`src/main/resources` はビルド後にクラスパスへ置かれます。WARではWeb資源を `src/main/webapp` に置きます。\n\n## JARとWAR\n\n| | JAR | WAR |\n|---|---|---|\n| 形式 | クラスやリソースをまとめる一般的な形式 | Webアプリ向けで `WEB-INF` などの構造を持つ |\n| 代表例 | ライブラリ、バッチ、実行可能Webアプリ | 外部Servlet/Jakarta EEサーバーへ配置するWebアプリ |\n\nJARはライブラリやバッチに限らず、組み込みWebサーバーを含む実行可能アプリにも使われます。\nWARは通常、対応する外部コンテナやサーバーへ配置します。`WEB-INF/classes` にアプリのクラス、\n`WEB-INF/lib` に同梱する依存JARが入ります。\n\n## よく使うコマンド\n\n| コマンド | 何をするか |\n|---|---|\n| `mvn compile` | コンパイル |\n| `mvn test` | テスト |\n| `mvn package` | JAR/WARを作成 |\n| `mvn clean package` | 生成物を消してから再ビルド |\n| `mvn dependency:tree` | 解決された依存関係を表示 |\n\n同じライブラリへ複数のバージョンが要求されたとき、Mavenは**宣言がいちばん近いもの**を1つ選びます\n（同じ距離なら先に書いたものが勝ちます）。選ばれなかった側を前提にしたコードは、\nコンパイル時に見えず、実行時の `NoSuchMethodError` などで現れます。実際に選ばれた版は\n`mvn dependency:tree` で確かめます。バージョン番号も単純な文字列比較ではなく、\n使用するエコシステムの規則に従って扱います。\n\nこの単元で問うのは、Mavenの構成、成果物、scope、推移的依存を説明できることです。セマンティックバージョン比較器をJavaで実装する課題は外し、プロジェクト構造と依存解決の判断を確認クイズで確かめます。実際のMaven依存解決は52-2の実ビルド演習で扱います。",
       "samples": [
         {
           "caption": "バージョンを文字列で比べると間違える",
           "code": "public class Main {\n    public static void main(String[] args) {\n        // 文字列として比べると間違える\n        System.out.println(\"文字列比較: \" + \"1.10.2\".compareTo(\"1.2.10\"));   // マイナス = 1.10.2 が小さい？\n        System.out.println(\"正しい比較: \" + compare(\"1.10.2\", \"1.2.10\"));    // プラス = 1.10.2 が大きい\n\n        System.out.println(compare(\"2.0.0\", \"2.0\"));   // 0 = 同じ（足りない区画は 0 とみなす）\n        System.out.println(compare(\"1.0.0\", \"1.0.1\")); // マイナス\n    }\n\n    /** ドットで区切って、区画ごとに数値として比べる。 */\n    static int compare(String a, String b) {\n        String[] x = a.split(\"\\\\.\");\n        String[] y = b.split(\"\\\\.\");\n        int length = Math.max(x.length, y.length);\n        for (int i = 0; i < length; i++) {\n            int xi = i < x.length ? Integer.parseInt(x[i]) : 0;\n            int yi = i < y.length ? Integer.parseInt(y[i]) : 0;\n            if (xi != yi) {\n                return Integer.compare(xi, yi);\n            }\n        }\n        return 0;\n    }\n}\n"
-        }
-      ],
-      "task": "解説の最後に書いた「**バージョンは文字列で比べてはいけない**」を実装します。\n\n標準入力に2つのバージョンがスペース区切りで1行来ます。\n**新しいほうをそのまま出力**してください。同じなら `同じ` と出します。\n\n| 入力 | 出力 | なぜ |\n|---|---|---|\n| `1.2.10 1.10.2` | `1.10.2` | 2番目の区画が 2 < 10 |\n| `2.0.0 2.0` | `同じ` | 足りない区画は 0 とみなす |\n| `1.0.0 1.0.1` | `1.0.1` | 3番目の区画が 0 < 1 |\n\n`compare(a, b)` を完成させてください。`a` が新しければ **正の数**、`b` が新しければ\n**負の数**、同じなら **0** を返します。\n\n- ドットで区切る（`split(\"\\\\.\")`。`split(\".\")` ではありません。`.` は正規表現で「任意の1文字」）\n- 区画の数が違う場合、**足りないほうは 0** として扱う\n- 出力するのは **入力された表記そのまま**（`2.0` を `2.0.0` に直さない）",
-      "starterCode": "import java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        String[] input = sc.nextLine().trim().split(\"\\\\s+\");\n        String a = input[0];\n        String b = input[1];\n\n        // TODO: 新しいほうを出力する。同じなら \"同じ\"\n        System.out.println(\"\");\n    }\n\n    /** TODO: a が新しければ正、b が新しければ負、同じなら 0 を返す */\n    static int compare(String a, String b) {\n        return 0;\n    }\n}\n",
-      "visibleCases": [
-        {
-          "label": "区画ごとの数値比較",
-          "stdin": "1.2.10 1.10.2",
-          "expected": "1.10.2"
-        },
-        {
-          "label": "桁数が違うが同じ",
-          "stdin": "2.0.0 2.0",
-          "expected": "同じ"
-        }
-      ],
-      "hiddenCases": [
-        {
-          "label": "最後の区画で決まる",
-          "stdin": "1.0.0 1.0.1",
-          "expected": "1.0.1"
-        },
-        {
-          "label": "2桁の主バージョン",
-          "stdin": "10.0.0 9.9.9",
-          "expected": "10.0.0"
-        },
-        {
-          "label": "区画が足りない側が新しい",
-          "stdin": "1.2 1.2.1",
-          "expected": "1.2.1"
-        },
-        {
-          "label": "左が新しい",
-          "stdin": "3.1.0 3.0.9",
-          "expected": "3.1.0"
-        },
-        {
-          "label": "完全に同じ表記",
-          "stdin": "1.4.2 1.4.2",
-          "expected": "同じ"
-        }
-      ],
-      "hints": [
-        "`split(\"\\\\.\")` でドット区切りにします。`.` は正規表現では「任意の1文字」なので、`\\\\.` とエスケープが必要です。",
-        "長いほうの区画数だけ回します。`int length = Math.max(x.length, y.length);` として、`i < x.length ? Integer.parseInt(x[i]) : 0` で足りない分を 0 にします。",
-        "違いが見つかった区画で即座に決まります。`if (xi != yi) return Integer.compare(xi, yi);`。最後まで同じなら `return 0;` です。`main` 側は 0 なら `\"同じ\"`、正なら `a`、負なら `b` を出します。"
-      ],
-      "solution": "import java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        String[] input = sc.nextLine().trim().split(\"\\\\s+\");\n        String a = input[0];\n        String b = input[1];\n\n        int result = compare(a, b);\n        if (result == 0) {\n            System.out.println(\"同じ\");\n        } else {\n            System.out.println(result > 0 ? a : b);\n        }\n    }\n\n    /** ドットで区切って、区画ごとに数値として比べる。 */\n    static int compare(String a, String b) {\n        String[] x = a.split(\"\\\\.\");\n        String[] y = b.split(\"\\\\.\");\n        int length = Math.max(x.length, y.length);\n        for (int i = 0; i < length; i++) {\n            // 区画が足りないほうは 0 として扱う（2.0 と 2.0.0 を同じにするため）\n            int xi = i < x.length ? Integer.parseInt(x[i]) : 0;\n            int yi = i < y.length ? Integer.parseInt(y[i]) : 0;\n            if (xi != yi) {\n                return Integer.compare(xi, yi);\n            }\n        }\n        return 0;\n    }\n}\n",
-      "extraTasks": [
-        {
-          "kind": "applied",
-          "task": "解説の最後で「**バージョンの衝突は実行時の `NoSuchMethodError` などで現れる**」と書きました。\n同じライブラリの違うバージョンが混ざったとき、Maven が選ぶのは**宣言がいちばん近いもの**です\n（第52章で実際に踏みます）。ここでは比べ方そのものを身につけるため、\n**いちばん新しいものを選ぶ**処理を書きます（新しい方を採るのは Gradle の既定です）。\n\n標準入力にバージョンがスペース区切りで **何個か** 来ます（1個のこともあります）。\n**いちばん新しいものを出力**してください。\n\n```\n入力:  1.2.10 1.10.2 1.9.0\n出力:  1.10.2\n```\n\n`compare()` は書いてあるので、そのまま使ってください。\n\n**同じ新しさのものが並んだときは、先に出てきた表記を出します。**\n\n```\n入力:  1.0 0.9 1.0.0\n出力:  1.0            ← 1.0 と 1.0.0 は同じ新しさ。先に出てきた 1.0 を残す\n```\n\nそのためには「**より新しいときだけ** 入れ替える」と書きます（`>` を使い、`>=` にしない）。\n`>=` にすると、同じ新しさで後ろの表記に入れ替わってしまいます。",
-          "starterCode": "import java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        String[] versions = sc.nextLine().trim().split(\"\\\\s+\");\n\n        // TODO: いちばん新しいバージョンを出力する\n        System.out.println(\"\");\n    }\n\n    static int compare(String a, String b) {\n        String[] x = a.split(\"\\\\.\");\n        String[] y = b.split(\"\\\\.\");\n        int length = Math.max(x.length, y.length);\n        for (int i = 0; i < length; i++) {\n            int xi = i < x.length ? Integer.parseInt(x[i]) : 0;\n            int yi = i < y.length ? Integer.parseInt(y[i]) : 0;\n            if (xi != yi) {\n                return Integer.compare(xi, yi);\n            }\n        }\n        return 0;\n    }\n}\n",
-          "visibleCases": [
-            {
-              "label": "3つから選ぶ",
-              "stdin": "1.2.10 1.10.2 1.9.0",
-              "expected": "1.10.2"
-            },
-            {
-              "label": "同じ新しさは先を残す",
-              "stdin": "1.0 0.9 1.0.0",
-              "expected": "1.0"
-            }
-          ],
-          "hiddenCases": [
-            {
-              "label": "1個だけ",
-              "stdin": "2.5.1",
-              "expected": "2.5.1"
-            },
-            {
-              "label": "先頭がいちばん新しい",
-              "stdin": "9.0.0 1.2.3 4.5.6",
-              "expected": "9.0.0"
-            },
-            {
-              "label": "末尾がいちばん新しい",
-              "stdin": "1.0.0 1.0.1 1.0.2",
-              "expected": "1.0.2"
-            },
-            {
-              "label": "全部同じ新しさ",
-              "stdin": "3.0 3.0.0 3",
-              "expected": "3.0"
-            },
-            {
-              "label": "2桁が混ざる",
-              "stdin": "1.9.9 1.10.0 1.2.99",
-              "expected": "1.10.0"
-            }
-          ],
-          "hints": [
-            "まず `String newest = versions[0];` と置いて、拡張for文で全部を見ていきます。",
-            "`if (compare(version, newest) > 0) { newest = version; }` とします。`compare` が正なら `version` のほうが新しい、という意味です。",
-            "`>` であることが大事です。`>=` にすると、同じ新しさのときにも入れ替わってしまい、`1.0 0.9 1.0.0` で `1.0.0` が残ってしまいます。"
-          ],
-          "solution": "import java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        String[] versions = sc.nextLine().trim().split(\"\\\\s+\");\n\n        String newest = versions[0];\n        for (String version : versions) {\n            // 「より新しい」ときだけ入れ替える。同じときは入れ替えないので、\n            // 同じ新しさが並んだ場合は先に出てきた表記が残る\n            if (compare(version, newest) > 0) {\n                newest = version;\n            }\n        }\n        System.out.println(newest);\n    }\n\n    static int compare(String a, String b) {\n        String[] x = a.split(\"\\\\.\");\n        String[] y = b.split(\"\\\\.\");\n        int length = Math.max(x.length, y.length);\n        for (int i = 0; i < length; i++) {\n            int xi = i < x.length ? Integer.parseInt(x[i]) : 0;\n            int yi = i < y.length ? Integer.parseInt(y[i]) : 0;\n            if (xi != yi) {\n                return Integer.compare(xi, yi);\n            }\n        }\n        return 0;\n    }\n}\n",
-          "sourceChecks": [
-            {
-              "pattern": "Integer\\s*\\.\\s*parseInt|Integer\\s*\\.\\s*valueOf",
-              "minimum": 1,
-              "message": "`1.10.2` は `1.2.10` より新しいので、区切りごとに **数値へ直して** 比べてください。"
-            },
-            {
-              "pattern": "\\.compareTo\\s*\\(",
-              "minimum": 0,
-              "maximum": 0,
-              "message": "文字列の `compareTo` では `1.10` が `1.2` より小さいと判定されてしまいます。数値で比べてください。"
-            }
-          ],
-          "rubric": [
-            "decide"
-          ]
         }
       ],
       "quiz": [
@@ -635,9 +520,7 @@
           "explanation": "Maven は依存が必要とする依存も自動で取ってきます（推移的依存）。同じライブラリに複数のバージョンが要求されたときは **1つだけ** が選ばれるので、選ばれなかった側を前提にしたコードは実行時に `NoSuchMethodError` などで落ちます。コンパイルは通るのに実行時に落ちるのが厄介な点で、`mvn dependency:tree` で実際に入っているバージョンを確認します。`test` スコープは実行時のクラスパスには入りません。"
         }
       ],
-      "rubric": [
-        "diagnose"
-      ]
+      "lessonType": "concept"
     },
     {
       "id": "21-6",

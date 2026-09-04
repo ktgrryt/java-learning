@@ -187,50 +187,13 @@
       "objectiveIds": [
         "ch55-o3"
       ],
-      "explanation": "## 動いていることと、仕事を受けられることは違う\n\nコンテナ基盤やロードバランサーは、複数のアプリへリクエストを振り分けます。そのため、各インスタンスが「再起動が必要か」「今リクエストを受けられるか」を機械へ伝える必要があります。この確認用URLや判定を**health check**と呼びます。\n\n| 種類 | 答える質問 | 失敗時の主な動作 |\n|---|---|---|\n| liveness | プロセスは自力で回復できない状態か | 再起動する |\n| readiness | 今、新しいリクエストを受けられるか | 振り分け先から外す |\n| startup probe | 初期化はまだ続いているか | 起動中の誤再起動を防ぐ |\n\nDBが一時的に遅いだけでlivenessを失敗させると、正常なアプリまで一斉に再起動し、DBへ再接続が集中します。依存先の一時障害は主にreadinessへ反映し、プロセス自身が回復不能な場合だけlivenessを失敗させます。\n\n### 安全な停止\n\n配備や縮小では、実行中のアプリにも終了要求が届きます。いきなり停止すると、処理中の注文を途中で切ってしまいます。\n\n```text\n終了シグナルを受ける\n  → readinessを失敗にして新規受付を止める\n  → 振り分け先から外れるまで待つ\n  → 実行中の処理を期限内で終える\n  → DB接続などを閉じて終了する\n```\n\nこの手順を**graceful shutdown（安全な停止）**と呼びます。待つ時間には上限を置き、期限内に終わらない処理をどう扱うかも決めます。\n\n### 新しい版を少しずつ出す\n\n- **rolling update** — インスタンスを少しずつ新しい版へ置き換える\n- **canary release** — 一部の利用者やトラフィックだけを新しい版へ流す\n- **blue-green deployment** — 新旧の環境を並べ、入口を一度に切り替える\n\nどの方法でも、開始前に成功条件と中止条件を決めます。新しい版のエラー率や応答時間が基準を超えたら、自動停止または切り戻しを行います。DBスキーマやメッセージ形式まで非互換にすると古い版へ戻せないため、前後の版が一時的に共存できる変更順も必要です。\n\nこのレッスンの状態判定では、`starting`や`draining`をreadiness失敗として表します。503は「壊れた」だけでなく、「今は新しい仕事を受けない」という合図にも使われます。",
+      "explanation": "## 動いていることと、仕事を受けられることは違う\n\nコンテナ基盤やロードバランサーは、複数のアプリへリクエストを振り分けます。そのため、各インスタンスが「再起動が必要か」「今リクエストを受けられるか」を機械へ伝える必要があります。この確認用URLや判定を**health check**と呼びます。\n\n| 種類 | 答える質問 | 失敗時の主な動作 |\n|---|---|---|\n| liveness | プロセスは自力で回復できない状態か | 再起動する |\n| readiness | 今、新しいリクエストを受けられるか | 振り分け先から外す |\n| startup probe | 初期化はまだ続いているか | 起動中の誤再起動を防ぐ |\n\nDBが一時的に遅いだけでlivenessを失敗させると、正常なアプリまで一斉に再起動し、DBへ再接続が集中します。依存先の一時障害は主にreadinessへ反映し、プロセス自身が回復不能な場合だけlivenessを失敗させます。\n\n### 安全な停止\n\n配備や縮小では、実行中のアプリにも終了要求が届きます。いきなり停止すると、処理中の注文を途中で切ってしまいます。\n\n```text\n終了シグナルを受ける\n  → readinessを失敗にして新規受付を止める\n  → 振り分け先から外れるまで待つ\n  → 実行中の処理を期限内で終える\n  → DB接続などを閉じて終了する\n```\n\nこの手順を**graceful shutdown（安全な停止）**と呼びます。待つ時間には上限を置き、期限内に終わらない処理をどう扱うかも決めます。\n\n### 新しい版を少しずつ出す\n\n- **rolling update** — インスタンスを少しずつ新しい版へ置き換える\n- **canary release** — 一部の利用者やトラフィックだけを新しい版へ流す\n- **blue-green deployment** — 新旧の環境を並べ、入口を一度に切り替える\n\nどの方法でも、開始前に成功条件と中止条件を決めます。新しい版のエラー率や応答時間が基準を超えたら、自動停止または切り戻しを行います。DBスキーマやメッセージ形式まで非互換にすると古い版へ戻せないため、前後の版が一時的に共存できる変更順も必要です。\n\nこのレッスンの状態判定では、`starting`や`draining`をreadiness失敗として表します。503は「壊れた」だけでなく、「今は新しい仕事を受けない」という合図にも使われます。\n\nこの単元ではhealth状態を数値へ写すJava処理を作らず、liveness・readiness・drainingが制御する挙動を障害シナリオから判断します。",
       "samples": [
         {
           "caption": "受付できる状態かを明示する模型",
           "code": "import java.util.concurrent.atomic.*;\n\npublic class Main {\n    public static void main(String[] a) {\n        AtomicBoolean ready = new AtomicBoolean(true);\n        ready.set(false);\n        System.out.println(ready.get() ? \"READY\" : \"DRAINING\");\n    }\n}\n"
         }
       ],
-      "task": "同じインスタンスについて、liveness と readiness を**別々に**答えます。1行目に件数 `n`、続く `n` 行に状態が1つずつ与えられます。\n\n| 状態 | 意味 |\n|---|---|\n| `starting` | 初期化がまだ続いている |\n| `ready` | 仕事を受けられる |\n| `dependency-down` | DBなど依存先が一時的に落ちている（プロセス自身は無事） |\n| `deadlock` | プロセスが自力では回復できない |\n| `draining` | 終了要求を受けて、実行中の処理を終えている |\n\n各状態について `liveness=<数> readiness=<数>` の形で1行ずつ出してください。\n\n- liveness は、**自力で回復できないときだけ** `500`。それ以外は `200`\n- readiness は、**仕事を受けられるときだけ** `200`。それ以外は `503`\n\n最後に1行、`restart=<liveness が500だった件数> drain=<readiness が503だった件数>` を出します。\n\n**`dependency-down` を `liveness=500` にしないこと。** 依存先が遅いだけで再起動させると、正常なインスタンスまで一斉に落ちて、復旧時に再接続が集中します。依存先の一時障害は readiness へ、プロセス自身の回復不能だけ liveness へ反映します。",
-      "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] a) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n        for (int i = 0; i < n; i++) {\n            String state = sc.next();\n            /* TODO liveness と readiness を別に決めて出力し、件数を数える */\n        }\n        /* TODO restart=... drain=... */\n    }\n}\n",
-      "visibleCases": [
-        {
-          "label": "依存先の障害では再起動させない",
-          "stdin": "2\ndependency-down\nready\n",
-          "expected": "liveness=200 readiness=503\nliveness=200 readiness=200\nrestart=0 drain=1"
-        },
-        {
-          "label": "自力で回復できないときだけ再起動",
-          "stdin": "2\ndeadlock\nstarting\n",
-          "expected": "liveness=500 readiness=503\nliveness=200 readiness=503\nrestart=1 drain=2"
-        }
-      ],
-      "hiddenCases": [
-        {
-          "label": "安全な停止の途中",
-          "stdin": "1\ndraining\n",
-          "expected": "liveness=200 readiness=503\nrestart=0 drain=1"
-        },
-        {
-          "label": "すべて正常",
-          "stdin": "3\nready\nready\nready\n",
-          "expected": "liveness=200 readiness=200\nliveness=200 readiness=200\nliveness=200 readiness=200\nrestart=0 drain=0"
-        },
-        {
-          "label": "5つの状態が混ざる",
-          "stdin": "5\nstarting\ndependency-down\ndeadlock\ndraining\nready\n",
-          "expected": "liveness=200 readiness=503\nliveness=200 readiness=503\nliveness=500 readiness=503\nliveness=200 readiness=503\nliveness=200 readiness=200\nrestart=1 drain=4"
-        }
-      ],
-      "hints": [
-        "liveness と readiness は別の質問です。1つの `switch` で両方を決めようとせず、それぞれの条件を分けて書くと素直になります。",
-        "liveness が `500` になるのは `deadlock` だけです。`starting` `dependency-down` `draining` はどれも「プロセスは無事」なので `200` です。",
-        "readiness が `200` になるのは `ready` だけです。残りはすべて `503` です。"
-      ],
-      "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] a) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n        int restart = 0;\n        int drain = 0;\n        for (int i = 0; i < n; i++) {\n            String state = sc.next();\n            int liveness = state.equals(\"deadlock\") ? 500 : 200;\n            int readiness = state.equals(\"ready\") ? 200 : 503;\n            if (liveness == 500) restart++;\n            if (readiness == 503) drain++;\n            System.out.println(\"liveness=\" + liveness + \" readiness=\" + readiness);\n        }\n        System.out.println(\"restart=\" + restart + \" drain=\" + drain);\n    }\n}\n",
       "quiz": [
         {
           "question": "DBの一時障害をlivenessの失敗へ直結させない方がよい理由は？",
@@ -253,8 +216,20 @@
           ],
           "answer": 1,
           "explanation": "再起動が繰り返されるのは liveness が失敗し続けたときの話で、終了処理とは別です。ロールバックが自動で走ることもありません。「早く止まるぶんデプロイが短く終わる」と考えるのも危険です。振り分けから外れる前に落ちると、まだ届いている要求が失敗します。シグナルを受けたら、まず readiness を落として新規受付を止め、実行中の処理を期限内に終えます。"
+        },
+        {
+          "question": "DBが一時的に停止しましたが、アプリprocess自体は動いています。probeの扱いとして適切なのはどれでしょう。",
+          "choices": [
+            "livenessを失敗させ、全instanceを再起動する",
+            "readinessを失敗させ、新規trafficから外す",
+            "livenessとreadinessを成功のままにする",
+            "processを強制終了してprobeを無効にする"
+          ],
+          "answer": 1,
+          "explanation": "依存先の一時障害では新しい仕事を受けないようreadinessへ反映し、回復可能なprocessをむやみに再起動しません。"
         }
-      ]
+      ],
+      "lessonType": "concept"
     },
     {
       "id": "55-4",

@@ -1,4 +1,5 @@
 import jq.progress.ProgressStore;
+import jq.json.MiniJson;
 
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -52,11 +53,13 @@ public final class ProgressLoadCheck {
             emptyFileIsLeftAlone(dir);
             resetKeepsABackup(dir);
             writesLandOnDiskBeforeTheSwap(dir);
+            reorderedTasksKeepTheirOwnProgress(dir);
             shuffledChoicesKeepPointingAtTheSameAnswer(dir);
             System.out.println();
             System.out.println("PROGRESS LOAD OK: 読めないファイルの退避（控えを上書きしない）・"
                     + "形の違う1件で全体を捨てないこと・リセット前の控え・"
                     + "差し替える前に中身をディスクへ載せること・"
+                    + "並べ替えた課題の進捗を同じ課題へ移すこと・"
                     + "選択肢を並べ替えたクイズの回答の読み替え（1度だけ）を確認しました");
         } finally {
             deleteTree(dir);
@@ -72,6 +75,12 @@ public final class ProgressLoadCheck {
         ok("読めないファイルは退避される", !Files.exists(file));
         ok("控えが残る", Files.exists(dir.resolve("truncated.json.broken")));
         ok("進捗は初期化されて起動できる", store.clearedIds().isEmpty());
+
+        store.saveCode("37-2#1", "// 復旧後に書いた新しい実機演習");
+        store.flushNow();
+        ProgressStore again = new ProgressStore(file);
+        ok("復旧後に書いた現行キーを次の起動で読み替えない",
+                "// 復旧後に書いた新しい実機演習".equals(again.savedCode("37-2#1")));
     }
 
     /** 2回目の失敗で、1回目に取っておいた控えを潰さない。 */
@@ -179,6 +188,71 @@ public final class ProgressLoadCheck {
         ok("途中で終わっていない", read(file).strip().endsWith("}"));
         ok("読み直しても同じ", "// ディスクまで届いているか"
                 .equals(new ProgressStore(file).savedCode("9-9#1")));
+    }
+
+    /**
+     * 必須の実機演習を先頭へ移しても、旧1問目の記録が新しい実機演習へ化けない。
+     * ★だけでなく下書き・ヒント・提出回数・復習予定・カフェ内の問題キーもまとめて見る。
+     */
+    private static void reorderedTasksKeepTheirOwnProgress(Path dir) throws Exception {
+        Path file = dir.resolve("task-move.json");
+        write(file, """
+                {
+                  "onboardingCompleted": true,
+                  "cleared": {
+                    "37-2#1": {"clearedAt":"2026-08-01","hintsUsed":1,"attempts":3},
+                    "37-2#2": {"clearedAt":"2026-08-02","hintsUsed":0,"attempts":1}
+                  },
+                  "codes": {"37-2#1":"// parser", "37-2#2":"// deadlock lab"},
+                  "hintsRevealed": {"37-2#1":1, "37-2#2":2},
+                  "attempts": {"37-2#1":3, "37-2#2":4},
+                  "bestPassed": {"37-2#1":5, "37-2#2":6},
+                  "reviewWeightScale": 4,
+                  "reviewWeight": {"37-2#1":7, "37-2#2":8},
+                  "reviewPlans": {
+                    "37-2#1":{"level":1,"at":"2026-08-03","failAt":"","clean":0},
+                    "37-2#2":{"level":2,"at":"2026-08-04","failAt":"","clean":1}
+                  },
+                  "bookmarks": ["37-2#1"],
+                  "cafe": {
+                    "economyVersion":2,
+                    "masteryTaskRun":["37-2#1"],
+                    "masteryTasks":["37-2#1"],
+                    "reviewPaidTasks":["37-2#1"],
+                    "masteryDayTasks":["37-2#1"]
+                  }
+                }
+                """);
+
+        ProgressStore store = new ProgressStore(file);
+        ok("旧実機演習の下書きは新1問目へ移る",
+                "// deadlock lab".equals(store.savedCode("37-2#1")));
+        ok("旧Java集計の下書きは任意の新2問目へ移る",
+                "// parser".equals(store.savedCode("37-2#2")));
+        ok("ヒント記録も課題と一緒に入れ替わる", store.hintsRevealed("37-2#1") == 2);
+        ok("ケース記録も課題と一緒に入れ替わる", store.bestPassed("37-2#1") == 6);
+        ok("苦手度も課題と一緒に入れ替わる", store.reviewWeight("37-2#1") == 8);
+        ok("しおりも元の課題を指す", store.isBookmarked("37-2#2"));
+
+        // 保存を1回起こし、非公開の記録と適用済み印も書き出された形で確認する。
+        store.saveCode("9-9#1", "// save migration");
+        store.flushNow();
+        Map<String, Object> saved = MiniJson.parseObject(read(file));
+        ok("提出回数も課題と一緒に入れ替わる",
+                MiniJson.intOf(MiniJson.obj(saved, "attempts"), "37-2#1", 0) == 4);
+        ok("復習予定も課題と一緒に入れ替わる",
+                MiniJson.obj(saved, "reviewPlans").containsKey("37-2#1"));
+        Map<String, Object> cafe = MiniJson.obj(saved, "cafe");
+        ok("カフェ内の復習記録も課題と一緒に移る",
+                MiniJson.list(cafe, "masteryTasks").contains("37-2#2")
+                        && MiniJson.list(cafe, "reviewPaidTasks").contains("37-2#2"));
+        ok("課題移動の適用済み印が残る",
+                MiniJson.list(saved, "appliedTaskMoves").contains("practice-first-2026-09-04"));
+
+        ProgressStore again = new ProgressStore(file);
+        ok("2度目は課題を入れ替え直さない",
+                "// deadlock lab".equals(again.savedCode("37-2#1"))
+                        && "// parser".equals(again.savedCode("37-2#2")));
     }
 
     /**

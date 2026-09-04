@@ -37,6 +37,8 @@ fi
 
 # ── 1. jshellでクラスの振る舞いを確かめる ──────────────────────────────
 # --execution local … 別プロセスを起こさずに評価する（起動が速く、環境差も小さい）
+# -J-cp … local実行では評価側もJShell本体のclass loaderを使うため、そこにもappを渡す
+# --class-path … snippetをcompileするときにもappを見えるようにする
 # -q … 起動時の案内を出さない。出力の比較を邪魔しない
 #
 # 値を変えて2回動かす。定数を直接書いた解答は片方で外れる。
@@ -55,7 +57,8 @@ for triple in '480 3 333' '1250 4 1999'; do
   round=$((odd + odd * 10 / 100))
 
   if JQ_PRICE="$price" JQ_COUNT="$count" JQ_ODD="$odd" \
-      jshell -q --execution local --class-path out/classes exercise/probe.jsh \
+      jshell -q --execution local -J-cp -Jout/classes \
+      --class-path out/classes exercise/probe.jsh \
       >"out/jshell-${round_no}.log" 2>&1; then
     :
   else
@@ -129,6 +132,6 @@ else
 fi
 
 printf '%s\n' '--- 見るところ（答えは出しません） ---'
-printf '%s\n' 'jshell -q --execution local --class-path out/classes exercise/probe.jsh'
+printf '%s\n' 'jshell -q --execution local -J-cp -Jout/classes --class-path out/classes exercise/probe.jsh'
 printf '%s\n' 'jpackage --help の --type / --name / --main-jar / --app-version'
 exit "$fail"

@@ -162,89 +162,70 @@
       "objectiveIds": [
         "ch27-o2"
       ],
-      "explanation": "## 同じトランザクションへ参加するか、別に確定するかを決める\n\nServiceから別のServiceを呼ぶとき、呼び出し先を同じトランザクションへ含めるのか、新しいトランザクションで実行するのかを決める必要があります。この参加規則を **伝播** と呼び、`@Transactional` の `TxType` で指定します。\n\n| TxType | 既存のトランザクションがある場合 | ない場合 |\n|---|---|---|\n| `REQUIRED` | そのまま参加する | 新しく開始する |\n| `REQUIRES_NEW` | 外側を一時停止し、別のものを開始する | 新しく開始する |\n| `MANDATORY` | 参加する | 例外にする |\n| `SUPPORTS` | 参加する | トランザクションなしで動く |\n\n`REQUIRED` が既定です。注文保存と在庫更新を両方成功させたいなら、同じ `REQUIRED` の境界へ参加させます。\n\n`REQUIRES_NEW` は外側と別に確定したい処理に使えます。たとえば監査記録を別トランザクションで確定すると、外側の注文処理がロールバックしても監査記録は残ります。これは便利ですが、「注文はないのに記録だけある」という別々の結果を意図的に作ります。本当に分離してよい処理だけに限定します。\n\n### トランザクションを短くする理由\n\nDB更新中は、接続や行ロックなど限られた資源を保持することがあります。その中で外部HTTP APIの応答を長く待つと、ほかの処理までDB接続やロックを待つことになります。\n\n```text\n外部情報を取得\n      ↓\n短いDBトランザクションで検証・更新\n      ↓\n確定後に通知\n```\n\nただしDB更新と外部通知を単純に分けると、DBだけ成功して通知に失敗する可能性があります。この問題には、第54章で扱う **transactional outbox** を使えます。これは業務データと「後で送る通知」を同じDBトランザクションへ保存し、確定後に別処理が通知を送る方式です。\n\n同じクラスの `this.someMethod()` のような内部呼び出しは、通常インターセプターの境界を通りません。注釈を付けただけで別トランザクションになると思わず、境界となるBean同士の呼び出しとして設計します。\n\n今回の演習では、外側を `REQUIRED`、監査を `REQUIRES_NEW` とした場合の開始・確定・再開の順序を追います。",
+      "explanation": "## 同じトランザクションへ参加するか、別に確定するかを決める\n\nServiceから別のServiceを呼ぶとき、呼び出し先を同じトランザクションへ含めるのか、新しいトランザクションで実行するのかを決める必要があります。この参加規則を **伝播** と呼び、`@Transactional` の `TxType` で指定します。\n\n| TxType | 既存のトランザクションがある場合 | ない場合 |\n|---|---|---|\n| `REQUIRED` | そのまま参加する | 新しく開始する |\n| `REQUIRES_NEW` | 外側を一時停止し、別のものを開始する | 新しく開始する |\n| `MANDATORY` | 参加する | 例外にする |\n| `SUPPORTS` | 参加する | トランザクションなしで動く |\n\n`REQUIRED` が既定です。注文保存と在庫更新を両方成功させたいなら、同じ `REQUIRED` の境界へ参加させます。\n\n`REQUIRES_NEW` は外側と別に確定したい処理に使えます。たとえば監査記録を別トランザクションで確定すると、外側の注文処理がロールバックしても監査記録は残ります。これは便利ですが、「注文はないのに記録だけある」という別々の結果を意図的に作ります。本当に分離してよい処理だけに限定します。\n\n### トランザクションを短くする理由\n\nDB更新中は、接続や行ロックなど限られた資源を保持することがあります。その中で外部HTTP APIの応答を長く待つと、ほかの処理までDB接続やロックを待つことになります。\n\n```text\n外部情報を取得\n      ↓\n短いDBトランザクションで検証・更新\n      ↓\n確定後に通知\n```\n\nただしDB更新と外部通知を単純に分けると、DBだけ成功して通知に失敗する可能性があります。この問題には、第54章で扱う **transactional outbox** を使えます。これは業務データと「後で送る通知」を同じDBトランザクションへ保存し、確定後に別処理が通知を送る方式です。\n\n同じクラスの `this.someMethod()` のような内部呼び出しは、通常インターセプターの境界を通りません。注釈を付けただけで別トランザクションになると思わず、境界となるBean同士の呼び出しとして設計します。\n\nこの単元では開始・確定のtraceをJavaで出力せず、伝播種別とトランザクション境界が結果へ与える影響をシナリオで判断します。",
       "samples": [
         {
           "caption": "伝播属性を読み取る",
           "code": "import jakarta.transaction.Transactional;\n\nclass Audit {\n    @Transactional(Transactional.TxType.REQUIRES_NEW)\n    void write() { }\n}\n\npublic class PropagationSample {\n    public static void main(String[] a) throws Exception {\n        System.out.println(Audit.class.getDeclaredMethod(\"write\").getAnnotation(Transactional.class).value());\n    }\n}\n"
         }
       ],
-      "task": "操作列をトランザクションtraceへ変換します。入力は `outerSuccess` または `outerFail`。外側はREQUIRED、監査はREQUIRES_NEWなので、失敗時も監査commitは残ります。指定の順で行を出してください。",
-      "starterCode": "import jakarta.transaction.Transactional;\nimport java.util.*;\n\nclass AuditService {\n    @Transactional(Transactional.TxType.REQUIRES_NEW)\n    void write() {\n        System.out.println(\"audit commit\");\n    }\n}\n\nclass OrderService {\n    private final AuditService audit = new AuditService();\n\n    @Transactional\n    void order(boolean fail) {\n        // TODO trace\n    }\n}\n\npublic class TxPropagation {\n    public static void main(String[] a) {\n        boolean fail = new Scanner(System.in).nextLine().equals(\"outerFail\");\n        try {\n            new OrderService().order(fail);\n        } catch (RuntimeException e) {\n            System.out.println(\"outer rollback\");\n        }\n    }\n}\n",
-      "visibleCases": [
+      "lessonType": "concept",
+      "quiz": [
         {
-          "label": "成功",
-          "stdin": "outerSuccess",
-          "expected": "outer begin\naudit commit\nouter commit"
+          "question": "既存のトランザクションから`REQUIRED`のServiceを呼ぶと、通常どうなるでしょう。",
+          "choices": [
+            "既存のトランザクションへ参加する",
+            "外側を停止して別のトランザクションを作る",
+            "トランザクションなしで実行する",
+            "既存のものを先にcommitする"
+          ],
+          "answer": 0,
+          "explanation": "`REQUIRED`は既存のトランザクションがあれば参加し、なければ新しく開始します。"
         },
         {
-          "label": "外側失敗",
-          "stdin": "outerFail",
-          "expected": "outer begin\naudit commit\nouter rollback"
-        }
-      ],
-      "hiddenCases": [],
-      "hints": [
-        "最初にouter begin、次にaudit.write。",
-        "failならRuntimeExceptionをthrow。そうでなければouter commit。"
-      ],
-      "solution": "import jakarta.transaction.Transactional;\nimport java.util.*;\n\nclass AuditService {\n    @Transactional(Transactional.TxType.REQUIRES_NEW)\n    void write() {\n        System.out.println(\"audit commit\");\n    }\n}\n\nclass OrderService {\n    private final AuditService audit = new AuditService();\n\n    @Transactional\n    void order(boolean fail) {\n        System.out.println(\"outer begin\");\n        audit.write();\n        if (fail) throw new RuntimeException();\n        System.out.println(\"outer commit\");\n    }\n}\n\npublic class TxPropagation {\n    public static void main(String[] a) {\n        boolean fail = new Scanner(System.in).nextLine().equals(\"outerFail\");\n        try {\n            new OrderService().order(fail);\n        } catch (RuntimeException e) {\n            System.out.println(\"outer rollback\");\n        }\n    }\n}\n",
-      "sourceChecks": [
+          "question": "注文処理は`REQUIRED`、監査記録は`REQUIRES_NEW`です。監査がcommitした後に注文処理が失敗した場合、どうなるでしょう。",
+          "choices": [
+            "監査も外側と一緒にrollbackする",
+            "注文はrollback、監査はcommit済みで残る",
+            "注文だけcommitし、監査は削除される",
+            "どちらも自動的に再試行される"
+          ],
+          "answer": 1,
+          "explanation": "`REQUIRES_NEW`は外側を一時停止して別のトランザクションを確定するため、外側のrollbackとは独立します。"
+        },
         {
-          "pattern": "audit\\s*\\.\\s*write\\s*\\(",
-          "minimum": 1,
-          "message": "`audit commit` の行を直接書かず、`REQUIRES_NEW` を付けた `audit.write()` を呼んでください。監査を別のトランザクションへ預けることが、外側がrollbackしても記録だけは残る理由です。"
-        }
-      ],
-      "extraTasks": [
+          "question": "既存のトランザクションがない場所で`MANDATORY`の処理を呼ぶと、どうなるでしょう。",
+          "choices": [
+            "新しいトランザクションを開始する",
+            "トランザクションなしで続ける",
+            "既存transactionがなく例外になる",
+            "`SUPPORTS`へ自動変更される"
+          ],
+          "answer": 2,
+          "explanation": "`MANDATORY`は既存のトランザクションへの参加を要求し、存在しなければ例外にします。"
+        },
         {
-          "kind": "applied",
-          "task": "手順の並びを見て、トランザクションの内と外に分けます。件数 `n` と、続けて n 行の手順名を読みます。\n\n- **内側（`[TX]`）**: `db-read` `db-insert` `db-update` `commit`\n- **外側（`[OUT]`）**: `validate` `http-call` `send-mail` `notify`\n\n入力順に `[TX] 手順名` / `[OUT] 手順名` を1行ずつ表示してください。\nさらに、**外部呼び出し（`http-call` `send-mail` `notify`）が `commit` より前にある**ときは、\nその行の末尾へ ` MOVE_AFTER_COMMIT` を付けます。トランザクションを開いたまま外部を待つと、\n相手が遅いあいだ行がロックされ続けるからです。\n\n`commit` が無い入力ではトランザクションが始まっていないので、印は付けません。",
-          "starterCode": "import java.util.*;\n\npublic class TxShort {\n    public static void main(String[] a) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n        List<String> steps = new ArrayList<>();\n        for (int i = 0; i < n; i++) {\n            steps.add(sc.next());\n        }\n        // TODO 各手順を [TX] / [OUT] に分け、commit より前の外部呼び出しへ印を付ける\n        for (String step : steps) {\n            System.out.println(\"[TX] \" + step);\n        }\n    }\n}\n",
-          "visibleCases": [
-            {
-              "label": "短い境界",
-              "stdin": "4\nvalidate\ndb-update\ncommit\nhttp-call",
-              "expected": "[OUT] validate\n[TX] db-update\n[TX] commit\n[OUT] http-call"
-            },
-            {
-              "label": "commit前の外部呼び出し",
-              "stdin": "4\nvalidate\nhttp-call\ndb-update\ncommit",
-              "expected": "[OUT] validate\n[OUT] http-call MOVE_AFTER_COMMIT\n[TX] db-update\n[TX] commit"
-            }
+          "question": "外部HTTP APIが数秒待つ可能性があります。DBトランザクションを短く保つ構成として適切なのはどれでしょう。",
+          "choices": [
+            "DB更新を開始して行をlockしたままHTTP応答を待つ",
+            "外部呼び出しとDB更新を一つの長いtransactionへまとめる",
+            "接続poolを増やすだけで境界は変えない",
+            "必要な外部情報を先に取得し、DB更新だけを短いtransactionにする"
           ],
-          "hiddenCases": [
-            {
-              "label": "メール送信は外",
-              "stdin": "3\ndb-read\ncommit\nsend-mail",
-              "expected": "[TX] db-read\n[TX] commit\n[OUT] send-mail"
-            },
-            {
-              "label": "通知がcommit前",
-              "stdin": "2\nnotify\ncommit",
-              "expected": "[OUT] notify MOVE_AFTER_COMMIT\n[TX] commit"
-            },
-            {
-              "label": "commitが無ければ印は付かない",
-              "stdin": "2\nvalidate\nhttp-call",
-              "expected": "[OUT] validate\n[OUT] http-call"
-            },
-            {
-              "label": "5手順",
-              "stdin": "5\ndb-insert\nnotify\ndb-update\ncommit\nhttp-call",
-              "expected": "[TX] db-insert\n[OUT] notify MOVE_AFTER_COMMIT\n[TX] db-update\n[TX] commit\n[OUT] http-call"
-            }
+          "answer": 3,
+          "explanation": "長い外部待ちをトランザクションの外へ出すと、DB接続や行ロックを保持する時間を減らせます。"
+        },
+        {
+          "question": "同じクラス内で`this.audit()`を呼び、`audit()`だけへ`REQUIRES_NEW`を付けました。注意すべき点はどれでしょう。",
+          "choices": [
+            "内部呼び出しでは別transactionにならないことがある",
+            "内部呼び出しは別JVMへ移り、そこでtransactionを作る",
+            "`REQUIRES_NEW`は外側も先にcommitしてから呼ぶ",
+            "注釈付きの内部methodはHTTP経由で呼ばれる"
           ],
-          "hints": [
-            "`commit` の位置は `steps.indexOf(\"commit\")` で分かります。見つからなければ `-1` です。",
-            "内側か外側かは手順名で決まります。`switch` の矢印形（`case \"db-read\", \"commit\" -> true;`）が読みやすいです。",
-            "印を付けるのは「外部呼び出し」かつ「`commit` より前」の行だけです。`validate` は外側ですが外部呼び出しではないので印は付きません。"
-          ],
-          "solution": "import java.util.*;\n\npublic class TxShort {\n    public static void main(String[] a) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n        List<String> steps = new ArrayList<>();\n        for (int i = 0; i < n; i++) {\n            steps.add(sc.next());\n        }\n        int commitAt = steps.indexOf(\"commit\");\n        for (int i = 0; i < steps.size(); i++) {\n            String step = steps.get(i);\n            boolean inTx = switch (step) {\n                case \"db-read\", \"db-insert\", \"db-update\", \"commit\" -> true;\n                default -> false;\n            };\n            boolean external = switch (step) {\n                case \"http-call\", \"send-mail\", \"notify\" -> true;\n                default -> false;\n            };\n            String mark = \"\";\n            if (external && commitAt >= 0 && i < commitAt) {\n                mark = \" MOVE_AFTER_COMMIT\";\n            }\n            System.out.println((inTx ? \"[TX] \" : \"[OUT] \") + step + mark);\n        }\n    }\n}\n"
+          "answer": 0,
+          "explanation": "通常の内部呼び出しはインターセプター境界を通らないため、別Beanの境界として設計する必要があります。"
         }
-      ],
-      "rubric": [
-        "diagnose"
       ]
     },
     {

@@ -44,6 +44,77 @@ public final class ArtifactValidatorCheck {
         assertResult("テキスト系artifactの正規表現", ArtifactValidator.validate(dockerfile,
                 "FROM eclipse-temurin:21-jre\n"), true, 1);
 
+        ArtifactSpec genericYaml = new ArtifactSpec("config.yml", "yaml", List.of(
+                new ArtifactCheck("regex", "(?m)^enabled:\\s*true$", null, "有効にする")
+        ));
+        assertResult("GitHub Actions以外のYAML", ArtifactValidator.validate(genericYaml,
+                "enabled: true\n"), true, 1);
+
+        ArtifactSpec workflow = new ArtifactSpec(".github/workflows/ci.yml", "yaml", List.of(
+                new ArtifactCheck("githubActions", "setup-java-21", null, "JDKを固定"),
+                new ArtifactCheck("githubActions", "maven-verify", null, "verifyを実行"),
+                new ArtifactCheck("githubActions", "supply-chain", null, "供給網を確認"),
+                new ArtifactCheck("githubActions", "upload-artifact", null, "成果物を保存"),
+                new ArtifactCheck("githubActions", "promote-artifact", null, "同じ成果物を配備")
+        ));
+        assertResult("構造が正しいGitHub Actions", ArtifactValidator.validate(workflow, """
+                name: ci
+                on: [push]
+                jobs:
+                  build:
+                    runs-on: ubuntu-latest
+                    steps:
+                      - uses: actions/checkout@v4
+                      - uses: actions/setup-java@v4
+                        with:
+                          distribution: temurin
+                          java-version: '21'
+                      - name: verify
+                        run: mvn -B verify
+                      - name: SBOM
+                        run: mvn -B cyclonedx:makeAggregateBom
+                      - uses: actions/upload-artifact@v4
+                        with:
+                          name: verified-app
+                          path: target/*.jar
+                  deploy:
+                    needs: [build]
+                    runs-on: ubuntu-latest
+                    steps:
+                      - uses: actions/download-artifact@v4
+                        with: { name: verified-app }
+                      - run: ./deploy.sh target/app.jar
+                """), true, 5);
+
+        // 単語がファイルのどこかにあるだけでは合格にしない。各設定が同じstep・正しいjobに
+        // 属し、build→deployの依存関係を作っていることを検査する。
+        assertResult("単語だけを散らしたGitHub Actions", ArtifactValidator.validate(workflow, """
+                name: fake-ci
+                jobs:
+                  build:
+                    runs-on: ubuntu-latest
+                    steps:
+                      - uses: actions/setup-java@v4
+                      - run: echo distribution=temurin java-version=21
+                      - run: mvn test
+                      - run: echo cyclonedx
+                  deploy:
+                    runs-on: ubuntu-latest
+                    steps:
+                      - uses: actions/upload-artifact@v4
+                        with:
+                          path: target/fake.jar
+                      - uses: actions/download-artifact@v4
+                      - run: ./deploy.sh target/fake.jar
+                """), false, 0);
+        assertSyntaxError("jobの字下げが壊れたYAML", ArtifactValidator.validate(workflow, """
+                name: broken
+                jobs:
+                build:
+                  steps:
+                    - run: mvn verify
+                """));
+
         System.out.println("artifact validator: すべて合格");
     }
 

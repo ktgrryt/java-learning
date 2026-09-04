@@ -2,7 +2,7 @@
 //
 // このスクリプトは次の形で動かされます。クラスパスは採点側が渡すので /env は不要です。
 //
-//   jshell -q --execution local --class-path <出力先> probe.jsh
+//   jshell -q --execution local -J-cp -J<出力先> --class-path <出力先> probe.jsh
 //
 // 値は環境変数で渡されます。**採点は違う値で2回動かします**。
 // 定数を直接書くと片方で外れるので、必ず Pricing を呼んで計算してください。

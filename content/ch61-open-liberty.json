@@ -407,7 +407,7 @@
       "objectiveIds": [
         "ch61-o5"
       ],
-      "explanation": "Open LibertyのZero Migration Architectureは、ランタイム本体を新しくしても、アプリが指定するversioned featureを維持することで、そのFeatureのAPIと動作をできるだけ保つ設計です。目的は、セキュリティ修正やバグ修正を含む新しいOpen Libertyランタイムへ継続的に上げやすくすることです。\n\n```text\n変更前: Open Liberty旧版 + restfulWS-4.0\n変更後: Open Liberty新版 + restfulWS-4.0\n                              ↑ Feature版は同じ\n```\n\nこのランタイム更新と、`restfulWS-4.0`から将来の新しいFeature版へ変えるAPI仕様更新は別です。後者では仕様差に合わせたコード・設定変更が必要になる可能性があります。「Zero Migrationだからテスト不要」「すべての変更が無条件で互換」という意味ではありません。\n\n互換性の中心は、Open Libertyが文書化して提供する構成とFeatureです。Java自体の版を変える、アプリが直接使うサードパーティライブラリを変える、文書化されていない内部動作へ依存する、セキュリティ上どうしても挙動修正が必要になる、といった場合は別の影響があり得ます。ランタイム更新でも回帰テストと段階リリースは行います。\n\n実務では次の2本を分けて計画します。\n\n1. 定期的なランタイム更新: Feature版は維持し、脆弱性修正を早く取り込む。自動テスト、起動確認、主要APIのスモークテストを行う。\n2. 計画的な仕様更新: Feature版やJakarta EE platform版を上げ、仕様差、非推奨API、コード、設定を調査して移行する。\n\n100個のサービスでランタイム更新のたびに全コード移行が必要になる状況を避け、ランタイム保守とAPI仕様移行を別の速度で進められることが、Zero Migrationの実務的な価値です。",
+      "explanation": "Open LibertyのZero Migration Architectureは、ランタイム本体を新しくしても、アプリが指定するversioned featureを維持することで、そのFeatureのAPIと動作をできるだけ保つ設計です。目的は、セキュリティ修正やバグ修正を含む新しいOpen Libertyランタイムへ継続的に上げやすくすることです。\n\n```text\n変更前: Open Liberty旧版 + restfulWS-4.0\n変更後: Open Liberty新版 + restfulWS-4.0\n                              ↑ Feature版は同じ\n```\n\nこのランタイム更新と、`restfulWS-4.0`から将来の新しいFeature版へ変えるAPI仕様更新は別です。後者では仕様差に合わせたコード・設定変更が必要になる可能性があります。「Zero Migrationだからテスト不要」「すべての変更が無条件で互換」という意味ではありません。\n\n互換性の中心は、Open Libertyが文書化して提供する構成とFeatureです。Java自体の版を変える、アプリが直接使うサードパーティライブラリを変える、文書化されていない内部動作へ依存する、セキュリティ上どうしても挙動修正が必要になる、といった場合は別の影響があり得ます。ランタイム更新でも回帰テストと段階リリースは行います。\n\n実務では次の2本を分けて計画します。\n\n1. 定期的なランタイム更新: Feature版は維持し、脆弱性修正を早く取り込む。自動テスト、起動確認、主要APIのスモークテストを行う。\n2. 計画的な仕様更新: Feature版やJakarta EE platform版を上げ、仕様差、非推奨API、コード、設定を調査して移行する。\n\n100個のサービスでランタイム更新のたびに全コード移行が必要になる状況を避け、ランタイム保守とAPI仕様移行を別の速度で進められることが、Zero Migrationの実務的な価値です。\n\nこの単元では更新項目をJavaで分類せず、Zero Migrationが保証する範囲と、別途migration・testが必要な変更をクイズで見分けます。",
       "samples": [
         {
           "caption": "考え方を標準Javaで確かめる",
@@ -415,49 +415,6 @@
           "expected": "ZERO_MIGRATION_SCOPE"
         }
       ],
-      "task": "更新前後の版の一覧を読んで、**Zero Migrationの範囲かどうか**と必要な作業を報告してください。\n\n1行目に行数nを読み、続けてn行を `種別 更新前 更新後` の形で読みます。種別は `runtime` / `feature` / `java` / `dependency` のいずれかです。\n\n```\n4\nruntime 24.0.0.9 26.0.0.8\nfeature restfulWS-4.0 restfulWS-4.0\njava 21 21\ndependency postgresql-42.7.3 postgresql-42.7.5\n```\n\n**更新前と更新後が同じ行は、変更が無いので報告しません。** 変わっている行について、次の順で1行ずつ表示してください（同じ種別が複数あっても1行だけ出します）。\n\n| 種別 | 出す行 | なぜ |\n|---|---|---|\n| `runtime` | `ZERO_MIGRATION regression-test` | Zero Migrationの対象。ただし回帰テストは必要 |\n| `feature` | `SPEC_MIGRATION guide-and-code` | 仕様の版が変わるので対象外。移行ガイドとコード修正が要る |\n| `java` | `JAVA_MIGRATION compatibility-test` | 実行するJavaが変わる |\n| `dependency` | `LIBRARY_MIGRATION release-notes` | アプリが持つライブラリはサーバーの保証の外 |\n\n1行も変わっていなければ `NO_CHANGE` と表示します。\n\n上の例では `runtime` と `dependency` だけが変わっているので、答えは2行になります。\n\n> Zero Migrationが守るのは**ランタイムの版を上げてもアプリを直さずに動く**ことです。featureの版（＝仕様の版）を上げることや、Javaの版を上げることは別の作業です。「Libertyを上げるだけ」と「仕様も上げる」を混ぜて計画すると、想定外の修正が出ます。",
-      "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] a) {\n        Scanner sc = new Scanner(System.in);\n        int n = Integer.parseInt(sc.nextLine().trim());\n        Set<String> changed = new LinkedHashSet<>();\n        for (int i = 0; i < n; i++) {\n            String[] parts = sc.nextLine().trim().split(\"\\\\s+\");\n            /* TODO 更新前と更新後が同じ行は飛ばす */\n            /* TODO 変わっている種別を覚える */\n        }\n        /* TODO 決まった順で報告する。1つも変わっていなければ NO_CHANGE */\n    }\n}\n",
-      "visibleCases": [
-        {
-          "label": "runtimeとdependencyだけが変わる",
-          "stdin": "4\nruntime 24.0.0.9 26.0.0.8\nfeature restfulWS-4.0 restfulWS-4.0\njava 21 21\ndependency postgresql-42.7.3 postgresql-42.7.5\n",
-          "expected": "ZERO_MIGRATION regression-test\nLIBRARY_MIGRATION release-notes"
-        },
-        {
-          "label": "どれも変わっていない",
-          "stdin": "2\nruntime 26.0.0.8 26.0.0.8\njava 21 21\n",
-          "expected": "NO_CHANGE"
-        }
-      ],
-      "hiddenCases": [
-        {
-          "label": "featureの版が上がる",
-          "stdin": "2\nruntime 24.0.0.9 26.0.0.8\nfeature restfulWS-3.1 restfulWS-4.0\n",
-          "expected": "ZERO_MIGRATION regression-test\nSPEC_MIGRATION guide-and-code"
-        },
-        {
-          "label": "4種類すべてが変わる",
-          "stdin": "4\ndependency a-1 a-2\njava 17 21\nfeature f-1 f-2\nruntime r-1 r-2\n",
-          "expected": "ZERO_MIGRATION regression-test\nSPEC_MIGRATION guide-and-code\nJAVA_MIGRATION compatibility-test\nLIBRARY_MIGRATION release-notes"
-        },
-        {
-          "label": "同じ種別が複数あっても1行",
-          "stdin": "3\ndependency a-1 a-2\ndependency b-1 b-2\ndependency c-1 c-1\n",
-          "expected": "LIBRARY_MIGRATION release-notes"
-        },
-        {
-          "label": "Javaだけ変わる",
-          "stdin": "2\njava 17 21\nruntime 26.0.0.8 26.0.0.8\n",
-          "expected": "JAVA_MIGRATION compatibility-test"
-        }
-      ],
-      "hints": [
-        "行を空白で分けると `種別` `更新前` `更新後` の3つになります。更新前と更新後が等しい行は飛ばします。",
-        "出す順は入力順ではなく、表の順に固定です。種別を集合に集めてから、決めた順で照らし合わせると重複も自然に消えます。"
-      ],
-      "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] a) {\n        Scanner sc = new Scanner(System.in);\n        int n = Integer.parseInt(sc.nextLine().trim());\n        Set<String> changed = new HashSet<>();\n        for (int i = 0; i < n; i++) {\n            String[] parts = sc.nextLine().trim().split(\"\\\\s+\");\n            if (parts[1].equals(parts[2])) continue;        // 変わっていない\n            changed.add(parts[0]);\n        }\n        List<String[]> order = List.of(\n                new String[] {\"runtime\", \"ZERO_MIGRATION regression-test\"},\n                new String[] {\"feature\", \"SPEC_MIGRATION guide-and-code\"},\n                new String[] {\"java\", \"JAVA_MIGRATION compatibility-test\"},\n                new String[] {\"dependency\", \"LIBRARY_MIGRATION release-notes\"});\n        boolean any = false;\n        for (String[] row : order) {\n            if (changed.contains(row[0])) {\n                System.out.println(row[1]);\n                any = true;\n            }\n        }\n        if (!any) System.out.println(\"NO_CHANGE\");\n    }\n}\n",
-      "kind": "drill",
-      "extraTasks": [],
       "quiz": [
         {
           "question": "Zero Migrationが主に対象とする更新はどれですか？",
@@ -480,149 +437,34 @@
           ],
           "answer": 2,
           "explanation": "テストを廃止できるわけではなく、Feature版を無計画に変えてよいわけでもありません（版を維持することが前提です）。文書化されていない内部動作へ依存すれば、そもそも保証の外です。Zero Migrationは移行の影響を抑える設計であって、アプリ固有の動作確認を不要にする保証ではないので、回帰テストと段階的な確認は残ります。"
+        },
+        {
+          "question": "Open Liberty runtimeだけでなく、Jakarta EE featureの版とJavaも同時に上げます。Zero Migrationだけを根拠に無修正と判断できますか。",
+          "choices": [
+            "判断できる。runtime名が同じなら他の版は関係しない",
+            "判断できない。仕様版とJavaの変更は別のcompatibility確認が必要",
+            "判断できる。LTS JDKならfeature差を吸収する",
+            "判断できない。Zero Migrationではruntime更新も禁止される"
+          ],
+          "answer": 1,
+          "explanation": "Zero Migrationの対象はruntime更新時の互換性です。仕様feature、Java、アプリ依存の更新は別に移行と回帰testを計画します。"
         }
       ],
-      "rubric": [
-        "implement",
-        "decide"
-      ]
+      "lessonType": "concept"
     },
     {
       "id": "61-6",
       "title": "テスト・運用・InstantOnを使い分ける",
       "objectiveIds": [
-        "ch61-o5"
+        "ch61-o3",
+        "ch61-o4"
       ],
-      "explanation": "Open Libertyでも、純粋なServiceのJUnit、Resourceの境界テスト、実サーバーを起動する結合テストを分けます。`liberty:dev`では変更を反映しながらテストでき、MavenのFailsafe Pluginを組み合わせれば、サーバー起動後にHTTP経由の統合テストを実行できます。本番と同じFeature、設定、Java版で確認することが大切です。\n\n運用ではMicroProfile Health、構造化ログ、メトリクス、トレースを監視基盤へ接続します。`server.xml`や環境変数は成果物と同様にレビューし、Featureの変更、ポート、TLS、データソース、秘密情報の渡し方を管理します。コンテナではランタイムイメージの更新とアプリWARの更新を分けて追跡できます。\n\nInstantOnはOpen Liberty固有の起動高速化手段です。CRIU（実行中プロセスの状態を保存・復元するLinuxの仕組み）を使い、JVMとアプリを途中まで起動したcheckpointをイメージへ保存します。コンテナ起動時は通常の初期化を最初から繰り返さずrestoreするため、ミリ秒単位の起動を狙えます。アプリをOS向けのネイティブ実行ファイルへ事前コンパイルする方式とは異なり、JVM/JITの実行特性を保ったまま高速起動を狙う方法です。\n\nただしInstantOnは通常起動のスイッチではありません。Linux、CRIU、対応JDK、コンテナ権限、対応Featureなどの条件を確認する必要があります。checkpoint時に秘密情報や外部接続を固定しないよう、初期化をcheckpoint前とrestore後のどちらで行うかも設計します。まず通常のJVM起動を正しく運用し、起動時間が要件上の問題になったときに測定して採用してください。\n\n起動の速さだけで製品を選ばず、長時間稼働時の性能、メモリ、ビルド・運用の複雑さ、プラットフォーム制約を合わせて比較します。",
+      "explanation": "Open Libertyでも、純粋なServiceのJUnit、Resourceの境界テスト、実サーバーを起動する結合テストを分けます。`liberty:dev`では変更を反映しながらテストでき、MavenのFailsafe Pluginを組み合わせれば、サーバー起動後にHTTP経由の統合テストを実行できます。本番と同じFeature、設定、Java版で確認することが大切です。\n\n運用ではMicroProfile Health、構造化ログ、メトリクス、トレースを監視基盤へ接続します。`server.xml`や環境変数は成果物と同様にレビューし、Featureの変更、ポート、TLS、データソース、秘密情報の渡し方を管理します。コンテナではランタイムイメージの更新とアプリWARの更新を分けて追跡できます。\n\nInstantOnはOpen Liberty固有の起動高速化手段です。CRIU（実行中プロセスの状態を保存・復元するLinuxの仕組み）を使い、JVMとアプリを途中まで起動したcheckpointをイメージへ保存します。コンテナ起動時は通常の初期化を最初から繰り返さずrestoreするため、ミリ秒単位の起動を狙えます。アプリをOS向けのネイティブ実行ファイルへ事前コンパイルする方式とは異なり、JVM/JITの実行特性を保ったまま高速起動を狙う方法です。\n\nただしInstantOnは通常起動のスイッチではありません。Linux、CRIU、対応JDK、コンテナ権限、対応Featureなどの条件を確認する必要があります。checkpoint時に秘密情報や外部接続を固定しないよう、初期化をcheckpoint前とrestore後のどちらで行うかも設計します。まず通常のJVM起動を正しく運用し、起動時間が要件上の問題になったときに測定して採用してください。\n\n起動の速さだけで製品を選ばず、長時間稼働時の性能、メモリ、ビルド・運用の複雑さ、プラットフォーム制約を合わせて比較します。\n\n必須演習ではOpen Libertyの`server.xml`、Jakarta Validation、MicroProfile Healthを編集し、実サーバーのHTTP応答を確認します。InstantOn対応表をJavaで分類する問題は任意です。",
       "samples": [
         {
           "caption": "考え方を標準Javaで確かめる",
           "code": "import java.util.*;\n\npublic class Main {\n    static boolean instantOnReady(boolean linux, boolean criu, boolean supportedJdk, boolean supportedFeatures) {\n        return linux && criu && supportedJdk && supportedFeatures;\n    }\n    public static void main(String[] args) {\n        System.out.println(instantOnReady(true, true, true, true) ? \"INSTANTON\" : \"REGULAR_JVM\");\n    }\n}",
           "expected": "INSTANTON"
-        }
-      ],
-      "task": "InstantOnを使えるかどうかを、**アプリが使っているfeatureと対応表**から判定してください。\n\n1行目に対応表の行数mを読み、m行を `feature 対応状況` の形で読みます（`SUPPORTED` または `UNSUPPORTED`）。次に使用featureの数kを読み、k行を読みます。\n\n```\n4\nrestfulWS-4.0 SUPPORTED\ncdi-4.1 SUPPORTED\nmpHealth-4.0 SUPPORTED\nbatch-2.1 UNSUPPORTED\n3\nrestfulWS-4.0\ncdi-4.1\nbatch-2.1\n```\n\n使用featureのうち **`UNSUPPORTED` のもの**を、辞書順に `BLOCKED feature` と表示してください。続けて最後の行に、1つもなければ `READY`、1つ以上あれば `NOT_READY` と表示します。\n\n対応表に載っていないfeatureは `UNKNOWN feature` として辞書順に報告し（`BLOCKED` の後）、この場合も最後は `NOT_READY` です。**確認できていないものを「使える」と扱わない**ためです。\n\n上の例の答えはこうなります。\n\n```\nBLOCKED batch-2.1\nNOT_READY\n```\n\n> InstantOnは起動済みの状態を保存して復元する仕組みなので、**使っているfeatureが対応していなければ復元できません**。速く起動したいという要件だけでは採用を決められません。",
-      "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] a) {\n        Scanner sc = new Scanner(System.in);\n        int m = Integer.parseInt(sc.nextLine().trim());\n        Map<String, String> support = new HashMap<>();\n        for (int i = 0; i < m; i++) {\n            String[] parts = sc.nextLine().trim().split(\"\\\\s+\");\n            support.put(parts[0], parts[1]);\n        }\n        int k = Integer.parseInt(sc.nextLine().trim());\n        /* TODO 使用featureを読み、対応表と突き合わせる */\n        /* TODO BLOCKED を辞書順、次に UNKNOWN を辞書順、最後に READY / NOT_READY */\n    }\n}\n",
-      "visibleCases": [
-        {
-          "label": "未対応のfeatureを1つ使っている",
-          "stdin": "4\nrestfulWS-4.0 SUPPORTED\ncdi-4.1 SUPPORTED\nmpHealth-4.0 SUPPORTED\nbatch-2.1 UNSUPPORTED\n3\nrestfulWS-4.0\ncdi-4.1\nbatch-2.1\n",
-          "expected": "BLOCKED batch-2.1\nNOT_READY"
-        },
-        {
-          "label": "使用feature全てが対応済み",
-          "stdin": "4\nrestfulWS-4.0 SUPPORTED\ncdi-4.1 SUPPORTED\nmpHealth-4.0 SUPPORTED\nbatch-2.1 UNSUPPORTED\n2\nrestfulWS-4.0\nmpHealth-4.0\n",
-          "expected": "READY"
-        }
-      ],
-      "hiddenCases": [
-        {
-          "label": "対応表に無いfeature",
-          "stdin": "4\nrestfulWS-4.0 SUPPORTED\ncdi-4.1 SUPPORTED\nmpHealth-4.0 SUPPORTED\nbatch-2.1 UNSUPPORTED\n2\nrestfulWS-4.0\njms-3.1\n",
-          "expected": "UNKNOWN jms-3.1\nNOT_READY"
-        },
-        {
-          "label": "BLOCKEDとUNKNOWNが混ざり辞書順",
-          "stdin": "5\nrestfulWS-4.0 SUPPORTED\ncdi-4.1 SUPPORTED\nmpHealth-4.0 SUPPORTED\nbatch-2.1 UNSUPPORTED\nzlib-1.0 UNSUPPORTED\n4\nzlib-1.0\nbatch-2.1\nxyz-9.9\nabc-1.1\n",
-          "expected": "BLOCKED batch-2.1\nBLOCKED zlib-1.0\nUNKNOWN abc-1.1\nUNKNOWN xyz-9.9\nNOT_READY"
-        },
-        {
-          "label": "同じfeatureが2回使われている",
-          "stdin": "4\nrestfulWS-4.0 SUPPORTED\ncdi-4.1 SUPPORTED\nmpHealth-4.0 SUPPORTED\nbatch-2.1 UNSUPPORTED\n2\nbatch-2.1\nbatch-2.1\n",
-          "expected": "BLOCKED batch-2.1\nNOT_READY"
-        },
-        {
-          "label": "使用featureが0件",
-          "stdin": "4\nrestfulWS-4.0 SUPPORTED\ncdi-4.1 SUPPORTED\nmpHealth-4.0 SUPPORTED\nbatch-2.1 UNSUPPORTED\n0\n",
-          "expected": "READY"
-        }
-      ],
-      "hints": [
-        "対応表は `feature → 対応状況` のMapにします。使用feature側を回して、Mapに無ければ `UNKNOWN`、`UNSUPPORTED` なら `BLOCKED` です。",
-        "`BLOCKED` と `UNKNOWN` は別の集合に集めます。`TreeSet` へ入れると辞書順と重複除去が同時にできます。最後の1行は、両方が空かどうかで決まります。"
-      ],
-      "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] a) {\n        Scanner sc = new Scanner(System.in);\n        int m = Integer.parseInt(sc.nextLine().trim());\n        Map<String, String> support = new HashMap<>();\n        for (int i = 0; i < m; i++) {\n            String[] parts = sc.nextLine().trim().split(\"\\\\s+\");\n            support.put(parts[0], parts[1]);\n        }\n        int k = Integer.parseInt(sc.nextLine().trim());\n        Set<String> blocked = new TreeSet<>();\n        Set<String> unknown = new TreeSet<>();\n        for (int i = 0; i < k; i++) {\n            String feature = sc.nextLine().trim();\n            String state = support.get(feature);\n            if (state == null) unknown.add(feature);\n            else if (state.equals(\"UNSUPPORTED\")) blocked.add(feature);\n        }\n        for (String feature : blocked) System.out.println(\"BLOCKED \" + feature);\n        for (String feature : unknown) System.out.println(\"UNKNOWN \" + feature);\n        System.out.println(blocked.isEmpty() && unknown.isEmpty() ? \"READY\" : \"NOT_READY\");\n    }\n}\n",
-      "kind": "applied",
-      "extraTasks": [
-        {
-          "objectiveIds": [
-            "ch61-o3",
-            "ch61-o4"
-          ],
-          "kind": "applied",
-          "type": "runtime-lab",
-          "task": "【実起動演習】Open Libertyの挨拶APIを完成させてください。`server.xml`でJakarta ValidationとMicroProfile Healthを有効にし、`GreetingResource`では空白と21文字以上のnameをJakarta Validationで拒否します。`GreetingReadiness`はリクエストを受けられる状態をUPとして返してください。\n\n提出すると`mvn test package`で実WARを作り、固定したOpen Liberty 26.0.0.8へ配備します。採点側が確保した動的localhostポートで起動し、CWWKF0012IのFeature起動ログ、Jakarta RESTのJSON、入力不正400、MicroProfile Readinessを実測します。最後にLibertyとHTTP listenerが停止したことまで確認します。初回はランタイムとFeatureの取得に時間がかかることがあります。",
-          "runtimeLab": {
-            "name": "open-liberty-war-feature-http-health",
-            "source": "labs/frameworks/open-liberty/runtime-exercise",
-            "exclude": [
-              "reference",
-              "target"
-            ],
-            "command": [
-              "./run-runtime-lab.sh"
-            ],
-            "timeoutSeconds": 60,
-            "verification": "JUnit後に実WARをbuild・配備し、Feature起動ログ、REST、Validation、Readiness、停止を確認する",
-            "capabilities": [
-              "server",
-              "http"
-            ],
-            "requiredTools": [
-              "java",
-              "javac",
-              "mvn"
-            ],
-            "requiredImages": [],
-            "checks": [
-              {
-                "id": "liberty-war",
-                "label": "mvn test後にResourceを含むWARをbuildする"
-              },
-              {
-                "id": "liberty-features",
-                "label": "起動ログで必要なJakarta EE/MicroProfile Featureを確認する"
-              },
-              {
-                "id": "liberty-rest",
-                "label": "実LibertyのJakarta REST APIがHTTP 200とJSONを返す"
-              },
-              {
-                "id": "liberty-validation",
-                "label": "Jakarta Validationが入力不正をHTTP 400にする"
-              },
-              {
-                "id": "liberty-health",
-                "label": "MicroProfile Readinessがgreeting=UPを返す"
-              },
-              {
-                "id": "liberty-stop",
-                "label": "検証後にLiberty processとHTTP listenerを停止する"
-              }
-            ],
-            "editableFiles": [
-              {
-                "path": "src/main/liberty/config/server.xml",
-                "solutionPath": "reference/src/main/liberty/config/server.xml"
-              },
-              {
-                "path": "src/main/java/example/greeting/GreetingResource.java",
-                "solutionPath": "reference/src/main/java/example/greeting/GreetingResource.java"
-              },
-              {
-                "path": "src/main/java/example/greeting/GreetingReadiness.java",
-                "solutionPath": "reference/src/main/java/example/greeting/GreetingReadiness.java"
-              }
-            ]
-          },
-          "hints": [
-            "`server.xml`のFeature Managerへ`validation-3.1`と`mpHealth-4.0`を追加します。ポートは`${env.JQ_LAB_PORT}`のままにし、固定値へ戻さないでください。",
-            "Resourceの`name`引数へ`@NotBlank`と`@Size(max = 20)`を付けます。必要なimportは`jakarta.validation.constraints`です。",
-            "Readinessは`HealthCheckResponse.up(\"greeting\")`を返します。HTTP検査だけでなく、起動ログのFeature一覧と停止後のlistenerも採点されます。"
-          ],
-          "rubric": [
-            "implement"
-          ]
         }
       ],
       "quiz": [
@@ -649,9 +491,129 @@
           "explanation": "WARの大きさやクラスの数に上限があるわけではありません。checkpointを取る時点はアプリのコードで指定するものではなく、起動と配備の手順の中で決めます。ヒープ上限をそろえる話でもありません。確認するのは、起動時間が本当に要件上の問題かどうかと、OS・CRIU・JDK・Featureが対応しているかです。"
         }
       ],
+      "kind": "applied",
+      "type": "runtime-lab",
+      "task": "【実起動演習】Open Libertyの挨拶APIを完成させてください。`server.xml`でJakarta ValidationとMicroProfile Healthを有効にし、`GreetingResource`では空白と21文字以上のnameをJakarta Validationで拒否します。`GreetingReadiness`はリクエストを受けられる状態をUPとして返してください。\n\n提出すると`mvn test package`で実WARを作り、固定したOpen Liberty 26.0.0.8へ配備します。採点側が確保した動的localhostポートで起動し、CWWKF0012IのFeature起動ログ、Jakarta RESTのJSON、入力不正400、MicroProfile Readinessを実測します。最後にLibertyとHTTP listenerが停止したことまで確認します。初回はランタイムとFeatureの取得に時間がかかることがあります。",
+      "runtimeLab": {
+        "name": "open-liberty-war-feature-http-health",
+        "source": "labs/frameworks/open-liberty/runtime-exercise",
+        "exclude": [
+          "reference",
+          "target"
+        ],
+        "command": [
+          "./run-runtime-lab.sh"
+        ],
+        "timeoutSeconds": 60,
+        "verification": "JUnit後に実WARをbuild・配備し、Feature起動ログ、REST、Validation、Readiness、停止を確認する",
+        "capabilities": [
+          "server",
+          "http"
+        ],
+        "requiredTools": [
+          "java",
+          "javac",
+          "mvn"
+        ],
+        "requiredImages": [],
+        "checks": [
+          {
+            "id": "liberty-war",
+            "label": "mvn test後にResourceを含むWARをbuildする"
+          },
+          {
+            "id": "liberty-features",
+            "label": "起動ログで必要なJakarta EE/MicroProfile Featureを確認する"
+          },
+          {
+            "id": "liberty-rest",
+            "label": "実LibertyのJakarta REST APIがHTTP 200とJSONを返す"
+          },
+          {
+            "id": "liberty-validation",
+            "label": "Jakarta Validationが入力不正をHTTP 400にする"
+          },
+          {
+            "id": "liberty-health",
+            "label": "MicroProfile Readinessがgreeting=UPを返す"
+          },
+          {
+            "id": "liberty-stop",
+            "label": "検証後にLiberty processとHTTP listenerを停止する"
+          }
+        ],
+        "editableFiles": [
+          {
+            "path": "src/main/liberty/config/server.xml",
+            "solutionPath": "reference/src/main/liberty/config/server.xml"
+          },
+          {
+            "path": "src/main/java/example/greeting/GreetingResource.java",
+            "solutionPath": "reference/src/main/java/example/greeting/GreetingResource.java"
+          },
+          {
+            "path": "src/main/java/example/greeting/GreetingReadiness.java",
+            "solutionPath": "reference/src/main/java/example/greeting/GreetingReadiness.java"
+          }
+        ]
+      },
+      "hints": [
+        "`server.xml`のFeature Managerへ`validation-3.1`と`mpHealth-4.0`を追加します。ポートは`${env.JQ_LAB_PORT}`のままにし、固定値へ戻さないでください。",
+        "Resourceの`name`引数へ`@NotBlank`と`@Size(max = 20)`を付けます。必要なimportは`jakarta.validation.constraints`です。",
+        "Readinessは`HealthCheckResponse.up(\"greeting\")`を返します。HTTP検査だけでなく、起動ログのFeature一覧と停止後のlistenerも採点されます。"
+      ],
       "rubric": [
-        "implement",
-        "decide"
+        "implement"
+      ],
+      "extraTasks": [
+        {
+          "objectiveIds": [
+            "ch61-o5"
+          ],
+          "kind": "applied",
+          "required": false,
+          "task": "【任意・InstantOn対応表をJavaで分類する練習】Open Libertyを実際に起動した後、集合処理も復習したい場合だけ取り組みます。章クリア・★・カフェ報酬・復習の対象外です。\n\nInstantOnを使えるかどうかを、**アプリが使っているfeatureと対応表**から判定してください。\n\n1行目に対応表の行数mを読み、m行を `feature 対応状況` の形で読みます（`SUPPORTED` または `UNSUPPORTED`）。次に使用featureの数kを読み、k行を読みます。\n\n```\n4\nrestfulWS-4.0 SUPPORTED\ncdi-4.1 SUPPORTED\nmpHealth-4.0 SUPPORTED\nbatch-2.1 UNSUPPORTED\n3\nrestfulWS-4.0\ncdi-4.1\nbatch-2.1\n```\n\n使用featureのうち **`UNSUPPORTED` のもの**を、辞書順に `BLOCKED feature` と表示してください。続けて最後の行に、1つもなければ `READY`、1つ以上あれば `NOT_READY` と表示します。\n\n対応表に載っていないfeatureは `UNKNOWN feature` として辞書順に報告し（`BLOCKED` の後）、この場合も最後は `NOT_READY` です。**確認できていないものを「使える」と扱わない**ためです。\n\n上の例の答えはこうなります。\n\n```\nBLOCKED batch-2.1\nNOT_READY\n```\n\n> InstantOnは起動済みの状態を保存して復元する仕組みなので、**使っているfeatureが対応していなければ復元できません**。速く起動したいという要件だけでは採用を決められません。",
+          "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] a) {\n        Scanner sc = new Scanner(System.in);\n        int m = Integer.parseInt(sc.nextLine().trim());\n        Map<String, String> support = new HashMap<>();\n        for (int i = 0; i < m; i++) {\n            String[] parts = sc.nextLine().trim().split(\"\\\\s+\");\n            support.put(parts[0], parts[1]);\n        }\n        int k = Integer.parseInt(sc.nextLine().trim());\n        /* TODO 使用featureを読み、対応表と突き合わせる */\n        /* TODO BLOCKED を辞書順、次に UNKNOWN を辞書順、最後に READY / NOT_READY */\n    }\n}\n",
+          "visibleCases": [
+            {
+              "label": "未対応のfeatureを1つ使っている",
+              "stdin": "4\nrestfulWS-4.0 SUPPORTED\ncdi-4.1 SUPPORTED\nmpHealth-4.0 SUPPORTED\nbatch-2.1 UNSUPPORTED\n3\nrestfulWS-4.0\ncdi-4.1\nbatch-2.1\n",
+              "expected": "BLOCKED batch-2.1\nNOT_READY"
+            },
+            {
+              "label": "使用feature全てが対応済み",
+              "stdin": "4\nrestfulWS-4.0 SUPPORTED\ncdi-4.1 SUPPORTED\nmpHealth-4.0 SUPPORTED\nbatch-2.1 UNSUPPORTED\n2\nrestfulWS-4.0\nmpHealth-4.0\n",
+              "expected": "READY"
+            }
+          ],
+          "hiddenCases": [
+            {
+              "label": "対応表に無いfeature",
+              "stdin": "4\nrestfulWS-4.0 SUPPORTED\ncdi-4.1 SUPPORTED\nmpHealth-4.0 SUPPORTED\nbatch-2.1 UNSUPPORTED\n2\nrestfulWS-4.0\njms-3.1\n",
+              "expected": "UNKNOWN jms-3.1\nNOT_READY"
+            },
+            {
+              "label": "BLOCKEDとUNKNOWNが混ざり辞書順",
+              "stdin": "5\nrestfulWS-4.0 SUPPORTED\ncdi-4.1 SUPPORTED\nmpHealth-4.0 SUPPORTED\nbatch-2.1 UNSUPPORTED\nzlib-1.0 UNSUPPORTED\n4\nzlib-1.0\nbatch-2.1\nxyz-9.9\nabc-1.1\n",
+              "expected": "BLOCKED batch-2.1\nBLOCKED zlib-1.0\nUNKNOWN abc-1.1\nUNKNOWN xyz-9.9\nNOT_READY"
+            },
+            {
+              "label": "同じfeatureが2回使われている",
+              "stdin": "4\nrestfulWS-4.0 SUPPORTED\ncdi-4.1 SUPPORTED\nmpHealth-4.0 SUPPORTED\nbatch-2.1 UNSUPPORTED\n2\nbatch-2.1\nbatch-2.1\n",
+              "expected": "BLOCKED batch-2.1\nNOT_READY"
+            },
+            {
+              "label": "使用featureが0件",
+              "stdin": "4\nrestfulWS-4.0 SUPPORTED\ncdi-4.1 SUPPORTED\nmpHealth-4.0 SUPPORTED\nbatch-2.1 UNSUPPORTED\n0\n",
+              "expected": "READY"
+            }
+          ],
+          "hints": [
+            "対応表は `feature → 対応状況` のMapにします。使用feature側を回して、Mapに無ければ `UNKNOWN`、`UNSUPPORTED` なら `BLOCKED` です。",
+            "`BLOCKED` と `UNKNOWN` は別の集合に集めます。`TreeSet` へ入れると辞書順と重複除去が同時にできます。最後の1行は、両方が空かどうかで決まります。"
+          ],
+          "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] a) {\n        Scanner sc = new Scanner(System.in);\n        int m = Integer.parseInt(sc.nextLine().trim());\n        Map<String, String> support = new HashMap<>();\n        for (int i = 0; i < m; i++) {\n            String[] parts = sc.nextLine().trim().split(\"\\\\s+\");\n            support.put(parts[0], parts[1]);\n        }\n        int k = Integer.parseInt(sc.nextLine().trim());\n        Set<String> blocked = new TreeSet<>();\n        Set<String> unknown = new TreeSet<>();\n        for (int i = 0; i < k; i++) {\n            String feature = sc.nextLine().trim();\n            String state = support.get(feature);\n            if (state == null) unknown.add(feature);\n            else if (state.equals(\"UNSUPPORTED\")) blocked.add(feature);\n        }\n        for (String feature : blocked) System.out.println(\"BLOCKED \" + feature);\n        for (String feature : unknown) System.out.println(\"UNKNOWN \" + feature);\n        System.out.println(blocked.isEmpty() && unknown.isEmpty() ? \"READY\" : \"NOT_READY\");\n    }\n}\n"
+        }
       ]
     },
     {

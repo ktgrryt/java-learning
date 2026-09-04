@@ -381,7 +381,7 @@
       "objectiveIds": [
         "ch62-o4"
       ],
-      "explanation": "QuarkusのDev Servicesは、開発・テストで必要な外部サービスを設定から判断し、自動で用意する仕組みです。例えばPostgreSQL Extensionがあり、dev/test用の接続URLを設定していない場合、Testcontainersを通じてPostgreSQLコンテナを起動し、アプリへ接続情報を渡せます。KafkaやKeycloakなど対応サービスもあります。\n\n```text\nquarkus:dev\n  ↓ DB設定がない + PostgreSQL Extension\nDev Services\n  ↓ Docker / Podman\nPostgreSQLコンテナ起動・自動接続\n```\n\nこれにより、開発者全員が手作業でDB作成、ポート設定、ユーザー作成を繰り返す負担を減らせます。ただし、多くのDev ServicesにはDockerまたはPodmanが必要です。本番でサービスを自動作成する仕組みではなく、prodでは接続先、認証情報、可用性、バックアップを明示的に構成します。共有devサービスの再利用や固定ポートなども、チームの並列開発を壊さないように決めます。\n\nContinuous Testingは、dev modeまたはcontinuous test modeで、変更に関係するテストを繰り返し実行して短いフィードバックを得る機能です。環境によって初期状態は停止中なので、開発画面やキー操作で開始・停止・失敗テストだけの再実行などを制御します。Live Reloadはコードを反映する機能、Continuous Testingはテストで正しさを確認する機能で、目的が異なります。\n\n`@QuarkusTest`はQuarkusアプリをテスト用に起動し、REST AssuredなどでHTTP APIを確認できます。純粋なServiceは通常のJUnitで高速に検証します。Native配布を選ぶ場合は、JVMテストだけでなくNative実行ファイルを対象にしたテストもリリース工程へ入れます。Dev Servicesが便利でも、テストデータの独立性と後片付け、不安定な待ち時間を避ける原則は変わりません。",
+      "explanation": "QuarkusのDev Servicesは、開発・テストで必要な外部サービスを設定から判断し、自動で用意する仕組みです。例えばPostgreSQL Extensionがあり、dev/test用の接続URLを設定していない場合、Testcontainersを通じてPostgreSQLコンテナを起動し、アプリへ接続情報を渡せます。KafkaやKeycloakなど対応サービスもあります。\n\n```text\nquarkus:dev\n  ↓ DB設定がない + PostgreSQL Extension\nDev Services\n  ↓ Docker / Podman\nPostgreSQLコンテナ起動・自動接続\n```\n\nこれにより、開発者全員が手作業でDB作成、ポート設定、ユーザー作成を繰り返す負担を減らせます。ただし、多くのDev ServicesにはDockerまたはPodmanが必要です。本番でサービスを自動作成する仕組みではなく、prodでは接続先、認証情報、可用性、バックアップを明示的に構成します。共有devサービスの再利用や固定ポートなども、チームの並列開発を壊さないように決めます。\n\nContinuous Testingは、dev modeまたはcontinuous test modeで、変更に関係するテストを繰り返し実行して短いフィードバックを得る機能です。環境によって初期状態は停止中なので、開発画面やキー操作で開始・停止・失敗テストだけの再実行などを制御します。Live Reloadはコードを反映する機能、Continuous Testingはテストで正しさを確認する機能で、目的が異なります。\n\n`@QuarkusTest`はQuarkusアプリをテスト用に起動し、REST AssuredなどでHTTP APIを確認できます。純粋なServiceは通常のJUnitで高速に検証します。Native配布を選ぶ場合は、JVMテストだけでなくNative実行ファイルを対象にしたテストもリリース工程へ入れます。Dev Servicesが便利でも、テストデータの独立性と後片付け、不安定な待ち時間を避ける原則は変わりません。\n\nこの単元では起動logをJavaで分類せず、Dev Servicesが起動する条件とContinuous Testingの役割をクイズで確認します。",
       "samples": [
         {
           "caption": "考え方を標準Javaで確かめる",
@@ -389,49 +389,6 @@
           "expected": "DEV_SERVICES"
         }
       ],
-      "task": "起動ログと設定を読んで、**Dev Servicesがデータベースを用意しなかった原因**を特定してください。\n\n1行目にprofile（`dev` / `test` / `prod`）を読みます。2行目に設定の行数nを読み、n行の`application.properties` を読みます。3つめの部分としてログの行数mを読み、m行のログを読みます。\n\n```\ndev\n2\nquarkus.datasource.db-kind=postgresql\nquarkus.datasource.jdbc.url=jdbc:postgresql://db.example.com:5432/cafe\n2\nINFO  [io.quarkus] Profile dev activated\nWARN  [io.qua.dat.dep.dev] Dev Services for the default datasource was not started\n```\n\n原因を**最初に当てはまるもの1つ**だけ、次の順で判定して表示してください。\n\n| 表示 | 条件 |\n|---|---|\n| `PROD_PROFILE` | profileが `prod`。Dev Servicesは開発とテストのための仕組み |\n| `URL_CONFIGURED` | 接続先（`quarkus.datasource.jdbc.url`）が設定されている。設定があれば Dev Services は動かない |\n| `NO_CONTAINER_RUNTIME` | ログに `Docker` または `Podman` が見つからない旨の行がある |\n| `STARTED` | 上のどれでもない（Dev Servicesが起動できる状態） |\n\nコンテナが無い旨のログは、行に `container runtime` が含まれるかどうかで判定します。\n\n上の例では接続先が設定されているので `URL_CONFIGURED` です。\n\n> Dev Servicesは「設定していないときに、開発用の依存サービスを勝手に立ち上げる」仕組みです。**設定してあることが、動かない理由になる**という点が分かりにくいところです。本番では明示した設定を使うのが正しい状態です。",
-      "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] a) {\n        Scanner sc = new Scanner(System.in);\n        String profile = sc.nextLine().trim();\n        int n = Integer.parseInt(sc.nextLine().trim());\n        List<String> config = new ArrayList<>();\n        for (int i = 0; i < n; i++) config.add(sc.nextLine().trim());\n        int m = Integer.parseInt(sc.nextLine().trim());\n        List<String> log = new ArrayList<>();\n        for (int i = 0; i < m; i++) log.add(sc.nextLine());\n        /* TODO 上から順に条件を当てはめ、最初に当てはまった原因を表示する */\n    }\n}\n",
-      "visibleCases": [
-        {
-          "label": "接続先が設定されている",
-          "stdin": "dev\n2\nquarkus.datasource.db-kind=postgresql\nquarkus.datasource.jdbc.url=jdbc:postgresql://db.example.com:5432/cafe\n2\nINFO  [io.quarkus] Profile dev activated\nWARN  [io.qua.dat.dep.dev] Dev Services for the default datasource was not started\n",
-          "expected": "URL_CONFIGURED"
-        },
-        {
-          "label": "設定が無く起動できる",
-          "stdin": "dev\n1\nquarkus.datasource.db-kind=postgresql\n1\nINFO  [io.quarkus] Profile dev activated\n",
-          "expected": "STARTED"
-        }
-      ],
-      "hiddenCases": [
-        {
-          "label": "prodは最優先",
-          "stdin": "prod\n2\nquarkus.datasource.db-kind=postgresql\nquarkus.datasource.jdbc.url=jdbc:postgresql://db.example.com:5432/cafe\n1\nINFO  [io.quarkus] Profile dev activated\n",
-          "expected": "PROD_PROFILE"
-        },
-        {
-          "label": "コンテナが無い",
-          "stdin": "test\n1\nquarkus.datasource.db-kind=postgresql\n2\nINFO  [io.quarkus] Profile dev activated\nWARN  [io.qua.dep.dev] Please configure a container runtime or get a valid Docker installation\n",
-          "expected": "NO_CONTAINER_RUNTIME"
-        },
-        {
-          "label": "URL設定のほうが先に当たる",
-          "stdin": "dev\n2\nquarkus.datasource.db-kind=postgresql\nquarkus.datasource.jdbc.url=jdbc:postgresql://db.example.com:5432/cafe\n2\nINFO  [io.quarkus] Profile dev activated\nWARN  [io.qua.dep.dev] Please configure a container runtime or get a valid Docker installation\n",
-          "expected": "URL_CONFIGURED"
-        },
-        {
-          "label": "usernameは接続先ではない",
-          "stdin": "dev\n2\nquarkus.datasource.db-kind=postgresql\nquarkus.datasource.username=cafe\n1\nINFO  [io.quarkus] Profile dev activated\n",
-          "expected": "STARTED"
-        }
-      ],
-      "hints": [
-        "条件には順番があります。上から順に見て、当てはまったらそこで表示して終わります。`return` で抜けると、後ろの条件を誤って当ててしまいません。",
-        "接続先の判定は `quarkus.datasource.jdbc.url=` で**始まる行**があるかで見ます。`quarkus.datasource.username` のような別の設定と混ざらないようにします。"
-      ],
-      "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] a) {\n        Scanner sc = new Scanner(System.in);\n        String profile = sc.nextLine().trim();\n        int n = Integer.parseInt(sc.nextLine().trim());\n        List<String> config = new ArrayList<>();\n        for (int i = 0; i < n; i++) config.add(sc.nextLine().trim());\n        int m = Integer.parseInt(sc.nextLine().trim());\n        List<String> log = new ArrayList<>();\n        for (int i = 0; i < m; i++) log.add(sc.nextLine());\n\n        if (profile.equals(\"prod\")) {\n            System.out.println(\"PROD_PROFILE\");\n            return;\n        }\n        for (String line : config) {\n            if (line.startsWith(\"quarkus.datasource.jdbc.url=\")) {\n                System.out.println(\"URL_CONFIGURED\");\n                return;\n            }\n        }\n        for (String line : log) {\n            if (line.contains(\"container runtime\")) {\n                System.out.println(\"NO_CONTAINER_RUNTIME\");\n                return;\n            }\n        }\n        System.out.println(\"STARTED\");\n    }\n}\n",
-      "kind": "drill",
-      "extraTasks": [],
       "quiz": [
         {
           "question": "Dev Servicesの主な利用場所はどこですか？",
@@ -454,12 +411,20 @@
           ],
           "answer": 3,
           "explanation": "役割は逆ではありません。どちらもJVMモードの開発中に働く機能で、Nativeモード専用ではありません。「保存のたび」「ビルドのたびに1回」という区別でもありません。変更を素早く反映するのがLive Reload、変更後に関係するテストを走らせて正しさを見るのがContinuous Testingです。"
+        },
+        {
+          "question": "dev profileですが`quarkus.datasource.jdbc.url`へ共有DBの接続先を明示しました。Dev ServicesがDBを自動作成しない主な理由はどれでしょう。",
+          "choices": [
+            "dev profileではDev Servicesを使えないため",
+            "接続先が設定済みで、自動作成する必要がないため",
+            "Continuous Testingを開始していないため",
+            "REST endpointが一つもないため"
+          ],
+          "answer": 1,
+          "explanation": "Dev Servicesは必要な接続設定がない開発・test環境を補う仕組みです。接続先が明示されていれば通常はそちらを使います。"
         }
       ],
-      "rubric": [
-        "implement",
-        "diagnose"
-      ]
+      "lessonType": "concept"
     },
     {
       "id": "62-5",
@@ -467,7 +432,7 @@
       "objectiveIds": [
         "ch62-o5"
       ],
-      "explanation": "QuarkusはJVMモードとNative Imageの2つを主要な配備方法として扱います。JVMモードはビルドが速く、JIT（実行中に頻繁に通るコードを最適化する仕組み）による長時間稼働時の性能、Javaライブラリとの高い互換性、調査ツールの豊富さがあります。Native Imageはアプリと必要なランタイム要素をOS向け実行ファイルへ事前コンパイルし、特に起動時間と初期メモリを小さくしやすい方法です。リクエスト時だけ起動するServerless、利用がなければ実行数を0にするscale to zero、多数のコンテナを急速に増減する環境で効果が出やすくなります。\n\n```bash\n# GraalVMをローカルへ入れず、コンテナでNative build\nmvn package -Dnative -Dquarkus.native.container-build=true\n```\n\n## 採用はレポートで判断する\n\n使っているライブラリがNativeで動くかは、ビルド時に出る**互換性レポート**で分かります。\n\n```text\njackson                 OK\nhibernate-validator     NEEDS_CONFIG   ← リフレクション登録などの設定が必要\nlegacy-reflection-util  UNSUPPORTED    ← Nativeにできない\n```\n\n`NEEDS_CONFIG` は「設定を足せば動く」、`UNSUPPORTED` は「Nativeにできない」です。**この2つを混同すると、直せるものを諦めたり、できないものに時間を使ったりします。**\n起動の速さという要件だけでなく、レポートと稼働時間の両方から決めます。\n\nNativeビルドはJVMビルドより時間とメモリを使います。Reflection（名前からクラスやメソッドを実行時に探す処理）、classpath resource（JAR内などに同梱した設定・テンプレート）、JNI（JavaからOS固有のネイティブコードを呼ぶ仕組み）や実行時のクラス生成は、追加登録や対応Extensionが必要な場合があります。Quarkus Extensionが多くを処理しますが、独自の動的処理はNativeテストで確認します。JVMとNativeで同じ性能特性になるとは限らないため、起動、常駐メモリ、ピーク性能、ビルド時間、障害調査を実測します。\n\n運用監視にはSmallRye HealthなどMicroProfile互換機能を使えます。代表的なパスは`/q/health/live`、`/q/health/ready`、`/q/health/started`です。アプリの業務APIと管理APIを同じ公開範囲へ置かず、必要なら管理インターフェースを分け、認証やネットワークポリシーで守ります。メトリクス、OpenTelemetry、構造化ログもExtensionとして追加できます。\n\n「Nativeだから常に費用が下がる」「起動が速いから障害に強い」とは限りません。DB接続数やキャッシュ、リクエスト量が支配的な場合もあります。まずJVM版を基準にし、業務シナリオで測り、運用チームがビルドと障害調査を維持できる場合にNativeを採用します。",
+      "explanation": "QuarkusはJVMモードとNative Imageの2つを主要な配備方法として扱います。JVMモードはビルドが速く、JIT（実行中に頻繁に通るコードを最適化する仕組み）による長時間稼働時の性能、Javaライブラリとの高い互換性、調査ツールの豊富さがあります。Native Imageはアプリと必要なランタイム要素をOS向け実行ファイルへ事前コンパイルし、特に起動時間と初期メモリを小さくしやすい方法です。リクエスト時だけ起動するServerless、利用がなければ実行数を0にするscale to zero、多数のコンテナを急速に増減する環境で効果が出やすくなります。\n\n```bash\n# GraalVMをローカルへ入れず、コンテナでNative build\nmvn package -Dnative -Dquarkus.native.container-build=true\n```\n\n## 採用はレポートで判断する\n\n使っているライブラリがNativeで動くかは、ビルド時に出る**互換性レポート**で分かります。\n\n```text\njackson                 OK\nhibernate-validator     NEEDS_CONFIG   ← リフレクション登録などの設定が必要\nlegacy-reflection-util  UNSUPPORTED    ← Nativeにできない\n```\n\n`NEEDS_CONFIG` は「設定を足せば動く」、`UNSUPPORTED` は「Nativeにできない」です。**この2つを混同すると、直せるものを諦めたり、できないものに時間を使ったりします。**\n起動の速さという要件だけでなく、レポートと稼働時間の両方から決めます。\n\nNativeビルドはJVMビルドより時間とメモリを使います。Reflection（名前からクラスやメソッドを実行時に探す処理）、classpath resource（JAR内などに同梱した設定・テンプレート）、JNI（JavaからOS固有のネイティブコードを呼ぶ仕組み）や実行時のクラス生成は、追加登録や対応Extensionが必要な場合があります。Quarkus Extensionが多くを処理しますが、独自の動的処理はNativeテストで確認します。JVMとNativeで同じ性能特性になるとは限らないため、起動、常駐メモリ、ピーク性能、ビルド時間、障害調査を実測します。\n\n運用監視にはSmallRye HealthなどMicroProfile互換機能を使えます。代表的なパスは`/q/health/live`、`/q/health/ready`、`/q/health/started`です。アプリの業務APIと管理APIを同じ公開範囲へ置かず、必要なら管理インターフェースを分け、認証やネットワークポリシーで守ります。メトリクス、OpenTelemetry、構造化ログもExtensionとして追加できます。\n\n「Nativeだから常に費用が下がる」「起動が速いから障害に強い」とは限りません。DB接続数やキャッシュ、リクエスト量が支配的な場合もあります。まずJVM版を基準にし、業務シナリオで測り、運用チームがビルドと障害調査を維持できる場合にNativeを採用します。\n\n必須演習ではQuarkus JVM版を実際に起動し、Validation、設定、readiness、HTTP応答を確認します。Native Imageの発展は実行環境を用意できる場合だけの任意演習とし、互換性reportの条件分岐も任意にします。",
       "samples": [
         {
           "caption": "考え方を標準Javaで確かめる",
@@ -475,127 +440,152 @@
           "expected": "NATIVE"
         }
       ],
-      "task": "Native Imageの互換性レポートを読んで、**JVMとNativeのどちらで配布するか**を判断してください。\n\n1行目に要件（`FAST_START` または `LONG_RUNNING`）を読みます。2行目にレポートの行数nを読み、n行を `ライブラリ 状態` の形で読みます。状態は `OK` / `NEEDS_CONFIG` / `UNSUPPORTED` です。\n\n```\nFAST_START\n3\njackson OK\nhibernate-validator NEEDS_CONFIG\nlegacy-reflection-util UNSUPPORTED\n```\n\n次の順で判定し、**最初に当てはまるもの1つ**を表示してください。\n\n| 表示 | 条件 |\n|---|---|\n| `JVM unsupported-library` | `UNSUPPORTED` が1つ以上ある。Nativeにできない |\n| `JVM long-running-workload` | 要件が `LONG_RUNNING`。長時間動かすならJITが有利 |\n| `NATIVE needs-config` | `NEEDS_CONFIG` が1つ以上ある。設定を足せばNativeにできる |\n| `NATIVE ready` | 上のどれでもない |\n\n`NEEDS_CONFIG` はリフレクションなどの登録設定が必要という意味で、**できない**という意味ではありません。\n\n上の例では `UNSUPPORTED` があるので `JVM unsupported-library` です。\n\n> 「起動が速いほうが良い」だけでは決められません。使っているライブラリがNativeに対応しているか、長時間動かす処理でJITの最適化が要るかを、**レポートと要件の両方**から決めます。",
-      "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] a) {\n        Scanner sc = new Scanner(System.in);\n        String requirement = sc.nextLine().trim();\n        int n = Integer.parseInt(sc.nextLine().trim());\n        boolean unsupported = false, needsConfig = false;\n        for (int i = 0; i < n; i++) {\n            String[] parts = sc.nextLine().trim().split(\"\\\\s+\");\n            /* TODO 状態を見て、UNSUPPORTED と NEEDS_CONFIG があるかを覚える */\n        }\n        /* TODO 決まった順で判定して表示する */\n    }\n}\n",
-      "visibleCases": [
+      "quiz": [
         {
-          "label": "UNSUPPORTEDがある",
-          "stdin": "FAST_START\n3\njackson OK\nhibernate-validator NEEDS_CONFIG\nlegacy-reflection-util UNSUPPORTED\n",
-          "expected": "JVM unsupported-library"
+          "question": "Native Imageが特に有利になりやすい場面はどれですか？",
+          "choices": [
+            "リフレクションや動的proxyを広く使うライブラリを載せる場面",
+            "cold startと初期メモリが重要なServerlessや急速なPod拡縮",
+            "ビルド時間を短く保ちながら、何度も作り直したい場面",
+            "長時間動かして、JITの最適化を効かせたい場面"
+          ],
+          "answer": 1,
+          "explanation": "リフレクションや動的proxyを広く使うライブラリは、Nativeでは追加の設定が必要になり不利です。ビルド時間はNativeのほうが長く、長時間動かしてJITを効かせたい用途もJVMが向きます。Nativeが効くのは、起動の速さと初期メモリが要件になる場面です。ビルド時間・動的機能・長時間性能・調査性も含めてJVMと比べて選びます。"
         },
         {
-          "label": "すべてOKで起動優先",
-          "stdin": "FAST_START\n2\njackson OK\nsmallrye-health OK\n",
-          "expected": "NATIVE ready"
+          "question": "ReadinessがDOWNのときの基本動作はどれですか？",
+          "choices": [
+            "依存先への接続を閉じ、プールを作り直す",
+            "プロセスを再起動して、初期化をやり直す",
+            "受け付けを止めず、失敗を返しながら動き続ける",
+            "新しい通信の宛先から外し、回復を待つ"
+          ],
+          "answer": 3,
+          "explanation": "プロセス再起動の判定であるLivenessとは目的を分けます。Readinessは宛先から外して回復を待つもので、再起動も接続の作り直しもしません。"
         }
       ],
-      "hiddenCases": [
-        {
-          "label": "設定を足せばNativeにできる",
-          "stdin": "FAST_START\n2\njackson OK\nvalidator NEEDS_CONFIG\n",
-          "expected": "NATIVE needs-config"
-        },
-        {
-          "label": "長時間動かす要件はJVM",
-          "stdin": "LONG_RUNNING\n1\njackson OK\n",
-          "expected": "JVM long-running-workload"
-        },
-        {
-          "label": "UNSUPPORTEDは要件より先に当たる",
-          "stdin": "LONG_RUNNING\n1\nlegacy UNSUPPORTED\n",
-          "expected": "JVM unsupported-library"
-        },
-        {
-          "label": "レポートが0件",
-          "stdin": "FAST_START\n0\n",
-          "expected": "NATIVE ready"
-        }
-      ],
-      "hints": [
-        "レポートは状態だけを見れば足ります。`UNSUPPORTED` と `NEEDS_CONFIG` がそれぞれ1つでもあるかを、boolean 2つで覚えます。",
-        "判定には順番があります。`UNSUPPORTED` が最優先で、要件の `LONG_RUNNING` がその次、`NEEDS_CONFIG` はその後です。順番を変えると答えが変わります。"
-      ],
-      "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] a) {\n        Scanner sc = new Scanner(System.in);\n        String requirement = sc.nextLine().trim();\n        int n = Integer.parseInt(sc.nextLine().trim());\n        boolean unsupported = false, needsConfig = false;\n        for (int i = 0; i < n; i++) {\n            String state = sc.nextLine().trim().split(\"\\\\s+\")[1];\n            if (state.equals(\"UNSUPPORTED\")) unsupported = true;\n            if (state.equals(\"NEEDS_CONFIG\")) needsConfig = true;\n        }\n        if (unsupported) System.out.println(\"JVM unsupported-library\");\n        else if (requirement.equals(\"LONG_RUNNING\")) System.out.println(\"JVM long-running-workload\");\n        else if (needsConfig) System.out.println(\"NATIVE needs-config\");\n        else System.out.println(\"NATIVE ready\");\n    }\n}\n",
       "kind": "applied",
+      "type": "runtime-lab",
+      "task": "【JVM実起動演習】Quarkusの挨拶APIを完成させてください。`GreetingResource`へ`@NotBlank`と`@Size(max = 20)`を追加し、`GreetingReadiness`は受付可能状態を`UP`で返します。`application.properties`へ`app.greeting.prefix=Hello`を設定してください。\n\n提出すると`mvn package`で`target/quarkus-app`一式を作り、採点側が確保した動的localhost portで`quarkus-run.jar`をJVM起動します。正常JSON、空白・21文字のHTTP 400、SmallRye Health readinessを実HTTPで確認し、最後にprocessとlistenerを停止します。Native ImageやDockerはこの必須演習では使いません。",
+      "runtimeLab": {
+        "name": "quarkus-jvm-package-http-health",
+        "source": "labs/frameworks/quarkus/runtime-exercise",
+        "exclude": [
+          "reference",
+          "target"
+        ],
+        "command": [
+          "./run-runtime-lab.sh"
+        ],
+        "timeoutSeconds": 60,
+        "verification": "JUnit後にJVM配布物をbuild・起動し、REST、Validation、SmallRye Health、停止を確認する",
+        "capabilities": [
+          "server",
+          "http"
+        ],
+        "requiredTools": [
+          "java",
+          "javac",
+          "mvn"
+        ],
+        "requiredImages": [],
+        "checks": [
+          {
+            "id": "quarkus-tests",
+            "label": "mvn package内のJUnitを通す"
+          },
+          {
+            "id": "quarkus-jvm-package",
+            "label": "quarkus-run.jarと依存libを含むJVM配布物を作る"
+          },
+          {
+            "id": "quarkus-api",
+            "label": "JVMモードのQuarkus RESTがHTTP 200とJSONを返す"
+          },
+          {
+            "id": "quarkus-validation",
+            "label": "入力不正を実HTTP境界で400にする"
+          },
+          {
+            "id": "quarkus-health",
+            "label": "SmallRye Health readinessがgreeting=UPを返す"
+          },
+          {
+            "id": "quarkus-stop",
+            "label": "検証後にJVM processとHTTP listenerを停止する"
+          }
+        ],
+        "editableFiles": [
+          {
+            "path": "src/main/java/example/greeting/GreetingResource.java",
+            "solutionPath": "reference/src/main/java/example/greeting/GreetingResource.java"
+          },
+          {
+            "path": "src/main/java/example/greeting/GreetingReadiness.java",
+            "solutionPath": "reference/src/main/java/example/greeting/GreetingReadiness.java"
+          },
+          {
+            "path": "src/main/resources/application.properties",
+            "solutionPath": "reference/src/main/resources/application.properties"
+          }
+        ]
+      },
+      "hints": [
+        "`GreetingResource`のname引数へ`@NotBlank`と`@Size(max = 20)`を付けます。import元は`jakarta.validation.constraints`です。",
+        "`GreetingReadiness.call()`は`HealthCheckResponse.up(\"greeting\")`を返します。",
+        "`application.properties`へ`app.greeting.prefix=Hello`を書きます。HTTP portは採点側が起動引数で渡すため固定しません。"
+      ],
+      "rubric": [
+        "implement"
+      ],
       "extraTasks": [
         {
           "objectiveIds": [
-            "ch62-o1"
+            "ch62-o5"
           ],
           "kind": "applied",
-          "type": "runtime-lab",
-          "task": "【JVM実起動演習】Quarkusの挨拶APIを完成させてください。`GreetingResource`へ`@NotBlank`と`@Size(max = 20)`を追加し、`GreetingReadiness`は受付可能状態を`UP`で返します。`application.properties`へ`app.greeting.prefix=Hello`を設定してください。\n\n提出すると`mvn package`で`target/quarkus-app`一式を作り、採点側が確保した動的localhost portで`quarkus-run.jar`をJVM起動します。正常JSON、空白・21文字のHTTP 400、SmallRye Health readinessを実HTTPで確認し、最後にprocessとlistenerを停止します。Native ImageやDockerはこの必須演習では使いません。",
-          "runtimeLab": {
-            "name": "quarkus-jvm-package-http-health",
-            "source": "labs/frameworks/quarkus/runtime-exercise",
-            "exclude": [
-              "reference",
-              "target"
-            ],
-            "command": [
-              "./run-runtime-lab.sh"
-            ],
-            "timeoutSeconds": 60,
-            "verification": "JUnit後にJVM配布物をbuild・起動し、REST、Validation、SmallRye Health、停止を確認する",
-            "capabilities": [
-              "server",
-              "http"
-            ],
-            "requiredTools": [
-              "java",
-              "javac",
-              "mvn"
-            ],
-            "requiredImages": [],
-            "checks": [
-              {
-                "id": "quarkus-tests",
-                "label": "mvn package内のJUnitを通す"
-              },
-              {
-                "id": "quarkus-jvm-package",
-                "label": "quarkus-run.jarと依存libを含むJVM配布物を作る"
-              },
-              {
-                "id": "quarkus-api",
-                "label": "JVMモードのQuarkus RESTがHTTP 200とJSONを返す"
-              },
-              {
-                "id": "quarkus-validation",
-                "label": "入力不正を実HTTP境界で400にする"
-              },
-              {
-                "id": "quarkus-health",
-                "label": "SmallRye Health readinessがgreeting=UPを返す"
-              },
-              {
-                "id": "quarkus-stop",
-                "label": "検証後にJVM processとHTTP listenerを停止する"
-              }
-            ],
-            "editableFiles": [
-              {
-                "path": "src/main/java/example/greeting/GreetingResource.java",
-                "solutionPath": "reference/src/main/java/example/greeting/GreetingResource.java"
-              },
-              {
-                "path": "src/main/java/example/greeting/GreetingReadiness.java",
-                "solutionPath": "reference/src/main/java/example/greeting/GreetingReadiness.java"
-              },
-              {
-                "path": "src/main/resources/application.properties",
-                "solutionPath": "reference/src/main/resources/application.properties"
-              }
-            ]
-          },
-          "hints": [
-            "`GreetingResource`のname引数へ`@NotBlank`と`@Size(max = 20)`を付けます。import元は`jakarta.validation.constraints`です。",
-            "`GreetingReadiness.call()`は`HealthCheckResponse.up(\"greeting\")`を返します。",
-            "`application.properties`へ`app.greeting.prefix=Hello`を書きます。HTTP portは採点側が起動引数で渡すため固定しません。"
+          "required": false,
+          "task": "【任意・互換性reportをJavaで分類する練習】JVM版を実際に起動した後、条件分岐も復習したい場合だけ取り組みます。章クリア・★・カフェ報酬・復習の対象外です。\n\nNative Imageの互換性レポートを読んで、**JVMとNativeのどちらで配布するか**を判断してください。\n\n1行目に要件（`FAST_START` または `LONG_RUNNING`）を読みます。2行目にレポートの行数nを読み、n行を `ライブラリ 状態` の形で読みます。状態は `OK` / `NEEDS_CONFIG` / `UNSUPPORTED` です。\n\n```\nFAST_START\n3\njackson OK\nhibernate-validator NEEDS_CONFIG\nlegacy-reflection-util UNSUPPORTED\n```\n\n次の順で判定し、**最初に当てはまるもの1つ**を表示してください。\n\n| 表示 | 条件 |\n|---|---|\n| `JVM unsupported-library` | `UNSUPPORTED` が1つ以上ある。Nativeにできない |\n| `JVM long-running-workload` | 要件が `LONG_RUNNING`。長時間動かすならJITが有利 |\n| `NATIVE needs-config` | `NEEDS_CONFIG` が1つ以上ある。設定を足せばNativeにできる |\n| `NATIVE ready` | 上のどれでもない |\n\n`NEEDS_CONFIG` はリフレクションなどの登録設定が必要という意味で、**できない**という意味ではありません。\n\n上の例では `UNSUPPORTED` があるので `JVM unsupported-library` です。\n\n> 「起動が速いほうが良い」だけでは決められません。使っているライブラリがNativeに対応しているか、長時間動かす処理でJITの最適化が要るかを、**レポートと要件の両方**から決めます。",
+          "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] a) {\n        Scanner sc = new Scanner(System.in);\n        String requirement = sc.nextLine().trim();\n        int n = Integer.parseInt(sc.nextLine().trim());\n        boolean unsupported = false, needsConfig = false;\n        for (int i = 0; i < n; i++) {\n            String[] parts = sc.nextLine().trim().split(\"\\\\s+\");\n            /* TODO 状態を見て、UNSUPPORTED と NEEDS_CONFIG があるかを覚える */\n        }\n        /* TODO 決まった順で判定して表示する */\n    }\n}\n",
+          "visibleCases": [
+            {
+              "label": "UNSUPPORTEDがある",
+              "stdin": "FAST_START\n3\njackson OK\nhibernate-validator NEEDS_CONFIG\nlegacy-reflection-util UNSUPPORTED\n",
+              "expected": "JVM unsupported-library"
+            },
+            {
+              "label": "すべてOKで起動優先",
+              "stdin": "FAST_START\n2\njackson OK\nsmallrye-health OK\n",
+              "expected": "NATIVE ready"
+            }
           ],
-          "rubric": [
-            "implement"
-          ]
+          "hiddenCases": [
+            {
+              "label": "設定を足せばNativeにできる",
+              "stdin": "FAST_START\n2\njackson OK\nvalidator NEEDS_CONFIG\n",
+              "expected": "NATIVE needs-config"
+            },
+            {
+              "label": "長時間動かす要件はJVM",
+              "stdin": "LONG_RUNNING\n1\njackson OK\n",
+              "expected": "JVM long-running-workload"
+            },
+            {
+              "label": "UNSUPPORTEDは要件より先に当たる",
+              "stdin": "LONG_RUNNING\n1\nlegacy UNSUPPORTED\n",
+              "expected": "JVM unsupported-library"
+            },
+            {
+              "label": "レポートが0件",
+              "stdin": "FAST_START\n0\n",
+              "expected": "NATIVE ready"
+            }
+          ],
+          "hints": [
+            "レポートは状態だけを見れば足ります。`UNSUPPORTED` と `NEEDS_CONFIG` がそれぞれ1つでもあるかを、boolean 2つで覚えます。",
+            "判定には順番があります。`UNSUPPORTED` が最優先で、要件の `LONG_RUNNING` がその次、`NEEDS_CONFIG` はその後です。順番を変えると答えが変わります。"
+          ],
+          "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] a) {\n        Scanner sc = new Scanner(System.in);\n        String requirement = sc.nextLine().trim();\n        int n = Integer.parseInt(sc.nextLine().trim());\n        boolean unsupported = false, needsConfig = false;\n        for (int i = 0; i < n; i++) {\n            String state = sc.nextLine().trim().split(\"\\\\s+\")[1];\n            if (state.equals(\"UNSUPPORTED\")) unsupported = true;\n            if (state.equals(\"NEEDS_CONFIG\")) needsConfig = true;\n        }\n        if (unsupported) System.out.println(\"JVM unsupported-library\");\n        else if (requirement.equals(\"LONG_RUNNING\")) System.out.println(\"JVM long-running-workload\");\n        else if (needsConfig) System.out.println(\"NATIVE needs-config\");\n        else System.out.println(\"NATIVE ready\");\n    }\n}\n"
         },
         {
           "objectiveIds": [
@@ -670,34 +660,6 @@
             "implement"
           ]
         }
-      ],
-      "quiz": [
-        {
-          "question": "Native Imageが特に有利になりやすい場面はどれですか？",
-          "choices": [
-            "リフレクションや動的proxyを広く使うライブラリを載せる場面",
-            "cold startと初期メモリが重要なServerlessや急速なPod拡縮",
-            "ビルド時間を短く保ちながら、何度も作り直したい場面",
-            "長時間動かして、JITの最適化を効かせたい場面"
-          ],
-          "answer": 1,
-          "explanation": "リフレクションや動的proxyを広く使うライブラリは、Nativeでは追加の設定が必要になり不利です。ビルド時間はNativeのほうが長く、長時間動かしてJITを効かせたい用途もJVMが向きます。Nativeが効くのは、起動の速さと初期メモリが要件になる場面です。ビルド時間・動的機能・長時間性能・調査性も含めてJVMと比べて選びます。"
-        },
-        {
-          "question": "ReadinessがDOWNのときの基本動作はどれですか？",
-          "choices": [
-            "依存先への接続を閉じ、プールを作り直す",
-            "プロセスを再起動して、初期化をやり直す",
-            "受け付けを止めず、失敗を返しながら動き続ける",
-            "新しい通信の宛先から外し、回復を待つ"
-          ],
-          "answer": 3,
-          "explanation": "プロセス再起動の判定であるLivenessとは目的を分けます。Readinessは宛先から外して回復を待つもので、再起動も接続の作り直しもしません。"
-        }
-      ],
-      "rubric": [
-        "implement",
-        "decide"
       ]
     },
     {
@@ -707,7 +669,7 @@
         "ch62-o1",
         "ch62-o5"
       ],
-      "explanation": "Quarkusは継続的に更新され、Feature releaseやmajor updateでは依存関係、設定、APIの変更が必要になる場合があります。ランタイムだけを更新すればアプリ変更を原則不要にする、という互換保証はありません。その代わり、Quarkus CLIやMaven Pluginのupdate機能がOpenRewrite recipe（定義済みの変換ルール）を使い、依存関係、ソースコード、設定の一部を自動変換します。\n\n```bash\nquarkus update\n# または公式手順にあるMaven Pluginのupdate goal\ngit diff\nmvn test\n```\n\nUpdate Toolは移行の全作業を保証しません。必ず対象版のMigration Guideを読み、実行前にGitで復元可能にし、実行後のdiffをレビューし、JVM/Nativeの採用形態でテストします。自動変更の意味を理解せず、そのまま本番へ出してはいけません。\n\n既存Spring開発者向けに、QuarkusにはSpring DI、Spring Web、Spring Data、Spring Securityなど一部APIの互換Extensionがあります。`@RestController`、`@GetMapping`など使い慣れた書き方の一部をQuarkusのビルドモデル上で利用できます。これは完全なSpring FrameworkやSpring BootをQuarkus内で動かす仕組みではありません。Spring ApplicationContext、すべての拡張点、全Starter、動的なBean操作がそのまま使えるわけではなく、対応範囲を公式ガイドで確認します。\n\n移行には2つの道があります。短期間で移す必要がある既存アプリは、対応するSpring互換Extensionを使って段階的にJakarta REST/CDIへ寄せられます。新規アプリや変更余力がある場合は、最初からQuarkus REST、CDI、MicroProfile ConfigなどネイティブなAPIを選ぶと、対応範囲の誤解が少なくなります。\n\n製品選定では「Springアノテーションが少し動く」だけで完全互換と判断せず、利用中のSpring機能を一覧化し、対応・書き換え・廃止を小さな検証アプリで分類してください。ここでいうspike（スパイク）とは、対応可否やリスクを短期間の小さな試作で確かめる調査作業です。移行コストはアノテーション数より、トランザクション、Security、Data、運用、独自Extensionの差で決まります。",
+      "explanation": "Quarkusは継続的に更新され、Feature releaseやmajor updateでは依存関係、設定、APIの変更が必要になる場合があります。ランタイムだけを更新すればアプリ変更を原則不要にする、という互換保証はありません。その代わり、Quarkus CLIやMaven Pluginのupdate機能がOpenRewrite recipe（定義済みの変換ルール）を使い、依存関係、ソースコード、設定の一部を自動変換します。\n\n```bash\nquarkus update\n# または公式手順にあるMaven Pluginのupdate goal\ngit diff\nmvn test\n```\n\nUpdate Toolは移行の全作業を保証しません。必ず対象版のMigration Guideを読み、実行前にGitで復元可能にし、実行後のdiffをレビューし、JVM/Nativeの採用形態でテストします。自動変更の意味を理解せず、そのまま本番へ出してはいけません。\n\n既存Spring開発者向けに、QuarkusにはSpring DI、Spring Web、Spring Data、Spring Securityなど一部APIの互換Extensionがあります。`@RestController`、`@GetMapping`など使い慣れた書き方の一部をQuarkusのビルドモデル上で利用できます。これは完全なSpring FrameworkやSpring BootをQuarkus内で動かす仕組みではありません。Spring ApplicationContext、すべての拡張点、全Starter、動的なBean操作がそのまま使えるわけではなく、対応範囲を公式ガイドで確認します。\n\n移行には2つの道があります。短期間で移す必要がある既存アプリは、対応するSpring互換Extensionを使って段階的にJakarta REST/CDIへ寄せられます。新規アプリや変更余力がある場合は、最初からQuarkus REST、CDI、MicroProfile ConfigなどネイティブなAPIを選ぶと、対応範囲の誤解が少なくなります。\n\n製品選定では「Springアノテーションが少し動く」だけで完全互換と判断せず、利用中のSpring機能を一覧化し、対応・書き換え・廃止を小さな検証アプリで分類してください。ここでいうspike（スパイク）とは、対応可否やリスクを短期間の小さな試作で確かめる調査作業です。移行コストはアノテーション数より、トランザクション、Security、Data、運用、独自Extensionの差で決まります。\n\nこの単元ではimport文をJavaで分類せず、Update ToolとSpring互換Extensionの適用範囲を確認し、spikeが必要な移行箇所をクイズで判断します。",
       "samples": [
         {
           "caption": "考え方を標準Javaで確かめる",
@@ -715,49 +677,6 @@
           "expected": "CHECK_COMPATIBILITY_EXTENSION"
         }
       ],
-      "task": "実際の `import` 文を読んで、Quarkusへ移すときの方針を分類してください。\n\n1行目に行数nを読み、続けてn行の `import` 文を読みます。2つめの部分として、公式ガイドで対応Extensionを確認済みかを `true` / `false` で1行読みます。\n\n```\n3\nimport jakarta.ws.rs.GET;\nimport org.springframework.web.bind.annotation.RestController;\nimport org.springframework.data.jpa.repository.JpaRepository;\ntrue\n```\n\nimportごとに、次を辞書順（import文そのものの辞書順）に表示してください。\n\n| 表示 | 条件 |\n|---|---|\n| `NATIVE_API <import文>` | `jakarta.` で始まる。Quarkusがそのまま扱える |\n| `COMPAT_EXTENSION <import文>` | `org.springframework.` で始まり、確認済みが `true` |\n| `SPIKE <import文>` | `org.springframework.` で始まり、確認済みが `false` |\n| `REWRITE <import文>` | 上のどれでもない |\n\n最後の行に、`REWRITE` が1つ以上あれば `PLAN rewrite-required`、無ければ `PLAN incremental` と表示します。\n\n> Spring互換Extensionは「Springのすべてがそのまま動く」ものではありません。**対応している範囲を公式ガイドで確認していないなら、まず小さく試す（SPIKE）**のが順序です。確認せずに全面移行を計画すると、動かないAPIが後から出てきます。",
-      "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] a) {\n        Scanner sc = new Scanner(System.in);\n        int n = Integer.parseInt(sc.nextLine().trim());\n        List<String> imports = new ArrayList<>();\n        for (int i = 0; i < n; i++) imports.add(sc.nextLine().trim());\n        boolean checked = Boolean.parseBoolean(sc.nextLine().trim());\n        /* TODO import文からパッケージを見て分類する */\n        /* TODO 辞書順に表示し、最後にPLANの行を出す */\n    }\n}\n",
-      "visibleCases": [
-        {
-          "label": "確認済みで互換Extensionを使える",
-          "stdin": "3\nimport jakarta.ws.rs.GET;\nimport org.springframework.web.bind.annotation.RestController;\nimport org.springframework.data.jpa.repository.JpaRepository;\ntrue\n",
-          "expected": "NATIVE_API import jakarta.ws.rs.GET;\nCOMPAT_EXTENSION import org.springframework.data.jpa.repository.JpaRepository;\nCOMPAT_EXTENSION import org.springframework.web.bind.annotation.RestController;\nPLAN incremental"
-        },
-        {
-          "label": "未確認なのでSPIKEから",
-          "stdin": "1\nimport org.springframework.web.bind.annotation.RestController;\nfalse\n",
-          "expected": "SPIKE import org.springframework.web.bind.annotation.RestController;\nPLAN incremental"
-        }
-      ],
-      "hiddenCases": [
-        {
-          "label": "どちらでもないimportがある",
-          "stdin": "2\nimport jakarta.ws.rs.GET;\nimport com.example.legacy.LegacyHelper;\ntrue\n",
-          "expected": "REWRITE import com.example.legacy.LegacyHelper;\nNATIVE_API import jakarta.ws.rs.GET;\nPLAN rewrite-required"
-        },
-        {
-          "label": "jakartaは確認の有無に関係ない",
-          "stdin": "2\nimport jakarta.ws.rs.GET;\nimport org.springframework.data.jpa.repository.JpaRepository;\nfalse\n",
-          "expected": "NATIVE_API import jakarta.ws.rs.GET;\nSPIKE import org.springframework.data.jpa.repository.JpaRepository;\nPLAN incremental"
-        },
-        {
-          "label": "辞書順（com < jakarta < org）",
-          "stdin": "3\nimport org.springframework.web.bind.annotation.RestController;\nimport jakarta.ws.rs.GET;\nimport com.example.legacy.LegacyHelper;\ntrue\n",
-          "expected": "REWRITE import com.example.legacy.LegacyHelper;\nNATIVE_API import jakarta.ws.rs.GET;\nCOMPAT_EXTENSION import org.springframework.web.bind.annotation.RestController;\nPLAN rewrite-required"
-        },
-        {
-          "label": "importが0件",
-          "stdin": "0\ntrue\n",
-          "expected": "PLAN incremental"
-        }
-      ],
-      "hints": [
-        "`import ` の後ろがパッケージ名です。空白の位置を探して切り出すと、`startsWith` で判定できます。",
-        "並べ替えはimport文そのものの辞書順です。先に並べ替えてから1件ずつ判定すると、出力の順番を気にせず書けます。"
-      ],
-      "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] a) {\n        Scanner sc = new Scanner(System.in);\n        int n = Integer.parseInt(sc.nextLine().trim());\n        List<String> imports = new ArrayList<>();\n        for (int i = 0; i < n; i++) imports.add(sc.nextLine().trim());\n        boolean checked = Boolean.parseBoolean(sc.nextLine().trim());\n\n        Collections.sort(imports);\n        boolean rewrite = false;\n        for (String line : imports) {\n            String target = line.substring(line.indexOf(' ') + 1);   // import の後ろ\n            String verdict;\n            if (target.startsWith(\"jakarta.\")) {\n                verdict = \"NATIVE_API\";\n            } else if (target.startsWith(\"org.springframework.\")) {\n                verdict = checked ? \"COMPAT_EXTENSION\" : \"SPIKE\";\n            } else {\n                verdict = \"REWRITE\";\n                rewrite = true;\n            }\n            System.out.println(verdict + \" \" + line);\n        }\n        System.out.println(rewrite ? \"PLAN rewrite-required\" : \"PLAN incremental\");\n    }\n}\n",
-      "kind": "drill",
-      "extraTasks": [],
       "quiz": [
         {
           "question": "Quarkus Update Tool実行後に必要な作業はどれですか？",
@@ -780,12 +699,20 @@
           ],
           "answer": 0,
           "explanation": "Spring Bootのstarterを足せばそのまま動く、というものではありません。対応するAPIの範囲は版によって変わりますし、Jakarta標準APIと併用もできます。あくまでSpringのAPIの**一部**をQuarkus上で扱えるようにする互換の層なので、公式ガイドで対象を確認し、足りない部分は書き換えます。"
+        },
+        {
+          "question": "既存Spring Bootアプリが独自のApplicationContext拡張を使っています。QuarkusのSpring互換Extensionへ移す前に行うことはどれでしょう。",
+          "choices": [
+            "annotation名が似ているので全面移行する",
+            "Update Toolが変換した結果を検証せず本番へ出す",
+            "公式の対応範囲を確認し、小さなspikeで動作を確かめる",
+            "互換Extensionを使えばSpring Boot全体が動くとみなす"
+          ],
+          "answer": 2,
+          "explanation": "互換Extensionは対応するAPIの範囲を提供するもので、Spring全体の実行環境ではありません。利用機能ごとに対応を確認し、小さく検証します。"
         }
       ],
-      "rubric": [
-        "implement",
-        "decide"
-      ]
+      "lessonType": "concept"
     },
     {
       "id": "62-7",

@@ -13,7 +13,11 @@ public final class OptionalTaskCheck {
     public static void main(String[] args) {
         Curriculum curriculum = new ContentLoader(Path.of("content")).load();
         Lesson lesson = curriculum.lesson("62-5").orElseThrow();
-        Task nativeTask = lesson.tasks().stream().filter(Task::isOptional).findFirst().orElseThrow();
+        Task nativeTask = lesson.tasks().stream()
+                .filter(Task::isOptional)
+                .filter(Task::isRuntimeLab)
+                .findFirst()
+                .orElseThrow();
         require(nativeTask.isRuntimeLab(), "任意課題がNative runtime-labではありません");
         require(nativeTask.label().equals("任意発展"), "任意課題の表示ラベルが不正です");
         require(lesson.taskKeys().stream().noneMatch(key -> key.endsWith("#" + nativeTask.id())),

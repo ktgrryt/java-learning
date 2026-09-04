@@ -1452,7 +1452,7 @@ public final class ProgressStore {
     /**
      * 概念レッスンへ変えたレッスンの、昔の★のキー。
      *
-     * <p>提出課題が「問題文の表を写すだけ」だった4レッスンを、解説と確認クイズだけの
+     * <p>提出課題が「問題文の表を写すだけ」だったレッスンを、解説と確認クイズだけの
      * 概念レッスンへ変えた（2026-08-17）。★のキーは {@code 50-4#1} から {@code 50-4#q} へ
      * 変わるので、読み替えないと**すでにクリアした人の★が消え、章クリアも外れる**。
      *
@@ -1463,13 +1463,105 @@ public final class ProgressStore {
      * この一覧を読み、教材側の概念レッスンがここか「最初から概念」の一覧のどちらかに
      * 入っていることを検査する（{@link #conceptMigratedTaskKeys()}）。
      */
-    private static final Set<String> CONCEPT_MIGRATED_TASK_KEYS =
-            Set.of("50-4#1", "53-3#1", "53-4#1", "53-5#1");
+    private static final Map<String, Integer> CONCEPT_MIGRATED_REQUIRED_TASK_COUNTS =
+            Map.ofEntries(
+                    Map.entry("21-5", 2),
+                    Map.entry("27-2", 2),
+                    Map.entry("37-1", 2),
+                    Map.entry("37-5", 3),
+                    Map.entry("45-5", 3),
+                    Map.entry("46-1", 1),
+                    Map.entry("46-2", 1),
+                    Map.entry("46-3", 1),
+                    Map.entry("46-4", 1),
+                    Map.entry("48-1", 1),
+                    Map.entry("48-2", 1),
+                    Map.entry("50-1", 1),
+                    Map.entry("50-3", 1),
+                    Map.entry("50-4", 1),
+                    Map.entry("50-5", 3),
+                    Map.entry("51-1", 1),
+                    Map.entry("51-2", 1),
+                    Map.entry("51-4", 1),
+                    Map.entry("51-5", 3),
+                    Map.entry("52-1", 1),
+                    Map.entry("52-3", 1),
+                    Map.entry("52-4", 1),
+                    Map.entry("52-6", 3),
+                    Map.entry("52-7", 3),
+                    Map.entry("53-1", 1),
+                    Map.entry("53-3", 1),
+                    Map.entry("53-4", 1),
+                    Map.entry("53-5", 1),
+                    Map.entry("55-3", 1),
+                    Map.entry("58-5", 1),
+                    Map.entry("60-3", 1),
+                    Map.entry("60-4", 1),
+                    Map.entry("61-5", 1),
+                    Map.entry("62-4", 1),
+                    Map.entry("62-6", 1));
 
     /** 読み替える旧キーの一覧。検査が自前の写しを持たないように公開する。 */
     public static Set<String> conceptMigratedTaskKeys() {
-        return CONCEPT_MIGRATED_TASK_KEYS;
+        Set<String> keys = new LinkedHashSet<>();
+        CONCEPT_MIGRATED_REQUIRED_TASK_COUNTS.forEach((lessonId, count) -> {
+            for (int number = 1; number <= count; number++) {
+                keys.add(lessonId + "#" + number);
+            }
+        });
+        return Set.copyOf(keys);
     }
+
+    /**
+     * 必須の実践課題を先頭へ移したときの、旧問題キー → 新問題キー。
+     *
+     * <p>問題キーは表示順の連番なので、単に並べ替えると昔の★・下書き・復習予定が
+     * 別の問題へ付く。移した課題と一緒にすべての問題別記録を一度だけ読み替える。</p>
+     */
+    private record TaskMove(String id, Map<String, String> map) { }
+
+    private static final List<TaskMove> TASK_MOVES = List.of(
+            new TaskMove("practice-first-2026-09-04", Map.ofEntries(
+                    Map.entry("37-2#1", "37-2#2"),
+                    Map.entry("37-2#2", "37-2#1"),
+                    Map.entry("37-3#1", "37-3#2"),
+                    Map.entry("37-3#2", "37-3#1"),
+                    Map.entry("45-4#1", "45-4#2"),
+                    Map.entry("45-4#2", "45-4#1"),
+                    Map.entry("46-5#1", "46-5#4"),
+                    Map.entry("46-5#2", "46-5#2"),
+                    Map.entry("46-5#3", "46-5#3"),
+                    Map.entry("46-5#4", "46-5#1"),
+                    Map.entry("48-5#1", "48-5#5"),
+                    Map.entry("48-5#2", "48-5#3"),
+                    Map.entry("48-5#3", "48-5#4"),
+                    Map.entry("48-5#4", "48-5#1"),
+                    Map.entry("48-5#5", "48-5#2"),
+                    Map.entry("50-2#1", "50-2#legacy-1"),
+                    Map.entry("50-2#2", "50-2#1"),
+                    Map.entry("51-3#1", "51-3#2"),
+                    Map.entry("51-3#2", "51-3#1"),
+                    Map.entry("51-3#3", "51-3#3"),
+                    Map.entry("51-3#4", "51-3#4"),
+                    Map.entry("52-2#1", "52-2#2"),
+                    Map.entry("52-2#2", "52-2#1"),
+                    Map.entry("52-5#1", "52-5#2"),
+                    Map.entry("52-5#2", "52-5#1"),
+                    Map.entry("53-6#1", "53-6#4"),
+                    Map.entry("53-6#2", "53-6#2"),
+                    Map.entry("53-6#3", "53-6#3"),
+                    Map.entry("53-6#4", "53-6#1"),
+                    Map.entry("54-2#1", "54-2#2"),
+                    Map.entry("54-2#2", "54-2#1"),
+                    Map.entry("56-1#1", "56-1#2"),
+                    Map.entry("56-1#2", "56-1#1"),
+                    Map.entry("60-5#1", "60-5#2"),
+                    Map.entry("60-5#2", "60-5#1"),
+                    Map.entry("61-6#1", "61-6#2"),
+                    Map.entry("61-6#2", "61-6#1"),
+                    Map.entry("62-5#1", "62-5#2"),
+                    Map.entry("62-5#2", "62-5#1"),
+                    Map.entry("62-5#3", "62-5#3"))));
 
     /**
      * 別のレッスンへ移した確認クイズの、旧キー（{@link #quizKey}）→ 新キー。
@@ -1646,6 +1738,9 @@ public final class ProgressStore {
                     Map.entry("63-4#1", List.of(1, 0)),
                     Map.entry("63-5#0", List.of(1, 2)))));
 
+    /** 適用済みの問題読み替えの印。ファイルへそのまま書き戻す。 */
+    private final Set<String> appliedTaskMoves = new LinkedHashSet<>();
+
     /** 適用済みの読み替えの印。ファイルへそのまま書き戻す。 */
     private final Set<String> appliedQuizMoves = new LinkedHashSet<>();
 
@@ -1653,7 +1748,10 @@ public final class ProgressStore {
     private final Set<String> appliedQuizSwaps = new LinkedHashSet<>();
 
     /** すべての段を適用済みにする。読み替えるものが無いときと、読み終えたあとに呼ぶ。 */
-    private void markQuizMovesApplied() {
+    private void markMovesApplied() {
+        for (TaskMove move : TASK_MOVES) {
+            appliedTaskMoves.add(move.id());
+        }
         for (QuizMove move : QUIZ_MOVES) {
             appliedQuizMoves.add(move.id());
         }
@@ -1698,13 +1796,15 @@ public final class ProgressStore {
         return moved;
     }
 
-    /** 昔の問題キーを、概念レッスンの★のキーへ読み替える。対象外はそのまま返す。 */
-    private static String migrateClearedKey(String key) {
-        String migrated = migrateKey(key);
-        if (!CONCEPT_MIGRATED_TASK_KEYS.contains(migrated)) {
-            return migrated;
+    /** 移した問題のキーを読み替える。適用済みの段は飛ばし、対象外はそのまま返す。 */
+    private String migrateTaskKey(String key) {
+        String moved = migrateKey(key);
+        for (TaskMove move : TASK_MOVES) {
+            if (!appliedTaskMoves.contains(move.id())) {
+                moved = move.map().getOrDefault(moved, moved);
+            }
         }
-        return migrated.substring(0, migrated.indexOf('#') + 1) + Lesson.CONCEPT_TASK_ID;
+        return moved;
     }
 
     // ------------------------------------------------------------ 永続化本体
@@ -1729,7 +1829,7 @@ public final class ProgressStore {
         if (!Files.exists(file)) {
             // まだ何も記録が無いファイルには読み替えるものが無い。印だけ立てておく
             // （立てないと、この実行で書いた新しいキーを次の起動で読み替えてしまう）
-            markQuizMovesApplied();
+            markMovesApplied();
             return;
         }
         String text;
@@ -1739,7 +1839,7 @@ public final class ProgressStore {
             throw new UncheckedIOException("進捗ファイルを読めません: " + file, e);
         }
         if (text.isBlank()) {
-            markQuizMovesApplied();
+            markMovesApplied();
             return;
         }
 
@@ -1761,9 +1861,64 @@ public final class ProgressStore {
         }
     }
 
+    /**
+     * ★を読み、通常の問題移動と概念レッスン化の両方を反映する。
+     *
+     * <p>複数の必須問題があったレッスンは、昔の問題を<b>全部</b>終えていた場合だけ
+     * 概念レッスンの1つの★へまとめる。1問目だけの途中記録をレッスン完了へ昇格させない。</p>
+     */
+    private void readCleared(Map<String, Object> root) {
+        Map<String, Cleared> old = new LinkedHashMap<>();
+        MiniJson.obj(root, "cleared").forEach((id, value) -> {
+            if (!(value instanceof Map)) {
+                return;     // 形の違う1件は飛ばす
+            }
+            Map<String, Object> entry = MiniJson.asObj(value);
+            old.put(migrateTaskKey(id), new Cleared(
+                    MiniJson.str(entry, "clearedAt", LearningDay.todayText()),
+                    MiniJson.intOf(entry, "hintsUsed", 0),
+                    MiniJson.intOf(entry, "attempts", 1)));
+        });
+
+        Set<String> conceptOldKeys = conceptMigratedTaskKeys();
+        old.forEach((key, value) -> {
+            if (!conceptOldKeys.contains(key)) {
+                cleared.put(key, value);
+            }
+        });
+
+        CONCEPT_MIGRATED_REQUIRED_TASK_COUNTS.forEach((lessonId, count) -> {
+            boolean complete = true;
+            String latest = "";
+            int hints = 0;
+            int mostAttempts = 1;
+            for (int number = 1; number <= count; number++) {
+                Cleared part = old.get(lessonId + "#" + number);
+                if (part == null) {
+                    complete = false;
+                    break;
+                }
+                if (part.clearedAt().compareTo(latest) > 0) {
+                    latest = part.clearedAt();
+                }
+                hints = Math.max(hints, part.hintsUsed());
+                mostAttempts = Math.max(mostAttempts, part.attempts());
+            }
+            if (complete) {
+                String conceptKey = lessonId + "#" + Lesson.CONCEPT_TASK_ID;
+                cleared.putIfAbsent(conceptKey, new Cleared(latest, hints, mostAttempts));
+            }
+        });
+    }
+
     /** 読み込んだJSONを状態へ移す。ここで落ちるのは<b>このアプリ側の不具合</b>（→ {@link #load()}）。 */
     private void readFrom(Map<String, Object> root) {
-        // クイズの読み替えより先に読む（読み替えるかどうかの判断に使う）
+        // 問題・クイズの読み替えより先に読む（読み替えるかどうかの判断に使う）
+        for (Object o : MiniJson.list(root, "appliedTaskMoves")) {
+            if (o instanceof String s) {
+                appliedTaskMoves.add(s);
+            }
+        }
         for (Object o : MiniJson.list(root, "appliedQuizMoves")) {
             if (o instanceof String s) {
                 appliedQuizMoves.add(s);
@@ -1778,34 +1933,25 @@ public final class ProgressStore {
         onboardingCompleted = root.get("onboardingCompleted") instanceof Boolean completed
                 && completed;
 
-        MiniJson.obj(root, "cleared").forEach((id, v) -> {
-            if (!(v instanceof Map)) {
-                return;     // 形の違う1件は飛ばす（周りの instanceof と同じ扱い）
-            }
-            Map<String, Object> c = MiniJson.asObj(v);
-            cleared.put(migrateClearedKey(id), new Cleared(
-                    MiniJson.str(c, "clearedAt", LearningDay.todayText()),
-                    MiniJson.intOf(c, "hintsUsed", 0),
-                    MiniJson.intOf(c, "attempts", 1)));
-        });
+        readCleared(root);
         MiniJson.obj(root, "codes").forEach((id, v) -> {
             if (v instanceof String s) {
-                codes.put(migrateKey(id), s);
+                codes.put(migrateTaskKey(id), s);
             }
         });
         MiniJson.obj(root, "hintsRevealed").forEach((id, v) -> {
             if (v instanceof Number n) {
-                hintsRevealed.put(migrateKey(id), n.intValue());
+                hintsRevealed.put(migrateTaskKey(id), n.intValue());
             }
         });
         MiniJson.obj(root, "attempts").forEach((id, v) -> {
             if (v instanceof Number n) {
-                attempts.put(migrateKey(id), n.intValue());
+                attempts.put(migrateTaskKey(id), n.intValue());
             }
         });
         MiniJson.obj(root, "bestPassed").forEach((id, v) -> {
             if (v instanceof Number n) {
-                bestPassed.put(migrateKey(id), n.intValue());
+                bestPassed.put(migrateTaskKey(id), n.intValue());
             }
         });
         MiniJson.obj(root, "quizChoices").forEach((key, v) -> {
@@ -1835,7 +1981,7 @@ public final class ProgressStore {
                 int weight = Math.min(MAX_REVIEW_WEIGHT,
                         Math.max(0, n.intValue() * weightFactor));
                 if (weight > 0) {
-                    reviewWeight.put(migrateKey(id), weight);
+                    reviewWeight.put(migrateTaskKey(id), weight);
                 }
             }
         });
@@ -1858,7 +2004,7 @@ public final class ProgressStore {
             // 飛び級には一発正解2連続が要るので、いきなり間隔が飛ぶことはない
             int cleanRun = Math.max(0,
                     Math.min(MAX_CLEAN_RUN, MiniJson.intOf(plan, "clean", 0)));
-            reviewPlans.put(migrateKey(id),
+            reviewPlans.put(migrateTaskKey(id),
                     new ReviewPlan(level, lastAt, lastFailAt, cleanRun));
         });
         // クイズの予定も最初から "レッスンID#番号" なので読み替えは要らない
@@ -1878,7 +2024,7 @@ public final class ProgressStore {
         });
         for (Object o : MiniJson.list(root, "bookmarks")) {
             if (o instanceof String s) {
-                bookmarks.add(migrateKey(s));
+                bookmarks.add(migrateTaskKey(s));
             }
         }
         // クイズのしおりは最初から "レッスンID#番号" なので、移したクイズの読み替えだけでよい
@@ -1900,7 +2046,7 @@ public final class ProgressStore {
         }
 
         if (hasCafeState) {
-            cafe.loadFrom(root);
+            cafe.loadFrom(root, this::migrateTaskKey);
         } else {
             cafe.migrateFromLearning();
         }
@@ -1911,7 +2057,7 @@ public final class ProgressStore {
         cafe.refreshCafeAchievements();
         // ここまで読めたら、すべての段の読み替えは済んだものとして印を立てる
         // （次に保存したファイルには新しいキーが載るので、二度と読み替えない）
-        markQuizMovesApplied();
+        markMovesApplied();
     }
 
     /**
@@ -1932,6 +2078,9 @@ public final class ProgressStore {
         }
         // 途中まで読めていた分が残らないよう、全ての状態を初期値へ戻す
         clearAllState();
+        // ここから先に書かれるのは現行版のキー。印が無いまま保存すると、次の起動で
+        // 新しい問題を古い問題だと誤認して読み替えてしまう。
+        markMovesApplied();
     }
 
     /**
@@ -2121,7 +2270,8 @@ public final class ProgressStore {
             clearedJson.put(id, cm);
         });
         m.put("cleared", clearedJson);
-        // 適用済みのクイズ読み替え（→ QUIZ_MOVES / QUIZ_SWAPS）。次に読むときは読み替えない
+        // 適用済みの問題・クイズ読み替え。次に読むときは読み替えない
+        m.put("appliedTaskMoves", new ArrayList<>(appliedTaskMoves));
         m.put("appliedQuizMoves", new ArrayList<>(appliedQuizMoves));
         m.put("appliedQuizSwaps", new ArrayList<>(appliedQuizSwaps));
         m.put("codes", new LinkedHashMap<>(codes));

@@ -62,44 +62,13 @@
       "objectiveIds": [
         "ch48-o1"
       ],
-      "explanation": "## プロファイルは、アプリの用途ごとに「必要な仕様の範囲」をそろえる\n\nJakarta EEは1つの巨大なライブラリではなく、REST、依存性注入、永続化、トランザクションなど、サーバーアプリに必要な標準仕様をまとめたものです。しかし、すべてのアプリが全機能を必要とするわけではありません。そこで、用途に合う仕様の組み合わせを **プロファイル** として定義します。\n\n- **Core Profile**: 軽量なサービスの土台となる最小構成。REST、依存性注入、JSON処理などを中心にする\n- **Web Profile**: Webアプリ向け。Coreの範囲に加え、Servlet、Persistence、トランザクションなどWeb開発でよく使う仕様を含む\n- **Platform**: Jakarta EE全体。Web Profileより広く、メッセージングなどを含む完全な仕様集合\n\nプロファイルが嬉しいのは、開発者とサーバー実装の間で「この種類のアプリに必要なAPIは一式そろう」という共通の約束を持てることです。個々のAPIを毎回ばらばらに確認する負担を減らし、対応する別実装へ移すときも必要機能を比較しやすくなります。\n\nただし、Core Profileを選んだだけで、必ず起動が速くなったり配布サイズが小さくなったりするわけではありません。プロファイルは **仕様の範囲** です。実際の起動時間やサイズは、利用するサーバー実装、機能の有効化方法、依存関係、コンテナイメージを測って判断します。\n\nMavenの `jakarta.jakartaee-api` のような依存関係は、主にコンパイル時にAPIの型を提供します。実行時の処理本体はJakarta EE対応サーバーが提供するため、一般に依存範囲を `provided` とし、アプリへ同じAPIを重ねて同梱しないようにします。\n\nJakarta EE 11はJava SE 17以上を対象とします。利用前に、コンパイルするJavaの版、サーバーが対応するJakarta EEの版、実行環境のJavaの版をそろえて確認します。今回の演習では、JavaとJakarta EEの版から、まず組み合わせを調査対象として分類します。最終的な対応可否は採用サーバーの公式文書でも確認してください。",
+      "explanation": "## プロファイルは、アプリの用途ごとに「必要な仕様の範囲」をそろえる\n\nJakarta EEは1つの巨大なライブラリではなく、REST、依存性注入、永続化、トランザクションなど、サーバーアプリに必要な標準仕様をまとめたものです。しかし、すべてのアプリが全機能を必要とするわけではありません。そこで、用途に合う仕様の組み合わせを **プロファイル** として定義します。\n\n- **Core Profile**: 軽量なサービスの土台となる最小構成。REST、依存性注入、JSON処理などを中心にする\n- **Web Profile**: Webアプリ向け。Coreの範囲に加え、Servlet、Persistence、トランザクションなどWeb開発でよく使う仕様を含む\n- **Platform**: Jakarta EE全体。Web Profileより広く、メッセージングなどを含む完全な仕様集合\n\nプロファイルが嬉しいのは、開発者とサーバー実装の間で「この種類のアプリに必要なAPIは一式そろう」という共通の約束を持てることです。個々のAPIを毎回ばらばらに確認する負担を減らし、対応する別実装へ移すときも必要機能を比較しやすくなります。\n\nただし、Core Profileを選んだだけで、必ず起動が速くなったり配布サイズが小さくなったりするわけではありません。プロファイルは **仕様の範囲** です。実際の起動時間やサイズは、利用するサーバー実装、機能の有効化方法、依存関係、コンテナイメージを測って判断します。\n\nMavenの `jakarta.jakartaee-api` のような依存関係は、主にコンパイル時にAPIの型を提供します。実行時の処理本体はJakarta EE対応サーバーが提供するため、一般に依存範囲を `provided` とし、アプリへ同じAPIを重ねて同梱しないようにします。\n\nJakarta EE 11はJava SE 17以上を対象とします。利用前に、コンパイルするJavaの版、サーバーが対応するJakarta EEの版、実行環境のJavaの版をそろえて確認します。確認クイズでは、JavaとJakarta EEの版から、まず組み合わせを調査対象として分類します。最終的な対応可否は採用サーバーの公式文書でも確認してください。\n\nこの単元では版番号の大小をJavaで分類せず、アプリが必要とするAPIと配備先が提供するProfile・Java版を照合する判断をクイズで確認します。",
       "samples": [
         {
           "caption": "要求版を比較する",
           "code": "record RuntimeInfo(int java, int platform) { }\n\npublic class Main {\n    public static void main(String[] a) {\n        var r = new RuntimeInfo(Runtime.version().feature(), 11);\n        System.out.println(r.java() >= 17 && r.platform() >= 11 ? \"ready\" : \"upgrade\");\n    }\n}\n"
         }
       ],
-      "task": "1行に、Java feature versionとJakarta EE major versionが、この順で入力されます。Javaが17以上かつJakartaが11以上なら `READY`、Javaだけ不足なら `UPGRADE_JAVA`、Jakartaだけ不足なら `UPGRADE_SERVER`、両方不足なら `UPGRADE_BOTH` と表示してください。",
-      "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] a) {\n        Scanner sc = new Scanner(System.in);\n        int java = sc.nextInt(), jakarta = sc.nextInt();\n        /* TODO */\n    }\n}\n",
-      "visibleCases": [
-        {
-          "label": "準備完了",
-          "stdin": "21 11",
-          "expected": "READY"
-        },
-        {
-          "label": "両方不足",
-          "stdin": "11 10",
-          "expected": "UPGRADE_BOTH"
-        }
-      ],
-      "hiddenCases": [
-        {
-          "label": "Java不足",
-          "stdin": "16 11",
-          "expected": "UPGRADE_JAVA"
-        },
-        {
-          "label": "サーバー不足",
-          "stdin": "21 10",
-          "expected": "UPGRADE_SERVER"
-        }
-      ],
-      "hints": [
-        "`java >= 17` と `jakarta >= 11` を別々のbooleanにします。",
-        "両方不足の分岐を先に置くと整理できます。"
-      ],
-      "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] a) {\n        Scanner sc = new Scanner(System.in);\n        int java = sc.nextInt(), jakarta = sc.nextInt();\n        boolean j = java >= 17, e = jakarta >= 11;\n        if (j && e) System.out.println(\"READY\");\n        else if (!j && !e) System.out.println(\"UPGRADE_BOTH\");\n        else if (!j) System.out.println(\"UPGRADE_JAVA\");\n        else System.out.println(\"UPGRADE_SERVER\");\n    }\n}\n",
       "quiz": [
         {
           "question": "jakarta.jakartaee-apiをprovidedにする主な理由は？",
@@ -122,8 +91,20 @@
           ],
           "answer": 2,
           "explanation": "API JARは実装を含みません。scopeを `compile` にするとサーバー実装と衝突しやすくなります。"
+        },
+        {
+          "question": "アプリがJakarta RESTとCDIだけを使い、配備先候補にCore Profile対応環境とWeb Profile対応環境があります。選定で最初に行うことはどれでしょう。",
+          "choices": [
+            "Profile名の大きさだけでWeb Profileを選ぶ",
+            "必要な仕様が候補のProfileに含まれるか照合する",
+            "Javaの版を確認せずJakarta EEのmajorだけを見る",
+            "WARのファイル名が短い環境を選ぶ"
+          ],
+          "answer": 1,
+          "explanation": "Profileは含む仕様の集合です。アプリが必要とするAPIを列挙し、配備先の対応Profileと版に含まれるかを確認します。"
         }
-      ]
+      ],
+      "lessonType": "concept"
     },
     {
       "id": "48-2",
@@ -131,34 +112,13 @@
       "objectiveIds": [
         "ch48-o2"
       ],
-      "explanation": "## Jakarta Dataは、よくあるデータ操作を「何をしたいか」の宣言にする\n\nデータベースを使うアプリでは、IDで1件取得する、条件に合う一覧を返す、保存する、といった処理を何度も書きます。SQLやEntityManagerを毎回組み立てると、定型コードが増え、業務上の目的が見えにくくなります。\n\nJakarta Dataは、この繰り返しを減らすための仕様です。開発者は **リポジトリ** というインターフェースに必要な操作を宣言し、対応するJakarta EE実装が実行時の処理を提供します。\n\n```java\n@Repository\npublic interface BookRepository extends BasicRepository<Book, Long> {\n    List<Book> findByAuthor(String author);\n}\n```\n\nここで `Book` は扱うエンティティ、`Long` はIDの型です。`findByAuthor` のようなメソッド名や注釈から問い合わせの意図を表せるため、サービス層はSQLの組み立てより業務処理へ集中できます。実装クラスを自分で `new` するのではなく、CDIなどを通じてサーバーが生成した実装を受け取ります。\n\nJakarta Persistence（JPA）がエンティティの対応付け、永続化コンテキスト、問い合わせなど低い層の仕組みを提供するのに対し、Jakarta Dataはその上でリポジトリ形式のアクセスを標準化します。JPAを置き換える同義語ではありません。\n\n定型操作には便利ですが、複雑な集計、データベース固有の最適化、大量更新までメソッド名へ押し込むと、かえって意図が分かりにくくなります。その場合は明示的な問い合わせを使い、実行されるSQL、インデックス、トランザクション境界を確認します。\n\n今回の演習は、リポジトリの考え方を単純化し、インターフェースの宣言から検索処理を実装します。実際のJakarta Dataでは、対応サーバーがこの実装を提供する点が違います。",
+      "explanation": "## Jakarta Dataは、よくあるデータ操作を「何をしたいか」の宣言にする\n\nデータベースを使うアプリでは、IDで1件取得する、条件に合う一覧を返す、保存する、といった処理を何度も書きます。SQLやEntityManagerを毎回組み立てると、定型コードが増え、業務上の目的が見えにくくなります。\n\nJakarta Dataは、この繰り返しを減らすための仕様です。開発者は **リポジトリ** というインターフェースに必要な操作を宣言し、対応するJakarta EE実装が実行時の処理を提供します。\n\n```java\n@Repository\npublic interface BookRepository extends BasicRepository<Book, Long> {\n    List<Book> findByAuthor(String author);\n}\n```\n\nここで `Book` は扱うエンティティ、`Long` はIDの型です。`findByAuthor` のようなメソッド名や注釈から問い合わせの意図を表せるため、サービス層はSQLの組み立てより業務処理へ集中できます。実装クラスを自分で `new` するのではなく、CDIなどを通じてサーバーが生成した実装を受け取ります。\n\nJakarta Persistence（JPA）がエンティティの対応付け、永続化コンテキスト、問い合わせなど低い層の仕組みを提供するのに対し、Jakarta Dataはその上でリポジトリ形式のアクセスを標準化します。JPAを置き換える同義語ではありません。\n\n定型操作には便利ですが、複雑な集計、データベース固有の最適化、大量更新までメソッド名へ押し込むと、かえって意図が分かりにくくなります。その場合は明示的な問い合わせを使い、実行されるSQL、インデックス、トランザクション境界を確認します。\n\nこの単元ではRepositoryの代わりにMap検索をJavaで実装せず、Jakarta Dataで実装を生成できる宣言と責務をクイズで確認します。実際のinterface宣言は章末のJakarta Data実ビルド演習で行います。",
       "samples": [
         {
           "caption": "リポジトリ境界をJDKだけで模擬",
           "code": "import java.util.*;\n\nrecord Book(long id, String title) { }\n\ninterface Books {\n    Optional<Book> find(long id);\n}\n\npublic class Main {\n    public static void main(String[] a) {\n        Books r = id -> Optional.of(new Book(id, \"Java\"));\n        System.out.println(r.find(1).orElseThrow().title());\n    }\n}\n"
         }
       ],
-      "task": "n件の `id title` を読み、続く検索idに一致する本を `id:title` と表示してください。なければ `NOT_FOUND`。アクセス側は `BookRepository` インターフェース越しに呼びます。",
-      "starterCode": "import java.util.*;\n\nrecord Book(long id, String title) { }\n\ninterface BookRepository {\n    Optional<Book> findById(long id);\n}\n\npublic class Main {\n    public static void main(String[] a) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n        Map<Long, Book> data = new HashMap<>();\n        for (int i = 0; i < n; i++) {\n            long id = sc.nextLong();\n            data.put(id, new Book(id, sc.next()));\n        }\n        long target = sc.nextLong();\n        /* TODO */\n    }\n}\n",
-      "visibleCases": [
-        {
-          "label": "発見",
-          "stdin": "2 1 Java 2 SQL 2",
-          "expected": "2:SQL"
-        }
-      ],
-      "hiddenCases": [
-        {
-          "label": "無し",
-          "stdin": "1 1 Java 9",
-          "expected": "NOT_FOUND"
-        }
-      ],
-      "hints": [
-        "ラムダで `BookRepository repo = id -> Optional.ofNullable(data.get(id));`。",
-        "Optionalをmapして表示文字列へ変換します。"
-      ],
-      "solution": "import java.util.*;\n\nrecord Book(long id, String title) { }\n\ninterface BookRepository {\n    Optional<Book> findById(long id);\n}\n\npublic class Main {\n    public static void main(String[] a) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n        Map<Long, Book> data = new HashMap<>();\n        for (int i = 0; i < n; i++) {\n            long id = sc.nextLong();\n            data.put(id, new Book(id, sc.next()));\n        }\n        long target = sc.nextLong();\n        BookRepository repo = id -> Optional.ofNullable(data.get(id));\n        String out = repo.findById(target).map(b -> b.id() + \":\" + b.title()).orElse(\"NOT_FOUND\");\n        System.out.println(out);\n    }\n}\n",
       "quiz": [
         {
           "question": "Jakarta Dataのリポジトリを使っても確認が必要なものは？",
@@ -181,8 +141,20 @@
           ],
           "answer": 1,
           "explanation": "戻り値に `List` は使えますし、インターフェースにも戻り値は書けます。Jakarta Dataはlike検索にも対応しています。問題は件数で、一致するものが増えるほど全件をメモリへ読み込むため、応答時間とメモリが悪化します。ページングと並び順を指定し、生成される問い合わせも確認します。"
+        },
+        {
+          "question": "Jakarta Dataで基本CRUDを持つRepositoryを用意するときの考え方として適切なのはどれでしょう。",
+          "choices": [
+            "Repositoryを宣言し、runtimeに実装させる",
+            "各検索のためにMap走査の実装を手書きする",
+            "HTTP ResourceへSQL文字列を直接埋め込む",
+            "Entityを標準出力へ出せば永続化される"
+          ],
+          "answer": 0,
+          "explanation": "Repositoryのinterfaceとquery方法を宣言し、対応するJakarta Data実装が実行時の処理を提供します。"
         }
-      ]
+      ],
+      "lessonType": "concept"
     },
     {
       "id": "48-3",
@@ -377,7 +349,7 @@
       "objectiveIds": [
         "ch48-o1"
       ],
-      "explanation": "## 章末では「新機能を使う」前に、目的と実行環境を確認する\n\nJakarta EE 11の機能を採用するときは、API名だけを追うのではなく、解決したい問題と実行時に誰が機能を提供するかを確認します。\n\n- プロファイルは用途別の仕様集合であり、実際のサイズや起動時間はサーバー構成を測る\n- API依存関係はコンパイル時の型を提供し、実装は対応サーバーが提供することが多い\n- Jakarta Dataは定型的なデータアクセスをリポジトリの宣言へまとめる\n- recordはAPIの値を簡潔に表すが、Validationや永続化の設計を自動では解決しない\n- `Instant` は共通の時点、`ZoneId` は地域の時差規則を表し、保存と表示の責務を分ける\n- 認証情報とアップグレードは、旧形式を扱う期間を含めて段階移行する\n\n採用判断では、Javaの版、Jakarta EEの版、サーバーの対応状況、ライブラリ、ビルド、テスト、本番の監視を1本の経路として確認します。「コンパイルできた」は入口にすぎず、サーバー起動、リクエスト処理、トランザクション、認証、ロールバックまで検証します。\n\n章末演習では、対応版の確認、リポジトリ形式の検索、地域付き日付への変換、機密情報のマスキングを組み合わせます。どの問題でも、便利な機能の名前ではなく「何の失敗を防ぐために使うのか」を説明できることを目標にしてください。",
+      "explanation": "## Jakarta EE 11対応環境で直接確かめる\n\n章末の必須演習は2つです。1つ目はJakarta EE 11対応サーバーへWARを配備し、HTTP 201、recordのJSON変換、Instant、Bean Validationの400応答を実際のHTTPで確認します。2つ目はJakarta Data 1.0のAPIへRepository interfaceを宣言し、コンパイルして仕様どおりのqueryを表現できることを確かめます。\n\n版番号、page計算、入力検証をJavaの標準入力で再現する3問は、条件分岐やcollectionも復習したい場合だけの任意課題です。章クリアに必要なのは、Jakartaの機能を対応runtimeで直接動かす2つの演習です。",
       "samples": [
         {
           "caption": "復習用サンプル：保存は Instant、表示のときだけ ZoneId をあてる",
@@ -385,227 +357,68 @@
           "expected": "2025-01-02 / 2025-01-01"
         }
       ],
-      "task": "【基本】必要な最低版を `minJava minJakarta` の形で読み、続けてサーバーをn件 `name java jakarta` の形で読みます。\n\n各サーバーについて、読んだ順に `name STATUS` と表示してください。`STATUS` は次のとおりです。\n\n| STATUS | 条件 |\n|---|---|\n| `READY` | `java` が minJava 以上かつ `jakarta` が minJakarta 以上 |\n| `UPGRADE_JAVA` | Javaだけ足りない |\n| `UPGRADE_SERVER` | Jakartaだけ足りない |\n| `UPGRADE_BOTH` | 両方足りない |\n\n最後に `READY 件数/全件数` の形で、そのまま使えるサーバーの数を表示します。",
-      "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int minJava = sc.nextInt(), minJakarta = sc.nextInt(), n = sc.nextInt();\n        int ready = 0;\n        for (int i = 0; i < n; i++) {\n            String name = sc.next();\n            int java = sc.nextInt(), jakarta = sc.nextInt();\n            /* TODO 4つの判定 */\n        }\n        System.out.println(\"READY \" + ready + \"/\" + n);\n    }\n}\n",
-      "visibleCases": [
-        {
-          "label": "3種類の不足",
-          "stdin": "17 11 3 liberty 21 11 old 11 11 legacy 11 9",
-          "expected": "liberty READY\nold UPGRADE_JAVA\nlegacy UPGRADE_BOTH\nREADY 1/3"
-        },
-        {
-          "label": "サーバーだけ古い",
-          "stdin": "17 11 1 tomcat 21 10",
-          "expected": "tomcat UPGRADE_SERVER\nREADY 0/1"
-        }
-      ],
-      "hiddenCases": [
-        {
-          "label": "ちょうど最低版",
-          "stdin": "17 11 1 exact 17 11",
-          "expected": "exact READY\nREADY 1/1"
-        },
-        {
-          "label": "サーバー0件",
-          "stdin": "17 11 0",
-          "expected": "READY 0/0"
-        },
-        {
-          "label": "すべて条件を満たす",
-          "stdin": "17 11 2 a 21 11 b 25 12",
-          "expected": "a READY\nb READY\nREADY 2/2"
-        },
-        {
-          "label": "しきい値が上がった",
-          "stdin": "21 12 1 a 21 11",
-          "expected": "a UPGRADE_SERVER\nREADY 0/1"
-        }
-      ],
-      "hints": [
-        "`boolean okJava=java>=minJava, okJakarta=jakarta>=minJakarta;` と2つの真偽値にしてから分けると読みやすくなります。",
-        "両方足りない場合を先に判定すると、残りの分岐が短くなります。",
-        "APIのJARだけ新しくしてもサーバー機能は動きません。そのためJavaとサーバーの版を別々に数えています。"
-      ],
-      "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int minJava = sc.nextInt(), minJakarta = sc.nextInt(), n = sc.nextInt();\n        int ready = 0;\n        for (int i = 0; i < n; i++) {\n            String name = sc.next();\n            int java = sc.nextInt(), jakarta = sc.nextInt();\n            boolean okJava = java >= minJava, okJakarta = jakarta >= minJakarta;\n            String status = okJava && okJakarta ? \"READY\" : !okJava && !okJakarta ? \"UPGRADE_BOTH\" : !okJava ? \"UPGRADE_JAVA\" : \"UPGRADE_SERVER\";\n            if (status.equals(\"READY\")) ready++;\n            System.out.println(name + \" \" + status);\n        }\n        System.out.println(\"READY \" + ready + \"/\" + n);\n    }\n}\n",
-      "extraTasks": [
-        {
-          "objectiveIds": [
-            "ch48-o2"
-          ],
-          "kind": "drill",
-          "task": "【組み合わせ】本をn件 `id title` の形で読み、続けて `sort page size` を読みます。`sort` は `id` または `title` で、その順に昇順で並べます（`title` は辞書順）。`page` は1から数えるページ番号、`size` は1ページの件数で1以上です。指定ページに入る本を `id:title` の形で表示してください。そのページに1件も無ければ `EMPTY_PAGE` と表示します。最後に総ページ数を `PAGES 数` の形で表示します（0件のときは0ページです）。",
-          "starterCode": "import java.util.*;\n\nrecord Book(long id, String title) { }\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n        List<Book> books = new ArrayList<>();\n        for (int i = 0; i < n; i++) books.add(new Book(sc.nextLong(), sc.next()));\n        String sort = sc.next();\n        int page = sc.nextInt(), size = sc.nextInt();\n        /* TODO 並べ替え */ /* TODO ページの切り出しと表示 */ /* TODO 総ページ数 */\n    }\n}\n",
-          "visibleCases": [
-            {
-              "label": "title順の2ページ目",
-              "stdin": "5 3 SQL 1 JAVA 5 JVM 2 REST 4 CDI title 2 2",
-              "expected": "5:JVM\n2:REST\nPAGES 3"
-            },
-            {
-              "label": "id順の1ページ目",
-              "stdin": "3 30 c 10 a 20 b id 1 2",
-              "expected": "10:a\n20:b\nPAGES 2"
-            }
-          ],
-          "hiddenCases": [
-            {
-              "label": "範囲外のページ",
-              "stdin": "3 1 a 2 b 3 c id 3 2",
-              "expected": "EMPTY_PAGE\nPAGES 2"
-            },
-            {
-              "label": "1件も無い",
-              "stdin": "0 id 1 10",
-              "expected": "EMPTY_PAGE\nPAGES 0"
-            },
-            {
-              "label": "最後のページは半端",
-              "stdin": "3 1 a 2 b 3 c id 2 2",
-              "expected": "3:c\nPAGES 2"
-            },
-            {
-              "label": "1ページに収まる",
-              "stdin": "2 2 b 1 a title 1 10",
-              "expected": "1:a\n2:b\nPAGES 1"
-            },
-            {
-              "label": "1件ずつ区切る",
-              "stdin": "2 1 a 2 b id 2 1",
-              "expected": "2:b\nPAGES 2"
-            }
-          ],
-          "hints": [
-            "並べ替えは `books.sort(Comparator.comparingLong(Book::id))` と `Comparator.comparing(Book::title)` を使い分けます。",
-            "切り出す範囲は `from=(page-1)*size` から `Math.min(from+size, n)` までです。`from` が件数以上なら空ページです。",
-            "総ページ数は `(n+size-1)/size` で計算できます。全件取得ではなくページで返すのは、件数が増えても応答が壊れないようにするためです。"
-          ],
-          "solution": "import java.util.*;\n\nrecord Book(long id, String title) { }\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n        List<Book> books = new ArrayList<>();\n        for (int i = 0; i < n; i++) books.add(new Book(sc.nextLong(), sc.next()));\n        String sort = sc.next();\n        int page = sc.nextInt(), size = sc.nextInt();\n        books.sort(sort.equals(\"id\") ? Comparator.comparingLong(Book::id) : Comparator.comparing(Book::title));\n        int from = (page - 1) * size, to = Math.min(from + size, n);\n        if (from >= n || from < 0) System.out.println(\"EMPTY_PAGE\");\n        else for (Book b : books.subList(from, to)) System.out.println(b.id() + \":\" + b.title());\n        System.out.println(\"PAGES \" + (n + size - 1) / size);\n    }\n}\n"
-        },
-        {
-          "objectiveIds": [
-            "ch48-o3",
-            "ch48-o4"
-          ],
-          "kind": "applied",
-          "task": "【実践】表示用タイムゾーン `zone` と件数nを読み、続けてn件のリクエストを `name email password createdAt` の形で読みます。各リクエストについて次を上から順に確かめ、最初に外れた項目だけを `400 行番号 項目名` と表示してください（行番号は1から）。\n\n1. `name` が `-`（値なしを表します）なら `name`\n2. `email` に `@` が含まれなければ `email`\n3. `password` が8文字未満なら `password`\n4. `createdAt` を `Instant` として読めなければ `createdAt`\n\nすべて満たしたら `201 行番号 表示日付` と表示します。表示日付は `createdAt` を `zone` の地域時刻へ直した `yyyy-MM-dd` です。\n\nすべてのリクエストを判定し終えたあと、監査ログとして全件を読んだ順に `LOG 行番号 name=値 email=値 password=[REDACTED]` の形で表示してください。`password` は妥当でも不正でも値を出さず、必ず `[REDACTED]` にします。",
-          "starterCode": "import java.time.*;\nimport java.time.format.*;\nimport java.util.*;\n\nrecord Request(String name, String email, String password, String createdAt) { }\n\npublic class Main {\n    static String violation(Request r) {\n        /* TODO 上から順に検査し、外れた項目名か null を返す */ return null;\n    }\n\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        ZoneId zone = ZoneId.of(sc.next());\n        int n = sc.nextInt();\n        List<Request> requests = new ArrayList<>();\n        for (int i = 0; i < n; i++) requests.add(new Request(sc.next(), sc.next(), sc.next(), sc.next()));\n        /* TODO 判定の表示 */ /* TODO 監査ログの表示 */\n    }\n}\n",
-          "visibleCases": [
-            {
-              "label": "作成できる",
-              "stdin": "Asia/Tokyo 1 aki aki@example.test hunter2secret 2025-01-01T23:30:00Z",
-              "expected": "201 1 2025-01-02\nLOG 1 name=aki email=aki@example.test password=[REDACTED]"
-            },
-            {
-              "label": "検証で弾く",
-              "stdin": "UTC 2 - a@b.test longenough 2025-01-01T00:00:00Z bob nomail longenough 2025-01-01T00:00:00Z",
-              "expected": "400 1 name\n400 2 email\nLOG 1 name=- email=a@b.test password=[REDACTED]\nLOG 2 name=bob email=nomail password=[REDACTED]"
-            }
-          ],
-          "hiddenCases": [
-            {
-              "label": "パスワードが短い",
-              "stdin": "UTC 1 aki a@b.test short 2025-01-01T00:00:00Z",
-              "expected": "400 1 password\nLOG 1 name=aki email=a@b.test password=[REDACTED]"
-            },
-            {
-              "label": "時点として読めない",
-              "stdin": "UTC 1 aki a@b.test password1 2025-01-01",
-              "expected": "400 1 createdAt\nLOG 1 name=aki email=a@b.test password=[REDACTED]"
-            },
-            {
-              "label": "ちょうど8文字",
-              "stdin": "UTC 1 aki a@b.test 12345678 2025-06-30T12:00:00Z",
-              "expected": "201 1 2025-06-30\nLOG 1 name=aki email=a@b.test password=[REDACTED]"
-            },
-            {
-              "label": "地域時刻で日付が戻る",
-              "stdin": "America/New_York 1 aki a@b.test 12345678 2025-01-01T02:00:00Z",
-              "expected": "201 1 2024-12-31\nLOG 1 name=aki email=a@b.test password=[REDACTED]"
-            },
-            {
-              "label": "検査の優先順位",
-              "stdin": "UTC 1 - bad short nope",
-              "expected": "400 1 name\nLOG 1 name=- email=bad password=[REDACTED]"
-            },
-            {
-              "label": "成功と失敗が混じる",
-              "stdin": "UTC 3 aki a@b.test 12345678 2025-03-01T00:00:00Z - x@y.test 12345678 2025-03-01T00:00:00Z bob bad 12345678 2025-03-01T00:00:00Z",
-              "expected": "201 1 2025-03-01\n400 2 name\n400 3 email\nLOG 1 name=aki email=a@b.test password=[REDACTED]\nLOG 2 name=- email=x@y.test password=[REDACTED]\nLOG 3 name=bob email=bad password=[REDACTED]"
-            }
-          ],
-          "hints": [
-            "`Instant.parse` は読めないと `DateTimeParseException` を投げます。`try` で囲み、`catch` のときだけ `\"createdAt\"` を返します。",
-            "表示日付は `Instant.parse(...).atZone(zone).toLocalDate()` で作れます。保存する値は `Instant` のまま、地域を当てるのは表示のときだけです。",
-            "判定のループと監査ログのループを分けます。ログは妥当・不正にかかわらず全件出し、秘密の項目は値を持たせません。"
-          ],
-          "solution": "import java.time.*;\nimport java.time.format.*;\nimport java.util.*;\n\nrecord Request(String name, String email, String password, String createdAt) { }\n\npublic class Main {\n    static String violation(Request r) {\n        if (r.name().equals(\"-\")) return \"name\";\n        if (!r.email().contains(\"@\")) return \"email\";\n        if (r.password().length() < 8) return \"password\";\n        try {\n            Instant.parse(r.createdAt());\n        } catch (DateTimeParseException e) {\n            return \"createdAt\";\n        }\n        return null;\n    }\n\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        ZoneId zone = ZoneId.of(sc.next());\n        int n = sc.nextInt();\n        List<Request> requests = new ArrayList<>();\n        for (int i = 0; i < n; i++) requests.add(new Request(sc.next(), sc.next(), sc.next(), sc.next()));\n        for (int k = 1; k <= n; k++) {\n            Request r = requests.get(k - 1);\n            String bad = violation(r);\n            if (bad != null) System.out.println(\"400 \" + k + \" \" + bad);\n            else System.out.println(\"201 \" + k + \" \" + Instant.parse(r.createdAt()).atZone(zone).toLocalDate().format(DateTimeFormatter.ISO_LOCAL_DATE));\n        }\n        for (int k = 1; k <= n; k++) {\n            Request r = requests.get(k - 1);\n            System.out.println(\"LOG \" + k + \" name=\" + r.name() + \" email=\" + r.email() + \" password=[REDACTED]\");\n        }\n    }\n}\n"
-        },
-        {
-          "objectiveIds": [
-            "ch48-o1"
-          ],
-          "kind": "applied",
-          "type": "runtime-lab",
-          "task": "【実サーバー演習】`labs/jakarta-ee11/runtime-exercise`の`UserResource`を完成させてください。Javaの模型ではなく、Jakarta EE 11対応サーバーへ実際に配備して確かめる問題です。\n\n要求は`POST /api/users`で、本文は`{\"name\":\" Aki \",\"email\":\"aki@example.test\",\"registeredAt\":\"2026-08-13T09:00:00Z\"}`です。次の3つを実サーバーの応答として成り立たせます。\n\n1. 新規作成なのでHTTP 201を返し、前後の空白を除いた名前とメールをJSONへ入れる\n2. 名前が空、メールが形式違反の要求をHTTP 400で拒否する\n3. 応答へ登録時刻を`Instant`として入れ、ISO-8601の文字列として返す\n\n`pom.xml`と`server.xml`は変更しません（Feature Managerの扱いは第61章で行います）。提出するとOpen Liberty 26を一時領域へ準備し、採点側が確保した動的portへWARを配備します。recordがgetterなしでJSONへ変換されること、Bean Validationがrecordの構成要素の制約で400にすることを実HTTPで確認し、最後にサーバーを停止します。",
-          "runtimeLab": {
-            "name": "Jakarta EE 11 real server lab",
-            "source": "labs/jakarta-ee11/runtime-exercise",
-            "exclude": [
-              "reference"
-            ],
-            "command": [
-              "./run-runtime-lab.sh"
-            ],
-            "timeoutSeconds": 60,
-            "verification": "Jakarta EE 11対応サーバーへWARを配備し、201・record JSON・Instant・Validation 400・停止を実HTTPで確認する",
-            "capabilities": [
-              "server",
-              "http"
-            ],
-            "requiredTools": [
-              "java",
-              "javac",
-              "mvn"
-            ],
-            "requiredImages": [],
-            "checks": [
-              {
-                "id": "ee11-war",
-                "label": "EE 11のAPIだけを参照するWARを作成できる"
-              },
-              {
-                "id": "ee11-created",
-                "label": "新規作成がHTTP 201を返し、recordがJSONへ変換される"
-              },
-              {
-                "id": "ee11-instant",
-                "label": "InstantがISO-8601の文字列としてJSONへ出る"
-              },
-              {
-                "id": "ee11-validation",
-                "label": "Bean Validationが不正な要求をHTTP 400にする"
-              },
-              {
-                "id": "ee11-stop",
-                "label": "検証後にサーバーとHTTP listenerを停止する"
-              }
-            ],
-            "editableFiles": [
-              {
-                "path": "src/main/java/cafe/api/UserResource.java",
-                "solutionPath": "reference/src/main/java/cafe/api/UserResource.java"
-              }
-            ]
+      "kind": "applied",
+      "type": "runtime-lab",
+      "task": "【実サーバー演習】`labs/jakarta-ee11/runtime-exercise`の`UserResource`を完成させてください。Javaの模型ではなく、Jakarta EE 11対応サーバーへ実際に配備して確かめる問題です。\n\n要求は`POST /api/users`で、本文は`{\"name\":\" Aki \",\"email\":\"aki@example.test\",\"registeredAt\":\"2026-08-13T09:00:00Z\"}`です。次の3つを実サーバーの応答として成り立たせます。\n\n1. 新規作成なのでHTTP 201を返し、前後の空白を除いた名前とメールをJSONへ入れる\n2. 名前が空、メールが形式違反の要求をHTTP 400で拒否する\n3. 応答へ登録時刻を`Instant`として入れ、ISO-8601の文字列として返す\n\n`pom.xml`と`server.xml`は変更しません（Feature Managerの扱いは第61章で行います）。提出するとOpen Liberty 26を一時領域へ準備し、採点側が確保した動的portへWARを配備します。recordがgetterなしでJSONへ変換されること、Bean Validationがrecordの構成要素の制約で400にすることを実HTTPで確認し、最後にサーバーを停止します。",
+      "runtimeLab": {
+        "name": "Jakarta EE 11 real server lab",
+        "source": "labs/jakarta-ee11/runtime-exercise",
+        "exclude": [
+          "reference"
+        ],
+        "command": [
+          "./run-runtime-lab.sh"
+        ],
+        "timeoutSeconds": 60,
+        "verification": "Jakarta EE 11対応サーバーへWARを配備し、201・record JSON・Instant・Validation 400・停止を実HTTPで確認する",
+        "capabilities": [
+          "server",
+          "http"
+        ],
+        "requiredTools": [
+          "java",
+          "javac",
+          "mvn"
+        ],
+        "requiredImages": [],
+        "checks": [
+          {
+            "id": "ee11-war",
+            "label": "EE 11のAPIだけを参照するWARを作成できる"
           },
-          "hints": [
-            "`Response.status(Response.Status.CREATED).entity(...).build()`で201になります。`Response.ok`は200です。",
-            "Bean Validationはrecordの構成要素へ付けた`@NotBlank`や`@Email`を見ます。引数へ`@Valid`を付けないと検証されません。",
-            "JSON-BはgetterがなくてもrecordをJSONへ変換し、`Instant`は既定でISO-8601の文字列になります。要求の文字列は`Instant.parse`で時点へ直します。"
-          ],
-          "rubric": [
-            "implement"
-          ]
-        },
+          {
+            "id": "ee11-created",
+            "label": "新規作成がHTTP 201を返し、recordがJSONへ変換される"
+          },
+          {
+            "id": "ee11-instant",
+            "label": "InstantがISO-8601の文字列としてJSONへ出る"
+          },
+          {
+            "id": "ee11-validation",
+            "label": "Bean Validationが不正な要求をHTTP 400にする"
+          },
+          {
+            "id": "ee11-stop",
+            "label": "検証後にサーバーとHTTP listenerを停止する"
+          }
+        ],
+        "editableFiles": [
+          {
+            "path": "src/main/java/cafe/api/UserResource.java",
+            "solutionPath": "reference/src/main/java/cafe/api/UserResource.java"
+          }
+        ]
+      },
+      "hints": [
+        "`Response.status(Response.Status.CREATED).entity(...).build()`で201になります。`Response.ok`は200です。",
+        "Bean Validationはrecordの構成要素へ付けた`@NotBlank`や`@Email`を見ます。引数へ`@Valid`を付けないと検証されません。",
+        "JSON-BはgetterがなくてもrecordをJSONへ変換し、`Instant`は既定でISO-8601の文字列になります。要求の文字列は`Instant.parse`で時点へ直します。"
+      ],
+      "rubric": [
+        "implement"
+      ],
+      "extraTasks": [
         {
           "objectiveIds": [
             "ch48-o2"
@@ -670,6 +483,169 @@
           "rubric": [
             "implement"
           ]
+        },
+        {
+          "objectiveIds": [
+            "ch48-o2"
+          ],
+          "kind": "applied",
+          "task": "【任意・Repositoryの結果をJava collectionで再現】Jakarta Dataを実際に宣言した後、sortとpage計算も復習したい場合だけ取り組みます。章クリア・★・カフェ報酬・復習の対象外です。\n\n【組み合わせ】本をn件 `id title` の形で読み、続けて `sort page size` を読みます。`sort` は `id` または `title` で、その順に昇順で並べます（`title` は辞書順）。`page` は1から数えるページ番号、`size` は1ページの件数で1以上です。指定ページに入る本を `id:title` の形で表示してください。そのページに1件も無ければ `EMPTY_PAGE` と表示します。最後に総ページ数を `PAGES 数` の形で表示します（0件のときは0ページです）。",
+          "starterCode": "import java.util.*;\n\nrecord Book(long id, String title) { }\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n        List<Book> books = new ArrayList<>();\n        for (int i = 0; i < n; i++) books.add(new Book(sc.nextLong(), sc.next()));\n        String sort = sc.next();\n        int page = sc.nextInt(), size = sc.nextInt();\n        /* TODO 並べ替え */ /* TODO ページの切り出しと表示 */ /* TODO 総ページ数 */\n    }\n}\n",
+          "visibleCases": [
+            {
+              "label": "title順の2ページ目",
+              "stdin": "5 3 SQL 1 JAVA 5 JVM 2 REST 4 CDI title 2 2",
+              "expected": "5:JVM\n2:REST\nPAGES 3"
+            },
+            {
+              "label": "id順の1ページ目",
+              "stdin": "3 30 c 10 a 20 b id 1 2",
+              "expected": "10:a\n20:b\nPAGES 2"
+            }
+          ],
+          "hiddenCases": [
+            {
+              "label": "範囲外のページ",
+              "stdin": "3 1 a 2 b 3 c id 3 2",
+              "expected": "EMPTY_PAGE\nPAGES 2"
+            },
+            {
+              "label": "1件も無い",
+              "stdin": "0 id 1 10",
+              "expected": "EMPTY_PAGE\nPAGES 0"
+            },
+            {
+              "label": "最後のページは半端",
+              "stdin": "3 1 a 2 b 3 c id 2 2",
+              "expected": "3:c\nPAGES 2"
+            },
+            {
+              "label": "1ページに収まる",
+              "stdin": "2 2 b 1 a title 1 10",
+              "expected": "1:a\n2:b\nPAGES 1"
+            },
+            {
+              "label": "1件ずつ区切る",
+              "stdin": "2 1 a 2 b id 2 1",
+              "expected": "2:b\nPAGES 2"
+            }
+          ],
+          "hints": [
+            "並べ替えは `books.sort(Comparator.comparingLong(Book::id))` と `Comparator.comparing(Book::title)` を使い分けます。",
+            "切り出す範囲は `from=(page-1)*size` から `Math.min(from+size, n)` までです。`from` が件数以上なら空ページです。",
+            "総ページ数は `(n+size-1)/size` で計算できます。全件取得ではなくページで返すのは、件数が増えても応答が壊れないようにするためです。"
+          ],
+          "solution": "import java.util.*;\n\nrecord Book(long id, String title) { }\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n        List<Book> books = new ArrayList<>();\n        for (int i = 0; i < n; i++) books.add(new Book(sc.nextLong(), sc.next()));\n        String sort = sc.next();\n        int page = sc.nextInt(), size = sc.nextInt();\n        books.sort(sort.equals(\"id\") ? Comparator.comparingLong(Book::id) : Comparator.comparing(Book::title));\n        int from = (page - 1) * size, to = Math.min(from + size, n);\n        if (from >= n || from < 0) System.out.println(\"EMPTY_PAGE\");\n        else for (Book b : books.subList(from, to)) System.out.println(b.id() + \":\" + b.title());\n        System.out.println(\"PAGES \" + (n + size - 1) / size);\n    }\n}\n",
+          "required": false
+        },
+        {
+          "objectiveIds": [
+            "ch48-o3",
+            "ch48-o4"
+          ],
+          "kind": "applied",
+          "task": "【任意・Validation結果をJavaで再現】実サーバーのHTTP検証後、入力分類も復習したい場合だけ取り組みます。章クリア・★・カフェ報酬・復習の対象外です。\n\n【実践】表示用タイムゾーン `zone` と件数nを読み、続けてn件のリクエストを `name email password createdAt` の形で読みます。各リクエストについて次を上から順に確かめ、最初に外れた項目だけを `400 行番号 項目名` と表示してください（行番号は1から）。\n\n1. `name` が `-`（値なしを表します）なら `name`\n2. `email` に `@` が含まれなければ `email`\n3. `password` が8文字未満なら `password`\n4. `createdAt` を `Instant` として読めなければ `createdAt`\n\nすべて満たしたら `201 行番号 表示日付` と表示します。表示日付は `createdAt` を `zone` の地域時刻へ直した `yyyy-MM-dd` です。\n\nすべてのリクエストを判定し終えたあと、監査ログとして全件を読んだ順に `LOG 行番号 name=値 email=値 password=[REDACTED]` の形で表示してください。`password` は妥当でも不正でも値を出さず、必ず `[REDACTED]` にします。",
+          "starterCode": "import java.time.*;\nimport java.time.format.*;\nimport java.util.*;\n\nrecord Request(String name, String email, String password, String createdAt) { }\n\npublic class Main {\n    static String violation(Request r) {\n        /* TODO 上から順に検査し、外れた項目名か null を返す */ return null;\n    }\n\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        ZoneId zone = ZoneId.of(sc.next());\n        int n = sc.nextInt();\n        List<Request> requests = new ArrayList<>();\n        for (int i = 0; i < n; i++) requests.add(new Request(sc.next(), sc.next(), sc.next(), sc.next()));\n        /* TODO 判定の表示 */ /* TODO 監査ログの表示 */\n    }\n}\n",
+          "visibleCases": [
+            {
+              "label": "作成できる",
+              "stdin": "Asia/Tokyo 1 aki aki@example.test hunter2secret 2025-01-01T23:30:00Z",
+              "expected": "201 1 2025-01-02\nLOG 1 name=aki email=aki@example.test password=[REDACTED]"
+            },
+            {
+              "label": "検証で弾く",
+              "stdin": "UTC 2 - a@b.test longenough 2025-01-01T00:00:00Z bob nomail longenough 2025-01-01T00:00:00Z",
+              "expected": "400 1 name\n400 2 email\nLOG 1 name=- email=a@b.test password=[REDACTED]\nLOG 2 name=bob email=nomail password=[REDACTED]"
+            }
+          ],
+          "hiddenCases": [
+            {
+              "label": "パスワードが短い",
+              "stdin": "UTC 1 aki a@b.test short 2025-01-01T00:00:00Z",
+              "expected": "400 1 password\nLOG 1 name=aki email=a@b.test password=[REDACTED]"
+            },
+            {
+              "label": "時点として読めない",
+              "stdin": "UTC 1 aki a@b.test password1 2025-01-01",
+              "expected": "400 1 createdAt\nLOG 1 name=aki email=a@b.test password=[REDACTED]"
+            },
+            {
+              "label": "ちょうど8文字",
+              "stdin": "UTC 1 aki a@b.test 12345678 2025-06-30T12:00:00Z",
+              "expected": "201 1 2025-06-30\nLOG 1 name=aki email=a@b.test password=[REDACTED]"
+            },
+            {
+              "label": "地域時刻で日付が戻る",
+              "stdin": "America/New_York 1 aki a@b.test 12345678 2025-01-01T02:00:00Z",
+              "expected": "201 1 2024-12-31\nLOG 1 name=aki email=a@b.test password=[REDACTED]"
+            },
+            {
+              "label": "検査の優先順位",
+              "stdin": "UTC 1 - bad short nope",
+              "expected": "400 1 name\nLOG 1 name=- email=bad password=[REDACTED]"
+            },
+            {
+              "label": "成功と失敗が混じる",
+              "stdin": "UTC 3 aki a@b.test 12345678 2025-03-01T00:00:00Z - x@y.test 12345678 2025-03-01T00:00:00Z bob bad 12345678 2025-03-01T00:00:00Z",
+              "expected": "201 1 2025-03-01\n400 2 name\n400 3 email\nLOG 1 name=aki email=a@b.test password=[REDACTED]\nLOG 2 name=- email=x@y.test password=[REDACTED]\nLOG 3 name=bob email=bad password=[REDACTED]"
+            }
+          ],
+          "hints": [
+            "`Instant.parse` は読めないと `DateTimeParseException` を投げます。`try` で囲み、`catch` のときだけ `\"createdAt\"` を返します。",
+            "表示日付は `Instant.parse(...).atZone(zone).toLocalDate()` で作れます。保存する値は `Instant` のまま、地域を当てるのは表示のときだけです。",
+            "判定のループと監査ログのループを分けます。ログは妥当・不正にかかわらず全件出し、秘密の項目は値を持たせません。"
+          ],
+          "solution": "import java.time.*;\nimport java.time.format.*;\nimport java.util.*;\n\nrecord Request(String name, String email, String password, String createdAt) { }\n\npublic class Main {\n    static String violation(Request r) {\n        if (r.name().equals(\"-\")) return \"name\";\n        if (!r.email().contains(\"@\")) return \"email\";\n        if (r.password().length() < 8) return \"password\";\n        try {\n            Instant.parse(r.createdAt());\n        } catch (DateTimeParseException e) {\n            return \"createdAt\";\n        }\n        return null;\n    }\n\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        ZoneId zone = ZoneId.of(sc.next());\n        int n = sc.nextInt();\n        List<Request> requests = new ArrayList<>();\n        for (int i = 0; i < n; i++) requests.add(new Request(sc.next(), sc.next(), sc.next(), sc.next()));\n        for (int k = 1; k <= n; k++) {\n            Request r = requests.get(k - 1);\n            String bad = violation(r);\n            if (bad != null) System.out.println(\"400 \" + k + \" \" + bad);\n            else System.out.println(\"201 \" + k + \" \" + Instant.parse(r.createdAt()).atZone(zone).toLocalDate().format(DateTimeFormatter.ISO_LOCAL_DATE));\n        }\n        for (int k = 1; k <= n; k++) {\n            Request r = requests.get(k - 1);\n            System.out.println(\"LOG \" + k + \" name=\" + r.name() + \" email=\" + r.email() + \" password=[REDACTED]\");\n        }\n    }\n}\n",
+          "required": false
+        },
+        {
+          "objectiveIds": [
+            "ch48-o1"
+          ],
+          "task": "【任意・版番号の分類をJavaで練習】実サーバーで対応を確かめた後、条件分岐も復習したい場合だけ取り組みます。章クリア・★・カフェ報酬・復習の対象外です。\n\n【基本】必要な最低版を `minJava minJakarta` の形で読み、続けてサーバーをn件 `name java jakarta` の形で読みます。\n\n各サーバーについて、読んだ順に `name STATUS` と表示してください。`STATUS` は次のとおりです。\n\n| STATUS | 条件 |\n|---|---|\n| `READY` | `java` が minJava 以上かつ `jakarta` が minJakarta 以上 |\n| `UPGRADE_JAVA` | Javaだけ足りない |\n| `UPGRADE_SERVER` | Jakartaだけ足りない |\n| `UPGRADE_BOTH` | 両方足りない |\n\n最後に `READY 件数/全件数` の形で、そのまま使えるサーバーの数を表示します。",
+          "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int minJava = sc.nextInt(), minJakarta = sc.nextInt(), n = sc.nextInt();\n        int ready = 0;\n        for (int i = 0; i < n; i++) {\n            String name = sc.next();\n            int java = sc.nextInt(), jakarta = sc.nextInt();\n            /* TODO 4つの判定 */\n        }\n        System.out.println(\"READY \" + ready + \"/\" + n);\n    }\n}\n",
+          "visibleCases": [
+            {
+              "label": "3種類の不足",
+              "stdin": "17 11 3 liberty 21 11 old 11 11 legacy 11 9",
+              "expected": "liberty READY\nold UPGRADE_JAVA\nlegacy UPGRADE_BOTH\nREADY 1/3"
+            },
+            {
+              "label": "サーバーだけ古い",
+              "stdin": "17 11 1 tomcat 21 10",
+              "expected": "tomcat UPGRADE_SERVER\nREADY 0/1"
+            }
+          ],
+          "hiddenCases": [
+            {
+              "label": "ちょうど最低版",
+              "stdin": "17 11 1 exact 17 11",
+              "expected": "exact READY\nREADY 1/1"
+            },
+            {
+              "label": "サーバー0件",
+              "stdin": "17 11 0",
+              "expected": "READY 0/0"
+            },
+            {
+              "label": "すべて条件を満たす",
+              "stdin": "17 11 2 a 21 11 b 25 12",
+              "expected": "a READY\nb READY\nREADY 2/2"
+            },
+            {
+              "label": "しきい値が上がった",
+              "stdin": "21 12 1 a 21 11",
+              "expected": "a UPGRADE_SERVER\nREADY 0/1"
+            }
+          ],
+          "hints": [
+            "`boolean okJava=java>=minJava, okJakarta=jakarta>=minJakarta;` と2つの真偽値にしてから分けると読みやすくなります。",
+            "両方足りない場合を先に判定すると、残りの分岐が短くなります。",
+            "APIのJARだけ新しくしてもサーバー機能は動きません。そのためJavaとサーバーの版を別々に数えています。"
+          ],
+          "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int minJava = sc.nextInt(), minJakarta = sc.nextInt(), n = sc.nextInt();\n        int ready = 0;\n        for (int i = 0; i < n; i++) {\n            String name = sc.next();\n            int java = sc.nextInt(), jakarta = sc.nextInt();\n            boolean okJava = java >= minJava, okJakarta = jakarta >= minJakarta;\n            String status = okJava && okJakarta ? \"READY\" : !okJava && !okJakarta ? \"UPGRADE_BOTH\" : !okJava ? \"UPGRADE_JAVA\" : \"UPGRADE_SERVER\";\n            if (status.equals(\"READY\")) ready++;\n            System.out.println(name + \" \" + status);\n        }\n        System.out.println(\"READY \" + ready + \"/\" + n);\n    }\n}\n",
+          "kind": "applied",
+          "required": false
         }
       ]
     }

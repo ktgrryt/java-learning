@@ -239,7 +239,7 @@
       "objectiveIds": [
         "ch60-o3"
       ],
-      "explanation": "Auto Configurationは魔法ではありません。主に「特定のクラスが依存関係にあるか」「特定の設定値があるか」「利用者が同種のBeanをまだ定義していないか」といった条件を確認し、条件を満たした構成だけを登録します。例えばDataSource用ライブラリと接続設定があれば候補を作り、自分でDataSourceのBeanを定義すれば自動構成が後退（back off）する、という設計です。\n\n自動構成が期待どおりでないときは、推測で設定を増やさず、起動ログとCondition Evaluation Reportを確認します。`--debug`で起動すると、どの自動構成が有効・無効になり、どの条件が理由だったかを調べられます。自動構成クラスは通常のアプリコードで直接呼び出すものではありません。\n\n環境ごとに変わる値はソースコードへ埋め込まず、`application.properties`または`application.yml`へ置きます。さらに本番では環境変数やコマンドライン引数などで上書きできます。`@ConfigurationProperties`は`app.greeting.prefix`のような自作設定を型付きのクラスへまとめ、検証しやすくする方法です。1個だけ参照する場合は`@Value`も使えますが、関連する設定が増えたら`@ConfigurationProperties`の方が見通しが良くなります。\n\n```properties\napp.greeting.prefix=Hello\nserver.port=8080\n```\n\n```java\n@ConfigurationProperties(\"app.greeting\")\npublic record GreetingProperties(@NotBlank String prefix) {}\n```\n\n優先順位を把握していないと、ファイルを直したのに環境変数の値が勝ち続けることがあります。また、パスワードやAPIキーをGit管理される設定ファイルへ書いてはいけません。秘密情報はSecret管理機構などから実行時に渡し、ログにも出さないでください。",
+      "explanation": "Auto Configurationは魔法ではありません。主に「特定のクラスが依存関係にあるか」「特定の設定値があるか」「利用者が同種のBeanをまだ定義していないか」といった条件を確認し、条件を満たした構成だけを登録します。例えばDataSource用ライブラリと接続設定があれば候補を作り、自分でDataSourceのBeanを定義すれば自動構成が後退（back off）する、という設計です。\n\n自動構成が期待どおりでないときは、推測で設定を増やさず、起動ログとCondition Evaluation Reportを確認します。`--debug`で起動すると、どの自動構成が有効・無効になり、どの条件が理由だったかを調べられます。自動構成クラスは通常のアプリコードで直接呼び出すものではありません。\n\n環境ごとに変わる値はソースコードへ埋め込まず、`application.properties`または`application.yml`へ置きます。さらに本番では環境変数やコマンドライン引数などで上書きできます。`@ConfigurationProperties`は`app.greeting.prefix`のような自作設定を型付きのクラスへまとめ、検証しやすくする方法です。1個だけ参照する場合は`@Value`も使えますが、関連する設定が増えたら`@ConfigurationProperties`の方が見通しが良くなります。\n\n```properties\napp.greeting.prefix=Hello\nserver.port=8080\n```\n\n```java\n@ConfigurationProperties(\"app.greeting\")\npublic record GreetingProperties(@NotBlank String prefix) {}\n```\n\n優先順位を把握していないと、ファイルを直したのに環境変数の値が勝ち続けることがあります。また、パスワードやAPIキーをGit管理される設定ファイルへ書いてはいけません。秘密情報はSecret管理機構などから実行時に渡し、ログにも出さないでください。\n\nこの単元では設定値の優先順位をJavaのif文で再現せず、外部設定とAuto Configurationがどの条件で選ばれるかをクイズで確認します。",
       "samples": [
         {
           "caption": "考え方を標準Javaで確かめる",
@@ -247,44 +247,6 @@
           "expected": "Bonjour"
         }
       ],
-      "task": "設定の優先順位と自動構成の後退を再現する\n\n1行目に環境変数の値、2行目に設定ファイルの値、3行目に既定値、4行目に利用者定義Beanの有無（`true`または`false`）が与えられます。値`-`は未設定です。環境変数、設定ファイル、既定値の順で最初の設定値を選び、`<値> USER_BEAN`または`<値> AUTO_CONFIGURED`と出力してください。利用者定義Beanが`true`なら`USER_BEAN`です。",
-      "starterCode": "import java.util.*;\n\npublic class Main {\n    static String resolve(String environment, String file, String defaultValue) {\n        // TODO: 優先順位に従って値を返す\n        return defaultValue;\n    }\n\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        String environment = sc.nextLine();\n        String file = sc.nextLine();\n        String defaultValue = sc.nextLine();\n        boolean userBean = Boolean.parseBoolean(sc.nextLine());\n        // TODO: 設定値と構成元を出力する\n    }\n}",
-      "visibleCases": [
-        {
-          "label": "環境変数が最優先",
-          "stdin": "Bonjour\nHello\nHi\nfalse\n",
-          "expected": "Bonjour AUTO_CONFIGURED"
-        },
-        {
-          "label": "環境変数だけ未設定",
-          "stdin": "-\nHello\nHi\ntrue\n",
-          "expected": "Hello USER_BEAN"
-        }
-      ],
-      "hiddenCases": [
-        {
-          "label": "どちらも未設定なので既定値",
-          "stdin": "-\n-\nHi\nfalse\n",
-          "expected": "Hi AUTO_CONFIGURED"
-        },
-        {
-          "label": "3つとも設定済み",
-          "stdin": "ENV\nFILE\nDEFAULT\ntrue\n",
-          "expected": "ENV USER_BEAN"
-        },
-        {
-          "label": "設定ファイルが効く",
-          "stdin": "-\nFILE\nDEFAULT\nfalse\n",
-          "expected": "FILE AUTO_CONFIGURED"
-        }
-      ],
-      "hints": [
-        "`resolve`では`-`でない環境変数を最初に返し、次に設定ファイル、最後に既定値を返します。",
-        "設定値の選択と構成元の判定は別です。`userBean`がtrueなら`USER_BEAN`、falseなら`AUTO_CONFIGURED`です。"
-      ],
-      "solution": "import java.util.*;\n\npublic class Main {\n    static String resolve(String environment, String file, String defaultValue) {\n        if (!environment.equals(\"-\")) return environment;\n        if (!file.equals(\"-\")) return file;\n        return defaultValue;\n    }\n\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        String environment = sc.nextLine();\n        String file = sc.nextLine();\n        String defaultValue = sc.nextLine();\n        boolean userBean = Boolean.parseBoolean(sc.nextLine());\n        String source = userBean ? \"USER_BEAN\" : \"AUTO_CONFIGURED\";\n        System.out.println(resolve(environment, file, defaultValue) + \" \" + source);\n    }\n}",
-      "kind": "drill",
-      "extraTasks": [],
       "quiz": [
         {
           "question": "自分で同種のBeanを定義したとき、自動構成が登録をやめる設計を何と捉えればよいですか？",
@@ -307,12 +269,20 @@
           ],
           "answer": 0,
           "explanation": "設定値を暗号化する機能ではないので、機密をそのまま書いてよくなるわけではありません。読み込みの優先順位も変わらず、環境変数のほうが後から上書きします。既定値を型から推測してくれることもありません。利点は、関連する設定を型付きのまとまりとして受け取り、検証を1か所へ書けることです。"
+        },
+        {
+          "question": "自分でDataSource Beanを定義したところ、Spring Boot既定のDataSourceが作られなくなりました。これは何を示すでしょう。",
+          "choices": [
+            "外部設定を読めずDataSource作成に失敗した障害",
+            "利用者定義を優先し、auto configが後退する仕組み",
+            "JDK feature versionが起動時に変更された状態",
+            "test scopeでだけBeanを定義できる制約"
+          ],
+          "answer": 1,
+          "explanation": "Auto Configurationは条件付きで適用され、利用者が同種のBeanを定義した場合は通常そちらを優先して後退します。"
         }
       ],
-      "rubric": [
-        "implement",
-        "diagnose"
-      ]
+      "lessonType": "concept"
     },
     {
       "id": "60-4",
@@ -320,7 +290,7 @@
       "objectiveIds": [
         "ch60-o1"
       ],
-      "explanation": "Spring Bootの強みは、Webだけでなく業務アプリでよく使う機能を同じ考え方で組み合わせられることです。ただし「Springだから全部入れる」のではなく、解決する課題に応じて選びます。\n\n- Spring Data JPA: Repositoryを通じたDBアクセスを支援する。SQLやトランザクションの理解は引き続き必要です。\n- Spring Security: 認証（誰かを確認）と認可（何を許すか）を担当する。Starterを追加しただけで業務権限設計が完成するわけではありません。\n- Spring Batch: 大量データを一定件数ずつ読み、加工し、書き込むバッチを構成する。再実行や途中再開の設計と組み合わせます。\n- Spring for Apache Kafkaなど: メッセージ送受信を支援する。少なくとも1回配信を前提に、重複しても壊れない処理が必要です。\n- Spring Cloud: 分散システム向け機能の集合です。単一アプリに必要とは限りません。\n\nどのモジュールも、使うときは `pom.xml` へStarterを1つ足す形になります。\n\n```xml\n<dependency>\n  <groupId>org.springframework.boot</groupId>\n  <artifactId>spring-boot-starter-data-jpa</artifactId>\n</dependency>\n```\n\n| 要件 | Starter |\n|---|---|\n| REST APIを公開する | `spring-boot-starter-web` |\n| DBへ読み書きする | `spring-boot-starter-data-jpa` |\n| ログインを扱う | `spring-boot-starter-security` |\n| 夜間バッチを回す | `spring-boot-starter-batch` |\n| 稼働情報を公開する | `spring-boot-starter-actuator` |\n\n**要らないStarterを残さないことも設計です。** クラスパスにあるだけで自動構成が動くことがあるので、「入れたが使っていない」状態は意図しない挙動の原因になります。\n\nDB更新のまとまりはServiceの業務操作を境界に`@Transactional`を付けるのが基本です。Controller全体や1件ずつの細かな呼び出しへ無計画に付けると、トランザクションが長くなったり、途中だけ確定したりします。外部API呼び出しはDBトランザクションで巻き戻せない点にも注意してください。\n\nエコシステムが広いことは、組織でWeb、DB、認証、バッチ、メッセージングを一つの技術体系に寄せやすい利点です。同時に、各モジュールの目的を理解せずStarterだけ増やすと、自動構成に振り回されます。要件、責務、障害時の挙動を先に言葉にして選定してください。",
+      "explanation": "Spring Bootの強みは、Webだけでなく業務アプリでよく使う機能を同じ考え方で組み合わせられることです。ただし「Springだから全部入れる」のではなく、解決する課題に応じて選びます。\n\n- Spring Data JPA: Repositoryを通じたDBアクセスを支援する。SQLやトランザクションの理解は引き続き必要です。\n- Spring Security: 認証（誰かを確認）と認可（何を許すか）を担当する。Starterを追加しただけで業務権限設計が完成するわけではありません。\n- Spring Batch: 大量データを一定件数ずつ読み、加工し、書き込むバッチを構成する。再実行や途中再開の設計と組み合わせます。\n- Spring for Apache Kafkaなど: メッセージ送受信を支援する。少なくとも1回配信を前提に、重複しても壊れない処理が必要です。\n- Spring Cloud: 分散システム向け機能の集合です。単一アプリに必要とは限りません。\n\nどのモジュールも、使うときは `pom.xml` へStarterを1つ足す形になります。\n\n```xml\n<dependency>\n  <groupId>org.springframework.boot</groupId>\n  <artifactId>spring-boot-starter-data-jpa</artifactId>\n</dependency>\n```\n\n| 要件 | Starter |\n|---|---|\n| REST APIを公開する | `spring-boot-starter-web` |\n| DBへ読み書きする | `spring-boot-starter-data-jpa` |\n| ログインを扱う | `spring-boot-starter-security` |\n| 夜間バッチを回す | `spring-boot-starter-batch` |\n| 稼働情報を公開する | `spring-boot-starter-actuator` |\n\n**要らないStarterを残さないことも設計です。** クラスパスにあるだけで自動構成が動くことがあるので、「入れたが使っていない」状態は意図しない挙動の原因になります。\n\nDB更新のまとまりはServiceの業務操作を境界に`@Transactional`を付けるのが基本です。Controller全体や1件ずつの細かな呼び出しへ無計画に付けると、トランザクションが長くなったり、途中だけ確定したりします。外部API呼び出しはDBトランザクションで巻き戻せない点にも注意してください。\n\nエコシステムが広いことは、組織でWeb、DB、認証、バッチ、メッセージングを一つの技術体系に寄せやすい利点です。同時に、各モジュールの目的を理解せずStarterだけ増やすと、自動構成に振り回されます。要件、責務、障害時の挙動を先に言葉にして選定してください。\n\nこの単元ではpom.xmlの行をJavaで分類せず、要件から必要最小のStarterを選び、自動構成と攻撃面を増やす不要依存を避ける判断をクイズで確認します。",
       "samples": [
         {
           "caption": "考え方を標準Javaで確かめる",
@@ -328,49 +298,6 @@
           "expected": "Spring Batch"
         }
       ],
-      "task": "実際の `pom.xml` の依存宣言を読んで、要件に対して**足りないStarterと要らないStarter**を報告してください。\n\n1行目に要件の数r、続けてr行の要件を読みます。次に依存の行数nを読み、`pom.xml` から抜き出したn行を読みます。\n\n```\n2\nREST_API\nDB_CRUD\n3\n    <artifactId>spring-boot-starter-web</artifactId>\n    <artifactId>spring-boot-starter-test</artifactId>\n    <artifactId>spring-boot-starter-batch</artifactId>\n```\n\n要件と必要なStarterの対応はこうです。\n\n| 要件 | Starter |\n|---|---|\n| `REST_API` | `spring-boot-starter-web` |\n| `DB_CRUD` | `spring-boot-starter-data-jpa` |\n| `LOGIN` | `spring-boot-starter-security` |\n| `NIGHTLY_IMPORT` | `spring-boot-starter-batch` |\n| `OPS` | `spring-boot-starter-actuator` |\n\n次を辞書順に表示してください。両方とも無ければ `OK` と表示します。\n\n- 要件に必要なのに宣言されていないものを `MISSING <artifactId>`\n- `spring-boot-starter-` で始まるのに、どの要件にも対応しないものを `UNUSED <artifactId>`\n\n**`spring-boot-starter-test` は要件に関係なく `UNUSED` にしません。** テストは常に書くもので、`scope` が `test` なので配布物にも混ざりません。\n\n上の例では `MISSING spring-boot-starter-data-jpa` と `UNUSED spring-boot-starter-batch` の2行になります。\n\n> 使わないStarterを残すと、ビルド時間と攻撃面が増えるだけでなく、**クラスパスにあるだけで自動構成が動いてしまう**ことがあります。",
-      "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] a) {\n        Scanner sc = new Scanner(System.in);\n        int r = Integer.parseInt(sc.nextLine().trim());\n        Set<String> needed = new TreeSet<>();\n        for (int i = 0; i < r; i++) {\n            String requirement = sc.nextLine().trim();\n            /* TODO 要件を必要なStarterへ変換して needed へ入れる */\n        }\n        int n = Integer.parseInt(sc.nextLine().trim());\n        Set<String> declared = new TreeSet<>();\n        for (int i = 0; i < n; i++) {\n            String line = sc.nextLine();\n            /* TODO <artifactId>...</artifactId> の中身を取り出す */\n        }\n        /* TODO 足りないもの・要らないものを辞書順に表示する。無ければ OK */\n    }\n}\n",
-      "visibleCases": [
-        {
-          "label": "不足1件と不要1件",
-          "stdin": "2\nREST_API\nDB_CRUD\n3\n    <artifactId>spring-boot-starter-web</artifactId>\n    <artifactId>spring-boot-starter-test</artifactId>\n    <artifactId>spring-boot-starter-batch</artifactId>\n",
-          "expected": "MISSING spring-boot-starter-data-jpa\nUNUSED spring-boot-starter-batch"
-        },
-        {
-          "label": "要件を満たしていて不要も無い",
-          "stdin": "1\nOPS\n2\n    <artifactId>spring-boot-starter-actuator</artifactId>\n    <artifactId>spring-boot-starter-test</artifactId>\n",
-          "expected": "OK"
-        }
-      ],
-      "hiddenCases": [
-        {
-          "label": "starterで始まらない依存は対象外",
-          "stdin": "1\nREST_API\n3\n    <artifactId>spring-boot-starter-web</artifactId>\n    <artifactId>postgresql</artifactId>\n    <artifactId>lombok</artifactId>\n",
-          "expected": "OK"
-        },
-        {
-          "label": "要件の分だけ不足する",
-          "stdin": "2\nLOGIN\nNIGHTLY_IMPORT\n1\n    <artifactId>spring-boot-starter-test</artifactId>\n",
-          "expected": "MISSING spring-boot-starter-batch\nMISSING spring-boot-starter-security"
-        },
-        {
-          "label": "不足と不要が混ざり辞書順に並ぶ",
-          "stdin": "1\nDB_CRUD\n2\n    <artifactId>spring-boot-starter-security</artifactId>\n    <artifactId>spring-boot-starter-actuator</artifactId>\n",
-          "expected": "MISSING spring-boot-starter-data-jpa\nUNUSED spring-boot-starter-actuator\nUNUSED spring-boot-starter-security"
-        },
-        {
-          "label": "同じStarterが2回宣言されている",
-          "stdin": "1\nREST_API\n2\n    <artifactId>spring-boot-starter-web</artifactId>\n    <artifactId>spring-boot-starter-web</artifactId>\n",
-          "expected": "OK"
-        }
-      ],
-      "hints": [
-        "`<artifactId>` と `</artifactId>` の間を取り出します。`indexOf` で開始と終了の位置を探すと、字下げに関係なく切り出せます。",
-        "「足りない」は要件側から、「要らない」は宣言側から見ます。方向が逆なので、2つの集合を作って両方向に照らし合わせます。`spring-boot-starter-test` の例外を忘れないこと。"
-      ],
-      "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] a) {\n        Scanner sc = new Scanner(System.in);\n        Map<String, String> forRequirement = Map.of(\n                \"REST_API\", \"spring-boot-starter-web\",\n                \"DB_CRUD\", \"spring-boot-starter-data-jpa\",\n                \"LOGIN\", \"spring-boot-starter-security\",\n                \"NIGHTLY_IMPORT\", \"spring-boot-starter-batch\",\n                \"OPS\", \"spring-boot-starter-actuator\");\n\n        int r = Integer.parseInt(sc.nextLine().trim());\n        Set<String> needed = new TreeSet<>();\n        for (int i = 0; i < r; i++) {\n            String starter = forRequirement.get(sc.nextLine().trim());\n            if (starter != null) needed.add(starter);\n        }\n        int n = Integer.parseInt(sc.nextLine().trim());\n        Set<String> declared = new TreeSet<>();\n        for (int i = 0; i < n; i++) {\n            declared.add(between(sc.nextLine(), \"<artifactId>\", \"</artifactId>\"));\n        }\n\n        List<String> report = new ArrayList<>();\n        for (String starter : needed) {\n            if (!declared.contains(starter)) report.add(\"MISSING \" + starter);\n        }\n        for (String starter : declared) {\n            if (!starter.startsWith(\"spring-boot-starter-\")) continue;\n            if (starter.equals(\"spring-boot-starter-test\")) continue;   // テストは常に必要\n            if (!needed.contains(starter)) report.add(\"UNUSED \" + starter);\n        }\n        if (report.isEmpty()) {\n            System.out.println(\"OK\");\n        } else {\n            Collections.sort(report);\n            report.forEach(System.out::println);\n        }\n    }\n\n    static String between(String line, String open, String close) {\n        int from = line.indexOf(open) + open.length();\n        return line.substring(from, line.indexOf(close, from)).trim();\n    }\n}\n",
-      "kind": "drill",
-      "extraTasks": [],
       "quiz": [
         {
           "question": "Spring Securityを追加した直後にも設計が必要なものはどれですか？",
@@ -393,126 +320,35 @@
           ],
           "answer": 1,
           "explanation": "リクエスト全体を囲むと、外部API呼び出しの待ち時間までDB接続と行ロックを保持します。Repositoryのメソッド単位や行単位で区切ると、一緒に成功しなければ意味がない更新が分かれてしまいます。境界は「注文確定」のように、**一緒に成功または失敗させたい業務操作**へ置きます。"
+        },
+        {
+          "question": "REST APIとhealth endpointだけが必要で、DBやbatchは使いません。Starter選択として適切なのはどれでしょう。",
+          "choices": [
+            "webとactuatorだけを選ぶ",
+            "利用可能なStarterをまとめて追加する",
+            "starter-testを本番runtime scopeへ変える",
+            "Starterを使わずJDK内部APIだけで置き換える"
+          ],
+          "answer": 0,
+          "explanation": "要件に対応するWebとActuatorを選び、使わないStarterによる自動構成や依存の増加を避けます。"
         }
       ],
-      "rubric": [
-        "implement"
-      ]
+      "lessonType": "concept"
     },
     {
       "id": "60-5",
       "title": "目的ごとにテスト範囲を選ぶ",
       "objectiveIds": [
+        "ch60-o1",
+        "ch60-o2",
         "ch60-o4"
       ],
-      "explanation": "Spring Bootのテストは、大きいテストだけで全部を確認するより、失敗原因を絞れる小さなテストと本番に近い結合テストを組み合わせます。\n\n- 通常のJUnit: Serviceなどの純粋な業務ロジックを、Springを起動せず高速に確認します。依存先は小さなstubやfakeを自作しても構いません。Mockitoは置き換えが多いときの選択肢であり、最初から必須ではありません。\n- `@WebMvcTest`: Controller、JSON変換、入力検証などWeb層だけを読みます。`MockMvc`は実サーバーを起動せずHTTP境界を確認します。Serviceはfakeなどをテスト用Beanとして渡します。\n- `@DataJpaTest`: EntityやRepositoryとDBアクセスを中心に確認します。実DB固有のSQLや制約があるなら、対象DBをTestcontainers（DockerまたはPodmanのコンテナでテスト用DBなどを起動・停止するライブラリ）で起動する結合テストも必要です。\n- `@SpringBootTest`: アプリ全体の構成やBeanの接続を確認します。起動が重いので、すべての細かな分岐をここだけで調べないようにします。\n\nテストは正常系だけでなく、空入力、境界値、対象なし、権限不足、DB障害などを確認します。時刻はClock、乱数は生成器、外部通信はfakeやテスト用サーバーとして差し替え、待ち時間や実行順に依存する不安定なテストを避けます。テストデータは各テストが自分で準備し、自分で後片付けすることで並列実行にも耐えられます。",
+      "explanation": "Spring Bootのテストは、大きいテストだけで全部を確認するより、失敗原因を絞れる小さなテストと本番に近い結合テストを組み合わせます。\n\n- 通常のJUnit: Serviceなどの純粋な業務ロジックを、Springを起動せず高速に確認します。依存先は小さなstubやfakeを自作しても構いません。Mockitoは置き換えが多いときの選択肢であり、最初から必須ではありません。\n- `@WebMvcTest`: Controller、JSON変換、入力検証などWeb層だけを読みます。`MockMvc`は実サーバーを起動せずHTTP境界を確認します。Serviceはfakeなどをテスト用Beanとして渡します。\n- `@DataJpaTest`: EntityやRepositoryとDBアクセスを中心に確認します。実DB固有のSQLや制約があるなら、対象DBをTestcontainers（DockerまたはPodmanのコンテナでテスト用DBなどを起動・停止するライブラリ）で起動する結合テストも必要です。\n- `@SpringBootTest`: アプリ全体の構成やBeanの接続を確認します。起動が重いので、すべての細かな分岐をここだけで調べないようにします。\n\nテストは正常系だけでなく、空入力、境界値、対象なし、権限不足、DB障害などを確認します。時刻はClock、乱数は生成器、外部通信はfakeやテスト用サーバーとして差し替え、待ち時間や実行順に依存する不安定なテストを避けます。テストデータは各テストが自分で準備し、自分で後片付けすることで並列実行にも耐えられます。\n\n必須演習ではSpring Boot projectのpom.xml、Controller、Service、設定、testを複数ファイルで完成させ、HTTP validationとhealthを実際に検証します。annotation一覧をJavaで分類する問題は任意です。",
       "samples": [
         {
           "caption": "考え方を標準Javaで確かめる",
           "code": "import java.util.*;\n\npublic class Main {\n    static String scope(String target) {\n        return switch (target) {\n            case \"logic\" -> \"JUnit\";\n            case \"controller\" -> \"WebMvcTest\";\n            case \"repository\" -> \"DataJpaTest\";\n            default -> \"SpringBootTest\";\n        };\n    }\n\n    public static void main(String[] args) {\n        System.out.println(scope(\"controller\"));\n    }\n}",
           "expected": "WebMvcTest"
-        }
-      ],
-      "task": "テストクラスの一覧を読んで、**テスト範囲が広すぎ・狭すぎになっていないか**を判定してください。\n\n1行目に件数nを読み、続けてn行を `クラス名 アノテーション 確かめる対象` の形で読みます。アノテーションが無い（素のJUnitだけの）場合は `none` と書かれています。\n\n```\n3\nPriceRuleTest none SERVICE_RULE\nOrderApiTest @SpringBootTest JSON_VALIDATION\nStockRepositoryTest @DataJpaTest REPOSITORY_QUERY\n```\n\n対象ごとに、**必要最小の範囲**は決まっています。\n\n| 確かめる対象 | 最小の範囲 | 広さ |\n|---|---|---:|\n| `SERVICE_RULE` | `none`（素のJUnit） | 0 |\n| `JSON_VALIDATION` | `@WebMvcTest` | 1 |\n| `REPOSITORY_QUERY` | `@DataJpaTest` | 1 |\n| `FULL_FLOW` | `@SpringBootTest` | 2 |\n\n入力順に、クラスごとの判定を表示してください。\n\n- 最小の範囲と一致 → `クラス名 OK`\n- 実際の広さが大きい → `クラス名 TOO_WIDE 最小の範囲`\n- 実際の広さが小さい → `クラス名 TOO_NARROW 最小の範囲`\n- 広さは同じだが範囲の**切り口が違う** → `クラス名 WRONG_SLICE 最小の範囲`\n\n上の例の答えはこうなります。\n\n```\nPriceRuleTest OK\nOrderApiTest TOO_WIDE @WebMvcTest\nStockRepositoryTest OK\n```\n\n> 範囲を広げれば確実になるわけではありません。`@SpringBootTest` は起動が遅く、失敗したときに原因の場所も絞りにくくなります。**確かめたいものに必要な最小の範囲**を選びます。",
-      "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] a) {\n        Scanner sc = new Scanner(System.in);\n        int n = Integer.parseInt(sc.nextLine().trim());\n        for (int i = 0; i < n; i++) {\n            String[] parts = sc.nextLine().trim().split(\"\\\\s+\");\n            String name = parts[0], actual = parts[1], target = parts[2];\n            /* TODO 対象から最小の範囲を求める */\n            /* TODO 広さを比べて OK / TOO_WIDE / TOO_NARROW / WRONG_SLICE を決める */\n        }\n    }\n}\n",
-      "visibleCases": [
-        {
-          "label": "1件だけ範囲が広すぎる",
-          "stdin": "3\nPriceRuleTest none SERVICE_RULE\nOrderApiTest @SpringBootTest JSON_VALIDATION\nStockRepositoryTest @DataJpaTest REPOSITORY_QUERY\n",
-          "expected": "PriceRuleTest OK\nOrderApiTest TOO_WIDE @WebMvcTest\nStockRepositoryTest OK"
-        },
-        {
-          "label": "2件とも適切",
-          "stdin": "2\nCheckoutFlowTest @SpringBootTest FULL_FLOW\nTaxTest none SERVICE_RULE\n",
-          "expected": "CheckoutFlowTest OK\nTaxTest OK"
-        }
-      ],
-      "hiddenCases": [
-        {
-          "label": "素のJUnitでJSONは確かめられない",
-          "stdin": "1\nApiTest none JSON_VALIDATION\n",
-          "expected": "ApiTest TOO_NARROW @WebMvcTest"
-        },
-        {
-          "label": "広さは同じで切り口が違う",
-          "stdin": "2\nRepoTest @WebMvcTest REPOSITORY_QUERY\nWebTest @DataJpaTest JSON_VALIDATION\n",
-          "expected": "RepoTest WRONG_SLICE @DataJpaTest\nWebTest WRONG_SLICE @WebMvcTest"
-        },
-        {
-          "label": "広すぎと狭すぎが混ざる",
-          "stdin": "2\nFlowTest @WebMvcTest FULL_FLOW\nRuleTest @DataJpaTest SERVICE_RULE\n",
-          "expected": "FlowTest TOO_NARROW @SpringBootTest\nRuleTest TOO_WIDE none"
-        },
-        {
-          "label": "入力順を保つ",
-          "stdin": "3\nCTest none SERVICE_RULE\nATest @SpringBootTest FULL_FLOW\nBTest @WebMvcTest JSON_VALIDATION\n",
-          "expected": "CTest OK\nATest OK\nBTest OK"
-        }
-      ],
-      "hints": [
-        "対象から「最小の範囲」を引く表と、範囲から「広さ」を引く表の2つを用意すると、判定は広さの比較だけになります。",
-        "広さが同じで名前が違う場合が `WRONG_SLICE` です。`@WebMvcTest` と `@DataJpaTest` はどちらも広さ1ですが、切り取る場所（HTTP境界と永続化）が違います。"
-      ],
-      "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] a) {\n        Scanner sc = new Scanner(System.in);\n        Map<String, String> smallest = Map.of(\n                \"SERVICE_RULE\", \"none\",\n                \"JSON_VALIDATION\", \"@WebMvcTest\",\n                \"REPOSITORY_QUERY\", \"@DataJpaTest\",\n                \"FULL_FLOW\", \"@SpringBootTest\");\n        Map<String, Integer> width = Map.of(\n                \"none\", 0, \"@WebMvcTest\", 1, \"@DataJpaTest\", 1, \"@SpringBootTest\", 2);\n\n        int n = Integer.parseInt(sc.nextLine().trim());\n        for (int i = 0; i < n; i++) {\n            String[] parts = sc.nextLine().trim().split(\"\\\\s+\");\n            String name = parts[0], actual = parts[1], target = parts[2];\n            String expected = smallest.get(target);\n            String verdict;\n            if (actual.equals(expected)) {\n                verdict = \"OK\";\n            } else if (width.get(actual) > width.get(expected)) {\n                verdict = \"TOO_WIDE \" + expected;\n            } else if (width.get(actual) < width.get(expected)) {\n                verdict = \"TOO_NARROW \" + expected;\n            } else {\n                verdict = \"WRONG_SLICE \" + expected;      // 広さは同じで切り口が違う\n            }\n            System.out.println(name + \" \" + verdict);\n        }\n    }\n}\n",
-      "kind": "drill",
-      "extraTasks": [
-        {
-          "objectiveIds": [
-            "ch60-o1",
-            "ch60-o2",
-            "ch60-o4"
-          ],
-          "kind": "applied",
-          "type": "project",
-          "task": "【複数ファイル演習】Spring Bootの挨拶APIを完成させてください。`pom.xml`でWeb、Validation、Actuator、テストに必要なStarterを選び、ControllerはServiceをコンストラクタ注入して、空白と21文字以上のnameをHTTP 400にします。ServiceはSpringのBeanにして外部設定からprefixを受け取り、名前の前後空白を除いてください。\n\n`GreetingControllerTest`は`@SpringBootTest`ではなく`@WebMvcTest`と`MockMvc`を使い、正常、空白、長すぎる入力を検証します。`GreetingServiceTest`はSpringを起動しないJUnitテストのまま完成させます。編集できる6ファイルを一時Mavenプロジェクトへ反映し、参照専用の要件テストを含む`mvn test`がすべて通れば合格です。",
-          "project": {
-            "name": "spring-boot-controller-service-testing",
-            "source": "labs/frameworks/spring-boot/project-exercise",
-            "exclude": [
-              "reference"
-            ],
-            "command": [
-              "mvn",
-              "test"
-            ],
-            "timeoutSeconds": 60,
-            "verification": "Starter、constructor injection、Validation、外部設定、@WebMvcTest、Service単体テストをmvn testで確認する",
-            "editableFiles": [
-              {
-                "path": "pom.xml",
-                "solutionPath": "reference/pom.xml"
-              },
-              {
-                "path": "src/main/java/example/greeting/GreetingController.java",
-                "solutionPath": "reference/src/main/java/example/greeting/GreetingController.java"
-              },
-              {
-                "path": "src/main/java/example/greeting/GreetingService.java",
-                "solutionPath": "reference/src/main/java/example/greeting/GreetingService.java"
-              },
-              {
-                "path": "src/main/resources/application.properties",
-                "solutionPath": "reference/src/main/resources/application.properties"
-              },
-              {
-                "path": "src/test/java/example/greeting/GreetingControllerTest.java",
-                "solutionPath": "reference/src/test/java/example/greeting/GreetingControllerTest.java"
-              },
-              {
-                "path": "src/test/java/example/greeting/GreetingServiceTest.java",
-                "solutionPath": "reference/src/test/java/example/greeting/GreetingServiceTest.java"
-              }
-            ]
-          },
-          "hints": [
-            "`pom.xml`には`spring-boot-starter-validation`、`spring-boot-starter-actuator`、test scopeの`spring-boot-starter-webmvc-test`が必要です。Spring Boot parentが各versionを管理するため個別versionは書きません。",
-            "Controllerの`final GreetingService`はコンストラクタ引数で受け取ります。`@RequestParam`へ`@NotBlank`と`@Size(max = 20)`を付け、ServiceへHTTPの責務を持ち込まないでください。",
-            "`@WebMvcTest(GreetingController.class)`へServiceを`@Import`し、MockMvcでstatusとJSONを検証します。Serviceの文字列組み立ては普通のJUnitから直接newして確認できます。"
-          ],
-          "rubric": [
-            "implement",
-            "test"
-          ]
         }
       ],
       "quiz": [
@@ -539,9 +375,106 @@
           "explanation": "privateメソッドを直接呼ぶのは内部実装へ結び付くので避けます。呼び出し順を1つずつ固定すると、振る舞いが同じリファクタリングでもテストが壊れます。固定の待ち時間は不安定なテストの原因です。まず「どの境界を、なぜ置き換えるのか」を理解すれば、手書きのstubやfakeとMockitoを場面で選べます。"
         }
       ],
+      "kind": "applied",
+      "type": "project",
+      "task": "【複数ファイル演習】Spring Bootの挨拶APIを完成させてください。`pom.xml`でWeb、Validation、Actuator、テストに必要なStarterを選び、ControllerはServiceをコンストラクタ注入して、空白と21文字以上のnameをHTTP 400にします。ServiceはSpringのBeanにして外部設定からprefixを受け取り、名前の前後空白を除いてください。\n\n`GreetingControllerTest`は`@SpringBootTest`ではなく`@WebMvcTest`と`MockMvc`を使い、正常、空白、長すぎる入力を検証します。`GreetingServiceTest`はSpringを起動しないJUnitテストのまま完成させます。編集できる6ファイルを一時Mavenプロジェクトへ反映し、参照専用の要件テストを含む`mvn test`がすべて通れば合格です。",
+      "project": {
+        "name": "spring-boot-controller-service-testing",
+        "source": "labs/frameworks/spring-boot/project-exercise",
+        "exclude": [
+          "reference"
+        ],
+        "command": [
+          "mvn",
+          "test"
+        ],
+        "timeoutSeconds": 60,
+        "verification": "Starter、constructor injection、Validation、外部設定、@WebMvcTest、Service単体テストをmvn testで確認する",
+        "editableFiles": [
+          {
+            "path": "pom.xml",
+            "solutionPath": "reference/pom.xml"
+          },
+          {
+            "path": "src/main/java/example/greeting/GreetingController.java",
+            "solutionPath": "reference/src/main/java/example/greeting/GreetingController.java"
+          },
+          {
+            "path": "src/main/java/example/greeting/GreetingService.java",
+            "solutionPath": "reference/src/main/java/example/greeting/GreetingService.java"
+          },
+          {
+            "path": "src/main/resources/application.properties",
+            "solutionPath": "reference/src/main/resources/application.properties"
+          },
+          {
+            "path": "src/test/java/example/greeting/GreetingControllerTest.java",
+            "solutionPath": "reference/src/test/java/example/greeting/GreetingControllerTest.java"
+          },
+          {
+            "path": "src/test/java/example/greeting/GreetingServiceTest.java",
+            "solutionPath": "reference/src/test/java/example/greeting/GreetingServiceTest.java"
+          }
+        ]
+      },
+      "hints": [
+        "`pom.xml`には`spring-boot-starter-validation`、`spring-boot-starter-actuator`、test scopeの`spring-boot-starter-webmvc-test`が必要です。Spring Boot parentが各versionを管理するため個別versionは書きません。",
+        "Controllerの`final GreetingService`はコンストラクタ引数で受け取ります。`@RequestParam`へ`@NotBlank`と`@Size(max = 20)`を付け、ServiceへHTTPの責務を持ち込まないでください。",
+        "`@WebMvcTest(GreetingController.class)`へServiceを`@Import`し、MockMvcでstatusとJSONを検証します。Serviceの文字列組み立ては普通のJUnitから直接newして確認できます。"
+      ],
       "rubric": [
         "implement",
         "test"
+      ],
+      "extraTasks": [
+        {
+          "objectiveIds": [
+            "ch60-o4"
+          ],
+          "kind": "applied",
+          "required": false,
+          "task": "【任意・test annotationをJavaで分類する練習】Spring Boot projectのtestを実行した後、表の判定も復習したい場合だけ取り組みます。章クリア・★・カフェ報酬・復習の対象外です。\n\nテストクラスの一覧を読んで、**テスト範囲が広すぎ・狭すぎになっていないか**を判定してください。\n\n1行目に件数nを読み、続けてn行を `クラス名 アノテーション 確かめる対象` の形で読みます。アノテーションが無い（素のJUnitだけの）場合は `none` と書かれています。\n\n```\n3\nPriceRuleTest none SERVICE_RULE\nOrderApiTest @SpringBootTest JSON_VALIDATION\nStockRepositoryTest @DataJpaTest REPOSITORY_QUERY\n```\n\n対象ごとに、**必要最小の範囲**は決まっています。\n\n| 確かめる対象 | 最小の範囲 | 広さ |\n|---|---|---:|\n| `SERVICE_RULE` | `none`（素のJUnit） | 0 |\n| `JSON_VALIDATION` | `@WebMvcTest` | 1 |\n| `REPOSITORY_QUERY` | `@DataJpaTest` | 1 |\n| `FULL_FLOW` | `@SpringBootTest` | 2 |\n\n入力順に、クラスごとの判定を表示してください。\n\n- 最小の範囲と一致 → `クラス名 OK`\n- 実際の広さが大きい → `クラス名 TOO_WIDE 最小の範囲`\n- 実際の広さが小さい → `クラス名 TOO_NARROW 最小の範囲`\n- 広さは同じだが範囲の**切り口が違う** → `クラス名 WRONG_SLICE 最小の範囲`\n\n上の例の答えはこうなります。\n\n```\nPriceRuleTest OK\nOrderApiTest TOO_WIDE @WebMvcTest\nStockRepositoryTest OK\n```\n\n> 範囲を広げれば確実になるわけではありません。`@SpringBootTest` は起動が遅く、失敗したときに原因の場所も絞りにくくなります。**確かめたいものに必要な最小の範囲**を選びます。",
+          "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] a) {\n        Scanner sc = new Scanner(System.in);\n        int n = Integer.parseInt(sc.nextLine().trim());\n        for (int i = 0; i < n; i++) {\n            String[] parts = sc.nextLine().trim().split(\"\\\\s+\");\n            String name = parts[0], actual = parts[1], target = parts[2];\n            /* TODO 対象から最小の範囲を求める */\n            /* TODO 広さを比べて OK / TOO_WIDE / TOO_NARROW / WRONG_SLICE を決める */\n        }\n    }\n}\n",
+          "visibleCases": [
+            {
+              "label": "1件だけ範囲が広すぎる",
+              "stdin": "3\nPriceRuleTest none SERVICE_RULE\nOrderApiTest @SpringBootTest JSON_VALIDATION\nStockRepositoryTest @DataJpaTest REPOSITORY_QUERY\n",
+              "expected": "PriceRuleTest OK\nOrderApiTest TOO_WIDE @WebMvcTest\nStockRepositoryTest OK"
+            },
+            {
+              "label": "2件とも適切",
+              "stdin": "2\nCheckoutFlowTest @SpringBootTest FULL_FLOW\nTaxTest none SERVICE_RULE\n",
+              "expected": "CheckoutFlowTest OK\nTaxTest OK"
+            }
+          ],
+          "hiddenCases": [
+            {
+              "label": "素のJUnitでJSONは確かめられない",
+              "stdin": "1\nApiTest none JSON_VALIDATION\n",
+              "expected": "ApiTest TOO_NARROW @WebMvcTest"
+            },
+            {
+              "label": "広さは同じで切り口が違う",
+              "stdin": "2\nRepoTest @WebMvcTest REPOSITORY_QUERY\nWebTest @DataJpaTest JSON_VALIDATION\n",
+              "expected": "RepoTest WRONG_SLICE @DataJpaTest\nWebTest WRONG_SLICE @WebMvcTest"
+            },
+            {
+              "label": "広すぎと狭すぎが混ざる",
+              "stdin": "2\nFlowTest @WebMvcTest FULL_FLOW\nRuleTest @DataJpaTest SERVICE_RULE\n",
+              "expected": "FlowTest TOO_NARROW @SpringBootTest\nRuleTest TOO_WIDE none"
+            },
+            {
+              "label": "入力順を保つ",
+              "stdin": "3\nCTest none SERVICE_RULE\nATest @SpringBootTest FULL_FLOW\nBTest @WebMvcTest JSON_VALIDATION\n",
+              "expected": "CTest OK\nATest OK\nBTest OK"
+            }
+          ],
+          "hints": [
+            "対象から「最小の範囲」を引く表と、範囲から「広さ」を引く表の2つを用意すると、判定は広さの比較だけになります。",
+            "広さが同じで名前が違う場合が `WRONG_SLICE` です。`@WebMvcTest` と `@DataJpaTest` はどちらも広さ1ですが、切り取る場所（HTTP境界と永続化）が違います。"
+          ],
+          "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] a) {\n        Scanner sc = new Scanner(System.in);\n        Map<String, String> smallest = Map.of(\n                \"SERVICE_RULE\", \"none\",\n                \"JSON_VALIDATION\", \"@WebMvcTest\",\n                \"REPOSITORY_QUERY\", \"@DataJpaTest\",\n                \"FULL_FLOW\", \"@SpringBootTest\");\n        Map<String, Integer> width = Map.of(\n                \"none\", 0, \"@WebMvcTest\", 1, \"@DataJpaTest\", 1, \"@SpringBootTest\", 2);\n\n        int n = Integer.parseInt(sc.nextLine().trim());\n        for (int i = 0; i < n; i++) {\n            String[] parts = sc.nextLine().trim().split(\"\\\\s+\");\n            String name = parts[0], actual = parts[1], target = parts[2];\n            String expected = smallest.get(target);\n            String verdict;\n            if (actual.equals(expected)) {\n                verdict = \"OK\";\n            } else if (width.get(actual) > width.get(expected)) {\n                verdict = \"TOO_WIDE \" + expected;\n            } else if (width.get(actual) < width.get(expected)) {\n                verdict = \"TOO_NARROW \" + expected;\n            } else {\n                verdict = \"WRONG_SLICE \" + expected;      // 広さは同じで切り口が違う\n            }\n            System.out.println(name + \" \" + verdict);\n        }\n    }\n}\n"
+        }
       ]
     },
     {

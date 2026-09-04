@@ -64,6 +64,7 @@ def measure():
     m = {
         "chapters": 0, "lessons": 0, "required": 0, "optional": 0,
         "concept": 0, "preflight": 0, "quizzes": 0, "quiz_lessons": 0,
+        "quiz_zero_lessons": 0, "quiz_one_lessons": 0, "quiz_multiple_lessons": 0,
         "objectives": 0, "source_checks": 0, "rubric_tasks": 0,
         "cases": 0, "hidden_cases": 0,
     }
@@ -87,6 +88,12 @@ def measure():
             m["quizzes"] += quizzes
             if quizzes:
                 m["quiz_lessons"] += 1
+            if quizzes == 0:
+                m["quiz_zero_lessons"] += 1
+            elif quizzes == 1:
+                m["quiz_one_lessons"] += 1
+            else:
+                m["quiz_multiple_lessons"] += 1
             if lesson.get("lessonType") == "concept":
                 m["concept"] += 1
             if lesson.get("lessonType") == "preflight" or lesson.get("preflight"):
@@ -154,8 +161,10 @@ def checks(m):
          r"\*\*4択の確認クイズ\*\* は全(\d+)問で、\*\*章あたり(\d+)〜(\d+)問\*\*",
          [m["quizzes"], m["quiz_min"], m["quiz_max"]]),
         ("クイズを置いたレッスン数",
-         r"(\d+)レッスンのうち\*\*(\d+)レッスン\*\*に1〜6問",
-         [m["lessons"], m["quiz_lessons"]]),
+         r"(\d+)レッスンのうち\*\*(\d+)レッスン\*\*に1問以上置いてあり"
+         r"（1問だけ(\d+)レッスン、複数問(\d+)レッスン）、残り(\d+)レッスンには0問",
+         [m["lessons"], m["quiz_lessons"], m["quiz_one_lessons"],
+          m["quiz_multiple_lessons"], m["quiz_zero_lessons"]]),
         ("事前確認と概念レッスンの数",
          r"このうち(\d+)レッスンは★対象外の環境事前確認で、(\d+)レッスンはクイズだけで",
          [m["preflight"], m["concept"]]),
@@ -211,7 +220,8 @@ def main():
     if "--list" in sys.argv:
         print("content/ から数え直した値:")
         for key in ("chapters", "lessons", "required", "optional", "stars", "concept",
-                    "preflight", "quizzes", "quiz_lessons", "quiz_min", "quiz_max",
+                    "preflight", "quizzes", "quiz_lessons", "quiz_zero_lessons",
+                    "quiz_one_lessons", "quiz_multiple_lessons", "quiz_min", "quiz_max",
                     "objectives", "source_checks", "rubric_tasks", "cases", "hidden_cases"):
             print(f"  {key:14} {m[key]}")
         print(f"  labels         {m['labels']}")

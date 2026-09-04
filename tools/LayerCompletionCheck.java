@@ -8,7 +8,9 @@ import jq.progress.ProgressStore;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 /**
@@ -167,14 +169,18 @@ public final class LayerCompletionCheck {
             return;
         }
 
+        Map<String, List<String>> oldKeysByLesson = migratedTaskKeysByLesson();
         Path dir = Files.createTempDirectory("jq-concept-migrate-");
         Path file = dir.resolve("progress.json");
         try {
             StringBuilder json = new StringBuilder("{\n  \"cleared\": {\n");
-            for (int i = 0; i < converted.size(); i++) {
-                json.append("    \"").append(converted.get(i)).append("#1\": ")
+            List<String> allOldKeys = converted.stream()
+                    .flatMap(id -> oldKeysByLesson.get(id).stream())
+                    .toList();
+            for (int i = 0; i < allOldKeys.size(); i++) {
+                json.append("    \"").append(allOldKeys.get(i)).append("\": ")
                         .append("{\"clearedAt\": \"2026-08-01\", \"hintsUsed\": 0, \"attempts\": 1}")
-                        .append(i + 1 < converted.size() ? ",\n" : "\n");
+                        .append(i + 1 < allOldKeys.size() ? ",\n" : "\n");
             }
             json.append("  }\n}\n");
             Files.writeString(file, json.toString());
@@ -186,6 +192,29 @@ public final class LayerCompletionCheck {
                         "概念レッスンへ変えた " + lessonId + " の★が読み替えられていません");
                 check(!cleared.contains(lessonId + "#1"),
                         "古い問題キーが残っています: " + lessonId + "#1");
+            }
+
+            // 旧必須問題が複数あったレッスンは、1問でも未完了なら概念★へ昇格させない。
+            List<String> partial = oldKeysByLesson.entrySet().stream()
+                    .filter(entry -> entry.getValue().size() > 1)
+                    .map(Map.Entry::getKey)
+                    .toList();
+            Path partialFile = dir.resolve("partial.json");
+            StringBuilder partialJson = new StringBuilder("{\n  \"cleared\": {\n");
+            List<String> partialKeys = partial.stream()
+                    .flatMap(id -> oldKeysByLesson.get(id).stream().limit(1))
+                    .toList();
+            for (int i = 0; i < partialKeys.size(); i++) {
+                partialJson.append("    \"").append(partialKeys.get(i)).append("\": ")
+                        .append("{\"clearedAt\": \"2026-08-01\", \"hintsUsed\": 0, \"attempts\": 1}")
+                        .append(i + 1 < partialKeys.size() ? ",\n" : "\n");
+            }
+            partialJson.append("  }\n}\n");
+            Files.writeString(partialFile, partialJson.toString());
+            Set<String> partialCleared = new ProgressStore(partialFile).clearedIds();
+            for (String lessonId : partial) {
+                check(!partialCleared.contains(lessonId + "#q"),
+                        "途中までの旧進捗が概念レッスン完了へ昇格しました: " + lessonId);
             }
         } finally {
             deleteRecursively(dir);
@@ -199,11 +228,16 @@ public final class LayerCompletionCheck {
      * 読み替えへ足し忘れたときに**検査側も同じ抜け方をして気づけない**（実際に `53-5` で起きた）。
      */
     private static Set<String> migratedLessonIds() {
-        Set<String> ids = new HashSet<>();
-        for (String key : ProgressStore.conceptMigratedTaskKeys()) {
-            ids.add(key.substring(0, key.indexOf('#')));
-        }
-        return ids;
+        return migratedTaskKeysByLesson().keySet();
+    }
+
+    private static Map<String, List<String>> migratedTaskKeysByLesson() {
+        Map<String, List<String>> grouped = new LinkedHashMap<>();
+        ProgressStore.conceptMigratedTaskKeys().stream().sorted().forEach(key -> {
+            String lessonId = key.substring(0, key.indexOf('#'));
+            grouped.computeIfAbsent(lessonId, ignored -> new java.util.ArrayList<>()).add(key);
+        });
+        return Map.copyOf(grouped);
     }
 
     /**
@@ -241,8 +275,7 @@ public final class LayerCompletionCheck {
                 boolean isNew = NEW_CONCEPT_LESSON_IDS.contains(lesson.id());
                 check(isMigrated || isNew,
                         "概念レッスン " + lesson.id() + " がどちらの一覧にも入っていません"
-                                + "（提出課題を持っていたなら ProgressStore.CONCEPT_MIGRATED_TASK_KEYS へ "
-                                + lesson.id() + "#1 を足し、新しく書いたなら "
+                                + "（提出課題を持っていたなら ProgressStore の移行一覧へ旧必須問題数を足し、新しく書いたなら "
                                 + "LayerCompletionCheck.NEW_CONCEPT_LESSON_IDS へ足してください）");
                 check(!(isMigrated && isNew),
                         "概念レッスン " + lesson.id() + " が両方の一覧に入っています");

@@ -270,7 +270,8 @@ final class CafeCatalog {
                     200_000_000L, 240, 500_000_000L, "",
                     List.of(fx("equipment_discount", 20))),
 
-            // ここから2つは取得条件が重い。全問の3分の1以上の復習、または25問連続の無傷クリア。
+            // ここから2つは取得条件が重い。復習対象の必須課題600問の3分の1の復習、
+            // または25問連続の無傷クリア。
             new CafeItem("quiz_festival_pass", "復習ノート", "📖",
                     "復習で育つブランド倍率の成長が4倍になる",
                     110_000_000_000L, 0, 0L, "review_200",
@@ -283,7 +284,7 @@ final class CafeCatalog {
     /**
      * 達成型アイテムの解放条件。画面のカードにそのまま出す。
      *
-     * 下2つ（{@code review_200} / {@code flawless_25}）が重い条件。全574問の3分の1以上を
+     * 下2つ（{@code review_200} / {@code flawless_25}）が重い条件。復習対象の必須課題600問の3分の1を
      * 復習するか、25問を無傷で連続クリアしないと届かない。
      */
     static final Map<String, String> ACHIEVEMENT_NOTES = Map.ofEntries(

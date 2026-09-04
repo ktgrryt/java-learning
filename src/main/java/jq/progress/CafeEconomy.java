@@ -24,6 +24,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ThreadLocalRandom;
+import java.util.function.UnaryOperator;
 
 /**
  * Java Café の経済。売上・設備・アイテム・自動営業・店舗網・終盤投資の状態と規則を持つ。
@@ -184,7 +185,7 @@ final class CafeEconomy {
      * <b>途中の数字で係数を動かさず、content を直し終えてから測る。</b></p>
      */
     private static final long EXPANSION_CUBIC_COST = 57_000L;
-    /** 完成した章の問題1問あたりのブランド成長。全574問で約x10.76になる。 */
+    /** 完成した章の★1つあたりのブランド成長。現行647★の完走時はx12.00になる。 */
     private static final int BRAND_GROWTH_BASIS_POINTS_PER_TASK = 170;
     /**
      * 復習で再正解した問題1問あたりのブランド成長。
@@ -212,7 +213,7 @@ final class CafeEconomy {
      * 取得の重い2アイテムの条件。
      *
      * 12種のうちこの2つだけは、学習量ではなく「やり込み」で解放する。
-     * 復習ノートは全問の3分の1以上を復習したとき、生涯学習トロフィーは
+     * 復習ノートは現行の復習対象の必須課題600問の3分の1を復習したとき、生涯学習トロフィーは
      * ヒントなし・一発で25問続けたときに初めて現れる。
      */
     private static final int REVIEW_MASTERY_ITEM_TASKS = 200;
@@ -551,7 +552,7 @@ final class CafeEconomy {
     }
 
     /** 進捗ファイルの {@code cafe} を読む。 */
-    void loadFrom(Map<String, Object> root) {
+    void loadFrom(Map<String, Object> root, UnaryOperator<String> taskKeyMigration) {
         Map<String, Object> cafe = MiniJson.obj(root, "cafe");
         cafeCash = longOf(cafe, "cash", 0);
         cafeCups = longOf(cafe, "cups", 0);
@@ -604,7 +605,7 @@ final class CafeEconomy {
         cafeQuizFirstStreak = MiniJson.intOf(cafe, "quizFirstStreak", 0);
         for (Object o : MiniJson.list(cafe, "masteryTaskRun")) {
             if (o instanceof String s) {
-                cafeMasteryTaskRun.add(ProgressStore.migrateKey(s));
+                cafeMasteryTaskRun.add(taskKeyMigration.apply(s));
             }
         }
         for (Object o : MiniJson.list(cafe, "quizMasteryRun")) {
@@ -614,20 +615,20 @@ final class CafeEconomy {
         }
         for (Object o : MiniJson.list(cafe, "masteryTasks")) {
             if (o instanceof String s) {
-                cafeMasteryTasks.add(ProgressStore.migrateKey(s));
+                cafeMasteryTasks.add(taskKeyMigration.apply(s));
             }
         }
         cafeReviewPaidDay = MiniJson.str(cafe, "reviewPaidDay", "");
         for (Object o : MiniJson.list(cafe, "reviewPaidTasks")) {
             if (o instanceof String s2) {
-                cafeReviewPaidTasks.add(ProgressStore.migrateKey(s2));
+                cafeReviewPaidTasks.add(taskKeyMigration.apply(s2));
             }
         }
         cafeReviewEarlyPaid = Math.max(0, MiniJson.intOf(cafe, "reviewEarlyPaid", 0));
         cafeMasteryDay = MiniJson.str(cafe, "masteryDay", "");
         for (Object o : MiniJson.list(cafe, "masteryDayTasks")) {
             if (o instanceof String s) {
-                cafeMasteryDayTasks.add(ProgressStore.migrateKey(s));
+                cafeMasteryDayTasks.add(taskKeyMigration.apply(s));
             }
         }
         // quizMasteryRun（答え直し込みの連続正解）は経済25で廃止した。古い記録は読み捨てる。
@@ -1409,7 +1410,8 @@ final class CafeEconomy {
         changed |= award("store_5", cafeStores >= 5);
         changed |= award("persistent_clear",
                 learningRecord.maxAttemptsOnAnyTask() >= RETRY_ACHIEVEMENT_ATTEMPTS);
-        // 重い2つ。復習ノートは全574問の3分の1以上、トロフィーは25問連続の無傷クリア
+        // 重い2つ。復習ノートは現行の復習対象の必須課題600問の3分の1、
+        // トロフィーは25問連続の無傷クリア
         changed |= award("review_200", cafeMasteryTasks.size() >= REVIEW_MASTERY_ITEM_TASKS);
         changed |= award("flawless_25",
                 learningRecord.bestFlawlessRun() >= FLAWLESS_ITEM_RUN
@@ -1608,10 +1610,10 @@ final class CafeEconomy {
     /**
      * 復習が育てたブランド倍率ぶん。
      *
-     * <p>復習にコインは払わず、ここで倍率だけを育てる。1問につき1回しか数えないので
-     * （集合で持っている）、解き直しを繰り返しても増えない。倍率は<b>これから</b>の
-     * 報酬へ掛かるため、早く復習した人ほど得になる ―「間隔をあけて復習してほしい」
-     * という教材側の狙いと、報酬の形が一致する。</p>
+     * <p>期限が来た復習と、1日6問までの早めの復習には別途コインを払う。ここで育てる
+     * 倍率は期限にかかわらず、異なる問題1問につき1回だけ数える（集合で持っている）ため、
+     * 解き直しを繰り返しても増えない。倍率は<b>これから</b>の報酬へ掛かるので、早く復習した
+     * 人ほど得になる。</p>
      *
      * <p>1問あたりの上限は復習ノートの4倍が乗って160で、初回クリアの170を超えない。
      * この順序は {@code tools/simulate-cafe.sh} が検査する。</p>

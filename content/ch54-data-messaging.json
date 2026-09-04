@@ -199,115 +199,11 @@
       "objectiveIds": [
         "ch54-o2"
       ],
-      "explanation": "## アプリケーションとDBを同時に切り替えない\n\nローリングデプロイでは、旧版と新版が一時的に同居します。列名を変えるなら、まず新しい列をNULL可で追加し（expand）、両方へ書くか既存データを埋め（backfill）、読み取りを切り替え（migrate）、旧版がすべて消えたあとに古い列を削除します（contract）。大きなテーブルへのロックを伴うDDLは、所要時間と中止・切り戻しの手順を事前に測っておきます。\n\nFlywayやLiquibaseのような移行ツールは、適用履歴とチェックサムを管理します。すでに適用したファイルは書き換えず、新しい移行を足して前へ進みます。バックアップがあることと、切り戻せることは別の話です。破壊的な変更の前には、復元のリハーサルも行います。\n\n> 🧪 画面内問題は、段階と操作の対応です。`labs/integration-data` の `db/migration` には `V1`〜`V3` の番号付き移行があり、空のDBへV1から全部適用できるか、ローリングデプロイ中に旧版と新版が同居できるか、切り戻したあとにoutboxだけが残らないかを確認できます（`outbox`は`54-4`で扱います）。\n\n### expand → migrate → contract を具体で見る\n\n`db/migration` の `V2` は、こう書いてあります。\n\n```sql\n-- expand: 旧applicationも動けるよう、まず既定値つきで追加する。\nALTER TABLE customer ADD COLUMN status VARCHAR(20) NOT NULL DEFAULT 'ACTIVE';\n```\n\n`DEFAULT 'ACTIVE'` が付いているのが要点です。列の存在を知らない旧アプリの\n`INSERT INTO customer (email, display_name, created_at) VALUES (...)` が、\nこれなら通ります。\n\n段階はこうなります。\n\n| 段階 | DB | アプリ |\n|---|---|---|\n| expand | 列を **既定値つき** で追加 | 旧のまま（新しい列を知らない） |\n| migrate | 既存行の値を埋める | 新しいアプリを出す（両方の形を読める） |\n| contract | 制約を厳しくする・古い列を消す | 旧アプリはもう動いていない |\n\n**DBの変更とアプリの入れ替えを同時にやらない**のが目的です。ローリングデプロイ中は\n新旧のアプリが同時に動くので、どちらでも壊れない形を経由する必要があります。\n\n> ⚠️ 間違えやすい点 … `NOT NULL` を **既定値なしで** 足すと、その列を知らない旧アプリの\n> INSERTがその瞬間から落ちます。ロールバックしたくなっても、すでに新しい列に依存した\n> 行が書かれていると戻せません。「足すだけ」は安全に見えて、いちばん事故が多い操作です。\n> また、適用済みの移行ファイルを **後から書き換えない** こと（履歴のチェックサムが合わず、\n> 環境ごとに適用状態が食い違います）。\n\n> 🧪 アプリで確かめること / labs で動かすこと … この問題で確かめるのは移行を段階に分ける順序です。\n> 実DBへ移行を流すことは、1ファイル・標準入力だけのこの画面では扱えません。`labs/integration-data` に本物を置いてあります。",
+      "explanation": "## アプリケーションとDBを同時に切り替えない\n\nローリングデプロイでは、旧版と新版が一時的に同居します。列名を変えるなら、まず新しい列をNULL可で追加し（expand）、両方へ書くか既存データを埋め（backfill）、読み取りを切り替え（migrate）、旧版がすべて消えたあとに古い列を削除します（contract）。大きなテーブルへのロックを伴うDDLは、所要時間と中止・切り戻しの手順を事前に測っておきます。\n\nFlywayやLiquibaseのような移行ツールは、適用履歴とチェックサムを管理します。すでに適用したファイルは書き換えず、新しい移行を足して前へ進みます。バックアップがあることと、切り戻せることは別の話です。破壊的な変更の前には、復元のリハーサルも行います。\n\n> 🧪 画面内問題は、段階と操作の対応です。`labs/integration-data` の `db/migration` には `V1`〜`V3` の番号付き移行があり、空のDBへV1から全部適用できるか、ローリングデプロイ中に旧版と新版が同居できるか、切り戻したあとにoutboxだけが残らないかを確認できます（`outbox`は`54-4`で扱います）。\n\n### expand → migrate → contract を具体で見る\n\n`db/migration` の `V2` は、こう書いてあります。\n\n```sql\n-- expand: 旧applicationも動けるよう、まず既定値つきで追加する。\nALTER TABLE customer ADD COLUMN status VARCHAR(20) NOT NULL DEFAULT 'ACTIVE';\n```\n\n`DEFAULT 'ACTIVE'` が付いているのが要点です。列の存在を知らない旧アプリの\n`INSERT INTO customer (email, display_name, created_at) VALUES (...)` が、\nこれなら通ります。\n\n段階はこうなります。\n\n| 段階 | DB | アプリ |\n|---|---|---|\n| expand | 列を **既定値つき** で追加 | 旧のまま（新しい列を知らない） |\n| migrate | 既存行の値を埋める | 新しいアプリを出す（両方の形を読める） |\n| contract | 制約を厳しくする・古い列を消す | 旧アプリはもう動いていない |\n\n**DBの変更とアプリの入れ替えを同時にやらない**のが目的です。ローリングデプロイ中は\n新旧のアプリが同時に動くので、どちらでも壊れない形を経由する必要があります。\n\n> ⚠️ 間違えやすい点 … `NOT NULL` を **既定値なしで** 足すと、その列を知らない旧アプリの\n> INSERTがその瞬間から落ちます。ロールバックしたくなっても、すでに新しい列に依存した\n> 行が書かれていると戻せません。「足すだけ」は安全に見えて、いちばん事故が多い操作です。\n> また、適用済みの移行ファイルを **後から書き換えない** こと（履歴のチェックサムが合わず、\n> 環境ごとに適用状態が食い違います）。\n\n必須演習では実PostgreSQLへV1→V2→V3を適用し、V2を旧アプリのINSERTと両立するexpand変更へ直します。SQL文をJavaで分類する問題は任意です。",
       "samples": [
         {
           "caption": "expand → migrate → contract の順序",
           "code": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] a) {\n        List.of(\"expand\", \"migrate\", \"contract\").forEach(System.out::println);\n    }\n}\n"
-        }
-      ],
-      "task": "移行の計画を段階へ振り分けます。1行目に文の数 `n`、続く `n` 行に1文ずつSQLが与えられます（行の中に空白を含みます。大文字小文字は区別しません）。\n\n各文について段階を1行ずつ出力し、**上から順に**次の規則を当てて最初に当たったものを使います。\n\n| 文に含まれるもの | 段階 | なぜ |\n|---|---|---|\n| `DROP COLUMN` | `contract` | 旧版が読めなくなるので、旧版が消えたあと |\n| `SET NOT NULL` | `contract` | 制約を厳しくするのは最後 |\n| `ADD COLUMN` で `NOT NULL` が無い | `expand` | 列を知らない旧版のINSERTが通る |\n| `ADD COLUMN` で `NOT NULL` と `DEFAULT` の両方がある | `expand` | 既定値があるので旧版のINSERTが通る |\n| `ADD COLUMN` で `NOT NULL` があり `DEFAULT` が無い | `unsafe` | **旧版のINSERTがその瞬間から落ちる** |\n| `UPDATE` | `migrate` | 既存行を埋める |\n| どれにも当てはまらない | `unsafe` | 段階を決められない |\n\n最後に1行、並びが `expand` → `migrate` → `contract` の順（同じ段階の連続は可）になっていて `unsafe` が1つも無ければ `order=ok`、そうでなければ `order=ng` を出力してください。",
-      "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] a) {\n        Scanner sc = new Scanner(System.in);\n        int n = Integer.parseInt(sc.nextLine().trim());\n        for (int i = 0; i < n; i++) {\n            String sql = sc.nextLine().toUpperCase();\n            /* TODO 段階を決めて出力し、あとで順序を判定できるよう覚えておく */\n        }\n        /* TODO order=ok または order=ng */\n    }\n}\n",
-      "visibleCases": [
-        {
-          "label": "正しく段階を踏んだ計画",
-          "stdin": "4\nALTER TABLE customer ADD COLUMN status VARCHAR(20) NOT NULL DEFAULT 'ACTIVE'\nUPDATE customer SET status = 'ACTIVE' WHERE status IS NULL\nALTER TABLE customer ALTER COLUMN status SET NOT NULL\nALTER TABLE customer DROP COLUMN old_status\n",
-          "expected": "expand\nmigrate\ncontract\ncontract\norder=ok"
-        },
-        {
-          "label": "既定値なしのNOT NULLを足してしまった",
-          "stdin": "2\nALTER TABLE customer ADD COLUMN status VARCHAR(20) NOT NULL\nUPDATE customer SET status = 'ACTIVE'\n",
-          "expected": "unsafe\nmigrate\norder=ng"
-        }
-      ],
-      "hiddenCases": [
-        {
-          "label": "削除を先にやってしまった",
-          "stdin": "3\nALTER TABLE customer DROP COLUMN old_status\nALTER TABLE customer ADD COLUMN status VARCHAR(20) NULL\nUPDATE customer SET status = 'ACTIVE'\n",
-          "expected": "contract\nexpand\nmigrate\norder=ng"
-        },
-        {
-          "label": "NULL可の追加だけ",
-          "stdin": "1\nALTER TABLE customer ADD COLUMN memo VARCHAR(100) NULL\n",
-          "expected": "expand\norder=ok"
-        },
-        {
-          "label": "同じ段階が続くのは可",
-          "stdin": "3\nalter table customer add column status varchar(20) null\nalter table customer add column memo varchar(100) null\nupdate customer set status = 'ACTIVE'\n",
-          "expected": "expand\nexpand\nmigrate\norder=ok"
-        },
-        {
-          "label": "段階を決められない文",
-          "stdin": "2\nCREATE INDEX ix_status ON customer (status)\nUPDATE customer SET status = 'ACTIVE'\n",
-          "expected": "unsafe\nmigrate\norder=ng"
-        }
-      ],
-      "hints": [
-        "規則は上から順に当てます。`ALTER COLUMN ... SET NOT NULL` は `NOT NULL` を含みますが、`ADD COLUMN` ではないので `contract` です。",
-        "`ADD COLUMN` で `NOT NULL` があるときだけ `DEFAULT` の有無を見ます。既定値が無ければ、その列を知らない旧版のINSERTが落ちます。",
-        "順序は `expand`=1 `migrate`=2 `contract`=3 と数にして、前より小さくならないかを見ると簡単です。`unsafe` が1つでもあれば `order=ng` です。"
-      ],
-      "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] a) {\n        Scanner sc = new Scanner(System.in);\n        int n = Integer.parseInt(sc.nextLine().trim());\n        List<String> stages = new ArrayList<>();\n        for (int i = 0; i < n; i++) {\n            String sql = sc.nextLine().toUpperCase();\n            String stage;\n            if (sql.contains(\"DROP COLUMN\")) {\n                stage = \"contract\";\n            } else if (sql.contains(\"SET NOT NULL\")) {\n                stage = \"contract\";\n            } else if (sql.contains(\"ADD COLUMN\")) {\n                stage = !sql.contains(\"NOT NULL\") || sql.contains(\"DEFAULT\") ? \"expand\" : \"unsafe\";\n            } else if (sql.contains(\"UPDATE\")) {\n                stage = \"migrate\";\n            } else {\n                stage = \"unsafe\";\n            }\n            stages.add(stage);\n            System.out.println(stage);\n        }\n        int reached = 0;\n        boolean ordered = true;\n        for (String stage : stages) {\n            int rank = switch (stage) {\n                case \"expand\" -> 1;\n                case \"migrate\" -> 2;\n                case \"contract\" -> 3;\n                default -> -1;\n            };\n            if (rank < 0 || rank < reached) {\n                ordered = false;\n            } else {\n                reached = rank;\n            }\n        }\n        System.out.println(\"order=\" + (ordered ? \"ok\" : \"ng\"));\n    }\n}\n",
-      "extraTasks": [
-        {
-          "kind": "applied",
-          "type": "runtime-lab",
-          "task": "【実DB演習】`labs/integration-data`のV2 migrationを、旧applicationのINSERTと両立するexpand変更へ直してください。提出すると一時的なPostgreSQL 16コンテナを起動し、V1→編集したV2→V3を適用します。その後、statusを指定しない旧INSERT、emailの一意制約、outbox用indexを実DBで確認し、最後にコンテナを削除します。",
-          "runtimeLab": {
-            "name": "PostgreSQL migration lab",
-            "source": "labs/integration-data",
-            "exclude": [
-              "reference",
-              "verification-exercise"
-            ],
-            "command": [
-              "./run-runtime-lab.sh"
-            ],
-            "timeoutSeconds": 60,
-            "verification": "実PostgreSQLへmigrationを適用し、後方互換性とDB制約を確認する",
-            "capabilities": [
-              "db",
-              "container"
-            ],
-            "requiredTools": [
-              "docker-or-podman"
-            ],
-            "requiredImages": [
-              "postgres:16-alpine"
-            ],
-            "checks": [
-              {
-                "id": "db-migrations",
-                "label": "空のPostgreSQLへV1〜V3を適用する"
-              },
-              {
-                "id": "db-backward-insert",
-                "label": "旧application形式のINSERTを維持する"
-              },
-              {
-                "id": "db-unique",
-                "label": "emailの重複をDB制約で拒否する"
-              },
-              {
-                "id": "db-outbox-index",
-                "label": "outbox未送信検索用indexを確認する"
-              }
-            ],
-            "editableFiles": [
-              {
-                "path": "exercise/V2__add_customer_status.sql",
-                "solutionPath": "reference/V2__add_customer_status.sql"
-              }
-            ]
-          },
-          "hints": [
-            "旧applicationはstatus列をINSERTしません。NOT NULLだけを追加すると、そのINSERTが失敗します。",
-            "`DEFAULT 'ACTIVE'`を付ければ、列を知らない旧版と新しいスキーマを一時的に共存させられます。"
-          ],
-          "rubric": [
-            "implement",
-            "diagnose"
-          ]
         }
       ],
       "quiz": [
@@ -332,6 +228,115 @@
           ],
           "answer": 1,
           "explanation": "移行ツールは適用済みファイルのチェックサムを記録しているので、あとから中身を変えると照合に失敗し、環境によって適用された内容が違う状態になります。版番号は変わらず、再実行も自動の切り戻しも起きません。"
+        }
+      ],
+      "kind": "applied",
+      "type": "runtime-lab",
+      "task": "【実DB演習】`labs/integration-data`のV2 migrationを、旧applicationのINSERTと両立するexpand変更へ直してください。提出すると一時的なPostgreSQL 16コンテナを起動し、V1→編集したV2→V3を適用します。その後、statusを指定しない旧INSERT、emailの一意制約、outbox用indexを実DBで確認し、最後にコンテナを削除します。",
+      "runtimeLab": {
+        "name": "PostgreSQL migration lab",
+        "source": "labs/integration-data",
+        "exclude": [
+          "reference",
+          "verification-exercise"
+        ],
+        "command": [
+          "./run-runtime-lab.sh"
+        ],
+        "timeoutSeconds": 60,
+        "verification": "実PostgreSQLへmigrationを適用し、後方互換性とDB制約を確認する",
+        "capabilities": [
+          "db",
+          "container"
+        ],
+        "requiredTools": [
+          "docker-or-podman"
+        ],
+        "requiredImages": [
+          "postgres:16-alpine"
+        ],
+        "checks": [
+          {
+            "id": "db-migrations",
+            "label": "空のPostgreSQLへV1〜V3を適用する"
+          },
+          {
+            "id": "db-backward-insert",
+            "label": "旧application形式のINSERTを維持する"
+          },
+          {
+            "id": "db-unique",
+            "label": "emailの重複をDB制約で拒否する"
+          },
+          {
+            "id": "db-outbox-index",
+            "label": "outbox未送信検索用indexを確認する"
+          }
+        ],
+        "editableFiles": [
+          {
+            "path": "exercise/V2__add_customer_status.sql",
+            "solutionPath": "reference/V2__add_customer_status.sql"
+          }
+        ]
+      },
+      "hints": [
+        "旧applicationはstatus列をINSERTしません。NOT NULLだけを追加すると、そのINSERTが失敗します。",
+        "`DEFAULT 'ACTIVE'`を付ければ、列を知らない旧版と新しいスキーマを一時的に共存させられます。"
+      ],
+      "rubric": [
+        "implement",
+        "diagnose"
+      ],
+      "extraTasks": [
+        {
+          "objectiveIds": [
+            "ch54-o2"
+          ],
+          "kind": "applied",
+          "required": false,
+          "task": "【任意・migration文をJavaで分類する練習】実DBへ段階的migrationを適用した後、文字列分類も復習したい場合だけ取り組みます。章クリア・★・カフェ報酬・復習の対象外です。\n\n移行の計画を段階へ振り分けます。1行目に文の数 `n`、続く `n` 行に1文ずつSQLが与えられます（行の中に空白を含みます。大文字小文字は区別しません）。\n\n各文について段階を1行ずつ出力し、**上から順に**次の規則を当てて最初に当たったものを使います。\n\n| 文に含まれるもの | 段階 | なぜ |\n|---|---|---|\n| `DROP COLUMN` | `contract` | 旧版が読めなくなるので、旧版が消えたあと |\n| `SET NOT NULL` | `contract` | 制約を厳しくするのは最後 |\n| `ADD COLUMN` で `NOT NULL` が無い | `expand` | 列を知らない旧版のINSERTが通る |\n| `ADD COLUMN` で `NOT NULL` と `DEFAULT` の両方がある | `expand` | 既定値があるので旧版のINSERTが通る |\n| `ADD COLUMN` で `NOT NULL` があり `DEFAULT` が無い | `unsafe` | **旧版のINSERTがその瞬間から落ちる** |\n| `UPDATE` | `migrate` | 既存行を埋める |\n| どれにも当てはまらない | `unsafe` | 段階を決められない |\n\n最後に1行、並びが `expand` → `migrate` → `contract` の順（同じ段階の連続は可）になっていて `unsafe` が1つも無ければ `order=ok`、そうでなければ `order=ng` を出力してください。",
+          "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] a) {\n        Scanner sc = new Scanner(System.in);\n        int n = Integer.parseInt(sc.nextLine().trim());\n        for (int i = 0; i < n; i++) {\n            String sql = sc.nextLine().toUpperCase();\n            /* TODO 段階を決めて出力し、あとで順序を判定できるよう覚えておく */\n        }\n        /* TODO order=ok または order=ng */\n    }\n}\n",
+          "visibleCases": [
+            {
+              "label": "正しく段階を踏んだ計画",
+              "stdin": "4\nALTER TABLE customer ADD COLUMN status VARCHAR(20) NOT NULL DEFAULT 'ACTIVE'\nUPDATE customer SET status = 'ACTIVE' WHERE status IS NULL\nALTER TABLE customer ALTER COLUMN status SET NOT NULL\nALTER TABLE customer DROP COLUMN old_status\n",
+              "expected": "expand\nmigrate\ncontract\ncontract\norder=ok"
+            },
+            {
+              "label": "既定値なしのNOT NULLを足してしまった",
+              "stdin": "2\nALTER TABLE customer ADD COLUMN status VARCHAR(20) NOT NULL\nUPDATE customer SET status = 'ACTIVE'\n",
+              "expected": "unsafe\nmigrate\norder=ng"
+            }
+          ],
+          "hiddenCases": [
+            {
+              "label": "削除を先にやってしまった",
+              "stdin": "3\nALTER TABLE customer DROP COLUMN old_status\nALTER TABLE customer ADD COLUMN status VARCHAR(20) NULL\nUPDATE customer SET status = 'ACTIVE'\n",
+              "expected": "contract\nexpand\nmigrate\norder=ng"
+            },
+            {
+              "label": "NULL可の追加だけ",
+              "stdin": "1\nALTER TABLE customer ADD COLUMN memo VARCHAR(100) NULL\n",
+              "expected": "expand\norder=ok"
+            },
+            {
+              "label": "同じ段階が続くのは可",
+              "stdin": "3\nalter table customer add column status varchar(20) null\nalter table customer add column memo varchar(100) null\nupdate customer set status = 'ACTIVE'\n",
+              "expected": "expand\nexpand\nmigrate\norder=ok"
+            },
+            {
+              "label": "段階を決められない文",
+              "stdin": "2\nCREATE INDEX ix_status ON customer (status)\nUPDATE customer SET status = 'ACTIVE'\n",
+              "expected": "unsafe\nmigrate\norder=ng"
+            }
+          ],
+          "hints": [
+            "規則は上から順に当てます。`ALTER COLUMN ... SET NOT NULL` は `NOT NULL` を含みますが、`ADD COLUMN` ではないので `contract` です。",
+            "`ADD COLUMN` で `NOT NULL` があるときだけ `DEFAULT` の有無を見ます。既定値が無ければ、その列を知らない旧版のINSERTが落ちます。",
+            "順序は `expand`=1 `migrate`=2 `contract`=3 と数にして、前より小さくならないかを見ると簡単です。`unsafe` が1つでもあれば `order=ng` です。"
+          ],
+          "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] a) {\n        Scanner sc = new Scanner(System.in);\n        int n = Integer.parseInt(sc.nextLine().trim());\n        List<String> stages = new ArrayList<>();\n        for (int i = 0; i < n; i++) {\n            String sql = sc.nextLine().toUpperCase();\n            String stage;\n            if (sql.contains(\"DROP COLUMN\")) {\n                stage = \"contract\";\n            } else if (sql.contains(\"SET NOT NULL\")) {\n                stage = \"contract\";\n            } else if (sql.contains(\"ADD COLUMN\")) {\n                stage = !sql.contains(\"NOT NULL\") || sql.contains(\"DEFAULT\") ? \"expand\" : \"unsafe\";\n            } else if (sql.contains(\"UPDATE\")) {\n                stage = \"migrate\";\n            } else {\n                stage = \"unsafe\";\n            }\n            stages.add(stage);\n            System.out.println(stage);\n        }\n        int reached = 0;\n        boolean ordered = true;\n        for (String stage : stages) {\n            int rank = switch (stage) {\n                case \"expand\" -> 1;\n                case \"migrate\" -> 2;\n                case \"contract\" -> 3;\n                default -> -1;\n            };\n            if (rank < 0 || rank < reached) {\n                ordered = false;\n            } else {\n                reached = rank;\n            }\n        }\n        System.out.println(\"order=\" + (ordered ? \"ok\" : \"ng\"));\n    }\n}\n"
         }
       ]
     },

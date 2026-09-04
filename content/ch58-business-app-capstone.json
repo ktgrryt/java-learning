@@ -408,7 +408,7 @@
       "objectiveIds": [
         "ch58-o5"
       ],
-      "explanation": "## 実装完了は「自分の環境で一度動いた」ではない\n\n業務の変更は、別の人が内容と安全性を確認し、本番で問題が起きたときに追跡できて初めて引き継げます。そのため、コードと一緒に検証結果と運用情報を残します。\n\n### テストを失敗の種類から選ぶ\n\n- **単体テスト** — 理由の境界値、状態遷移、所有者判定を速く確認する\n- **DB結合テスト** — マッピング、制約、マイグレーション、トランザクションを実DBで確認する\n- **HTTPテスト** — status、body、認証情報から取得した利用者との認可を確認する\n- **回帰テスト** — 既存の注文参照や支払いが壊れていないことを確認する\n\n成功ケースだけでは不十分です。空理由、100文字と101文字、注文なし、他人、PAID、再送、イベント保存失敗を受け入れ条件から選びます。\n\n### ログは調査のための事実を残す\n\nキャンセル成功時には、時刻、`requestId`、`orderId`、`actorId`、結果を構造化して残します。理由の全文、Cookie、トークン、個人情報は必要性を検討し、既定では記録しません。例外はスタックトレースを残しますが、利用者向け応答には出しません。\n\n### PRは変更の取扱説明書\n\nPRには次を短く書きます。\n\n1. 何を、なぜ変更したか\n2. API、DB、設定への影響\n3. 実行したテストと結果\n4. 配備順序とマイグレーション手順\n5. 監視するログ・メトリクス\n6. 問題時の切り戻し方法\n\n「テスト済み」だけでは、何をどの環境で確認したか分かりません。コマンド、対象、結果を記録します。自動テストがすべて通っても、マイグレーションや切り戻しが未準備なら、本番へ安全に届ける準備は完了していません。\n\n問題では、変更を引き継ぐために必要な証拠がそろっているかを判定します。これは実際の承認手続きの代わりではなく、見落としを防ぐ小さなチェックリストです。",
+      "explanation": "## 実装完了は「自分の環境で一度動いた」ではない\n\n業務の変更は、別の人が内容と安全性を確認し、本番で問題が起きたときに追跡できて初めて引き継げます。そのため、コードと一緒に検証結果と運用情報を残します。\n\n### テストを失敗の種類から選ぶ\n\n- **単体テスト** — 理由の境界値、状態遷移、所有者判定を速く確認する\n- **DB結合テスト** — マッピング、制約、マイグレーション、トランザクションを実DBで確認する\n- **HTTPテスト** — status、body、認証情報から取得した利用者との認可を確認する\n- **回帰テスト** — 既存の注文参照や支払いが壊れていないことを確認する\n\n成功ケースだけでは不十分です。空理由、100文字と101文字、注文なし、他人、PAID、再送、イベント保存失敗を受け入れ条件から選びます。\n\n### ログは調査のための事実を残す\n\nキャンセル成功時には、時刻、`requestId`、`orderId`、`actorId`、結果を構造化して残します。理由の全文、Cookie、トークン、個人情報は必要性を検討し、既定では記録しません。例外はスタックトレースを残しますが、利用者向け応答には出しません。\n\n### PRは変更の取扱説明書\n\nPRには次を短く書きます。\n\n1. 何を、なぜ変更したか\n2. API、DB、設定への影響\n3. 実行したテストと結果\n4. 配備順序とマイグレーション手順\n5. 監視するログ・メトリクス\n6. 問題時の切り戻し方法\n\n「テスト済み」だけでは、何をどの環境で確認したか分かりません。コマンド、対象、結果を記録します。自動テストがすべて通っても、マイグレーションや切り戻しが未準備なら、本番へ安全に届ける準備は完了していません。\n\nこの単元では0/1のチェック表をJavaで処理せず、変更を引き継ぐための証拠が十分かをシナリオで判断します。実際のコード・テスト・ログ・変更説明は次のproject演習でまとめます。",
       "samples": [
         {
           "caption": "結果を安全な項目だけで構造化して残す",
@@ -416,44 +416,6 @@
           "expected": "event=order_cancelled requestId=req-123 orderId=10 actorId=7 result=success"
         }
       ],
-      "kind": "applied",
-      "task": "変更を引き継ぐための証拠がそろっているか判定してください。入力は`unit integration migration logSafe rollback`の5個で、1は確認済み、0は未確認です。未確認項目を次の固定順でカンマ区切り表示します。\n\n`unit,integration,migration,log-safety,rollback`\n\nすべて確認済みなら`missing=NONE`と`decision=READY`、一つでも未確認なら`missing=...`と`decision=BLOCKED`を表示してください。",
-      "starterCode": "import java.util.*;\n\nrecord ReleaseEvidence(boolean unit, boolean integration, boolean migration,\n                       boolean logSafe, boolean rollback) {\n    List<String> missing() {\n        // TODO: 固定順で未確認項目を集める\n        return List.of(\"TODO\");   // 仮の値。書けたら消す\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        ReleaseEvidence evidence = new ReleaseEvidence(\n                sc.nextInt() == 1, sc.nextInt() == 1, sc.nextInt() == 1,\n                sc.nextInt() == 1, sc.nextInt() == 1);\n        List<String> missing = evidence.missing();\n        System.out.println(\"missing=\" + (missing.isEmpty() ? \"NONE\" : String.join(\",\", missing)));\n        System.out.println(\"decision=\" + (missing.isEmpty() ? \"READY\" : \"BLOCKED\"));\n    }\n}\n",
-      "visibleCases": [
-        {
-          "label": "すべて確認済み",
-          "stdin": "1 1 1 1 1",
-          "expected": "missing=NONE\ndecision=READY"
-        },
-        {
-          "label": "結合テストと切り戻しが未確認",
-          "stdin": "1 0 1 1 0",
-          "expected": "missing=integration,rollback\ndecision=BLOCKED"
-        }
-      ],
-      "hiddenCases": [
-        {
-          "label": "すべて未確認",
-          "stdin": "0 0 0 0 0",
-          "expected": "missing=unit,integration,migration,log-safety,rollback\ndecision=BLOCKED"
-        },
-        {
-          "label": "ログだけ未確認",
-          "stdin": "1 1 1 0 1",
-          "expected": "missing=log-safety\ndecision=BLOCKED"
-        },
-        {
-          "label": "マイグレーションだけ未確認",
-          "stdin": "1 1 0 1 1",
-          "expected": "missing=migration\ndecision=BLOCKED"
-        }
-      ],
-      "hints": [
-        "`ArrayList<String>`を作り、各booleanがfalseなら決められた名前を追加します。",
-        "項目を仕様に書かれた順番でif判定すれば、表示順も固定できます。",
-        "空ならREADY、一つでも入っていればBLOCKEDです。"
-      ],
-      "solution": "import java.util.*;\n\nrecord ReleaseEvidence(boolean unit, boolean integration, boolean migration,\n                       boolean logSafe, boolean rollback) {\n    List<String> missing() {\n        List<String> missing = new ArrayList<>();\n        if (!unit) missing.add(\"unit\");\n        if (!integration) missing.add(\"integration\");\n        if (!migration) missing.add(\"migration\");\n        if (!logSafe) missing.add(\"log-safety\");\n        if (!rollback) missing.add(\"rollback\");\n        return missing;\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        ReleaseEvidence evidence = new ReleaseEvidence(\n                sc.nextInt() == 1, sc.nextInt() == 1, sc.nextInt() == 1,\n                sc.nextInt() == 1, sc.nextInt() == 1);\n        List<String> missing = evidence.missing();\n        System.out.println(\"missing=\" + (missing.isEmpty() ? \"NONE\" : String.join(\",\", missing)));\n        System.out.println(\"decision=\" + (missing.isEmpty() ? \"READY\" : \"BLOCKED\"));\n    }\n}\n",
       "quiz": [
         {
           "question": "変更PRの検証欄として、最も再確認しやすい記述はどれでしょう。",
@@ -476,11 +438,20 @@
           ],
           "answer": 2,
           "explanation": "調査に必要な識別子と結果を構造化して残します。Authorizationヘッダーやその中身、Cookieやセッションは、盗まれればなりすませる値なので記録しません。理由や本人確認に使った値には個人情報が入り得るため、必要性と保持方針を決めずに残しません。"
+        },
+        {
+          "question": "unit testと結合testは合格しましたが、DB migrationの適用順とrollback手順が未確認です。レビューへ出す判断はどれでしょう。",
+          "choices": [
+            "testが緑なのでそのまま本番へ出す",
+            "配備・rollback手順を補うまで止める",
+            "PR本文からmigrationの記述だけ削除する",
+            "本番DBで最初に試して結果を記録する"
+          ],
+          "answer": 1,
+          "explanation": "コードのtestが通っても、schema変更と切り戻しを安全に行える証拠がなければ引き継ぎ準備は完了していません。"
         }
       ],
-      "rubric": [
-        "decide"
-      ]
+      "lessonType": "concept"
     },
     {
       "id": "58-6",

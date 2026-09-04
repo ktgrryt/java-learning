@@ -46,54 +46,13 @@
       "objectiveIds": [
         "ch46-o1"
       ],
-      "explanation": "## データのルールをDBにも持たせる\n\nテーブルは行と列でデータを表します。主キー（PRIMARY KEY）は行を一意に識別し、外部キー（FOREIGN KEY）は参照先の存在を保証します。NOT NULL、UNIQUE、CHECKも不正データを入口で拒否する制約です。アプリの検証だけに頼らず、DBを最後の防波堤にします。\n\n正規化では、注文行へ顧客名を何度も複製する代わりに顧客IDで参照します。更新箇所を一つにし、不整合を避けるためです。ただし読み取り性能のための非正規化は、測定と整合性維持の方法を決めてから行います。\n\n```sql\nCREATE TABLE orders (\n  id BIGINT PRIMARY KEY,\n  customer_id BIGINT NOT NULL REFERENCES customers(id),\n  total DECIMAL(12,2) NOT NULL CHECK (total >= 0)\n);\n```\n\n### 制約は「入口で拒む」ための仕組み\n\n`labs/sql/schema.sql` はこう書いてあります。\n\n```sql\nCREATE TABLE customers (\n    id    BIGINT PRIMARY KEY,\n    name  VARCHAR(100) NOT NULL,\n    email VARCHAR(255) NOT NULL UNIQUE\n);\n\nCREATE TABLE orders (\n    id          BIGINT PRIMARY KEY,\n    customer_id BIGINT NOT NULL,\n    status      VARCHAR(20) NOT NULL CHECK (status IN ('NEW', 'PAID', 'CANCELLED')),\n    total       DECIMAL(12, 2) NOT NULL CHECK (total >= 0),\n    created_at  TIMESTAMP WITH TIME ZONE NOT NULL,\n    CONSTRAINT fk_orders_customer FOREIGN KEY (customer_id) REFERENCES customers(id)\n);\n```\n\nそれぞれが防いでいるものが違います。\n\n| 制約 | 防ぐもの |\n|---|---|\n| `PRIMARY KEY` | 同じ行の二重登録、行を特定できない状態 |\n| `NOT NULL` | 「未入力」が混ざって集計や比較が崩れること |\n| `UNIQUE` | 同じメールで2人登録されること |\n| `CHECK` | ありえない値（負の金額、未定義のステータス） |\n| `FOREIGN KEY` | 存在しない顧客の注文（孤児行） |\n\n`DECIMAL(12, 2)` は金額なので固定小数です。`DOUBLE` にすると誤差が出ます（第42章の\n`0.1 + 0.2`）。日時は、何を保存したいかで型を選びます。PostgreSQLの `TIMESTAMP WITH TIME ZONE`（`timestamptz`）は、入力された日時をUTC基準の同じ瞬間へ変換して保存します。そのため別のタイムゾーンでも同じ瞬間を表せますが、入力時の `Asia/Tokyo` のような地域名や元のオフセット自体は保持しません。元の地域も必要なら、タイムゾーンIDを別の列へ保存します。\n\n> ⚠️ 間違えやすい点 … 「アプリで検証しているからDBは緩くていい」は成り立ちません。\n> データが入る経路はアプリだけではなく、移行スクリプト、運用の手作業、別のサービス、\n> 障害時の直接投入があります。**DBを最後の防波堤** にしておけば、どの経路から来ても\n> 不正なデータは入りません。制約は後から足すほうが（既存データが違反しているため）\n> ずっと大変です。\n\n> 🧪 アプリで確かめること / labs で動かすこと … この問題で確かめるのはどの列にどの制約を置くかという設計の判断です。\n> DDLを実DBへ流して、制約違反を実際に起こすことは、1ファイル・標準入力だけのこの画面では扱えません。`labs/sql` に本物を置いてあります。",
+      "explanation": "## データのルールをDBにも持たせる\n\nテーブルは行と列でデータを表します。主キー（PRIMARY KEY）は行を一意に識別し、外部キー（FOREIGN KEY）は参照先の存在を保証します。NOT NULL、UNIQUE、CHECKも不正データを入口で拒否する制約です。アプリの検証だけに頼らず、DBを最後の防波堤にします。\n\n正規化では、注文行へ顧客名を何度も複製する代わりに顧客IDで参照します。更新箇所を一つにし、不整合を避けるためです。ただし読み取り性能のための非正規化は、測定と整合性維持の方法を決めてから行います。\n\n```sql\nCREATE TABLE orders (\n  id BIGINT PRIMARY KEY,\n  customer_id BIGINT NOT NULL REFERENCES customers(id),\n  total DECIMAL(12,2) NOT NULL CHECK (total >= 0)\n);\n```\n\n### 制約は「入口で拒む」ための仕組み\n\n`labs/sql/schema.sql` はこう書いてあります。\n\n```sql\nCREATE TABLE customers (\n    id    BIGINT PRIMARY KEY,\n    name  VARCHAR(100) NOT NULL,\n    email VARCHAR(255) NOT NULL UNIQUE\n);\n\nCREATE TABLE orders (\n    id          BIGINT PRIMARY KEY,\n    customer_id BIGINT NOT NULL,\n    status      VARCHAR(20) NOT NULL CHECK (status IN ('NEW', 'PAID', 'CANCELLED')),\n    total       DECIMAL(12, 2) NOT NULL CHECK (total >= 0),\n    created_at  TIMESTAMP WITH TIME ZONE NOT NULL,\n    CONSTRAINT fk_orders_customer FOREIGN KEY (customer_id) REFERENCES customers(id)\n);\n```\n\nそれぞれが防いでいるものが違います。\n\n| 制約 | 防ぐもの |\n|---|---|\n| `PRIMARY KEY` | 同じ行の二重登録、行を特定できない状態 |\n| `NOT NULL` | 「未入力」が混ざって集計や比較が崩れること |\n| `UNIQUE` | 同じメールで2人登録されること |\n| `CHECK` | ありえない値（負の金額、未定義のステータス） |\n| `FOREIGN KEY` | 存在しない顧客の注文（孤児行） |\n\n`DECIMAL(12, 2)` は金額なので固定小数です。`DOUBLE` にすると誤差が出ます（第42章の\n`0.1 + 0.2`）。日時は、何を保存したいかで型を選びます。PostgreSQLの `TIMESTAMP WITH TIME ZONE`（`timestamptz`）は、入力された日時をUTC基準の同じ瞬間へ変換して保存します。そのため別のタイムゾーンでも同じ瞬間を表せますが、入力時の `Asia/Tokyo` のような地域名や元のオフセット自体は保持しません。元の地域も必要なら、タイムゾーンIDを別の列へ保存します。\n\n> ⚠️ 間違えやすい点 … 「アプリで検証しているからDBは緩くていい」は成り立ちません。\n> データが入る経路はアプリだけではなく、移行スクリプト、運用の手作業、別のサービス、\n> 障害時の直接投入があります。**DBを最後の防波堤** にしておけば、どの経路から来ても\n> 不正なデータは入りません。制約は後から足すほうが（既存データが違反しているため）\n> ずっと大変です。\n\nこの単元ではDDLパーサーをJavaで作らず、制約がどの不正データを防ぐかをクイズで確認します。制約を実際に定義し、不正なINSERTが拒否されることは章末のPostgreSQL演習で確かめます。",
       "samples": [
         {
           "caption": "主キーの重複を検出",
           "code": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] a) {\n        var ids = List.of(10L, 20L, 10L);\n        var seen = new HashSet<Long>();\n        for (long id : ids) if (!seen.add(id)) System.out.println(\"duplicate: \" + id);\n    }\n}\n"
         }
       ],
-      "task": "`CREATE TABLE` を読んで、各列に**書かれている制約**を並べてください。\n\n1行目にDDLの行数dを読み、続けてd行のDDLが与えられます。\n\n```\n5\nCREATE TABLE customers (\n    id    BIGINT PRIMARY KEY,\n    name  VARCHAR(100) NOT NULL,\n    email VARCHAR(255) NOT NULL UNIQUE\n);\n```\n\n列の宣言順に `列名 制約` を1行ずつ表示します。制約は次の語を使い、**この順**でカンマ区切りにします。1つも無い列は `-` と表示してください。\n\n| 出す語 | DDLに書かれているもの |\n|---|---|\n| `PRIMARY_KEY` | `PRIMARY KEY` |\n| `NOT_NULL` | `NOT NULL` |\n| `UNIQUE` | `UNIQUE` |\n| `CHECK` | `CHECK (...)` |\n| `FOREIGN_KEY` | 列の行の `REFERENCES`、または表全体へ書いた `CONSTRAINT ... FOREIGN KEY (列名)` |\n\n上の例の答えはこうなります。\n\n```\nid PRIMARY_KEY\nname NOT_NULL\nemail NOT_NULL,UNIQUE\n```\n\n**書かれているものだけを読みます。** SQLでは `PRIMARY KEY` に `NOT NULL` の意味も含まれますが、ここでは書いていない制約を足しません。DDLを読み取れているかを確かめるためです。\n\n`CREATE TABLE` の行、閉じの `);`、`CONSTRAINT` で始まる行は列の宣言ではありません。\n\n> ここで読み取るのは、DDLに**書かれている**制約です。その制約が実際に不正なINSERTを拒むかどうかは、この章の章末演習にある実PostgreSQLのlabで確かめます。",
-      "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] a) {\n        Scanner sc = new Scanner(System.in);\n        int d = Integer.parseInt(sc.nextLine().trim());\n        Map<String, List<String>> found = new LinkedHashMap<>();\n        for (int i = 0; i < d; i++) {\n            String line = sc.nextLine().trim();\n            /* TODO 列の行かどうかを見分ける（CREATE TABLE・);・CONSTRAINT は列ではない） */\n            /* TODO 列の行なら、書かれている制約を集める */\n            /* TODO CONSTRAINT の行なら、かっこの中の列へ FOREIGN_KEY を足す */\n        }\n        /* TODO 宣言順に「列名 制約」を表示する。制約が無ければ - を出す */\n    }\n}\n",
-      "visibleCases": [
-        {
-          "label": "PK・NOT NULL・UNIQUEの表",
-          "stdin": "5\nCREATE TABLE customers (\n    id    BIGINT PRIMARY KEY,\n    name  VARCHAR(100) NOT NULL,\n    email VARCHAR(255) NOT NULL UNIQUE\n);\n",
-          "expected": "id PRIMARY_KEY\nname NOT_NULL\nemail NOT_NULL,UNIQUE"
-        },
-        {
-          "label": "列のREFERENCESと、制約が無い列",
-          "stdin": "5\nCREATE TABLE notes (\n  id BIGINT PRIMARY KEY REFERENCES docs(id),\n  body TEXT,\n  tag VARCHAR(20) UNIQUE\n);\n",
-          "expected": "id PRIMARY_KEY,FOREIGN_KEY\nbody -\ntag UNIQUE"
-        }
-      ],
-      "hiddenCases": [
-        {
-          "label": "表全体に書いたFOREIGN KEY",
-          "stdin": "8\nCREATE TABLE orders (\n    id          BIGINT PRIMARY KEY,\n    customer_id BIGINT NOT NULL,\n    status      VARCHAR(20) NOT NULL CHECK (status IN ('NEW', 'PAID', 'CANCELLED')),\n    total       DECIMAL(12, 2) NOT NULL CHECK (total >= 0),\n    created_at  TIMESTAMP WITH TIME ZONE NOT NULL,\n    CONSTRAINT fk_orders_customer FOREIGN KEY (customer_id) REFERENCES customers(id)\n);\n",
-          "expected": "id PRIMARY_KEY\ncustomer_id NOT_NULL,FOREIGN_KEY\nstatus NOT_NULL,CHECK\ntotal NOT_NULL,CHECK\ncreated_at NOT_NULL"
-        },
-        {
-          "label": "列に直接書いたREFERENCES",
-          "stdin": "5\nCREATE TABLE orders (\n  id BIGINT PRIMARY KEY,\n  customer_id BIGINT NOT NULL REFERENCES customers(id),\n  total DECIMAL(12,2) NOT NULL CHECK (total >= 0)\n);\n",
-          "expected": "id PRIMARY_KEY\ncustomer_id NOT_NULL,FOREIGN_KEY\ntotal NOT_NULL,CHECK"
-        },
-        {
-          "label": "表全体のCONSTRAINTが2つ",
-          "stdin": "8\nCREATE TABLE order_items (\n    id        BIGINT PRIMARY KEY,\n    order_id  BIGINT NOT NULL,\n    item_id   BIGINT NOT NULL,\n    qty       INT NOT NULL CHECK (qty > 0),\n    CONSTRAINT fk_oi_order FOREIGN KEY (order_id) REFERENCES orders(id),\n    CONSTRAINT fk_oi_item FOREIGN KEY (item_id) REFERENCES items(id)\n);\n",
-          "expected": "id PRIMARY_KEY\norder_id NOT_NULL,FOREIGN_KEY\nitem_id NOT_NULL,FOREIGN_KEY\nqty NOT_NULL,CHECK"
-        },
-        {
-          "label": "1列に4つ（並べる順を見る）",
-          "stdin": "4\nCREATE TABLE t (\n  a BIGINT PRIMARY KEY,\n  b BIGINT NOT NULL UNIQUE CHECK (b > 0) REFERENCES o(id)\n);\n",
-          "expected": "a PRIMARY_KEY\nb NOT_NULL,UNIQUE,CHECK,FOREIGN_KEY"
-        }
-      ],
-      "hints": [
-        "列の行は、前後の空白を取ると先頭の語が列名です。`CREATE TABLE` で始まる行、`)` で始まる行、`CONSTRAINT` で始まる行は列ではないので飛ばします。",
-        "`CONSTRAINT fk_orders_customer FOREIGN KEY (customer_id) REFERENCES customers(id)` は表全体へ書いた制約です。`FOREIGN KEY` の後ろのかっこから列名を取り出し、その列へ `FOREIGN_KEY` を足します。宣言順を保つには `LinkedHashMap` が使えます。"
-      ],
-      "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] a) {\n        Scanner sc = new Scanner(System.in);\n        int d = Integer.parseInt(sc.nextLine().trim());\n        // 宣言順を保つ。列名 -> 書かれていた制約\n        Map<String, Set<String>> columns = new LinkedHashMap<>();\n        for (int i = 0; i < d; i++) {\n            String line = sc.nextLine().trim();\n            if (line.startsWith(\"CREATE TABLE\") || line.startsWith(\")\")) continue;\n            if (line.startsWith(\"CONSTRAINT\")) {\n                // 表全体の制約。CONSTRAINT ... FOREIGN KEY (customer_id) REFERENCES ...\n                if (line.contains(\"FOREIGN KEY\")) {\n                    int open = line.indexOf('(', line.indexOf(\"FOREIGN KEY\"));\n                    String column = line.substring(open + 1, line.indexOf(')', open)).trim();\n                    if (columns.containsKey(column)) columns.get(column).add(\"FOREIGN_KEY\");\n                }\n                continue;\n            }\n            String name = line.split(\"\\\\s+\")[0];\n            Set<String> marks = new LinkedHashSet<>();\n            if (line.contains(\"PRIMARY KEY\")) marks.add(\"PRIMARY_KEY\");\n            if (line.contains(\"NOT NULL\")) marks.add(\"NOT_NULL\");\n            if (line.contains(\"UNIQUE\")) marks.add(\"UNIQUE\");\n            if (line.contains(\"CHECK\")) marks.add(\"CHECK\");\n            if (line.contains(\"REFERENCES\")) marks.add(\"FOREIGN_KEY\");\n            columns.put(name, marks);\n        }\n        List<String> order = List.of(\"PRIMARY_KEY\", \"NOT_NULL\", \"UNIQUE\", \"CHECK\", \"FOREIGN_KEY\");\n        for (Map.Entry<String, Set<String>> e : columns.entrySet()) {\n            List<String> marks = new ArrayList<>();\n            for (String mark : order) {\n                if (e.getValue().contains(mark)) marks.add(mark);\n            }\n            System.out.println(e.getKey() + \" \" + (marks.isEmpty() ? \"-\" : String.join(\",\", marks)));\n        }\n    }\n}\n",
       "quiz": [
         {
           "question": "参照先の行が存在することを保証する制約は？",
@@ -128,7 +87,8 @@
           "answer": 2,
           "explanation": "PostgreSQLのtimestamptzは、入力をUTC基準の同じ瞬間へ変換して保存し、表示時にセッションのタイムゾーンへ変換します。入力時の地域名やオフセットを残したい場合は別の列が必要です。"
         }
-      ]
+      ],
+      "lessonType": "concept"
     },
     {
       "id": "46-2",
@@ -136,49 +96,13 @@
       "objectiveIds": [
         "ch46-o2"
       ],
-      "explanation": "## 問いを集合の操作へ変える\n\n`WHERE` は行の絞り込み、`JOIN ... ON` は表の対応付け、`GROUP BY` はグループ化、`HAVING` は集約後の絞り込みです。論理的には FROM/JOIN、WHERE、GROUP BY、HAVING、SELECT、ORDER BY の順で考えると、別名がどこで使えるかを理解しやすくなります。\n\n```sql\nSELECT c.name, SUM(o.total) AS amount\nFROM customers c\nJOIN orders o ON o.customer_id = c.id\nWHERE o.status = ?\nGROUP BY c.id, c.name\nHAVING SUM(o.total) >= ?\nORDER BY amount DESC, c.name;\n```\n\n```svg 書く順ではなく、この順で処理されると考えると「別名がどこで使えるか」が分かる\n<svg viewBox=\"0 0 720 252\">\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"14\" y=\"24\">論理的な処理順</text>\n  <rect class=\"fig-box\" x=\"10\" y=\"38\" width=\"104\" height=\"58\" rx=\"6\"/>\n  <text class=\"fig-t fig-mono fig-small\" x=\"62\" y=\"58\" text-anchor=\"middle\">FROM/JOIN</text>\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"62\" y=\"80\" text-anchor=\"middle\">表をつなぐ</text>\n  <rect class=\"fig-box\" x=\"129\" y=\"38\" width=\"104\" height=\"58\" rx=\"6\"/>\n  <text class=\"fig-t fig-mono fig-small\" x=\"181\" y=\"58\" text-anchor=\"middle\">WHERE</text>\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"181\" y=\"80\" text-anchor=\"middle\">行を絞る</text>\n  <rect class=\"fig-box\" x=\"248\" y=\"38\" width=\"104\" height=\"58\" rx=\"6\"/>\n  <text class=\"fig-t fig-mono fig-small\" x=\"300\" y=\"58\" text-anchor=\"middle\">GROUP BY</text>\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"300\" y=\"80\" text-anchor=\"middle\">まとめる</text>\n  <rect class=\"fig-box\" x=\"367\" y=\"38\" width=\"104\" height=\"58\" rx=\"6\"/>\n  <text class=\"fig-t fig-mono fig-small\" x=\"419\" y=\"58\" text-anchor=\"middle\">HAVING</text>\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"419\" y=\"80\" text-anchor=\"middle\">集約後に絞る</text>\n  <rect class=\"fig-box-accent\" x=\"486\" y=\"38\" width=\"104\" height=\"58\" rx=\"6\"/>\n  <text class=\"fig-t fig-mono fig-small fig-t-accent\" x=\"538\" y=\"58\" text-anchor=\"middle\">SELECT</text>\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"538\" y=\"80\" text-anchor=\"middle\">別名が付く</text>\n  <rect class=\"fig-box\" x=\"605\" y=\"38\" width=\"104\" height=\"58\" rx=\"6\"/>\n  <text class=\"fig-t fig-mono fig-small\" x=\"657\" y=\"58\" text-anchor=\"middle\">ORDER BY</text>\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"657\" y=\"80\" text-anchor=\"middle\">並べる</text>\n  <line class=\"fig-line\" x1=\"116\" y1=\"67\" x2=\"127\" y2=\"67\" marker-end=\"arrow\"/>\n  <line class=\"fig-line\" x1=\"235\" y1=\"67\" x2=\"246\" y2=\"67\" marker-end=\"arrow\"/>\n  <line class=\"fig-line\" x1=\"354\" y1=\"67\" x2=\"365\" y2=\"67\" marker-end=\"arrow\"/>\n  <line class=\"fig-line\" x1=\"473\" y1=\"67\" x2=\"484\" y2=\"67\" marker-end=\"arrow\"/>\n  <line class=\"fig-line\" x1=\"592\" y1=\"67\" x2=\"603\" y2=\"67\" marker-end=\"arrow\"/>\n\n  <text class=\"fig-t fig-t-dim fig-small\" x=\"14\" y=\"122\">SELECT で付けた別名（<tspan class=\"fig-mono\">AS amount</tspan>）は ORDER BY では使えるが、WHERE や GROUP BY ではまだ存在しない</text>\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"14\" y=\"144\">NULL の判定は <tspan class=\"fig-mono\">= NULL</tspan> ではなく <tspan class=\"fig-mono\">IS NULL</tspan>。外部結合では条件を ON に置くか WHERE に置くかで結果が変わる</text>\n\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"14\" y=\"178\">JOIN は行の対応付け — 1件の顧客に注文が2件なら、つないだ結果は2行になる</text>\n  <rect class=\"fig-box\" x=\"14\" y=\"192\" width=\"160\" height=\"44\" rx=\"6\"/>\n  <text class=\"fig-t fig-mono fig-small\" x=\"94\" y=\"214\" text-anchor=\"middle\">田中 (id=1)</text>\n  <rect class=\"fig-box\" x=\"250\" y=\"186\" width=\"200\" height=\"26\" rx=\"6\"/>\n  <text class=\"fig-t fig-mono fig-small\" x=\"350\" y=\"199\" text-anchor=\"middle\">customer_id=1 total=500</text>\n  <rect class=\"fig-box\" x=\"250\" y=\"216\" width=\"200\" height=\"26\" rx=\"6\"/>\n  <text class=\"fig-t fig-mono fig-small\" x=\"350\" y=\"229\" text-anchor=\"middle\">customer_id=1 total=300</text>\n  <line class=\"fig-line\" x1=\"246\" y1=\"199\" x2=\"178\" y2=\"208\" marker-end=\"arrow\"/>\n  <line class=\"fig-line\" x1=\"246\" y1=\"229\" x2=\"178\" y2=\"218\" marker-end=\"arrow\"/>\n  <text class=\"fig-t fig-mono fig-small fig-t-accent\" x=\"470\" y=\"200\">田中 → SUM 800</text>\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"470\" y=\"224\">GROUP BY c.id で1行にまとまる</text>\n</svg>\n```\n\n値は文字列連結せずプレースホルダへバインドします。識別子やORDER BYの列名はプレースホルダにできないため、許可リストから選びます。NULLは `= NULL` ではなく `IS NULL`、外部結合ではWHERE条件の位置にも注意します。",
+      "explanation": "## 問いを集合の操作へ変える\n\n`WHERE` は行の絞り込み、`JOIN ... ON` は表の対応付け、`GROUP BY` はグループ化、`HAVING` は集約後の絞り込みです。論理的には FROM/JOIN、WHERE、GROUP BY、HAVING、SELECT、ORDER BY の順で考えると、別名がどこで使えるかを理解しやすくなります。\n\n```sql\nSELECT c.name, SUM(o.total) AS amount\nFROM customers c\nJOIN orders o ON o.customer_id = c.id\nWHERE o.status = ?\nGROUP BY c.id, c.name\nHAVING SUM(o.total) >= ?\nORDER BY amount DESC, c.name;\n```\n\n```svg 書く順ではなく、この順で処理されると考えると「別名がどこで使えるか」が分かる\n<svg viewBox=\"0 0 720 252\">\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"14\" y=\"24\">論理的な処理順</text>\n  <rect class=\"fig-box\" x=\"10\" y=\"38\" width=\"104\" height=\"58\" rx=\"6\"/>\n  <text class=\"fig-t fig-mono fig-small\" x=\"62\" y=\"58\" text-anchor=\"middle\">FROM/JOIN</text>\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"62\" y=\"80\" text-anchor=\"middle\">表をつなぐ</text>\n  <rect class=\"fig-box\" x=\"129\" y=\"38\" width=\"104\" height=\"58\" rx=\"6\"/>\n  <text class=\"fig-t fig-mono fig-small\" x=\"181\" y=\"58\" text-anchor=\"middle\">WHERE</text>\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"181\" y=\"80\" text-anchor=\"middle\">行を絞る</text>\n  <rect class=\"fig-box\" x=\"248\" y=\"38\" width=\"104\" height=\"58\" rx=\"6\"/>\n  <text class=\"fig-t fig-mono fig-small\" x=\"300\" y=\"58\" text-anchor=\"middle\">GROUP BY</text>\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"300\" y=\"80\" text-anchor=\"middle\">まとめる</text>\n  <rect class=\"fig-box\" x=\"367\" y=\"38\" width=\"104\" height=\"58\" rx=\"6\"/>\n  <text class=\"fig-t fig-mono fig-small\" x=\"419\" y=\"58\" text-anchor=\"middle\">HAVING</text>\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"419\" y=\"80\" text-anchor=\"middle\">集約後に絞る</text>\n  <rect class=\"fig-box-accent\" x=\"486\" y=\"38\" width=\"104\" height=\"58\" rx=\"6\"/>\n  <text class=\"fig-t fig-mono fig-small fig-t-accent\" x=\"538\" y=\"58\" text-anchor=\"middle\">SELECT</text>\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"538\" y=\"80\" text-anchor=\"middle\">別名が付く</text>\n  <rect class=\"fig-box\" x=\"605\" y=\"38\" width=\"104\" height=\"58\" rx=\"6\"/>\n  <text class=\"fig-t fig-mono fig-small\" x=\"657\" y=\"58\" text-anchor=\"middle\">ORDER BY</text>\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"657\" y=\"80\" text-anchor=\"middle\">並べる</text>\n  <line class=\"fig-line\" x1=\"116\" y1=\"67\" x2=\"127\" y2=\"67\" marker-end=\"arrow\"/>\n  <line class=\"fig-line\" x1=\"235\" y1=\"67\" x2=\"246\" y2=\"67\" marker-end=\"arrow\"/>\n  <line class=\"fig-line\" x1=\"354\" y1=\"67\" x2=\"365\" y2=\"67\" marker-end=\"arrow\"/>\n  <line class=\"fig-line\" x1=\"473\" y1=\"67\" x2=\"484\" y2=\"67\" marker-end=\"arrow\"/>\n  <line class=\"fig-line\" x1=\"592\" y1=\"67\" x2=\"603\" y2=\"67\" marker-end=\"arrow\"/>\n\n  <text class=\"fig-t fig-t-dim fig-small\" x=\"14\" y=\"122\">SELECT で付けた別名（<tspan class=\"fig-mono\">AS amount</tspan>）は ORDER BY では使えるが、WHERE や GROUP BY ではまだ存在しない</text>\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"14\" y=\"144\">NULL の判定は <tspan class=\"fig-mono\">= NULL</tspan> ではなく <tspan class=\"fig-mono\">IS NULL</tspan>。外部結合では条件を ON に置くか WHERE に置くかで結果が変わる</text>\n\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"14\" y=\"178\">JOIN は行の対応付け — 1件の顧客に注文が2件なら、つないだ結果は2行になる</text>\n  <rect class=\"fig-box\" x=\"14\" y=\"192\" width=\"160\" height=\"44\" rx=\"6\"/>\n  <text class=\"fig-t fig-mono fig-small\" x=\"94\" y=\"214\" text-anchor=\"middle\">田中 (id=1)</text>\n  <rect class=\"fig-box\" x=\"250\" y=\"186\" width=\"200\" height=\"26\" rx=\"6\"/>\n  <text class=\"fig-t fig-mono fig-small\" x=\"350\" y=\"199\" text-anchor=\"middle\">customer_id=1 total=500</text>\n  <rect class=\"fig-box\" x=\"250\" y=\"216\" width=\"200\" height=\"26\" rx=\"6\"/>\n  <text class=\"fig-t fig-mono fig-small\" x=\"350\" y=\"229\" text-anchor=\"middle\">customer_id=1 total=300</text>\n  <line class=\"fig-line\" x1=\"246\" y1=\"199\" x2=\"178\" y2=\"208\" marker-end=\"arrow\"/>\n  <line class=\"fig-line\" x1=\"246\" y1=\"229\" x2=\"178\" y2=\"218\" marker-end=\"arrow\"/>\n  <text class=\"fig-t fig-mono fig-small fig-t-accent\" x=\"470\" y=\"200\">田中 → SUM 800</text>\n  <text class=\"fig-t fig-t-faint fig-small\" x=\"470\" y=\"224\">GROUP BY c.id で1行にまとまる</text>\n</svg>\n```\n\n値は文字列連結せずプレースホルダへバインドします。識別子やORDER BYの列名はプレースホルダにできないため、許可リストから選びます。NULLは `= NULL` ではなく `IS NULL`、外部結合ではWHERE条件の位置にも注意します。\n\nこの単元ではJOINと集約をJavaで再現せず、SQLの各句が結果へ与える影響をクイズで確認します。実際のSQLとNULLの扱いは章末のPostgreSQL演習で確かめます。",
       "samples": [
         {
           "caption": "JavaでJOIN相当を考える",
           "code": "import java.util.*;\n\nrecord Customer(int id, String name) { }\n\nrecord Order(int customerId, int amount) { }\n\npublic class Main {\n    public static void main(String[] a) {\n        var names = Map.of(1, \"A\", 2, \"B\");\n        var orders = List.of(new Order(1, 100), new Order(1, 50));\n        var totals = new TreeMap<String, Integer>();\n        for (var o : orders) totals.merge(names.get(o.customerId()), o.amount(), Integer::sum);\n        System.out.println(totals);\n    }\n}\n"
         }
       ],
-      "task": "1行に、顧客の件数 `n`（`1` 以上）、続けて `n` 件ぶんの `id name`、注文の件数 `m`（`0` 以上）、続けて `m` 件ぶんの `customerId amount`（`amount` はマイナスも来ます）が入力されます。注文合計を顧客名の辞書順で `name=total` と表示してください。注文のない顧客も0で表示します。\n\nこの問題で作るのは**SQLではなくJavaの実装**です。LEFT JOINとGROUP BYが「何をしているのか」を、自分で組み立てて確かめるための演習です。実際のSQLを書いて実行するのは、この章の`46-5`（PostgreSQLへ接続するlab）で行います。ここが通っても「SQLが書ける」ことの確認にはならない、と分けて考えてください。",
-      "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] a) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n        Map<Integer, String> names = new HashMap<>();\n        Map<String, Integer> totals = new TreeMap<>();\n        for (int i = 0; i < n; i++) {\n            int id = sc.nextInt();\n            String name = sc.next();\n            names.put(id, name);\n            totals.put(name, 0);\n        }\n        int m = sc.nextInt();\n        for (int i = 0; i < m; i++) {\n            int id = sc.nextInt(), amount = sc.nextInt();\n            /* TODO */\n        }\n        totals.forEach((k, v) -> System.out.println(k + \"=\" + v));\n    }\n}\n",
-      "visibleCases": [
-        {
-          "label": "外部結合相当",
-          "stdin": "3 1 alice 2 bob 3 carol 3 1 100 2 80 1 20",
-          "expected": "alice=120\nbob=80\ncarol=0"
-        }
-      ],
-      "hiddenCases": [
-        {
-          "label": "注文なし",
-          "stdin": "1 7 user 0",
-          "expected": "user=0"
-        },
-        {
-          "label": "注文が同じ顧客に集まる",
-          "stdin": "2 1 alice 2 bob 3 1 10 1 20 1 30",
-          "expected": "alice=60\nbob=0"
-        },
-        {
-          "label": "顧客名の辞書順",
-          "stdin": "3 1 zoe 2 amy 3 mia 0",
-          "expected": "amy=0\nmia=0\nzoe=0"
-        },
-        {
-          "label": "負の金額",
-          "stdin": "1 1 solo 2 1 100 1 -30",
-          "expected": "solo=70"
-        }
-      ],
-      "hints": [
-        "customerIdから名前を引き、`totals.merge(name, amount, Integer::sum)`。",
-        "この問題では注文のcustomerIdは必ず存在します。"
-      ],
-      "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] a) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n        Map<Integer, String> names = new HashMap<>();\n        Map<String, Integer> totals = new TreeMap<>();\n        for (int i = 0; i < n; i++) {\n            int id = sc.nextInt();\n            String name = sc.next();\n            names.put(id, name);\n            totals.put(name, 0);\n        }\n        int m = sc.nextInt();\n        for (int i = 0; i < m; i++) {\n            int id = sc.nextInt(), amount = sc.nextInt();\n            totals.merge(names.get(id), amount, Integer::sum);\n        }\n        totals.forEach((k, v) -> System.out.println(k + \"=\" + v));\n    }\n}\n",
       "quiz": [
         {
           "question": "集約結果に条件を付ける句は？",
@@ -201,8 +125,20 @@
           ],
           "answer": 3,
           "explanation": "外部結合が作るNULL行はWHEREで除外されます。残したい絞り込みはONへ書きます。注文のない顧客の `o.status` はNULLなので、条件に一致しません。"
+        },
+        {
+          "question": "PAID注文だけを合計しつつ、注文がない顧客も0で残します。`LEFT JOIN orders o`の条件を置く場所として適切なのはどれでしょう。",
+          "choices": [
+            "`WHERE o.status = 'PAID'`だけに置く",
+            "`ON`句へ`o.status = 'PAID'`を含める",
+            "`ORDER BY o.status = 'PAID'`へ置く",
+            "`HAVING`をJOINより前へ置く"
+          ],
+          "answer": 1,
+          "explanation": "外部結合先の絞り込みを`ON`句へ置けば、該当注文がない顧客も左側の行として残せます。"
         }
-      ]
+      ],
+      "lessonType": "concept"
     },
     {
       "id": "46-3",
@@ -210,55 +146,13 @@
       "objectiveIds": [
         "ch46-o3"
       ],
-      "explanation": "## 推測せず実行計画を見る\n\nインデックスは検索を速くできる一方、保存領域とINSERT/UPDATE/DELETEの保守コストが増えます。複合インデックスでは列順が重要です。等価条件、範囲条件、並び順、選択性を実際の問い合わせから考えます。全列へ機械的に作るものではありません。\n\n`EXPLAIN`（製品によって `EXPLAIN ANALYZE`）で走査方法、見積行数、実測行数、結合方法を確認します。関数を列へ適用する条件、先頭ワイルドカード、暗黙の型変換などはインデックスを使いにくくすることがあります。遅いSQLはDB製品・データ量・統計情報と一緒に測定します。\n\n### 実行計画を読む\n\n`EXPLAIN` を付けると、DBがどう取りに行くつもりかが分かります。\n\n```sql\nEXPLAIN SELECT * FROM orders WHERE status = 'PAID' AND created_at >= '2025-01-01';\n```\n\n見るのは主に2つです。\n\n| 出るもの | 意味 |\n|---|---|\n| Seq Scan / Full Table Scan | 全件読んでいる。件数が増えると比例して遅くなる |\n| Index Scan | インデックスを使えている |\n\n「読んだ行数」と「返した行数」の差も見ます。1万行読んで10行返しているなら、\n9,990行は無駄に読んでいます。\n\n### 複合インデックスは列の順番が効く\n\n`(status, created_at)` のインデックスは、次のように効き方が変わります。\n\n| 条件 | 一般的な効き方 |\n|---|---|\n| `status = ?` | 先頭列から絞れるため効きやすい |\n| `status = ? AND created_at >= ?` | 2列を順に使って範囲を狭めやすい |\n| `created_at >= ?` だけ | 先頭列の条件がなく、通常は効率が落ちる |\n\n電話帳が「姓 → 名」で並んでいると、姓が分からない検索では候補範囲を狭めにくいのと同じです。ただし「先頭列が無ければ絶対に使えない」わけではありません。DB製品やバージョンによってはインデックス全体を走査したり、先頭列の値を順に試すskip scanを選んだりします。使われるか、使われても速いかは別なので、`EXPLAIN`と実測で確認します。\n\n**等価条件の列を先、範囲条件の列を後**は有用な出発点ですが、並び順、列の値の偏り、実際に多い問い合わせも含めて列順を決めます。\n\n> ⚠️ 間違えやすい点 … インデックスは書き込みを遅くし、容量も食います。\n> 「とりあえず全列に付ける」は逆効果です。代表的なSQLを決めて、その形に合う\n> インデックスを最小限だけ作り、**追加の前後で実際に測る**のが順序です。\n> 件数の少ないテーブルでは全件読むほうが速く、DBがインデックスを使わない判断を\n> することもあります。",
+      "explanation": "## 推測せず実行計画を見る\n\nインデックスは検索を速くできる一方、保存領域とINSERT/UPDATE/DELETEの保守コストが増えます。複合インデックスでは列順が重要です。等価条件、範囲条件、並び順、選択性を実際の問い合わせから考えます。全列へ機械的に作るものではありません。\n\n`EXPLAIN`（製品によって `EXPLAIN ANALYZE`）で走査方法、見積行数、実測行数、結合方法を確認します。関数を列へ適用する条件、先頭ワイルドカード、暗黙の型変換などはインデックスを使いにくくすることがあります。遅いSQLはDB製品・データ量・統計情報と一緒に測定します。\n\n### 実行計画を読む\n\n`EXPLAIN` を付けると、DBがどう取りに行くつもりかが分かります。\n\n```sql\nEXPLAIN SELECT * FROM orders WHERE status = 'PAID' AND created_at >= '2025-01-01';\n```\n\n見るのは主に2つです。\n\n| 出るもの | 意味 |\n|---|---|\n| Seq Scan / Full Table Scan | 全件読んでいる。件数が増えると比例して遅くなる |\n| Index Scan | インデックスを使えている |\n\n「読んだ行数」と「返した行数」の差も見ます。1万行読んで10行返しているなら、\n9,990行は無駄に読んでいます。\n\n### 複合インデックスは列の順番が効く\n\n`(status, created_at)` のインデックスは、次のように効き方が変わります。\n\n| 条件 | 一般的な効き方 |\n|---|---|\n| `status = ?` | 先頭列から絞れるため効きやすい |\n| `status = ? AND created_at >= ?` | 2列を順に使って範囲を狭めやすい |\n| `created_at >= ?` だけ | 先頭列の条件がなく、通常は効率が落ちる |\n\n電話帳が「姓 → 名」で並んでいると、姓が分からない検索では候補範囲を狭めにくいのと同じです。ただし「先頭列が無ければ絶対に使えない」わけではありません。DB製品やバージョンによってはインデックス全体を走査したり、先頭列の値を順に試すskip scanを選んだりします。使われるか、使われても速いかは別なので、`EXPLAIN`と実測で確認します。\n\n**等価条件の列を先、範囲条件の列を後**は有用な出発点ですが、並び順、列の値の偏り、実際に多い問い合わせも含めて列順を決めます。\n\n> ⚠️ 間違えやすい点 … インデックスは書き込みを遅くし、容量も食います。\n> 「とりあえず全列に付ける」は逆効果です。代表的なSQLを決めて、その形に合う\n> インデックスを最小限だけ作り、**追加の前後で実際に測る**のが順序です。\n> 件数の少ないテーブルでは全件読むほうが速く、DBがインデックスを使わない判断を\n> することもあります。\n\nこの単元では簡略化したEXPLAIN出力をJavaで解析せず、実行計画から次の調査を選ぶ判断をクイズで確認します。実際の`EXPLAIN ANALYZE`とindex利用は章末のPostgreSQL演習で観察します。",
       "samples": [
         {
           "caption": "複合キーの先頭一致を意識する",
           "code": "record Index(String first, String second) { }\n\npublic class Main {\n    public static void main(String[] a) {\n        var i = new Index(\"status\", \"created_at\");\n        System.out.println(i.first() + \" -> \" + i.second());\n    }\n}\n"
         }
       ],
-      "task": "`EXPLAIN` の出力を読んで、インデックスを検討すべき問い合わせを見つけてください。\n\n1行目に問い合わせの数nを読みます。続けて各問い合わせについて2行、1行目に名前、2行目に実行計画が与えられます。\n\n```\n3\nfindUser\nIndex Scan using idx_users_email on users  (rows_read=1 rows_returned=1)\nreport\nSeq Scan on orders  (rows_read=10000 rows_returned=10)\nlist\nSeq Scan on items  (rows_read=100 rows_returned=20)\n```\n\n次の**両方**に当てはまる問い合わせを、名前の辞書順に `CHECK 名前` と表示してください。1件も無ければ `OK` と表示します。\n\n- 走査方法が `Seq Scan` である（`Index Scan` は既にインデックスを使えているので対象外）\n- 無駄読みしている。`rows_read` が1000以上で、かつ `rows_returned` の100倍以上（`rows_returned` が0なら、`rows_read` が1000以上であること）\n\n上の例では `report` だけが該当します（`findUser` は `Index Scan`、`list` は読んだ行が1000未満）。\n\n> 実際の `EXPLAIN` は `(cost=0.00..1834.00 rows=10 width=64)` や `actual rows=10` の形で出ます。ここは読み取りに集中するため、行数を `rows_read` と `rows_returned` に整えた出力を使います。本物の出力をPostgreSQLで見るのは、この章の章末演習にある実DBのlabです。",
-      "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] a) {\n        Scanner sc = new Scanner(System.in);\n        int n = Integer.parseInt(sc.nextLine().trim());\n        Set<String> checks = new TreeSet<>();\n        for (int i = 0; i < n; i++) {\n            String name = sc.nextLine().trim();\n            String plan = sc.nextLine();\n            /* TODO planから走査方法と rows_read / rows_returned を読み取る */\n            /* TODO 無駄読みしているSeq Scanなら checks へ入れる */\n        }\n        /* TODO checksが空なら OK、そうでなければ CHECK 行を辞書順に並べる */\n    }\n}\n",
-      "visibleCases": [
-        {
-          "label": "Seq Scanで無駄読み、Index Scanは対象外",
-          "stdin": "3\nfindUser\nIndex Scan using idx_users_email on users  (rows_read=1 rows_returned=1)\nreport\nSeq Scan on orders  (rows_read=10000 rows_returned=10)\nlist\nSeq Scan on items  (rows_read=100 rows_returned=20)\n",
-          "expected": "CHECK report"
-        }
-      ],
-      "hiddenCases": [
-        {
-          "label": "rows_returnedが0の境界",
-          "stdin": "2\nemptyScan\nSeq Scan on logs  (rows_read=1000 rows_returned=0)\nsmall\nSeq Scan on tags  (rows_read=999 rows_returned=0)\n",
-          "expected": "CHECK emptyScan"
-        },
-        {
-          "label": "ちょうど100倍",
-          "stdin": "1\nq\nSeq Scan on t  (rows_read=1000 rows_returned=10)\n",
-          "expected": "CHECK q"
-        },
-        {
-          "label": "100倍に1件足りない",
-          "stdin": "1\nq\nSeq Scan on t  (rows_read=1000 rows_returned=11)\n",
-          "expected": "OK"
-        },
-        {
-          "label": "大量に読むIndex Scan（対象外）",
-          "stdin": "1\nwide\nIndex Scan using idx_t_a on t  (rows_read=100000 rows_returned=1)\n",
-          "expected": "OK"
-        },
-        {
-          "label": "複数該当で辞書順",
-          "stdin": "3\nzeta\nSeq Scan on z  (rows_read=5000 rows_returned=1)\nalpha\nSeq Scan on a  (rows_read=8000 rows_returned=2)\nmid\nIndex Scan using idx_m on m  (rows_read=3 rows_returned=3)\n",
-          "expected": "CHECK alpha\nCHECK zeta"
-        }
-      ],
-      "hints": [
-        "まず走査方法を見ます。行に `Seq Scan` が含まれるものだけが対象で、`Index Scan` は除きます。",
-        "行数は `rows_read=` と `rows_returned=` の直後の数字です。`indexOf` で位置を探し、続く数字を切り出します。比率は割り算せず `read >= returned * 100` で比べ、`returned` が0の場合を先に分けます。",
-        "実行計画の行数は本番では億単位になることがあります。`int` だと `returned * 100` の時点であふれるので、`Long.parseLong` で `long` として扱います。"
-      ],
-      "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] a) {\n        Scanner sc = new Scanner(System.in);\n        int n = Integer.parseInt(sc.nextLine().trim());\n        Set<String> checks = new TreeSet<>();\n        for (int i = 0; i < n; i++) {\n            String name = sc.nextLine().trim();\n            String plan = sc.nextLine();\n            long read = number(plan, \"rows_read=\");\n            long returned = number(plan, \"rows_returned=\");\n            boolean wasteful = returned == 0 ? read >= 1000 : read >= 1000 && read >= returned * 100;\n            if (plan.contains(\"Seq Scan\") && wasteful) checks.add(name);\n        }\n        if (checks.isEmpty()) {\n            System.out.println(\"OK\");\n        } else {\n            for (String name : checks) System.out.println(\"CHECK \" + name);\n        }\n    }\n\n    /** `rows_read=10000` のように key の直後へ続く数字を取り出す。 */\n    static long number(String plan, String key) {\n        int from = plan.indexOf(key) + key.length();\n        int to = from;\n        while (to < plan.length() && Character.isDigit(plan.charAt(to))) to++;\n        return Long.parseLong(plan.substring(from, to));\n    }\n}\n",
       "quiz": [
         {
           "question": "インデックス追加前後でまず確認するものは？",
@@ -281,12 +175,20 @@
           ],
           "answer": 3,
           "explanation": "インデックスは列の値の順序で並んでいます。`EXTRACT(YEAR FROM created_at)` のように関数を通した結果で絞り込むと、その順序をそのまま使えません。範囲条件（`created_at >= ... AND < ...`）へ書き換えると使えます。"
+        },
+        {
+          "question": "`EXPLAIN ANALYZE`で推定10行に対して実測10,000行でした。最初に疑うものとして適切なのはどれでしょう。",
+          "choices": [
+            "統計情報やデータ分布と、見積もりのずれ",
+            "SQLのキーワードが小文字で書かれていること",
+            "主キーの列名が`id`であること",
+            "SELECT句の列を改行していること"
+          ],
+          "answer": 0,
+          "explanation": "推定行数と実測行数の大きな差は、統計情報やデータ分布、条件の見積もりを調べる手がかりです。"
         }
       ],
-      "rubric": [
-        "implement",
-        "diagnose"
-      ]
+      "lessonType": "concept"
     },
     {
       "id": "46-4",
@@ -294,49 +196,13 @@
       "objectiveIds": [
         "ch46-o4"
       ],
-      "explanation": "## 同時実行と変更履歴を設計する\n\nトランザクションは一連の更新をまとめます。分離レベルは同時実行時にどの変化を見せるかの選択で、強くするほど常に良いわけではありません。ロック順序が逆になるとデッドロックが起こり得るため、取得順を統一し、短いトランザクションにし、失敗時は処理全体を安全に再試行できるようにします。\n\nスキーマ変更は番号付きマイグレーションとして版管理します。本番稼働中の変更では、列追加→両対応コード→データ移行→旧列削除のように段階化します。適用済みSQLを書き換えず、新しい変更を追加します。バックアップだけでなく復元手順も試します。`labs/sql` には実際に読み書きできる小さなスキーマがあります。\n\n### 分離レベルで何が起きるか\n\n同時に走るトランザクションから、他人の途中の状態がどこまで見えるかの設定です。\n\n| 分離レベル | 起きうること |\n|---|---|\n| READ UNCOMMITTED | コミット前の値が見える（dirty read） |\n| READ COMMITTED | 同じ問い合わせを2回すると結果が変わる（non-repeatable read） |\n| REPEATABLE READ | 件数が増える（phantom read）。製品によっては防ぐ |\n| SERIALIZABLE | 順番に実行したのと同じ結果。競合すると失敗する |\n\nこの表は、まず違いをつかむためのSQL標準に沿った概念図です。実際の挙動はDB製品によって異なります。たとえばPostgreSQLは `READ UNCOMMITTED` を指定しても `READ COMMITTED` と同じように扱い、`REPEATABLE READ` ではphantom readも防ぎます。\n\nPostgreSQLの既定は READ COMMITTED です。**名前だけで挙動を決めつけず、使う製品の文書を確認する**ことが必要です。\n\n### 強くすれば安全、ではない\n\n`SERIALIZABLE` にすると衝突が増え、トランザクションが失敗して**やり直しが必要**に\nなります。つまりアプリ側に再試行の実装が要ります。強い分離を選ぶのは\n「失敗したら再試行する」設計とセットです。\n\n多くの場合は、分離レベルを上げるより **必要な行だけロックする**\n（`SELECT ... FOR UPDATE`）か、更新の条件に現在の値を入れる（楽観ロック）ほうが\n扱いやすくなります。\n\n> ⚠️ 間違えやすい点 … マイグレーション（`ALTER TABLE`）は、製品によって\n> **テーブル全体をロック** します。件数の多いテーブルでは、その間ずっと書き込みが\n> 止まります。実行時間を本番相当の件数で測り、必要なら段階を分けます\n> （列の追加 → データ埋め → 制約の追加）。\n\n> 🧪 アプリで確かめること / labs で動かすこと … この問題で確かめるのは、適用履歴とファイルを突き合わせて未適用・書き換え・欠落を見つけることです。分離レベルごとに何が見えるかは上の表で説明していますが、この画面の問題では測っていません。\n> 2つの接続を同時に動かして再現することは、1ファイル・標準入力だけのこの画面では扱えません。`labs/sql` に本物を置いてあります。",
+      "explanation": "## 同時実行と変更履歴を設計する\n\nトランザクションは一連の更新をまとめます。分離レベルは同時実行時にどの変化を見せるかの選択で、強くするほど常に良いわけではありません。ロック順序が逆になるとデッドロックが起こり得るため、取得順を統一し、短いトランザクションにし、失敗時は処理全体を安全に再試行できるようにします。\n\nスキーマ変更は番号付きマイグレーションとして版管理します。本番稼働中の変更では、列追加→両対応コード→データ移行→旧列削除のように段階化します。適用済みSQLを書き換えず、新しい変更を追加します。バックアップだけでなく復元手順も試します。`labs/sql` には実際に読み書きできる小さなスキーマがあります。\n\n### 分離レベルで何が起きるか\n\n同時に走るトランザクションから、他人の途中の状態がどこまで見えるかの設定です。\n\n| 分離レベル | 起きうること |\n|---|---|\n| READ UNCOMMITTED | コミット前の値が見える（dirty read） |\n| READ COMMITTED | 同じ問い合わせを2回すると結果が変わる（non-repeatable read） |\n| REPEATABLE READ | 件数が増える（phantom read）。製品によっては防ぐ |\n| SERIALIZABLE | 順番に実行したのと同じ結果。競合すると失敗する |\n\nこの表は、まず違いをつかむためのSQL標準に沿った概念図です。実際の挙動はDB製品によって異なります。たとえばPostgreSQLは `READ UNCOMMITTED` を指定しても `READ COMMITTED` と同じように扱い、`REPEATABLE READ` ではphantom readも防ぎます。\n\nPostgreSQLの既定は READ COMMITTED です。**名前だけで挙動を決めつけず、使う製品の文書を確認する**ことが必要です。\n\n### 強くすれば安全、ではない\n\n`SERIALIZABLE` にすると衝突が増え、トランザクションが失敗して**やり直しが必要**に\nなります。つまりアプリ側に再試行の実装が要ります。強い分離を選ぶのは\n「失敗したら再試行する」設計とセットです。\n\n多くの場合は、分離レベルを上げるより **必要な行だけロックする**\n（`SELECT ... FOR UPDATE`）か、更新の条件に現在の値を入れる（楽観ロック）ほうが\n扱いやすくなります。\n\n> ⚠️ 間違えやすい点 … マイグレーション（`ALTER TABLE`）は、製品によって\n> **テーブル全体をロック** します。件数の多いテーブルでは、その間ずっと書き込みが\n> 止まります。実行時間を本番相当の件数で測り、必要なら段階を分けます\n> （列の追加 → データ埋め → 制約の追加）。\n\nこの単元ではマイグレーション履歴をJavaで突き合わせず、事故につながる状態と対処をクイズで判断します。実務ではFlywayやLiquibaseなどの検査をCIとデプロイ手順へ組み込みます。",
       "samples": [
         {
           "caption": "ロック順を統一する",
           "code": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] a) {\n        int x = 9, y = 3;\n        var ids = new int[] {Math.min(x, y), Math.max(x, y)};\n        System.out.println(Arrays.toString(ids));\n    }\n}\n"
         }
       ],
-      "task": "適用履歴とリポジトリのマイグレーションファイルを突き合わせて、各版がどの状態かを報告してください。\n\n1行目に適用履歴の件数hを読み、h行の `ファイル名 チェックサム` を読みます。続けてファイルの件数fを読み、f行の `ファイル名 チェックサム` を読みます。\n\n```\n2\nV1__create_customers.sql 8f3a\nV2__add_status.sql 1b7c\n3\nV1__create_customers.sql 8f3a\nV2__add_status.sql 1b7c\nV3__add_index.sql 55de\n```\n\n履歴とファイルに出てくる版をすべて集め、**版番号の小さい順**に `状態 ファイル名` を1行ずつ表示してください。版番号は `V` の次から `__` までの数字です。\n\n| 状態 | 意味 |\n|---|---|\n| `APPLIED` | 履歴にあり、チェックサムが一致する |\n| `MODIFIED` | 履歴にあるが、チェックサムが違う（適用済みSQLを書き換えてしまった） |\n| `PENDING` | ファイルはあるが、まだ適用されていない |\n| `MISSING` | 履歴にあるのに、ファイルが無い |\n\n上の例では `V1`・`V2` が `APPLIED`、`V3` が `PENDING` です。\n\n`MODIFIED` と `MISSING` は事故です。**適用済みのSQLは書き換えず、新しい版を足す**のが原則で、この報告はその原則が破られていないかを確かめるためのものです。\n\n> `flyway validate` のような道具が実際に出す報告と同じ考え方です。ここではチェックサムを短い文字列に置き換えて、突き合わせに集中します。",
-      "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] a) {\n        Scanner sc = new Scanner(System.in);\n        int h = Integer.parseInt(sc.nextLine().trim());\n        Map<String, String> applied = new HashMap<>();\n        for (int i = 0; i < h; i++) {\n            String[] parts = sc.nextLine().trim().split(\"\\\\s+\");\n            applied.put(parts[0], parts[1]);\n        }\n        int f = Integer.parseInt(sc.nextLine().trim());\n        Map<String, String> files = new HashMap<>();\n        for (int i = 0; i < f; i++) {\n            String[] parts = sc.nextLine().trim().split(\"\\\\s+\");\n            files.put(parts[0], parts[1]);\n        }\n        /* TODO 両方のファイル名を集めて、版番号の小さい順に並べる */\n        /* TODO 各版が APPLIED / MODIFIED / PENDING / MISSING のどれかを決めて表示する */\n    }\n}\n",
-      "visibleCases": [
-        {
-          "label": "適用済み2件と未適用1件",
-          "stdin": "2\nV1__create_customers.sql 8f3a\nV2__add_status.sql 1b7c\n3\nV1__create_customers.sql 8f3a\nV2__add_status.sql 1b7c\nV3__add_index.sql 55de\n",
-          "expected": "APPLIED V1__create_customers.sql\nAPPLIED V2__add_status.sql\nPENDING V3__add_index.sql"
-        }
-      ],
-      "hiddenCases": [
-        {
-          "label": "適用済みSQLを書き換えた",
-          "stdin": "2\nV1__a.sql aaa\nV2__b.sql bbb\n2\nV1__a.sql aaa\nV2__b.sql xxx\n",
-          "expected": "APPLIED V1__a.sql\nMODIFIED V2__b.sql"
-        },
-        {
-          "label": "履歴にあるのにファイルが無い",
-          "stdin": "2\nV1__a.sql aaa\nV2__b.sql bbb\n1\nV1__a.sql aaa\n",
-          "expected": "APPLIED V1__a.sql\nMISSING V2__b.sql"
-        },
-        {
-          "label": "V10とV2の順（数として比べる）",
-          "stdin": "0\n3\nV9__i.sql c9\nV10__j.sql c10\nV2__k.sql c2\n",
-          "expected": "PENDING V2__k.sql\nPENDING V9__i.sql\nPENDING V10__j.sql"
-        },
-        {
-          "label": "4つの状態が混ざる",
-          "stdin": "3\nV1__a.sql h1\nV2__b.sql h2\nV4__d.sql h4\n3\nV1__a.sql h1\nV2__b.sql changed\nV3__c.sql h3\n",
-          "expected": "APPLIED V1__a.sql\nMODIFIED V2__b.sql\nPENDING V3__c.sql\nMISSING V4__d.sql"
-        }
-      ],
-      "hints": [
-        "版番号は `V` の次から `__` までの数字です。`V10` は `V9` より後なので、文字列の辞書順ではなく数として比べます。",
-        "履歴とファイルの両方に出てくる版、履歴だけの版、ファイルだけの版があります。まず両方のファイル名を1つの集合へ集めてから、どちらに居るかとチェックサムの一致で4つの状態に分けます。"
-      ],
-      "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] a) {\n        Scanner sc = new Scanner(System.in);\n        Map<String, String> applied = read(sc);\n        Map<String, String> files = read(sc);\n\n        Set<String> names = new TreeSet<>(Comparator.comparingInt(Main::version));\n        names.addAll(applied.keySet());\n        names.addAll(files.keySet());\n\n        for (String name : names) {\n            String history = applied.get(name);\n            String onDisk = files.get(name);\n            String state;\n            if (history == null) state = \"PENDING\";\n            else if (onDisk == null) state = \"MISSING\";\n            else if (history.equals(onDisk)) state = \"APPLIED\";\n            else state = \"MODIFIED\";\n            System.out.println(state + \" \" + name);\n        }\n    }\n\n    static Map<String, String> read(Scanner sc) {\n        int count = Integer.parseInt(sc.nextLine().trim());\n        Map<String, String> map = new HashMap<>();\n        for (int i = 0; i < count; i++) {\n            String[] parts = sc.nextLine().trim().split(\"\\\\s+\");\n            map.put(parts[0], parts[1]);\n        }\n        return map;\n    }\n\n    /** `V10__add_index.sql` から 10 を取り出す。V10はV9より後なので数として比べる。 */\n    static int version(String name) {\n        return Integer.parseInt(name.substring(1, name.indexOf(\"__\")));\n    }\n}\n",
       "quiz": [
         {
           "question": "適用済みマイグレーションを修正する代わりに行うことは？",
@@ -359,16 +225,30 @@
           ],
           "answer": 1,
           "explanation": "トランザクションを長くまとめると、ロックを持つ時間が伸びて衝突がむしろ増えます。分離レベルを強めても、逆順にロックを取る2つの処理は同じように待ち合います（競合が増えて失敗しやすくなるだけです）。上限なしの再試行は同じ衝突を繰り返します。まず全処理でロックの取得順をそろえ、あわせてトランザクションを短く保ちます。"
+        },
+        {
+          "question": "本番へ適用済みの`V2__add_status.sql`を修正したところ、履歴のチェックサムと一致しなくなりました。適切な対応はどれでしょう。",
+          "choices": [
+            "本番の履歴テーブルからV2の行を削除する",
+            "V2を元へ戻し、必要な変更を新しい版として追加する",
+            "検査を無効にして、修正後のV2を再適用する",
+            "全テーブルを削除してV1から作り直す"
+          ],
+          "answer": 1,
+          "explanation": "適用済みファイルは履歴と一致する状態へ戻し、変更は新しいマイグレーションとして前へ進めます。"
         }
-      ]
+      ],
+      "lessonType": "concept"
     },
     {
       "id": "46-5",
       "title": "章末演習：SQLとリレーショナルデータベース",
       "objectiveIds": [
-        "ch46-o1"
+        "ch46-o1",
+        "ch46-o2",
+        "ch46-o3"
       ],
-      "explanation": "## この章の知識を、自分の手で組み合わせよう\n\nここでは、**制約・JOINと集約・外部結合の意味・ロック順序**をまとめて使います。新しい文法は登場しません。分からなくなったら、直前までの解説やサンプルへ戻って確認して大丈夫です。\n\n### 4問の進め方\n\n1. **基本**で、中心となる書き方をもう一度使う\n2. **組み合わせ**で、章内の複数の知識を一緒に使う\n3. **実践**で、少し現実的な入力と条件を整理する\n4. **実DB演習**で、DDL・JOIN・HAVING・EXPLAINをPostgreSQLへ直接適用する\n\n最初の3問は、DBが内側で判断する規則をJavaで書き起こして確かめます。最後は`labs/sql`を一時copyへ隔離し、学習者が編集したSQLをPostgreSQL 16で実行します。DockerまたはPodmanと、選んだコンテナランタイム側の`postgres:16-alpine`イメージが無い場合は不正解にせず、準備方法を表示します。",
+      "explanation": "## SQLはPostgreSQLへ直接書いて確かめる\n\n章末の必須演習では、一時的なPostgreSQL 16へ自分のDDLとSQLを適用します。主キー・外部キー・NOT NULL・UNIQUE・CHECKが不正なINSERTを拒否すること、LEFT JOINで注文のない顧客を残せること、HAVINGで集約後に絞れることを確認します。\n\nindexは作っただけでは速さを判断できません。2万件の計測用データに対して`EXPLAIN ANALYZE`を実行し、複合indexが使われることと実測行数を観察します。\n\n提出時は`labs/sql`を一時コピーへ隔離し、DockerまたはPodmanで検証後にコンテナを削除します。必要な`postgres:16-alpine`イメージが無い場合は自動ダウンロードせず、準備方法を表示します。\n\n同じ規則をJavaのコレクションで再現する3問は、SQLを実行した後にアルゴリズムも復習したい場合だけの任意課題です。章クリアに必要なのはPostgreSQLへSQLを書いて結果を確かめる演習だけです。",
       "samples": [
         {
           "caption": "復習用サンプル：外部結合は0件の側も残す",
@@ -376,50 +256,95 @@
           "expected": "aki=300\nrin=0"
         }
       ],
-      "task": "【基本】顧客IDをc件読み、続いて注文をn件 `id customerId total` の形で読みます。上から順に検査し、`id` が既に登録済みなら `NG 行番号 DUPLICATE_ID`、`customerId` が顧客一覧に無ければ `NG 行番号 NO_CUSTOMER`、`total` が負なら `NG 行番号 NEGATIVE_TOTAL` と表示してください。1行が複数に該当するときは、この順で最初の理由だけを出します。違反した行は登録しません。違反が1件も無ければ `OK` と表示します。行番号は1から数えます。",
-      "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int c = sc.nextInt();\n        Set<Long> customers = new HashSet<>();\n        for (int i = 0; i < c; i++) customers.add(sc.nextLong());\n        int n = sc.nextInt();\n        Set<Long> ids = new HashSet<>();\n        boolean ok = true;\n        for (int i = 1; i <= n; i++) {\n            long id = sc.nextLong(), customerId = sc.nextLong(), total = sc.nextLong();\n            /* TODO */\n        }\n        if (ok) System.out.println(\"OK\");\n    }\n}\n",
-      "visibleCases": [
-        {
-          "label": "すべて妥当",
-          "stdin": "2 10 20 2 1 10 500 2 20 0",
-          "expected": "OK"
-        },
-        {
-          "label": "3種の違反",
-          "stdin": "1 10 4 1 10 100 1 10 200 2 99 50 3 10 -1",
-          "expected": "NG 2 DUPLICATE_ID\nNG 3 NO_CUSTOMER\nNG 4 NEGATIVE_TOTAL"
-        }
-      ],
-      "hiddenCases": [
-        {
-          "label": "優先順位",
-          "stdin": "1 10 2 5 10 100 5 99 -3",
-          "expected": "NG 2 DUPLICATE_ID"
-        },
-        {
-          "label": "注文なし",
-          "stdin": "1 10 0",
-          "expected": "OK"
-        },
-        {
-          "label": "違反行は登録しない",
-          "stdin": "1 10 3 7 99 100 7 10 100 7 10 100",
-          "expected": "NG 1 NO_CUSTOMER\nNG 3 DUPLICATE_ID"
-        }
-      ],
+      "kind": "applied",
+      "type": "runtime-lab",
+      "task": "【実DB演習】`labs/sql`の4ファイルを完成させてください。`schema.sql`には主キー・外部キー・NOT NULL・UNIQUE・CHECK制約を定義します。`paid_totals.sql`ではPAID注文だけをLEFT JOINのON句で絞り、注文のない顧客も0で残します。`high_value_customers.sql`ではPAID合計1000以上をHAVINGで絞ります。`explain.sql`では`(status, created_at)`の複合indexを追加し、EXPLAIN ANALYZEを実行します。提出するとDockerまたはPodmanで一時的なPostgreSQL 16コンテナを起動し、固定seedと2万件の計測用データを使って検証して、最後にコンテナを削除します。",
+      "runtimeLab": {
+        "name": "SQL fundamentals PostgreSQL lab",
+        "source": "labs/sql",
+        "exclude": [
+          "reference"
+        ],
+        "command": [
+          "./run-runtime-lab.sh"
+        ],
+        "timeoutSeconds": 60,
+        "verification": "PostgreSQLでDDL制約、LEFT JOIN、GROUP BY、HAVING、複合index、EXPLAIN ANALYZEを確認する",
+        "capabilities": [
+          "db",
+          "container"
+        ],
+        "requiredTools": [
+          "docker-or-podman"
+        ],
+        "requiredImages": [
+          "postgres:16-alpine"
+        ],
+        "checks": [
+          {
+            "id": "sql-primary-key",
+            "label": "PRIMARY KEYが重複IDを拒否する"
+          },
+          {
+            "id": "sql-foreign-key",
+            "label": "FOREIGN KEYが孤児注文を拒否する"
+          },
+          {
+            "id": "sql-column-constraints",
+            "label": "NOT NULL・UNIQUE・CHECKが不正値を拒否する"
+          },
+          {
+            "id": "sql-left-join",
+            "label": "LEFT JOINで注文のない顧客を残してPAID合計を求める"
+          },
+          {
+            "id": "sql-having",
+            "label": "HAVINGで集約後の合計を絞り込む"
+          },
+          {
+            "id": "sql-index",
+            "label": "status・created_atの複合indexを作成する"
+          },
+          {
+            "id": "sql-explain",
+            "label": "EXPLAIN ANALYZEでindex利用と実測行数を確認する"
+          }
+        ],
+        "editableFiles": [
+          {
+            "path": "exercise/schema.sql",
+            "solutionPath": "reference/schema.sql"
+          },
+          {
+            "path": "exercise/paid_totals.sql",
+            "solutionPath": "reference/paid_totals.sql"
+          },
+          {
+            "path": "exercise/high_value_customers.sql",
+            "solutionPath": "reference/high_value_customers.sql"
+          },
+          {
+            "path": "exercise/explain.sql",
+            "solutionPath": "reference/explain.sql"
+          }
+        ]
+      },
       "hints": [
-        "先に顧客IDをSetへ入れ、注文行ごとに3つの条件を上から順に判定します。",
-        "違反した行は `ids` へ登録しないので、次の行のDUPLICATE_ID判定には影響しません。",
-        "1件も違反が無かったときだけ `OK` を表示します。"
+        "制約はJavaのifではなく、PRIMARY KEY・FOREIGN KEY・NOT NULL・UNIQUE・CHECKとしてDBへ定義します。",
+        "注文のない顧客を残すにはcustomersを左側にし、`o.status = 'PAID'`をWHEREではなくLEFT JOINのON句へ置きます。",
+        "行の絞り込みはWHERE、SUM後の絞り込みはHAVINGです。実行計画には`EXPLAIN (ANALYZE, FORMAT JSON)`を使います。"
       ],
-      "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int c = sc.nextInt();\n        Set<Long> customers = new HashSet<>();\n        for (int i = 0; i < c; i++) customers.add(sc.nextLong());\n        int n = sc.nextInt();\n        Set<Long> ids = new HashSet<>();\n        boolean ok = true;\n        for (int i = 1; i <= n; i++) {\n            long id = sc.nextLong(), customerId = sc.nextLong(), total = sc.nextLong();\n            String reason = ids.contains(id) ? \"DUPLICATE_ID\" : !customers.contains(customerId) ? \"NO_CUSTOMER\" : total < 0 ? \"NEGATIVE_TOTAL\" : null;\n            if (reason != null) {\n                System.out.println(\"NG \" + i + \" \" + reason);\n                ok = false;\n            } else ids.add(id);\n        }\n        if (ok) System.out.println(\"OK\");\n    }\n}\n",
+      "rubric": [
+        "implement",
+        "diagnose"
+      ],
       "extraTasks": [
         {
           "objectiveIds": [
             "ch46-o2"
           ],
-          "kind": "drill",
-          "task": "【組み合わせ】1行に、顧客の件数 `c`（`1` 以上）、続けて `c` 件ぶんの `id name`、注文の件数 `n`（`1` 以上）、続けて `n` 件ぶんの `customerId status total`、最後にしきい値 `threshold`（`0` 以上）が入力されます。`status` は `PAID` `CANCELED` `PENDING` のいずれかです。`status` が `PAID` の注文だけを顧客ごとに合計し、合計が threshold 以上の顧客を、合計の降順、同額なら名前の辞書順で `name=合計` と表示してください。PAIDの注文が1件も無い顧客も、合計0の顧客として扱います。該当する顧客が居なければ `NONE` と表示します。",
+          "kind": "applied",
+          "task": "【任意・集約をJavaで再現する練習】SQLを実行した後、コレクションによる集約も復習したい場合だけ取り組みます。章クリア・★・カフェ報酬・復習の対象外です。\n\n【組み合わせ】1行に、顧客の件数 `c`（`1` 以上）、続けて `c` 件ぶんの `id name`、注文の件数 `n`（`1` 以上）、続けて `n` 件ぶんの `customerId status total`、最後にしきい値 `threshold`（`0` 以上）が入力されます。`status` は `PAID` `CANCELED` `PENDING` のいずれかです。`status` が `PAID` の注文だけを顧客ごとに合計し、合計が threshold 以上の顧客を、合計の降順、同額なら名前の辞書順で `name=合計` と表示してください。PAIDの注文が1件も無い顧客も、合計0の顧客として扱います。該当する顧客が居なければ `NONE` と表示します。",
           "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int c = sc.nextInt();\n        Map<Long, String> names = new LinkedHashMap<>();\n        for (int i = 0; i < c; i++) {\n            long id = sc.nextLong();\n            names.put(id, sc.next());\n        }\n        int n = sc.nextInt();\n        Map<Long, Long> paid = new HashMap<>();\n        for (int i = 0; i < n; i++) {\n            long customerId = sc.nextLong();\n            String status = sc.next();\n            long total = sc.nextLong();\n            /* TODO */\n        }\n        long threshold = sc.nextLong();\n        /* TODO */\n    }\n}\n",
           "visibleCases": [
             {
@@ -460,14 +385,15 @@
             "顧客一覧を基準に回すと、PAIDが無い顧客も0として扱えます（外部結合と同じ考え方です）。",
             "並べ替えは合計の降順が先、名前の昇順が後です。"
           ],
-          "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int c = sc.nextInt();\n        Map<Long, String> names = new LinkedHashMap<>();\n        for (int i = 0; i < c; i++) {\n            long id = sc.nextLong();\n            names.put(id, sc.next());\n        }\n        int n = sc.nextInt();\n        Map<Long, Long> paid = new HashMap<>();\n        for (int i = 0; i < n; i++) {\n            long customerId = sc.nextLong();\n            String status = sc.next();\n            long total = sc.nextLong();\n            if (status.equals(\"PAID\")) paid.merge(customerId, total, Long::sum);\n        }\n        long threshold = sc.nextLong();\n        List<Map.Entry<String, Long>> rows = new ArrayList<>();\n        for (Map.Entry<Long, String> e : names.entrySet()) {\n            long sum = paid.getOrDefault(e.getKey(), 0L);\n            if (sum >= threshold) rows.add(Map.entry(e.getValue(), sum));\n        }\n        rows.sort(Comparator.comparingLong((Map.Entry<String, Long> r) -> r.getValue()).reversed().thenComparing(Map.Entry::getKey));\n        if (rows.isEmpty()) System.out.println(\"NONE\");\n        else for (Map.Entry<String, Long> r : rows) System.out.println(r.getKey() + \"=\" + r.getValue());\n    }\n}\n"
+          "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int c = sc.nextInt();\n        Map<Long, String> names = new LinkedHashMap<>();\n        for (int i = 0; i < c; i++) {\n            long id = sc.nextLong();\n            names.put(id, sc.next());\n        }\n        int n = sc.nextInt();\n        Map<Long, Long> paid = new HashMap<>();\n        for (int i = 0; i < n; i++) {\n            long customerId = sc.nextLong();\n            String status = sc.next();\n            long total = sc.nextLong();\n            if (status.equals(\"PAID\")) paid.merge(customerId, total, Long::sum);\n        }\n        long threshold = sc.nextLong();\n        List<Map.Entry<String, Long>> rows = new ArrayList<>();\n        for (Map.Entry<Long, String> e : names.entrySet()) {\n            long sum = paid.getOrDefault(e.getKey(), 0L);\n            if (sum >= threshold) rows.add(Map.entry(e.getValue(), sum));\n        }\n        rows.sort(Comparator.comparingLong((Map.Entry<String, Long> r) -> r.getValue()).reversed().thenComparing(Map.Entry::getKey));\n        if (rows.isEmpty()) System.out.println(\"NONE\");\n        else for (Map.Entry<String, Long> r : rows) System.out.println(r.getKey() + \"=\" + r.getValue());\n    }\n}\n",
+          "required": false
         },
         {
           "objectiveIds": [
             "ch46-o4"
           ],
           "kind": "applied",
-          "task": "【実践】トランザクションをm件読みます。各行は「ロックする行IDの個数k」と、続くk個のID（取得順）です。\n\n次の順に表示してください。\n\n1. トランザクションごとに1行。IDが昇順に並んでいれば `T番号 OK`、そうでなければ `T番号 REORDER`（番号は1から）\n2. 最後に1行。元の取得順のままで循環待ちになり得る組が1組でもあれば `RISK`、無ければ `SAFE`\n\n循環待ちになり得るのは、**2つのトランザクションが共通して扱う2つのIDについて、取得順が互いに逆**のときです。",
+          "task": "【任意・ロック順をJavaで検査する練習】分離レベルとデッドロックの判断をクイズで確認した後、順序関係の実装も練習したい場合だけ取り組みます。章クリア・★・カフェ報酬・復習の対象外です。\n\n【実践】トランザクションをm件読みます。各行は「ロックする行IDの個数k」と、続くk個のID（取得順）です。\n\n次の順に表示してください。\n\n1. トランザクションごとに1行。IDが昇順に並んでいれば `T番号 OK`、そうでなければ `T番号 REORDER`（番号は1から）\n2. 最後に1行。元の取得順のままで循環待ちになり得る組が1組でもあれば `RISK`、無ければ `SAFE`\n\n循環待ちになり得るのは、**2つのトランザクションが共通して扱う2つのIDについて、取得順が互いに逆**のときです。",
           "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int m = sc.nextInt();\n        List<List<Integer>> txs = new ArrayList<>();\n        for (int i = 0; i < m; i++) {\n            int k = sc.nextInt();\n            List<Integer> ids = new ArrayList<>();\n            for (int j = 0; j < k; j++) ids.add(sc.nextInt());\n            txs.add(ids);\n        }\n        /* TODO 昇順判定 */ /* TODO 循環待ちの判定 */\n    }\n}\n",
           "visibleCases": [
             {
@@ -508,96 +434,52 @@
             "もう一方のトランザクションでのIDの位置は `indexOf` で調べられます。",
             "片方で先に取る2つのIDが、もう片方では逆順になっていれば `RISK` です。"
           ],
-          "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int m = sc.nextInt();\n        List<List<Integer>> txs = new ArrayList<>();\n        for (int i = 0; i < m; i++) {\n            int k = sc.nextInt();\n            List<Integer> ids = new ArrayList<>();\n            for (int j = 0; j < k; j++) ids.add(sc.nextInt());\n            txs.add(ids);\n        }\n        for (int i = 0; i < m; i++) {\n            List<Integer> ids = txs.get(i);\n            boolean sorted = true;\n            for (int j = 1; j < ids.size(); j++) if (ids.get(j) < ids.get(j - 1)) sorted = false;\n            System.out.println(\"T\" + (i + 1) + (sorted ? \" OK\" : \" REORDER\"));\n        }\n        boolean risk = false;\n        for (int i = 0; i < m && !risk; i++) for (int j = i + 1; j < m && !risk; j++) {\n            List<Integer> x = txs.get(i), y = txs.get(j);\n            for (int p = 0; p < x.size() && !risk; p++) for (int q = p + 1; q < x.size() && !risk; q++) {\n                int pa = y.indexOf(x.get(p)), pb = y.indexOf(x.get(q));\n                if (pa >= 0 && pb >= 0 && pa > pb) risk = true;\n            }\n        }\n        System.out.println(risk ? \"RISK\" : \"SAFE\");\n    }\n}\n"
+          "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int m = sc.nextInt();\n        List<List<Integer>> txs = new ArrayList<>();\n        for (int i = 0; i < m; i++) {\n            int k = sc.nextInt();\n            List<Integer> ids = new ArrayList<>();\n            for (int j = 0; j < k; j++) ids.add(sc.nextInt());\n            txs.add(ids);\n        }\n        for (int i = 0; i < m; i++) {\n            List<Integer> ids = txs.get(i);\n            boolean sorted = true;\n            for (int j = 1; j < ids.size(); j++) if (ids.get(j) < ids.get(j - 1)) sorted = false;\n            System.out.println(\"T\" + (i + 1) + (sorted ? \" OK\" : \" REORDER\"));\n        }\n        boolean risk = false;\n        for (int i = 0; i < m && !risk; i++) for (int j = i + 1; j < m && !risk; j++) {\n            List<Integer> x = txs.get(i), y = txs.get(j);\n            for (int p = 0; p < x.size() && !risk; p++) for (int q = p + 1; q < x.size() && !risk; q++) {\n                int pa = y.indexOf(x.get(p)), pb = y.indexOf(x.get(q));\n                if (pa >= 0 && pb >= 0 && pa > pb) risk = true;\n            }\n        }\n        System.out.println(risk ? \"RISK\" : \"SAFE\");\n    }\n}\n",
+          "required": false
         },
         {
           "objectiveIds": [
-            "ch46-o1",
-            "ch46-o2",
-            "ch46-o3"
+            "ch46-o1"
           ],
           "kind": "applied",
-          "type": "runtime-lab",
-          "task": "【実DB演習】`labs/sql`の4ファイルを完成させてください。`schema.sql`には主キー・外部キー・NOT NULL・UNIQUE・CHECK制約を定義します。`paid_totals.sql`ではPAID注文だけをLEFT JOINのON句で絞り、注文のない顧客も0で残します。`high_value_customers.sql`ではPAID合計1000以上をHAVINGで絞ります。`explain.sql`では`(status, created_at)`の複合indexを追加し、EXPLAIN ANALYZEを実行します。提出するとDockerまたはPodmanで一時的なPostgreSQL 16コンテナを起動し、固定seedと2万件の計測用データを使って検証して、最後にコンテナを削除します。",
-          "runtimeLab": {
-            "name": "SQL fundamentals PostgreSQL lab",
-            "source": "labs/sql",
-            "exclude": [
-              "reference"
-            ],
-            "command": [
-              "./run-runtime-lab.sh"
-            ],
-            "timeoutSeconds": 60,
-            "verification": "PostgreSQLでDDL制約、LEFT JOIN、GROUP BY、HAVING、複合index、EXPLAIN ANALYZEを確認する",
-            "capabilities": [
-              "db",
-              "container"
-            ],
-            "requiredTools": [
-              "docker-or-podman"
-            ],
-            "requiredImages": [
-              "postgres:16-alpine"
-            ],
-            "checks": [
-              {
-                "id": "sql-primary-key",
-                "label": "PRIMARY KEYが重複IDを拒否する"
-              },
-              {
-                "id": "sql-foreign-key",
-                "label": "FOREIGN KEYが孤児注文を拒否する"
-              },
-              {
-                "id": "sql-column-constraints",
-                "label": "NOT NULL・UNIQUE・CHECKが不正値を拒否する"
-              },
-              {
-                "id": "sql-left-join",
-                "label": "LEFT JOINで注文のない顧客を残してPAID合計を求める"
-              },
-              {
-                "id": "sql-having",
-                "label": "HAVINGで集約後の合計を絞り込む"
-              },
-              {
-                "id": "sql-index",
-                "label": "status・created_atの複合indexを作成する"
-              },
-              {
-                "id": "sql-explain",
-                "label": "EXPLAIN ANALYZEでindex利用と実測行数を確認する"
-              }
-            ],
-            "editableFiles": [
-              {
-                "path": "exercise/schema.sql",
-                "solutionPath": "reference/schema.sql"
-              },
-              {
-                "path": "exercise/paid_totals.sql",
-                "solutionPath": "reference/paid_totals.sql"
-              },
-              {
-                "path": "exercise/high_value_customers.sql",
-                "solutionPath": "reference/high_value_customers.sql"
-              },
-              {
-                "path": "exercise/explain.sql",
-                "solutionPath": "reference/explain.sql"
-              }
-            ]
-          },
-          "hints": [
-            "制約はJavaのifではなく、PRIMARY KEY・FOREIGN KEY・NOT NULL・UNIQUE・CHECKとしてDBへ定義します。",
-            "注文のない顧客を残すにはcustomersを左側にし、`o.status = 'PAID'`をWHEREではなくLEFT JOINのON句へ置きます。",
-            "行の絞り込みはWHERE、SUM後の絞り込みはHAVINGです。実行計画には`EXPLAIN (ANALYZE, FORMAT JSON)`を使います。"
+          "required": false,
+          "task": "【任意・制約判定をJavaで再現する練習】DB制約を実際に試した後、集合と条件分岐の復習もしたい場合だけ取り組みます。章クリア・★・カフェ報酬・復習の対象外です。\n\n【基本】顧客IDをc件読み、続いて注文をn件 `id customerId total` の形で読みます。上から順に検査し、`id` が既に登録済みなら `NG 行番号 DUPLICATE_ID`、`customerId` が顧客一覧に無ければ `NG 行番号 NO_CUSTOMER`、`total` が負なら `NG 行番号 NEGATIVE_TOTAL` と表示してください。1行が複数に該当するときは、この順で最初の理由だけを出します。違反した行は登録しません。違反が1件も無ければ `OK` と表示します。行番号は1から数えます。",
+          "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int c = sc.nextInt();\n        Set<Long> customers = new HashSet<>();\n        for (int i = 0; i < c; i++) customers.add(sc.nextLong());\n        int n = sc.nextInt();\n        Set<Long> ids = new HashSet<>();\n        boolean ok = true;\n        for (int i = 1; i <= n; i++) {\n            long id = sc.nextLong(), customerId = sc.nextLong(), total = sc.nextLong();\n            /* TODO */\n        }\n        if (ok) System.out.println(\"OK\");\n    }\n}\n",
+          "visibleCases": [
+            {
+              "label": "すべて妥当",
+              "stdin": "2 10 20 2 1 10 500 2 20 0",
+              "expected": "OK"
+            },
+            {
+              "label": "3種の違反",
+              "stdin": "1 10 4 1 10 100 1 10 200 2 99 50 3 10 -1",
+              "expected": "NG 2 DUPLICATE_ID\nNG 3 NO_CUSTOMER\nNG 4 NEGATIVE_TOTAL"
+            }
           ],
-          "rubric": [
-            "implement",
-            "diagnose"
-          ]
+          "hiddenCases": [
+            {
+              "label": "優先順位",
+              "stdin": "1 10 2 5 10 100 5 99 -3",
+              "expected": "NG 2 DUPLICATE_ID"
+            },
+            {
+              "label": "注文なし",
+              "stdin": "1 10 0",
+              "expected": "OK"
+            },
+            {
+              "label": "違反行は登録しない",
+              "stdin": "1 10 3 7 99 100 7 10 100 7 10 100",
+              "expected": "NG 1 NO_CUSTOMER\nNG 3 DUPLICATE_ID"
+            }
+          ],
+          "hints": [
+            "先に顧客IDをSetへ入れ、注文行ごとに3つの条件を上から順に判定します。",
+            "違反した行は `ids` へ登録しないので、次の行のDUPLICATE_ID判定には影響しません。",
+            "1件も違反が無かったときだけ `OK` を表示します。"
+          ],
+          "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int c = sc.nextInt();\n        Set<Long> customers = new HashSet<>();\n        for (int i = 0; i < c; i++) customers.add(sc.nextLong());\n        int n = sc.nextInt();\n        Set<Long> ids = new HashSet<>();\n        boolean ok = true;\n        for (int i = 1; i <= n; i++) {\n            long id = sc.nextLong(), customerId = sc.nextLong(), total = sc.nextLong();\n            String reason = ids.contains(id) ? \"DUPLICATE_ID\" : !customers.contains(customerId) ? \"NO_CUSTOMER\" : total < 0 ? \"NEGATIVE_TOTAL\" : null;\n            if (reason != null) {\n                System.out.println(\"NG \" + i + \" \" + reason);\n                ok = false;\n            } else ids.add(id);\n        }\n        if (ok) System.out.println(\"OK\");\n    }\n}\n"
         }
       ]
     }

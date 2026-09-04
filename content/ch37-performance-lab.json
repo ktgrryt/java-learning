@@ -1,7 +1,7 @@
 {
   "id": "37",
   "title": "性能測定とJVM計測ラボ",
-  "subtitle": "推測せず計測し、thread dump・JFR・GCログを証拠として読む",
+  "subtitle": "推測せず計測し、スレッドダンプ・JFR・GCログを証拠として読む",
   "emoji": "🔬",
   "objectives": [
     {
@@ -69,81 +69,11 @@
       "objectiveIds": [
         "37-o1"
       ],
-      "explanation": "## 性能調査は、遅いと感じた場面を数値にするところから始める\n\n「アプリが遅い」だけでは、調べる場所を決められません。まず、利用者が困っている現象を測れる言葉へ変えます。\n\n- **レイテンシ**: 1回の処理が終わるまでの時間。API応答が800ミリ秒、など\n- **スループット**: 1秒あたりに処理できる件数。毎秒200リクエスト、など\n- **エラー率**: 全処理のうち失敗した割合\n- **パーセンタイル**: 測定値を小さい順に並べたとき、何%がその値以下かを示す値。p95が800ミリ秒なら、おおむね95%の処理が800ミリ秒以内という意味\n\n平均値だけでは、一部の非常に遅い処理が隠れます。たとえば9件が10ミリ秒、1件が1秒なら、平均だけを見ても「ときどき1秒待つ」体験が伝わりません。p95やp99を併せて確認します。\n\n数値が分かったら、症状に合う証拠を集めます。\n\n| 症状 | 最初に見る証拠 | 分かること |\n|---|---|---|\n| CPU使用率が高い | JFRやプロファイラのCPUサンプル | どのメソッドに実行時間が集まるか |\n| 応答が止まる | 複数時点のスレッドダンプ | ロック待ち、外部I/O待ち、デッドロックの候補 |\n| GC付近で遅れる | JFRのGCイベント、GCログ、レイテンシ | 停止と遅延の時刻が重なるか |\n| メモリが増え続ける | ヒープ使用量の推移、必要ならヒープダンプ | どのオブジェクトが保持され続けるか |\n| 小さな処理を比較したい | JMHベンチマーク | JITやウォームアップを考慮した相対比較 |\n\nここで重要なのは、1つの数値だけで原因を断定しないことです。`RUNNABLE` のスレッドが多くても、全員がCPUを使っているとは限りません。GC停止と遅延が同じ時刻でも、因果関係は追加調査が必要です。仮説を立て、別の証拠で確かめ、変更前後を同じ条件で測ります。\n\n今回の演習では、スレッド状態を集計します。これは原因を決める問題ではなく、次にどこを詳しく見るかを選ぶための材料を作る練習です。",
+      "explanation": "## 性能調査は、遅いと感じた場面を数値にするところから始める\n\n「アプリが遅い」だけでは、調べる場所を決められません。まず、利用者が困っている現象を測れる言葉へ変えます。\n\n- **レイテンシ**: 1回の処理が終わるまでの時間。API応答が800ミリ秒、など\n- **スループット**: 1秒あたりに処理できる件数。毎秒200リクエスト、など\n- **エラー率**: 全処理のうち失敗した割合\n- **パーセンタイル**: 測定値を小さい順に並べたとき、何%がその値以下かを示す値。p95が800ミリ秒なら、おおむね95%の処理が800ミリ秒以内という意味\n\n平均値だけでは、一部の非常に遅い処理が隠れます。たとえば9件が10ミリ秒、1件が1秒なら、平均だけを見ても「ときどき1秒待つ」体験が伝わりません。p95やp99を併せて確認します。\n\n数値が分かったら、症状に合う証拠を集めます。\n\n| 症状 | 最初に見る証拠 | 分かること |\n|---|---|---|\n| CPU使用率が高い | JFRやプロファイラのCPUサンプル | どのメソッドに実行時間が集まるか |\n| 応答が止まる | 複数時点のスレッドダンプ | ロック待ち、外部I/O待ち、デッドロックの候補 |\n| GC付近で遅れる | JFRのGCイベント、GCログ、レイテンシ | 停止と遅延の時刻が重なるか |\n| メモリが増え続ける | ヒープ使用量の推移、必要ならヒープダンプ | どのオブジェクトが保持され続けるか |\n| 小さな処理を比較したい | JMHベンチマーク | JITやウォームアップを考慮した相対比較 |\n\nここで重要なのは、1つの数値だけで原因を断定しないことです。`RUNNABLE` のスレッドが多くても、全員がCPUを使っているとは限りません。GC停止と遅延が同じ時刻でも、因果関係は追加調査が必要です。仮説を立て、別の証拠で確かめ、変更前後を同じ条件で測ります。\n\nこの単元ではThread.Stateの件数やp95をJavaで再計算せず、平均・パーセンタイル・スレッド状態をどの証拠として使うかをクイズで確認します。実物のスレッドダンプとJFRは後続の実機演習で取得します。",
       "samples": [
         {
           "caption": "パーセンタイルを計算する",
           "code": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        long[] ms = {10, 12, 15, 20, 100};\n        Arrays.sort(ms);\n        int index = (int) Math.ceil(ms.length * .95) - 1;\n        System.out.println(ms[index]);\n    }\n}\n"
-        }
-      ],
-      "task": "Thread dumpを単純化した入力として件数n、続くn組の `スレッド名 状態` を読みます。状態はThread.Stateの名前です。状態ごとの件数をThread.Stateの宣言順に、0件を除いて `STATE=件数` と表示してください。",
-      "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n        Map<Thread.State, Integer> counts = new EnumMap<>(Thread.State.class);\n        // TODO\n    }\n}\n",
-      "visibleCases": [
-        {
-          "label": "競合あり",
-          "stdin": "5 t1 RUNNABLE t2 BLOCKED t3 BLOCKED t4 WAITING t5 RUNNABLE",
-          "expected": "RUNNABLE=2\nBLOCKED=2\nWAITING=1"
-        },
-        {
-          "label": "終了のみ",
-          "stdin": "1 t TERMINATED",
-          "expected": "TERMINATED=1"
-        }
-      ],
-      "hiddenCases": [
-        {
-          "label": "0件",
-          "stdin": "0",
-          "expected": ""
-        },
-        {
-          "label": "全状態",
-          "stdin": "6 a NEW b RUNNABLE c BLOCKED d WAITING e TIMED_WAITING f TERMINATED",
-          "expected": "NEW=1\nRUNNABLE=1\nBLOCKED=1\nWAITING=1\nTIMED_WAITING=1\nTERMINATED=1"
-        }
-      ],
-      "hints": [
-        "名前は読み捨て、状態を `Thread.State.valueOf(sc.next())` で変換します。",
-        "EnumMapへmergeし、最後に `Thread.State.values()` の順で表示します。"
-      ],
-      "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n        Map<Thread.State, Integer> counts = new EnumMap<>(Thread.State.class);\n        for (int i = 0; i < n; i++) {\n            sc.next();\n            Thread.State state = Thread.State.valueOf(sc.next());\n            counts.merge(state, 1, Integer::sum);\n        }\n        for (Thread.State state : Thread.State.values()) if (counts.containsKey(state)) System.out.println(state + \"=\" + counts.get(state));\n    }\n}\n",
-      "extraTasks": [
-        {
-          "kind": "applied",
-          "task": "測定数n（1以上）とn個のレイテンシmsを読み、昇順にして `min=...`、`avg=...`（整数の切捨て）、nearest-rank方式の `p95=...`、`max=...` を表示してください。p95の添字は `ceil(n*0.95)-1` です。",
-          "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n        long[] ms = new long[n];\n        for (int i = 0; i < n; i++) ms[i] = sc.nextLong();\n        // TODO\n    }\n}\n",
-          "visibleCases": [
-            {
-              "label": "外れ値あり",
-              "stdin": "5 10 12 15 20 100",
-              "expected": "min=10\navg=31\np95=100\nmax=100"
-            },
-            {
-              "label": "1件",
-              "stdin": "1 42",
-              "expected": "min=42\navg=42\np95=42\nmax=42"
-            }
-          ],
-          "hiddenCases": [
-            {
-              "label": "20件",
-              "stdin": "20 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 100",
-              "expected": "min=1\navg=14\np95=19\nmax=100"
-            },
-            {
-              "label": "同値",
-              "stdin": "4 7 7 7 7",
-              "expected": "min=7\navg=7\np95=7\nmax=7"
-            }
-          ],
-          "hints": [
-            "合計をlongで求めてから `Arrays.sort(ms)` します。",
-            "p95添字は `(int)Math.ceil(n * 0.95) - 1` です。"
-          ],
-          "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n        long[] ms = new long[n];\n        long sum = 0;\n        for (int i = 0; i < n; i++) {\n            ms[i] = sc.nextLong();\n            sum += ms[i];\n        }\n        Arrays.sort(ms);\n        int p95 = (int) Math.ceil(n * .95) - 1;\n        System.out.println(\"min=\" + ms[0]);\n        System.out.println(\"avg=\" + (sum / n));\n        System.out.println(\"p95=\" + ms[p95]);\n        System.out.println(\"max=\" + ms[n - 1]);\n    }\n}\n",
-          "rubric": [
-            "diagnose"
-          ]
         }
       ],
       "quiz": [
@@ -192,9 +122,7 @@
           "explanation": "`println` の回数は測定ではなく、勘は根拠になりません。`currentTimeMillis` を一度取るだけでは、ウォームアップ前のインタープリタ実行や、JITが計算そのものを消してしまう影響を分離できません。JMHはそうした罠を扱うための測定基盤です。"
         }
       ],
-      "rubric": [
-        "diagnose"
-      ]
+      "lessonType": "concept"
     },
     {
       "id": "37-2",
@@ -202,39 +130,13 @@
       "objectiveIds": [
         "37-o2"
       ],
-      "explanation": "## スレッドダンプは「その瞬間、各処理がどこで待っているか」の写真\n\n画面が固まった、リクエストが返らない、といった症状では、まずJavaの各スレッドが何をしているかを確認します。**スレッドダンプ** は、ある瞬間のスレッド名、状態、実行中のメソッド、保持・待機しているロックを記録したものです。実行中のJVMに対して `jcmd <PID> Thread.print -l` などで取得できます。\n\n主な状態を、調査で必要な意味に絞ると次のようになります。\n\n- `RUNNABLE`: JVMから見て実行可能。CPUで実行中とは限らず、一部のOS処理を待つ場合もある\n- `BLOCKED`: `synchronized` のロックを別スレッドが持っており、入れない\n- `WAITING`: 終了時刻を決めず、通知や別処理の完了を待つ\n- `TIMED_WAITING`: `sleep` や時間指定の待機など、期限付きで待つ\n\n2つ以上のスレッドが、互いの持つロックを待って永久に進めない状態が **デッドロック** です。一方、1つのロックへ処理が集中して遅くなるだけなら **ロック競合** であり、必ずしもデッドロックではありません。\n\n1枚のダンプは一瞬の写真なので、正常な短い待機も写ります。数秒おきに複数回取り、同じスレッドが同じ場所で待ち続けているか、ロック所有者が変化しているかを比べます。次にJFRのロックイベントや処理時間と照合すると、影響の大きさを判断しやすくなります。\n\n今回の演習では、単純化したダンプから `BLOCKED` のスレッドと待っている資源を抽出します。`BLOCKED` を見つけることは調査の入口であり、それだけでデッドロックと決めない点も意識してください。",
+      "explanation": "## スレッドダンプは「その瞬間、各処理がどこで待っているか」の写真\n\n画面が固まった、リクエストが返らない、といった症状では、まずJavaの各スレッドが何をしているかを確認します。**スレッドダンプ** は、ある瞬間のスレッド名、状態、実行中のメソッド、保持・待機しているロックを記録したものです。実行中のJVMに対して `jcmd <PID> Thread.print -l` などで取得できます。\n\n主な状態を、調査で必要な意味に絞ると次のようになります。\n\n- `RUNNABLE`: JVMから見て実行可能。CPUで実行中とは限らず、一部のOS処理を待つ場合もある\n- `BLOCKED`: `synchronized` のロックを別スレッドが持っており、入れない\n- `WAITING`: 終了時刻を決めず、通知や別処理の完了を待つ\n- `TIMED_WAITING`: `sleep` や時間指定の待機など、期限付きで待つ\n\n2つ以上のスレッドが、互いの持つロックを待って永久に進めない状態が **デッドロック** です。一方、1つのロックへ処理が集中して遅くなるだけなら **ロック競合** であり、必ずしもデッドロックではありません。\n\n1枚のダンプは一瞬の写真なので、正常な短い待機も写ります。数秒おきに複数回取り、同じスレッドが同じ場所で待ち続けているか、ロック所有者が変化しているかを比べます。次にJFRのロックイベントや処理時間と照合すると、影響の大きさを判断しやすくなります。\n\n任意のJava復習では、単純化したダンプから `BLOCKED` のスレッドと待っている資源を抽出します。`BLOCKED` を見つけることは調査の入口であり、それだけでデッドロックと決めない点も意識してください。\n\n必須演習では動いているJVMからスレッドダンプを取得し、循環待ちのlockを読んでコードを直します。状態一覧をJavaで集計する問題は任意です。",
       "samples": [
         {
           "caption": "JVMからデッドロックを検出",
           "code": "import java.lang.management.*;\n\npublic class Main {\n    public static void main(String[] a) {\n        long[] ids = ManagementFactory.getThreadMXBean().findDeadlockedThreads();\n        System.out.println(ids == null ? 0 : ids.length);\n    }\n}\n"
         }
       ],
-      "task": "1行に、件数 `n`（`1` 以上）、続けて `n` 件ぶんの `thread state resource` が入力されます。BLOCKEDのスレッドだけをスレッド名の辞書順で `thread waits resource` と表示してください。なければ `NONE`。",
-      "starterCode": "import java.util.*;\n\nrecord Entry(String thread, String state, String resource) { }\n\npublic class Main {\n    public static void main(String[] a) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n        List<Entry> entries = new ArrayList<>();\n        for (int i = 0; i < n; i++) entries.add(new Entry(sc.next(), sc.next(), sc.next()));\n        /* TODO */\n    }\n}\n",
-      "visibleCases": [
-        {
-          "label": "待機あり",
-          "stdin": "3 workerB BLOCKED lockA workerA RUNNABLE cpu timer TIMED_WAITING clock",
-          "expected": "workerB waits lockA"
-        }
-      ],
-      "hiddenCases": [
-        {
-          "label": "複数",
-          "stdin": "3 z BLOCKED L2 a BLOCKED L1 b WAITING Q",
-          "expected": "a waits L1\nz waits L2"
-        },
-        {
-          "label": "無し",
-          "stdin": "1 main RUNNABLE cpu",
-          "expected": "NONE"
-        }
-      ],
-      "hints": [
-        "filterしてスレッド名でsortedします。",
-        "結果をListへ確定し、emptyを判定します。"
-      ],
-      "solution": "import java.util.*;\n\nrecord Entry(String thread, String state, String resource) { }\n\npublic class Main {\n    public static void main(String[] a) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n        List<Entry> entries = new ArrayList<>();\n        for (int i = 0; i < n; i++) entries.add(new Entry(sc.next(), sc.next(), sc.next()));\n        List<Entry> blocked = entries.stream().filter(e -> e.state().equals(\"BLOCKED\")).sorted(Comparator.comparing(Entry::thread)).toList();\n        if (blocked.isEmpty()) System.out.println(\"NONE\");\n        else blocked.forEach(e -> System.out.println(e.thread() + \" waits \" + e.resource()));\n    }\n}\n",
       "quiz": [
         {
           "question": "ハング調査で時間を空けた複数のダンプを取る理由は？",
@@ -259,76 +161,107 @@
           "explanation": "RUNNABLEは必ずCPU実行中とは限りません。状態名だけで待ちの種類を決めつけないようにします。socketの読み取り待ちなどが該当します。"
         }
       ],
+      "kind": "applied",
+      "type": "runtime-lab",
+      "task": "`labs/concurrency/deadlock-exercise`で、**動いているJVMから実物のスレッドダンプを取り**、循環待ちを読み取って直します。\n\n採点は必ずデッドロックする参照用コードを動かし、`jcmd <pid> Thread.print`でダンプを取ります。詰まっている2スレッドの行は結果に出るので、それを読んで`exercise/diagnosis.properties`へ「どのスレッドが」「どのロックの取得を待っているか」を書いてください。正解は`ThreadMXBean.findDeadlockedThreads()`で実測した値と突き合わせます（ダンプの書式はJVMの実装で変わるため、値そのものはJMXで測ります）。\n\n続けて`src/InventoryService.java`のロック取得順をそろえ、`checkout`と`restock`が同時に動いても詰まらないようにしてください。順番はどちらでも構いませんが、**2つの処理で同じ順番**にする必要があります。ロックを外して速くするのは解決ではありません（注文数＋在庫数が変わらないことも採点します）。",
+      "runtimeLab": {
+        "name": "スレッドダンプ deadlock lab",
+        "source": "labs/concurrency/deadlock-exercise",
+        "exclude": [
+          "reference"
+        ],
+        "command": [
+          "./run-runtime-lab.sh"
+        ],
+        "timeoutSeconds": 60,
+        "verification": "実物のスレッドダンプから循環待ちを読み取り、ロックの取得順をそろえて解消できる",
+        "capabilities": [
+          "jdk-tool"
+        ],
+        "requiredTools": [
+          "java",
+          "javac",
+          "jcmd"
+        ],
+        "requiredImages": [],
+        "checks": [
+          {
+            "id": "deadlock-dump",
+            "label": "動いているJVMからスレッドダンプを取れる"
+          },
+          {
+            "id": "diagnosis-threads",
+            "label": "循環待ちに入っているスレッドと数を読み取れる"
+          },
+          {
+            "id": "diagnosis-locks",
+            "label": "各スレッドが待っているロックを読み取れる"
+          },
+          {
+            "id": "fix-both-locks",
+            "label": "どちらの処理も2つのロックを取っている"
+          },
+          {
+            "id": "fix-crossing",
+            "label": "同時に動かしても循環待ちが起きない"
+          },
+          {
+            "id": "fix-invariant",
+            "label": "多数回動かしても注文数＋在庫数が変わらない"
+          }
+        ],
+        "editableFiles": [
+          {
+            "path": "exercise/diagnosis.properties",
+            "solutionPath": "reference/diagnosis.properties"
+          },
+          {
+            "path": "src/InventoryService.java",
+            "solutionPath": "reference/InventoryService.java"
+          }
+        ]
+      },
+      "hints": [
+        "ダンプの行に「そのスレッドが何を待っているか」と「それを誰が持っているか」が出ています。`waits.*` に書くのは**待っている側**のロックです（すでに持っているロックではありません）。",
+        "ロックのクラス名は、外側クラスを除いた部分だけを書きます（`DeadlockDemo$StockTableLock` なら `StockTableLock`）。",
+        "直し方は「取得順を1つに決める」です。`checkout` と `restock` が同じ順番で取れば、互いを待つ輪は作れません。順番はどちらでも構いません。"
+      ],
+      "rubric": [
+        "diagnose"
+      ],
       "extraTasks": [
         {
-          "kind": "applied",
-          "type": "runtime-lab",
-          "task": "`labs/concurrency/deadlock-exercise`で、**動いているJVMから実物のスレッドダンプを取り**、循環待ちを読み取って直します。\n\n採点は必ずデッドロックする参照用コードを動かし、`jcmd <pid> Thread.print`でダンプを取ります。詰まっている2スレッドの行は結果に出るので、それを読んで`exercise/diagnosis.properties`へ「どのスレッドが」「どのロックの取得を待っているか」を書いてください。正解は`ThreadMXBean.findDeadlockedThreads()`で実測した値と突き合わせます（ダンプの書式はJVMの実装で変わるため、値そのものはJMXで測ります）。\n\n続けて`src/InventoryService.java`のロック取得順をそろえ、`checkout`と`restock`が同時に動いても詰まらないようにしてください。順番はどちらでも構いませんが、**2つの処理で同じ順番**にする必要があります。ロックを外して速くするのは解決ではありません（注文数＋在庫数が変わらないことも採点します）。",
-          "runtimeLab": {
-            "name": "thread dump deadlock lab",
-            "source": "labs/concurrency/deadlock-exercise",
-            "exclude": [
-              "reference"
-            ],
-            "command": [
-              "./run-runtime-lab.sh"
-            ],
-            "timeoutSeconds": 60,
-            "verification": "実物のスレッドダンプから循環待ちを読み取り、ロックの取得順をそろえて解消できる",
-            "capabilities": [
-              "jdk-tool"
-            ],
-            "requiredTools": [
-              "java",
-              "javac",
-              "jcmd"
-            ],
-            "requiredImages": [],
-            "checks": [
-              {
-                "id": "deadlock-dump",
-                "label": "動いているJVMからスレッドダンプを取れる"
-              },
-              {
-                "id": "diagnosis-threads",
-                "label": "循環待ちに入っているスレッドと数を読み取れる"
-              },
-              {
-                "id": "diagnosis-locks",
-                "label": "各スレッドが待っているロックを読み取れる"
-              },
-              {
-                "id": "fix-both-locks",
-                "label": "どちらの処理も2つのロックを取っている"
-              },
-              {
-                "id": "fix-crossing",
-                "label": "同時に動かしても循環待ちが起きない"
-              },
-              {
-                "id": "fix-invariant",
-                "label": "多数回動かしても注文数＋在庫数が変わらない"
-              }
-            ],
-            "editableFiles": [
-              {
-                "path": "exercise/diagnosis.properties",
-                "solutionPath": "reference/diagnosis.properties"
-              },
-              {
-                "path": "src/InventoryService.java",
-                "solutionPath": "reference/InventoryService.java"
-              }
-            ]
-          },
-          "hints": [
-            "ダンプの行に「そのスレッドが何を待っているか」と「それを誰が持っているか」が出ています。`waits.*` に書くのは**待っている側**のロックです（すでに持っているロックではありません）。",
-            "ロックのクラス名は、外側クラスを除いた部分だけを書きます（`DeadlockDemo$StockTableLock` なら `StockTableLock`）。",
-            "直し方は「取得順を1つに決める」です。`checkout` と `restock` が同じ順番で取れば、互いを待つ輪は作れません。順番はどちらでも構いません。"
+          "objectiveIds": [
+            "37-o2"
           ],
-          "rubric": [
-            "diagnose"
-          ]
+          "kind": "applied",
+          "required": false,
+          "task": "【任意・スレッドダンプの一覧をJavaで集計する練習】実物のdumpを取得してdeadlockを直した後、文字列処理も復習したい場合だけ取り組みます。章クリア・★・カフェ報酬・復習の対象外です。\n\n1行に、件数 `n`（`1` 以上）、続けて `n` 件ぶんの `thread state resource` が入力されます。BLOCKEDのスレッドだけをスレッド名の辞書順で `thread waits resource` と表示してください。なければ `NONE`。",
+          "starterCode": "import java.util.*;\n\nrecord Entry(String thread, String state, String resource) { }\n\npublic class Main {\n    public static void main(String[] a) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n        List<Entry> entries = new ArrayList<>();\n        for (int i = 0; i < n; i++) entries.add(new Entry(sc.next(), sc.next(), sc.next()));\n        /* TODO */\n    }\n}\n",
+          "visibleCases": [
+            {
+              "label": "待機あり",
+              "stdin": "3 workerB BLOCKED lockA workerA RUNNABLE cpu timer TIMED_WAITING clock",
+              "expected": "workerB waits lockA"
+            }
+          ],
+          "hiddenCases": [
+            {
+              "label": "複数",
+              "stdin": "3 z BLOCKED L2 a BLOCKED L1 b WAITING Q",
+              "expected": "a waits L1\nz waits L2"
+            },
+            {
+              "label": "無し",
+              "stdin": "1 main RUNNABLE cpu",
+              "expected": "NONE"
+            }
+          ],
+          "hints": [
+            "filterしてスレッド名でsortedします。",
+            "結果をListへ確定し、emptyを判定します。"
+          ],
+          "solution": "import java.util.*;\n\nrecord Entry(String thread, String state, String resource) { }\n\npublic class Main {\n    public static void main(String[] a) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n        List<Entry> entries = new ArrayList<>();\n        for (int i = 0; i < n; i++) entries.add(new Entry(sc.next(), sc.next(), sc.next()));\n        List<Entry> blocked = entries.stream().filter(e -> e.state().equals(\"BLOCKED\")).sorted(Comparator.comparing(Entry::thread)).toList();\n        if (blocked.isEmpty()) System.out.println(\"NONE\");\n        else blocked.forEach(e -> System.out.println(e.thread() + \" waits \" + e.resource()));\n    }\n}\n"
         }
       ]
     },
@@ -338,92 +271,11 @@
       "objectiveIds": [
         "37-o3"
       ],
-      "explanation": "## 時間の流れを記録し、遅延とJVM内の出来事を重ねる\n\nスレッドダンプが一瞬の写真なら、**JFR（Java Flight Recorder）** はJVMとアプリケーションで起きた出来事を時刻付きで記録する仕組みです。CPU使用、GC、オブジェクト割り当て、ロック待ちなどのイベントをまとめて追えるため、「遅くなった時刻に何が起きたか」を調べられます。\n\n**JMC（JDK Mission Control）** はJFR記録を画面で分析するためのツールです。JFRが記録側、JMCが主な閲覧・分析側、と分けると理解しやすくなります。実行中のJVMでは、たとえば次のように一定時間だけ記録できます。\n\n```text\njcmd <PID> JFR.start name=slow duration=60s filename=slow.jfr settings=profile\n```\n\n`settings=profile` は詳細な調査向けで、継続記録用の軽い設定より収集量と負荷が増える場合があります。まず検証環境で影響を確かめ、期間・保存サイズ・収集イベントを決めます。記録にはクラス名、メソッド名、場合によってはアプリケーション由来の情報が含まれるため、保存先と閲覧権限も管理します。\n\n**GCログ** は、不要なオブジェクトを回収するGCの種類、所要時間、回収前後のメモリ量などを追うための記録です。レイテンシの急上昇時刻と長いGC停止が重なるかを見れば、GCが候補かどうかを絞れます。ただし時刻が重なっただけでは原因確定ではありません。CPU飽和や外部サービスの遅延も同時に確認します。\n\n### GCログは、出す設定から決める\n\nGCログは既定では出ません。時刻と保存の上限まで決めて付けます。\n\n```bash\njava \"-Xlog:gc*:file=gc.log:time,uptime,level,tags:filecount=5,filesize=10M\" -jar app.jar\n```\n\n`gc*` の `*` はシェルが展開しようとするので、**引用符で囲みます**（zshでは囲まないと\n`no matches found` になって起動しません）。\n\n出てくるのはこういう行です（`G1` の例。`gc*` は開始の行も出すので、**回収の前後が\n`->` で並んでいる行**を読みます）。\n\n```text\n[2026-08-16T10:12:03.412+0900][12.475s][info][gc,start    ] GC(7) Pause Young (Normal) (G1 Evacuation Pause)\n[2026-08-16T10:12:03.420+0900][12.483s][info][gc          ] GC(7) Pause Young (Normal) (G1 Evacuation Pause) 512M->48M(1024M) 8.203ms\n```\n\n読むところは4つです。\n\n| 見るもの | 上の例 | 分かること |\n|---|---|---|\n| 種類 | `Pause Young` | 若い領域だけの回収か、ヒープ全体か |\n| 理由 | `G1 Evacuation Pause` | なぜ動いたか |\n| 回収前→回収後（上限） | `512M->48M(1024M)` | 464MB回収し、上限は1024MB |\n| 止まった時間 | `8.203ms` | この回で止まっていた時間 |\n\n**回収後の値（`->` の右）が毎回上がり続けているなら、手放していないものがあります**\n（第30章のメモリリーク）。止まった時間だけが伸びているなら、上限やコレクタの見直しです。\n`Pause Full` が繰り返し出るのは、ヒープが足りていない合図です。\n\nこの章の問題では、この行から取り出した「秒」と「止まった時間」だけを入力にしています。\n形式はJVM実装と版で変わるので、**実物のログでは上の4つを自分で見つけてください**。\n\nまた、**アロケーション** は新しいオブジェクト用のメモリを確保することです。割り当て量が多い箇所を減らすとGC頻度が下がる場合がありますが、可読性を犠牲にする変更を先に行わず、記録上の大きな箇所から検証します。\n\n今回の演習では、GC停止時間がしきい値以上の記録を抽出します。これは「調べるべき時刻」を見つける処理であり、その時点でGCを原因と断定する処理ではありません。",
+      "explanation": "## 時間の流れを記録し、遅延とJVM内の出来事を重ねる\n\nスレッドダンプが一瞬の写真なら、**JFR（Java Flight Recorder）** はJVMとアプリケーションで起きた出来事を時刻付きで記録する仕組みです。CPU使用、GC、オブジェクト割り当て、ロック待ちなどのイベントをまとめて追えるため、「遅くなった時刻に何が起きたか」を調べられます。\n\n**JMC（JDK Mission Control）** はJFR記録を画面で分析するためのツールです。JFRが記録側、JMCが主な閲覧・分析側、と分けると理解しやすくなります。実行中のJVMでは、たとえば次のように一定時間だけ記録できます。\n\n```text\njcmd <PID> JFR.start name=slow duration=60s filename=slow.jfr settings=profile\n```\n\n`settings=profile` は詳細な調査向けで、継続記録用の軽い設定より収集量と負荷が増える場合があります。まず検証環境で影響を確かめ、期間・保存サイズ・収集イベントを決めます。記録にはクラス名、メソッド名、場合によってはアプリケーション由来の情報が含まれるため、保存先と閲覧権限も管理します。\n\n**GCログ** は、不要なオブジェクトを回収するGCの種類、所要時間、回収前後のメモリ量などを追うための記録です。レイテンシの急上昇時刻と長いGC停止が重なるかを見れば、GCが候補かどうかを絞れます。ただし時刻が重なっただけでは原因確定ではありません。CPU飽和や外部サービスの遅延も同時に確認します。\n\n### GCログは、出す設定から決める\n\nGCログは既定では出ません。時刻と保存の上限まで決めて付けます。\n\n```bash\njava \"-Xlog:gc*:file=gc.log:time,uptime,level,tags:filecount=5,filesize=10M\" -jar app.jar\n```\n\n`gc*` の `*` はシェルが展開しようとするので、**引用符で囲みます**（zshでは囲まないと\n`no matches found` になって起動しません）。\n\n出てくるのはこういう行です（`G1` の例。`gc*` は開始の行も出すので、**回収の前後が\n`->` で並んでいる行**を読みます）。\n\n```text\n[2026-08-16T10:12:03.412+0900][12.475s][info][gc,start    ] GC(7) Pause Young (Normal) (G1 Evacuation Pause)\n[2026-08-16T10:12:03.420+0900][12.483s][info][gc          ] GC(7) Pause Young (Normal) (G1 Evacuation Pause) 512M->48M(1024M) 8.203ms\n```\n\n読むところは4つです。\n\n| 見るもの | 上の例 | 分かること |\n|---|---|---|\n| 種類 | `Pause Young` | 若い領域だけの回収か、ヒープ全体か |\n| 理由 | `G1 Evacuation Pause` | なぜ動いたか |\n| 回収前→回収後（上限） | `512M->48M(1024M)` | 464MB回収し、上限は1024MB |\n| 止まった時間 | `8.203ms` | この回で止まっていた時間 |\n\n**回収後の値（`->` の右）が毎回上がり続けているなら、手放していないものがあります**\n（第30章のメモリリーク）。止まった時間だけが伸びているなら、上限やコレクタの見直しです。\n`Pause Full` が繰り返し出るのは、ヒープが足りていない合図です。\n\n任意のJava復習では、この行から取り出した「秒」と「止まった時間」だけを入力にしています。\n形式はJVM実装と版で変わるので、**実物のログでは上の4つを自分で見つけてください**。\n\nまた、**アロケーション** は新しいオブジェクト用のメモリを確保することです。割り当て量が多い箇所を減らすとGC頻度が下がる場合がありますが、可読性を犠牲にする変更を先に行わず、記録上の大きな箇所から検証します。\n\n任意のJava復習では、GC停止時間がしきい値以上の記録を抽出します。これは「調べるべき時刻」を見つける処理であり、その時点でGCを原因と断定する処理ではありません。\n\n必須演習ではJVMを起動して短いJFRを実際に記録し、`jfr summary`で内容を読みます。停止時間の一覧をJavaで分類する問題は任意です。",
       "samples": [
         {
           "caption": "独自JFRイベント",
           "code": "import jdk.jfr.*;\n\nclass WorkEvent extends Event {\n    int count;\n}\n\npublic class Main {\n    public static void main(String[] a) {\n        var e = new WorkEvent();\n        e.count = 3;\n        e.commit();\n        System.out.println(\"recorded\");\n    }\n}\n"
-        }
-      ],
-      "task": "1行に、件数 `n`（`1` 以上）、続けて `n` 件ぶんの `second pauseMillis`（どちらも `0` 以上の整数）が入力されます。停止が50ms以上の秒を `SPIKE second pauseMillis` と表示してください。なければ `STABLE`。",
-      "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] a) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n        boolean spike = false;\n        for (int i = 0; i < n; i++) {\n            int second = sc.nextInt(), pause = sc.nextInt();\n            /* TODO */\n        }\n        if (!spike) System.out.println(\"STABLE\");\n    }\n}\n",
-      "visibleCases": [
-        {
-          "label": "スパイク",
-          "stdin": "4 1 2 2 60 3 10 4 120",
-          "expected": "SPIKE 2 60\nSPIKE 4 120"
-        }
-      ],
-      "hiddenCases": [
-        {
-          "label": "境界",
-          "stdin": "2 1 49 2 50",
-          "expected": "SPIKE 2 50"
-        },
-        {
-          "label": "安定",
-          "stdin": "1 5 0",
-          "expected": "STABLE"
-        }
-      ],
-      "hints": [
-        "pause>=50なら表示しspike=trueにします。",
-        "入力順のまま表示します。"
-      ],
-      "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] a) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n        boolean spike = false;\n        for (int i = 0; i < n; i++) {\n            int second = sc.nextInt(), pause = sc.nextInt();\n            if (pause >= 50) {\n                System.out.println(\"SPIKE \" + second + \" \" + pause);\n                spike = true;\n            }\n        }\n        if (!spike) System.out.println(\"STABLE\");\n    }\n}\n",
-      "extraTasks": [
-        {
-          "kind": "applied",
-          "type": "runtime-lab",
-          "task": "【実機演習】`labs/diagnostics`のJVMを実際に起動してJFRを記録します。`exercise/jfr.options`を編集し、短い原因調査向けの設定にしてください。記録時間は2〜5秒、設定は`profile`を使います。提出するとJVMを起動し、`.jfr`ファイルを作り、JDK付属の`jfr summary`で中身を読み取ってからプロセスを停止します。\n\nこの実機演習はJFRの記録を作るため、**HotSpot系のJDK**が必要です（`37-0` の事前確認で確かめられます）。",
-          "runtimeLab": {
-            "name": "JFR recording lab",
-            "source": "labs/diagnostics",
-            "exclude": [
-              "reference"
-            ],
-            "command": [
-              "./run-runtime-lab.sh"
-            ],
-            "timeoutSeconds": 20,
-            "verification": "実行中JVMをprofile設定で記録し、生成したJFRをsummaryで読める",
-            "capabilities": [
-              "jfr"
-            ],
-            "requiredTools": [
-              "java",
-              "javac",
-              "jfr"
-            ],
-            "requiredImages": [],
-            "checks": [
-              {
-                "id": "jfr-recording",
-                "label": "実行中JVMからJFRファイルが生成される"
-              },
-              {
-                "id": "jfr-summary",
-                "label": "jfr summaryでイベントを読み取れる"
-              },
-              {
-                "id": "jfr-profile",
-                "label": "短時間の詳細調査にprofile設定を選ぶ"
-              }
-            ],
-            "editableFiles": [
-              {
-                "path": "exercise/jfr.options",
-                "solutionPath": "reference/jfr.options"
-              }
-            ]
-          },
-          "hints": [
-            "`settings=profile`は継続監視ではなく、期間を限定した詳しい原因調査に向く設定です。",
-            "`duration=3s`なら、実行負荷を長く残さず、今回の短いlabでイベントを記録できます。"
-          ],
-          "rubric": [
-            "diagnose"
-          ]
         }
       ],
       "quiz": [
@@ -448,6 +300,92 @@
           ],
           "answer": 1,
           "explanation": "JFRを有効にしてもJITは無効になりませんし、GCログと同時にも取れます。本番でも使えます（軽い設定で常時記録する運用もあります）。ただし収集するイベント次第で負荷と保存量が変わるので、設定・期間・保存先の容量、そして記録に入る機密の扱いを先に決めます。"
+        }
+      ],
+      "kind": "applied",
+      "type": "runtime-lab",
+      "task": "【実機演習】`labs/diagnostics`のJVMを実際に起動してJFRを記録します。`exercise/jfr.options`を編集し、短い原因調査向けの設定にしてください。記録時間は2〜5秒、設定は`profile`を使います。提出するとJVMを起動し、`.jfr`ファイルを作り、JDK付属の`jfr summary`で中身を読み取ってからプロセスを停止します。\n\nこの実機演習はJFRの記録を作るため、**HotSpot系のJDK**が必要です（`37-0` の事前確認で確かめられます）。",
+      "runtimeLab": {
+        "name": "JFR recording lab",
+        "source": "labs/diagnostics",
+        "exclude": [
+          "reference"
+        ],
+        "command": [
+          "./run-runtime-lab.sh"
+        ],
+        "timeoutSeconds": 20,
+        "verification": "実行中JVMをprofile設定で記録し、生成したJFRをsummaryで読める",
+        "capabilities": [
+          "jfr"
+        ],
+        "requiredTools": [
+          "java",
+          "javac",
+          "jfr"
+        ],
+        "requiredImages": [],
+        "checks": [
+          {
+            "id": "jfr-recording",
+            "label": "実行中JVMからJFRファイルが生成される"
+          },
+          {
+            "id": "jfr-summary",
+            "label": "jfr summaryでイベントを読み取れる"
+          },
+          {
+            "id": "jfr-profile",
+            "label": "短時間の詳細調査にprofile設定を選ぶ"
+          }
+        ],
+        "editableFiles": [
+          {
+            "path": "exercise/jfr.options",
+            "solutionPath": "reference/jfr.options"
+          }
+        ]
+      },
+      "hints": [
+        "`settings=profile`は継続監視ではなく、期間を限定した詳しい原因調査に向く設定です。",
+        "`duration=3s`なら、実行負荷を長く残さず、今回の短いlabでイベントを記録できます。"
+      ],
+      "rubric": [
+        "diagnose"
+      ],
+      "extraTasks": [
+        {
+          "objectiveIds": [
+            "37-o3"
+          ],
+          "kind": "applied",
+          "required": false,
+          "task": "【任意・停止時間の一覧をJavaで分類する練習】JFRを実際に記録した後、しきい値判定も復習したい場合だけ取り組みます。章クリア・★・カフェ報酬・復習の対象外です。\n\n1行に、件数 `n`（`1` 以上）、続けて `n` 件ぶんの `second pauseMillis`（どちらも `0` 以上の整数）が入力されます。停止が50ms以上の秒を `SPIKE second pauseMillis` と表示してください。なければ `STABLE`。",
+          "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] a) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n        boolean spike = false;\n        for (int i = 0; i < n; i++) {\n            int second = sc.nextInt(), pause = sc.nextInt();\n            /* TODO */\n        }\n        if (!spike) System.out.println(\"STABLE\");\n    }\n}\n",
+          "visibleCases": [
+            {
+              "label": "スパイク",
+              "stdin": "4 1 2 2 60 3 10 4 120",
+              "expected": "SPIKE 2 60\nSPIKE 4 120"
+            }
+          ],
+          "hiddenCases": [
+            {
+              "label": "境界",
+              "stdin": "2 1 49 2 50",
+              "expected": "SPIKE 2 50"
+            },
+            {
+              "label": "安定",
+              "stdin": "1 5 0",
+              "expected": "STABLE"
+            }
+          ],
+          "hints": [
+            "pause>=50なら表示しspike=trueにします。",
+            "入力順のまま表示します。"
+          ],
+          "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] a) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n        boolean spike = false;\n        for (int i = 0; i < n; i++) {\n            int second = sc.nextInt(), pause = sc.nextInt();\n            if (pause >= 50) {\n                System.out.println(\"SPIKE \" + second + \" \" + pause);\n                spike = true;\n            }\n        }\n        if (!spike) System.out.println(\"STABLE\");\n    }\n}\n"
         }
       ]
     },
@@ -520,9 +458,12 @@
       "id": "37-5",
       "title": "章末演習：性能測定とJVM計測ラボ",
       "objectiveIds": [
-        "37-o2"
+        "37-o1",
+        "37-o2",
+        "37-o3",
+        "37-o4"
       ],
-      "explanation": "## 章末では、観測事実と原因の推測を分ける\n\nこの章では、利用者の症状をレイテンシやスループットへ置き換え、症状に合う証拠を選ぶ流れを学びました。スレッドダンプは一瞬の待機状態、JFRは時系列のJVMイベント、GCログは回収の詳細、JMHは小さな処理の比較に使います。\n\n性能調査は次の順で進めます。\n\n1. 遅い操作、発生時刻、頻度、影響範囲を決める\n2. レイテンシ、p95、スループット、エラー率などで再現条件を数値化する\n3. CPU、ロック、GC、メモリ、外部I/Oなどの仮説を立てる\n4. 仮説に合う記録を取り、複数の証拠を時刻や処理単位で照合する\n5. 1つの変更だけを入れ、同じ条件で前後を測る\n\nスレッド状態の件数だけでは、CPUバウンドかどうかは判断できません。`RUNNABLE` はCPUで実行中とは限らず、`WAITING` や `TIMED_WAITING` には正常な待機も含まれます。`BLOCKED` があればロック競合を調べる手掛かりになりますが、影響時間や繰り返し発生を追加で確認します。\n\n章末の基本問題では、状態を集計した後に「次に調べる候補」を表示します。組み合わせ問題ではGC停止と遅延の同時発生を相関の候補として扱い、実践問題ではウォームアップを除いた改善前後を比べます。どの出力も最終診断ではなく、次の測定を決めるための判断材料です。",
+      "explanation": "## 性能は、実測と診断記録から判断する\n\n平均だけでは遅い側が隠れるため、p95やp99と分布を確認します。スレッドダンプは待ちや循環するロックを、JFRとGC logはCPU・allocation・停止の時間関係を調べる証拠です。一つの数値だけで原因を断定せず、仮説を立てて必要な記録を追加します。\n\n改善前後は同じデータ・JDK・設定・負荷で測り、warmupを捨ててから複数回比べます。速くなったという主張には、どの指標がどれだけ変わり、副作用がないかを添えます。\n\n章末では簡略化したdumpや停止時間をJavaで集計する代わりに、観測結果から次の調査を選ぶクイズで理解を確かめます。実物のdeadlock修正とJFR記録は37-2・37-3の実機演習で行います。",
       "samples": [
         {
           "caption": "復習用サンプル：列挙の宣言順は values() の順で取り出せる",
@@ -530,163 +471,75 @@
           "expected": "NEW RUNNABLE BLOCKED WAITING TIMED_WAITING TERMINATED"
         }
       ],
-      "task": "【基本】スレッドダンプを単純化した入力として、件数nと続くn組の `スレッド名 状態` を読みます（状態は `Thread.State` の名前）。\n\n次の順に表示してください。\n\n1. 状態ごとの件数を `Thread.State` の宣言順に、**0件の状態は除いて** `STATE=件数`\n2. `BLOCKED`・`WAITING`・`TIMED_WAITING` の合計と `RUNNABLE` の件数を `waiting=合計 runnable=件数`\n3. 次の表を**上から順に**当てはめた判定を1行\n\n| 判定 | 条件 |\n|---|---|\n| `CHECK_LOCK_CONTENTION` | `BLOCKED` が1件以上 |\n| `CHECK_WAITING_CAUSE` | `BLOCKED` は無く、待ちの合計が `RUNNABLE` より多い |\n| `NEEDS_MORE_EVIDENCE` | どちらでもない |\n\n3行目は原因の断定ではなく、次に集める証拠の候補です。",
-      "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n        Map<Thread.State, Integer> counts = new EnumMap<>(Thread.State.class);\n        for (int i = 0; i < n; i++) {\n            String name = sc.next();\n            Thread.State state = Thread.State.valueOf(sc.next());\n            /* TODO 集計 */\n        }\n        /* TODO 宣言順に表示（0件は除く） */ /* TODO waiting と runnable、最後の判定 */\n    }\n}\n",
-      "visibleCases": [
+      "quiz": [
         {
-          "label": "詰まりを疑う",
-          "stdin": "5 a RUNNABLE b BLOCKED c BLOCKED d WAITING e RUNNABLE",
-          "expected": "RUNNABLE=2\nBLOCKED=2\nWAITING=1\nwaiting=3 runnable=2\nCHECK_LOCK_CONTENTION"
+          "question": "100回の応答時間は大半が20msですが、遅い5回は800msでした。利用者の遅さを示すため平均と併せて見る値はどれでしょう。",
+          "choices": [
+            "p95やp99",
+            "ソースの行数",
+            "thread名の辞書順",
+            "JARのサイズだけ"
+          ],
+          "answer": 0,
+          "explanation": "高いpercentileを見ると、平均に埋もれる遅い側の体験を確認できます。"
         },
         {
-          "label": "追加の証拠が必要",
-          "stdin": "3 a RUNNABLE b RUNNABLE c TIMED_WAITING",
-          "expected": "RUNNABLE=2\nTIMED_WAITING=1\nwaiting=1 runnable=2\nNEEDS_MORE_EVIDENCE"
+          "question": "スレッドダンプでThread-Aはlock-Xを保持してlock-Yを待ち、Thread-Bはlock-Yを保持してlock-Xを待っています。読み取れる状態はどれでしょう。",
+          "choices": [
+            "GCが止まらず動いている",
+            "循環待ちによるdeadlock",
+            "JITのwarmup中",
+            "ネットワークtimeoutだけ"
+          ],
+          "answer": 1,
+          "explanation": "互いが保持するlockを逆順に待っており、循環待ちが成立しています。"
+        },
+        {
+          "question": "短時間のCPU高騰をJFRで調べます。記録設定として適切なのはどれでしょう。",
+          "choices": [
+            "期間を決めず、最大詳細で常時記録する",
+            "記録せず平均CPUだけを見る",
+            "短時間をprofile設定で記録する",
+            "本番プロセスを停止してから空のJFRを作る"
+          ],
+          "answer": 2,
+          "explanation": "目的と影響を確認し、必要な期間・設定・保存先を決めて記録します。"
+        },
+        {
+          "question": "レイテンシの山とGC pauseの時刻が重なりました。この時点で言えることはどれでしょう。",
+          "choices": [
+            "GCが原因だと確定した",
+            "スレッドダンプは今後不要になった",
+            "pause時間を0へ設定すれば解決する",
+            "GCとの関連を仮説として追加調査する"
+          ],
+          "answer": 3,
+          "explanation": "時刻の一致は有力な手がかりですが因果の確定ではありません。周辺のイベントと再現条件を調べます。"
+        },
+        {
+          "question": "改善前後の小さな処理を比べる測定方法として適切なのはどれでしょう。",
+          "choices": [
+            "同じ条件でwarmup後を複数回測り、分布を比べる",
+            "改善前だけdebug build、改善後だけrelease buildで測る",
+            "最初の1回だけを採用する",
+            "入力データを前後で変える"
+          ],
+          "answer": 0,
+          "explanation": "比較したい変更以外の条件をそろえ、warmupの影響を除いて複数回測ります。"
+        },
+        {
+          "question": "同じ条件でp95が400msから200msになりました。改善率として正しいものはどれでしょう。",
+          "choices": [
+            "25%改善",
+            "50%改善",
+            "100%改善",
+            "200%改善"
+          ],
+          "answer": 1,
+          "explanation": "減少は200msで、元の400msに対して50%です。"
         }
       ],
-      "hiddenCases": [
-        {
-          "label": "1件も無い",
-          "stdin": "0",
-          "expected": "waiting=0 runnable=0\nNEEDS_MORE_EVIDENCE"
-        },
-        {
-          "label": "NEWとTERMINATEDも宣言順に",
-          "stdin": "4 a TERMINATED b NEW c RUNNABLE d BLOCKED",
-          "expected": "NEW=1\nRUNNABLE=1\nBLOCKED=1\nTERMINATED=1\nwaiting=1 runnable=1\nCHECK_LOCK_CONTENTION"
-        },
-        {
-          "label": "全部BLOCKED",
-          "stdin": "2 a BLOCKED b BLOCKED",
-          "expected": "BLOCKED=2\nwaiting=2 runnable=0\nCHECK_LOCK_CONTENTION"
-        },
-        {
-          "label": "ロック以外の待機が多い",
-          "stdin": "3 a WAITING b TIMED_WAITING c RUNNABLE",
-          "expected": "RUNNABLE=1\nWAITING=1\nTIMED_WAITING=1\nwaiting=2 runnable=1\nCHECK_WAITING_CAUSE"
-        },
-        {
-          "label": "全部RUNNABLE",
-          "stdin": "3 a RUNNABLE b RUNNABLE c RUNNABLE",
-          "expected": "RUNNABLE=3\nwaiting=0 runnable=3\nNEEDS_MORE_EVIDENCE"
-        }
-      ],
-      "hints": [
-        "`Thread.State.valueOf(...)` で文字列から列挙値に変換できます。`EnumMap` に集計すると宣言順で扱えます。",
-        "表示は `Thread.State.values()` を回し、集計に入っている状態だけを出します。",
-        "`RUNNABLE` はCPUを使っているとは限らず、`WAITING` にも正常な待機があります。状態の件数だけで原因を断定せず、次に調べる候補だけを表示します。"
-      ],
-      "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n        Map<Thread.State, Integer> counts = new EnumMap<>(Thread.State.class);\n        for (int i = 0; i < n; i++) {\n            String name = sc.next();\n            Thread.State state = Thread.State.valueOf(sc.next());\n            counts.merge(state, 1, Integer::sum);\n        }\n        for (Thread.State st : Thread.State.values()) if (counts.containsKey(st)) System.out.println(st + \"=\" + counts.get(st));\n        int blocked = counts.getOrDefault(Thread.State.BLOCKED, 0);\n        int waiting = blocked + counts.getOrDefault(Thread.State.WAITING, 0) + counts.getOrDefault(Thread.State.TIMED_WAITING, 0);\n        int runnable = counts.getOrDefault(Thread.State.RUNNABLE, 0);\n        System.out.println(\"waiting=\" + waiting + \" runnable=\" + runnable);\n        if (blocked > 0) System.out.println(\"CHECK_LOCK_CONTENTION\");\n        else if (waiting > runnable) System.out.println(\"CHECK_WAITING_CAUSE\");\n        else System.out.println(\"NEEDS_MORE_EVIDENCE\");\n    }\n}\n",
-      "extraTasks": [
-        {
-          "objectiveIds": [
-            "37-o1",
-            "37-o3"
-          ],
-          "kind": "drill",
-          "task": "【組み合わせ】GC停止のしきい値thresholdと件数n（1以上）を読み、続けて1秒ごとの記録をn件 `second latencyMs gcPauseMs` の形で読みます。\n\n次の順に表示してください。\n\n1. レイテンシのnearest-rank方式のp50・p95・p99を `p50=x p95=y p99=z`（順位は `ceil(p*n/100)` の1始まり）\n2. `gcPauseMs` が threshold 以上の秒を、読んだ順に `GC second gcPauseMs`（1件も無ければ `NO_GC_SPIKE` の1行）\n3. GC停止が起きた秒のレイテンシの最大値を `spikeMaxLatency=値`（起きていなければ0）\n4. 全体のレイテンシの最大値を `maxLatency=値`\n5. GC停止が1件以上あり、かつ3と4の値が一致していれば `GC_CORRELATED`、そうでなければ `NOT_CORRELATED`",
-          "starterCode": "import java.util.*;\n\npublic class Main {\n    static long percentile(long[] sorted, int percent) {\n        /* TODO nearest-rank */ return 0;\n    }\n\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        long threshold = sc.nextLong();\n        int n = sc.nextInt();\n        long[] latencies = new long[n];\n        long maxLatency = 0, spikeMax = 0;\n        List<String> gcLines = new ArrayList<>();\n        for (int i = 0; i < n; i++) {\n            int second = sc.nextInt();\n            long latency = sc.nextLong(), gc = sc.nextLong();\n            /* TODO 記録・最大値・GC行 */\n        }\n        /* TODO パーセンタイルの表示 */ /* TODO GC行か NO_GC_SPIKE、2つの最大値、最後の判定 */\n    }\n}\n",
-          "visibleCases": [
-            {
-              "label": "GCと遅延が同じ秒",
-              "stdin": "50 4 1 10 2 2 300 120 3 20 5 4 15 3",
-              "expected": "p50=15 p95=300 p99=300\nGC 2 120\nspikeMaxLatency=300\nmaxLatency=300\nGC_CORRELATED"
-            },
-            {
-              "label": "GCは静か",
-              "stdin": "50 3 1 10 2 2 500 3 3 20 4",
-              "expected": "p50=20 p95=500 p99=500\nNO_GC_SPIKE\nspikeMaxLatency=0\nmaxLatency=500\nNOT_CORRELATED"
-            }
-          ],
-          "hiddenCases": [
-            {
-              "label": "1件だけ",
-              "stdin": "50 1 1 100 60",
-              "expected": "p50=100 p95=100 p99=100\nGC 1 60\nspikeMaxLatency=100\nmaxLatency=100\nGC_CORRELATED"
-            },
-            {
-              "label": "GCはあるが遅い秒は別",
-              "stdin": "50 3 1 10 100 2 900 2 3 20 3",
-              "expected": "p50=20 p95=900 p99=900\nGC 1 100\nspikeMaxLatency=10\nmaxLatency=900\nNOT_CORRELATED"
-            },
-            {
-              "label": "しきい値ちょうどは含む",
-              "stdin": "50 2 1 5 50 2 7 1",
-              "expected": "p50=5 p95=7 p99=7\nGC 1 50\nspikeMaxLatency=5\nmaxLatency=7\nNOT_CORRELATED"
-            },
-            {
-              "label": "GC停止が複数",
-              "stdin": "50 3 1 800 60 2 800 70 3 10 1",
-              "expected": "p50=800 p95=800 p99=800\nGC 1 60\nGC 2 70\nspikeMaxLatency=800\nmaxLatency=800\nGC_CORRELATED"
-            }
-          ],
-          "hints": [
-            "順位の切り上げは `(percent*n+99)/100` で整数のまま計算できます。取り出すのは `sorted[rank-1]` です。",
-            "GC停止の行はいったんリストへ貯めます。パーセンタイルより後に表示するので、集計と表示を分けます。",
-            "2つの最大値が一致しても、それは相関の候補が見つかっただけです。そのため出力は `CORRELATED`（相関あり）で止め、原因だと言い切っていません。"
-          ],
-          "solution": "import java.util.*;\n\npublic class Main {\n    static long percentile(long[] sorted, int percent) {\n        int rank = (percent * sorted.length + 99) / 100;\n        return sorted[rank - 1];\n    }\n\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        long threshold = sc.nextLong();\n        int n = sc.nextInt();\n        long[] latencies = new long[n];\n        long maxLatency = 0, spikeMax = 0;\n        List<String> gcLines = new ArrayList<>();\n        for (int i = 0; i < n; i++) {\n            int second = sc.nextInt();\n            long latency = sc.nextLong(), gc = sc.nextLong();\n            latencies[i] = latency;\n            maxLatency = Math.max(maxLatency, latency);\n            if (gc >= threshold) {\n                gcLines.add(\"GC \" + second + \" \" + gc);\n                spikeMax = Math.max(spikeMax, latency);\n            }\n        }\n        long[] sorted = Arrays.copyOf(latencies, n);\n        Arrays.sort(sorted);\n        System.out.println(\"p50=\" + percentile(sorted, 50) + \" p95=\" + percentile(sorted, 95) + \" p99=\" + percentile(sorted, 99));\n        if (gcLines.isEmpty()) System.out.println(\"NO_GC_SPIKE\");\n        else for (String line : gcLines) System.out.println(line);\n        System.out.println(\"spikeMaxLatency=\" + spikeMax);\n        System.out.println(\"maxLatency=\" + maxLatency);\n        System.out.println(!gcLines.isEmpty() && spikeMax == maxLatency ? \"GC_CORRELATED\" : \"NOT_CORRELATED\");\n    }\n}\n"
-        },
-        {
-          "objectiveIds": [
-            "37-o4"
-          ],
-          "kind": "applied",
-          "task": "【実践】改善前と改善後を同じ条件で比べます。ウォームアップ回数wと計測回数m（1以上）を読み、続けて改善前の `w+m` 件、改善後の `w+m` 件の測定値を読みます。\n\n各系列の先頭w件はウォームアップなので捨て、残りm件からnearest-rank方式のp50を求め、`before p50=x after p50=y` と表示してください。次に改善率を整数パーセントで `improvement=値%` と表示します（`(before-after)*100/before` の整数除算。before が0なら `improvement=NA`）。最後に、改善率が5以上なら `KEEP`、-5未満なら `REVERT`、それ以外（`NA` も含む）なら `NO_CHANGE` と表示します。",
-          "starterCode": "import java.util.*;\n\npublic class Main {\n    static long[] measured(Scanner sc, int warmup, int m) {\n        /* TODO 先頭warmup件を捨てる */ return new long[m];\n    }\n\n    static long p50(long[] xs) {\n        /* TODO nearest-rank の p50 */ return 0;\n    }\n\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int warmup = sc.nextInt(), m = sc.nextInt();\n        long before = p50(measured(sc, warmup, m)), after = p50(measured(sc, warmup, m));\n        System.out.println(\"before p50=\" + before + \" after p50=\" + after);\n        /* TODO improvement と判定 */\n    }\n}\n",
-          "visibleCases": [
-            {
-              "label": "速くなった",
-              "stdin": "2 3 100 90 50 40 30 100 90 20 20 20",
-              "expected": "before p50=40 after p50=20\nimprovement=50%\nKEEP"
-            },
-            {
-              "label": "遅くなった",
-              "stdin": "1 2 100 10 10 100 30 30",
-              "expected": "before p50=10 after p50=30\nimprovement=-200%\nREVERT"
-            }
-          ],
-          "hiddenCases": [
-            {
-              "label": "変わらない",
-              "stdin": "0 3 10 10 10 10 10 10",
-              "expected": "before p50=10 after p50=10\nimprovement=0%\nNO_CHANGE"
-            },
-            {
-              "label": "ウォームアップを捨てないと誤る",
-              "stdin": "3 1 999 999 999 10 999 999 999 5",
-              "expected": "before p50=10 after p50=5\nimprovement=50%\nKEEP"
-            },
-            {
-              "label": "改善前が0",
-              "stdin": "0 1 0 0",
-              "expected": "before p50=0 after p50=0\nimprovement=NA\nNO_CHANGE"
-            },
-            {
-              "label": "ちょうど5パーセント",
-              "stdin": "0 2 100 100 95 95",
-              "expected": "before p50=100 after p50=95\nimprovement=5%\nKEEP"
-            },
-            {
-              "label": "ちょうどマイナス5パーセント",
-              "stdin": "0 2 100 100 105 105",
-              "expected": "before p50=100 after p50=105\nimprovement=-5%\nNO_CHANGE"
-            }
-          ],
-          "hints": [
-            "ウォームアップ分は読み捨てます。`for(int i=0;i<warmup;i++) sc.nextLong();` のように、値を使わずに進めます。",
-            "0での割り算は落ちます。`before` が0のときは計算せず `NA` を出します。",
-            "JITは実行しながら最適化するので、最初の数回は遅く出ます。捨てる件数を変えるだけで結論が変わることを、隠しテストで確かめてみてください。"
-          ],
-          "solution": "import java.util.*;\n\npublic class Main {\n    static long[] measured(Scanner sc, int warmup, int m) {\n        for (int i = 0; i < warmup; i++) sc.nextLong();\n        long[] xs = new long[m];\n        for (int i = 0; i < m; i++) xs[i] = sc.nextLong();\n        return xs;\n    }\n\n    static long p50(long[] xs) {\n        long[] sorted = Arrays.copyOf(xs, xs.length);\n        Arrays.sort(sorted);\n        int rank = (50 * sorted.length + 99) / 100;\n        return sorted[rank - 1];\n    }\n\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int warmup = sc.nextInt(), m = sc.nextInt();\n        long before = p50(measured(sc, warmup, m)), after = p50(measured(sc, warmup, m));\n        System.out.println(\"before p50=\" + before + \" after p50=\" + after);\n        if (before == 0) {\n            System.out.println(\"improvement=NA\");\n            System.out.println(\"NO_CHANGE\");\n            return;\n        }\n        long improvement = (before - after) * 100 / before;\n        System.out.println(\"improvement=\" + improvement + \"%\");\n        System.out.println(improvement >= 5 ? \"KEEP\" : improvement < - 5 ? \"REVERT\" : \"NO_CHANGE\");\n    }\n}\n",
-          "rubric": [
-            "diagnose"
-          ]
-        }
-      ],
-      "rubric": [
-        "diagnose"
-      ]
+      "lessonType": "concept"
     }
   ]
 }

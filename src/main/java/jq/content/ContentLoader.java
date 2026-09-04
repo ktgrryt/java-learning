@@ -437,7 +437,8 @@ public final class ContentLoader {
      *
      * 問題のIDは並び順の1始まりの連番で、進捗の保存キー（レッスンID#連番）になる。
      * だから extraTasks は **末尾に足す**（途中に挿入すると連番がずれて、
-     * すでにクリアした問題が別の問題として扱われてしまう）。
+     * すでにクリアした問題が別の問題として扱われてしまう）。やむを得ず並べ替える場合は、
+     * {@code ProgressStore} の問題キー移行も同時に追加する。
      */
     private List<Task> parseTasks(Map<String, Object> raw, String lessonId,
                                  java.util.Set<String> objectiveIds) {
@@ -816,7 +817,8 @@ public final class ContentLoader {
         for (Object entry : MiniJson.list(spec, "checks")) {
             Map<String, Object> check = MiniJson.asObj(entry);
             String checkType = MiniJson.requireStr(check, "type");
-            if (!List.of("xpath", "regex", "property", "jsonPointer").contains(checkType)) {
+            if (!List.of("xpath", "regex", "property", "jsonPointer", "githubActions")
+                    .contains(checkType)) {
                 throw new IllegalStateException(where + " の artifact.checks[].type が不正です: " + checkType);
             }
             if (checkType.equals("xpath") && !format.equals("xml")) {
@@ -827,6 +829,9 @@ public final class ContentLoader {
             }
             if (checkType.equals("jsonPointer") && !format.equals("json")) {
                 throw new IllegalStateException(where + " の jsonPointer 検査は JSON だけで使えます");
+            }
+            if (checkType.equals("githubActions") && !format.equals("yaml")) {
+                throw new IllegalStateException(where + " の githubActions 検査は YAML だけで使えます");
             }
             Object expected = check.get("expected");
             if ((checkType.equals("property") || checkType.equals("jsonPointer"))

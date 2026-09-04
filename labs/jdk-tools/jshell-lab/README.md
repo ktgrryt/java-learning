@@ -23,11 +23,12 @@ sh run-runtime-lab.sh
 CIや調査手順に組み込めるのはこの形です。
 
 ```
-jshell -q --execution local --class-path out/classes exercise/probe.jsh
+jshell -q --execution local -J-cp -Jout/classes --class-path out/classes exercise/probe.jsh
 ```
 
 - `-q` … 起動時の案内を出さない。出力の比較を邪魔しない
 - `--execution local` … 別プロセスを起こさずに評価する。起動が速く、環境差も小さい
+- `-J-cp -Jout/classes` … local実行側からも、compile済みのアプリを読めるようにする
 - 最後に `/exit` が無いと終わりません
 
 ## jpackageの生成物は置き場がプラットフォームで違う

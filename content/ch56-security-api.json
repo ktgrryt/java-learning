@@ -28,127 +28,11 @@
       "objectiveIds": [
         "ch56-o1"
       ],
-      "explanation": "## TLSは「盗み見」と「なりすまし」を防ぐ\n\nHTTP通信を暗号化せずに送ると、途中のネットワークを見られたとき、パスワードや注文内容を読まれる可能性があります。また、接続先が本物のサーバーか確認しなければ、偽サイトへ情報を送ってしまいます。\n\n**TLS**は、通信内容を暗号化し、途中で書き換えられていないことと、接続相手の身元を確認する仕組みです。HTTPSはHTTPをTLSで保護したものです。\n\n### 証明書はサーバーの身分証明書\n\nサーバーは接続時に**証明書**を提示します。クライアントは主に次を確認します。\n\n1. 証明書へ署名した組織を順にたどり、信頼する認証局（CA）へ到達するか\n2. 有効期限内か\n3. 接続中のホスト名が証明書のSANに含まれるか\n\n署名を順にたどる並びを**証明書チェーン**、最後に信頼するCAを**trust anchor（信頼の起点）**と呼びます。**SAN（Subject Alternative Name）**は、その証明書が有効なDNS名やIPアドレスの一覧です。\n\n「すべての証明書を信頼する」「ホスト名を検査しない」という設定は、この身元確認を無効にします。通信が暗号化されていても、偽のサーバーと安全そうに通信してしまうため、本番では使えません。\n\n### keystoreとtruststore\n\n- **keystore** — 自分が提示する秘密鍵と証明書を主に置く\n- **truststore** — 相手を検証するため、信頼するCAなどの証明書を置く\n\n秘密鍵は、証明書の持ち主であることを示す重要な情報です。証明書は公開できますが、秘密鍵は必要なプロセスだけが読める場所へ保管します。クライアント側も証明書を提示し、双方が相手を確認する方式を**mTLS**と呼びます。\n\n### 期限切れを運用で防ぐ\n\n証明書は期限が切れると接続できなくなるため、期限前に新しい証明書へ交換します。自動更新が失敗しても気づけるよう、残り日数を監視し、更新開始日、警告日、緊急対応日を分けます。\n\n`keytool`はJDK付属の鍵・証明書を作成・確認する道具、`openssl s_client`は実際のTLS接続と提示された証明書を調べる道具です。まず「暗号化」「相手の確認」「秘密鍵の保護」「期限前の更新」を別々の責務として理解してください。\n\nこのレッスンの問題では、証明書の内容から期限とホスト名の一致を判定します。`labs/security-platform`では実際のTLS接続で証明書チェーン、keystoreとtruststoreの中身を確認します。**信頼の起点をたどる検証は本物の接続でしか確かめられない**ので、そこはlabの担当です。",
+      "explanation": "## TLSは「盗み見」と「なりすまし」を防ぐ\n\nHTTP通信を暗号化せずに送ると、途中のネットワークを見られたとき、パスワードや注文内容を読まれる可能性があります。また、接続先が本物のサーバーか確認しなければ、偽サイトへ情報を送ってしまいます。\n\n**TLS**は、通信内容を暗号化し、途中で書き換えられていないことと、接続相手の身元を確認する仕組みです。HTTPSはHTTPをTLSで保護したものです。\n\n### 証明書はサーバーの身分証明書\n\nサーバーは接続時に**証明書**を提示します。クライアントは主に次を確認します。\n\n1. 証明書へ署名した組織を順にたどり、信頼する認証局（CA）へ到達するか\n2. 有効期限内か\n3. 接続中のホスト名が証明書のSANに含まれるか\n\n署名を順にたどる並びを**証明書チェーン**、最後に信頼するCAを**trust anchor（信頼の起点）**と呼びます。**SAN（Subject Alternative Name）**は、その証明書が有効なDNS名やIPアドレスの一覧です。\n\n「すべての証明書を信頼する」「ホスト名を検査しない」という設定は、この身元確認を無効にします。通信が暗号化されていても、偽のサーバーと安全そうに通信してしまうため、本番では使えません。\n\n### keystoreとtruststore\n\n- **keystore** — 自分が提示する秘密鍵と証明書を主に置く\n- **truststore** — 相手を検証するため、信頼するCAなどの証明書を置く\n\n秘密鍵は、証明書の持ち主であることを示す重要な情報です。証明書は公開できますが、秘密鍵は必要なプロセスだけが読める場所へ保管します。クライアント側も証明書を提示し、双方が相手を確認する方式を**mTLS**と呼びます。\n\n### 期限切れを運用で防ぐ\n\n証明書は期限が切れると接続できなくなるため、期限前に新しい証明書へ交換します。自動更新が失敗しても気づけるよう、残り日数を監視し、更新開始日、警告日、緊急対応日を分けます。\n\n`keytool`はJDK付属の鍵・証明書を作成・確認する道具、`openssl s_client`は実際のTLS接続と提示された証明書を調べる道具です。まず「暗号化」「相手の確認」「秘密鍵の保護」「期限前の更新」を別々の責務として理解してください。\n\nこのレッスンの問題では、証明書の内容から期限とホスト名の一致を判定します。`labs/security-platform`では実際のTLS接続で証明書チェーン、keystoreとtruststoreの中身を確認します。**信頼の起点をたどる検証は本物の接続でしか確かめられない**ので、そこはlabの担当です。\n\n必須演習では証明書・key・truststoreを生成し、実際のTLS接続でSAN、chain、信頼の成否を確認します。証明書の表示文字列をJavaで解析する問題は任意です。",
       "samples": [
         {
           "caption": "既定のHTTPS検証を使う",
           "code": "import java.net.*;\nimport java.net.http.*;\n\npublic class Main {\n    public static void main(String[] a) {\n        HttpClient c = HttpClient.newHttpClient();\n        System.out.println(c.sslContext().getProtocol());\n    }\n}\n"
-        }
-      ],
-      "task": "証明書の内容を読んで、接続に使えるか・更新が必要かを判定してください。\n\n最初の3行に今日の日付、更新閾値（日数）、接続先ホスト名を読みます。次に証明書の件数nを読み、1件につき3行（`Subject` / `Valid until` / `SAN`）を読みます。\n\n```\nToday: 2026-08-15\nThreshold: 30\nHost: api.example.com\n2\nSubject: CN=api.example.com\nValid until: 2026-09-01\nSAN: DNS:api.example.com, DNS:www.example.com\nSubject: CN=old.example.com\nValid until: 2026-08-01\nSAN: DNS:old.example.com\n```\n\n入力順に `CNの値 判定` を1行ずつ表示してください。判定は**この順**で当てはめます。\n\n| 判定 | 条件 |\n|---|---|\n| `EXPIRED` | `Valid until` が今日より前 |\n| `HOSTNAME_MISMATCH` | 接続先ホスト名が `SAN` のどれにも一致しない |\n| `ROTATE` | 残り日数が閾値以下 |\n| `OK` | 上のどれでもない |\n\n`SAN` は `DNS:` を付けてカンマ区切りで並びます。`*.example.com` のように `*.` で始まる項目は、**先頭の1ラベルだけ**に一致します（`api.example.com` には一致し、`sub.api.example.com` には一致しません）。\n\n上の例の答えはこうなります（`api.example.com` は残り17日で閾値以下、`old.example.com` は期限切れ）。\n\n```\napi.example.com ROTATE\nold.example.com EXPIRED\n```",
-      "starterCode": "import java.time.LocalDate;\nimport java.time.temporal.ChronoUnit;\nimport java.util.*;\n\npublic class Main {\n    public static void main(String[] a) {\n        Scanner sc = new Scanner(System.in);\n        LocalDate today = LocalDate.parse(value(sc.nextLine()));\n        long threshold = Long.parseLong(value(sc.nextLine()));\n        String host = value(sc.nextLine());\n        int n = Integer.parseInt(sc.nextLine().trim());\n        for (int i = 0; i < n; i++) {\n            String subject = value(sc.nextLine());          // CN=api.example.com\n            LocalDate until = LocalDate.parse(value(sc.nextLine()));\n            String san = value(sc.nextLine());\n            /* TODO CNの値を取り出す */\n            /* TODO 期限切れ・ホスト名不一致・残り日数を順に判定して表示する */\n        }\n    }\n\n    /** `Host: api.example.com` の `:` より後ろを返す。 */\n    static String value(String line) {\n        return line.substring(line.indexOf(':') + 1).trim();\n    }\n\n    /** SANの1項目がホスト名に一致するか。`*.` は先頭1ラベルだけに一致する。 */\n    static boolean matches(String entry, String host) {\n        /* TODO */\n        return false;\n    }\n}\n",
-      "visibleCases": [
-        {
-          "label": "残り17日で更新期、もう1件は期限切れ",
-          "stdin": "Today: 2026-08-15\nThreshold: 30\nHost: api.example.com\n2\nSubject: CN=api.example.com\nValid until: 2026-09-01\nSAN: DNS:api.example.com, DNS:www.example.com\nSubject: CN=old.example.com\nValid until: 2026-08-01\nSAN: DNS:old.example.com\n",
-          "expected": "api.example.com ROTATE\nold.example.com EXPIRED"
-        },
-        {
-          "label": "期限に余裕があり一致もする",
-          "stdin": "Today: 2026-08-15\nThreshold: 30\nHost: api.example.com\n1\nSubject: CN=api.example.com\nValid until: 2027-01-01\nSAN: DNS:api.example.com\n",
-          "expected": "api.example.com OK"
-        }
-      ],
-      "hiddenCases": [
-        {
-          "label": "SANに接続先が無い",
-          "stdin": "Today: 2026-08-15\nThreshold: 30\nHost: api.example.com\n1\nSubject: CN=other.example.com\nValid until: 2027-06-30\nSAN: DNS:other.example.com\n",
-          "expected": "other.example.com HOSTNAME_MISMATCH"
-        },
-        {
-          "label": "ワイルドカードが1ラベルに一致",
-          "stdin": "Today: 2026-08-15\nThreshold: 30\nHost: api.example.com\n1\nSubject: CN=wild\nValid until: 2027-06-30\nSAN: DNS:*.example.com\n",
-          "expected": "wild OK"
-        },
-        {
-          "label": "ワイルドカードは複数ラベルに一致しない",
-          "stdin": "Today: 2026-08-15\nThreshold: 30\nHost: sub.api.example.com\n1\nSubject: CN=wild\nValid until: 2027-06-30\nSAN: DNS:*.example.com\n",
-          "expected": "wild HOSTNAME_MISMATCH"
-        },
-        {
-          "label": "期限切れはホスト名より先に判定",
-          "stdin": "Today: 2026-08-15\nThreshold: 30\nHost: api.example.com\n1\nSubject: CN=gone.example.com\nValid until: 2026-08-14\nSAN: DNS:gone.example.com\n",
-          "expected": "gone.example.com EXPIRED"
-        },
-        {
-          "label": "残り日数が閾値ちょうどと閾値+1",
-          "stdin": "Today: 2026-08-15\nThreshold: 30\nHost: api.example.com\n2\nSubject: CN=api.example.com\nValid until: 2026-09-14\nSAN: DNS:api.example.com\nSubject: CN=api.example.com\nValid until: 2026-09-15\nSAN: DNS:api.example.com\n",
-          "expected": "api.example.com ROTATE\napi.example.com OK"
-        }
-      ],
-      "hints": [
-        "行はすべて `名前: 値` の形なので、`indexOf(':')` より後ろを取ると値が得られます。残り日数は `ChronoUnit.DAYS.between(today, until)` で求められます。",
-        "SANはカンマで分けたあと `DNS:` を外します。`*.example.com` の一致は、末尾が `.example.com` で、その前に残る部分が空でなく `.` を含まないことで判定できます。"
-      ],
-      "solution": "import java.time.LocalDate;\nimport java.time.temporal.ChronoUnit;\nimport java.util.*;\n\npublic class Main {\n    public static void main(String[] a) {\n        Scanner sc = new Scanner(System.in);\n        LocalDate today = LocalDate.parse(value(sc.nextLine()));\n        long threshold = Long.parseLong(value(sc.nextLine()));\n        String host = value(sc.nextLine());\n        int n = Integer.parseInt(sc.nextLine().trim());\n        for (int i = 0; i < n; i++) {\n            String subject = value(sc.nextLine());\n            LocalDate until = LocalDate.parse(value(sc.nextLine()));\n            String san = value(sc.nextLine());\n\n            String name = subject.substring(subject.indexOf(\"CN=\") + 3).trim();\n            long left = ChronoUnit.DAYS.between(today, until);\n            String verdict;\n            if (left < 0) {\n                verdict = \"EXPIRED\";\n            } else if (!covers(san, host)) {\n                verdict = \"HOSTNAME_MISMATCH\";\n            } else if (left <= threshold) {\n                verdict = \"ROTATE\";\n            } else {\n                verdict = \"OK\";\n            }\n            System.out.println(name + \" \" + verdict);\n        }\n    }\n\n    static String value(String line) {\n        return line.substring(line.indexOf(':') + 1).trim();\n    }\n\n    static boolean covers(String san, String host) {\n        for (String entry : san.split(\",\")) {\n            String name = entry.trim();\n            if (name.startsWith(\"DNS:\")) name = name.substring(4).trim();\n            if (matches(name, host)) return true;\n        }\n        return false;\n    }\n\n    /** `*.example.com` は先頭の1ラベルだけに一致する。 */\n    static boolean matches(String entry, String host) {\n        if (!entry.startsWith(\"*.\")) return entry.equals(host);\n        String suffix = entry.substring(1);                 // \".example.com\"\n        if (!host.endsWith(suffix)) return false;\n        String label = host.substring(0, host.length() - suffix.length());\n        return !label.isEmpty() && !label.contains(\".\");\n    }\n}\n",
-      "extraTasks": [
-        {
-          "kind": "applied",
-          "type": "runtime-lab",
-          "task": "【実TLS演習】`labs/security-platform/tls-exercise`で、実際のTLS接続を作って確かめます。解説が「`labs/security-platform`ではSAN、証明書チェーン、keystoreとtruststoreの中身を実際に確認します」と書いている部分です。2ファイルを直してください。\n\n1. `exercise/certificate.options` — サーバー証明書の作り方。クライアントは`https://localhost:<port>`へ接続します。接続先の判断に使われるのはCNではなくSANです。\n2. `exercise/TrustConfig.java` — クライアントが相手を信じるかどうかの設定。いまは「すべての証明書を信頼する」ままです。渡されたtruststoreだけを信頼する形へ直してください。\n\n提出すると`keytool`で証明書とtruststoreを作り、JDKのHTTPSサーバーを採点側が確保した動的portで起動します。実TLSで3つの相手へ接続し、①正しい証明書のサーバーへは200で繋がること、②別ホスト向けの証明書は信頼済みでもホスト名の不一致で拒否すること、③truststoreに無い証明書は拒否することを確かめ、最後にlistenerを停止します。",
-          "runtimeLab": {
-            "name": "TLS certificate and truststore lab",
-            "source": "labs/security-platform/tls-exercise",
-            "exclude": [
-              "reference"
-            ],
-            "command": [
-              "./run-runtime-lab.sh"
-            ],
-            "timeoutSeconds": 60,
-            "verification": "keytoolで作った証明書で実TLSサーバーを起動し、正常接続・ホスト名不一致の拒否・未信頼証明書の拒否・停止を確認する",
-            "capabilities": [
-              "server",
-              "http"
-            ],
-            "requiredTools": [
-              "java",
-              "javac",
-              "keytool"
-            ],
-            "requiredImages": [],
-            "checks": [
-              {
-                "id": "tls-server-cert",
-                "label": "接続先に有効なSANを持つ証明書を作れる"
-              },
-              {
-                "id": "tls-verified-connection",
-                "label": "検証を効かせたまま正しいサーバーへ接続できる"
-              },
-              {
-                "id": "tls-rejects-wrong-host",
-                "label": "別ホスト向けの証明書を拒否する"
-              },
-              {
-                "id": "tls-rejects-untrusted",
-                "label": "truststoreに無い証明書を拒否する"
-              },
-              {
-                "id": "tls-stop",
-                "label": "検証後にTLS listenerを停止する"
-              }
-            ],
-            "editableFiles": [
-              {
-                "path": "exercise/certificate.options",
-                "solutionPath": "reference/certificate.options"
-              },
-              {
-                "path": "exercise/TrustConfig.java",
-                "solutionPath": "reference/TrustConfig.java"
-              }
-            ]
-          },
-          "hints": [
-            "接続先の判断に使われるのはCNではなくSANです。`san=dns:localhost,ip:127.0.0.1`のように、実際に繋ぐ名前を入れます。",
-            "truststoreはPKCS12でパスワードは`changeit`です。`KeyStore`で読み、`TrustManagerFactory.getInstance(\"PKIX\")`の`init`へ渡せば、chainの検証もホスト名の照合もJDKが行います。",
-            "自分で`X509TrustManager`を書くと検証を消してしまいがちです。「すべて信頼する」実装は、暗号化はされても相手の確認をやめた状態です。"
-          ],
-          "rubric": [
-            "implement",
-            "diagnose"
-          ]
         }
       ],
       "quiz": [
@@ -173,6 +57,127 @@
           ],
           "answer": 2,
           "explanation": "証明書チェーンの検証やHSTS、プロキシとのTLSは、このヘッダーとは無関係です。ヘッダーは誰でも送れるので、無条件に信用すると送信元IPを自由に偽装できます（IPでの制限や監査が意味を失います）。信頼してよいプロキシの範囲を決め、その外から来た値は捨てます。"
+        }
+      ],
+      "kind": "applied",
+      "type": "runtime-lab",
+      "task": "【実TLS演習】`labs/security-platform/tls-exercise`で、実際のTLS接続を作って確かめます。解説が「`labs/security-platform`ではSAN、証明書チェーン、keystoreとtruststoreの中身を実際に確認します」と書いている部分です。2ファイルを直してください。\n\n1. `exercise/certificate.options` — サーバー証明書の作り方。クライアントは`https://localhost:<port>`へ接続します。接続先の判断に使われるのはCNではなくSANです。\n2. `exercise/TrustConfig.java` — クライアントが相手を信じるかどうかの設定。いまは「すべての証明書を信頼する」ままです。渡されたtruststoreだけを信頼する形へ直してください。\n\n提出すると`keytool`で証明書とtruststoreを作り、JDKのHTTPSサーバーを採点側が確保した動的portで起動します。実TLSで3つの相手へ接続し、①正しい証明書のサーバーへは200で繋がること、②別ホスト向けの証明書は信頼済みでもホスト名の不一致で拒否すること、③truststoreに無い証明書は拒否することを確かめ、最後にlistenerを停止します。",
+      "runtimeLab": {
+        "name": "TLS certificate and truststore lab",
+        "source": "labs/security-platform/tls-exercise",
+        "exclude": [
+          "reference"
+        ],
+        "command": [
+          "./run-runtime-lab.sh"
+        ],
+        "timeoutSeconds": 60,
+        "verification": "keytoolで作った証明書で実TLSサーバーを起動し、正常接続・ホスト名不一致の拒否・未信頼証明書の拒否・停止を確認する",
+        "capabilities": [
+          "server",
+          "http"
+        ],
+        "requiredTools": [
+          "java",
+          "javac",
+          "keytool"
+        ],
+        "requiredImages": [],
+        "checks": [
+          {
+            "id": "tls-server-cert",
+            "label": "接続先に有効なSANを持つ証明書を作れる"
+          },
+          {
+            "id": "tls-verified-connection",
+            "label": "検証を効かせたまま正しいサーバーへ接続できる"
+          },
+          {
+            "id": "tls-rejects-wrong-host",
+            "label": "別ホスト向けの証明書を拒否する"
+          },
+          {
+            "id": "tls-rejects-untrusted",
+            "label": "truststoreに無い証明書を拒否する"
+          },
+          {
+            "id": "tls-stop",
+            "label": "検証後にTLS listenerを停止する"
+          }
+        ],
+        "editableFiles": [
+          {
+            "path": "exercise/certificate.options",
+            "solutionPath": "reference/certificate.options"
+          },
+          {
+            "path": "exercise/TrustConfig.java",
+            "solutionPath": "reference/TrustConfig.java"
+          }
+        ]
+      },
+      "hints": [
+        "接続先の判断に使われるのはCNではなくSANです。`san=dns:localhost,ip:127.0.0.1`のように、実際に繋ぐ名前を入れます。",
+        "truststoreはPKCS12でパスワードは`changeit`です。`KeyStore`で読み、`TrustManagerFactory.getInstance(\"PKIX\")`の`init`へ渡せば、chainの検証もホスト名の照合もJDKが行います。",
+        "自分で`X509TrustManager`を書くと検証を消してしまいがちです。「すべて信頼する」実装は、暗号化はされても相手の確認をやめた状態です。"
+      ],
+      "rubric": [
+        "implement",
+        "diagnose"
+      ],
+      "extraTasks": [
+        {
+          "objectiveIds": [
+            "ch56-o1"
+          ],
+          "kind": "applied",
+          "required": false,
+          "task": "【任意・証明書表示をJavaで解析する練習】実TLS接続で証明書を確認した後、日付とwildcard判定も復習したい場合だけ取り組みます。章クリア・★・カフェ報酬・復習の対象外です。\n\n証明書の内容を読んで、接続に使えるか・更新が必要かを判定してください。\n\n最初の3行に今日の日付、更新閾値（日数）、接続先ホスト名を読みます。次に証明書の件数nを読み、1件につき3行（`Subject` / `Valid until` / `SAN`）を読みます。\n\n```\nToday: 2026-08-15\nThreshold: 30\nHost: api.example.com\n2\nSubject: CN=api.example.com\nValid until: 2026-09-01\nSAN: DNS:api.example.com, DNS:www.example.com\nSubject: CN=old.example.com\nValid until: 2026-08-01\nSAN: DNS:old.example.com\n```\n\n入力順に `CNの値 判定` を1行ずつ表示してください。判定は**この順**で当てはめます。\n\n| 判定 | 条件 |\n|---|---|\n| `EXPIRED` | `Valid until` が今日より前 |\n| `HOSTNAME_MISMATCH` | 接続先ホスト名が `SAN` のどれにも一致しない |\n| `ROTATE` | 残り日数が閾値以下 |\n| `OK` | 上のどれでもない |\n\n`SAN` は `DNS:` を付けてカンマ区切りで並びます。`*.example.com` のように `*.` で始まる項目は、**先頭の1ラベルだけ**に一致します（`api.example.com` には一致し、`sub.api.example.com` には一致しません）。\n\n上の例の答えはこうなります（`api.example.com` は残り17日で閾値以下、`old.example.com` は期限切れ）。\n\n```\napi.example.com ROTATE\nold.example.com EXPIRED\n```",
+          "starterCode": "import java.time.LocalDate;\nimport java.time.temporal.ChronoUnit;\nimport java.util.*;\n\npublic class Main {\n    public static void main(String[] a) {\n        Scanner sc = new Scanner(System.in);\n        LocalDate today = LocalDate.parse(value(sc.nextLine()));\n        long threshold = Long.parseLong(value(sc.nextLine()));\n        String host = value(sc.nextLine());\n        int n = Integer.parseInt(sc.nextLine().trim());\n        for (int i = 0; i < n; i++) {\n            String subject = value(sc.nextLine());          // CN=api.example.com\n            LocalDate until = LocalDate.parse(value(sc.nextLine()));\n            String san = value(sc.nextLine());\n            /* TODO CNの値を取り出す */\n            /* TODO 期限切れ・ホスト名不一致・残り日数を順に判定して表示する */\n        }\n    }\n\n    /** `Host: api.example.com` の `:` より後ろを返す。 */\n    static String value(String line) {\n        return line.substring(line.indexOf(':') + 1).trim();\n    }\n\n    /** SANの1項目がホスト名に一致するか。`*.` は先頭1ラベルだけに一致する。 */\n    static boolean matches(String entry, String host) {\n        /* TODO */\n        return false;\n    }\n}\n",
+          "visibleCases": [
+            {
+              "label": "残り17日で更新期、もう1件は期限切れ",
+              "stdin": "Today: 2026-08-15\nThreshold: 30\nHost: api.example.com\n2\nSubject: CN=api.example.com\nValid until: 2026-09-01\nSAN: DNS:api.example.com, DNS:www.example.com\nSubject: CN=old.example.com\nValid until: 2026-08-01\nSAN: DNS:old.example.com\n",
+              "expected": "api.example.com ROTATE\nold.example.com EXPIRED"
+            },
+            {
+              "label": "期限に余裕があり一致もする",
+              "stdin": "Today: 2026-08-15\nThreshold: 30\nHost: api.example.com\n1\nSubject: CN=api.example.com\nValid until: 2027-01-01\nSAN: DNS:api.example.com\n",
+              "expected": "api.example.com OK"
+            }
+          ],
+          "hiddenCases": [
+            {
+              "label": "SANに接続先が無い",
+              "stdin": "Today: 2026-08-15\nThreshold: 30\nHost: api.example.com\n1\nSubject: CN=other.example.com\nValid until: 2027-06-30\nSAN: DNS:other.example.com\n",
+              "expected": "other.example.com HOSTNAME_MISMATCH"
+            },
+            {
+              "label": "ワイルドカードが1ラベルに一致",
+              "stdin": "Today: 2026-08-15\nThreshold: 30\nHost: api.example.com\n1\nSubject: CN=wild\nValid until: 2027-06-30\nSAN: DNS:*.example.com\n",
+              "expected": "wild OK"
+            },
+            {
+              "label": "ワイルドカードは複数ラベルに一致しない",
+              "stdin": "Today: 2026-08-15\nThreshold: 30\nHost: sub.api.example.com\n1\nSubject: CN=wild\nValid until: 2027-06-30\nSAN: DNS:*.example.com\n",
+              "expected": "wild HOSTNAME_MISMATCH"
+            },
+            {
+              "label": "期限切れはホスト名より先に判定",
+              "stdin": "Today: 2026-08-15\nThreshold: 30\nHost: api.example.com\n1\nSubject: CN=gone.example.com\nValid until: 2026-08-14\nSAN: DNS:gone.example.com\n",
+              "expected": "gone.example.com EXPIRED"
+            },
+            {
+              "label": "残り日数が閾値ちょうどと閾値+1",
+              "stdin": "Today: 2026-08-15\nThreshold: 30\nHost: api.example.com\n2\nSubject: CN=api.example.com\nValid until: 2026-09-14\nSAN: DNS:api.example.com\nSubject: CN=api.example.com\nValid until: 2026-09-15\nSAN: DNS:api.example.com\n",
+              "expected": "api.example.com ROTATE\napi.example.com OK"
+            }
+          ],
+          "hints": [
+            "行はすべて `名前: 値` の形なので、`indexOf(':')` より後ろを取ると値が得られます。残り日数は `ChronoUnit.DAYS.between(today, until)` で求められます。",
+            "SANはカンマで分けたあと `DNS:` を外します。`*.example.com` の一致は、末尾が `.example.com` で、その前に残る部分が空でなく `.` を含まないことで判定できます。"
+          ],
+          "solution": "import java.time.LocalDate;\nimport java.time.temporal.ChronoUnit;\nimport java.util.*;\n\npublic class Main {\n    public static void main(String[] a) {\n        Scanner sc = new Scanner(System.in);\n        LocalDate today = LocalDate.parse(value(sc.nextLine()));\n        long threshold = Long.parseLong(value(sc.nextLine()));\n        String host = value(sc.nextLine());\n        int n = Integer.parseInt(sc.nextLine().trim());\n        for (int i = 0; i < n; i++) {\n            String subject = value(sc.nextLine());\n            LocalDate until = LocalDate.parse(value(sc.nextLine()));\n            String san = value(sc.nextLine());\n\n            String name = subject.substring(subject.indexOf(\"CN=\") + 3).trim();\n            long left = ChronoUnit.DAYS.between(today, until);\n            String verdict;\n            if (left < 0) {\n                verdict = \"EXPIRED\";\n            } else if (!covers(san, host)) {\n                verdict = \"HOSTNAME_MISMATCH\";\n            } else if (left <= threshold) {\n                verdict = \"ROTATE\";\n            } else {\n                verdict = \"OK\";\n            }\n            System.out.println(name + \" \" + verdict);\n        }\n    }\n\n    static String value(String line) {\n        return line.substring(line.indexOf(':') + 1).trim();\n    }\n\n    static boolean covers(String san, String host) {\n        for (String entry : san.split(\",\")) {\n            String name = entry.trim();\n            if (name.startsWith(\"DNS:\")) name = name.substring(4).trim();\n            if (matches(name, host)) return true;\n        }\n        return false;\n    }\n\n    /** `*.example.com` は先頭の1ラベルだけに一致する。 */\n    static boolean matches(String entry, String host) {\n        if (!entry.startsWith(\"*.\")) return entry.equals(host);\n        String suffix = entry.substring(1);                 // \".example.com\"\n        if (!host.endsWith(suffix)) return false;\n        String label = host.substring(0, host.length() - suffix.length());\n        return !label.isEmpty() && !label.contains(\".\");\n    }\n}\n"
         }
       ]
     },
