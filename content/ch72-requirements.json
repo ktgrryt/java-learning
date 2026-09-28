@@ -228,7 +228,7 @@
       ],
       "hints": [
         "`525600 * (100 - target) / 100` は、`target` が `double` なら小数のまま計算されます。",
-        "判定は丸める前の値で比べます。`52.56` を `52.6` にしてから比べると、`52` 分の停止が未達に見えてしまいます。"
+        "判定は丸める前の値で比べます。丸めると、境界の近くで判定が変わります。たとえば目標99.84%の許容は `840.96` 分で、これを `841.0` にしてから比べると、`841` 分の停止が達成に見えてしまいます。"
       ],
       "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int n = Integer.parseInt(sc.nextLine().trim());\n        int failed = 0;\n        for (int i = 0; i < n; i++) {\n            String[] parts = sc.nextLine().trim().split(\"\\\\s+\");\n            double target = Double.parseDouble(parts[1]);\n            int stopped = Integer.parseInt(parts[2]);\n            double allowed = 525600 * (100 - target) / 100;\n            boolean ok = stopped <= allowed;\n            if (!ok) {\n                failed++;\n            }\n            System.out.printf(\"%s %.1f %d %s%n\", parts[0], allowed, stopped,\n                    ok ? \"達成\" : \"未達\");\n        }\n        System.out.println(\"未達 \" + failed);\n    }\n}\n",
       "extraTasks": [
@@ -279,13 +279,13 @@
         {
           "question": "稼働率99.99%の目標に対して、人が気づいて手で直す運用が向かないのはなぜでしょう。",
           "choices": [
-            "年間で許される停止が1分ほどしかないから",
-            "年間で許される停止が1時間ほどしかないから",
+            "許される停止が月あたり4分ほどしかないから",
+            "年間で許される停止が9時間ほどしかないから",
             "稼働率の計算に、計画停止を含めてしまうから",
             "稼働率が高いほど、監視の間隔が長くなるから"
           ],
           "answer": 0,
-          "explanation": "99.99%の年間停止は約52.6分で、1時間ではありません。計画停止を含めるかどうかは定義の話で、人手が間に合うかとは別です。監視の間隔は稼働率で自動的に変わりません。年間52.6分では、気づいて判断して直す時間が取れないので、自動で切り替わる仕組みが要ります。"
+          "explanation": "99.99%で許される停止は、年間でも約52.6分、月あたりでは約4.4分です（約525.6分、9時間ほどは99.9%のときの値です）。計画停止を含めるかどうかは定義の話で、人手が間に合うかとは別です。監視の間隔は稼働率で自動的に変わりません。月に4分ほどでは、気づいて判断して直す時間が取れないので、自動で切り替わる仕組みが要ります。"
         },
         {
           "question": "応答時間を平均ではなくp95で書く理由はどれでしょう。",

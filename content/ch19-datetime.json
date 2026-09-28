@@ -133,7 +133,7 @@
           "hints": [
             "1行目は `LocalDate date = LocalDate.parse(s);` です。ISO 形式（`2024-05-03`）ならそのまま読めます。",
             "`getMonth()` は `Month` の enum、`getDayOfWeek()` は `DayOfWeek` の enum を返すので、`MAY` `FRIDAY` のように出力されます。数字が欲しいときが `getMonthValue()` です。",
-            "6行目は `try { System.out.println(\"別の日 \" + LocalDate.of(y, m, d)); } catch (Exception e) { System.out.println(\"別の日 \" + e.getClass().getSimpleName()); }` です。"
+            "4行目は `try { System.out.println(\"別の日 \" + LocalDate.of(y, m, d)); } catch (Exception e) { System.out.println(\"別の日 \" + e.getClass().getSimpleName()); }` です。"
           ],
           "solution": "import java.time.LocalDate;\nimport java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        String s = sc.next();\n        int y = sc.nextInt();\n        int m = sc.nextInt();\n        int d = sc.nextInt();\n\n        LocalDate date = LocalDate.parse(s);\n\n        System.out.println(\"parse \" + date);\n        System.out.println(\"月 \" + date.getMonth());\n        System.out.println(\"曜日 \" + date.getDayOfWeek());\n\n        try {\n            System.out.println(\"別の日 \" + LocalDate.of(y, m, d));\n        } catch (Exception e) {\n            System.out.println(\"別の日 \" + e.getClass().getSimpleName());\n        }\n    }\n}\n",
           "sourceChecks": [
@@ -431,9 +431,9 @@
             }
           ],
           "hints": [
-            "`ChronoUnit.MONTHS.between(from, to)` と `ChronoUnit.YEARS.between(from, to)` です。戻り値は `long` なので、そのまま文字列につなげれば出力できます。",
-            "3行目は `ChronoUnit.DAYS.between(to, from)` と **引数の順番を入れ替える** だけです。前後が逆なのでマイナスになります。",
-            "6行目は `try { Duration.between(from, to); System.out.println(\"だめ 例外なし\"); } catch (Exception e) { System.out.println(\"だめ 例外\"); }` です。`Duration` は時・分・秒の差なので、日付だけの `LocalDate` には使えません。"
+            "1行目は `ChronoUnit.MONTHS.between(from, to)` です。戻り値は `long` なので、そのまま文字列につなげれば出力できます。",
+            "2行目は `ChronoUnit.DAYS.between(to, from)` と **引数の順番を入れ替える** だけです。前後が逆なのでマイナスになります。",
+            "4行目は `try { Duration.between(from, to); System.out.println(\"だめ 例外なし\"); } catch (Exception e) { System.out.println(\"だめ 例外\"); }` です。`Duration` は時・分・秒の差なので、日付だけの `LocalDate` には使えません。"
           ],
           "solution": "import java.time.Duration;\nimport java.time.LocalDate;\nimport java.time.LocalDateTime;\nimport java.time.temporal.ChronoUnit;\nimport java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int y1 = sc.nextInt();\n        int m1 = sc.nextInt();\n        int d1 = sc.nextInt();\n        int y2 = sc.nextInt();\n        int m2 = sc.nextInt();\n        int d2 = sc.nextInt();\n        int h1 = sc.nextInt();\n        int mi1 = sc.nextInt();\n        int h2 = sc.nextInt();\n        int mi2 = sc.nextInt();\n\n        LocalDate from = LocalDate.of(y1, m1, d1);\n        LocalDate to = LocalDate.of(y2, m2, d2);\n\n        System.out.println(\"月数 \" + ChronoUnit.MONTHS.between(from, to));\n        System.out.println(\"逆 \" + ChronoUnit.DAYS.between(to, from));\n\n        LocalDateTime start = LocalDateTime.of(y1, m1, d1, h1, mi1);\n        LocalDateTime end = LocalDateTime.of(y1, m1, d1, h2, mi2);\n        Duration duration = Duration.between(start, end);\n        System.out.println(\"時間 \" + duration.toHours());\n\n        try {\n            Duration.between(from, to);\n            System.out.println(\"だめ 例外なし\");\n        } catch (Exception e) {\n            System.out.println(\"だめ 例外\");\n        }\n    }\n}\n",
           "sourceChecks": [
@@ -586,7 +586,7 @@
           "hints": [
             "読み込みは `DateTimeFormatter reader = DateTimeFormatter.ofPattern(\"yyyy/MM/dd HH:mm\");` を作って `LocalDateTime.parse(ds + \" \" + ts, reader)` です。",
             "`hh` は12時間制なので、`13` 時は `01`、`0` 時は `12` になります。`HH` は24時間制でそのままの値です。",
-            "5行目のパターンは `\"yyyy'y'M'm'd'd'\"` です。クォートで囲まないと `y` は年、`m` は分、`d` は日として解釈されてしまいます。"
+            "4行目のパターンは `\"yyyy'y'M'm'd'd'\"` です。クォートで囲まないと `y` は年、`m` は分、`d` は日として解釈されてしまいます。"
           ],
           "solution": "import java.time.LocalDateTime;\nimport java.time.format.DateTimeFormatter;\nimport java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        String ds = sc.next();\n        String ts = sc.next();\n\n        DateTimeFormatter reader = DateTimeFormatter.ofPattern(\"yyyy/MM/dd HH:mm\");\n        LocalDateTime dt = LocalDateTime.parse(ds + \" \" + ts, reader);\n\n        System.out.println(\"読んだ \" + dt);\n        System.out.println(\"24時間 \" + dt.format(DateTimeFormatter.ofPattern(\"HH\")));\n        System.out.println(\"12時間 \" + dt.format(DateTimeFormatter.ofPattern(\"hh\")));\n        System.out.println(\"文字 \" + dt.format(DateTimeFormatter.ofPattern(\"yyyy'y'M'm'd'd'\")));\n    }\n}\n",
           "sourceChecks": [
