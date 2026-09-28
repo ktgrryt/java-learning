@@ -17,21 +17,51 @@ public final class SourceChecker {
         if (checks.isEmpty()) {
             return List.of();
         }
-        String code = codeOnly(source);
         List<String> failures = new ArrayList<>();
         for (SourceCheck check : checks) {
-            // 正規表現はコンテンツ読み込み時にコンパイル済み（SourceCheck.of）
-            Matcher matcher = check.pattern().matcher(code);
-            int count = 0;
-            while (matcher.find()) {
-                count++;
-            }
+            int count = count(check, source);
             if (count < check.minimum()
                     || (check.maximum() >= 0 && count > check.maximum())) {
                 failures.add(check.message());
             }
         }
         return List.copyOf(failures);
+    }
+
+    /** regexはソース、fieldsはクラス名に一致するクラスの直接のフィールドを数える。 */
+    public static int count(SourceCheck check, String source) {
+        if (check.type().equals("fields")) {
+            var compiler = javax.tools.ToolProvider.getSystemJavaCompiler();
+            if (compiler == null) throw new IllegalStateException("構文検査にはJDKが必要です");
+            var input = new javax.tools.SimpleJavaFileObject(
+                    java.net.URI.create("string:///Submission.java"), javax.tools.JavaFileObject.Kind.SOURCE) {
+                @Override public CharSequence getCharContent(boolean ignore) { return source; }
+            };
+            try (var manager = compiler.getStandardFileManager(null, null, null)) {
+                var task = (com.sun.source.util.JavacTask) compiler.getTask(
+                        new java.io.StringWriter(), manager, diagnostic -> {},
+                        List.of("-proc:none"), null, List.of(input));
+                int[] fields = {0};
+                var scanner = new com.sun.source.util.TreeScanner<Void, Void>() {
+                    @Override public Void visitClass(com.sun.source.tree.ClassTree tree, Void unused) {
+                        if (check.pattern().matcher(tree.getSimpleName()).matches()) {
+                            for (var member : tree.getMembers()) {
+                                if (member instanceof com.sun.source.tree.VariableTree) fields[0]++;
+                            }
+                        }
+                        return super.visitClass(tree, unused);
+                    }
+                };
+                for (var unit : task.parse()) scanner.scan(unit, null);
+                return fields[0];
+            } catch (java.io.IOException e) {
+                throw new IllegalStateException("提出ソースの構文を確認できません", e);
+            }
+        }
+        Matcher matcher = check.pattern().matcher(codeOnly(source));
+        int count = 0;
+        while (matcher.find()) count++;
+        return count;
     }
 
     /**

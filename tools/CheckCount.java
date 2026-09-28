@@ -2,8 +2,6 @@ package jq.judge;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 /**
  * sourceChecks の正規表現が模範解答に何回当たるかを、アプリと同じ条件で数える検証用ツール。
@@ -30,12 +28,9 @@ public final class CheckCount {
             int split = record.indexOf('');
             String pattern = record.substring(0, split);
             String source = record.substring(split + 1);
-            Matcher matcher = Pattern.compile(pattern, Pattern.MULTILINE | Pattern.DOTALL)
-                    .matcher(SourceChecker.codeOnly(source));
-            int count = 0;
-            while (matcher.find()) {
-                count++;
-            }
+            String type = pattern.startsWith("@fields:") ? "fields" : "regex";
+            if (type.equals("fields")) pattern = pattern.substring(8);
+            int count = SourceChecker.count(jq.content.SourceCheck.of(pattern, 0, -1, "count", type), source);
             out.append(count).append('\n');
         }
         System.out.print(out);

@@ -376,7 +376,7 @@
       "objectiveIds": [
         "ch74-o5"
       ],
-      "explanation": "## 確かめたことと、出す判断をつなぐ\n\n章末では2つを通します。\n\n- 1問目 … 要件ごとに必要な試験工程を決めておき、**試験項目が1件も無い工程**を洗い出す\n- 2問目 … 出荷の条件へ数を当てて、**満たせなかった条件**を並べる\n\n1問目は、V字モデルの対応（第70章）を要件の粒度まで下ろした形です。「この要件は単体と結合と受入で確かめる」と決めておけば、抜けは機械で出せます。\n\n要件IDから設計・試験項目・不具合・変更までを、同じIDで辿れる状態を**トレーサビリティ**と呼びます。辿れるようにしておくと、この章末のように「どの要件が確かめられていないか」を数えられ、逆に不具合が出たときは「どの要件の話か」から関係する試験項目を集められます。要件へIDを振るのは（第72章）、このためでもあります。\n\n2問目は、「出してよいかを決める」で並べた条件をそのまま当てる作業です。**人がやるのは、満たせなかった条件をどうするか**（出さない・範囲を削る・条件付きで出す）の判断だけになります。\n\n> 2問目の答えが `出荷不可` になっても、それは「出さない」という決定ではありません。条件に当たっていないという事実です。そこからどうするかは、記録を残して人が決めます。\n",
+      "explanation": "## 確かめたことと、出す判断をつなぐ\n\n章末では2つを通します。\n\n- 1問目 … 要件ごとに必要な試験工程を決めておき、**試験項目が1件も無い工程**を洗い出す\n- 2問目 … 出荷の条件へ数を当てて、**満たせなかった条件**を並べる\n\n1問目は、V字モデルの対応（第70章）を要件の粒度まで下ろした形です。「この要件は単体と結合と受入で確かめる」と決めておけば、抜けは機械で出せます。\n\n要件IDから設計・試験項目・不具合・変更までを、同じIDで辿れる状態を**トレーサビリティ**と呼びます。辿れるようにしておくと、この章末のように「どの要件が確かめられていないか」を数えられ、逆に不具合が出たときは「どの要件の話か」から関係する試験項目を集められます。要件へIDを振るのは（第72章）、このためでもあります。\n\n2問目は、「出してよいかを決める」で並べた条件をそのまま当てる作業です。**人がやるのは、満たせなかった条件をどうするか**（出さない・範囲を削る・条件付きで出す）の判断だけになります。\n\n> 2問目の答えが `出荷不可` になっても、それは「出さない」という決定ではありません。条件に当たっていないという事実です。そこからどうするかは、記録を残して人が決めます。\n\n\n## この節の到達点\n\n最後の成果物レビューで、条件から判断を選びます。先にあるJava課題は任意の自動化練習です。出力を計算できることと、計画・要件・設計が適切であることは別々に確かめます。",
       "task": "要件ごとに、試験項目が足りていない工程を洗い出してください。\n\n入力は2つの部分に分かれます。\n\n```\n3\nREQ-01 単体,結合,受入\nREQ-02 単体,結合\nREQ-03 単体\n4\nT-01 REQ-01 単体\nT-02 REQ-01 結合\nT-03 REQ-02 単体\nT-04 REQ-03 単体\n```\n\n前半の1行目は要件の数n、続くn行が `要件ID 必要な工程` で、工程はカンマ区切りです。後半の1行目は試験項目の数m、続くm行が `試験ID 要件ID 工程` です。\n\n要件IDの**昇順**に、必要な工程のうち試験項目が1件も無いものだけを表示します。工程は**入力に書かれた順**で並べてください。\n\n```\n<要件ID> 未確認 <工程をカンマ区切り>\n```\n\n最後の行に `確認済み <すべての工程がそろっている要件の数>/<要件の総数>` を表示します。\n\n上の例の答えはこうなります。\n\n```\nREQ-01 未確認 受入\nREQ-02 未確認 結合\n確認済み 1/3\n```\n",
       "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int n = Integer.parseInt(sc.nextLine().trim());\n        Map<String, String[]> needs = new TreeMap<>();\n        for (int i = 0; i < n; i++) {\n            String[] parts = sc.nextLine().trim().split(\"\\\\s+\");\n            needs.put(parts[0], parts[1].split(\",\"));\n        }\n        int m = Integer.parseInt(sc.nextLine().trim());\n        /* TODO 「要件ID + 工程」の組で、試験項目があるかを集める */\n        /* TODO 要件IDの昇順に、足りない工程を入力の順で並べる */\n        /* TODO すべてそろっている要件の数を表示する */\n    }\n}\n",
       "visibleCases": [
@@ -464,9 +464,56 @@
             "項目名で分岐します。`switch` の `default` を「0でなければ未達」にすると、3つの項目をまとめて書けます。",
             "値は入力に書かれた文字のまま出します。`Double` へ直した値を表示すると、`0` が `0.0` になって食い違います。"
           ],
-          "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int n = Integer.parseInt(sc.nextLine().trim());\n        List<String> problems = new ArrayList<>();\n        for (int i = 0; i < n; i++) {\n            String[] parts = sc.nextLine().trim().split(\"\\\\s+\");\n            double value = Double.parseDouble(parts[1]);\n            boolean ok = switch (parts[0]) {\n                case \"消化率\" -> value >= 95;\n                case \"バグ密度\" -> value <= 2.0;\n                default -> value == 0;\n            };\n            if (!ok) {\n                problems.add(\"NG \" + parts[0] + \" \" + parts[1]);\n            }\n        }\n        System.out.println(problems.isEmpty() ? \"出荷可\" : \"出荷不可\");\n        problems.forEach(System.out::println);\n        System.out.println(\"満たした条件 \" + (n - problems.size()) + \"/5\");\n    }\n}\n"
+          "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int n = Integer.parseInt(sc.nextLine().trim());\n        List<String> problems = new ArrayList<>();\n        for (int i = 0; i < n; i++) {\n            String[] parts = sc.nextLine().trim().split(\"\\\\s+\");\n            double value = Double.parseDouble(parts[1]);\n            boolean ok = switch (parts[0]) {\n                case \"消化率\" -> value >= 95;\n                case \"バグ密度\" -> value <= 2.0;\n                default -> value == 0;\n            };\n            if (!ok) {\n                problems.add(\"NG \" + parts[0] + \" \" + parts[1]);\n            }\n        }\n        System.out.println(problems.isEmpty() ? \"出荷可\" : \"出荷不可\");\n        problems.forEach(System.out::println);\n        System.out.println(\"満たした条件 \" + (n - problems.size()) + \"/5\");\n    }\n}\n",
+          "required": false
+        },
+        {
+          "kind": "applied",
+          "type": "artifact",
+          "objectiveIds": [
+            "ch74-o5"
+          ],
+          "task": "試験結果から出荷判断をレビューする\n\n予定100件の試験はすべて成功し、カバレッジは95%です。ただし権限要件REQ-AUTH「他人の注文は取消不可」に対する試験はありません。通常の本人の取消だけでAPI試験は成功しています。\n\n判断をJSONの各欄へ記入してください。選択肢のコードを使います。\n\n- `release`: release / hold\n- `gap`: none / authorization\n- `test`: repeat-happy / other-owner-403-unchanged（他人の注文で403かつ状態不変）\n- `evidence`: coverage-only / results-and-requirements（結果と要件の網羅を併せて確認）\n\n採点はこの事例に対する判断の整合性を確認します。自由記述のレビュー能力全体を保証するものではありません。",
+          "starterContent": "{\n  \"release\": \"TODO\",\n  \"gap\": \"TODO\",\n  \"test\": \"TODO\",\n  \"evidence\": \"TODO\"\n}\n",
+          "solution": "{\n  \"release\": \"hold\",\n  \"gap\": \"authorization\",\n  \"test\": \"other-owner-403-unchanged\",\n  \"evidence\": \"results-and-requirements\"\n}\n",
+          "artifact": {
+            "path": "review/decision.json",
+            "format": "json",
+            "checks": [
+              {
+                "type": "jsonPointer",
+                "expression": "/release",
+                "expected": "hold",
+                "message": "release の判断を事例の根拠と照合してください。"
+              },
+              {
+                "type": "jsonPointer",
+                "expression": "/gap",
+                "expected": "authorization",
+                "message": "gap の判断を事例の根拠と照合してください。"
+              },
+              {
+                "type": "jsonPointer",
+                "expression": "/test",
+                "expected": "other-owner-403-unchanged",
+                "message": "test の判断を事例の根拠と照合してください。"
+              },
+              {
+                "type": "jsonPointer",
+                "expression": "/evidence",
+                "expected": "results-and-requirements",
+                "message": "evidence の判断を事例の根拠と照合してください。"
+              }
+            ]
+          },
+          "hints": [
+            "手順は、根拠になる事実を探す → その事実では言えないことを除く → 次の確認を決める、です。",
+            "解説の作業例と今回の事例で、条件が変わった箇所を比べてください。"
+          ]
         }
-      ]
+      ],
+      "required": false,
+      "kind": "applied"
     }
   ]
 }

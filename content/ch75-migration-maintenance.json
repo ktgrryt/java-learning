@@ -376,7 +376,7 @@
       "objectiveIds": [
         "ch75-o5"
       ],
-      "explanation": "## 当日と、その後を確かめる\n\n章末では2つを通します。\n\n- 1問目 … 移行の前と後で**件数が合っているか**を確かめる\n- 2問目 … 変更管理の記録が**申請→承認→実施→記録の順**になっているかを確かめる\n\n1問目は、移行の当日に必ずやる照合です。移した件数が合わないまま受付を再開すると、足りないデータを本番で探すことになります。区分ごとに数えるのは、**どこで落ちたかを絞るため**です。全体の合計だけ見ていると、増えた分と減った分が打ち消し合って気づけません。\n\n2問目は、引き渡したあとの運用を確かめる作業です。順序が飛んでいる記録は、障害のときに調べる材料が無い状態を意味します。\n\n> どちらも、数が合っていること・順序が正しいことしか言えません。**移したデータの中身が正しいか、承認の判断が妥当だったかは、人が見ます。**\n",
+      "explanation": "## 当日と、その後を確かめる\n\n章末では2つを通します。\n\n- 1問目 … 移行の前と後で**件数が合っているか**を確かめる\n- 2問目 … 変更管理の記録が**申請→承認→実施→記録の順**になっているかを確かめる\n\n1問目は、移行の当日に必ずやる照合です。移した件数が合わないまま受付を再開すると、足りないデータを本番で探すことになります。区分ごとに数えるのは、**どこで落ちたかを絞るため**です。全体の合計だけ見ていると、増えた分と減った分が打ち消し合って気づけません。\n\n2問目は、引き渡したあとの運用を確かめる作業です。順序が飛んでいる記録は、障害のときに調べる材料が無い状態を意味します。\n\n> どちらも、数が合っていること・順序が正しいことしか言えません。**移したデータの中身が正しいか、承認の判断が妥当だったかは、人が見ます。**\n\n\n## この節の到達点\n\n最後の成果物レビューで、条件から判断を選びます。先にあるJava課題は任意の自動化練習です。出力を計算できることと、計画・要件・設計が適切であることは別々に確かめます。",
       "task": "移行の前後で件数が合っているかを確かめてください。\n\n入力の1行目は `区分の数 許容差` です。許容差は整数で、差の絶対値がこれ以下なら合っているものとして扱います。続く行が `区分名 移行元の件数 移行先の件数` です。\n\n```\n3 0\n注文 12500 12500\n注文明細 41230 41228\n利用者 3100 3100\n```\n\n区分ごとに1行、入力の順に次を表示します。差は `移行先 - 移行元` です。\n\n```\n<区分名> 差 <差> <判定>\n```\n\n判定は、差の絶対値が許容差以下なら `一致`、超えていれば `不一致` です。\n\n続けて次の2行を表示してください。\n\n```\n合計 移行元 <移行元の合計> 移行先 <移行先の合計>\n判定 <移行成功 か 要調査>\n```\n\n`判定` は、`不一致` の区分が1つも無ければ `移行成功`、1つでもあれば `要調査` です。\n\n上の例の答えはこうなります。\n\n```\n注文 差 0 一致\n注文明細 差 -2 不一致\n利用者 差 0 一致\n合計 移行元 56830 移行先 56828\n判定 要調査\n```\n\n**合計だけを見ると気づけません。** 2件減った区分と2件増えた区分があると、合計は合ってしまいます。\n",
       "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        String[] head = sc.nextLine().trim().split(\"\\\\s+\");\n        int n = Integer.parseInt(head[0]);\n        int tolerance = Integer.parseInt(head[1]);\n        int fromTotal = 0;\n        int toTotal = 0;\n        boolean allMatch = true;\n        for (int i = 0; i < n; i++) {\n            String[] parts = sc.nextLine().trim().split(\"\\\\s+\");\n            /* TODO 差（移行先 - 移行元）を出し、許容差と比べて判定を表示する */\n            /* TODO 合計をためる */\n        }\n        /* TODO 合計の行と、全体の判定を表示する */\n    }\n}\n",
       "visibleCases": [
@@ -464,9 +464,56 @@
             "段階を配列で持ち、`parts[stage + 1]`（前）と `parts[stage + 2]`（後）を比べると3段階を1つのループで書けます。",
             "後が `-` のときは問題にしません（まだその段階に来ていないだけです）。前が `-` で後に日付があるときと、`compareTo` が負のときが問題です。"
           ],
-          "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int n = Integer.parseInt(sc.nextLine().trim());\n        String[] stages = {\"承認\", \"実施\", \"記録\"};\n        List<String> problems = new ArrayList<>();\n        int clean = 0;\n        for (int i = 0; i < n; i++) {\n            String[] parts = sc.nextLine().trim().split(\"\\\\s+\");\n            List<String> found = new ArrayList<>();\n            for (int stage = 0; stage < stages.length; stage++) {\n                String previous = parts[stage + 1];\n                String current = parts[stage + 2];\n                if (current.equals(\"-\")) {\n                    continue;\n                }\n                if (previous.equals(\"-\") || current.compareTo(previous) < 0) {\n                    found.add(stages[stage]);\n                }\n            }\n            if (found.isEmpty()) {\n                clean++;\n            } else {\n                for (String stage : found) {\n                    problems.add(\"NG \" + parts[0] + \" \" + stage);\n                }\n            }\n        }\n        System.out.println(problems.isEmpty() ? \"OK\" : \"NG\");\n        problems.forEach(System.out::println);\n        System.out.println(\"正常 \" + clean + \"/\" + n);\n    }\n}\n"
+          "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int n = Integer.parseInt(sc.nextLine().trim());\n        String[] stages = {\"承認\", \"実施\", \"記録\"};\n        List<String> problems = new ArrayList<>();\n        int clean = 0;\n        for (int i = 0; i < n; i++) {\n            String[] parts = sc.nextLine().trim().split(\"\\\\s+\");\n            List<String> found = new ArrayList<>();\n            for (int stage = 0; stage < stages.length; stage++) {\n                String previous = parts[stage + 1];\n                String current = parts[stage + 2];\n                if (current.equals(\"-\")) {\n                    continue;\n                }\n                if (previous.equals(\"-\") || current.compareTo(previous) < 0) {\n                    found.add(stages[stage]);\n                }\n            }\n            if (found.isEmpty()) {\n                clean++;\n            } else {\n                for (String stage : found) {\n                    problems.add(\"NG \" + parts[0] + \" \" + stage);\n                }\n            }\n        }\n        System.out.println(problems.isEmpty() ? \"OK\" : \"NG\");\n        problems.forEach(System.out::println);\n        System.out.println(\"正常 \" + clean + \"/\" + n);\n    }\n}\n",
+          "required": false
+        },
+        {
+          "kind": "applied",
+          "type": "artifact",
+          "objectiveIds": [
+            "ch75-o5"
+          ],
+          "task": "移行当日のGo/No-Goを判断する\n\n移行元・移行先の注文件数は一致していますが、金額合計は不一致です。現在09:40、切り戻しには15分、旧系の再開期限は10:00、書込みは停止中です。手順書では09:45までに不一致を解消・再照合できなければ切り戻します。担当者は件数が合うので新系の書込みを開始しようとしています。\n\n判断をJSONの各欄へ記入してください。選択肢のコードを使います。\n\n- `start`: yes / no\n- `verify`: counts-only / amount-and-relations（金額と明細対応も照合）\n- `deadline`: 09:45 / 10:00\n- `fallback`: resume-new / rollback-before-resume（期限内に旧系へ戻し、整合確認して書込みを再開）\n\n採点はこの事例に対する判断の整合性を確認します。自由記述のレビュー能力全体を保証するものではありません。",
+          "starterContent": "{\n  \"start\": \"TODO\",\n  \"verify\": \"TODO\",\n  \"deadline\": \"TODO\",\n  \"fallback\": \"TODO\"\n}\n",
+          "solution": "{\n  \"start\": \"no\",\n  \"verify\": \"amount-and-relations\",\n  \"deadline\": \"09:45\",\n  \"fallback\": \"rollback-before-resume\"\n}\n",
+          "artifact": {
+            "path": "review/decision.json",
+            "format": "json",
+            "checks": [
+              {
+                "type": "jsonPointer",
+                "expression": "/start",
+                "expected": "no",
+                "message": "start の判断を事例の根拠と照合してください。"
+              },
+              {
+                "type": "jsonPointer",
+                "expression": "/verify",
+                "expected": "amount-and-relations",
+                "message": "verify の判断を事例の根拠と照合してください。"
+              },
+              {
+                "type": "jsonPointer",
+                "expression": "/deadline",
+                "expected": "09:45",
+                "message": "deadline の判断を事例の根拠と照合してください。"
+              },
+              {
+                "type": "jsonPointer",
+                "expression": "/fallback",
+                "expected": "rollback-before-resume",
+                "message": "fallback の判断を事例の根拠と照合してください。"
+              }
+            ]
+          },
+          "hints": [
+            "手順は、根拠になる事実を探す → その事実では言えないことを除く → 次の確認を決める、です。",
+            "解説の作業例と今回の事例で、条件が変わった箇所を比べてください。"
+          ]
         }
-      ]
+      ],
+      "required": false,
+      "kind": "applied"
     }
   ]
 }

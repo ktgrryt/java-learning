@@ -251,7 +251,7 @@
       "objectiveIds": [
         "ch61-o3"
       ],
-      "explanation": "Open Libertyのアプリコードは、特定ベンダー専用APIよりJakarta EEの標準APIを中心に書けます。Jakarta RESTはHTTP API、CDI（Contexts and Dependency Injection）は部品の生成とDI、Jakarta Validationは入力検証、JSON-BはJavaオブジェクトとJSONの変換を担当します。実装を標準APIの境界に保つと、別のJakarta EE実装へ移す場合の変更範囲を抑えやすくなります。\n\n```java\n@Path(\"/greeting\")\n@Produces(MediaType.APPLICATION_JSON)\npublic class GreetingResource {\n    @Inject\n    GreetingService service;\n\n    @GET\n    public GreetingResponse greet(@QueryParam(\"name\") @NotBlank String name) {\n        return new GreetingResponse(service.message(name));\n    }\n}\n```\n\n`@Path`はURL、`@GET`はHTTPメソッド、`@Produces`はレスポンス形式です。`@Inject`によりCDIがGreetingServiceを渡します。Serviceには`@ApplicationScoped`を付けるとアプリ内で共有されます。共有されるため、利用者ごとの入力をフィールドへ保存してはいけません。\n\nJakarta Validationを有効にすると、`@NotBlank`などの制約違反をHTTP境界で検出できます。業務上の「在庫が足りない」のような規則はValidationだけへ押し込まずServiceで判定します。役割は、ResourceがHTTPを受ける、Serviceが業務ルールを実行する、RepositoryがDBを操作する、DTO（Data Transfer Object）がHTTPの入力・出力データを運ぶ、と分けます。この分担にすると変更理由が混ざりにくく、HTTPを起動しないServiceの単体テストも書きやすくなります。Open Libertyでは、これらのコードが使うランタイム機能をFeature Managerで有効にする点も忘れないでください。\n\nアプリのベースパスは`@ApplicationPath(\"/api\")`を付けた`Application`サブクラスで定義できます。この場合、上のResourceは`/api/greeting`になります。404、400、409などのエラーJSONを統一するには`ExceptionMapper`を使います。例外詳細を利用者へそのまま公開しない原則も同じです。",
+      "explanation": "Open Libertyのアプリコードは、特定ベンダー専用APIよりJakarta EEの標準APIを中心に書けます。Jakarta RESTはHTTP API、CDI（Contexts and Dependency Injection）は部品の生成とDI、Jakarta Validationは入力検証、JSON-BはJavaオブジェクトとJSONの変換を担当します。実装を標準APIの境界に保つと、別のJakarta EE実装へ移す場合の変更範囲を抑えやすくなります。\n\n```java\n@Path(\"/greeting\")\n@Produces(MediaType.APPLICATION_JSON)\npublic class GreetingResource {\n    @Inject\n    GreetingService service;\n\n    @GET\n    public GreetingResponse greet(@QueryParam(\"name\") @NotBlank String name) {\n        return new GreetingResponse(service.message(name));\n    }\n}\n```\n\n`@Path`はURL、`@GET`はHTTPメソッド、`@Produces`はレスポンス形式です。`@Inject`によりCDIがGreetingServiceを渡します。Serviceには`@ApplicationScoped`を付けるとアプリ内で共有されます。共有されるため、利用者ごとの入力をフィールドへ保存してはいけません。\n\nJakarta Validationを有効にすると、`@NotBlank`などの制約違反をHTTP境界で検出できます。業務上の「在庫が足りない」のような規則はValidationだけへ押し込まずServiceで判定します。役割は、ResourceがHTTPを受ける、Serviceが業務ルールを実行する、RepositoryがDBを操作する、DTO（Data Transfer Object）がHTTPの入力・出力データを運ぶ、と分けます。この分担にすると変更理由が混ざりにくく、HTTPを起動しないServiceの単体テストも書きやすくなります。Open Libertyでは、これらのコードが使うランタイム機能をFeature Managerで有効にする点も忘れないでください。\n\nアプリのベースパスは`@ApplicationPath(\"/api\")`を付けた`Application`サブクラスで定義できます。この場合、上のResourceは`/api/greeting`になります。404、400、409などのエラーJSONを統一するには`ExceptionMapper`を使います。例外詳細を利用者へそのまま公開しない原則も同じです。\n\n## 次の実装演習へ\n\nこの節は責務とリクエストの流れを確認する概念レッスンです。HTTP文字列を自分で組み立てるだけではフレームワークの動作を確かめられません。61-6の実行演習で、実際のフレームワークを通した検証へ進みます。",
       "samples": [
         {
           "caption": "考え方を標準Javaで確かめる",
@@ -260,44 +260,7 @@
           "expected": "Hello, Java"
         }
       ],
-      "task": "ResourceとServiceの責務を分ける\n\n1行目にbase path、2行目にresource path、3行目にnameが与えられます。base pathとresource pathは前後の`/`を整理して1本のパスにし、nameが空白なら`400 <path> NAME_REQUIRED`、それ以外ならServiceを呼び`200 <path> Hello, <trim済みname>`を出力してください。例：`/api/`と`/greeting`は`/api/greeting`です。",
-      "starterCode": "import java.util.*;\n\npublic class Main {\n    static class GreetingService {\n        String message(String name) {\n            return \"Hello, \" + name.trim();\n        }\n    }\n\n    static String joinPath(String base, String resource) {\n        // TODO: slashを1個にそろえる\n        return \"\";   // 仮の値。書けたら消す\n    }\n\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        String base = sc.nextLine();\n        String resource = sc.nextLine();\n        String name = sc.nextLine();\n        // TODO: 検証後にServiceを呼ぶ\n    }\n}",
-      "visibleCases": [
-        {
-          "label": "base pathの末尾に `/`",
-          "stdin": "/api/\n/greeting\nJava\n",
-          "expected": "200 /api/greeting Hello, Java"
-        },
-        {
-          "label": "名前が空白だけ",
-          "stdin": "/api\ngreeting\n   \n",
-          "expected": "400 /api/greeting NAME_REQUIRED"
-        }
-      ],
-      "hiddenCases": [
-        {
-          "label": "別のbase path",
-          "stdin": "/v1/\n/orders\nLiberty\n",
-          "expected": "200 /v1/orders Hello, Liberty"
-        },
-        {
-          "label": "名前の前後に空白",
-          "stdin": "/api\n/greeting\n  Jakarta  \n",
-          "expected": "200 /api/greeting Hello, Jakarta"
-        },
-        {
-          "label": "resource pathに `/` が無い",
-          "stdin": "/root/\nitem\nX\n",
-          "expected": "200 /root/item Hello, X"
-        }
-      ],
-      "hints": [
-        "`joinPath`ではbase末尾とresource先頭の`/`を除いてから、中央へ1個だけ`/`を置きます。",
-        "完成したpathは入力エラー時にも使います。`name.isBlank()`を先に判定し、正常時だけServiceを呼びましょう。"
-      ],
-      "solution": "import java.util.*;\n\npublic class Main {\n    static class GreetingService {\n        String message(String name) {\n            return \"Hello, \" + name.trim();\n        }\n    }\n\n    static String joinPath(String base, String resource) {\n        String left = base.endsWith(\"/\") ? base.substring(0, base.length() - 1) : base;\n        String right = resource.startsWith(\"/\") ? resource.substring(1) : resource;\n        return left + \"/\" + right;\n    }\n\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        String base = sc.nextLine();\n        String resource = sc.nextLine();\n        String name = sc.nextLine();\n        String path = joinPath(base, resource);\n        if (name.isBlank()) {\n            System.out.println(\"400 \" + path + \" NAME_REQUIRED\");\n        } else {\n            GreetingService service = new GreetingService();\n            System.out.println(\"200 \" + path + \" \" + service.message(name));\n        }\n    }\n}",
       "kind": "practice",
-      "extraTasks": [],
       "quiz": [
         {
           "question": "Jakarta RESTの`@Path`が表すものはどれですか？",
@@ -320,8 +283,20 @@
           ],
           "answer": 1,
           "explanation": "依存先を注入してフィールドへ持つのは普通の書き方で、初期化後に変わらないので共有できます。業務処理をメソッドへ分けることも、単体テストを書くことも問題ありません。避けるのは、リクエストごとに変わる入力をフィールドへ置くことです。`@ApplicationScoped` は共有されるインスタンスなので、同時アクセスで値が混ざります。"
+        },
+        {
+          "question": "パス文字列を結合するJavaコードが動きました。まだ確かめていないものは？",
+          "choices": [
+            "作ったパスの先頭にスラッシュがあるか",
+            "連結したパスに重複スラッシュがあるか",
+            "実コンテナの経路登録や注入が動くか",
+            "連結後のパスが期待する文字列と等しいか"
+          ],
+          "answer": 2,
+          "explanation": "パス文字列を作る処理はJakarta RESTの実行ではありません。61-6の実サーバーでエンドポイントと依存注入を確かめます。"
         }
-      ]
+      ],
+      "lessonType": "concept"
     },
     {
       "id": "61-4",

@@ -156,7 +156,7 @@ def load():
                     items.append({
                         'lesson': lesson['id'],
                         'task': index,
-                        'pattern': check['pattern'],
+                        'pattern': (('@fields:' if check.get('type') == 'fields' else '') + check['pattern']),
                         'minimum': check.get('minimum', 1),
                         'maximum': check.get('maximum', -1),
                         'message': check.get('message', ''),

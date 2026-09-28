@@ -73,15 +73,15 @@
       "objectiveIds": [
         "ch27-o1"
       ],
-      "explanation": "## 複数の更新を「全部成功」か「全部取り消し」にする\n\n注文を保存したのに在庫だけ減っていない、送金元の残高だけ減って送金先が増えていない。このような途中状態をDBへ確定させないために **トランザクション** を使います。\n\n```text\nトランザクション開始\n  → 注文を保存\n  → 在庫を減らす\n両方成功: COMMIT（確定）\n途中で失敗: ROLLBACK（取り消し）\n```\n\nJakarta EEでは、業務メソッドへ `@Transactional` を付けると、この開始・確定・取り消しをサーバーへ任せられます。メソッド呼び出しの前後へ共通処理を差し込む仕組みを **インターセプター** と呼び、トランザクション用インターセプターが境界を管理します。\n\n```java\n@Transactional\npublic void transfer(long from, long to, int amount) {\n    debit(from, amount);\n    credit(to, amount);\n}\n```\n\n境界は、通常「送金する」「注文を確定する」のようなServiceの業務操作へ置きます。Repositoryの1メソッドごとに別々に確定すると、複数更新をまとめる目的を果たせません。\n\n### どの例外で取り消されるか\n\n既定では、`RuntimeException` とその派生例外、`Error` がインターセプターまで届くとロールバック対象になります。検査例外は既定ではロールバック対象になりません。業務例外でも取り消す必要があるなら `rollbackOn`、特定の例外では取り消さないなら `dontRollbackOn` を明示します。\n\n```java\n@Transactional(rollbackOn = BusinessException.class)\npublic void placeOrder(...) throws BusinessException { ... }\n```\n\n例外をメソッド内で捕まえて正常な戻り値へ変えると、インターセプターからは成功に見えることがあります。取り消しが必要なら例外を投げ直すか、トランザクションをrollback-onlyへ設定します。\n\n今回の演習では、送金途中で失敗したときにMapへ変更を残さない処理を作ります。MapはDBではありませんが、「成功時だけ全変更を確定する」という境界の考え方を再現しています。",
+      "explanation": "## 複数の更新を「全部成功」か「全部取り消し」にする\n\n注文を保存したのに在庫だけ減っていない、送金元の残高だけ減って送金先が増えていない。このような途中状態をDBへ確定させないために **トランザクション** を使います。\n\n```text\nトランザクション開始\n  → 注文を保存\n  → 在庫を減らす\n両方成功: COMMIT（確定）\n途中で失敗: ROLLBACK（取り消し）\n```\n\nJakarta EEでは、業務メソッドへ `@Transactional` を付けると、この開始・確定・取り消しをサーバーへ任せられます。メソッド呼び出しの前後へ共通処理を差し込む仕組みを **インターセプター** と呼び、トランザクション用インターセプターが境界を管理します。\n\n```java\n@Transactional\npublic void transfer(long from, long to, int amount) {\n    debit(from, amount);\n    credit(to, amount);\n}\n```\n\n境界は、通常「送金する」「注文を確定する」のようなServiceの業務操作へ置きます。Repositoryの1メソッドごとに別々に確定すると、複数更新をまとめる目的を果たせません。\n\n### どの例外で取り消されるか\n\n既定では、`RuntimeException` とその派生例外、`Error` がインターセプターまで届くとロールバック対象になります。検査例外は既定ではロールバック対象になりません。業務例外でも取り消す必要があるなら `rollbackOn`、特定の例外では取り消さないなら `dontRollbackOn` を明示します。\n\n```java\n@Transactional(rollbackOn = BusinessException.class)\npublic void placeOrder(...) throws BusinessException { ... }\n```\n\n例外をメソッド内で捕まえて正常な戻り値へ変えると、インターセプターからは成功に見えることがあります。取り消しが必要なら例外を投げ直すか、トランザクションをrollback-onlyへ設定します。\n\n今回の演習では、送金途中で失敗したときにMapへ変更を残さない処理を作ります。MapはDBではありませんが、「成功時だけ全変更を確定する」という境界の考え方を再現しています。\n\n## この練習で再現する範囲\n\nここでは同一口座への送金を拒否し、すべての条件を確認してからMapを更新します。成功しても残高の合計1500は変わりません。\n\n**この単一ファイルの `new TransferService()` はCDI管理対象ではありません。注釈を書くだけでMapがロールバックされることはなく、`@Transactional` を外しても出力は変わりません。** 追加問題の退避・復元も自分で書く簡易モデルです。実DBとコンテナによるロールバックは27-4のlabで確かめます。",
       "samples": [
         {
           "caption": "rollbackOnを宣言する",
           "code": "import jakarta.transaction.Transactional;\n\nclass BusinessException extends Exception { }\n\nclass PaymentService {\n    @Transactional(rollbackOn = BusinessException.class)\n    void pay(boolean fail) throws BusinessException {\n        if (fail) throw new BusinessException();\n    }\n}\n\npublic class TransactionAnnotationSample {\n    public static void main(String[] a) throws Exception {\n        Transactional t = PaymentService.class.getDeclaredMethod(\"pay\", boolean.class).getAnnotation(Transactional.class);\n        System.out.println(t.rollbackOn()[0].getSimpleName());\n    }\n}\n"
         }
       ],
-      "task": "1行に、送金元ID、送金先ID、金額が、この順で入力されます（金額は `0` 以下も来ます。登録の無いIDも来ます）。口座残高Mapを使う送金Serviceを完成させてください。amount<=0、IDなし、残高不足なら元のMapへ一切変更を残さず `失敗`。成功なら `A=残高 B=残高`。メソッドへ@Transactionalも付けます。",
-      "starterCode": "import jakarta.transaction.Transactional;\nimport java.util.*;\n\nclass TransferService {\n    private final Map<String, Integer> balances = new LinkedHashMap<>(Map.of(\"A\", 1000, \"B\", 500));\n\n    String transfer(String from, String to, int amount) {\n        // TODO annotation and atomic update\n        return \"\";   // 仮の値。書けたら消す\n    }\n}\n\npublic class TxTransfer {\n    public static void main(String[] a) {\n        Scanner sc = new Scanner(System.in);\n        TransferService service = new TransferService();\n        System.out.println(service.transfer(sc.next(), sc.next(), sc.nextInt()));\n    }\n}\n",
+      "task": "入力の各行に、送金元ID、送金先ID、金額が、この順で入力されます（金額は `0` 以下も来ます。登録の無いIDも来ます）。同じServiceを使って入力の終わりまで順に処理し、各行の結果を1行ずつ表示します。残高Mapの初期値はA=1000、B=500です。口座残高Mapを使う送金Serviceを完成させてください。同一口座への送金、amount<=0、IDなし、残高不足なら元のMapへ一切変更を残さず `失敗`。成功なら `A=残高 B=残高`。メソッドへ@Transactionalも付けます。\n\nこの問題の `@Transactional` は境界の記述を学ぶためのものです。採点環境にトランザクション用インターセプターはなく、注釈自体の動作は検証しません。",
+      "starterCode": "import jakarta.transaction.Transactional;\nimport java.util.*;\n\nclass TransferService {\n    private final Map<String, Integer> balances = new LinkedHashMap<>(Map.of(\"A\", 1000, \"B\", 500));\n\n    String transfer(String from, String to, int amount) {\n        // TODO annotation and atomic update\n        return \"\";   // 仮の値。書けたら消す\n    }\n}\n\npublic class TxTransfer {\n    public static void main(String[] a) {\n        Scanner sc = new Scanner(System.in);\n        TransferService service = new TransferService();\n        while (sc.hasNext()) {\n            System.out.println(service.transfer(sc.next(), sc.next(), sc.nextInt()));\n        }\n    }\n}\n",
       "visibleCases": [
         {
           "label": "成功",
@@ -92,6 +92,16 @@
           "label": "不足",
           "stdin": "B A 600",
           "expected": "失敗"
+        },
+        {
+          "label": "同じ口座へ送っても残高を増やさない",
+          "stdin": "A A 300\n",
+          "expected": "失敗"
+        },
+        {
+          "label": "自己送金を拒否した後も元の残高から送金できる",
+          "stdin": "A A 300\nA B 100\n",
+          "expected": "失敗\nA=900 B=600"
         }
       ],
       "hiddenCases": [
@@ -109,14 +119,35 @@
           "label": "IDなし",
           "stdin": "X B 100",
           "expected": "失敗"
+        },
+        {
+          "label": "送金先がB自身でも拒否する",
+          "stdin": "B B 100\n",
+          "expected": "失敗"
+        },
+        {
+          "label": "存在しない送金先への失敗で引き落とさない",
+          "stdin": "A X 100\nA B 100\n",
+          "expected": "失敗\nA=900 B=600"
+        },
+        {
+          "label": "残高不足を拒否した後も残高を維持する",
+          "stdin": "B A 700\nB A 100\n",
+          "expected": "失敗\nA=1100 B=400"
+        },
+        {
+          "label": "往復の送金で残高の合計を保つ",
+          "stdin": "A B 300\nB A 200\n",
+          "expected": "A=700 B=800\nA=900 B=600"
         }
       ],
       "hints": [
+        "最初に送金元と送金先が同じでないか確認します。成功時も失敗時も、2口座の残高の合計は1500のままでなければなりません。",
         "transferへ `@Transactional`。",
         "更新前に両残高のnull、amount<=0、from残高不足を全て確認し、失敗ならreturn。",
         "検証後に2つのputを連続して行います。"
       ],
-      "solution": "import jakarta.transaction.Transactional;\nimport java.util.*;\n\nclass TransferService {\n    private final Map<String, Integer> balances = new LinkedHashMap<>(Map.of(\"A\", 1000, \"B\", 500));\n\n    @Transactional\n    String transfer(String from, String to, int amount) {\n        Integer f = balances.get(from), t = balances.get(to);\n        if (f == null || t == null || amount <= 0 || f < amount) return \"失敗\";\n        balances.put(from, f - amount);\n        balances.put(to, t + amount);\n        return \"A=\" + balances.get(\"A\") + \" B=\" + balances.get(\"B\");\n    }\n}\n\npublic class TxTransfer {\n    public static void main(String[] a) {\n        Scanner sc = new Scanner(System.in);\n        TransferService service = new TransferService();\n        System.out.println(service.transfer(sc.next(), sc.next(), sc.nextInt()));\n    }\n}\n",
+      "solution": "import jakarta.transaction.Transactional;\nimport java.util.*;\n\nclass TransferService {\n    private final Map<String, Integer> balances = new LinkedHashMap<>(Map.of(\"A\", 1000, \"B\", 500));\n\n    @Transactional\n    String transfer(String from, String to, int amount) {\n        Integer f = balances.get(from), t = balances.get(to);\n        if (from.equals(to) || f == null || t == null || amount <= 0 || f < amount) return \"失敗\";\n        balances.put(from, f - amount);\n        balances.put(to, t + amount);\n        return \"A=\" + balances.get(\"A\") + \" B=\" + balances.get(\"B\");\n    }\n}\n\npublic class TxTransfer {\n    public static void main(String[] a) {\n        Scanner sc = new Scanner(System.in);\n        TransferService service = new TransferService();\n        while (sc.hasNext()) {\n            System.out.println(service.transfer(sc.next(), sc.next(), sc.nextInt()));\n        }\n    }\n}\n",
       "sourceChecks": [
         {
           "pattern": "@Transactional\\b",
@@ -127,7 +158,7 @@
       "extraTasks": [
         {
           "kind": "applied",
-          "task": "例外をcatchして握りつぶす危険を直します。saveHistory失敗時は残高変更も戻し、例外を再throwしてください。mainは `rollback balance=1000` と表示します。",
+          "task": "例外をcatchして握りつぶす危険を直します。saveHistory失敗時は残高変更も戻し、例外を再throwしてください。mainは `rollback balance=1000` と表示します。\n\nこの問題の `@Transactional` は境界の記述を学ぶためのものです。採点環境にトランザクション用インターセプターはなく、注釈自体の動作は検証しません。",
           "starterCode": "import jakarta.transaction.Transactional;\n\nclass AccountService {\n    int balance = 1000;\n\n    @Transactional\n    void withdraw(int amount) {\n        int before = balance;\n        try {\n            balance -= amount;\n            saveHistory();\n        } catch (RuntimeException e) {\n            // TODO rollback相当 + rethrow\n        }\n    }\n\n    void saveHistory() {\n        throw new IllegalStateException(\"DB error\");\n    }\n}\n\npublic class TxException {\n    public static void main(String[] a) {\n        AccountService s = new AccountService();\n        try {\n            s.withdraw(100);\n        } catch (RuntimeException e) {\n            System.out.println(\"rollback balance=\" + s.balance);\n        }\n    }\n}\n",
           "visibleCases": [
             {

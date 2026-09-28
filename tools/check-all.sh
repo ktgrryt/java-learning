@@ -49,6 +49,7 @@ CHECKS=(
   check-block-alignment.sh
   check-markdown-lists.sh
   check-mini-labels.sh
+  check-content-quality.sh
   check-source-checks.sh
   check-source-alternatives.sh
   check-optional-task.sh

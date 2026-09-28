@@ -1495,6 +1495,8 @@ public final class ProgressStore {
                     Map.entry("53-5", 1),
                     Map.entry("55-3", 1),
                     Map.entry("58-5", 1),
+                    Map.entry("60-2", 1),
+                    Map.entry("61-3", 1),
                     Map.entry("60-3", 1),
                     Map.entry("60-4", 1),
                     Map.entry("61-5", 1),

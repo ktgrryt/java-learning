@@ -29,7 +29,7 @@ public final class InvestigationTest {
         test("同時刻では入力順を保つ", InvestigationTest::sameTimeOrder);
         test("最初のERRORを特定する", InvestigationTest::firstError);
         test("エラー以前の最新配備を仮説にする", InvestigationTest::deploymentHypothesis);
-        test("報告が事実・仮説・検証を分けている", InvestigationTest::report);
+        test("報告の最低限の形式と根拠の配置を満たす", InvestigationTest::report);
 
         System.out.println("OK " + passed + "/11 tests");
     }
@@ -132,20 +132,7 @@ public final class InvestigationTest {
     private static void report() {
         try {
             String report = Files.readString(root.resolve("REPORT.md"));
-            check(!report.contains("TODO"), "REPORT.mdのTODOをすべて置き換えてください");
-            check(report.contains("2026-08-11T10:02:02Z"),
-                    "最初の異常の時刻を事実として書いてください");
-            check(report.contains("connection_timeout"),
-                    "最初の異常イベントを事実として書いてください");
-            check(report.contains("orders-2.4.0"),
-                    "直前の配備を原因候補として扱ってください");
-            for (String heading : List.of("仮説", "検証", "緩和", "恒久")) {
-                check(report.contains(heading), "REPORT.mdに「" + heading + "」が必要です");
-            }
-            check(!report.contains("Bearer-prod-secret"),
-                    "報告へAuthorizationの値を転記してはいけません");
-            check(!report.contains("転居先を秘密にしたい"),
-                    "報告へ顧客の自由入力を転記してはいけません");
+            ReportStructure.validate(report);
         } catch (IOException e) {
             throw new AssertionError(e);
         }

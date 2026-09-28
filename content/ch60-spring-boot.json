@@ -161,7 +161,7 @@
       "objectiveIds": [
         "ch60-o2"
       ],
-      "explanation": "REST APIでは、HTTPを受け取る処理と業務ルールを同じメソッドへ詰め込まないことが重要です。ControllerはURL、HTTPメソッド、入力、HTTPステータスを扱います。Serviceは「注文できるか」「表示名をどう作るか」といった業務ルールを扱います。DBアクセスが必要なら、さらにRepositoryへ分けます。こうするとHTTPを起動しないServiceの単体テストと、Webの接続だけを見るControllerテストを分けられます。\n\n```java\n@RestController\n@RequestMapping(\"/api/greetings\")\nclass GreetingController {\n    private final GreetingService service;\n\n    GreetingController(GreetingService service) {\n        this.service = service;\n    }\n\n    @GetMapping\n    GreetingResponse greet(@RequestParam @NotBlank String name) {\n        return new GreetingResponse(service.message(name));\n    }\n}\n```\n\n`@RestController`は戻り値をJSONなどのHTTPレスポンスへ変換するControllerです。`@GetMapping`はGETリクエストとの対応、`@RequestParam`はクエリ文字列、`@NotBlank`は空文字を拒否する入力検証です。DTO（Data Transfer Object）は、HTTPで受け取る値や返す値を運ぶための専用クラスです。入力用・出力用のDTOをEntity（DBへ保存する形）と分けると、DB設計の変更がそのままAPI変更になるのを防ぎやすくなります。\n\nServiceはコンストラクタで注入します。フィールドへ直接`@Autowired`を付ける方法より、必要な依存関係が明確で、通常のJavaコードとしてテストしやすくなります。また、ControllerやServiceは通常1個だけ共有されるBeanです。リクエストごとの名前や合計金額をフィールドへ保存すると、同時アクセスで値が混ざります。リクエスト固有の値はローカル変数として扱ってください。\n\n入力不正は400、対象なしは404、作成成功は201など、HTTPの意味に合わせて返します。想定される業務例外は`@RestControllerAdvice`へ集めると、全Controllerで同じエラーJSONを返せます。例外の詳細やスタックトレースを利用者へそのまま返してはいけません。",
+      "explanation": "REST APIでは、HTTPを受け取る処理と業務ルールを同じメソッドへ詰め込まないことが重要です。ControllerはURL、HTTPメソッド、入力、HTTPステータスを扱います。Serviceは「注文できるか」「表示名をどう作るか」といった業務ルールを扱います。DBアクセスが必要なら、さらにRepositoryへ分けます。こうするとHTTPを起動しないServiceの単体テストと、Webの接続だけを見るControllerテストを分けられます。\n\n```java\n@RestController\n@RequestMapping(\"/api/greetings\")\nclass GreetingController {\n    private final GreetingService service;\n\n    GreetingController(GreetingService service) {\n        this.service = service;\n    }\n\n    @GetMapping\n    GreetingResponse greet(@RequestParam @NotBlank String name) {\n        return new GreetingResponse(service.message(name));\n    }\n}\n```\n\n`@RestController`は戻り値をJSONなどのHTTPレスポンスへ変換するControllerです。`@GetMapping`はGETリクエストとの対応、`@RequestParam`はクエリ文字列、`@NotBlank`は空文字を拒否する入力検証です。DTO（Data Transfer Object）は、HTTPで受け取る値や返す値を運ぶための専用クラスです。入力用・出力用のDTOをEntity（DBへ保存する形）と分けると、DB設計の変更がそのままAPI変更になるのを防ぎやすくなります。\n\nServiceはコンストラクタで注入します。フィールドへ直接`@Autowired`を付ける方法より、必要な依存関係が明確で、通常のJavaコードとしてテストしやすくなります。また、ControllerやServiceは通常1個だけ共有されるBeanです。リクエストごとの名前や合計金額をフィールドへ保存すると、同時アクセスで値が混ざります。リクエスト固有の値はローカル変数として扱ってください。\n\n入力不正は400、対象なしは404、作成成功は201など、HTTPの意味に合わせて返します。想定される業務例外は`@RestControllerAdvice`へ集めると、全Controllerで同じエラーJSONを返せます。例外の詳細やスタックトレースを利用者へそのまま返してはいけません。\n\n## 次の実装演習へ\n\nこの節は責務とリクエストの流れを確認する概念レッスンです。HTTP文字列を自分で組み立てるだけではフレームワークの動作を確かめられません。60-5の実行演習で、実際のフレームワークを通した検証へ進みます。",
       "samples": [
         {
           "caption": "考え方を標準Javaで確かめる",
@@ -170,44 +170,7 @@
           "expected": "200 Hello, Java"
         }
       ],
-      "task": "小さなREST APIの境界を実装する\n\n1行目にHTTPメソッド、2行目にパス、3行目に名前が与えられます。パスが`/api/greetings`以外なら`404 NOT_FOUND`、パスが正しくてもGET以外なら`405 METHOD_NOT_ALLOWED`、名前が空白だけなら`400 NAME_REQUIRED`を出力してください。すべて正しければ`GreetingService`へ処理を渡し、`200 Hello, <前後空白を除いた名前>`を出力します。判定はパス、メソッド、入力の順です。",
-      "starterCode": "import java.util.*;\n\npublic class Main {\n    static class GreetingService {\n        String message(String name) {\n            return \"Hello, \" + name.trim();\n        }\n    }\n\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        String method = sc.nextLine();\n        String path = sc.nextLine();\n        String name = sc.nextLine();\n        // TODO: HTTP境界の検査後にServiceを呼ぶ\n    }\n}",
-      "visibleCases": [
-        {
-          "label": "正しい要求",
-          "stdin": "GET\n/api/greetings\nJava\n",
-          "expected": "200 Hello, Java"
-        },
-        {
-          "label": "名前が空白だけ",
-          "stdin": "GET\n/api/greetings\n   \n",
-          "expected": "400 NAME_REQUIRED"
-        }
-      ],
-      "hiddenCases": [
-        {
-          "label": "パスは合うがGET以外",
-          "stdin": "POST\n/api/greetings\nJava\n",
-          "expected": "405 METHOD_NOT_ALLOWED"
-        },
-        {
-          "label": "知らないパス",
-          "stdin": "GET\n/api/unknown\nJava\n",
-          "expected": "404 NOT_FOUND"
-        },
-        {
-          "label": "名前の前後に空白",
-          "stdin": "GET\n/api/greetings\n  Spring  \n",
-          "expected": "200 Hello, Spring"
-        }
-      ],
-      "hints": [
-        "早期returnを使い、パス、HTTPメソッド、`name.isBlank()`の順で不正なケースを終了させます。",
-        "3つの境界検査を通過したときだけ`GreetingService`を作り、Serviceが返した文字列の前に`200 `を付けます。"
-      ],
-      "solution": "import java.util.*;\n\npublic class Main {\n    static class GreetingService {\n        String message(String name) {\n            return \"Hello, \" + name.trim();\n        }\n    }\n\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        String method = sc.nextLine();\n        String path = sc.nextLine();\n        String name = sc.nextLine();\n        if (!path.equals(\"/api/greetings\")) {\n            System.out.println(\"404 NOT_FOUND\");\n        } else if (!method.equals(\"GET\")) {\n            System.out.println(\"405 METHOD_NOT_ALLOWED\");\n        } else if (name.isBlank()) {\n            System.out.println(\"400 NAME_REQUIRED\");\n        } else {\n            GreetingService service = new GreetingService();\n            System.out.println(\"200 \" + service.message(name));\n        }\n    }\n}",
       "kind": "practice",
-      "extraTasks": [],
       "quiz": [
         {
           "question": "ControllerとServiceを分ける理由として最も適切なものはどれですか？",
@@ -230,8 +193,20 @@
           ],
           "answer": 3,
           "explanation": "Controllerは既定で共有されるため、可変なリクエスト状態を持たせず、ローカル変数や引数で扱います。作り直されないからこそ値が残り、混ざります。"
+        },
+        {
+          "question": "Controllerの入力検証を確かめるとき、Service単体テストだけでは不足する理由は？",
+          "choices": [
+            "Serviceの内部例外を再現できないから",
+            "HTTP経由の検証注釈の動作を通らないから",
+            "Serviceの戻り値を検査できないから",
+            "Repositoryの差し替えを禁止しているから"
+          ],
+          "answer": 1,
+          "explanation": "Serviceへ直接値を渡すだけではHTTPのバインドや400応答は通りません。60-5で実際のWeb境界も確認します。"
         }
-      ]
+      ],
+      "lessonType": "concept"
     },
     {
       "id": "60-3",

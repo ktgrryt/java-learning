@@ -193,7 +193,7 @@
       "objectiveIds": [
         "ch25-o4"
       ],
-      "explanation": "## はじめて学ぶ人へ\n\n同じ役割の実装が複数あるとき、CDIには選び方と作り方を伝えます。たとえばカード決済とテスト決済がどちらも `PaymentService` を実装しているなら、Qualifierは**名札**として使う実装を区別します。\n\n- Qualifier: 同じ型の候補から用途に合う1つを選ぶ\n- Producer: 設定値などを使い、生成手順が特殊な部品を作る\n- Event: 発生した出来事を、送り手と受け手を直接結ばず通知する\n\n注文完了イベントを「領収書メール」「分析記録」がそれぞれ受け取る形なら、注文処理は通知先を知る必要がありません。ただし、決済のように成功確認が必須な中心処理までイベントへ隠さず、戻り値が必要な処理は通常のメソッド呼び出しにします。\n\n## 同じ型の候補を区別する\n\n`PaymentGateway` の実装が複数あると型だけでは選べません。`@Qualifier` を付けた独自注釈で意味を指定します。\n\n```java\n@Qualifier @Retention(RUNTIME) @Target({TYPE, FIELD, PARAMETER})\n@interface TestMode {}\n\n@TestMode class FakeGateway implements PaymentGateway { ... }\n@Inject Service(@TestMode PaymentGateway gateway) { ... }\n```\n\n外部ライブラリの型や設定値は `@Produces` メソッドでBean化します。イベントは `event.fire(new OrderCreated(...))` と `void on(@Observes OrderCreated e)` で発行元と通知処理を疎結合にします。ただし処理順序や失敗を厳密に制御する主処理をイベントへ隠すと追いにくくなります。\n\nこの教材のMiniDiはQualifier自動解決を省略しているため、実行問題ではbindで同じ差し替えを体験します。注釈の形は本物と同じです。",
+      "explanation": "## はじめて学ぶ人へ\n\n同じ役割の実装が複数あるとき、CDIには選び方と作り方を伝えます。たとえばカード決済とテスト決済がどちらも `PaymentService` を実装しているなら、Qualifierは**名札**として使う実装を区別します。\n\n- Qualifier: 同じ型の候補から用途に合う1つを選ぶ\n- Producer: 設定値などを使い、生成手順が特殊な部品を作る\n- Event: 発生した出来事を、送り手と受け手を直接結ばず通知する\n\n注文完了イベントを「領収書メール」「分析記録」がそれぞれ受け取る形なら、注文処理は通知先を知る必要がありません。ただし、決済のように成功確認が必須な中心処理までイベントへ隠さず、戻り値が必要な処理は通常のメソッド呼び出しにします。\n\n## 同じ型の候補を区別する\n\n`PaymentGateway` の実装が複数あると型だけでは選べません。`@Qualifier` を付けた独自注釈で意味を指定します。\n\n```java\n@Qualifier @Retention(RUNTIME) @Target({TYPE, FIELD, PARAMETER})\n@interface TestMode {}\n\n@TestMode class FakeGateway implements PaymentGateway { ... }\n@Inject Service(@TestMode PaymentGateway gateway) { ... }\n```\n\n外部ライブラリの型や設定値は `@Produces` メソッドでBean化します。イベントは `event.fire(new OrderCreated(...))` と `void on(@Observes OrderCreated e)` で発行元と通知処理を疎結合にします。ただし処理順序や失敗を厳密に制御する主処理をイベントへ隠すと追いにくくなります。\n\nこの教材のMiniDiはQualifier自動解決を省略しているため、実行問題ではbindで同じ差し替えを体験します。注釈の形は本物と同じです。\n\n## MiniDiから実際のCDIへ\n\n先のbind問題と自作EventBusは仕組みを分けて考えるためのモデルです。bindはCDIのAPIではなく、Qualifier・Producer・Observerが実行された証拠にもなりません。最後のプロジェクト課題ではWeldというCDI実装を使います。\n\n1. テストがコンテナへSmsSender・Producers・Service・Observerを登録する。\n2. コンテナが `@Mail` の付いたProducerを見つけ、同じ名札の注入先へSenderを渡す。\n3. Serviceが同期イベントをfireすると、コンテナが `@Observes` のメソッドを呼ぶ。\n4. テストが返却値とObserverの記録を両方確認する。\n\nProducerは「生成するメソッド」、Qualifierは「どの用途か」、Observerは「どの出来事を受け取るか」です。どれかを外したときの失敗も、原因と結び付けて読みましょう。\n\n参考: [WeldのCDIリファレンス](https://docs.jboss.org/weld/reference/6.0.4.Final/en-US/html/)\n\n最初の2問は任意のモデル練習です。必須の3問目で、実際のCDIによる解決と通知を確認します。",
       "samples": [
         {
           "caption": "Qualifier注釈を定義する",
@@ -260,6 +260,39 @@
               "minimum": 1,
               "message": "通知は `fire` にまとめてください。主処理は「起きたことを知らせる」だけで、誰が受け取るかを知りません。"
             }
+          ],
+          "required": false
+        },
+        {
+          "type": "project",
+          "kind": "applied",
+          "objectiveIds": [
+            "ch25-o4"
+          ],
+          "task": "実際のCDIコンテナでQualifier・Producer・イベントをつなぐ\n\nJDK 21以上とMavenを使います。初回は依存物をダウンロードします。Workshop.javaのTODOを完成させてください。\n\n- SmsSenderを残したまま、Producers.mailSenderを `@Produces @Mail` のBeanとして公開する。\n- NotificationServiceのSenderへ `@Inject @Mail` を付け、CDIに選ばせる。\n- sendの結果をSentへ包み、Event.fireで通知する。\n- ReceiptObserver.onの引数へ `@Observes` を付け、受け取った結果を記録する。\n\nnotify(\"hello\")はmail:helloを返し、同じ結果がObserverへ1回届きます。テストがWeldを起動し、複数候補の解決・2回の通知・新しいコンテナの状態を確認します。",
+          "project": {
+            "name": "cdi-se-exercise",
+            "source": "labs/cdi-se-exercise",
+            "exclude": [
+              "reference"
+            ],
+            "command": [
+              "mvn",
+              "-q",
+              "test"
+            ],
+            "timeoutSeconds": 60,
+            "verification": "固定のJUnitテストが実ライブラリの動作と異常系を検証する",
+            "editableFiles": [
+              {
+                "path": "src/main/java/example/Workshop.java",
+                "solutionPath": "reference/src/main/java/example/Workshop.java"
+              }
+            ]
+          },
+          "hints": [
+            "@MailのTargetにMETHODがあるためProducerメソッドにも使えます。生成側と注入側の名札を一致させます。",
+            "イベントは new ReceiptObserver() を呼ばず、注入されたeventsからfireします。コンテナが購読メソッドを呼びます。"
           ]
         }
       ],
@@ -308,7 +341,9 @@
           "answer": 3,
           "explanation": "SQLのWHERE句やパスワード保存は、そもそもイベントの話ではありません。送金の主更新のように「失敗したら全体を取り消したい処理」をイベントへ載せると、どこで失敗したのか追いにくく、整合性の要が見えなくなります。イベントは監査通知のような**付随処理**を切り離すのに向きます。"
         }
-      ]
+      ],
+      "required": false,
+      "kind": "applied"
     },
     {
       "id": "25-4",

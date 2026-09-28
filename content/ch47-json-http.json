@@ -270,7 +270,7 @@
       "objectiveIds": [
         "ch47-o4"
       ],
-      "explanation": "## 外部形式をドメインへ直接漏らさない\n\n通信DTOは外部APIの形、ドメインモデルはアプリの意味を表します。変換層を置くと、フィールド名変更、null、単位、列挙値の追加を境界で扱えます。recordは不変なDTOに向きますが、入力検証は別途必要です。\n\nAPIテストでは、正常応答だけでなく、不正JSON、必須項目欠落、未知の列挙値、4xx/5xx、遅延、途中切断を確認します。外部の本番APIに毎回依存せず、単体テストではfake、統合テストではローカルサーバーやテスト環境を使います。契約で許容される変更と破壊的変更を区別し、ログには相関IDを残します。\n\n### recordは「形」を保証するだけ\n\n```java\nrecord SignupRequest(String name, String email, int age) {}\n```\n\nこれで保証されるのは、3つの成分を持つ不変な入れ物であることだけです。\n`name` が空文字でも、`email` が `\"abc\"` でも、`age` が `-5` でも作れてしまいます。\n\n値が業務的に妥当かは、別に確かめます。\n\n```java\nrecord SignupRequest(String name, String email, int age) {\n    SignupRequest {                                   // コンパクトコンストラクタ\n        if (name == null || name.isBlank()) throw new IllegalArgumentException(\"name\");\n        if (age < 0 || age > 150) throw new IllegalArgumentException(\"age\");\n    }\n}\n```\n\n宣言的に書くなら Bean Validation（`@NotBlank` `@Email` `@Min`）を使います（第29章で扱います）。\n\n### 境界のテストで確かめること\n\n契約のテストは「通る形」より **「弾く形」** を先に書きます。\n\n| 入力 | 期待 |\n|---|---|\n| 必須項目が無い | 400。どの項目が悪いかが分かる |\n| 型が違う（`age` に文字列） | 400。500にしない |\n| 未知の項目が増えている | 決めた方針どおり（無視する / 400にする） |\n| 数値が範囲外・文字列が長すぎる | 400 |\n| 日時の形式が違う | 400 |\n\n「未知の項目が来たらどうするか」は**契約として決めておく**ことです。\n決めていないと、送る側が項目を増やしたときに落ちるか黙って無視するかが実装依存になります。\n\n> ⚠️ 間違えやすい点 … 検証の結果を返すときに、内部の情報を混ぜないこと。\n> スタックトレースやSQL、内部のフィールド名を返すと、攻撃の手がかりになります。\n> 詳細はログへ、利用者へは「どの項目がなぜ不正か」だけを返します。",
+      "explanation": "## 外部形式をドメインへ直接漏らさない\n\n通信DTOは外部APIの形、ドメインモデルはアプリの意味を表します。変換層を置くと、フィールド名変更、null、単位、列挙値の追加を境界で扱えます。recordは不変なDTOに向きますが、入力検証は別途必要です。\n\nAPIテストでは、正常応答だけでなく、不正JSON、必須項目欠落、未知の列挙値、4xx/5xx、遅延、途中切断を確認します。外部の本番APIに毎回依存せず、単体テストではfake、統合テストではローカルサーバーやテスト環境を使います。契約で許容される変更と破壊的変更を区別し、ログには相関IDを残します。\n\n### recordは「形」を保証するだけ\n\n```java\nrecord SignupRequest(String name, String email, int age) {}\n```\n\nこれで保証されるのは、3つの成分を持つ不変な入れ物であることだけです。\n`name` が空文字でも、`email` が `\"abc\"` でも、`age` が `-5` でも作れてしまいます。\n\n値が業務的に妥当かは、別に確かめます。\n\n```java\nrecord SignupRequest(String name, String email, int age) {\n    SignupRequest {                                   // コンパクトコンストラクタ\n        if (name == null || name.isBlank()) throw new IllegalArgumentException(\"name\");\n        if (age < 0 || age > 150) throw new IllegalArgumentException(\"age\");\n    }\n}\n```\n\n宣言的に書くなら Bean Validation（`@NotBlank` `@Email` `@Min`）を使います（第29章で扱います）。\n\n### 境界のテストで確かめること\n\n契約のテストは「通る形」より **「弾く形」** を先に書きます。\n\n| 入力 | 期待 |\n|---|---|\n| 必須項目が無い | 400。どの項目が悪いかが分かる |\n| 型が違う（`age` に文字列） | 400。500にしない |\n| 未知の項目が増えている | 決めた方針どおり（無視する / 400にする） |\n| 数値が範囲外・文字列が長すぎる | 400 |\n| 日時の形式が違う | 400 |\n\n「未知の項目が来たらどうするか」は**契約として決めておく**ことです。\n決めていないと、送る側が項目を増やしたときに落ちるか黙って無視するかが実装依存になります。\n\n> ⚠️ 間違えやすい点 … 検証の結果を返すときに、内部の情報を混ぜないこと。\n> スタックトレースやSQL、内部のフィールド名を返すと、攻撃の手がかりになります。\n> 詳細はログへ、利用者へは「どの項目がなぜ不正か」だけを返します。\n\n## ライブラリで契約を実装する\n\nエスケープの手書きはJSONの規則を理解する準備です。実務ではJSONライブラリへ任せます。最後のプロジェクトではJacksonのObjectMapperを使い、DTOとJSONを往復させます。JsonMapperはJSON用のObjectMapperです。\n\n```java\nrecord Product(String label, Integer count) {}\nvar mapper = JsonMapper.builder().build();\nString json = mapper.writeValueAsString(new Product(\"緑茶\", 2));\nProduct product = mapper.readValue(json, Product.class);\n```\n\nこれは依存ライブラリが必要なプロジェクト内の断片です。上の例ではJSON文字列とDTOの相互変換だけを扱います。演習ではさらに次を明示します。\n\n| 入力 | 拒否する理由 | 使う仕組み |\n|---|---|---|\n| 必須項目が無い | 契約の情報不足 | FAIL_ON_MISSING_CREATOR_PROPERTIES |\n| 項目がnull | 値が必要 | FAIL_ON_NULL_CREATOR_PROPERTIES |\n| 数値が文字列 | 契約の型と違う | ALLOW_COERCION_OF_SCALARSを無効化 |\n| 小数の数量 | 整数という型と違う | ACCEPT_FLOAT_AS_INTを無効化 |\n| JSONの後ろに別の値 | 1要求1オブジェクトに反する | FAIL_ON_TRAILING_TOKENS |\n| 空白の名前、0の数量 | 型は合うが業務で使えない | DTOへ変換後に自分で検証 |\n\n設定は読み書きに使い始める前にそろえます。JSONとして正しいことと、注文として受け付けてよいことは別の検査です。\n\n名前側の変換は別設定です。ひな形の `withCoercionConfig(LogicalType.Textual, ...)` は、真偽値や数値を文字列へ自動変換せず拒否する準備です。`ALLOW_COERCION_OF_SCALARS` を無効にするだけで、あらゆる型変換が禁止されるわけではありません。用意した設定を残し、数値側の契約と値の検証を実装してください。\n\n参考: [Jackson MapperBuilderの型変換設定](https://javadoc.io/static/com.fasterxml.jackson.core/jackson-databind/2.18.2/com/fasterxml/jackson/databind/cfg/MapperBuilder.html)",
       "samples": [
         {
           "caption": "DTOから検証済みモデルへ",
@@ -370,6 +370,38 @@
           "objectiveIds": [
             "ch47-o4",
             "ch47-o2"
+          ]
+        },
+        {
+          "type": "project",
+          "kind": "applied",
+          "objectiveIds": [
+            "ch47-o4"
+          ],
+          "task": "JacksonでJSONとDTOの契約を実装する\n\nJDK 21以上とMavenが必要です。OrderJson.javaを完成させます。nameは空白以外を含む文字列、quantityは正の整数で、どちらも必須かつnull不可です。数値の文字列から整数への暗黙変換、小数から整数への切り捨て、未知の項目、JSONの後ろの別トークンも拒否します。\n\nreadはObjectMapperのreadValueでOrderRequestへ変換し、業務上の値を検証してください。writeはwriteValueAsStringでJSONにします。JSONを手で連結しません。書いたJSONを読むと引用符・改行・日本語を含む値も復元できることを確認します。不正入力は例外にします（例外の具体型は固定しません）。\n\nひな形には、真偽値や数値を名前の文字列へ変換させない `withCoercionConfig` の準備があります。この設定も維持してください。",
+          "project": {
+            "name": "jackson-contract-exercise",
+            "source": "labs/jackson-contract-exercise",
+            "exclude": [
+              "reference"
+            ],
+            "command": [
+              "mvn",
+              "-q",
+              "test"
+            ],
+            "timeoutSeconds": 60,
+            "verification": "固定のJUnitテストが実ライブラリの動作と異常系を検証する",
+            "editableFiles": [
+              {
+                "path": "src/main/java/example/OrderJson.java",
+                "solutionPath": "reference/src/main/java/example/OrderJson.java"
+              }
+            ]
+          },
+          "hints": [
+            "JsonMapper.builderでFAIL_ON_MISSING_CREATOR_PROPERTIES、FAIL_ON_NULL_CREATOR_PROPERTIES、FAIL_ON_TRAILING_TOKENSをenableし、ALLOW_COERCION_OF_SCALARSとACCEPT_FLOAT_AS_INTをdisableします。未知の項目の拒否は既定のまま使えます。",
+            "mapper.readValue(json, OrderRequest.class)で形と型を確かめた後、isBlankとquantityの正負を検査します。JSON全体がnullのケースも考えます。"
           ]
         }
       ],

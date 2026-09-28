@@ -124,12 +124,12 @@ def plan(tasks, classpath):
     variants, pairs, index = {}, [], []
     for task in tasks:
         for position, check in enumerate(task['checks']):
-            pairs.append((check['pattern'], task['solution']))
+            pairs.append(((('@fields:' if check.get('type') == 'fields' else '') + check['pattern']), task['solution']))
             index.append((task, position, None))
         for number, (label, code) in enumerate(mutations.variants(task['solution'])):
             variants[(task['name'], number)] = (label, code)
             for position, check in enumerate(task['checks']):
-                pairs.append((check['pattern'], code))
+                pairs.append(((('@fields:' if check.get('type') == 'fields' else '') + check['pattern']), code))
                 index.append((task, position, number))
 
     counts = count(pairs, classpath)

@@ -253,7 +253,7 @@
       "objectiveIds": [
         "ch62-o3"
       ],
-      "explanation": "Quarkusの標準的なREST APIは、Jakarta RESTに基づくQuarkus RESTとCDI（部品の生成とDIを行う標準仕様）で作れます。`@Path`はURL、`@GET`はHTTP GET、`@Inject`は必要な部品の受け取りを表します。これらはJakartaの標準APIなので、別の対応ランタイムでも知識を再利用しやすくなります。Quarkus独自の最適化と開発機能は、Extensionが裏側で統合します。\n\n```java\n@Path(\"/api/greeting\")\n@Produces(MediaType.APPLICATION_JSON)\npublic class GreetingResource {\n    @Inject GreetingService service;\n\n    @GET\n    public GreetingResponse greet(@QueryParam(\"name\") @NotBlank String name) {\n        return new GreetingResponse(service.message(name));\n    }\n}\n```\n\nServiceには`@ApplicationScoped`を付け、Resourceから業務ルールを委譲します。CDI Beanは共有されるため、リクエストごとの値をフィールドへ保存しません。入力DTOにはValidationを付け、Entityをそのまま外部契約にしないようにします。DBアクセスにはPanacheなどQuarkus固有の便利APIもありますが、最初にトランザクション、遅延読み込み、N+1、SQLを理解してから採用します。\n\n外部設定はMicroProfile Config互換の仕組みで読みます。\n\n```java\n@ConfigProperty(name = \"app.greeting.prefix\", defaultValue = \"Hello\")\nString prefix;\n```\n\n`application.properties`では、`%dev.`、`%test.`、`%prod.`のようなprofile別設定も書けます。本番の秘密情報はファイルへコミットせずSecretなどから渡します。Quarkusの設定にはビルド時固定と実行時変更可能の区別があるため、各設定項目の表示を確認してください。\n\n想定内の例外は`ExceptionMapper`でHTTPステータスと安全なエラーDTOへ変換します。Quarkusが高速でも、Controller/ResourceとServiceの責務、入力検証、トランザクション境界、エラー契約という業務APIの基本は変わりません。",
+      "explanation": "Quarkusの標準的なREST APIは、Jakarta RESTに基づくQuarkus RESTとCDI（部品の生成とDIを行う標準仕様）で作れます。`@Path`はURL、`@GET`はHTTP GET、`@Inject`は必要な部品の受け取りを表します。これらはJakartaの標準APIなので、別の対応ランタイムでも知識を再利用しやすくなります。Quarkus独自の最適化と開発機能は、Extensionが裏側で統合します。\n\n```java\n@Path(\"/api/greeting\")\n@Produces(MediaType.APPLICATION_JSON)\npublic class GreetingResource {\n    @Inject GreetingService service;\n\n    @GET\n    public GreetingResponse greet(@QueryParam(\"name\") @NotBlank String name) {\n        return new GreetingResponse(service.message(name));\n    }\n}\n```\n\nServiceには`@ApplicationScoped`を付け、Resourceから業務ルールを委譲します。CDI Beanは共有されるため、リクエストごとの値をフィールドへ保存しません。入力DTOにはValidationを付け、Entityをそのまま外部契約にしないようにします。DBアクセスにはPanacheなどQuarkus固有の便利APIもありますが、最初にトランザクション、遅延読み込み、N+1、SQLを理解してから採用します。\n\n外部設定はMicroProfile Config互換の仕組みで読みます。\n\n```java\n@ConfigProperty(name = \"app.greeting.prefix\", defaultValue = \"Hello\")\nString prefix;\n```\n\n`application.properties`では、`%dev.`、`%test.`、`%prod.`のようなprofile別設定も書けます。本番の秘密情報はファイルへコミットせずSecretなどから渡します。Quarkusの設定にはビルド時固定と実行時変更可能の区別があるため、各設定項目の表示を確認してください。\n\n想定内の例外は`ExceptionMapper`でHTTPステータスと安全なエラーDTOへ変換します。Quarkusが高速でも、Controller/ResourceとServiceの責務、入力検証、トランザクション境界、エラー契約という業務APIの基本は変わりません。\n\n単一ファイルの問題1は任意の設定選択モデルです。必須の問題2ではQuarkusのプロジェクトを動かし、実際のCDI注入とConfig、HTTP境界を検証します。",
       "samples": [
         {
           "caption": "考え方を標準Javaで確かめる",
@@ -297,7 +297,7 @@
         "nameの空白判定を先に行い、正常時だけServiceへprefixとnameを渡して、profileを含む200レスポンスを組み立てます。"
       ],
       "solution": "import java.util.*;\n\npublic class Main {\n    static class GreetingService {\n        String message(String prefix, String name) {\n            return prefix + \", \" + name.trim();\n        }\n    }\n\n    static String resolve(String profileValue, String commonValue) {\n        if (!profileValue.equals(\"-\")) return profileValue;\n        if (!commonValue.equals(\"-\")) return commonValue;\n        return \"Hello\";\n    }\n\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        String profile = sc.nextLine();\n        String profileValue = sc.nextLine();\n        String commonValue = sc.nextLine();\n        String name = sc.nextLine();\n        if (name.isBlank()) {\n            System.out.println(\"400 NAME_REQUIRED\");\n        } else {\n            GreetingService service = new GreetingService();\n            String message = service.message(resolve(profileValue, commonValue), name);\n            System.out.println(\"200 [\" + profile + \"] \" + message);\n        }\n    }\n}",
-      "kind": "practice",
+      "kind": "applied",
       "extraTasks": [
         {
           "objectiveIds": [
@@ -373,7 +373,8 @@
           "answer": 2,
           "explanation": "prefixの無い行は、どのprofileでも読まれる共通の既定値です。`%dev.` の行は `dev` のときだけ効くので、本番の既定値にはなりません。ビルド時に決まる設定は、profileを変えても起動時には差し替えられないので、作り直しが必要です。そのため、秘密情報をGitへ置かないことと、どの時点で反映される設定かを分けて把握します。"
         }
-      ]
+      ],
+      "required": false
     },
     {
       "id": "62-4",

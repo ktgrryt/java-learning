@@ -500,7 +500,8 @@ public final class ContentLoader {
                     MiniJson.requireStr(check, "pattern"),
                     MiniJson.intOf(check, "minimum", 1),
                     MiniJson.intOf(check, "maximum", -1),
-                    MiniJson.requireStr(check, "message")));
+                    MiniJson.requireStr(check, "message"),
+                    MiniJson.str(check, "type", "regex")));
         }
         if (!type.equals("single-file") && !sourceChecks.isEmpty()) {
             throw new IllegalStateException(where + " の " + type + " 問題には sourceChecks を使えません");

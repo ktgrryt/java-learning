@@ -422,7 +422,7 @@
           "stdin": "GET /life\nGET /life"
         }
       ],
-      "task": "入力は **1行が1リクエスト**（`METHOD /パス?クエリ ブラウザ名` の形）で、上から順に処理されます。3つ目の語はブラウザ名で、利用者ごとに分かれます。\n\n共有フィールド `lastName` を使っているServletを直し、リクエストごとのローカル変数だけで `こんにちは、nameさん` と返してください。名前なしはゲストです。",
+      "task": "入力は **1行が1リクエスト**（`METHOD /パス?クエリ ブラウザ名` の形）で、上から順に処理されます。3つ目の語はブラウザ名で、利用者ごとに分かれます。\n\n共有フィールド `lastName` を使っているServletを直し、リクエストごとのローカル変数だけで `こんにちは、nameさん` と返してください。名前なしはゲストです。\n\nこの課題では `SafeServlet` にフィールドを宣言しない構成を求めます。構文検査でも確認します。一般のServletで不変の依存先などのフィールドまで禁止するという意味ではありません。",
       "starterCode": "import jakarta.servlet.annotation.WebServlet;\nimport jakarta.servlet.http.*;\nimport java.io.*;\n\n@WebServlet(\"/hello\")\npublic class SafeServlet extends HttpServlet {\n    private String lastName = \"ゲスト\";\n\n    protected void doGet(HttpServletRequest q, HttpServletResponse s) throws IOException {\n        // TODO: フィールドを使わずローカル変数にする\n        s.getWriter().println(\"こんにちは、\" + lastName + \"さん\");\n    }\n\n    public static void main(String[] a) {\n        MiniWeb.app().register(SafeServlet.class).serve();\n    }\n}\n",
       "visibleCases": [
         {
@@ -485,6 +485,15 @@
               "message": "読んだ値はフィールドへ保存してください（初期化後に変えないので、共有しても安全です）。"
             }
           ]
+        }
+      ],
+      "sourceChecks": [
+        {
+          "type": "fields",
+          "pattern": "SafeServlet",
+          "minimum": 0,
+          "maximum": 0,
+          "message": "この課題ではSafeServletにフィールドを宣言せず、名前をdoGet内のローカル変数へ置いてください。フィールド名を変えても共有状態の問題は解決しません。"
         }
       ]
     },

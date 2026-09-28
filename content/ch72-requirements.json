@@ -105,7 +105,7 @@
       "objectiveIds": [
         "ch72-o2"
       ],
-      "explanation": "## 条件の書き間違いは、境界に出る\n\n「理由は1文字以上100文字以内」という受け入れ条件があるとき、実装の書き間違いはほとんど**境界の1つ違い**です。\n\n```java\nif (reason.length() < 100) { … }   // 100文字ちょうどを弾いてしまう\nif (reason.length() > 0) { … }     // ここは合っている\n```\n\n100文字ちょうどは通るべきなのに通らない、という形です。そのため試験では**境界の値だけを重点的に確かめます**（境界値分析）。\n\n## 確かめる値の選び方\n\n条件が「下限以上、上限以下」のとき、確かめる代表値は次の4つです。\n\n| 値 | 期待する結果 |\n|---|---|\n| 下限 − 1 | 拒否される |\n| 下限 | 受け付ける |\n| 上限 | 受け付ける |\n| 上限 + 1 | 拒否される |\n\n真ん中あたりの値（**同値分割**の代表）を1つ足すと、「範囲の中はどこでも同じ扱い」も確かめられます。範囲の中を10通り試すより、境界の4つと中1つのほうが誤りを見つけます。**誤りは範囲の真ん中には潜みません。**\n\n## 幅の無い条件\n\n下限と上限が同じ条件（「ちょうど1件」）では、上限と下限が重なるので値は3つです（0、1、2）。**重なりに気づかず4つ並べると、同じ試験を2回することになります。**\n\n## 数以外の境界\n\n境界は数だけではありません。\n\n| 種類 | 境界の例 |\n|---|---|\n| 文字列 | 空文字、空白だけ、1文字、上限ちょうど、上限+1文字 |\n| 日付 | 月末、月初、うるう日、年度の切り替わり |\n| 一覧 | 0件、1件、表示の上限ちょうど、上限+1件 |\n| 状態 | 直前の状態、対象外の状態（支払い済みの注文の取り消し） |\n\n**0件と1件は必ず分けて確かめます。** 「先頭の要素」を扱うコードは、0件で落ちます。\n\n> 境界値を並べる作業は機械にできますが、**どこに境界があるかを決めるのは要件の側**です。要件に「100文字以内」と書いていなければ、境界も出てきません。\n",
+      "explanation": "## 条件の書き間違いは、境界に出る\n\n「理由は1文字以上100文字以内」という受け入れ条件があるとき、`<` と `<=` の取り違えなど、**境界の1つ違い**を優先して調べる価値があります。\n\n```java\nif (reason.length() < 100) { … }   // 100文字ちょうどを弾いてしまう\nif (reason.length() > 0) { … }     // ここは合っている\n```\n\n100文字ちょうどは通るべきなのに通らない、という形です。そのため試験では**境界とその隣の値を重点的に確かめます**（境界値分析）。\n\n## 確かめる値の選び方\n\n条件が「下限以上、上限以下」のとき、確かめる代表値は次の4つです。\n\n| 値 | 期待する結果 |\n|---|---|\n| 下限 − 1 | 拒否される |\n| 下限 | 受け付ける |\n| 上限 | 受け付ける |\n| 上限 + 1 | 拒否される |\n\n真ん中あたりの値（**同値分割**の代表）も確かめます。ただし1つの代表値が通っても、範囲内の全値が正しい証明にはなりません。42だけ拒否するバグは0・1・50・100・101では見つかりません。分岐条件、空白や文字種、権限と注文状態の組み合わせなど、別の観点も追加します。\n\n## 幅の無い条件\n\n下限と上限が同じ条件（「ちょうど1件」）では、上限と下限が重なるので値は3つです（0、1、2）。**重なりに気づかず4つ並べると、同じ試験を2回することになります。**\n\n## 数以外の境界\n\n境界は数だけではありません。\n\n| 種類 | 境界の例 |\n|---|---|\n| 文字列 | 空文字、空白だけ、1文字、上限ちょうど、上限+1文字 |\n| 日付 | 月末、月初、うるう日、年度の切り替わり |\n| 一覧 | 0件、1件、表示の上限ちょうど、上限+1件 |\n| 状態 | 直前の状態、対象外の状態（支払い済みの注文の取り消し） |\n\n**0件と1件は必ず分けて確かめます。** 「先頭の要素」を扱うコードは、0件で落ちます。\n\n> 境界値を並べる作業は機械にできますが、**どこに境界があるかを決めるのは要件の側**です。要件に「100文字以内」と書いていなければ、境界も出てきません。\n",
       "task": "受け入れ条件の範囲から、確かめる値を並べてください。\n\n入力の1行目は項目の数n、続くn行が `項目名 下限 上限` です。値は整数で、`下限 <= 上限` です。項目名に空白は入りません。\n\n```\n2\n理由の文字数 1 100\n数量 1 1\n```\n\n項目ごとに1行、`項目名` に続けて確かめる値を**昇順**に空白で区切って表示します。並べる値は次のとおりです。\n\n- `下限 - 1`（拒否されるべき値）\n- `下限`\n- `上限`\n- `上限 + 1`（拒否されるべき値）\n- 上限と下限の差が2以上のときは、真ん中の値 `(下限 + 上限) / 2`（小数は切り捨て）も入れる\n\n**同じ値が重なったら1つにまとめます**（下限と上限が同じときなど）。\n\n最後の行に `件数 <並べた値の総数>` を表示してください。\n\n上の例の答えはこうなります。\n\n```\n理由の文字数 0 1 50 100 101\n数量 0 1 2\n件数 8\n```\n",
       "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int n = Integer.parseInt(sc.nextLine().trim());\n        int total = 0;\n        for (int i = 0; i < n; i++) {\n            String[] parts = sc.nextLine().trim().split(\"\\\\s+\");\n            int low = Integer.parseInt(parts[1]);\n            int high = Integer.parseInt(parts[2]);\n            /* TODO 下限-1・下限・上限・上限+1（差が2以上なら真ん中）を重複なしで集める */\n            /* TODO 昇順に並べて「項目名 値 値 …」を表示し、件数をためる */\n        }\n        /* TODO 件数を表示する */\n    }\n}\n",
       "visibleCases": [
@@ -169,6 +169,17 @@
           ],
           "answer": 3,
           "explanation": "表示時間の差は誤りの有無とは関係しません。並び順が意味を持たないのは0件と1件の両方です。権限の確認は件数で変わりません。0件は「先頭を取る」「最初の要素で初期化する」コードが壊れる境界です。"
+        },
+        {
+          "question": "0・1・50・100・101文字の試験が通りました。42文字だけ拒否する実装について言えることはどれでしょう。",
+          "choices": [
+            "境界が通ったので42文字も受け付けると扱う",
+            "内部の代表値を増やせば全入力を証明できる",
+            "分岐や条件の組み合わせも調べる",
+            "今回の失敗を理由に境界試験を代表値へ置き換える"
+          ],
+          "answer": 2,
+          "explanation": "境界値分析は試験を選ぶ技法であり、内部の特定値や条件の組み合わせにある欠陥まで保証しません。"
         }
       ]
     },
@@ -370,9 +381,11 @@
       "id": "72-5",
       "title": "章末演習：条件と実装を突き合わせる",
       "objectiveIds": [
-        "ch72-o2"
+        "ch72-o2",
+        "ch72-o1",
+        "ch72-o4"
       ],
-      "explanation": "## 要件を、確かめられる形で閉じる\n\n章末では2つを通します。\n\n- 1問目 … 受け入れ条件の範囲と、実装が受け付けた／拒否した記録を突き合わせ、**条件と実装の食い違い**を出す\n- 2問目 … 要件ごとに付いている観点を数え、**足りない観点**を洗い出す\n\n1問目は、境界値（「境界の値を並べる」）を並べたあとに実際に確かめる作業そのものです。条件の側が正しいと仮定して、実装のずれを見つけます。\n\n2問目は、要件一覧のレビュー（「決めていないことを見つける」）を機械で下ごしらえする作業です。観点が付いているかどうかは数えられますが、**その観点の中身が妥当かはレビューで見ます**。数えられるところを機械に任せて、人は中身を読みます。\n\n> 「条件と実装が食い違っている」と分かったとき、直すのは実装だけとは限りません。条件のほうが現実に合っていないこともあります。どちらを直すかは、要求（なぜそうしたいのか）へ戻って決めます。\n",
+      "explanation": "## 要件を、確かめられる形で閉じる\n\n章末では2つを通します。\n\n- 1問目 … 受け入れ条件の範囲と、実装が受け付けた／拒否した記録を突き合わせ、**条件と実装の食い違い**を出す\n- 2問目 … 要件ごとに付いている観点を数え、**足りない観点**を洗い出す\n\n1問目は、境界値（「境界の値を並べる」）を並べたあとに実際に確かめる作業そのものです。条件の側が正しいと仮定して、実装のずれを見つけます。\n\n2問目は、要件一覧のレビュー（「決めていないことを見つける」）を機械で下ごしらえする作業です。観点が付いているかどうかは数えられますが、**その観点の中身が妥当かはレビューで見ます**。数えられるところを機械に任せて、人は中身を読みます。\n\n> 「条件と実装が食い違っている」と分かったとき、直すのは実装だけとは限りません。条件のほうが現実に合っていないこともあります。どちらを直すかは、要求（なぜそうしたいのか）へ戻って決めます。\n\n\n## この節の到達点\n\n最後の成果物レビューで、条件から判断を選びます。先にあるJava課題は任意の自動化練習です。出力を計算できることと、計画・要件・設計が適切であることは別々に確かめます。",
       "task": "受け入れ条件と、実装の記録を突き合わせてください。\n\n入力は2つの部分に分かれます。前半は条件、後半は記録です。\n\n```\n2\n理由の文字数 1 100\n数量 1 10\n4\n理由の文字数 0 受付\n理由の文字数 100 拒否\n数量 5 受付\n数量 11 拒否\n```\n\n前半の1行目は条件の数n、続くn行が `項目名 下限 上限` です。後半の1行目は記録の数m、続くm行が `項目名 値 結果` で、結果は `受付` か `拒否` です。記録の項目名は必ず条件のどれかと一致します。\n\n正しい結果は次のとおりです。\n\n- 値が下限以上・上限以下なら `受付`\n- そうでなければ `拒否`\n\n出力の1行目は、食い違いが0件なら `OK`、1件以上あれば `NG` です。続けて、**入力の順**に食い違いだけを `NG <項目名> <値> <実装の結果>` と並べます。\n\n最後の行に `一致 <食い違っていない件数>/<記録の総数>` を表示してください。\n\n上の例の答えはこうなります。\n\n```\nNG\nNG 理由の文字数 0 受付\nNG 理由の文字数 100 拒否\n一致 2/4\n```\n",
       "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int n = Integer.parseInt(sc.nextLine().trim());\n        Map<String, int[]> ranges = new LinkedHashMap<>();\n        for (int i = 0; i < n; i++) {\n            String[] parts = sc.nextLine().trim().split(\"\\\\s+\");\n            ranges.put(parts[0], new int[] {Integer.parseInt(parts[1]),\n                    Integer.parseInt(parts[2])});\n        }\n        int m = Integer.parseInt(sc.nextLine().trim());\n        List<String> problems = new ArrayList<>();\n        for (int i = 0; i < m; i++) {\n            String[] parts = sc.nextLine().trim().split(\"\\\\s+\");\n            /* TODO 値が範囲内かどうかから、正しい結果を決める */\n            /* TODO 実装の結果と違っていたら、行を problems へ足す */\n        }\n        /* TODO OK / NG、食い違いの行、一致の件数を表示する */\n    }\n}\n",
       "visibleCases": [
@@ -455,9 +468,63 @@
             "`TreeMap` に入れると、要件IDの昇順で取り出せます。観点は `split(\",\")` で分けます。",
             "足りない観点は `正常` `異常` `権限` `上限` の順で調べます。入力に出てきた順ではありません。"
           ],
-          "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int n = Integer.parseInt(sc.nextLine().trim());\n        List<String> required = List.of(\"正常\", \"異常\", \"権限\", \"上限\");\n        Map<String, Set<String>> given = new TreeMap<>();\n        for (int i = 0; i < n; i++) {\n            String[] parts = sc.nextLine().trim().split(\"\\\\s+\");\n            Set<String> views = new LinkedHashSet<>();\n            if (!parts[1].equals(\"-\")) {\n                views.addAll(Arrays.asList(parts[1].split(\",\")));\n            }\n            given.put(parts[0], views);\n        }\n\n        int complete = 0;\n        for (Map.Entry<String, Set<String>> entry : given.entrySet()) {\n            List<String> missing = new ArrayList<>();\n            for (String view : required) {\n                if (!entry.getValue().contains(view)) {\n                    missing.add(view);\n                }\n            }\n            if (missing.isEmpty()) {\n                complete++;\n            } else {\n                System.out.println(entry.getKey() + \" 不足 \" + String.join(\",\", missing));\n            }\n        }\n        System.out.println(\"そろっている \" + complete + \"/\" + n);\n    }\n}\n"
+          "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int n = Integer.parseInt(sc.nextLine().trim());\n        List<String> required = List.of(\"正常\", \"異常\", \"権限\", \"上限\");\n        Map<String, Set<String>> given = new TreeMap<>();\n        for (int i = 0; i < n; i++) {\n            String[] parts = sc.nextLine().trim().split(\"\\\\s+\");\n            Set<String> views = new LinkedHashSet<>();\n            if (!parts[1].equals(\"-\")) {\n                views.addAll(Arrays.asList(parts[1].split(\",\")));\n            }\n            given.put(parts[0], views);\n        }\n\n        int complete = 0;\n        for (Map.Entry<String, Set<String>> entry : given.entrySet()) {\n            List<String> missing = new ArrayList<>();\n            for (String view : required) {\n                if (!entry.getValue().contains(view)) {\n                    missing.add(view);\n                }\n            }\n            if (missing.isEmpty()) {\n                complete++;\n            } else {\n                System.out.println(entry.getKey() + \" 不足 \" + String.join(\",\", missing));\n            }\n        }\n        System.out.println(\"そろっている \" + complete + \"/\" + n);\n    }\n}\n",
+          "required": false
+        },
+        {
+          "kind": "applied",
+          "type": "artifact",
+          "objectiveIds": [
+            "ch72-o1",
+            "ch72-o4"
+          ],
+          "task": "曖昧な取消要件を受入条件へ直す\n\n原案は「利用者は注文を簡単に取り消せる」です。業務責任者との確認で「本人の未払い注文のみ。理由は空白だけを不可とし、前後の空白を除いたUnicodeコードポイント数で1〜100。支払済みは409、他人の注文は403。拒否時は状態を変更しない」と合意しました。\n\n判断をJSONの各欄へ記入してください。選択肢のコードを使います。\n\n- `owner`: any-user / self-only\n- `state`: all / unpaid-only\n- `reason`: any-text / trim-codepoints-1-100\n- `rejected`: cancel-anyway / unchanged\n- `missingTest`: other-owner（本人と同じ入力で他人の注文を取消） / color-only（ボタン色だけ確認）\n\n採点はこの事例に対する判断の整合性を確認します。自由記述のレビュー能力全体を保証するものではありません。",
+          "starterContent": "{\n  \"owner\": \"TODO\",\n  \"state\": \"TODO\",\n  \"reason\": \"TODO\",\n  \"rejected\": \"TODO\",\n  \"missingTest\": \"TODO\"\n}\n",
+          "solution": "{\n  \"owner\": \"self-only\",\n  \"state\": \"unpaid-only\",\n  \"reason\": \"trim-codepoints-1-100\",\n  \"rejected\": \"unchanged\",\n  \"missingTest\": \"other-owner\"\n}\n",
+          "artifact": {
+            "path": "review/decision.json",
+            "format": "json",
+            "checks": [
+              {
+                "type": "jsonPointer",
+                "expression": "/owner",
+                "expected": "self-only",
+                "message": "owner の判断を事例の根拠と照合してください。"
+              },
+              {
+                "type": "jsonPointer",
+                "expression": "/state",
+                "expected": "unpaid-only",
+                "message": "state の判断を事例の根拠と照合してください。"
+              },
+              {
+                "type": "jsonPointer",
+                "expression": "/reason",
+                "expected": "trim-codepoints-1-100",
+                "message": "reason の判断を事例の根拠と照合してください。"
+              },
+              {
+                "type": "jsonPointer",
+                "expression": "/rejected",
+                "expected": "unchanged",
+                "message": "rejected の判断を事例の根拠と照合してください。"
+              },
+              {
+                "type": "jsonPointer",
+                "expression": "/missingTest",
+                "expected": "other-owner",
+                "message": "missingTest の判断を事例の根拠と照合してください。"
+              }
+            ]
+          },
+          "hints": [
+            "手順は、根拠になる事実を探す → その事実では言えないことを除く → 次の確認を決める、です。",
+            "解説の作業例と今回の事例で、条件が変わった箇所を比べてください。"
+          ]
         }
-      ]
+      ],
+      "required": false,
+      "kind": "applied"
     }
   ]
 }

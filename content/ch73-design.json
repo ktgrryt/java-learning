@@ -372,9 +372,10 @@
       "id": "73-5",
       "title": "章末演習：取り決めを機械で守る",
       "objectiveIds": [
-        "ch73-o4"
+        "ch73-o4",
+        "ch73-o5"
       ],
-      "explanation": "## 決めた取り決めを、機械で守る\n\n章末では、設計の取り決めを実際に当てます。\n\n- 1問目 … 許された状態遷移の表を当てて、**起きてはいけない遷移**を見つける\n- 2問目 … 旧い契約と新しい契約を比べて、**利用側を壊す変更**を見つける\n\n1問目の状態遷移は、基本設計で決める中心のひとつです。「支払い済みの注文は取り消せない」は、状態遷移の表で表せば1行で済みます。文章で書くと条件が散り、抜けます。\n\n2問目は、契約を変えるときに毎回必要な判定です（第63章の「壊さないAPI契約の更新」と同じ観点）。**応答の必須項目を消す・必須をやめる・型を変えるのは壊す変更**で、項目を足すことと、任意項目を消すことは壊しません。\n\n> どちらも判定は機械にできますが、**表そのものが正しいかは人が決めます**。許された遷移が足りなければ、正しい操作も不正と判定されます。\n",
+      "explanation": "## 決めた取り決めを、機械で守る\n\n章末では、設計の取り決めを実際に当てます。\n\n- 1問目 … 許された状態遷移の表を当てて、**起きてはいけない遷移**を見つける\n- 2問目 … 旧い契約と新しい契約を比べて、**利用側を壊す変更**を見つける\n\n1問目の状態遷移は、基本設計で決める中心のひとつです。「支払い済みの注文は取り消せない」は、状態遷移の表で表せば1行で済みます。文章で書くと条件が散り、抜けます。\n\n2問目は、契約を変えるときに毎回必要な判定です（第63章の「壊さないAPI契約の更新」と同じ観点）。**応答の必須項目を消す・必須をやめる・型を変えるのは壊す変更**で、項目を足すことと、任意項目を消すことは壊しません。\n\n> どちらも判定は機械にできますが、**表そのものが正しいかは人が決めます**。許された遷移が足りなければ、正しい操作も不正と判定されます。\n\n\n## この節の到達点\n\n最後の成果物レビューで、条件から判断を選びます。先にあるJava課題は任意の自動化練習です。出力を計算できることと、計画・要件・設計が適切であることは別々に確かめます。",
       "task": "許された状態遷移の表を当てて、起きてはいけない遷移を見つけてください。\n\n入力は2つの部分に分かれます。\n\n```\n3\nNEW PAID\nNEW CANCELLED\nPAID DONE\n4\nA-1 NEW PAID\nA-1 PAID DONE\nA-2 NEW CANCELLED\nA-2 CANCELLED PAID\n```\n\n前半の1行目は許された遷移の数n、続くn行が `元の状態 次の状態` です。後半の1行目は記録の数m、続くm行が `注文ID 元の状態 次の状態` です。\n\n出力の1行目は、許されない遷移が0件なら `OK`、1件以上あれば `NG` です。続けて、**入力の順**に許されない遷移だけを `NG <注文ID> <元の状態> <次の状態>` と表示します。\n\n最後の行に `不正 <件数>/<記録の総数>` を表示してください。\n\n上の例の答えはこうなります。\n\n```\nNG\nNG A-2 CANCELLED PAID\n不正 1/4\n```\n",
       "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int n = Integer.parseInt(sc.nextLine().trim());\n        Set<String> allowed = new HashSet<>();\n        for (int i = 0; i < n; i++) {\n            String[] parts = sc.nextLine().trim().split(\"\\\\s+\");\n            /* TODO 「元の状態 -> 次の状態」の組を集める */\n        }\n        int m = Integer.parseInt(sc.nextLine().trim());\n        List<String> problems = new ArrayList<>();\n        for (int i = 0; i < m; i++) {\n            String[] parts = sc.nextLine().trim().split(\"\\\\s+\");\n            /* TODO 許された組に無ければ problems へ足す */\n        }\n        /* TODO OK / NG、許されない遷移、不正の件数を表示する */\n    }\n}\n",
       "visibleCases": [
@@ -462,9 +463,57 @@
             "旧い契約の項目を回り、新しい契約から `get` して比べます。`null` なら消えています。",
             "`TreeMap` で読み込めば、旧い契約を回るだけで項目名の昇順になります。1つの項目が複数に当たるときは、判定の順番がそのまま出力の順番になります。"
           ],
-          "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        Map<String, String[]> before = read(sc);\n        Map<String, String[]> after = read(sc);\n\n        List<String> problems = new ArrayList<>();\n        for (Map.Entry<String, String[]> entry : before.entrySet()) {\n            String field = entry.getKey();\n            String type = entry.getValue()[0];\n            boolean wasRequired = entry.getValue()[1].equals(\"required\");\n            String[] now = after.get(field);\n            if (now == null) {\n                if (wasRequired) {\n                    problems.add(\"REMOVED \" + field);\n                }\n                continue;\n            }\n            if (wasRequired && now[1].equals(\"optional\")) {\n                problems.add(\"WEAKENED \" + field);\n            }\n            if (!type.equals(now[0])) {\n                problems.add(\"TYPECHANGED \" + field + \" \" + type + \" \" + now[0]);\n            }\n        }\n\n        int added = 0;\n        for (String field : after.keySet()) {\n            if (!before.containsKey(field)) {\n                added++;\n            }\n        }\n\n        System.out.println(problems.isEmpty() ? \"互換\" : \"非互換\");\n        problems.forEach(System.out::println);\n        System.out.println(\"追加 \" + added);\n    }\n\n    /** 1つの契約を「項目名 -> {型, required/optional}」で読み取る。 */\n    static Map<String, String[]> read(Scanner sc) {\n        int n = Integer.parseInt(sc.nextLine().trim());\n        Map<String, String[]> spec = new TreeMap<>();\n        for (int i = 0; i < n; i++) {\n            String[] parts = sc.nextLine().trim().split(\"\\\\s+\");\n            spec.put(parts[0], new String[] {parts[1], parts[2]});\n        }\n        return spec;\n    }\n}\n"
+          "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        Map<String, String[]> before = read(sc);\n        Map<String, String[]> after = read(sc);\n\n        List<String> problems = new ArrayList<>();\n        for (Map.Entry<String, String[]> entry : before.entrySet()) {\n            String field = entry.getKey();\n            String type = entry.getValue()[0];\n            boolean wasRequired = entry.getValue()[1].equals(\"required\");\n            String[] now = after.get(field);\n            if (now == null) {\n                if (wasRequired) {\n                    problems.add(\"REMOVED \" + field);\n                }\n                continue;\n            }\n            if (wasRequired && now[1].equals(\"optional\")) {\n                problems.add(\"WEAKENED \" + field);\n            }\n            if (!type.equals(now[0])) {\n                problems.add(\"TYPECHANGED \" + field + \" \" + type + \" \" + now[0]);\n            }\n        }\n\n        int added = 0;\n        for (String field : after.keySet()) {\n            if (!before.containsKey(field)) {\n                added++;\n            }\n        }\n\n        System.out.println(problems.isEmpty() ? \"互換\" : \"非互換\");\n        problems.forEach(System.out::println);\n        System.out.println(\"追加 \" + added);\n    }\n\n    /** 1つの契約を「項目名 -> {型, required/optional}」で読み取る。 */\n    static Map<String, String[]> read(Scanner sc) {\n        int n = Integer.parseInt(sc.nextLine().trim());\n        Map<String, String[]> spec = new TreeMap<>();\n        for (int i = 0; i < n; i++) {\n            String[] parts = sc.nextLine().trim().split(\"\\\\s+\");\n            spec.put(parts[0], new String[] {parts[1], parts[2]});\n        }\n        return spec;\n    }\n}\n",
+          "required": false
+        },
+        {
+          "kind": "applied",
+          "type": "artifact",
+          "objectiveIds": [
+            "ch73-o4",
+            "ch73-o5"
+          ],
+          "task": "設計変更とADRをレビューする\n\n注文APIは保存成功後に在庫を同期確保し、確保失敗なら注文も取り消す契約です。提案は受付を速くするため在庫確保を非同期化し、受付直後に「確保済み」を返します。ADRには応答時間の改善だけが書かれています。\n\n判断をJSONの各欄へ記入してください。選択肢のコードを使います。\n\n- `contract`: unchanged / changes（確保前に確保済みとは言えない）\n- `alternative`: none / compare-sync-reservation（同期確保継続や期限付き予約と比較）\n- `consequence`: none / pending-failure（確保待ち・確保失敗の状態と通知を設計）\n- `decision`: approve / revise（契約と判断理由をそろえて再レビュー）\n\n採点はこの事例に対する判断の整合性を確認します。自由記述のレビュー能力全体を保証するものではありません。",
+          "starterContent": "{\n  \"contract\": \"TODO\",\n  \"alternative\": \"TODO\",\n  \"consequence\": \"TODO\",\n  \"decision\": \"TODO\"\n}\n",
+          "solution": "{\n  \"contract\": \"changes\",\n  \"alternative\": \"compare-sync-reservation\",\n  \"consequence\": \"pending-failure\",\n  \"decision\": \"revise\"\n}\n",
+          "artifact": {
+            "path": "review/decision.json",
+            "format": "json",
+            "checks": [
+              {
+                "type": "jsonPointer",
+                "expression": "/contract",
+                "expected": "changes",
+                "message": "contract の判断を事例の根拠と照合してください。"
+              },
+              {
+                "type": "jsonPointer",
+                "expression": "/alternative",
+                "expected": "compare-sync-reservation",
+                "message": "alternative の判断を事例の根拠と照合してください。"
+              },
+              {
+                "type": "jsonPointer",
+                "expression": "/consequence",
+                "expected": "pending-failure",
+                "message": "consequence の判断を事例の根拠と照合してください。"
+              },
+              {
+                "type": "jsonPointer",
+                "expression": "/decision",
+                "expected": "revise",
+                "message": "decision の判断を事例の根拠と照合してください。"
+              }
+            ]
+          },
+          "hints": [
+            "手順は、根拠になる事実を探す → その事実では言えないことを除く → 次の確認を決める、です。",
+            "解説の作業例と今回の事例で、条件が変わった箇所を比べてください。"
+          ]
         }
-      ]
+      ],
+      "required": false,
+      "kind": "applied"
     }
   ]
 }
