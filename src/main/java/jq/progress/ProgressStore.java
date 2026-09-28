@@ -1590,6 +1590,8 @@ public final class ProgressStore {
      *   <li>2026-08-26b … 同じ形が基礎編とファイル入出力の16レッスンにあった
      *       （章の最後のレッスンへクイズを寄せる作りだったため）。<b>クイズはその内容を
      *       教えたレッスンへ置く</b>方針にそろえ、40問を移して残りを詰め直した。</li>
+     *   <li>2026-09-28 … 章を分けたあとも `29-5` に残っていた、次の章の `29-4` の内容を問う
+     *       1問を `29-4` の末尾へ移した。</li>
      * </ul>
      */
     private static final List<QuizMove> QUIZ_MOVES = List.of(
@@ -1668,7 +1670,12 @@ public final class ProgressStore {
                     Map.entry("19-4#3", "19-4#0"),
                     Map.entry("57-3#1", "57-1#0"),
                     Map.entry("57-3#2", "57-2#0"),
-                    Map.entry("57-3#3", "57-3#1"))));
+                    Map.entry("57-3#3", "57-3#1"))),
+            // 29-5（第29章の章末）の1問目は、次の章の 29-4 で教える判定順（403と404）を
+            // 問うていた。教えたレッスンの末尾へ移し、29-5 の残りを詰める
+            new QuizMove("quiz-forward-2026-09-28", Map.of(
+                    "29-5#0", "29-4#4",
+                    "29-5#1", "29-5#0")));
 
     /**
      * 選択肢を並べ替えたクイズの、<b>入れ替えた相手の位置</b>（クイズキー → `t`）。
@@ -1740,6 +1747,36 @@ public final class ProgressStore {
                     Map.entry("63-4#1", List.of(1, 0)),
                     Map.entry("63-5#0", List.of(1, 2)))));
 
+    /**
+     * 問いそのものを差し替えたクイズの、<b>記録を捨てる</b>キー。
+     *
+     * <p>選択肢の文を書き換えるだけなら番号の記録はそのまま使える（{@link QuizSwap} も
+     * 番号を読み替えるだけ）。しかし問いを別の論点へ差し替えると、残した記録は
+     * <b>学習者が見たことのない問い</b>の正誤として扱われる。そこで、差し替えたキーの
+     * 選んだ番号・復習の予定・しおりを1回だけ消し、新しい問いとして解き直してもらう。
+     * ★や章のクリアは問題の記録にあるので、ここで消しても動かない。</p>
+     *
+     * @param id   進捗ファイルへ残す印（{@link #appliedQuizResets}）
+     * @param keys 記録を捨てるクイズキー
+     */
+    private record QuizReset(String id, Set<String> keys) { }
+
+    /**
+     * 問いを差し替えた履歴。古い順に並べる。
+     *
+     * <ul>
+     *   <li>2026-09-28 … `50-4`#5 と `50-5`#6 が、`50-3`#4・`51-1`#3 とほぼ同じ文面で
+     *       同じこと（同じJava 21の配布物を比べるとき何を確かめるか）を問うていた。
+     *       それぞれのレッスンが教えた内容（提案・実装・標準仕様の段階、TCKによる適合）を
+     *       問う問いに差し替えた。同じ回に、`27-3`#1・#2 が直前の `27-2`#1・#3 と同じ内容
+     *       （`REQUIRES_NEW` の動き、長いトランザクションの中の外部呼び出し）だったので、
+     *       27-3が教える楽観ロックと再試行の条件を問う問いに差し替えた。</li>
+     * </ul>
+     */
+    private static final List<QuizReset> QUIZ_RESETS = List.of(
+            new QuizReset("quiz-rewrite-2026-09-28",
+                    Set.of("50-4#5", "50-5#6", "27-3#1", "27-3#2")));
+
     /** 適用済みの問題読み替えの印。ファイルへそのまま書き戻す。 */
     private final Set<String> appliedTaskMoves = new LinkedHashSet<>();
 
@@ -1748,6 +1785,9 @@ public final class ProgressStore {
 
     /** 適用済みの並べ替えの印（→ {@link QuizSwap}）。ファイルへそのまま書き戻す。 */
     private final Set<String> appliedQuizSwaps = new LinkedHashSet<>();
+
+    /** 適用済みの記録の破棄の印（→ {@link QuizReset}）。ファイルへそのまま書き戻す。 */
+    private final Set<String> appliedQuizResets = new LinkedHashSet<>();
 
     /** すべての段を適用済みにする。読み替えるものが無いときと、読み終えたあとに呼ぶ。 */
     private void markMovesApplied() {
@@ -1759,6 +1799,31 @@ public final class ProgressStore {
         }
         for (QuizSwap swap : QUIZ_SWAPS) {
             appliedQuizSwaps.add(swap.id());
+        }
+        for (QuizReset reset : QUIZ_RESETS) {
+            appliedQuizResets.add(reset.id());
+        }
+    }
+
+    /**
+     * 問いを差し替えたクイズの記録を捨てる（→ {@link QuizReset}）。適用済みの段は飛ばす。
+     *
+     * <p>クイズの記録（選んだ番号・復習の予定・しおり）を読み終えたあとに呼ぶ。
+     * 消したものがあれば、次の保存で載せる（印も一緒に載る）。</p>
+     */
+    private void applyQuizResets() {
+        for (QuizReset reset : QUIZ_RESETS) {
+            if (appliedQuizResets.contains(reset.id())) {
+                continue;
+            }
+            for (String key : reset.keys()) {
+                boolean removed = quizChoices.remove(key) != null;
+                removed |= quizPlans.remove(key) != null;
+                removed |= quizBookmarks.remove(key);
+                if (removed) {
+                    saveEventually();
+                }
+            }
         }
     }
 
@@ -1931,6 +1996,11 @@ public final class ProgressStore {
                 appliedQuizSwaps.add(s);
             }
         }
+        for (Object o : MiniJson.list(root, "appliedQuizResets")) {
+            if (o instanceof String s) {
+                appliedQuizResets.add(s);
+            }
+        }
         boolean hasCafeState = root.get("cafe") instanceof Map;
         onboardingCompleted = root.get("onboardingCompleted") instanceof Boolean completed
                 && completed;
@@ -2035,6 +2105,8 @@ public final class ProgressStore {
                 quizBookmarks.add(migrateQuizKey(s));
             }
         }
+        // 問いを差し替えたクイズの記録は、3つ（番号・予定・しおり）を読み終えてから捨てる
+        applyQuizResets();
         // 層の達成日はカフェとは無関係な学習の記録なので、cafe の有無で読み分けない
         // （以前ここが cafe ブロックの中にあり、cafe を持たないセーブでは消えていた）
         for (Map.Entry<String, Object> e
@@ -2276,6 +2348,7 @@ public final class ProgressStore {
         m.put("appliedTaskMoves", new ArrayList<>(appliedTaskMoves));
         m.put("appliedQuizMoves", new ArrayList<>(appliedQuizMoves));
         m.put("appliedQuizSwaps", new ArrayList<>(appliedQuizSwaps));
+        m.put("appliedQuizResets", new ArrayList<>(appliedQuizResets));
         m.put("codes", new LinkedHashMap<>(codes));
         m.put("hintsRevealed", new LinkedHashMap<>(hintsRevealed));
         m.put("attempts", new LinkedHashMap<>(attempts));

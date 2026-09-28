@@ -107,7 +107,7 @@
       "objectiveIds": [
         "ch47-o2"
       ],
-      "explanation": "## 通信の境界を明示する\n\nJava標準の `java.net.http.HttpClient` でHTTP/1.1とHTTP/2の通信を扱えます。URI、メソッド、ヘッダー、ボディ、タイムアウトを `HttpRequest` へ組み立てます。\n\n```java\nHttpClient client = HttpClient.newBuilder()\n    .connectTimeout(Duration.ofSeconds(3)).build();\nHttpRequest request = HttpRequest.newBuilder(URI.create(url))\n    .timeout(Duration.ofSeconds(5))\n    .header(\"Accept\", \"application/json\")\n    .GET().build();\nHttpResponse<String> response = client.send(\n    request, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));\n```\n\n接続タイムアウトとリクエストタイムアウトは別です。ベースURLや認証情報をコードへ埋め込まず設定から受け取り、クエリ値はURLエンコードします。実通信は `labs/http-client` のローカルサーバーで試せます。\n\n> 🧪 アプリで確かめること / labs で動かすこと … この問題で確かめるのはタイムアウトと再試行の判断です。\n> `HttpClient` で実際に通信すること（この画面から外部へは接続できません）は、1ファイル・標準入力だけのこの画面では扱えません。`labs/http-client` に本物を置いてあります。",
+      "explanation": "## 通信の境界を明示する\n\nJava標準の `java.net.http.HttpClient` でHTTP/1.1とHTTP/2の通信を扱えます。URI、メソッド、ヘッダー、ボディ、タイムアウトを `HttpRequest` へ組み立てます。\n\n```java\nHttpClient client = HttpClient.newBuilder()\n    .connectTimeout(Duration.ofSeconds(3)).build();\nHttpRequest request = HttpRequest.newBuilder(URI.create(url))\n    .timeout(Duration.ofSeconds(5))\n    .header(\"Accept\", \"application/json\")\n    .GET().build();\nHttpResponse<String> response = client.send(\n    request, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));\n```\n\n接続タイムアウトとリクエストタイムアウトは別です。ベースURLや認証情報をコードへ埋め込まず設定から受け取り、クエリ値はURLエンコードします。実通信は `labs/http-client` のローカルサーバーで試せます。\n\n> 🧪 アプリで確かめること / labs で動かすこと … この問題で確かめるのは、送る前のリクエストの組み立てです。\n> この画面からは外部へ接続できないので、実際の通信は `labs/http-client` で試します。",
       "samples": [
         {
           "caption": "送信せずリクエストを組み立てる",
@@ -180,7 +180,7 @@
       "samples": [
         {
           "caption": "再試行対象を分類",
-          "code": "public class Main {\n    static boolean retryable(int status) {\n        return status == 429 || status == 502 || status == 503 || status == 504;\n    }\n\n    public static void main(String[] a) {\n        System.out.println(retryable(503));\n    }\n}\n"
+          "code": "public class Main {\n    static boolean retryable(int status) {\n        return status == 429 || status == 502 || status == 503 || status == 504;\n    }\n\n    public static void main(String[] a) {\n        for (int status : new int[] {400, 429, 503}) {\n            System.out.println(status + \" -> \" + (retryable(status) ? \"再試行する\" : \"再試行しない\"));\n        }\n    }\n}"
         }
       ],
       "task": "1行に、HTTPメソッドとstatus（整数）が、この順で入力されます。`SUCCESS`、`RETRY`、`FAIL` のいずれかを表示してください。2xxはSUCCESS。GET/PUT/DELETEの429,502,503,504だけRETRY。それ以外はFAILです。",

@@ -587,9 +587,9 @@
       ],
       "samples": [
         {
-          "caption": "UTF-8で明示的に書いて読む",
-          "code": "import java.nio.charset.StandardCharsets;\nimport java.nio.file.Files;\nimport java.nio.file.Path;\n\npublic class Main {\n    public static void main(String[] args) throws Exception {\n        Path path = Path.of(\"message.txt\");\n        Files.writeString(path, \"こんにちは\", StandardCharsets.UTF_8);\n        System.out.println(Files.readString(path, StandardCharsets.UTF_8));\n    }\n}\n",
-          "expected": "こんにちは"
+          "caption": "UTF-8で書いたものを、違う文字コードで読むと崩れる",
+          "code": "import java.nio.charset.Charset;\nimport java.nio.charset.StandardCharsets;\nimport java.nio.file.Files;\nimport java.nio.file.Path;\n\npublic class Main {\n    public static void main(String[] args) throws Exception {\n        Path path = Path.of(\"message.txt\");\n        Files.writeString(path, \"こんにちは\", StandardCharsets.UTF_8);\n\n        System.out.println(Files.readString(path, StandardCharsets.UTF_8));        // 書いたときと同じ\n        System.out.println(Files.readString(path, Charset.forName(\"Shift_JIS\")));  // 違う文字コードで読む\n        System.out.println(Files.size(path) + \" バイト\");\n    }\n}",
+          "expected": "こんにちは\n縺薙ｓ縺ｫ縺｡縺ｯ\n15 バイト"
         },
         {
           "caption": "大きなファイルを1行ずつ処理する",
@@ -780,7 +780,7 @@
         "ch57-o4",
         "ch57-o5"
       ],
-      "explanation": "## この章の知識を、自分の手で組み合わせよう\n\nここでは、**文字コードの指定・ディレクトリの走査と後片付け・一時ファイルからの安全な置き換え**をまとめて使います。新しい文法は登場しません。分からなくなったら、直前までの解説やサンプルへ戻って確認して大丈夫です。\n\n### 3問の進め方\n\n1. **基本**で、中心となる書き方をもう一度使う\n2. **組み合わせ**で、章内の複数の知識を一緒に使う\n3. **実践**で、少し現実的な入力と条件を整理する\n\nいずれも「たまたま動く」ではなく、**入出力の契約と失敗したときの状態**を意識してください。文字コードを省略すると **UTF-8** で読み書きするので、別の文字コードで作られたファイルは崩れます（同じ章の前半で見たとおりです）。ストリームを閉じ忘れると一覧の途中で失敗します。",
+      "explanation": "## この章の知識を、自分の手で組み合わせよう\n\nここでは、**文字コードの指定・ディレクトリの走査と後片付け・一時ファイルからの安全な置き換え**をまとめて使います。新しい文法は登場しません。分からなくなったら、直前までの解説やサンプルへ戻って確認して大丈夫です。\n\n### 3問の進め方\n\n1. **基本**で、中心となる書き方をもう一度使う\n2. **組み合わせ**で、章内の複数の知識を一緒に使う\n3. **実践**で、少し現実的な入力と条件を整理する\n\nいずれも「たまたま動く」ではなく、**入出力の契約と失敗したときの状態**を意識してください。文字コードを省略すると **UTF-8** で読み書きするので、別の文字コードで作られたファイルは崩れます（同じ章の前半で見たとおりです）。`Files.lines` や `Files.list` が返すストリームは `try-with-resources` で閉じます。閉じ忘れると、開いたファイルが残り続けます。",
       "points": [
         "StandardCharsetsの定数を使い、同じ文字コードで往復する",
         "Files.listが返すStreamもtry-with-resourcesで閉じる",

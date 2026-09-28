@@ -77,13 +77,8 @@
       "objectiveIds": [
         "ch53-o1"
       ],
-      "explanation": "## フレームワークは何を代わりにしてくれるのか\n\nWebアプリを標準Javaだけで一から作ると、HTTPを受ける処理、JSON変換、オブジェクトの組み立て、設定の読み込み、テスト、本番監視まで自分でつなぐ必要があります。**フレームワーク**は、こうした共通処理とアプリの組み立て方を提供し、開発者が業務ルールへ集中できるようにする土台です。\n\nこの章では、代表的な3つを比べます。\n\n- **Spring Boot** — Springの部品を、規約と自動設定で素早く組み立てる\n- **Open Liberty** — Jakarta EEやMicroProfileという標準仕様を実行するサーバー\n- **Quarkus** — 起動時に行う処理をビルド時へ移し、速い起動や小さいメモリ使用量を狙う\n\n名前だけで優劣は決まりません。たとえば、起動が少し速くても、社内の認証基盤が使えない、障害時に調べられる人がいない、必要なライブラリが動かないなら適切な選択ではありません。\n\n### 比較で使う言葉\n\n- **標準への準拠** — Jakarta EEなど、製品をまたいで共通するAPIに沿っているか\n- **既存資産** — すでにあるコード、ライブラリ、運用手順、チームの経験\n- **スループット** — 一定時間に処理できる件数\n- **p95 / p99** — 遅い側から5%・1%に入る応答時間。平均では隠れる遅い利用者を見る\n- **RSS** — OSから見たプロセス全体のおおよそのメモリ使用量\n- **ADR** — 候補、比較条件、選んだ理由を残す設計判断の記録\n\n性能の数字は、JDK、依存、CPU・メモリ上限、入力、ウォームアップ時間で変わります。同じ小さなAPIを候補ごとに作り、同じ条件で測ります。ただし測る前に、必須条件を満たさない候補を除外します。\n\n### 選ぶ順番\n\n1. 必要なAPI、JDK、セキュリティ、サポート条件を満たすか\n2. 既存コードと社内運用を無理なく移せるか\n3. 開発・テスト・障害調査をチームで続けられるか\n4. 本番に近い条件で起動時間、メモリ、応答時間、処理件数を測る\n5. 選んだ理由と見直す条件をADRへ残す\n\nこのレッスンの点数計算は比較方法の小さなモデルです。実際には、どれか一つでも必須条件を満たさない候補を、合計点だけで選ばないようにします。\n\nこの章は**選定の入口**です。続く「Spring Boot実践入門」「Open Liberty実践入門」「Quarkus実践入門」では、各製品を独立して起動・設定・テスト・運用するところまで学びます。比較だけで製品を分かったつもりにせず、候補の実践章と`labs/frameworks`を少なくとも1つ完了してから選定してください。\n\nこの単元では候補の点数計算をJavaで実装せず、必須条件、実測値、標準対応、運用能力から選択肢を絞る判断をクイズで確認します。",
-      "samples": [
-        {
-          "caption": "重み付き評価の考え方",
-          "code": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] a) {\n        Map<String, Integer> score = Map.of(\"standards\", 5, \"operations\", 5, \"startup\", 3);\n        System.out.println(score.values().stream().mapToInt(Integer::intValue).sum());\n    }\n}\n"
-        }
-      ],
+      "explanation": "## フレームワークは何を代わりにしてくれるのか\n\nWebアプリを標準Javaだけで一から作ると、HTTPを受ける処理、JSON変換、オブジェクトの組み立て、設定の読み込み、テスト、本番監視まで自分でつなぐ必要があります。**フレームワーク**は、こうした共通処理とアプリの組み立て方を提供し、開発者が業務ルールへ集中できるようにする土台です。\n\nこの章では、代表的な3つを比べます。\n\n- **Spring Boot** — Springの部品を、規約と自動設定で素早く組み立てる\n- **Open Liberty** — Jakarta EEやMicroProfileという標準仕様を実行するサーバー\n- **Quarkus** — 起動時に行う処理をビルド時へ移し、速い起動や小さいメモリ使用量を狙う\n\n名前だけで優劣は決まりません。たとえば、起動が少し速くても、社内の認証基盤が使えない、障害時に調べられる人がいない、必要なライブラリが動かないなら適切な選択ではありません。\n\n### 比較で使う言葉\n\n- **標準への準拠** — Jakarta EEなど、製品をまたいで共通するAPIに沿っているか\n- **既存資産** — すでにあるコード、ライブラリ、運用手順、チームの経験\n- **スループット** — 一定時間に処理できる件数\n- **p95 / p99** — 遅い側から5%・1%に入る応答時間。平均では隠れる遅い利用者を見る\n- **RSS** — OSから見たプロセス全体のおおよそのメモリ使用量\n- **ADR** — 候補、比較条件、選んだ理由を残す設計判断の記録\n\n性能の数字は、JDK、依存、CPU・メモリ上限、入力、ウォームアップ時間で変わります。同じ小さなAPIを候補ごとに作り、同じ条件で測ります。ただし測る前に、必須条件を満たさない候補を除外します。\n\n### 選ぶ順番\n\n1. 必要なAPI、JDK、セキュリティ、サポート条件を満たすか\n2. 既存コードと社内運用を無理なく移せるか\n3. 開発・テスト・障害調査をチームで続けられるか\n4. 本番に近い条件で起動時間、メモリ、応答時間、処理件数を測る\n5. 選んだ理由と見直す条件をADRへ残す\n\n点数を付けて比べる場合も、必須条件を1つでも満たさない候補は、合計点が高くても選びません。\n\nこの章は**選定の入口**です。続く「Spring Boot実践入門」「Open Liberty実践入門」「Quarkus実践入門」では、各製品を独立して起動・設定・テスト・運用するところまで学びます。比較だけで製品を分かったつもりにせず、候補の実践章と`labs/frameworks`を少なくとも1つ完了してから選定してください。",
+      "samples": [],
       "quiz": [
         {
           "question": "フレームワーク選定で最も再現性のある方法は？",
@@ -127,7 +122,7 @@
       "objectiveIds": [
         "ch53-o2"
       ],
-      "explanation": "## Webリクエストを役割ごとに分ける\n\nフレームワークが変わっても、Webアプリが行う仕事は大きく変わりません。たとえば「注文を1件登録する」処理には、次の仕事があります。\n\n```text\nHTTPリクエストを読む\n  → 入力の形を検査する\n  → 在庫があるか判断する\n  → DBへ保存する\n  → HTTPステータスとJSONを返す\n```\n\nこれを一つのクラスへ書くと、在庫ルールを試すだけでもHTTPやDBが必要になり、画面の変更が業務処理まで広がります。そこで役割を分けます。\n\n| 役割 | すること | 例 |\n|---|---|---|\n| HTTPアダプター / Controller | HTTPとJavaの値を変換する | JSONをDTOへ変換し、201を返す |\n| Application Service | 一つの利用手順を進行する | 在庫確認と保存を順に呼ぶ |\n| Domain | 業務上の判断を持つ | 在庫0なら注文不可 |\n| Repository / Client | DBや外部APIとの通信を隠す | 注文を保存する |\n\n**アダプター**は、外部の形式をアプリ内部の形式へつなぐ部品です。**ドメイン**は、フレームワークやHTTPとは無関係な業務ルールです。外側から内側へ依存させ、ドメイン側からSpringやJakarta RESTのクラスを参照しないようにすると、業務ルールを速い単体テストで確認できます。\n\n### 契約としてテストする\n\nAPI利用者にとって重要なのは内部クラス名ではなく、次のような外から見える約束です。これを**API契約**と呼びます。\n\n- どのURLとHTTPメソッドを使うか\n- 受け取るJSONの項目と制約\n- 成功・失敗時のステータスとJSON\n- 認証・認可が必要か\n- 何秒でタイムアウトするか\n\nフレームワークを変更しても、この契約が同じなら利用側への影響を小さくできます。ただし、将来の移行だけを理由にインターフェースを大量に作る必要はありません。DB、HTTP、時刻のように、実際に交換・試験したい境界へ置きます。\n\nこのレッスンの問題では、名前の検査とHTTP結果の対応を小さく表します。入力不正を業務処理へ進めず、同じ失敗には同じエラーを返すことが狙いです。",
+      "explanation": "## Webリクエストを役割ごとに分ける\n\nフレームワークが変わっても、Webアプリが行う仕事は大きく変わりません。たとえば「注文を1件登録する」処理には、次の仕事があります。\n\n```text\nHTTPリクエストを読む\n  → 入力の形を検査する\n  → 在庫があるか判断する\n  → DBへ保存する\n  → HTTPステータスとJSONを返す\n```\n\nこれを一つのクラスへ書くと、在庫ルールを試すだけでもHTTPやDBが必要になり、画面の変更が業務処理まで広がります。そこで役割を分けます。\n\n| 役割 | すること | 例 |\n|---|---|---|\n| HTTPアダプター / Controller | HTTPとJavaの値を変換する | JSONをDTOへ変換し、201を返す |\n| Application Service | 一つの利用手順を進行する | 在庫確認と保存を順に呼ぶ |\n| Domain | 業務上の判断を持つ | 在庫0なら注文不可 |\n| Repository / Client | DBや外部APIとの通信を隠す | 注文を保存する |\n\n**アダプター**は、外部の形式をアプリ内部の形式へつなぐ部品です。**ドメイン**は、フレームワークやHTTPとは無関係な業務ルールです。外側から内側へ依存させ、ドメイン側からSpringやJakarta RESTのクラスを参照しないようにすると、業務ルールを速い単体テストで確認できます。\n\n### 契約としてテストする\n\nAPI利用者にとって重要なのは内部クラス名ではなく、次のような外から見える約束です。これを**API契約**と呼びます。\n\n- どのURLとHTTPメソッドを使うか\n- 受け取るJSONの項目と制約\n- 成功・失敗時のステータスとJSON\n- 認証・認可が必要か\n- 何秒でタイムアウトするか\n\nフレームワークを変更しても、この契約が同じなら利用側への影響を小さくできます。ただし、将来の移行だけを理由にインターフェースを大量に作る必要はありません。DB、HTTP、時刻のように、実際に交換・試験したい境界へ置きます。\n\nこのレッスンの問題では、在庫の判定をドメインに置き、その結果をHTTPと画面の2つのアダプターで表します。業務ルールを1か所に置き、外側ごとに決まった表し方で返すことが狙いです。",
       "samples": [
         {
           "caption": "フレームワークに依存しないユースケース",
@@ -218,13 +213,8 @@
       "objectiveIds": [
         "ch53-o3"
       ],
-      "explanation": "## Spring Bootは何を簡単にするのか\n\nSpringでWebアプリを作るには、HTTPを受ける部品、JSON変換、入力検証、サーバー、ログなどを組み合わせます。すべてを一つずつ設定すると自由度は高い一方、必要な部品の版や接続方法を毎回決めなければなりません。\n\n**Spring Boot**は、よく使う組み合わせと既定設定を用意し、少ない設定でSpringアプリを起動できるようにする仕組みです。主な助けは次の3つです。\n\n1. 関連ライブラリの互換性があるバージョンをそろえる\n2. プロジェクトの状態を見て、必要な設定を自動で追加する\n3. Webサーバーをアプリへ組み込み、JARを直接起動できるようにする\n\n### 自動構成とは\n\n**auto-configuration（自動構成）**は、条件がそろったときにSpring Bootが設定やBeanを追加する仕組みです。\n\n- **classpath** — 実行時に利用できるクラスやライブラリの一覧\n- **property** — `application.properties`などに書く設定値\n- **Bean** — Springが作成・管理するオブジェクト\n\nたとえばWeb用ライブラリがclasspathにあり、必要なpropertyが設定され、利用者が同じ役割のBeanを定義していなければ、Spring Bootが既定のBeanを作ります。利用者が自分のBeanを用意すると、自動構成は引き下がります。これを**back off**と呼びます。\n\n自動構成の利点は定型設定が減ることです。代償は、条件を理解していないと「なぜこのBeanが作られたか」が見えにくいことです。起動ログや条件レポートのPositive matches / Negative matchesで、成立した条件と成立しなかった条件を確認します。\n\n### 開発と運用を助ける部品\n\n- **Spring MVC** — 通常のServlet方式でHTTPを扱う\n- **WebFlux** — 非同期・リアクティブ方式でHTTPを扱う。必要性がなければMVCと混ぜない\n- **Spring Data** — データアクセスの定型処理を減らす\n- **Spring Security** — 認証と認可を組み込む\n- **Actuator** — 稼働状態やメトリクスを見る運用用エンドポイントを提供する\n\nテストは、Javaだけで動く単体テスト、Web層など一部分だけを起動する**slice test**、アプリ全体を起動する`@SpringBootTest`に分けます。すべてを全体テストにすると遅くなるため、確認したい範囲だけを起動します。\n\nこのレッスンには提出課題がありません。自動構成の「条件がそろえば追加し、利用者の定義があれば引き下がる」動きは、条件の読み方としてクイズで確かめます（実際に条件を書いて動かすのは第60章です）。",
-      "samples": [
-        {
-          "caption": "コンストラクタ注入の形（標準Javaで模型化）",
-          "code": "interface ClockPort {\n    long millis();\n}\n\nfinal class Service {\n    private final ClockPort clock;\n\n    Service(ClockPort clock) {\n        this.clock = clock;\n    }\n\n    long now() {\n        return clock.millis();\n    }\n}\n\npublic class Main {\n    public static void main(String[] a) {\n        System.out.println(new Service(() -> 42L).now());\n    }\n}\n"
-        }
-      ],
+      "explanation": "## Spring Bootは何を簡単にするのか\n\nSpringでWebアプリを作るには、HTTPを受ける部品、JSON変換、入力検証、サーバー、ログなどを組み合わせます。すべてを一つずつ設定すると自由度は高い一方、必要な部品の版や接続方法を毎回決めなければなりません。\n\n**Spring Boot**は、よく使う組み合わせと既定設定を用意し、少ない設定でSpringアプリを起動できるようにする仕組みです。主な助けは次の3つです。\n\n1. 関連ライブラリの互換性があるバージョンをそろえる\n2. プロジェクトの状態を見て、必要な設定を自動で追加する\n3. Webサーバーをアプリへ組み込み、JARを直接起動できるようにする\n\n### 自動構成とは\n\n**auto-configuration（自動構成）**は、条件がそろったときにSpring Bootが設定やBeanを追加する仕組みです。\n\n- **classpath** — 実行時に利用できるクラスやライブラリの一覧\n- **property** — `application.properties`などに書く設定値\n- **Bean** — Springが作成・管理するオブジェクト\n\nたとえばWeb用ライブラリがclasspathにあり、必要なpropertyが設定され、利用者が同じ役割のBeanを定義していなければ、Spring Bootが既定のBeanを作ります。利用者が自分のBeanを用意すると、自動構成は引き下がります。これを**back off**と呼びます。\n\n自動構成の利点は定型設定が減ることです。代償は、条件を理解していないと「なぜこのBeanが作られたか」が見えにくいことです。起動ログや条件レポートのPositive matches / Negative matchesで、成立した条件と成立しなかった条件を確認します。\n\n### 開発と運用を助ける部品\n\n- **Spring MVC** — 通常のServlet方式でHTTPを扱う\n- **WebFlux** — 非同期・リアクティブ方式でHTTPを扱う。必要性がなければMVCと混ぜない\n- **Spring Data** — データアクセスの定型処理を減らす\n- **Spring Security** — 認証と認可を組み込む\n- **Actuator** — 稼働状態やメトリクスを見る運用用エンドポイントを提供する\n\nテストは、Javaだけで動く単体テスト、Web層など一部分だけを起動する**slice test**、アプリ全体を起動する`@SpringBootTest`に分けます。すべてを全体テストにすると遅くなるため、確認したい範囲だけを起動します。\n\nこのレッスンには提出課題がありません。自動構成の「条件がそろえば追加し、利用者の定義があれば引き下がる」動きは、条件の読み方としてクイズで確かめます（Spring Bootの設定を実際に書くのは第60章です）。",
+      "samples": [],
       "quiz": [
         {
           "question": "Spring Bootの自動構成（auto-configuration）を調べる観点は？",
@@ -302,13 +292,7 @@
         "ch53-o3"
       ],
       "explanation": "## Open Libertyは何をしてくれるのか\n\n`@Path`、`@Inject`、`@Entity`などのアノテーションは、「このクラスをHTTPで呼びたい」「このオブジェクトを注入したい」という宣言です。アノテーションを書いただけでは処理は動きません。クラスを見つけ、オブジェクトを作り、HTTPやDBとつなぐ実装が必要です。\n\n**アプリケーションサーバー**は、その実装を提供してWebアプリを動かすプログラムです。**Open Liberty**は、Jakarta EEとMicroProfileの仕様を実装するアプリケーションサーバーの一つです。\n\n- **Jakarta EE** — REST、CDI、Persistenceなど、業務Webアプリを作るための標準API群\n- **MicroProfile** — Health、設定、耐障害性など、サービスの運用を補う標準仕様群\n- **runtime（ランタイム）** — アプリを実際に読み込んで動かしている実行環境\n\n標準APIを中心に書くと、対応する別のJakarta EEサーバーへ移すときも、独自APIだけで書いた場合より変更を小さくしやすくなります。\n\n### feature managerとは\n\nOpen Libertyでは、サーバーに持たせる機能を`server.xml`へ書きます。その中でfeatureを並べる設定欄が`<featureManager>`です。別の管理画面や製品ではなく、Open Libertyが起動時に読むXML要素です。\n\n```xml\n<featureManager>\n  <feature>restfulWS-4.0</feature>   <!-- @PathなどのREST API -->\n  <feature>jsonb-3.0</feature>       <!-- JavaとJSONの変換 -->\n  <feature>cdi-4.1</feature>         <!-- @Injectによる依存性注入 -->\n  <feature>mpHealth-4.0</feature>    <!-- /health/readyなど -->\n</featureManager>\n```\n\nfeatureは、Open Libertyが読み込む機能の単位です。設定に追加すると、必要な実装と関連機能が読み込まれます。書き忘れると、コードが正しくても404になったり、`@Inject`が働かなかったりします。ログの`CWWKF0012I`を見ると、実際に有効になったfeatureを確認できます。\n\n### 一括指定と個別指定\n\n`jakartaee-11.0`はJakarta EE 11の機能をまとめて有効にする**convenience feature**です。広い範囲を使うアプリでは設定が簡単です。必要なfeatureだけを個別に書くと、設定から使用機能と仕様版が分かり、不要な機能を読み込まない構成にできます。その代わり、必要なfeatureと互換性を管理する手間が増えます。\n\n```xml\n<featureManager>\n  <feature>jakartaee-11.0</feature>\n  <feature>mpHealth-4.0</feature>\n</featureManager>\n```\n\n開発中は`mvn liberty:dev`で起動すると、変更を反映しながら確認できます。`labs/frameworks/open-liberty`では、REST APIに必要なfeature、起動ログ、`/health/ready`の応答を対応付けてください。\n\nこのレッスンには提出課題がありません。要件とfeature IDの対応は覚える対象ではなく、調べれば分かるものです。ここで確かめるのは、**アプリが必要とする機能を設定へ結び付ける**という考え方と、書き忘れたときに何が起きるかです（実際に `server.xml` を書くのは第61章です）。",
-      "samples": [
-        {
-          "caption": "server.xmlでJakarta EE機能を有効化する形",
-          "code": "public class Main {\n    public static void main(String[] args) {\n        String serverXml = \"\"\"\n                <featureManager>\n                    <feature>jakartaee-11.0</feature>\n                </featureManager>\n                \"\"\";\n        System.out.print(serverXml);\n    }\n}\n",
-          "expected": "<featureManager>\n    <feature>jakartaee-11.0</feature>\n</featureManager>"
-        }
-      ],
+      "samples": [],
       "quiz": [
         {
           "question": "Open Libertyで利用する機能を宣言する主な場所は？",
@@ -386,12 +370,7 @@
         "ch53-o3"
       ],
       "explanation": "## Quarkusはどんな困りごとを解決するのか\n\nJavaのフレームワークは、起動時にclasspathを調べ、アノテーションを探し、依存関係や設定を組み立てることがあります。常に動き続ける大きなサーバーでは問題にならなくても、短時間で新しいインスタンスを増やす環境では、起動時間と起動直後のメモリが負担になります。\n\n**Quarkus**は、起動時に行う調査や組み立ての多くをビルド時へ移し、起動時の仕事を減らすフレームワークです。Jakarta RESTやCDIなどのAPIを使いながら、コンテナや短時間で増減するサービスでの利用を意識しています。\n\n### extensionとは\n\nQuarkusでは、REST、DB、Healthなどの機能を**extension（拡張）**として追加します。単にJARをclasspathへ置くだけでなく、Quarkusがそのライブラリをビルド時に解析・設定するための統合情報も含む単位です。\n\n- RESTEasy Reactive — HTTP/REST API\n- Hibernate ORM — DBとJavaオブジェクトの対応\n- SmallRye Health — Healthエンドポイント\n\n**SmallRye**は、MicroProfile仕様の実装を提供するプロジェクト群です。**BOM**は、同時に使えるextensionのバージョンをそろえる一覧です。\n\nextensionは `pom.xml` の依存として宣言します。`<version>` は書きません（BOMが決めます）。\n\n```xml\n<dependency>\n  <groupId>io.quarkus</groupId>\n  <artifactId>quarkus-rest</artifactId>\n</dependency>\n```\n\n| 要件 | extension |\n|---|---|\n| REST API | `quarkus-rest` |\n| JSONとの変換 | `quarkus-rest-jackson` |\n| 依存性注入（CDI） | `quarkus-arc` |\n| 入力の検証 | `quarkus-hibernate-validator` |\n| ヘルスチェック | `quarkus-smallrye-health` |\n\nOpen Libertyが `server.xml` の `<feature>` で機能を選ぶのに対し、Quarkusは**依存の宣言**で選びます。同じ要件が、製品によって別の場所・別の書き方になる点がこの章の見どころです。\n\n### JVM実行とnative実行\n\n通常の**JVMモード**はビルドが速く、Javaのライブラリとの互換性や調査のしやすさに優れます。**native executable**は、アプリと必要な実行機能を事前に機械語へ変えた成果物で、起動時間や初期メモリで有利になる場合があります。\n\nただしnative化には時間がかかり、実行中にクラスを調べる**リフレクション**、動的プロキシ、追加リソースを使うライブラリには登録や対応extensionが必要です。nativeが常に速いわけでもなく、長時間動かしたときの最大処理性能はJVMが有利な場合があります。\n\n### 何が嬉しい場面か\n\n- インスタンスを頻繁に起動・停止する\n- 小さいメモリ上限で多くのサービスを動かす\n- Jakarta APIを使いながらビルド時検査を増やしたい\n\n一方、既存ライブラリがQuarkusやNativeビルドへ対応していない場合、移行コストが大きくなります。まずJVMモードで正しく動かし、起動時間やメモリが実際の課題であることを測ってからnativeを候補にします。\n\nこのレッスンには提出課題がありません。要件とextensionの対応は覚える対象ではなく、調べれば分かるものです。ここで確かめるのは、**どこに何を宣言すると機能が有効になるか**と、ビルドの速さと起動の速さが別の評価軸であることです（実際に `pom.xml` を書くのは第62章です）。",
-      "samples": [
-        {
-          "caption": "ビルド時に決まる情報を固定しておく模型",
-          "code": "import java.util.*;\n\npublic class Main {\n    static final Set<String> ROUTES = Set.of(\"/api/greeting\", \"/q/health\");\n\n    public static void main(String[] a) {\n        System.out.println(ROUTES.contains(a.length == 0 ? \"/q/health\" : a[0]));\n    }\n}\n"
-        }
-      ],
+      "samples": [],
       "quiz": [
         {
           "question": "ネイティブ実行ファイルを採用する前に確認することは？",

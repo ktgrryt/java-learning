@@ -188,8 +188,8 @@
       "explanation": "## はじめて学ぶ人へ\n\n`PreparedStatement` は、SQLの形を先に決め、あとから値だけを空欄へ入れる**記入式の申込書**です。文字列を連結してSQLを作る方法と違い、入力値がSQL命令として解釈されません。\n\n```java\nPreparedStatement ps = con.prepareStatement(\n    \"UPDATE users SET name = ? WHERE id = ?\");\nps.setString(1, name);\nps.setInt(2, id);\n```\n\nたとえば名前に `' OR 1=1 --` が含まれても、値として扱われ、SQLの条件には化けません。更新系では `executeUpdate()` が返す件数も確認します。IDが存在せず0件だった場合を成功扱いにせず、404など適切な結果へ変換できるからです。\n\n## 値をSQL文字列へ連結しない\n\n```java\n// ❌ 入力がSQLの一部として解釈される\nString sql = \"... WHERE name = '\" + name + \"'\";\n\n// ✅ SQLの構造と値を分離\nPreparedStatement ps = con.prepareStatement(\"... WHERE name = ?\");\nps.setString(1, name);\n```\n\nPreparedStatementはSQLインジェクション対策だけでなく、引用符の処理と型変換も任せられます。テーブル名やORDER BY方向は `?` にできないので、許可リストから選びます。\n\n更新は `executeUpdate()` が変更行数を返します。0件なら対象なし、1件なら成功。ID更新で2件以上なら設計上の異常です。戻り値を無視すると「更新したつもり」を作ります。",
       "samples": [
         {
-          "caption": "更新件数を確認する",
-          "code": "import java.sql.*;\n\npublic class JdbcUpdateSample {\n    public static void main(String[] a) throws Exception {\n        try (Connection c = MiniJdbc.open(); PreparedStatement p = c.prepareStatement(\"UPDATE users SET balance = ? WHERE id = ?\")) {\n            p.setInt(1, 800);\n            p.setInt(2, 2);\n            System.out.println(\"updated=\" + p.executeUpdate());\n        }\n    }\n}\n"
+          "caption": "更新件数を確認する（対象が無ければ0件）",
+          "code": "import java.sql.*;\n\npublic class JdbcUpdateSample {\n    public static void main(String[] a) throws Exception {\n        try (Connection c = MiniJdbc.open(); PreparedStatement p = c.prepareStatement(\"UPDATE users SET balance = ? WHERE id = ?\")) {\n            p.setInt(1, 800);\n            p.setInt(2, 2);\n            System.out.println(\"id=2: updated=\" + p.executeUpdate());    // あるので1件\n\n            p.setInt(2, 99);\n            System.out.println(\"id=99: updated=\" + p.executeUpdate());   // 無いので0件。例外にはならない\n        }\n    }\n}"
         }
       ],
       "task": "1行に、`id` と新残高が、この順で入力されます（新残高はマイナスも来ます。`id` は登録の無い番号も来ます）。PreparedStatementで更新し、1件なら `更新しました`、0件なら `対象なし`。負の残高はSQLを実行せず `不正な残高` としてください。",
@@ -286,10 +286,10 @@
       "samples": [
         {
           "caption": "rollbackで更新を戻す",
-          "code": "import java.sql.*;\n\npublic class JdbcTxSample {\n    public static void main(String[] a) throws Exception {\n        try (Connection c = MiniJdbc.open()) {\n            c.setAutoCommit(false);\n            try (PreparedStatement p = c.prepareStatement(\"UPDATE users SET balance = ? WHERE id = ?\")) {\n                p.setInt(1, 0);\n                p.setInt(2, 1);\n                p.executeUpdate();\n            }\n            c.rollback();\n            try (PreparedStatement p = c.prepareStatement(\"SELECT id, name, balance FROM users WHERE id = ?\")) {\n                p.setInt(1, 1);\n                try (ResultSet r = p.executeQuery()) {\n                    r.next();\n                    System.out.println(r.getInt(\"balance\"));\n                }\n            }\n        }\n    }\n}\n"
+          "code": "import java.sql.*;\n\npublic class JdbcTxSample {\n    static int balance(Connection c) throws SQLException {\n        try (PreparedStatement p = c.prepareStatement(\"SELECT id, name, balance FROM users WHERE id = ?\")) {\n            p.setInt(1, 1);\n            try (ResultSet r = p.executeQuery()) {\n                r.next();\n                return r.getInt(\"balance\");\n            }\n        }\n    }\n\n    public static void main(String[] a) throws Exception {\n        try (Connection c = MiniJdbc.open()) {\n            c.setAutoCommit(false);\n            try (PreparedStatement p = c.prepareStatement(\"UPDATE users SET balance = ? WHERE id = ?\")) {\n                p.setInt(1, 0);\n                p.setInt(2, 1);\n                p.executeUpdate();\n            }\n            System.out.println(\"更新直後: \" + balance(c));\n            c.rollback();\n            System.out.println(\"rollback後: \" + balance(c));\n        }\n    }\n}"
         }
       ],
-      "task": "1行に、`from` `to` `amount` が、この順で入力されます（`amount` はマイナスも来ます。`from` `to` は登録の無い番号も来ます）。この内容で送金してください。残高不足またはIDなしならrollbackして `送金失敗`。成功ならcommitし、`from=<残高> to=<残高>` を表示します。",
+      "task": "1行に、`from` `to` `amount` が、この順で入力されます（`amount` はマイナスも来ます。`from` `to` は登録の無い番号も来ます）。この内容で送金してください。`amount` が0以下、残高不足、IDなしのどれかならrollbackして `送金失敗`。成功ならcommitし、`from=<残高> to=<残高>` を表示します。",
       "starterCode": "import java.sql.*;\nimport java.util.*;\n\npublic class JdbcTransfer {\n    static Integer balance(Connection c, int id) throws SQLException {\n        try (PreparedStatement p = c.prepareStatement(\"SELECT id, name, balance FROM users WHERE id = ?\")) {\n            p.setInt(1, id);\n            try (ResultSet r = p.executeQuery()) {\n                return r.next() ? r.getInt(\"balance\") : null;\n            }\n        }\n    }\n\n    static void set(Connection c, int id, int value) throws SQLException {\n        try (PreparedStatement p = c.prepareStatement(\"UPDATE users SET balance = ? WHERE id = ?\")) {\n            p.setInt(1, value);\n            p.setInt(2, id);\n            p.executeUpdate();\n        }\n    }\n\n    public static void main(String[] a) throws Exception {\n        Scanner sc = new Scanner(System.in);\n        int from = sc.nextInt(), to = sc.nextInt(), amount = sc.nextInt();\n        try (Connection c = MiniJdbc.open()) {\n            c.setAutoCommit(false);\n            // TODO\n        }\n    }\n}\n",
       "visibleCases": [
         {
@@ -407,7 +407,7 @@
             "自動的に全例外を無視"
           ],
           "answer": 1,
-          "explanation": "`close` はコミットしません（未コミットの変更は取り消される場合があります）。テーブルの削除や例外の無視とも関係ありません。プールから借りた接続の `close` は「物理的に切る」のではなく「プールへ返す」動作で、返し忘れると使える接続がなくなって処理全体が止まります。"
+          "explanation": "`close` のときに未コミットの変更がどうなるかは実装次第なので、`close` の前に `commit` か `rollback` を明示します。テーブルの削除や例外の無視とも関係ありません。プールから借りた接続の `close` は「物理的に切る」のではなく「プールへ返す」動作で、返し忘れると使える接続がなくなって処理全体が止まります。"
         }
       ]
     },
@@ -419,7 +419,7 @@
         "ch24-o2",
         "ch24-o3"
       ],
-      "explanation": "## この章の知識を、自分の手で組み合わせよう\n\nここでは、**Connection・PreparedStatement・ResultSet・更新件数・トランザクション**をまとめて使います。新しい文法は登場しません。分からなくなったら、直前までの解説やサンプルへ戻って確認して大丈夫です。\n\n### 3問の進め方\n\n1. **基本**で、中心となる書き方をもう一度使う\n2. **組み合わせ**で、章内の複数の知識を一緒に使う\n3. **実践**で、少し現実的な入力と条件を整理する\n\nまず入力例と期待される出力を紙に書き、処理を小さな手順へ分けてからコードにすると進めやすくなります。",
+      "explanation": "## この章の知識を、自分の手で組み合わせよう\n\nここでは、**Connection・PreparedStatement・ResultSet・更新件数・トランザクション**をまとめて使います。新しい文法は登場しません。分からなくなったら、直前までの解説やサンプルへ戻って確認して大丈夫です。\n\n### 3問の進め方\n\n1. **基本**で、中心となる書き方をもう一度使う\n2. **組み合わせ**で、章内の複数の知識を一緒に使う\n3. **実践**で、少し現実的な入力と条件を整理する",
       "samples": [
         {
           "caption": "復習用サンプル：rollbackで更新を戻す",

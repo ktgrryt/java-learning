@@ -315,13 +315,7 @@
         "ch58-o4"
       ],
       "explanation": "## Javaコードだけ直しても、業務データは完成しない\n\nキャンセル理由と日時を保存するなら、JavaのフィールドだけでなくDB列も必要です。本番のテーブルを直接手作業で変えず、変更を番号付きSQLとして保存する**スキーママイグレーション**を使います。\n\n稼働中のアプリを止めずに変更する場合、最初は既存コードでも扱える変更にします。\n\n1. **expand** — `cancel_reason`と`cancelled_at`をNULL許可で追加する\n2. **migrate** — 新コードを配備し、必要なら既存データを移す\n3. **contract** — 全インスタンス移行後に古い列や一時的な互換処理を削除する\n\n最初からNOT NULL列を既定値なしで追加すると、既存行や旧版アプリが書けなくなる可能性があります。制約を強めるのは、値がそろったことを確認してからです。\n\n### 注文更新とイベント保存を一緒に成功させる\n\n注文をCANCELLEDへ更新した後、別のメッセージブローカーへ直接通知し、通知だけ失敗すると状態が食い違います。そこで、注文更新と同じDBトランザクションで**outbox**テーブルへイベントを書き、コミット後に別処理が送信します。\n\n```text\n同じDBトランザクション\n  ├─ ordersをCANCELLEDへ更新\n  └─ outboxへOrderCancelledを追加\n       ↓ commit後\n     送信処理が再試行する\n```\n\n### 再送を通常ケースとして扱う\n\nHTTPの応答が利用者へ届かなければ、成功していても同じ要求が再送されます。**冪等キー**は、同じ操作を識別するIDです。処理済みキーと結果を保存し、同じキーなら更新やイベント追加を繰り返さず、前回の結果を返します。キーをメモリだけに置くと再起動や複数インスタンスで失われるため、本番ではDBの一意制約などで守ります。\n\n本番では、キーを利用者・APIなど適切な範囲に区切り、最初の要求内容の要約も保存します。同じキーで別の注文や別の理由が届いた場合は、前回結果を誤って返さず競合として拒否します。この章の問題とラボは、同じキーなら同一内容の再送という前提へ簡略化しています。\n\nこの画面の問題は、更新を確定する直前まで元の状態へ触れない簡略モデルです。本物のDBトランザクション、行ロック、一意制約を再現しているわけではありません。対応する実コードの判断は`labs/business-app-capstone`で確認します。",
-      "samples": [
-        {
-          "caption": "追加列はまず旧版と両立できる形にする",
-          "code": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        List<String> steps = List.of(\n                \"1 expand: NULL許可列とoutboxを追加\",\n                \"2 migrate: 新コードを配備してデータを移行\",\n                \"3 contract: 旧版停止後に制約を強める\");\n        steps.forEach(System.out::println);\n    }\n}\n",
-          "expected": "1 expand: NULL許可列とoutboxを追加\n2 migrate: 新コードを配備してデータを移行\n3 contract: 旧版停止後に制約を強める"
-        }
-      ],
+      "samples": [],
       "kind": "applied",
       "task": "注文状態、outbox、処理済み冪等キーを持つ簡略モデルを完成させてください。入力は`initialStatus eventWriteFails n key...`です。`eventWriteFails`は0なら正常、1ならoutbox書き込み失敗を表します。各キーを順に`cancel`へ渡し、結果をカンマ区切りで表示します。\n\n`cancel`は次の順で判断します。\n\n1. キーが処理済みなら`DUPLICATE`で、何も変更しない\n2. 状態が`CANCELLED`なら`ALREADY_CANCELLED`、`PAID`なら`CONFLICT`\n3. outbox書き込みが失敗する設定なら`ROLLBACK`とし、状態も処理済みキーも変更しない\n4. 正常なら状態を`CANCELLED`へ変え、outboxへ1件、処理済みキーへ結果を追加して`CANCELLED`\n\n最後に状態、イベント数、処理済みキー数を表示します。",
       "starterCode": "import java.util.*;\n\nenum OrderStatus { NEW, PAID, CANCELLED }\n\nclass State {\n    OrderStatus status;\n    final List<String> outbox = new ArrayList<>();\n    final Map<String, String> processed = new HashMap<>();\n\n    State(OrderStatus status) {\n        this.status = status;\n    }\n}\n\nclass CancelApplication {\n    String cancel(State state, String key, boolean eventWriteFails) {\n        // TODO: 確定前に失敗条件を調べ、成功時だけ3つの状態を変える\n        return \"TODO\";   // 仮の値。書けたら消す\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        State state = new State(OrderStatus.valueOf(sc.next()));\n        boolean eventWriteFails = sc.nextInt() == 1;\n        int n = sc.nextInt();\n        CancelApplication app = new CancelApplication();\n        List<String> results = new ArrayList<>();\n        for (int i = 0; i < n; i++) {\n            results.add(app.cancel(state, sc.next(), eventWriteFails));\n        }\n        System.out.println(\"results=\" + String.join(\",\", results));\n        System.out.println(\"status=\" + state.status);\n        System.out.println(\"events=\" + state.outbox.size());\n        System.out.println(\"processed=\" + state.processed.size());\n    }\n}\n",
@@ -408,7 +402,7 @@
       "objectiveIds": [
         "ch58-o5"
       ],
-      "explanation": "## 実装完了は「自分の環境で一度動いた」ではない\n\n業務の変更は、別の人が内容と安全性を確認し、本番で問題が起きたときに追跡できて初めて引き継げます。そのため、コードと一緒に検証結果と運用情報を残します。\n\n### テストを失敗の種類から選ぶ\n\n- **単体テスト** — 理由の境界値、状態遷移、所有者判定を速く確認する\n- **DB結合テスト** — マッピング、制約、マイグレーション、トランザクションを実DBで確認する\n- **HTTPテスト** — status、body、認証情報から取得した利用者との認可を確認する\n- **回帰テスト** — 既存の注文参照や支払いが壊れていないことを確認する\n\n成功ケースだけでは不十分です。空理由、100文字と101文字、注文なし、他人、PAID、再送、イベント保存失敗を受け入れ条件から選びます。\n\n### ログは調査のための事実を残す\n\nキャンセル成功時には、時刻、`requestId`、`orderId`、`actorId`、結果を構造化して残します。理由の全文、Cookie、トークン、個人情報は必要性を検討し、既定では記録しません。例外はスタックトレースを残しますが、利用者向け応答には出しません。\n\n### PRは変更の取扱説明書\n\nPRには次を短く書きます。\n\n1. 何を、なぜ変更したか\n2. API、DB、設定への影響\n3. 実行したテストと結果\n4. 配備順序とマイグレーション手順\n5. 監視するログ・メトリクス\n6. 問題時の切り戻し方法\n\n「テスト済み」だけでは、何をどの環境で確認したか分かりません。コマンド、対象、結果を記録します。自動テストがすべて通っても、マイグレーションや切り戻しが未準備なら、本番へ安全に届ける準備は完了していません。\n\nこの単元では0/1のチェック表をJavaで処理せず、変更を引き継ぐための証拠が十分かをシナリオで判断します。実際のコード・テスト・ログ・変更説明は次のproject演習でまとめます。",
+      "explanation": "## 実装完了は「自分の環境で一度動いた」ではない\n\n業務の変更は、別の人が内容と安全性を確認し、本番で問題が起きたときに追跡できて初めて引き継げます。そのため、コードと一緒に検証結果と運用情報を残します。\n\n### テストを失敗の種類から選ぶ\n\n- **単体テスト** — 理由の境界値、状態遷移、所有者判定を速く確認する\n- **DB結合テスト** — マッピング、制約、マイグレーション、トランザクションを実DBで確認する\n- **HTTPテスト** — status、body、認証情報から取得した利用者との認可を確認する\n- **回帰テスト** — 既存の注文参照や支払いが壊れていないことを確認する\n\n成功ケースだけでは不十分です。空理由、100文字と101文字、注文なし、他人、PAID、再送、イベント保存失敗を受け入れ条件から選びます。\n\n### ログは調査のための事実を残す\n\nキャンセル成功時には、時刻、`requestId`、`orderId`、`actorId`、結果を構造化して残します。理由の全文、Cookie、トークン、個人情報は必要性を検討し、既定では記録しません。例外はスタックトレースを残しますが、利用者向け応答には出しません。\n\n### PRは変更の取扱説明書\n\nPRには次を短く書きます。\n\n1. 何を、なぜ変更したか\n2. API、DB、設定への影響\n3. 実行したテストと結果\n4. 配備順序とマイグレーション手順\n5. 監視するログ・メトリクス\n6. 問題時の切り戻し方法\n\n「テスト済み」だけでは、何をどの環境で確認したか分かりません。コマンド、対象、結果を記録します。自動テストがすべて通っても、マイグレーションや切り戻しが未準備なら、本番へ安全に届ける準備は完了していません。\n\n実際のコード・テスト・ログ・変更説明は次のproject演習でまとめます。",
       "samples": [
         {
           "caption": "結果を安全な項目だけで構造化して残す",
@@ -462,13 +456,7 @@
         "ch58-o5"
       ],
       "explanation": "## 調査から引き継ぎまでを一本につなぐ\n\nここまで、既存の注文アプリへキャンセル機能を追加する流れを分けて確認しました。\n\n```text\n要件を受け入れ条件へ分ける\n  ↓\nController → Service → Repository → DBをたどる\n  ↓\n入力検証・認可・状態遷移を責務ごとに実装する\n  ↓\n注文更新・outbox・冪等性を整合させる\n  ↓\n単体・結合・HTTP・回帰テストで確認する\n  ↓\nログ・移行・切り戻しと一緒にPRで引き継ぐ\n```\n\n章末の3問は、この流れを三つの断面から確認します。\n\n1. **基本** — 入力、存在、認可、状態を決めた順で判定する\n2. **組み合わせ** — 再送、同時更新、イベント失敗でも状態を壊さない\n3. **実践** — テストと運用情報を、レビュー可能な完了報告へまとめる\n\n画面内の問題は、一つのJavaファイルと標準入力で動くように簡略化されています。本物の改修では複数ファイル、DBマイグレーション、テスト、PR文面を実際に変更する必要があります。`labs/business-app-capstone`には、最初は一部テストが失敗する既存アプリを用意しています。まず`requirements.md`とテストを読み、TODOを直し、全テストを通してください。",
-      "samples": [
-        {
-          "caption": "実装前後で同じ受け入れ条件を確認する",
-          "code": "import java.util.*;\n\nrecord AcceptanceCase(String name, String expected) { }\n\npublic class Main {\n    public static void main(String[] args) {\n        List<AcceptanceCase> cases = List.of(\n                new AcceptanceCase(\"PAIDをキャンセル\", \"409、状態とoutboxは不変\"),\n                new AcceptanceCase(\"同じ冪等キーを再送\", \"更新とイベントは1回だけ\"));\n        cases.forEach(c -> System.out.println(c.name() + \" -> \" + c.expected()));\n    }\n}\n",
-          "expected": "PAIDをキャンセル -> 409、状態とoutboxは不変\n同じ冪等キーを再送 -> 更新とイベントは1回だけ"
-        }
-      ],
+      "samples": [],
       "kind": "applied",
       "type": "project",
       "task": "`labs/business-app-capstone`の既存注文アプリへ、注文キャンセル機能を完成させてください。\n\n最初に`requirements.md`と参照専用の`OrderApplicationTest.java`を読みます。次に、画面で「編集」と表示される5ファイルだけを変更してください。Controller、Service、入力検証、DBマイグレーション、PR記録を同じ受け入れ条件へそろえます。テストファイルや検証スクリプトは変更できません。\n\n最初のテスト失敗は、既存実装と要件の差を示す材料です。失敗を上から一つずつ直し、すでに動いている経路を壊さず`tests=11 passed=11 failed=0`を目指してください。",

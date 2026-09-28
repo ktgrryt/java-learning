@@ -73,7 +73,7 @@
       "objectiveIds": [
         "ch27-o1"
       ],
-      "explanation": "## 複数の更新を「全部成功」か「全部取り消し」にする\n\n注文を保存したのに在庫だけ減っていない、送金元の残高だけ減って送金先が増えていない。このような途中状態をDBへ確定させないために **トランザクション** を使います。\n\n```text\nトランザクション開始\n  → 注文を保存\n  → 在庫を減らす\n両方成功: COMMIT（確定）\n途中で失敗: ROLLBACK（取り消し）\n```\n\nJakarta EEでは、業務メソッドへ `@Transactional` を付けると、この開始・確定・取り消しをサーバーへ任せられます。メソッド呼び出しの前後へ共通処理を差し込む仕組みを **インターセプター** と呼び、トランザクション用インターセプターが境界を管理します。\n\n```java\n@Transactional\npublic void transfer(long from, long to, int amount) {\n    debit(from, amount);\n    credit(to, amount);\n}\n```\n\n境界は、通常「送金する」「注文を確定する」のようなServiceの業務操作へ置きます。Repositoryの1メソッドごとに別々に確定すると、複数更新をまとめる目的を果たせません。\n\n### どの例外で取り消されるか\n\n既定では、`RuntimeException` とその派生例外、`Error` がインターセプターまで届くとロールバック対象になります。検査例外は既定ではロールバック対象になりません。業務例外でも取り消す必要があるなら `rollbackOn`、特定の例外では取り消さないなら `dontRollbackOn` を明示します。\n\n```java\n@Transactional(rollbackOn = BusinessException.class)\npublic void placeOrder(...) throws BusinessException { ... }\n```\n\n例外をメソッド内で捕まえて正常な戻り値へ変えると、インターセプターからは成功に見えることがあります。取り消しが必要なら例外を投げ直すか、トランザクションをrollback-onlyへ設定します。\n\n今回の演習では、送金途中で失敗したときにMapへ変更を残さない処理を作ります。MapはDBではありませんが、「成功時だけ全変更を確定する」という境界の考え方を再現しています。\n\n## この練習で再現する範囲\n\nここでは同一口座への送金を拒否し、すべての条件を確認してからMapを更新します。成功しても残高の合計1500は変わりません。\n\n**この単一ファイルの `new TransferService()` はCDI管理対象ではありません。注釈を書くだけでMapがロールバックされることはなく、`@Transactional` を外しても出力は変わりません。** 追加問題の退避・復元も自分で書く簡易モデルです。実DBとコンテナによるロールバックは27-4のlabで確かめます。",
+      "explanation": "## 複数の更新を「全部成功」か「全部取り消し」にする\n\n注文を保存したのに在庫だけ減っていない、送金元の残高だけ減って送金先が増えていない。このような途中状態をDBへ確定させないために **トランザクション** を使います。\n\n```text\nトランザクション開始\n  → 注文を保存\n  → 在庫を減らす\n両方成功: COMMIT（確定）\n途中で失敗: ROLLBACK（取り消し）\n```\n\nJakarta EEでは、業務メソッドへ `@Transactional` を付けると、この開始・確定・取り消しをサーバーへ任せられます。メソッド呼び出しの前後へ共通処理を差し込む仕組みを **インターセプター** と呼び、トランザクション用インターセプターが境界を管理します。\n\n```java\n@Transactional\npublic void transfer(long from, long to, int amount) {\n    debit(from, amount);\n    credit(to, amount);\n}\n```\n\n境界は、通常「送金する」「注文を確定する」のようなServiceの業務操作へ置きます。Repositoryの1メソッドごとに別々に確定すると、複数更新をまとめる目的を果たせません。\n\n### どの例外で取り消されるか\n\n既定では、`RuntimeException` とその派生例外、`Error` がインターセプターまで届くとロールバック対象になります。検査例外は既定ではロールバック対象になりません。業務例外でも取り消す必要があるなら `rollbackOn`、特定の例外では取り消さないなら `dontRollbackOn` を明示します。\n\n```java\n@Transactional(rollbackOn = BusinessException.class)\npublic void placeOrder(...) throws BusinessException { ... }\n```\n\n例外をメソッド内で捕まえて正常な戻り値へ変えると、インターセプターからは成功に見えることがあります。取り消しが必要なら例外を投げ直すか、トランザクションをrollback-onlyへ設定します。\n\n今回の演習では、送金途中で失敗したときにMapへ変更を残さない処理を作ります。MapはDBではありませんが、「成功時だけ全変更を確定する」という境界の考え方を再現しています。\n\n## この練習で再現する範囲\n\nここでは同一口座への送金を拒否し、すべての条件を確認してからMapを更新します。成功しても残高の合計1500は変わりません。\n\n**この単一ファイルの `new TransferService()` はCDI管理対象ではありません。注釈を書くだけでMapがロールバックされることはなく、`@Transactional` を外しても出力は変わりません。** 追加問題の退避・復元も自分で書く簡易モデルです。実DBでのcommitとrollbackは、27-3の実行演習でJDBCを直接使って確かめます（コンテナのインターセプターは使いません）。",
       "samples": [
         {
           "caption": "rollbackOnを宣言する",
@@ -193,7 +193,7 @@
       "objectiveIds": [
         "ch27-o2"
       ],
-      "explanation": "## 同じトランザクションへ参加するか、別に確定するかを決める\n\nServiceから別のServiceを呼ぶとき、呼び出し先を同じトランザクションへ含めるのか、新しいトランザクションで実行するのかを決める必要があります。この参加規則を **伝播** と呼び、`@Transactional` の `TxType` で指定します。\n\n| TxType | 既存のトランザクションがある場合 | ない場合 |\n|---|---|---|\n| `REQUIRED` | そのまま参加する | 新しく開始する |\n| `REQUIRES_NEW` | 外側を一時停止し、別のものを開始する | 新しく開始する |\n| `MANDATORY` | 参加する | 例外にする |\n| `SUPPORTS` | 参加する | トランザクションなしで動く |\n\n`REQUIRED` が既定です。注文保存と在庫更新を両方成功させたいなら、同じ `REQUIRED` の境界へ参加させます。\n\n`REQUIRES_NEW` は外側と別に確定したい処理に使えます。たとえば監査記録を別トランザクションで確定すると、外側の注文処理がロールバックしても監査記録は残ります。これは便利ですが、「注文はないのに記録だけある」という別々の結果を意図的に作ります。本当に分離してよい処理だけに限定します。\n\n### トランザクションを短くする理由\n\nDB更新中は、接続や行ロックなど限られた資源を保持することがあります。その中で外部HTTP APIの応答を長く待つと、ほかの処理までDB接続やロックを待つことになります。\n\n```text\n外部情報を取得\n      ↓\n短いDBトランザクションで検証・更新\n      ↓\n確定後に通知\n```\n\nただしDB更新と外部通知を単純に分けると、DBだけ成功して通知に失敗する可能性があります。この問題には、第54章で扱う **transactional outbox** を使えます。これは業務データと「後で送る通知」を同じDBトランザクションへ保存し、確定後に別処理が通知を送る方式です。\n\n同じクラスの `this.someMethod()` のような内部呼び出しは、通常インターセプターの境界を通りません。注釈を付けただけで別トランザクションになると思わず、境界となるBean同士の呼び出しとして設計します。\n\nこの単元では開始・確定のtraceをJavaで出力せず、伝播種別とトランザクション境界が結果へ与える影響をシナリオで判断します。",
+      "explanation": "## 同じトランザクションへ参加するか、別に確定するかを決める\n\nServiceから別のServiceを呼ぶとき、呼び出し先を同じトランザクションへ含めるのか、新しいトランザクションで実行するのかを決める必要があります。この参加規則を **伝播** と呼び、`@Transactional` の `TxType` で指定します。\n\n| TxType | 既存のトランザクションがある場合 | ない場合 |\n|---|---|---|\n| `REQUIRED` | そのまま参加する | 新しく開始する |\n| `REQUIRES_NEW` | 外側を一時停止し、別のものを開始する | 新しく開始する |\n| `MANDATORY` | 参加する | 例外にする |\n| `SUPPORTS` | 参加する | トランザクションなしで動く |\n\n`REQUIRED` が既定です。注文保存と在庫更新を両方成功させたいなら、同じ `REQUIRED` の境界へ参加させます。\n\n`REQUIRES_NEW` は外側と別に確定したい処理に使えます。たとえば監査記録を別トランザクションで確定すると、外側の注文処理がロールバックしても監査記録は残ります。これは便利ですが、「注文はないのに記録だけある」という別々の結果を意図的に作ります。本当に分離してよい処理だけに限定します。\n\n### トランザクションを短くする理由\n\nDB更新中は、接続や行ロックなど限られた資源を保持することがあります。その中で外部HTTP APIの応答を長く待つと、ほかの処理までDB接続やロックを待つことになります。\n\n```text\n外部情報を取得\n      ↓\n短いDBトランザクションで検証・更新\n      ↓\n確定後に通知\n```\n\nただしDB更新と外部通知を単純に分けると、DBだけ成功して通知に失敗する可能性があります。この問題には、第54章で扱う **transactional outbox** を使えます。これは業務データと「後で送る通知」を同じDBトランザクションへ保存し、確定後に別処理が通知を送る方式です。\n\n同じクラスの `this.someMethod()` のような内部呼び出しは、通常インターセプターの境界を通りません。注釈を付けただけで別トランザクションになると思わず、境界となるBean同士の呼び出しとして設計します。",
       "samples": [
         {
           "caption": "伝播属性を読み取る",
@@ -229,7 +229,7 @@
           "choices": [
             "新しいトランザクションを開始する",
             "トランザクションなしで続ける",
-            "既存transactionがなく例外になる",
+            "既存のトランザクションが無いので例外になる",
             "`SUPPORTS`へ自動変更される"
           ],
           "answer": 2,
@@ -297,7 +297,7 @@
       "extraTasks": [
         {
           "kind": "applied",
-          "task": "1行に、購入数が空白区切りで並びます（`0` 以下も来ます）。在庫5から順に受け、在庫以上なら原子的に減らして `ok rest=n`、不足なら変更せず `ng rest=n`。0以下もngです。",
+          "task": "1行に、購入数が空白区切りで並びます（`0` 以下も来ます）。在庫5から順に受け、購入数が1以上で在庫以下なら在庫を減らして `ok rest=n`、それ以外は在庫を変えずに `ng rest=n` を表示します。",
           "starterCode": "import java.util.*;\n\npublic class TxStock {\n    public static void main(String[] a) {\n        Scanner sc = new Scanner(System.in);\n        int stock = 5;\n        while (sc.hasNextInt()) {\n            int count = sc.nextInt();\n            // TODO\n        }\n    }\n}\n",
           "visibleCases": [
             {
@@ -408,26 +408,26 @@
           "explanation": "ログ出力に使う例外かどうか、戻り値が `null` かどうかは、rollbackの判定には使われません。既定で戻す対象は `RuntimeException` と `Error` で、**検査例外は既定では戻しません**。検査例外でも戻したいときは `rollbackOn` で明示します。ここを知らないと、例外は出たのにコミットされます。"
         },
         {
-          "question": "REQUIRES_NEWの動作は？",
+          "question": "同じ注文を2人が同時に編集しました。先に保存した人の変更が、後の保存で黙って消えないようにするには、何を使うでしょう。",
           "choices": [
-            "外側のトランザクションを引き継ぎ、コミットだけ分ける",
-            "既存のトランザクションがあればそれに参加する",
-            "外側を中断して新しいトランザクション",
-            "トランザクション禁止"
+            "保存のたびに、画面を自動で読み込み直させる",
+            "後から保存した人の内容を、いつも正しいとみなす",
+            "versionを比べ、変わっていたら競合として知らせる",
+            "保存した順番を、ログに記録しておくだけにする"
           ],
           "answer": 2,
-          "explanation": "外側を引き継いだままコミットだけ分けることはできません。既存があれば参加するのは `REQUIRED`（既定）の動作です。トランザクションを禁止するのは `NEVER` です。`REQUIRES_NEW` は外側を一時中断して新しいトランザクションを始め、内側が独立して commit / rollback します。"
+          "explanation": "画面を読み込み直しても、保存の瞬間に割り込まれれば同じことが起きます。後勝ちにすると先の変更が黙って消え、ログに残すだけでは消えた変更は戻りません。読んだときのversionと保存するときのversionを比べ、変わっていたら競合として知らせる（楽観ロック）と、上書きに気づけます。"
         },
         {
-          "question": "外部HTTP呼び出しを長いDBトランザクション内に置く問題は？",
+          "question": "注文登録のAPIがタイムアウトしました。自動で再試行してよいのは、どんなときでしょう。",
           "choices": [
-            "Cookieが消える",
-            "HTTPのタイムアウトが効かなくなる",
-            "接続やロックを長く保持する",
-            "SQL注入が自動解決"
+            "どんな失敗でも、成功するまで同じ間隔で送り直せるとき",
+            "入力が不正（400）だったので、もう一度送り直すとき",
+            "冪等性キーで二重登録を防げていて、失敗が一時的なとき",
+            "利用者に知らせずに、裏で何度でも送り直せるとき"
           ],
           "answer": 2,
-          "explanation": "Cookieは消えませんし、HTTPのタイムアウトも普通に効きます。SQL注入はまったく別の話です。問題は、外部の応答を待っているあいだもDB接続と行ロックを握り続けることで、待ちが長いほど他の処理が詰まります。外部呼び出しはトランザクションの外へ出し、コミット後に行います。"
+          "explanation": "同じ間隔で無制限に送り直すと、弱っている相手をさらに叩きます。400は入力の誤りなので、何度送っても結果は変わりません。知らせずに裏で送り直し続けるのも、上限の無い再試行と同じです。再試行してよいのは、失敗が一時的で、冪等性キーなどで二重に登録されない作りになっているときです。"
         },
         {
           "question": "冪等性キーの目的は？",
@@ -455,33 +455,57 @@
           "code": "import java.util.*;\n\npublic class IdempotencySample {\n    public static void main(String[] a) {\n        Set<String> done = new HashSet<>();\n        for (String k : List.of(\"req-1\", \"req-1\")) System.out.println(done.add(k) ? \"created\" : \"same result\");\n    }\n}\n"
         }
       ],
-      "task": "【基本】OrderServiceの `create()` に `@Transactional` を付けます。リフレクションで注釈を取得し、既定の伝播種別 `REQUIRED` を表示してください。",
-      "starterCode": "import jakarta.transaction.Transactional;\n\nclass OrderService {\n    @Transactional\n    void create() { }\n}\n\npublic class Main {\n    public static void main(String[] args) throws Exception {\n        /* TODO */\n    }\n}\n",
+      "task": "【基本】注文の保存（`REQUIRED`）の中から、監査の記録を呼びます。入力は1行に `監査の伝播 注文の失敗 監査の失敗` です。監査の伝播は `REQUIRED` か `REQUIRES_NEW`、失敗はどちらも `0`（成功）か `1`（失敗）です。監査の失敗は注文の側で受け止めて、注文の処理は続けます。\n\n次の決まりで、最後に何が確定するかを2行で表示してください。\n\n- `REQUIRES_NEW` … 監査は別のトランザクションです。注文は、注文が失敗しなければ `commit`。監査は、監査が失敗しなければ `commit`。どちらも、失敗したときは `rollback` です\n- `REQUIRED` … 監査は注文と同じトランザクションに参加します。どちらかが失敗すると、2つとも `rollback` です（監査の失敗を受け止めても、ロールバックの印は消えません）\n\n```\nREQUIRES_NEW 1 0\n```\n\n上の例の答えはこうなります。\n\n```\n注文 rollback\n監査 commit\n```",
+      "starterCode": "import java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        String auditPropagation = sc.next();\n        boolean orderFails = sc.nextInt() == 1;\n        boolean auditFails = sc.nextInt() == 1;\n\n        /* TODO 伝播の種類ごとに、注文と監査のそれぞれが commit か rollback かを決める */\n        /* TODO 「注文 …」「監査 …」の2行を表示する */\n    }\n}\n",
       "visibleCases": [
         {
-          "label": "既定値",
-          "stdin": "",
-          "expected": "REQUIRED"
-        }
-      ],
-      "hiddenCases": [],
-      "hints": [
-        "getDeclaredMethodでcreateメソッドを取得します。",
-        "`getAnnotation(Transactional.class).value()` を表示します。"
-      ],
-      "sourceChecks": [
-        {
-          "pattern": "getDeclaredMethod\\s*\\(",
-          "minimum": 1,
-          "message": "`REQUIRED` と直接書かず、`getDeclaredMethod(\"create\")` でメソッドを取得してください。"
+          "label": "注文だけ失敗（別のトランザクションの監査は残る）",
+          "stdin": "REQUIRES_NEW 1 0\n",
+          "expected": "注文 rollback\n監査 commit"
         },
         {
-          "pattern": "getAnnotation\\s*\\(",
-          "minimum": 1,
-          "message": "注釈の値はリフレクションで読み取ります。`getAnnotation(Transactional.class)` を使ってください。"
+          "label": "注文だけ失敗（同じトランザクションの監査も消える）",
+          "stdin": "REQUIRED 1 0\n",
+          "expected": "注文 rollback\n監査 rollback"
         }
       ],
-      "solution": "import jakarta.transaction.Transactional;\n\nclass OrderService {\n    @Transactional\n    void create() { }\n}\n\npublic class Main {\n    public static void main(String[] args) throws Exception {\n        Transactional tx = OrderService.class.getDeclaredMethod(\"create\").getAnnotation(Transactional.class);\n        System.out.println(tx.value());\n    }\n}\n",
+      "hiddenCases": [
+        {
+          "label": "監査だけ失敗（別のトランザクションなら注文は残る）",
+          "stdin": "REQUIRES_NEW 0 1\n",
+          "expected": "注文 commit\n監査 rollback"
+        },
+        {
+          "label": "監査だけ失敗（同じトランザクションなら注文も消える）",
+          "stdin": "REQUIRED 0 1\n",
+          "expected": "注文 rollback\n監査 rollback"
+        },
+        {
+          "label": "どちらも成功（REQUIRED）",
+          "stdin": "REQUIRED 0 0\n",
+          "expected": "注文 commit\n監査 commit"
+        },
+        {
+          "label": "どちらも成功（REQUIRES_NEW）",
+          "stdin": "REQUIRES_NEW 0 0\n",
+          "expected": "注文 commit\n監査 commit"
+        },
+        {
+          "label": "どちらも失敗（REQUIRES_NEW）",
+          "stdin": "REQUIRES_NEW 1 1\n",
+          "expected": "注文 rollback\n監査 rollback"
+        },
+        {
+          "label": "どちらも失敗（REQUIRED）",
+          "stdin": "REQUIRED 1 1\n",
+          "expected": "注文 rollback\n監査 rollback"
+        }
+      ],
+      "hints": [
+        "`REQUIRES_NEW` なら、注文と監査を別々に決めます。それぞれ自分が失敗したときだけ `rollback` です。",
+        "`REQUIRED` なら、2つは同じトランザクションです。どちらか1つでも失敗すれば、2つとも `rollback` になります。"
+      ],
+      "solution": "import java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        String auditPropagation = sc.next();\n        boolean orderFails = sc.nextInt() == 1;\n        boolean auditFails = sc.nextInt() == 1;\n\n        String order;\n        String audit;\n        if (auditPropagation.equals(\"REQUIRES_NEW\")) {\n            order = orderFails ? \"rollback\" : \"commit\";\n            audit = auditFails ? \"rollback\" : \"commit\";\n        } else {\n            String shared = orderFails || auditFails ? \"rollback\" : \"commit\";\n            order = shared;\n            audit = shared;\n        }\n        System.out.println(\"注文 \" + order);\n        System.out.println(\"監査 \" + audit);\n    }\n}\n",
       "extraTasks": [
         {
           "objectiveIds": [

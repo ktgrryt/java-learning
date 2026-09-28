@@ -62,13 +62,8 @@
       "objectiveIds": [
         "ch48-o1"
       ],
-      "explanation": "## プロファイルは、アプリの用途ごとに「必要な仕様の範囲」をそろえる\n\nJakarta EEは1つの巨大なライブラリではなく、REST、依存性注入、永続化、トランザクションなど、サーバーアプリに必要な標準仕様をまとめたものです。しかし、すべてのアプリが全機能を必要とするわけではありません。そこで、用途に合う仕様の組み合わせを **プロファイル** として定義します。\n\n- **Core Profile**: 軽量なサービスの土台となる最小構成。REST、依存性注入、JSON処理などを中心にする\n- **Web Profile**: Webアプリ向け。Coreの範囲に加え、Servlet、Persistence、トランザクションなどWeb開発でよく使う仕様を含む\n- **Platform**: Jakarta EE全体。Web Profileより広く、メッセージングなどを含む完全な仕様集合\n\nプロファイルが嬉しいのは、開発者とサーバー実装の間で「この種類のアプリに必要なAPIは一式そろう」という共通の約束を持てることです。個々のAPIを毎回ばらばらに確認する負担を減らし、対応する別実装へ移すときも必要機能を比較しやすくなります。\n\nただし、Core Profileを選んだだけで、必ず起動が速くなったり配布サイズが小さくなったりするわけではありません。プロファイルは **仕様の範囲** です。実際の起動時間やサイズは、利用するサーバー実装、機能の有効化方法、依存関係、コンテナイメージを測って判断します。\n\nMavenの `jakarta.jakartaee-api` のような依存関係は、主にコンパイル時にAPIの型を提供します。実行時の処理本体はJakarta EE対応サーバーが提供するため、一般に依存範囲を `provided` とし、アプリへ同じAPIを重ねて同梱しないようにします。\n\nJakarta EE 11はJava SE 17以上を対象とします。利用前に、コンパイルするJavaの版、サーバーが対応するJakarta EEの版、実行環境のJavaの版をそろえて確認します。確認クイズでは、JavaとJakarta EEの版から、まず組み合わせを調査対象として分類します。最終的な対応可否は採用サーバーの公式文書でも確認してください。\n\nこの単元では版番号の大小をJavaで分類せず、アプリが必要とするAPIと配備先が提供するProfile・Java版を照合する判断をクイズで確認します。",
-      "samples": [
-        {
-          "caption": "要求版を比較する",
-          "code": "record RuntimeInfo(int java, int platform) { }\n\npublic class Main {\n    public static void main(String[] a) {\n        var r = new RuntimeInfo(Runtime.version().feature(), 11);\n        System.out.println(r.java() >= 17 && r.platform() >= 11 ? \"ready\" : \"upgrade\");\n    }\n}\n"
-        }
-      ],
+      "explanation": "## プロファイルは、アプリの用途ごとに「必要な仕様の範囲」をそろえる\n\nJakarta EEは1つの巨大なライブラリではなく、REST、依存性注入、永続化、トランザクションなど、サーバーアプリに必要な標準仕様をまとめたものです。しかし、すべてのアプリが全機能を必要とするわけではありません。そこで、用途に合う仕様の組み合わせを **プロファイル** として定義します。\n\n- **Core Profile**: 軽量なサービスの土台となる最小構成。REST、依存性注入、JSON処理などを中心にする\n- **Web Profile**: Webアプリ向け。Coreの範囲に加え、Servlet、Persistence、トランザクションなどWeb開発でよく使う仕様を含む\n- **Platform**: Jakarta EE全体。Web Profileより広く、メッセージングなどを含む完全な仕様集合\n\nプロファイルが嬉しいのは、開発者とサーバー実装の間で「この種類のアプリに必要なAPIは一式そろう」という共通の約束を持てることです。個々のAPIを毎回ばらばらに確認する負担を減らし、対応する別実装へ移すときも必要機能を比較しやすくなります。\n\nただし、Core Profileを選んだだけで、必ず起動が速くなったり配布サイズが小さくなったりするわけではありません。プロファイルは **仕様の範囲** です。実際の起動時間やサイズは、利用するサーバー実装、機能の有効化方法、依存関係、コンテナイメージを測って判断します。\n\nMavenの `jakarta.jakartaee-api` のような依存関係は、主にコンパイル時にAPIの型を提供します。実行時の処理本体はJakarta EE対応サーバーが提供するため、一般に依存範囲を `provided` とし、アプリへ同じAPIを重ねて同梱しないようにします。\n\nJakarta EE 11はJava SE 17以上を対象とします。利用前に、コンパイルするJavaの版、サーバーが対応するJakarta EEの版、実行環境のJavaの版をそろえて確認します。最終的な対応可否は採用サーバーの公式文書でも確認してください。",
+      "samples": [],
       "quiz": [
         {
           "question": "jakarta.jakartaee-apiをprovidedにする主な理由は？",
@@ -112,13 +107,8 @@
       "objectiveIds": [
         "ch48-o2"
       ],
-      "explanation": "## Jakarta Dataは、よくあるデータ操作を「何をしたいか」の宣言にする\n\nデータベースを使うアプリでは、IDで1件取得する、条件に合う一覧を返す、保存する、といった処理を何度も書きます。SQLやEntityManagerを毎回組み立てると、定型コードが増え、業務上の目的が見えにくくなります。\n\nJakarta Dataは、この繰り返しを減らすための仕様です。開発者は **リポジトリ** というインターフェースに必要な操作を宣言し、対応するJakarta EE実装が実行時の処理を提供します。\n\n```java\n@Repository\npublic interface BookRepository extends BasicRepository<Book, Long> {\n    List<Book> findByAuthor(String author);\n}\n```\n\nここで `Book` は扱うエンティティ、`Long` はIDの型です。`findByAuthor` のようなメソッド名や注釈から問い合わせの意図を表せるため、サービス層はSQLの組み立てより業務処理へ集中できます。実装クラスを自分で `new` するのではなく、CDIなどを通じてサーバーが生成した実装を受け取ります。\n\nJakarta Persistence（JPA）がエンティティの対応付け、永続化コンテキスト、問い合わせなど低い層の仕組みを提供するのに対し、Jakarta Dataはその上でリポジトリ形式のアクセスを標準化します。JPAを置き換える同義語ではありません。\n\n定型操作には便利ですが、複雑な集計、データベース固有の最適化、大量更新までメソッド名へ押し込むと、かえって意図が分かりにくくなります。その場合は明示的な問い合わせを使い、実行されるSQL、インデックス、トランザクション境界を確認します。\n\nこの単元ではRepositoryの代わりにMap検索をJavaで実装せず、Jakarta Dataで実装を生成できる宣言と責務をクイズで確認します。実際のinterface宣言は章末のJakarta Data実ビルド演習で行います。",
-      "samples": [
-        {
-          "caption": "リポジトリ境界をJDKだけで模擬",
-          "code": "import java.util.*;\n\nrecord Book(long id, String title) { }\n\ninterface Books {\n    Optional<Book> find(long id);\n}\n\npublic class Main {\n    public static void main(String[] a) {\n        Books r = id -> Optional.of(new Book(id, \"Java\"));\n        System.out.println(r.find(1).orElseThrow().title());\n    }\n}\n"
-        }
-      ],
+      "explanation": "## Jakarta Dataは、よくあるデータ操作を「何をしたいか」の宣言にする\n\nデータベースを使うアプリでは、IDで1件取得する、条件に合う一覧を返す、保存する、といった処理を何度も書きます。SQLやEntityManagerを毎回組み立てると、定型コードが増え、業務上の目的が見えにくくなります。\n\nJakarta Dataは、この繰り返しを減らすための仕様です。開発者は **リポジトリ** というインターフェースに必要な操作を宣言し、Jakarta Dataの提供者が、宣言に合う実装を用意します（ビルド時に生成する製品も、実行時に用意する製品もあります）。基本操作は `BasicRepository` か、保存・削除まで持つ `CrudRepository` を継承して受け取ります。メソッド名の規則のほかに、`@Find`（検索）と `@By`（引数がどの属性か）、`@OrderBy`（並び）、`@Query`（JDQLで直接書く）でも宣言できます。\n\n```java\n@Repository\npublic interface BookRepository extends BasicRepository<Book, Long> {\n    List<Book> findByAuthor(String author);\n}\n```\n\nここで `Book` は扱うエンティティ、`Long` はIDの型です。`findByAuthor` のようなメソッド名や注釈から問い合わせの意図を表せるため、サービス層はSQLの組み立てより業務処理へ集中できます。実装クラスを自分で `new` するのではなく、CDIなどを通じてサーバーが生成した実装を受け取ります。\n\nJakarta Persistence（JPA）がエンティティの対応付け、永続化コンテキスト、問い合わせなど低い層の仕組みを提供するのに対し、Jakarta Dataはその上でリポジトリ形式のアクセスを標準化します。JPAを置き換える同義語ではありません。\n\n定型操作には便利ですが、複雑な集計、データベース固有の最適化、大量更新までメソッド名へ押し込むと、かえって意図が分かりにくくなります。その場合は明示的な問い合わせを使い、実行されるSQL、インデックス、トランザクション境界を確認します。\n\n実際のinterface宣言は章末のJakarta Data実ビルド演習で行います。",
+      "samples": [],
       "quiz": [
         {
           "question": "Jakarta Dataのリポジトリを使っても確認が必要なものは？",
@@ -230,7 +220,7 @@
       "samples": [
         {
           "caption": "機密値を表示しない",
-          "code": "public class Main {\n    public static void main(String[] a) {\n        String token = \"secret-value\";\n        System.out.println(\"token=[REDACTED], length=\" + token.length());\n    }\n}\n"
+          "code": "public class Main {\n    static String forLog(String secret) {\n        // 値そのものも、長さや先頭の文字も出さない。設定されているかどうかだけを出す\n        return secret == null || secret.isEmpty() ? \"(未設定)\" : \"[REDACTED]\";\n    }\n\n    public static void main(String[] a) {\n        System.out.println(\"token=\" + forLog(\"secret-value\"));\n        System.out.println(\"token=\" + forLog(\"\"));\n    }\n}"
         }
       ],
       "task": "1行に、件数 `n`（`1` 以上）、続けて `n` 件ぶんの `key value` が入力されます。keyを小文字化したものに `password`、`token`、`secret` のいずれかが含まれれば `key=[REDACTED]`、それ以外は `key=value` と表示してください。",
@@ -425,7 +415,7 @@
           ],
           "kind": "applied",
           "type": "runtime-lab",
-          "task": "`labs/jakarta-ee11/data-exercise`で、**Jakarta Data 1.0 のリポジトリを宣言**してください。\n\nJakarta Dataでは実装を書きません。インタフェースの宣言からビルド時に実装が生成されるので、**宣言の形そのものが仕様**です。次の4つを宣言します。\n\n- 基本操作は`CrudRepository<Order, Long>`を継承して受け取る（保存・削除・全件を自分で宣言しない）\n- `@Find`で状態を指定して取り出す。引数がどの属性かは`@By`で示し、並びは`@OrderBy`で注文IDの降順にする\n- `@Query`（JDQL）で、金額のしきい値より大きい注文の件数を数える\n- 1件だけ取り出すメソッドの戻り値は`Optional<Order>`にする\n\n採点はAPIに対する`compile`と、宣言の形を確かめます。**DBへ問い合わせて結果が返るかは確かめていません**（それには実装とDBが必要です）。宣言が正しいことと、問い合わせが意図どおり動くことは別だと分けて考えてください。",
+          "task": "`labs/jakarta-ee11/data-exercise`で、**Jakarta Data 1.0 のリポジトリを宣言**してください。\n\nJakarta Dataでは実装を書きません。インタフェースの宣言に合う実装を提供者が用意するので、**宣言の形そのものが仕様**です。次の4つを宣言します。\n\n- 基本操作は`CrudRepository<Order, Long>`を継承して受け取る（保存・削除・全件を自分で宣言しない）\n- `@Find`で状態を指定して取り出す。引数がどの属性かは`@By`で示し、並びは`@OrderBy`で注文IDの降順にする\n- `@Query`（JDQL）で、金額のしきい値より大きい注文の件数を数える\n- 1件だけ取り出すメソッドの戻り値は`Optional<Order>`にする\n\n採点はAPIに対する`compile`と、宣言の形を確かめます。**DBへ問い合わせて結果が返るかは確かめていません**（それには実装とDBが必要です）。宣言が正しいことと、問い合わせが意図どおり動くことは別だと分けて考えてください。",
           "hints": [
             "`jakarta.data.repository`に`@Repository`・`CrudRepository`・`@Find`・`@By`・`@OrderBy`・`@Query`があります。",
             "`@OrderBy`は`@OrderBy(value = \"id\", descending = true)`の形で降順を指定します。",

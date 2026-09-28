@@ -73,14 +73,8 @@
       "objectiveIds": [
         "ch61-o1"
       ],
-      "explanation": "Open Libertyは、Jakarta EEとMicroProfileの仕様に沿ったアプリケーションを動かすための軽量なアプリケーションサーバーです。ここでいうサーバーは物理マシンの意味ではなく、HTTP受付、DI、トランザクション、セキュリティなど、業務アプリが共通して必要とする実行機能を提供するランタイムです。アプリはJakarta RESTなどの標準APIを使い、Open Libertyがその処理を実装します。\n\n最初に、この章で使う4つの言葉を区別します。\n\n- 仕様: 「このAPIはどう書き、どう動くべきか」という共通ルールです。Jakarta EEやMicroProfileが定めます。\n- 実装: 仕様どおりに実際の処理を行うソフトウェアです。Open Libertyがこの役割を担います。\n- ランタイム／アプリケーションサーバー: アプリを起動し、HTTP、DI、トランザクションなどを提供する実行環境です。\n- WAR（Web Application Archive）: コンパイル済みクラスや設定をまとめたWebアプリの配布ファイルです。Open Libertyへ配置して実行します。\n\nこの分担は `pom.xml` の `scope` に現れます。\n\n```xml\n<dependency>\n  <groupId>jakarta.platform</groupId>\n  <artifactId>jakarta.jakartaee-api</artifactId>\n  <version>11.0.0</version>\n  <!-- コンパイルには要るが、実行時はサーバーが用意する -->\n  <scope>provided</scope>\n</dependency>\n```\n\n`provided` を付け忘れるとAPIがWARへ同梱され、**サーバーが持つ実装と二重になります。**起動時のエラーや、原因の分かりにくい不具合の元になります。\n\nアプリのJARにWebサーバーを組み込む構成もありますが、Open Libertyではランタイムの構成とアプリの成果物を分けて扱います。典型的なMavenプロジェクトは次の役割に分かれます。\n\n```text\npom.xml                         依存関係とLiberty Maven Plugin\nsrc/main/java                   Jakarta EE / MicroProfileのコード\nsrc/main/liberty/config/\n  server.xml                    有効にする機能、HTTPポートなど\ntarget/*.war                    配布するアプリケーション\n```\n\n`server.xml`はOpen Libertyランタイムの設定です。アプリコードを書き換えずに、ポート、Feature、データソースなどの環境構成を変えられます。`mvn liberty:dev`を実行すると、サーバーを起動したままコードや設定の変更を検出して再コンパイル・再配置できます。Enterキーでテストを実行でき、`-DhotTests`を付ければ変更時の自動テストも可能です。最初の手順は次の通りです。\n\n```bash\nmvn liberty:dev\ncurl 'http://localhost:9080/api/greeting?name=Java'\n# Ctrl+Cで終了\nmvn test\nmvn package\n```\n\nWARは「古い形式だから必ず避けるもの」ではありません。アプリとランタイム構成を分離し、組織で標準化したサーバー運用に載せやすい成果物です。コンテナではOpen Libertyのイメージへ`server.xml`とWARを組み込めます。まずは`labs/frameworks/open-liberty`の最小アプリで、コード、サーバー.xml、実行コマンドの関係を確認してください。",
-      "samples": [
-        {
-          "caption": "考え方を標準Javaで確かめる",
-          "code": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Map<String, String> commands = Map.of(\n                \"develop\", \"mvn liberty:dev\",\n                \"test\", \"mvn test\",\n                \"package\", \"mvn package\"\n        );\n        System.out.println(commands.get(\"develop\"));\n    }\n}",
-          "expected": "mvn liberty:dev"
-        }
-      ],
+      "explanation": "Open Libertyは、Jakarta EEとMicroProfileの仕様に沿ったアプリケーションを動かすための軽量なアプリケーションサーバーです。ここでいうサーバーは物理マシンの意味ではなく、HTTP受付、DI、トランザクション、セキュリティなど、業務アプリが共通して必要とする実行機能を提供するランタイムです。アプリはJakarta RESTなどの標準APIを使い、Open Libertyがその処理を実装します。\n\n最初に、この章で使う4つの言葉を区別します。\n\n- 仕様: 「このAPIはどう書き、どう動くべきか」という共通ルールです。Jakarta EEやMicroProfileが定めます。\n- 実装: 仕様どおりに実際の処理を行うソフトウェアです。Open Libertyがこの役割を担います。\n- ランタイム／アプリケーションサーバー: アプリを起動し、HTTP、DI、トランザクションなどを提供する実行環境です。\n- WAR（Web Application Archive）: コンパイル済みクラスや設定をまとめたWebアプリの配布ファイルです。Open Libertyへ配置して実行します。\n\nこの分担は `pom.xml` の `scope` に現れます。\n\n```xml\n<dependency>\n  <groupId>jakarta.platform</groupId>\n  <artifactId>jakarta.jakartaee-api</artifactId>\n  <version>11.0.0</version>\n  <!-- コンパイルには要るが、実行時はサーバーが用意する -->\n  <scope>provided</scope>\n</dependency>\n```\n\n`provided` を付け忘れるとAPIがWARへ同梱され、**サーバーが持つ実装と二重になります。**起動時のエラーや、原因の分かりにくい不具合の元になります。\n\nアプリのJARにWebサーバーを組み込む構成もありますが、Open Libertyではランタイムの構成とアプリの成果物を分けて扱います。典型的なMavenプロジェクトは次の役割に分かれます。\n\n```text\npom.xml                         依存関係とLiberty Maven Plugin\nsrc/main/java                   Jakarta EE / MicroProfileのコード\nsrc/main/liberty/config/\n  server.xml                    有効にする機能、HTTPポートなど\ntarget/*.war                    配布するアプリケーション\n```\n\n`server.xml`はOpen Libertyランタイムの設定です。アプリコードを書き換えずに、ポート、Feature、データソースなどの環境構成を変えられます。`mvn liberty:dev`を実行すると、サーバーを起動したままコードや設定の変更を検出して再コンパイル・再配置できます。Enterキーでテストを実行でき、`-DhotTests`を付ければ変更時の自動テストも可能です。最初の手順は次の通りです。\n\n```bash\nmvn liberty:dev\ncurl 'http://localhost:9080/api/greeting?name=Java'\n# Ctrl+Cで終了\nmvn test\nmvn package\n```\n\nWARは「古い形式だから必ず避けるもの」ではありません。アプリとランタイム構成を分離し、組織で標準化したサーバー運用に載せやすい成果物です。コンテナではOpen Libertyのイメージへ`server.xml`とWARを組み込めます。まずは`labs/frameworks/open-liberty`の最小アプリで、コード、`server.xml`、実行コマンドの関係を確認してください。",
+      "samples": [],
       "task": "アプリをOpen Libertyへ配置できる形にするため、**実際の `pom.xml`** を直してください。\n\nいまの `pom.xml` は、ライブラリを**アプリの中へ同梱する**書き方になっています。Jakarta EEやMicroProfileの実装は**サーバーが持っている**ので、アプリはAPIをコンパイル時に参照するだけで足ります。次の状態へ直してください。\n\n- `<packaging>` を `war` にする（サーバーへ配置する成果物の形）\n- `jakarta.jakartaee-api` の `<scope>` を `provided` にする\n- `microprofile-health-api` の `<scope>` も `provided` にする\n- `liberty-maven-plugin` を `<build><plugins>` へ宣言する（`groupId` は `io.openliberty.tools`）\n- `junit-jupiter` は `<scope>test</scope>` のまま残す\n\n> `provided` は「コンパイルには要るが、実行時は誰かが用意する」という意味です。これを付けないとAPIがWARへ同梱され、**サーバーが持つ実装と二重になって**起動時のエラーや原因の分かりにくい不具合につながります。",
       "hints": [
         "`<scope>provided</scope>` は `<version>` と並べて、その依存の中へ書きます。",
@@ -159,13 +153,7 @@
         "ch61-o2"
       ],
       "explanation": "Open Libertyを初めて使うとき最も重要なのがFeature Managerです。Featureは、Jakarta REST、CDI、Persistence、MicroProfile Healthなど、サーバーが提供する機能の単位です。Feature Managerは`server.xml`の中で「このアプリを動かすために、どの機能をランタイムへ読み込むか」を宣言する場所です。依存ライブラリをMavenへ追加するだけでは、サーバー側の実装機能が有効になるとは限りません。\n\n```xml\n<featureManager>\n    <feature>restfulWS-4.0</feature>\n    <feature>cdi-4.1</feature>\n    <feature>validation-3.1</feature>\n    <feature>jsonb-3.0</feature>\n    <feature>mpHealth-4.0</feature>\n</featureManager>\n```\n\nこの例では、REST受付、DI、入力検証、JSON変換、ヘルスチェックだけを有効にします。必要な機能が明確で、起動時に余計な機能を読み込まず、設定レビューでも用途を説明しやすい構成です。Jakarta EE 11では仕様名の変更に合わせ、入力検証のFeature IDが`validation-3.1`になった点にも注意してください。Persistenceを使うなら`persistence-3.2`、MicroProfile Configを使うなら`mpConfig-3.1`のように追加します。Feature間の依存関係はOpen Libertyが解決します。\n\n多数のJakarta EE機能をまとめて使う場合は`jakartaee-11.0`というplatform featureを1個有効にできます。最近の構成では、`<platform>jakartaee-11.0</platform>`を宣言し、`<feature>restfulWS</feature>`のようなversionless featureを組み合わせる方法もあります。platformが各Featureの版を決めるので、同じプラットフォーム内で版をそろえやすくなります。一方、個別のversioned featureは「このAPI版を使い続ける」という意図が設定に直接残ります。チームで方式を統一してください。\n\n「必要な分だけ有効にすると何がうれしいか」は、(1)サーバーの役割が設定から読める、(2)不要な機能と攻撃面を減らせる、(3)API版を意識して更新できる、という3点です。なおJakarta EE 11全体を使うこと自体が悪いわけではありません。複数機能を広く使う業務アプリならplatform featureの方が保守しやすい場合もあります。最小化を目的化せず、利用機能と運用方針に合う単位を選びます。",
-      "samples": [
-        {
-          "caption": "考え方を標準Javaで確かめる",
-          "code": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Map<String, String> features = Map.of(\n                \"rest\", \"restfulWS-4.0\",\n                \"di\", \"cdi-4.1\",\n                \"json\", \"jsonb-3.0\",\n                \"health\", \"mpHealth-4.0\"\n        );\n        List.of(\"rest\", \"di\", \"json\").stream().map(features::get).forEach(System.out::println);\n    }\n}",
-          "expected": "restfulWS-4.0\ncdi-4.1\njsonb-3.0"
-        }
-      ],
+      "samples": [],
       "type": "artifact",
       "task": "Open LibertyでREST APIとヘルスチェックを動かす`server.xml`を完成させる\n\n`<featureManager>`の中に、Jakarta REST、CDI、Validation、JSON-B、MicroProfile Healthの5機能を1回ずつ追加してください。さらに、外部からHTTPで接続できるよう、`defaultHttpEndpoint`のHTTPポートを`9080`、HTTPSポートを`9443`に設定してください。\n\nXMLでは開始タグと終了タグの組が必要です。要素の順序や字下げは採点に影響しません。要件を満たす別の設定を追加しても構いません。",
       "starterContent": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<server>\n    <featureManager>\n        <!-- TODO: 必要な5つのfeatureを追加する -->\n    </featureManager>\n\n    <!-- TODO: defaultHttpEndpointを追加する -->\n</server>\n",
@@ -251,15 +239,8 @@
       "objectiveIds": [
         "ch61-o3"
       ],
-      "explanation": "Open Libertyのアプリコードは、特定ベンダー専用APIよりJakarta EEの標準APIを中心に書けます。Jakarta RESTはHTTP API、CDI（Contexts and Dependency Injection）は部品の生成とDI、Jakarta Validationは入力検証、JSON-BはJavaオブジェクトとJSONの変換を担当します。実装を標準APIの境界に保つと、別のJakarta EE実装へ移す場合の変更範囲を抑えやすくなります。\n\n```java\n@Path(\"/greeting\")\n@Produces(MediaType.APPLICATION_JSON)\npublic class GreetingResource {\n    @Inject\n    GreetingService service;\n\n    @GET\n    public GreetingResponse greet(@QueryParam(\"name\") @NotBlank String name) {\n        return new GreetingResponse(service.message(name));\n    }\n}\n```\n\n`@Path`はURL、`@GET`はHTTPメソッド、`@Produces`はレスポンス形式です。`@Inject`によりCDIがGreetingServiceを渡します。Serviceには`@ApplicationScoped`を付けるとアプリ内で共有されます。共有されるため、利用者ごとの入力をフィールドへ保存してはいけません。\n\nJakarta Validationを有効にすると、`@NotBlank`などの制約違反をHTTP境界で検出できます。業務上の「在庫が足りない」のような規則はValidationだけへ押し込まずServiceで判定します。役割は、ResourceがHTTPを受ける、Serviceが業務ルールを実行する、RepositoryがDBを操作する、DTO（Data Transfer Object）がHTTPの入力・出力データを運ぶ、と分けます。この分担にすると変更理由が混ざりにくく、HTTPを起動しないServiceの単体テストも書きやすくなります。Open Libertyでは、これらのコードが使うランタイム機能をFeature Managerで有効にする点も忘れないでください。\n\nアプリのベースパスは`@ApplicationPath(\"/api\")`を付けた`Application`サブクラスで定義できます。この場合、上のResourceは`/api/greeting`になります。404、400、409などのエラーJSONを統一するには`ExceptionMapper`を使います。例外詳細を利用者へそのまま公開しない原則も同じです。\n\n## 次の実装演習へ\n\nこの節は責務とリクエストの流れを確認する概念レッスンです。HTTP文字列を自分で組み立てるだけではフレームワークの動作を確かめられません。61-6の実行演習で、実際のフレームワークを通した検証へ進みます。",
-      "samples": [
-        {
-          "caption": "考え方を標準Javaで確かめる",
-          "code": "import java.util.*;\n\npublic class Main {\n    record GreetingResponse(String message) {}\n    static class GreetingService {\n        GreetingResponse greet(String name) {\n            return new GreetingResponse(\"Hello, \" + name.trim());\n        }\n    }\n    public static void main(String[] args) {\n        String name = new Scanner(System.in).nextLine();\n        System.out.println(name.isBlank() ? \"400\" : new GreetingService().greet(name).message());\n    }\n}",
-          "stdin": "Java\n",
-          "expected": "Hello, Java"
-        }
-      ],
+      "explanation": "Open Libertyのアプリコードは、特定ベンダー専用APIよりJakarta EEの標準APIを中心に書けます。Jakarta RESTはHTTP API、CDI（Contexts and Dependency Injection）は部品の生成とDI、Jakarta Validationは入力検証、JSON-BはJavaオブジェクトとJSONの変換を担当します。実装を標準APIの境界に保つと、別のJakarta EE実装へ移す場合の変更範囲を抑えやすくなります。\n\n```java\n@Path(\"/greeting\")\n@Produces(MediaType.APPLICATION_JSON)\npublic class GreetingResource {\n    @Inject\n    GreetingService service;\n\n    @GET\n    public GreetingResponse greet(@QueryParam(\"name\") @NotBlank String name) {\n        return new GreetingResponse(service.message(name));\n    }\n}\n```\n\n`@Path`はURL、`@GET`はHTTPメソッド、`@Produces`はレスポンス形式です。`@Inject`によりCDIがGreetingServiceを渡します。Serviceには`@ApplicationScoped`を付けるとアプリ内で共有されます。共有されるため、利用者ごとの入力をフィールドへ保存してはいけません。\n\nJakarta Validationを有効にすると、`@NotBlank`などの制約違反をHTTP境界で検出できます。業務上の「在庫が足りない」のような規則はValidationだけへ押し込まずServiceで判定します。役割は、ResourceがHTTPを受ける、Serviceが業務ルールを実行する、RepositoryがDBを操作する、DTO（Data Transfer Object）がHTTPの入力・出力データを運ぶ、と分けます。この分担にすると変更理由が混ざりにくく、HTTPを起動しないServiceの単体テストも書きやすくなります。Open Libertyでは、これらのコードが使うランタイム機能をFeature Managerで有効にする点も忘れないでください。\n\nアプリのベースパスは`@ApplicationPath(\"/api\")`を付けた`Application`サブクラスで定義できます。この場合、上のResourceは`/api/greeting`になります。404、400、409などのエラーJSONを統一するには`ExceptionMapper`を使います。例外詳細を利用者へそのまま公開しない原則も同じです。\n\n## 次の実装演習へ\n\n実際のフレームワークを通した検証は、61-6の実行演習で行います。",
+      "samples": [],
       "kind": "practice",
       "quiz": [
         {
@@ -285,15 +266,15 @@
           "explanation": "依存先を注入してフィールドへ持つのは普通の書き方で、初期化後に変わらないので共有できます。業務処理をメソッドへ分けることも、単体テストを書くことも問題ありません。避けるのは、リクエストごとに変わる入力をフィールドへ置くことです。`@ApplicationScoped` は共有されるインスタンスなので、同時アクセスで値が混ざります。"
         },
         {
-          "question": "パス文字列を結合するJavaコードが動きました。まだ確かめていないものは？",
+          "question": "Resourceクラスを普通のJavaとして new して呼ぶテストが通りました。まだ確かめていないものは？",
           "choices": [
-            "作ったパスの先頭にスラッシュがあるか",
-            "連結したパスに重複スラッシュがあるか",
+            "メソッドが期待どおりの値を返すか",
+            "Serviceへ渡した引数が正しいか",
             "実コンテナの経路登録や注入が動くか",
-            "連結後のパスが期待する文字列と等しいか"
+            "業務ルールの分岐が期待どおりか"
           ],
           "answer": 2,
-          "explanation": "パス文字列を作る処理はJakarta RESTの実行ではありません。61-6の実サーバーでエンドポイントと依存注入を確かめます。"
+          "explanation": "普通のJavaとして呼ぶテストで確かめられるのは、戻り値や業務ルールまでです。`@Path` による経路の登録や `@Inject` による注入はコンテナが行うので、61-6の実サーバーで確かめます。"
         }
       ],
       "lessonType": "concept"
@@ -305,13 +286,7 @@
         "ch61-o4"
       ],
       "explanation": "MicroProfileは、マイクロサービスやクラウド運用で共通して必要になるAPI仕様の集合です。Open Libertyでは必要なMicroProfile Featureを有効にして使います。Jakarta EEがWeb、DI、永続化など業務アプリの土台を広く扱うのに対し、MicroProfileは外部設定、ヘルス、耐障害性、API文書、メトリクスなどを補います。\n\n- MicroProfile Config: 環境変数や設定ファイルから値を読みます。`@ConfigProperty`で型付きに注入できます。秘密情報をソースへ埋め込まないためにも使います。\nMicroProfile Configが読む設定ファイルは `META-INF/microprofile-config.properties` です。\n\n```properties\ncafe.orders.endpoint=http://localhost:8080/orders\ncafe.orders.timeout-ms=2000\n# このファイル自身の優先順位\nconfig_ordinal=150\n```\n\n設定元は**優先順位（ordinal）**で重なります。既定ではシステムプロパティが400、環境変数が300、このファイルが100で、大きいほうが勝ちます。そのため環境変数で上書きできます。**秘密情報はこのファイルへ書きません。** リポジトリへ入る場所に置くと履歴からも消えないので、環境変数やsecret管理の側に置きます。\n\n- MicroProfile Health: Liveness、Readiness、Startupを公開します。`@Readiness`を付けたHealthCheckで、依存先を含めて受付可能か表せます。\n- MicroProfile Fault Tolerance: Timeout（一定時間で処理を打ち切る）、Retry（一時失敗を再試行する）、Circuit Breaker（失敗が続く依存先への呼び出しを一時停止する）、Bulkhead（同時実行数を分離・制限して障害の波及を抑える）などを宣言します。Retryの前には、同じ処理を繰り返しても結果が壊れない冪等性があるか、総待ち時間が許容内かを確認します。\n- MicroProfile OpenAPI: API仕様を生成・補足し、利用者と契約を共有します。\n\n```java\n@Readiness\n@ApplicationScoped\npublic class DatabaseReadiness implements HealthCheck {\n    public HealthCheckResponse call() {\n        return database.ping()\n            ? HealthCheckResponse.up(\"database\")\n            : HealthCheckResponse.down(\"database\");\n    }\n}\n```\n\nHealthは監視のための情報で、例外を握りつぶす機能ではありません。ReadinessがDOWNなら新規通信から外し、LivenessがDOWNならプロセス再起動の候補になります。DBの一時障害をLivenessへ含めると再起動ループになり得るため、目的を分けます。\n\n標準APIを使う利点は、アプリコードと運用規約を特定実装だけに閉じにくいことです。ただし、設定キー、監視基盤への連携、実際の障害回復手順はチームで設計する必要があります。Featureを有効にしただけで可用性が完成するわけではありません。",
-      "samples": [
-        {
-          "caption": "考え方を標準Javaで確かめる",
-          "code": "import java.util.*;\n\npublic class Main {\n    record Health(String name, boolean up) {}\n    public static void main(String[] args) {\n        Health database = new Health(\"database\", true);\n        System.out.println(database.name() + \"=\" + (database.up() ? \"UP\" : \"DOWN\"));\n    }\n}",
-          "expected": "database=UP"
-        }
-      ],
+      "samples": [],
       "task": "設定をコードとリポジトリから外へ出してください。編集するのは **MicroProfile Configが読む `META-INF/microprofile-config.properties`** です。\n\nいまはAPIキーがこのファイルへ直接書かれています。リポジトリへ入る場所に秘密情報を置くと、履歴からも消えません。次の状態へ直してください。\n\n- APIキーの行を**このファイルから消す**（実行時に環境変数から読みます）\n- 呼び出し先 `cafe.orders.endpoint` を `http://localhost:8080/orders` にする\n- 待ち時間 `cafe.orders.timeout-ms` を `2000` にする\n- `config_ordinal` を `150` にして、このファイルの優先順位を明示する\n\nMicroProfile Configは複数の設定元を**優先順位（ordinal）**で重ねます。既定ではシステムプロパティが400、環境変数が300、このファイルが100です。150にしても環境変数（300）より低いので、**環境側から上書きできる**状態は保てます。\n\n> このファイルに置くのは「どの環境でも同じ既定値」と「環境ごとに上書きしてよい値」です。秘密情報は環境変数やsecret管理の側に置きます。",
       "hints": [
         "`キー=値` を1行ずつ書きます。消すべき行は、コメントにするのではなく削除します（コメントでもリポジトリの履歴には残りますが、この演習ではファイルから消えていることを見ます）。",
@@ -382,14 +357,8 @@
       "objectiveIds": [
         "ch61-o5"
       ],
-      "explanation": "Open LibertyのZero Migration Architectureは、ランタイム本体を新しくしても、アプリが指定するversioned featureを維持することで、そのFeatureのAPIと動作をできるだけ保つ設計です。目的は、セキュリティ修正やバグ修正を含む新しいOpen Libertyランタイムへ継続的に上げやすくすることです。\n\n```text\n変更前: Open Liberty旧版 + restfulWS-4.0\n変更後: Open Liberty新版 + restfulWS-4.0\n                              ↑ Feature版は同じ\n```\n\nこのランタイム更新と、`restfulWS-4.0`から将来の新しいFeature版へ変えるAPI仕様更新は別です。後者では仕様差に合わせたコード・設定変更が必要になる可能性があります。「Zero Migrationだからテスト不要」「すべての変更が無条件で互換」という意味ではありません。\n\n互換性の中心は、Open Libertyが文書化して提供する構成とFeatureです。Java自体の版を変える、アプリが直接使うサードパーティライブラリを変える、文書化されていない内部動作へ依存する、セキュリティ上どうしても挙動修正が必要になる、といった場合は別の影響があり得ます。ランタイム更新でも回帰テストと段階リリースは行います。\n\n実務では次の2本を分けて計画します。\n\n1. 定期的なランタイム更新: Feature版は維持し、脆弱性修正を早く取り込む。自動テスト、起動確認、主要APIのスモークテストを行う。\n2. 計画的な仕様更新: Feature版やJakarta EE platform版を上げ、仕様差、非推奨API、コード、設定を調査して移行する。\n\n100個のサービスでランタイム更新のたびに全コード移行が必要になる状況を避け、ランタイム保守とAPI仕様移行を別の速度で進められることが、Zero Migrationの実務的な価値です。\n\nこの単元では更新項目をJavaで分類せず、Zero Migrationが保証する範囲と、別途migration・testが必要な変更をクイズで見分けます。",
-      "samples": [
-        {
-          "caption": "考え方を標準Javaで確かめる",
-          "code": "import java.util.*;\n\npublic class Main {\n    static String impact(boolean runtimeChanged, boolean featureChanged) {\n        if (featureChanged) return \"SPEC_MIGRATION\";\n        if (runtimeChanged) return \"ZERO_MIGRATION_SCOPE\";\n        return \"NO_CHANGE\";\n    }\n    public static void main(String[] args) {\n        System.out.println(impact(true, false));\n    }\n}",
-          "expected": "ZERO_MIGRATION_SCOPE"
-        }
-      ],
+      "explanation": "Open LibertyのZero Migration Architectureは、ランタイム本体を新しくしても、アプリが指定するversioned featureを維持することで、そのFeatureのAPIと動作をできるだけ保つ設計です。目的は、セキュリティ修正やバグ修正を含む新しいOpen Libertyランタイムへ継続的に上げやすくすることです。\n\n```text\n変更前: Open Liberty旧版 + restfulWS-4.0\n変更後: Open Liberty新版 + restfulWS-4.0\n                              ↑ Feature版は同じ\n```\n\nこのランタイム更新と、`restfulWS-4.0`から将来の新しいFeature版へ変えるAPI仕様更新は別です。後者では仕様差に合わせたコード・設定変更が必要になる可能性があります。「Zero Migrationだからテスト不要」「すべての変更が無条件で互換」という意味ではありません。\n\n互換性の中心は、Open Libertyが文書化して提供する構成とFeatureです。Java自体の版を変える、アプリが直接使うサードパーティライブラリを変える、文書化されていない内部動作へ依存する、セキュリティ上どうしても挙動修正が必要になる、といった場合は別の影響があり得ます。ランタイム更新でも回帰テストと段階リリースは行います。\n\n実務では次の2本を分けて計画します。\n\n1. 定期的なランタイム更新: Feature版は維持し、脆弱性修正を早く取り込む。自動テスト、起動確認、主要APIのスモークテストを行う。\n2. 計画的な仕様更新: Feature版やJakarta EE platform版を上げ、仕様差、非推奨API、コード、設定を調査して移行する。\n\n100個のサービスでランタイム更新のたびに全コード移行が必要になる状況を避け、ランタイム保守とAPI仕様移行を別の速度で進められることが、Zero Migrationの実務的な価値です。",
+      "samples": [],
       "quiz": [
         {
           "question": "Zero Migrationが主に対象とする更新はどれですか？",
@@ -435,13 +404,7 @@
         "ch61-o4"
       ],
       "explanation": "Open Libertyでも、純粋なServiceのJUnit、Resourceの境界テスト、実サーバーを起動する結合テストを分けます。`liberty:dev`では変更を反映しながらテストでき、MavenのFailsafe Pluginを組み合わせれば、サーバー起動後にHTTP経由の統合テストを実行できます。本番と同じFeature、設定、Java版で確認することが大切です。\n\n運用ではMicroProfile Health、構造化ログ、メトリクス、トレースを監視基盤へ接続します。`server.xml`や環境変数は成果物と同様にレビューし、Featureの変更、ポート、TLS、データソース、秘密情報の渡し方を管理します。コンテナではランタイムイメージの更新とアプリWARの更新を分けて追跡できます。\n\nInstantOnはOpen Liberty固有の起動高速化手段です。CRIU（実行中プロセスの状態を保存・復元するLinuxの仕組み）を使い、JVMとアプリを途中まで起動したcheckpointをイメージへ保存します。コンテナ起動時は通常の初期化を最初から繰り返さずrestoreするため、ミリ秒単位の起動を狙えます。アプリをOS向けのネイティブ実行ファイルへ事前コンパイルする方式とは異なり、JVM/JITの実行特性を保ったまま高速起動を狙う方法です。\n\nただしInstantOnは通常起動のスイッチではありません。Linux、CRIU、対応JDK、コンテナ権限、対応Featureなどの条件を確認する必要があります。checkpoint時に秘密情報や外部接続を固定しないよう、初期化をcheckpoint前とrestore後のどちらで行うかも設計します。まず通常のJVM起動を正しく運用し、起動時間が要件上の問題になったときに測定して採用してください。\n\n起動の速さだけで製品を選ばず、長時間稼働時の性能、メモリ、ビルド・運用の複雑さ、プラットフォーム制約を合わせて比較します。\n\n必須演習ではOpen Libertyの`server.xml`、Jakarta Validation、MicroProfile Healthを編集し、実サーバーのHTTP応答を確認します。InstantOn対応表をJavaで分類する問題は任意です。",
-      "samples": [
-        {
-          "caption": "考え方を標準Javaで確かめる",
-          "code": "import java.util.*;\n\npublic class Main {\n    static boolean instantOnReady(boolean linux, boolean criu, boolean supportedJdk, boolean supportedFeatures) {\n        return linux && criu && supportedJdk && supportedFeatures;\n    }\n    public static void main(String[] args) {\n        System.out.println(instantOnReady(true, true, true, true) ? \"INSTANTON\" : \"REGULAR_JVM\");\n    }\n}",
-          "expected": "INSTANTON"
-        }
-      ],
+      "samples": [],
       "quiz": [
         {
           "question": "InstantOnがNative Imageと異なる点はどれですか？",

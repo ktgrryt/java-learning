@@ -66,14 +66,8 @@
       "objectiveIds": [
         "ch60-o1"
       ],
-      "explanation": "Spring Bootは、Spring Frameworkを使ったアプリケーションを少ない準備で起動するための仕組みです。最初に区別したいのは、Spring FrameworkがDI（必要な部品を外から渡す仕組み）やWeb処理などの土台で、Spring Bootが依存関係・初期設定・起動方法をまとめる役割だという点です。\n\nこの章で繰り返し使う言葉を先に整理します。\n\n- Bean（ビーン）: Springが生成し、他の部品との接続や寿命を管理するJavaオブジェクトです。ControllerやServiceが代表例です。\n- クラスパス: 実行中のJavaから参照できるクラスやJARの一覧です。Spring Bootはここに何のライブラリがあるかを自動構成の判断材料にします。\n- Starter: 目的に必要な依存ライブラリをひとまとめにした入口です。Starter自身が画面やDB処理を行うわけではありません。\n\nStarterは `pom.xml` へこう書きます。\n\n```xml\n<parent>\n  <groupId>org.springframework.boot</groupId>\n  <artifactId>spring-boot-starter-parent</artifactId>\n  <version>4.1.0</version>\n</parent>\n\n<dependencies>\n  <dependency>\n    <groupId>org.springframework.boot</groupId>\n    <artifactId>spring-boot-starter-web</artifactId>\n  </dependency>\n</dependencies>\n```\n\n**各Starterに版を書いていない**点が要点です。版は `spring-boot-starter-parent` がまとめて決めます。個別に `<version>` を書くと、parentが決めた組み合わせから外れて、実行時に壊れることがあります。テスト専用のStarterには `<scope>test</scope>` を付け、配布物へ混ざらないようにします。\n\nSpring Bootでは、まずStarterという用途別の依存関係セットを選びます。例えば`spring-boot-starter-web`はSpring MVC、JSON変換、組み込みWebサーバーなど、Web APIに必要な部品をまとめて追加します。個々のライブラリと互換バージョンを初心者が一つずつ調べなくてよいことが利点です。ただし、Starterは機能そのものではなく、関連ライブラリを安全な組み合わせで集める入口です。\n\n`@SpringBootApplication`を付けたクラスから起動すると、Spring Bootはクラスパス上の依存関係と設定を見て、必要になりそうな構成を自動で用意します。これがAuto Configuration（自動構成）です。Web StarterがあればWebアプリ用の構成を行い、Tomcatなどの組み込みサーバーも同じJARの中から起動できます。そのため、別にアプリケーションサーバーへWARを配る手順がなくても、`java -jar app.jar`で自己完結して動かせます。\n\n最小プロジェクトでは、`pom.xml`にStarterとSpring Boot Maven Pluginを置き、次のクラスを作ります。`main`メソッドはSpringの部品を集め、組み込みサーバーを起動する入口です。\n\n```java\n@SpringBootApplication\npublic class Application {\n    public static void main(String[] args) {\n        SpringApplication.run(Application.class, args);\n    }\n}\n```\n\nこの教材の`labs/frameworks/spring-boot`は、開発中は`mvn spring-boot:run`、テストは`mvn test`、配布用JARは`mvn package`で作れます。Maven Wrapper（`mvnw`）が置かれた実務プロジェクトでは、同じgoalを`./mvnw spring-boot:run`のように実行します。最初はWeb、Validation、Actuatorだけのように、目的を説明できるStarterだけを追加してください。依存関係を増やすほど、自動構成の候補、更新対象、攻撃面も増えるからです。",
-      "samples": [
-        {
-          "caption": "考え方を標準Javaで確かめる",
-          "code": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Map<String, String> starters = Map.of(\n                \"web\", \"spring-boot-starter-web\",\n                \"validation\", \"spring-boot-starter-validation\",\n                \"operations\", \"spring-boot-starter-actuator\"\n        );\n        List<String> requirements = List.of(\"web\", \"validation\", \"operations\");\n        requirements.stream().map(starters::get).forEach(System.out::println);\n    }\n}",
-          "expected": "spring-boot-starter-web\nspring-boot-starter-validation\nspring-boot-starter-actuator"
-        }
-      ],
+      "explanation": "Spring Bootは、Spring Frameworkを使ったアプリケーションを少ない準備で起動するための仕組みです。最初に区別したいのは、Spring FrameworkがDI（必要な部品を外から渡す仕組み）やWeb処理などの土台で、Spring Bootが依存関係・初期設定・起動方法をまとめる役割だという点です。\n\nこの章で繰り返し使う言葉を先に整理します。\n\n- Bean（ビーン）: Springが生成し、他の部品との接続や寿命を管理するJavaオブジェクトです。ControllerやServiceが代表例です。\n- クラスパス: 実行中のJavaから参照できるクラスやJARの一覧です。Spring Bootはここに何のライブラリがあるかを自動構成の判断材料にします。\n- Starter: 目的に必要な依存ライブラリをひとまとめにした入口です。Starter自身が画面やDB処理を行うわけではありません。\n\nStarterは `pom.xml` へこう書きます。\n\n```xml\n<parent>\n  <groupId>org.springframework.boot</groupId>\n  <artifactId>spring-boot-starter-parent</artifactId>\n  <version>4.1.0</version>\n</parent>\n\n<dependencies>\n  <dependency>\n    <groupId>org.springframework.boot</groupId>\n    <artifactId>spring-boot-starter-web</artifactId>\n  </dependency>\n</dependencies>\n```\n\n**各Starterに版を書いていない**点が要点です。版は `spring-boot-starter-parent` がまとめて決めます。個別に `<version>` を書くと、parentが決めた組み合わせから外れて、実行時に壊れることがあります。テスト専用のStarterには `<scope>test</scope>` を付け、配布物へ混ざらないようにします。\n\n例えば`spring-boot-starter-web`は、Spring MVC、JSON変換、組み込みWebサーバーなど、Web APIに必要な部品をまとめて追加します。個々のライブラリと互換バージョンを一つずつ調べなくてよいことが利点です。\n\n`@SpringBootApplication`を付けたクラスから起動すると、Spring Bootはクラスパス上の依存関係と設定を見て、必要になりそうな構成を自動で用意します。これがAuto Configuration（自動構成）です。Web StarterがあればWebアプリ用の構成を行い、Tomcatなどの組み込みサーバーも同じJARの中から起動できます。そのため、別にアプリケーションサーバーへWARを配る手順がなくても、`java -jar app.jar`で自己完結して動かせます。\n\n最小プロジェクトでは、`pom.xml`にStarterとSpring Boot Maven Pluginを置き、次のクラスを作ります。`main`メソッドはSpringの部品を集め、組み込みサーバーを起動する入口です。\n\n```java\n@SpringBootApplication\npublic class Application {\n    public static void main(String[] args) {\n        SpringApplication.run(Application.class, args);\n    }\n}\n```\n\nこの教材の`labs/frameworks/spring-boot`は、開発中は`mvn spring-boot:run`、テストは`mvn test`、配布用JARは`mvn package`で作れます。Maven Wrapper（`mvnw`）が置かれた実務プロジェクトでは、同じgoalを`./mvnw spring-boot:run`のように実行します。最初はWeb、Validation、Actuatorだけのように、目的を説明できるStarterだけを追加してください。依存関係を増やすほど、自動構成の候補、更新対象、攻撃面も増えるからです。",
+      "samples": [],
       "task": "注文APIに必要なStarterを、**実際の`pom.xml`へ宣言**してください。\n\n要件は4つです。\n\n- REST APIをJSONで公開する\n- 入力を検証する\n- 稼働情報（health / info など）を公開する\n- テストを書く（テスト時だけ使う）\n\n`spring-boot-starter-parent` はすでに書いてあります。**これがあるので各Starterに `<version>` を書く必要はありません。個別に版を書くと、parentが決めた組み合わせから外れ、実行時に壊れることがあります。**\n\n`groupId` は `org.springframework.boot` です。テスト用のStarterには `<scope>test</scope>` を付けます（本番の実行時には要らない依存なので、付けないと配布物へ混ざります）。\n\n要件に無いStarterは足さないでください。使わない依存はビルド時間と攻撃面を増やし、クラスパスにあるだけで自動構成が動いてしまうこともあります。",
       "hints": [
         "`<dependencies>` の中へ `<dependency>` を並べます。1つのStarterにつき `<groupId>` と `<artifactId>` の2つを書けば十分です。",
@@ -161,15 +155,8 @@
       "objectiveIds": [
         "ch60-o2"
       ],
-      "explanation": "REST APIでは、HTTPを受け取る処理と業務ルールを同じメソッドへ詰め込まないことが重要です。ControllerはURL、HTTPメソッド、入力、HTTPステータスを扱います。Serviceは「注文できるか」「表示名をどう作るか」といった業務ルールを扱います。DBアクセスが必要なら、さらにRepositoryへ分けます。こうするとHTTPを起動しないServiceの単体テストと、Webの接続だけを見るControllerテストを分けられます。\n\n```java\n@RestController\n@RequestMapping(\"/api/greetings\")\nclass GreetingController {\n    private final GreetingService service;\n\n    GreetingController(GreetingService service) {\n        this.service = service;\n    }\n\n    @GetMapping\n    GreetingResponse greet(@RequestParam @NotBlank String name) {\n        return new GreetingResponse(service.message(name));\n    }\n}\n```\n\n`@RestController`は戻り値をJSONなどのHTTPレスポンスへ変換するControllerです。`@GetMapping`はGETリクエストとの対応、`@RequestParam`はクエリ文字列、`@NotBlank`は空文字を拒否する入力検証です。DTO（Data Transfer Object）は、HTTPで受け取る値や返す値を運ぶための専用クラスです。入力用・出力用のDTOをEntity（DBへ保存する形）と分けると、DB設計の変更がそのままAPI変更になるのを防ぎやすくなります。\n\nServiceはコンストラクタで注入します。フィールドへ直接`@Autowired`を付ける方法より、必要な依存関係が明確で、通常のJavaコードとしてテストしやすくなります。また、ControllerやServiceは通常1個だけ共有されるBeanです。リクエストごとの名前や合計金額をフィールドへ保存すると、同時アクセスで値が混ざります。リクエスト固有の値はローカル変数として扱ってください。\n\n入力不正は400、対象なしは404、作成成功は201など、HTTPの意味に合わせて返します。想定される業務例外は`@RestControllerAdvice`へ集めると、全Controllerで同じエラーJSONを返せます。例外の詳細やスタックトレースを利用者へそのまま返してはいけません。\n\n## 次の実装演習へ\n\nこの節は責務とリクエストの流れを確認する概念レッスンです。HTTP文字列を自分で組み立てるだけではフレームワークの動作を確かめられません。60-5の実行演習で、実際のフレームワークを通した検証へ進みます。",
-      "samples": [
-        {
-          "caption": "考え方を標準Javaで確かめる",
-          "code": "import java.util.*;\n\npublic class Main {\n    record GreetingResponse(String message) {}\n\n    static class GreetingService {\n        GreetingResponse greet(String name) {\n            return new GreetingResponse(\"Hello, \" + name.trim());\n        }\n    }\n\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        String name = sc.nextLine();\n        if (name.isBlank()) {\n            System.out.println(\"400 name is required\");\n            return;\n        }\n        System.out.println(\"200 \" + new GreetingService().greet(name).message());\n    }\n}",
-          "stdin": "Java\n",
-          "expected": "200 Hello, Java"
-        }
-      ],
+      "explanation": "REST APIでは、HTTPを受け取る処理と業務ルールを同じメソッドへ詰め込まないことが重要です。ControllerはURL、HTTPメソッド、入力、HTTPステータスを扱います。Serviceは「注文できるか」「表示名をどう作るか」といった業務ルールを扱います。DBアクセスが必要なら、さらにRepositoryへ分けます。こうするとHTTPを起動しないServiceの単体テストと、Webの接続だけを見るControllerテストを分けられます。\n\n```java\n@RestController\n@RequestMapping(\"/api/greetings\")\nclass GreetingController {\n    private final GreetingService service;\n\n    GreetingController(GreetingService service) {\n        this.service = service;\n    }\n\n    @GetMapping\n    GreetingResponse greet(@RequestParam @NotBlank String name) {\n        return new GreetingResponse(service.message(name));\n    }\n}\n```\n\n`@RestController`は戻り値をJSONなどのHTTPレスポンスへ変換するControllerです。`@GetMapping`はGETリクエストとの対応、`@RequestParam`はクエリ文字列、`@NotBlank`は空文字を拒否する入力検証です。DTO（Data Transfer Object）は、HTTPで受け取る値や返す値を運ぶための専用クラスです。入力用・出力用のDTOをEntity（DBへ保存する形）と分けると、DB設計の変更がそのままAPI変更になるのを防ぎやすくなります。\n\nServiceはコンストラクタで注入します。フィールドへ直接`@Autowired`を付ける方法より、必要な依存関係が明確で、通常のJavaコードとしてテストしやすくなります。また、ControllerやServiceは通常1個だけ共有されるBeanです。リクエストごとの名前や合計金額をフィールドへ保存すると、同時アクセスで値が混ざります。リクエスト固有の値はローカル変数として扱ってください。\n\n入力不正は400、対象なしは404、作成成功は201など、HTTPの意味に合わせて返します。想定される業務例外は`@RestControllerAdvice`へ集めると、全Controllerで同じエラーJSONを返せます。例外の詳細やスタックトレースを利用者へそのまま返してはいけません。\n\n## 次の実装演習へ\n\n実際のフレームワークを通した検証は、60-5の実行演習で行います。",
+      "samples": [],
       "kind": "practice",
       "quiz": [
         {
@@ -214,14 +201,8 @@
       "objectiveIds": [
         "ch60-o3"
       ],
-      "explanation": "Auto Configurationは魔法ではありません。主に「特定のクラスが依存関係にあるか」「特定の設定値があるか」「利用者が同種のBeanをまだ定義していないか」といった条件を確認し、条件を満たした構成だけを登録します。例えばDataSource用ライブラリと接続設定があれば候補を作り、自分でDataSourceのBeanを定義すれば自動構成が後退（back off）する、という設計です。\n\n自動構成が期待どおりでないときは、推測で設定を増やさず、起動ログとCondition Evaluation Reportを確認します。`--debug`で起動すると、どの自動構成が有効・無効になり、どの条件が理由だったかを調べられます。自動構成クラスは通常のアプリコードで直接呼び出すものではありません。\n\n環境ごとに変わる値はソースコードへ埋め込まず、`application.properties`または`application.yml`へ置きます。さらに本番では環境変数やコマンドライン引数などで上書きできます。`@ConfigurationProperties`は`app.greeting.prefix`のような自作設定を型付きのクラスへまとめ、検証しやすくする方法です。1個だけ参照する場合は`@Value`も使えますが、関連する設定が増えたら`@ConfigurationProperties`の方が見通しが良くなります。\n\n```properties\napp.greeting.prefix=Hello\nserver.port=8080\n```\n\n```java\n@ConfigurationProperties(\"app.greeting\")\npublic record GreetingProperties(@NotBlank String prefix) {}\n```\n\n優先順位を把握していないと、ファイルを直したのに環境変数の値が勝ち続けることがあります。また、パスワードやAPIキーをGit管理される設定ファイルへ書いてはいけません。秘密情報はSecret管理機構などから実行時に渡し、ログにも出さないでください。\n\nこの単元では設定値の優先順位をJavaのif文で再現せず、外部設定とAuto Configurationがどの条件で選ばれるかをクイズで確認します。",
-      "samples": [
-        {
-          "caption": "考え方を標準Javaで確かめる",
-          "code": "import java.util.*;\n\npublic class Main {\n    static String choose(String environment, String file, String defaultValue) {\n        if (!environment.equals(\"-\")) return environment;\n        if (!file.equals(\"-\")) return file;\n        return defaultValue;\n    }\n\n    public static void main(String[] args) {\n        System.out.println(choose(\"Bonjour\", \"Hello\", \"Hi\"));\n    }\n}",
-          "expected": "Bonjour"
-        }
-      ],
+      "explanation": "Auto Configurationは魔法ではありません。主に「特定のクラスが依存関係にあるか」「特定の設定値があるか」「利用者が同種のBeanをまだ定義していないか」といった条件を確認し、条件を満たした構成だけを登録します。例えばDataSource用ライブラリと接続設定があれば候補を作り、自分でDataSourceのBeanを定義すれば自動構成が後退（back off）する、という設計です。\n\n自動構成が期待どおりでないときは、推測で設定を増やさず、起動ログとCondition Evaluation Reportを確認します。`--debug`で起動すると、どの自動構成が有効・無効になり、どの条件が理由だったかを調べられます。自動構成クラスは通常のアプリコードで直接呼び出すものではありません。\n\n環境ごとに変わる値はソースコードへ埋め込まず、`application.properties`または`application.yml`へ置きます。さらに本番では環境変数やコマンドライン引数などで上書きできます。`@ConfigurationProperties`は`app.greeting.prefix`のような自作設定を型付きのクラスへまとめ、検証しやすくする方法です。1個だけ参照する場合は`@Value`も使えますが、関連する設定が増えたら`@ConfigurationProperties`の方が見通しが良くなります。\n\n```properties\napp.greeting.prefix=Hello\nserver.port=8080\n```\n\n```java\n@ConfigurationProperties(\"app.greeting\")\npublic record GreetingProperties(@NotBlank String prefix) {}\n```\n\n優先順位を把握していないと、ファイルを直したのに環境変数の値が勝ち続けることがあります。また、パスワードやAPIキーをGit管理される設定ファイルへ書いてはいけません。秘密情報はSecret管理機構などから実行時に渡し、ログにも出さないでください。",
+      "samples": [],
       "quiz": [
         {
           "question": "自分で同種のBeanを定義したとき、自動構成が登録をやめる設計を何と捉えればよいですか？",
@@ -265,14 +246,8 @@
       "objectiveIds": [
         "ch60-o1"
       ],
-      "explanation": "Spring Bootの強みは、Webだけでなく業務アプリでよく使う機能を同じ考え方で組み合わせられることです。ただし「Springだから全部入れる」のではなく、解決する課題に応じて選びます。\n\n- Spring Data JPA: Repositoryを通じたDBアクセスを支援する。SQLやトランザクションの理解は引き続き必要です。\n- Spring Security: 認証（誰かを確認）と認可（何を許すか）を担当する。Starterを追加しただけで業務権限設計が完成するわけではありません。\n- Spring Batch: 大量データを一定件数ずつ読み、加工し、書き込むバッチを構成する。再実行や途中再開の設計と組み合わせます。\n- Spring for Apache Kafkaなど: メッセージ送受信を支援する。少なくとも1回配信を前提に、重複しても壊れない処理が必要です。\n- Spring Cloud: 分散システム向け機能の集合です。単一アプリに必要とは限りません。\n\nどのモジュールも、使うときは `pom.xml` へStarterを1つ足す形になります。\n\n```xml\n<dependency>\n  <groupId>org.springframework.boot</groupId>\n  <artifactId>spring-boot-starter-data-jpa</artifactId>\n</dependency>\n```\n\n| 要件 | Starter |\n|---|---|\n| REST APIを公開する | `spring-boot-starter-web` |\n| DBへ読み書きする | `spring-boot-starter-data-jpa` |\n| ログインを扱う | `spring-boot-starter-security` |\n| 夜間バッチを回す | `spring-boot-starter-batch` |\n| 稼働情報を公開する | `spring-boot-starter-actuator` |\n\n**要らないStarterを残さないことも設計です。** クラスパスにあるだけで自動構成が動くことがあるので、「入れたが使っていない」状態は意図しない挙動の原因になります。\n\nDB更新のまとまりはServiceの業務操作を境界に`@Transactional`を付けるのが基本です。Controller全体や1件ずつの細かな呼び出しへ無計画に付けると、トランザクションが長くなったり、途中だけ確定したりします。外部API呼び出しはDBトランザクションで巻き戻せない点にも注意してください。\n\nエコシステムが広いことは、組織でWeb、DB、認証、バッチ、メッセージングを一つの技術体系に寄せやすい利点です。同時に、各モジュールの目的を理解せずStarterだけ増やすと、自動構成に振り回されます。要件、責務、障害時の挙動を先に言葉にして選定してください。\n\nこの単元ではpom.xmlの行をJavaで分類せず、要件から必要最小のStarterを選び、自動構成と攻撃面を増やす不要依存を避ける判断をクイズで確認します。",
-      "samples": [
-        {
-          "caption": "考え方を標準Javaで確かめる",
-          "code": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Map<String, String> modules = Map.of(\n                \"CRUD\", \"Spring Data JPA\",\n                \"AUTH\", \"Spring Security\",\n                \"NIGHTLY\", \"Spring Batch\",\n                \"EVENT\", \"Spring Kafka\"\n        );\n        System.out.println(modules.get(\"NIGHTLY\"));\n    }\n}",
-          "expected": "Spring Batch"
-        }
-      ],
+      "explanation": "Spring Bootの強みは、Webだけでなく業務アプリでよく使う機能を同じ考え方で組み合わせられることです。ただし「Springだから全部入れる」のではなく、解決する課題に応じて選びます。\n\n- Spring Data JPA: Repositoryを通じたDBアクセスを支援する。SQLやトランザクションの理解は引き続き必要です。\n- Spring Security: 認証（誰かを確認）と認可（何を許すか）を担当する。Starterを追加しただけで業務権限設計が完成するわけではありません。\n- Spring Batch: 大量データを一定件数ずつ読み、加工し、書き込むバッチを構成する。再実行や途中再開の設計と組み合わせます。\n- Spring for Apache Kafkaなど: メッセージ送受信を支援する。少なくとも1回配信を前提に、重複しても壊れない処理が必要です。\n- Spring Cloud: 分散システム向け機能の集合です。単一アプリに必要とは限りません。\n\nどのモジュールも、使うときは `pom.xml` へStarterを1つ足す形になります。\n\n```xml\n<dependency>\n  <groupId>org.springframework.boot</groupId>\n  <artifactId>spring-boot-starter-data-jpa</artifactId>\n</dependency>\n```\n\n| 要件 | Starter |\n|---|---|\n| REST APIを公開する | `spring-boot-starter-web` |\n| DBへ読み書きする | `spring-boot-starter-data-jpa` |\n| ログインを扱う | `spring-boot-starter-security` |\n| 夜間バッチを回す | `spring-boot-starter-batch` |\n| 稼働情報を公開する | `spring-boot-starter-actuator` |\n\n**要らないStarterを残さないことも設計です。** クラスパスにあるだけで自動構成が動くことがあるので、「入れたが使っていない」状態は意図しない挙動の原因になります。\n\nDB更新のまとまりはServiceの業務操作を境界に`@Transactional`を付けるのが基本です。Controller全体や1件ずつの細かな呼び出しへ無計画に付けると、トランザクションが長くなったり、途中だけ確定したりします。外部API呼び出しはDBトランザクションで巻き戻せない点にも注意してください。\n\nエコシステムが広いことは、組織でWeb、DB、認証、バッチ、メッセージングを一つの技術体系に寄せやすい利点です。同時に、各モジュールの目的を理解せずStarterだけ増やすと、自動構成に振り回されます。要件、責務、障害時の挙動を先に言葉にして選定してください。",
+      "samples": [],
       "quiz": [
         {
           "question": "Spring Securityを追加した直後にも設計が必要なものはどれですか？",
@@ -319,13 +294,7 @@
         "ch60-o4"
       ],
       "explanation": "Spring Bootのテストは、大きいテストだけで全部を確認するより、失敗原因を絞れる小さなテストと本番に近い結合テストを組み合わせます。\n\n- 通常のJUnit: Serviceなどの純粋な業務ロジックを、Springを起動せず高速に確認します。依存先は小さなstubやfakeを自作しても構いません。Mockitoは置き換えが多いときの選択肢であり、最初から必須ではありません。\n- `@WebMvcTest`: Controller、JSON変換、入力検証などWeb層だけを読みます。`MockMvc`は実サーバーを起動せずHTTP境界を確認します。Serviceはfakeなどをテスト用Beanとして渡します。\n- `@DataJpaTest`: EntityやRepositoryとDBアクセスを中心に確認します。実DB固有のSQLや制約があるなら、対象DBをTestcontainers（DockerまたはPodmanのコンテナでテスト用DBなどを起動・停止するライブラリ）で起動する結合テストも必要です。\n- `@SpringBootTest`: アプリ全体の構成やBeanの接続を確認します。起動が重いので、すべての細かな分岐をここだけで調べないようにします。\n\nテストは正常系だけでなく、空入力、境界値、対象なし、権限不足、DB障害などを確認します。時刻はClock、乱数は生成器、外部通信はfakeやテスト用サーバーとして差し替え、待ち時間や実行順に依存する不安定なテストを避けます。テストデータは各テストが自分で準備し、自分で後片付けすることで並列実行にも耐えられます。\n\n必須演習ではSpring Boot projectのpom.xml、Controller、Service、設定、testを複数ファイルで完成させ、HTTP validationとhealthを実際に検証します。annotation一覧をJavaで分類する問題は任意です。",
-      "samples": [
-        {
-          "caption": "考え方を標準Javaで確かめる",
-          "code": "import java.util.*;\n\npublic class Main {\n    static String scope(String target) {\n        return switch (target) {\n            case \"logic\" -> \"JUnit\";\n            case \"controller\" -> \"WebMvcTest\";\n            case \"repository\" -> \"DataJpaTest\";\n            default -> \"SpringBootTest\";\n        };\n    }\n\n    public static void main(String[] args) {\n        System.out.println(scope(\"controller\"));\n    }\n}",
-          "expected": "WebMvcTest"
-        }
-      ],
+      "samples": [],
       "quiz": [
         {
           "question": "`@WebMvcTest`の主な対象はどれですか？",
@@ -459,13 +428,7 @@
         "ch60-o5"
       ],
       "explanation": "本番アプリは、HTTP 200を返すだけでなく「プロセスが生きているか」「依存先を含めてリクエストを受けられるか」「どの程度遅いか」を運用者へ伝える必要があります。Spring Boot Actuatorは、このための管理エンドポイントを提供します。\n\n`/actuator/health`はヘルス状態、`/actuator/metrics`は測定値、`/actuator/loggers`はログレベル、`/actuator/info`はアプリ情報などを扱います。KubernetesではLivenessを「プロセスを再起動すべきか」、Readinessを「新しい通信を受けてよいか」に分けます。DBの一時障害をLiveness失敗にするとPodが一斉再起動して状況を悪化させるため、意味を分けることが重要です。\n\n公開範囲は `application.properties` で決めます。\n\n```properties\n# 公開するものを名前で並べる。* は全部という意味\nmanagement.endpoints.web.exposure.include=health,info\n# Kubernetesのプローブに使う\nmanagement.endpoint.health.probes.enabled=true\n# 依存先の状態を含む詳細を外へ出さない\nmanagement.endpoint.health.show-details=never\n```\n\n`endpoints`（複数形）は公開範囲全体、`endpoint`（単数形）は個別のエンドポイントの設定です。\n\nActuatorを追加しても、すべてのエンドポイントがHTTP公開されるわけではありません。公開範囲を明示し、healthの詳細、env、configprops、loggersなど機密情報や動作変更につながるものは、管理ネットワークと認証・認可で守ります。インターネットへ一括公開してはいけません。\n\nSpring Bootの更新では、依存ライブラリ、既定値、設定プロパティ、APIが変わる場合があります。ランタイムだけを更新すればアプリ変更が原則不要になる、という保証はないため、更新時は移行作業の可能性があります。更新前にRelease NotesとMigration Guideを読み、依存ライブラリの版はBOM（Bill of Materials。互換性を考慮したバージョン対応表）に任せ、テストと起動確認を行います。`spring-boot-properties-migrator`は古い設定名の検出や一時的な移行に役立ちますが、警告を修正した後は依存関係から外します。AOT（Ahead-of-Time。起動前のビルド時に解析や生成を進める方式）やNative Imageも選べますが、起動時間・メモリとビルド時間・動的機能の制約を測定して選ぶ追加手段です。\n\n安全なリリース判定には、設定移行、全テスト、ヘルス確認、管理エンドポイントの公開制御、ロールバック手順を含めます。",
-      "samples": [
-        {
-          "caption": "考え方を標準Javaで確かめる",
-          "code": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Set<String> publicEndpoints = Set.of(\"health\", \"info\");\n        for (String endpoint : List.of(\"health\", \"metrics\", \"env\")) {\n            System.out.println(endpoint + \"=\" + (publicEndpoints.contains(endpoint) ? \"PUBLIC\" : \"PROTECTED\"));\n        }\n    }\n}",
-          "expected": "health=PUBLIC\nmetrics=PROTECTED\nenv=PROTECTED"
-        }
-      ],
+      "samples": [],
       "task": "管理エンドポイントの公開範囲を、**実際の `application.properties` へ設定**してください。\n\nいまの設定は `management.endpoints.web.exposure.include=*` で、**すべての管理エンドポイントをHTTPへ公開しています**。`env` や `configprops` は設定値や環境変数を、`loggers` は実行中のログレベル変更を外部へ露出します。次の状態へ直してください。\n\n- HTTPへ公開するのは `health` と `info` だけにする\n- Kubernetesのプローブに使うため、healthのliveness / readinessを有効にする\n- healthの詳細（依存先の状態）は誰にでも見せない。`never` にする\n- アプリの挨拶文 `app.greeting.prefix` は `Hello` のままにする（この演習では変更しません）\n\n> 公開範囲を絞るのは「Actuatorを使わない」ことではありません。運用に必要な情報は出しつつ、設定値やログレベルの変更手段は管理ネットワークと認証・認可の側へ寄せます。",
       "hints": [
         "`management.endpoints.web.exposure.include` はカンマ区切りで名前を並べます。`*` は「全部」の意味なので、必要な名前へ置き換えます。",

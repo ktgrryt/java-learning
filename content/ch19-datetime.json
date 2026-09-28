@@ -171,7 +171,7 @@
             "その年の5週目"
           ],
           "answer": 0,
-          "explanation": "`java.time` では月は **`1`〜`12`** です。古い `Calendar` は `0`〜`11` だったので、そこを混同させる問題が出ます。ありえない値（`13` など）は例外になります。"
+          "explanation": "`java.time` では月は **`1`〜`12`** です。古い `Calendar` は `0`〜`11` だったので、古いコードを読むときに混同しやすいところです。ありえない値（`13` など）は例外になります。"
         }
       ]
     },
@@ -181,7 +181,7 @@
       "objectiveIds": [
         "ch19-o2"
       ],
-      "explanation": "## 足す・引く\n\n日付の計算はメソッド1つで書けます。\n\n```java\nLocalDate d = LocalDate.of(2024, 5, 3);\n\nd.plusDays(10);        // 10日後\nd.plusMonths(1);       // 1か月後\nd.plusYears(1);        // 1年後\nd.minusDays(10);       // 10日前\n```\n\n`plusWeeks` や `minusMonths` もあります。時刻には `plusHours` / `plusMinutes` があります。\n\n## java.time のクラスはすべて不変\n\nここが最重要です。`java.time` のクラスは **すべて不変** です。\n`String` とまったく同じで、**メソッドは新しいインスタンスを返します**。\n\n```java\nLocalDate d = LocalDate.of(2024, 5, 3);\nd.plusDays(10);                       // 戻り値を捨てている\nSystem.out.println(d);                // 2024-05-03 ← 変わっていない！\n\nd = d.plusDays(10);                   // ✅ 受け取り直す\nSystem.out.println(d);                // 2024-05-13\n```\n\n> ⚠️ 間違えやすい点 … `date.plusDays(1);` を単独の文として書いているコードは、何も変えていません。第14章の `String` と同じ引っかけです。\n\n不変なので、メソッドに渡しても書き換えられる心配がありません（第7章）。\n\n## 月をまたぐときの丸め\n\n`plusMonths` には注意が必要です。**月末の日は、行き先の月末に丸められます**。\n\n```java\nLocalDate d = LocalDate.of(2024, 1, 31);\nSystem.out.println(d.plusMonths(1));      // 2024-02-29（29日に丸められる）\n```\n\n1月31日の1か月後は「2月31日」ですが、そんな日はありません。\nそこで **その月の最後の日** になります。2024年はうるう年なので `29` 日、\n2023年なら `28` 日です。\n\n```java\nLocalDate.of(2023, 1, 31).plusMonths(1);    // 2023-02-28\nLocalDate.of(2023, 3, 31).plusMonths(1);    // 2023-04-30\n```\n\n> ⚠️ 間違えやすい点 … 丸められた結果から1か月戻しても、元には帰りません。`1/31 → 2/29 → 1/29` です。「足して引けば元に戻る」は成り立ちません。\n\n`plusDays` にはこの問題はありません。単純に日数を足すだけです。\n\n## 差し替える with\n\n一部だけ変えたいときは `withXxx` を使います。これも新しいインスタンスを返します。\n\n```java\nd.withYear(2025);          // 年だけ差し替える\nd.withDayOfMonth(1);       // 日だけ差し替える（月初にする）\n```\n\n## 比較する\n\n大小の比較は専用メソッドです。`<` や `>` は使えません。\n\n| メソッド | 意味 |\n|---|---|\n| `isBefore(other)` | より前か |\n| `isAfter(other)` | より後か |\n| `isEqual(other)` | 同じ日か |\n\n`equals` でも比較できます。`compareTo` も使えるので、`List` に入れて\n`sort(Comparator.naturalOrder())` で並べ替えることもできます（第17章）。\n\n> 💡 `plusDays(-10)` は `minusDays(10)` と同じです。マイナスを渡しても正しく動きます。",
+      "explanation": "## 足す・引く\n\n日付の計算はメソッド1つで書けます。\n\n```java\nLocalDate d = LocalDate.of(2024, 5, 3);\n\nd.plusDays(10);        // 10日後\nd.plusMonths(1);       // 1か月後\nd.plusYears(1);        // 1年後\nd.minusDays(10);       // 10日前\n```\n\n`plusWeeks` や `minusMonths` もあります。時刻には `plusHours` / `plusMinutes` があります。\n\n## java.time のクラスはすべて不変\n\nここが最重要です。`java.time` のクラスは **すべて不変** です。\n`String` とまったく同じで、**メソッドは新しいインスタンスを返します**。\n\n```java\nLocalDate d = LocalDate.of(2024, 5, 3);\nd.plusDays(10);                       // 戻り値を捨てている\nSystem.out.println(d);                // 2024-05-03 ← 変わっていない！\n\nd = d.plusDays(10);                   // ✅ 受け取り直す\nSystem.out.println(d);                // 2024-05-13\n```\n\n> ⚠️ 間違えやすい点 … `date.plusDays(1);` を単独の文として書いているコードは、何も変えていません。第14章の `String` と同じで、戻り値を受け取らないと結果は捨てられます。\n\n不変なので、メソッドに渡しても書き換えられる心配がありません（第7章）。\n\n## 月をまたぐときの丸め\n\n`plusMonths` には注意が必要です。**月末の日は、行き先の月末に丸められます**。\n\n```java\nLocalDate d = LocalDate.of(2024, 1, 31);\nSystem.out.println(d.plusMonths(1));      // 2024-02-29（29日に丸められる）\n```\n\n1月31日の1か月後は「2月31日」ですが、そんな日はありません。\nそこで **その月の最後の日** になります。2024年はうるう年なので `29` 日、\n2023年なら `28` 日です。\n\n```java\nLocalDate.of(2023, 1, 31).plusMonths(1);    // 2023-02-28\nLocalDate.of(2023, 3, 31).plusMonths(1);    // 2023-04-30\n```\n\n> ⚠️ 間違えやすい点 … 丸められた結果から1か月戻しても、元には帰りません。`1/31 → 2/29 → 1/29` です。「足して引けば元に戻る」は成り立ちません。\n\n`plusDays` にはこの問題はありません。単純に日数を足すだけです。\n\n## 差し替える with\n\n一部だけ変えたいときは `withXxx` を使います。これも新しいインスタンスを返します。\n\n```java\nd.withYear(2025);          // 年だけ差し替える\nd.withDayOfMonth(1);       // 日だけ差し替える（月初にする）\n```\n\n## 比較する\n\n大小の比較は専用メソッドです。`<` や `>` は使えません。\n\n| メソッド | 意味 |\n|---|---|\n| `isBefore(other)` | より前か |\n| `isAfter(other)` | より後か |\n| `isEqual(other)` | 同じ日か |\n\n`equals` でも比較できます。`compareTo` も使えるので、`List` に入れて\n`sort(Comparator.naturalOrder())` で並べ替えることもできます（第17章）。\n\n> 💡 `plusDays(-10)` は `minusDays(10)` と同じです。マイナスを渡しても正しく動きます。",
       "samples": [
         {
           "caption": "戻り値を受け取らないと変わらない",
@@ -634,7 +634,7 @@
       "objectiveIds": [
         "ch19-o2"
       ],
-      "explanation": "## この章の知識を、自分の手で組み合わせよう\n\nここでは、**LocalDate・Period・ChronoUnit・DateTimeFormatter**をまとめて使います。新しい文法は登場しません。分からなくなったら、直前までの解説やサンプルへ戻って確認して大丈夫です。\n\n### 3問の進め方\n\n1. **基本**で、中心となる書き方をもう一度使う\n2. **組み合わせ**で、章内の複数の知識を一緒に使う\n3. **実践**で、少し現実的な入力と条件を整理する\n\nまず入力例と期待される出力を紙に書き、処理を小さな手順へ分けてからコードにすると進めやすくなります。",
+      "explanation": "## この章の知識を、自分の手で組み合わせよう\n\nここでは、**LocalDate・Period・ChronoUnit・DateTimeFormatter**をまとめて使います。新しい文法は登場しません。分からなくなったら、直前までの解説やサンプルへ戻って確認して大丈夫です。\n\n### 3問の進め方\n\n1. **基本**で、中心となる書き方をもう一度使う\n2. **組み合わせ**で、章内の複数の知識を一緒に使う\n3. **実践**で、少し現実的な入力と条件を整理する",
       "samples": [
         {
           "caption": "復習用サンプル：いろいろな書式で出力する",

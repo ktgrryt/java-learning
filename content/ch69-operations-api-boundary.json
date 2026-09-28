@@ -105,7 +105,7 @@
       "objectiveIds": [
         "ch69-o2"
       ],
-      "explanation": "## はじめて学ぶ人へ\n\nこの総合演習では、ここまでの部品を1本の注文処理としてつなぎます。最初から全コードを覚えようとせず、リクエストがどの順番で検査・処理されるかを追いましょう。\n\n```text\n1. JSONを注文DTOとして受け取る\n2. Bean Validationで必須項目や範囲を確認\n3. 認証済み利用者と操作権限を確認\n4. Serviceで在庫などの業務ルールを確認\n5. トランザクション内で注文保存と在庫更新\n6. 成功なら201、入力ミスなら400などへ変換\n7. ログにリクエストIDと結果を記録\n```\n\nResourceはHTTPとの変換、Serviceは業務判断、Repositoryは永続化という役割を守ります。失敗をどこで見つけ、どのステータスへ変えるかまで説明できれば、単に動くだけでなく保守しやすいAPIになります。\n\n## 入口から永続化までを一本につなぐ\n\n実務の1リクエストは、認証・DTO変換・Validation・認可・Service・トランザクション・Repository・DTO応答・ログという複数の責務を通ります。各段を分けると、入力不正400、業務競合409、対象なし404、想定外500を一貫して扱えます。\n\nJakarta EEのWeb ProfileにはServlet、REST、CDI、Validation、Persistence、Transactions、Security、Concurrency、Faces、WebSocketなどがあります。PlatformにはMessaging、Mail、Batchなども加わります。すべてを同時に使う必要はなく、同期HTTPならREST、DBならPersistence/Transactions、非同期連携ならMessaging、定時大量処理ならBatchというように要件で選びます。新規の業務部品は通常CDI Beanを中心にし、EJB固有機能が必要な場合だけEnterprise Beansを検討します。\n\nこの章までの疑似APIは概念とコード形を学ぶためのものです。次は実際のJakarta EEランタイム（WildFly、Open Liberty、Payaraなど）とテスト用DBで小さなCRUDをデプロイし、公式仕様とサーバ文書を確認しながら進めてください。\n\n### ⚠️ ここが本物と違う\n\nこの総合演習も、第29章と同じ `MiniValidator` と同梱の `jakarta.*` で動かします。**学習用に書いた\n最小限の再実装**で、本物のフレームワークではありません。判定の順序を確かめるうえで効いてくる違いは\n次の点です。\n\n- 検証は自分で呼びます（本物は `@Valid` を見てフレームワークが**入口で**呼びます）\n- 対応する制約は `@NotBlank` `@Size` `@Min` `@Max` `@Email` だけ。独自制約もグループもありません\n- 認可はこの問題の中の判定です（本物は `@RolesAllowed` などの宣言と、コンテナが解決する呼び出し元で決まります）\n- 例外からHTTPステータスへの変換は自分で書きます（本物は `ExceptionMapper` などが担います）\n\n**書き方（制約の付け方、違反の受け取り方、ステータスの選び方）は本物と同じ**なので、\nここで身につけた判断の順序はそのまま実務で通用します。\n\n> 💡 本物でだけ確かめられること … `@Valid` を付けるだけで入口で検証が走ること、\n> 認可の宣言がコンテナに解決されること、例外が対応するステータスへ変換されること。\n> 実物のOpen Libertyは第29章の章末演習（`labs/jakarta-web/validation-exercise`）で動かします。",
+      "explanation": "## はじめて学ぶ人へ\n\nこの総合演習では、ここまでの部品を1本の注文処理としてつなぎます。最初から全コードを覚えようとせず、リクエストがどの順番で検査・処理されるかを追いましょう。\n\n```text\n1. JSONを注文DTOとして受け取る\n2. 認証済み利用者と操作権限を確認\n3. Bean Validationで必須項目や範囲を確認\n4. Serviceで在庫などの業務ルールを確認\n5. トランザクション内で注文保存と在庫更新\n6. 成功なら201、入力ミスなら400などへ変換\n7. ログにリクエストIDと結果を記録\n```\n\nResourceはHTTPとの変換、Serviceは業務判断、Repositoryは永続化という役割を守ります。失敗をどこで見つけ、どのステータスへ変えるかまで説明できれば、単に動くだけでなく保守しやすいAPIになります。\n\n## 入口から永続化までを一本につなぐ\n\n実務の1リクエストは、認証・認可・DTO変換・Validation・Service・トランザクション・Repository・DTO応答・ログという複数の責務を通ります。各段を分けると、入力不正400、業務競合409、対象なし404、想定外500を一貫して扱えます。\n\nJakarta EEのWeb ProfileにはServlet、REST、CDI、Validation、Persistence、Transactions、Security、Concurrency、Faces、WebSocketなどがあります。PlatformにはMessaging、Mail、Batchなども加わります。すべてを同時に使う必要はなく、同期HTTPならREST、DBならPersistence/Transactions、非同期連携ならMessaging、定時大量処理ならBatchというように要件で選びます。新規の業務部品は通常CDI Beanを中心にし、EJB固有機能が必要な場合だけEnterprise Beansを検討します。\n\nこの章までの疑似APIは概念とコード形を学ぶためのものです。次は実際のJakarta EEランタイム（WildFly、Open Liberty、Payaraなど）とテスト用DBで小さなCRUDをデプロイし、公式仕様とサーバ文書を確認しながら進めてください。\n\n### ⚠️ ここが本物と違う\n\nこの総合演習も、第29章と同じ `MiniValidator` と同梱の `jakarta.*` で動かします。**学習用に書いた\n最小限の再実装**で、本物のフレームワークではありません。判定の順序を確かめるうえで効いてくる違いは\n次の点です。\n\n- 検証は自分で呼びます（本物は `@Valid` を見てフレームワークが**入口で**呼びます）\n- 対応する制約は `@NotBlank` `@Size` `@Min` `@Max` `@Email` だけ。独自制約もグループもありません\n- 認可はこの問題の中の判定です（本物は `@RolesAllowed` などの宣言と、コンテナが解決する呼び出し元で決まります）\n- 例外からHTTPステータスへの変換は自分で書きます（本物は `ExceptionMapper` などが担います）\n\n**書き方（制約の付け方、違反の受け取り方、ステータスの選び方）は本物と同じ**なので、\nここで身につけた判断の順序はそのまま実務で通用します。\n\n> 💡 本物でだけ確かめられること … `@Valid` を付けるだけで入口で検証が走ること、\n> 認可の宣言がコンテナに解決されること、例外が対応するステータスへ変換されること。\n> 実物のOpen Libertyは第29章の章末演習（`labs/jakarta-web/validation-exercise`）で動かします。",
       "samples": [
         {
           "caption": "ValidationからResponseへ",
@@ -152,7 +152,7 @@
       "extraTasks": [
         {
           "kind": "applied",
-          "task": "【実践】入力を受け取る境界に、解説のパイプラインで飛ばしていた**認可**を足します。入力は1行に `caller role item count`（`caller` と `item` の `_` は空文字）。\n\n次の順に判定し、**最初に外れた理由だけ**を返してください。\n\n1. 形式 … `MiniValidator.validate` の結果が空でなければ `400` と `ApiError(\"VALIDATION_ERROR\", errors)`\n2. 認証 … `caller` が空なら `401` と `ApiError(\"UNAUTHENTICATED\", \"ログインが必要です\")`\n3. 認可 … `role` が `admin` でも `member` でもなければ `403` と `ApiError(\"FORBIDDEN\", \"権限がありません\")`\n4. 存在 … 在庫表に無ければ `404` と `ApiError(\"NOT_FOUND\", \"商品がありません\")`\n5. 在庫 … 足りなければ `409` と `ApiError(\"OUT_OF_STOCK\", \"在庫が足りません\")`\n6. 成功 … 在庫を減らして `201` と `OrderDto(1, item, count)`\n\n**順番が要件です。** とくに認可（3）を存在確認（4）より後に置くと、権限のない相手へ「その商品はある／ない」を教えてしまいます。在庫は `book=3` `pen=1` です。",
+          "task": "【実践】入力を受け取る境界に、**認証と認可**を組み込みます。入力は1行に `caller role item count`（`caller` と `item` の `_` は空文字）。\n\n次の順に判定し、**最初に外れた理由だけ**を返してください。\n\n1. 認証 … `caller` が空なら `401` と `ApiError(\"UNAUTHENTICATED\", \"ログインが必要です\")`\n2. 認可 … `role` が `admin` でも `member` でもなければ `403` と `ApiError(\"FORBIDDEN\", \"権限がありません\")`\n3. 形式 … `MiniValidator.validate` の結果が空でなければ `400` と `ApiError(\"VALIDATION_ERROR\", errors)`\n4. 存在 … 在庫表に無ければ `404` と `ApiError(\"NOT_FOUND\", \"商品がありません\")`\n5. 在庫 … 足りなければ `409` と `ApiError(\"OUT_OF_STOCK\", \"在庫が足りません\")`\n6. 成功 … 在庫を減らして `201` と `OrderDto(1, item, count)`\n\n**順番が要件です。** 本物のJakarta EEでも、認証と認可はリソースのメソッドを呼ぶ前にコンテナが行い、`@Valid` の検証はそのあとです。とくに認可（2）を存在確認（4）より後に置くと、権限のない相手へ「その商品はある／ない」を教えてしまいます。在庫は `book=3` `pen=1` です。",
           "starterCode": "import jakarta.validation.constraints.*;\nimport jakarta.ws.rs.core.*;\nimport jakarta.transaction.Transactional;\nimport java.util.*;\n\nrecord CreateOrder(@NotBlank(message = \"itemは必須です\") String item, @Min(value = 1, message = \"countは1以上です\") int count) { }\n\nrecord OrderDto(long id, String item, int count) { }\n\nrecord ApiError(String code, Object detail) { }\n\nclass OrderService {\n    private final Map<String, Integer> stock = new HashMap<>(Map.of(\"book\", 3, \"pen\", 1));\n\n    @Transactional\n    Response create(String caller, String role, CreateOrder in) {\n        // TODO 上から順に判定して、最初に外れた理由だけを返す\n        return null;   // 仮の値。書けたら消す\n    }\n}\n\npublic class OrderApiWithAuth {\n    public static void main(String[] a) {\n        Scanner sc = new Scanner(System.in);\n        String caller = sc.next();\n        if (caller.equals(\"_\")) caller = \"\";\n        String role = sc.next();\n        String item = sc.next();\n        if (item.equals(\"_\")) item = \"\";\n        CreateOrder in = new CreateOrder(item, sc.nextInt());\n        Response r = new OrderService().create(caller, role, in);\n        System.out.println(r.getStatus() + \" \" + r.getEntity());\n    }\n}\n",
           "visibleCases": [
             {
@@ -168,9 +168,9 @@
           ],
           "hiddenCases": [
             {
-              "label": "形式が最優先（認証も権限も外れているが400）",
+              "label": "認証が最優先（形式も権限も外れているが401）",
               "stdin": "_ guest _ 0\n",
-              "expected": "400 ApiError[code=VALIDATION_ERROR, detail=[item: itemは必須です, count: countは1以上です]]"
+              "expected": "401 ApiError[code=UNAUTHENTICATED, detail=ログインが必要です]"
             },
             {
               "label": "未認証",
@@ -191,14 +191,24 @@
               "label": "境界（在庫と同数）",
               "stdin": "bob admin pen 1\n",
               "expected": "201 OrderDto[id=1, item=pen, count=1]"
+            },
+            {
+              "label": "権限は形式より先（形式も外れているが403）",
+              "stdin": "alice guest _ 0\n",
+              "expected": "403 ApiError[code=FORBIDDEN, detail=権限がありません]"
+            },
+            {
+              "label": "認証と権限が通れば、形式を見る（400）",
+              "stdin": "alice member _ 0\n",
+              "expected": "400 ApiError[code=VALIDATION_ERROR, detail=[item: itemは必須です, count: countは1以上です]]"
             }
           ],
           "hints": [
-            "最初に `MiniValidator.validate(in)`。形式の誤りは、認証や権限より先に `400` へ変えます。",
+            "最初に `caller` が空かを見て `401`、次に `role` を見て `403` を返します。形式の検査（`MiniValidator.validate(in)`）はそのあとです。",
             "認可（403）は存在確認（404）より**前**に置きます。あとにすると、権限のない相手へ商品の有無が伝わってしまいます。",
             "`role` は `admin` と `member` だけ許可します。在庫を減らすのは成功するときだけです。"
           ],
-          "solution": "import jakarta.validation.constraints.*;\nimport jakarta.ws.rs.core.*;\nimport jakarta.transaction.Transactional;\nimport java.util.*;\n\nrecord CreateOrder(@NotBlank(message = \"itemは必須です\") String item, @Min(value = 1, message = \"countは1以上です\") int count) { }\n\nrecord OrderDto(long id, String item, int count) { }\n\nrecord ApiError(String code, Object detail) { }\n\nclass OrderService {\n    private final Map<String, Integer> stock = new HashMap<>(Map.of(\"book\", 3, \"pen\", 1));\n\n    @Transactional\n    Response create(String caller, String role, CreateOrder in) {\n        List<String> errors = MiniValidator.validate(in);\n        if (!errors.isEmpty()) return Response.status(400).entity(new ApiError(\"VALIDATION_ERROR\", errors)).build();\n        if (caller.isEmpty()) return Response.status(401).entity(new ApiError(\"UNAUTHENTICATED\", \"ログインが必要です\")).build();\n        if (!role.equals(\"admin\") && !role.equals(\"member\")) return Response.status(403).entity(new ApiError(\"FORBIDDEN\", \"権限がありません\")).build();\n        Integer current = stock.get(in.item());\n        if (current == null) return Response.status(404).entity(new ApiError(\"NOT_FOUND\", \"商品がありません\")).build();\n        if (current < in.count()) return Response.status(409).entity(new ApiError(\"OUT_OF_STOCK\", \"在庫が足りません\")).build();\n        stock.put(in.item(), current - in.count());\n        return Response.status(201).entity(new OrderDto(1, in.item(), in.count())).build();\n    }\n}\n\npublic class OrderApiWithAuth {\n    public static void main(String[] a) {\n        Scanner sc = new Scanner(System.in);\n        String caller = sc.next();\n        if (caller.equals(\"_\")) caller = \"\";\n        String role = sc.next();\n        String item = sc.next();\n        if (item.equals(\"_\")) item = \"\";\n        CreateOrder in = new CreateOrder(item, sc.nextInt());\n        Response r = new OrderService().create(caller, role, in);\n        System.out.println(r.getStatus() + \" \" + r.getEntity());\n    }\n}\n",
+          "solution": "import jakarta.validation.constraints.*;\nimport jakarta.ws.rs.core.*;\nimport jakarta.transaction.Transactional;\nimport java.util.*;\n\nrecord CreateOrder(@NotBlank(message = \"itemは必須です\") String item, @Min(value = 1, message = \"countは1以上です\") int count) { }\n\nrecord OrderDto(long id, String item, int count) { }\n\nrecord ApiError(String code, Object detail) { }\n\nclass OrderService {\n    private final Map<String, Integer> stock = new HashMap<>(Map.of(\"book\", 3, \"pen\", 1));\n\n    @Transactional\n    Response create(String caller, String role, CreateOrder in) {\n        if (caller.isEmpty()) return Response.status(401).entity(new ApiError(\"UNAUTHENTICATED\", \"ログインが必要です\")).build();\n        if (!role.equals(\"admin\") && !role.equals(\"member\")) return Response.status(403).entity(new ApiError(\"FORBIDDEN\", \"権限がありません\")).build();\n        List<String> errors = MiniValidator.validate(in);\n        if (!errors.isEmpty()) return Response.status(400).entity(new ApiError(\"VALIDATION_ERROR\", errors)).build();\n        Integer current = stock.get(in.item());\n        if (current == null) return Response.status(404).entity(new ApiError(\"NOT_FOUND\", \"商品がありません\")).build();\n        if (current < in.count()) return Response.status(409).entity(new ApiError(\"OUT_OF_STOCK\", \"在庫が足りません\")).build();\n        stock.put(in.item(), current - in.count());\n        return Response.status(201).entity(new OrderDto(1, in.item(), in.count())).build();\n    }\n}\n\npublic class OrderApiWithAuth {\n    public static void main(String[] a) {\n        Scanner sc = new Scanner(System.in);\n        String caller = sc.next();\n        if (caller.equals(\"_\")) caller = \"\";\n        String role = sc.next();\n        String item = sc.next();\n        if (item.equals(\"_\")) item = \"\";\n        CreateOrder in = new CreateOrder(item, sc.nextInt());\n        Response r = new OrderService().create(caller, role, in);\n        System.out.println(r.getStatus() + \" \" + r.getEntity());\n    }\n}\n",
           "objectiveIds": [
             "ch69-o2"
           ]
@@ -248,6 +258,17 @@
           ],
           "answer": 1,
           "explanation": "HTMLの無害化は出力の話で、単純な取得は同期HTTPで足りますし、日付と時刻の計算にメッセージングは要りません。送り手と受け手を切り離し、相手が止まっていても後から処理したい——という要件のときに、キューやtopicを介した非同期連携を選びます。"
+        },
+        {
+          "question": "商品の有無を権限のない相手に知られたくないとき、403と404はどちらを先に判定しますか。",
+          "choices": [
+            "404を先に判定する。存在しない商品の権限を確かめる意味がないため",
+            "順序を変えても、外から見える結果は同じになる",
+            "どちらも返さず、常に400で統一する",
+            "403を先に判定する。あとに回すと商品の有無が漏れる"
+          ],
+          "answer": 3,
+          "explanation": "404を先に返すと、「404が返る＝その商品は存在しない」「403が返る＝存在する」と読み取れてしまい、権限のない相手が商品の一覧を推測できます。先に権限を確かめて403で断てば、存在の有無は漏れません。外から見える結果は順序で変わります。"
         }
       ]
     }

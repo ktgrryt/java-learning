@@ -419,8 +419,8 @@
       "explanation": "## はじめて学ぶ人へ\n\nI/Oは、プログラムの外とデータを出し入れする境界です。byteは荷物の小箱、charは人が読む文字と考えると区別しやすくなります。同じ「こんにちは」でも、UTF-8などの文字コードによって小箱への詰め方が決まります。\n\n```text\n文字列 ──UTF-8でencode──> byte列 ──decode──> 文字列\n```\n\nNIOのBufferは、書き込み位置と読み取り位置を持つ作業台です。書いたあと `flip()` で読み取りモードへ切り替えます。ファイル、ソケット、HTTP通信はいずれも相手を待って止まる可能性があるため、タイムアウト、部分的な読み書き、切断、そしてcloseを通常のケースとして扱います。\n\n## バイトと文字を区別する\n\nInputStream/OutputStreamはバイト、Reader/Writerは文字を扱います。文字とバイトを変換するときはUTF-8などのcharsetを明示します。`Files` と `Path` はファイル操作の中心APIで、小さなファイルはreadString/readAllLines、大きなファイルはストリームで逐次処理します。入力サイズを信用して全件をメモリへ載せないことも実務設計です。\n\nNIOのBufferはposition・limit・capacityを持ちます。書込み後の `flip()` はlimitを現在位置へ、positionを0へ変え、読取りモードにします。\n\nソケット通信では接続、読取、書込の各タイムアウト、部分読書き、切断、プロトコル境界を扱います。ブロッキングI/Oは待ちますが、Virtual Threadと組み合わせれば読みやすい同期コードで多数接続を扱えます。Closeableな資源はtry-with-resourcesで必ず閉じます。",
       "samples": [
         {
-          "caption": "UTF-8でファイルを往復する",
-          "code": "import java.nio.charset.StandardCharsets;\nimport java.nio.file.*;\n\npublic class Main {\n    public static void main(String[] args) throws Exception {\n        Path p = Path.of(\"sample.txt\");\n        Files.writeString(p, \"Java\\nJVM\", StandardCharsets.UTF_8);\n        System.out.println(Files.readString(p, StandardCharsets.UTF_8));\n    }\n}\n"
+          "caption": "UTF-8でファイルを往復する（文字数とバイト数は違う）",
+          "code": "import java.nio.charset.StandardCharsets;\nimport java.nio.file.*;\n\npublic class Main {\n    public static void main(String[] args) throws Exception {\n        Path p = Path.of(\"sample.txt\");\n        Files.writeString(p, \"こんにちは\", StandardCharsets.UTF_8);\n        String text = Files.readString(p, StandardCharsets.UTF_8);\n        System.out.println(text + \" / \" + text.length() + \"文字 / \" + Files.size(p) + \"バイト\");\n    }\n}"
         }
       ],
       "task": "行数nとn個の文字列を読み、`data.txt`へUTF-8で1行ずつ書いてください。その後 `Files.readAllLines` で読み、1始まりの `番号:内容` を表示します。",

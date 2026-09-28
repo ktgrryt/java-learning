@@ -55,12 +55,14 @@ public final class ProgressLoadCheck {
             writesLandOnDiskBeforeTheSwap(dir);
             reorderedTasksKeepTheirOwnProgress(dir);
             shuffledChoicesKeepPointingAtTheSameAnswer(dir);
+            rewrittenQuizzesForgetTheOldAnswer(dir);
             System.out.println();
             System.out.println("PROGRESS LOAD OK: 読めないファイルの退避（控えを上書きしない）・"
                     + "形の違う1件で全体を捨てないこと・リセット前の控え・"
                     + "差し替える前に中身をディスクへ載せること・"
                     + "並べ替えた課題の進捗を同じ課題へ移すこと・"
-                    + "選択肢を並べ替えたクイズの回答の読み替え（1度だけ）を確認しました");
+                    + "選択肢を並べ替えたクイズの回答の読み替え（1度だけ）・"
+                    + "問いを差し替えたクイズの記録の破棄（1度だけ）を確認しました");
         } finally {
             deleteTree(dir);
         }
@@ -301,6 +303,63 @@ public final class ProgressLoadCheck {
         blank.saveCode("60-2#1", "// 何か書いた");
         blank.flushNow();
         ok("新しいファイルにも印が入る", read(fresh).contains("quiz-positions-2026-08-26"));
+    }
+
+    /**
+     * 問いそのものを差し替えたクイズは、<b>前の問いへの回答を持ち越さない</b>。
+     *
+     * <p>残すと、学習者が見たことのない問いに正解や誤答の印が付く。{@code QUIZ_RESETS} の
+     * キーだけ、選んだ番号・復習の予定・しおりを消し、ほかのクイズと★はそのまま残す。
+     * 印を残し、<b>差し替えたあとに答え直した記録は二度と消さない</b>ことも確かめる。
+     * ここで使う `50-4#5` は、2026-09-28に問いを差し替えた回。</p>
+     */
+    private static void rewrittenQuizzesForgetTheOldAnswer(Path dir) throws Exception {
+        Path file = dir.resolve("quiz-reset.json");
+        write(file, "{\"onboardingCompleted\":true,"
+                + "\"cleared\":{\"50-4#q\":{\"clearedAt\":\"2026-08-01\",\"hintsUsed\":0,\"attempts\":1}},"
+                + "\"quizChoices\":{\"50-4#5\":1,\"50-4#4\":2},"
+                + "\"quizPlans\":{\"50-4#5\":{\"level\":3,\"at\":\"2026-08-01\"},"
+                + "\"50-4#4\":{\"level\":2,\"at\":\"2026-08-01\"}},"
+                + "\"quizBookmarks\":[\"50-4#5\",\"50-4#4\"]}");
+
+        ProgressStore store = new ProgressStore(file);
+        ok("差し替えた問いの回答は消える", store.quizChoice("50-4", 5) == null);
+        ok("差し替えた問いのしおりも消える", !store.isQuizBookmarked("50-4", 5));
+        ok("ほかのクイズの回答は残る", store.quizChoice("50-4", 4) == 2);
+        ok("ほかのクイズのしおりは残る", store.isQuizBookmarked("50-4", 4));
+        ok("★は動かない", store.clearedIds().contains("50-4#q"));
+
+        store.flushNow();
+        Map<String, Object> saved = MiniJson.parseObject(read(file));
+        ok("差し替えた問いの復習の予定も消える",
+                !MiniJson.obj(saved, "quizPlans").containsKey("50-4#5")
+                        && MiniJson.obj(saved, "quizPlans").containsKey("50-4#4"));
+        ok("適用済みの印が残る",
+                MiniJson.list(saved, "appliedQuizResets").contains("quiz-rewrite-2026-09-28"));
+
+        // 差し替えたあとに答え直した記録は、印があるので次の起動で消さない
+        String answered = read(file).replace("\"quizChoices\":{", "\"quizChoices\":{\"50-4#5\":1,");
+        write(file, answered);
+        ProgressStore again = new ProgressStore(file);
+        ok("答え直した記録は2度目に消さない", Integer.valueOf(1).equals(again.quizChoice("50-4", 5)));
+
+        // 記録が無いファイルにも印だけ立てる（この実行で答えた新しい問いを次に消さないため）
+        Path fresh = dir.resolve("quiz-reset-fresh.json");
+        ProgressStore blank = new ProgressStore(fresh);
+        blank.saveCode("50-1#1", "// 何か書いた");
+        blank.flushNow();
+        ok("新しいファイルにも印が入る", read(fresh).contains("quiz-rewrite-2026-09-28"));
+
+        // 同じ回に移した `29-5#0` → `29-4#4` は、記録を捨てずにキーだけ読み替える。
+        // それより前の段（2026-08-26）は済んだ印を入れて、この段だけを見る
+        Path moved = dir.resolve("quiz-move-forward.json");
+        write(moved, "{\"onboardingCompleted\":true,"
+                + "\"appliedQuizMoves\":[\"ch07-varargs-2026-08-26\",\"quiz-placement-2026-08-26\"],"
+                + "\"quizChoices\":{\"29-5#0\":1,\"29-5#1\":0}}");
+        ProgressStore forward = new ProgressStore(moved);
+        ok("教えたレッスンへ移したクイズは、回答を持って移る", Integer.valueOf(1).equals(forward.quizChoice("29-4", 4)));
+        ok("残ったクイズは詰めた番号で読める", Integer.valueOf(0).equals(forward.quizChoice("29-5", 0)));
+        ok("移したあとの古い番号には何も残らない", forward.quizChoice("29-5", 1) == null);
     }
 
     private static long cash(ProgressStore store) {
