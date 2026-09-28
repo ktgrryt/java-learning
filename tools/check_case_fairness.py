@@ -35,7 +35,11 @@ import re
 import sys
 
 CONTENT = pathlib.Path('content')
-LITERAL = re.compile(r'"((?:[^"\\]|\\.){3,})"')
+# 長さを問わずすべての文字列リテラルを組にして読み、あとで3文字以上だけを残す。
+# 3文字以上だけを直接探すと、`"id"` のような短いリテラルの閉じ引用符から次の開き引用符までを
+# 1つのリテラルと取り違え、それより後ろの組がずれて本物のリテラルを取りこぼす（22-3・23-3で起きた）。
+LITERAL = re.compile(r'"((?:[^"\\\n]|\\.)*)"')
+MIN_LITERAL = 3
 JAPANESE = re.compile(r'[぀-ヿ一-鿿]')
 NUMBERED_LABEL = re.compile(r'^(?:表示|隠し)?ケース\s*\d+$')
 
@@ -111,6 +115,8 @@ def required_only_in_hidden(task):
                             for c in visible(task)])
     found = []
     for literal in sorted(set(LITERAL.findall(task['solution']))):
+        if len(literal) < MIN_LITERAL:
+            continue
         text = literal.replace('\\"', '"')
         if text in readable or not JAPANESE.search(text):
             continue
