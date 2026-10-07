@@ -2095,8 +2095,12 @@ artifact問題では `starterCode`、`visibleCases`、`hiddenCases`、`sourceChe
 |---|---|---|---|
 | `xpath` | XML | booleanとして評価するXPath | 不要 |
 | `jsonPointer` | JSON | `/openapi` のようなJSON Pointer | 必須（文字列・数値・真偽値・null） |
+| `jsonPointerExists` | JSON | JSON Pointer。その位置に値があれば合格 | 不要 |
+| `jsonPointerContains` | JSON | 配列を指すJSON Pointer。配列に `expected` が含まれれば合格（順序は問わない） | 必須 |
 | `property` | properties | プロパティキー | 必須（文字列として比較） |
 | `regex` | 全形式 | ファイル全体へ適用するJava正規表現 | 不要 |
+
+JSONの「この位置にこのキーがある」「この配列にこの名前が入っている」は、`regex` ではなく `jsonPointerExists` / `jsonPointerContains` で書きます。`regex` はどの階層に書いたかを見ないので、別の階層へ置いた誤答が通り、`{0,200}` のような距離の上限が正しい並びを落とします（73-2 で両方起きました）。
 
 XMLは整形式かを先に解析し、DOCTYPE・外部エンティティ・外部DTDを拒否します。JSONとpropertiesも
 形式を解析してから個別条件を検査します。SQL、Dockerfile、YAMLは現時点では外部パーサーを

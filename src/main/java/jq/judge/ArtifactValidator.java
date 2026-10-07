@@ -124,6 +124,11 @@ public final class ArtifactValidator {
             case "property" -> Objects.equals(
                     ((Properties) parsed).getProperty(check.expression()), String.valueOf(check.expected()));
             case "jsonPointer" -> Objects.equals(jsonPointer(parsed, check.expression()), check.expected());
+            // 置き場所まで含めて「あること」を見る（正規表現ではどの階層に書いたかが分からない）
+            case "jsonPointerExists" -> jsonPointer(parsed, check.expression()) != Missing.VALUE;
+            // 配列の中身を順序によらず見る（required の並びを固定しない）
+            case "jsonPointerContains" -> jsonPointer(parsed, check.expression()) instanceof List<?> list
+                    && list.contains(check.expected());
             case "githubActions" -> githubActions((GithubWorkflow) parsed, check.expression());
             default -> throw new IllegalStateException("未対応の検査です: " + check.type());
         };

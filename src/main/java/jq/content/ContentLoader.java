@@ -818,7 +818,8 @@ public final class ContentLoader {
         for (Object entry : MiniJson.list(spec, "checks")) {
             Map<String, Object> check = MiniJson.asObj(entry);
             String checkType = MiniJson.requireStr(check, "type");
-            if (!List.of("xpath", "regex", "property", "jsonPointer", "githubActions")
+            if (!List.of("xpath", "regex", "property", "jsonPointer", "jsonPointerExists",
+                            "jsonPointerContains", "githubActions")
                     .contains(checkType)) {
                 throw new IllegalStateException(where + " の artifact.checks[].type が不正です: " + checkType);
             }
@@ -828,14 +829,15 @@ public final class ContentLoader {
             if (checkType.equals("property") && !format.equals("properties")) {
                 throw new IllegalStateException(where + " の property 検査は properties だけで使えます");
             }
-            if (checkType.equals("jsonPointer") && !format.equals("json")) {
-                throw new IllegalStateException(where + " の jsonPointer 検査は JSON だけで使えます");
+            if (checkType.startsWith("jsonPointer") && !format.equals("json")) {
+                throw new IllegalStateException(where + " の " + checkType + " 検査は JSON だけで使えます");
             }
             if (checkType.equals("githubActions") && !format.equals("yaml")) {
                 throw new IllegalStateException(where + " の githubActions 検査は YAML だけで使えます");
             }
             Object expected = check.get("expected");
-            if ((checkType.equals("property") || checkType.equals("jsonPointer"))
+            if ((checkType.equals("property") || checkType.equals("jsonPointer")
+                    || checkType.equals("jsonPointerContains"))
                     && !check.containsKey("expected")) {
                 throw new IllegalStateException(where + " の " + checkType + " 検査には expected が必要です");
             }

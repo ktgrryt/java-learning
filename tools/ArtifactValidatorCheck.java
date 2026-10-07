@@ -32,6 +32,18 @@ public final class ArtifactValidatorCheck {
                 "{\"openapi\":\"3.1.0\"}"), true, 1);
         assertSyntaxError("壊れたJSON", ArtifactValidator.validate(json, "{]"));
 
+        ArtifactSpec placed = new ArtifactSpec("openapi.json", "json", List.of(
+                new ArtifactCheck("jsonPointerExists", "/paths/~1orders/post/responses/201", null, "201を置く"),
+                new ArtifactCheck("jsonPointer", "/paths/~1orders/post/requestBody/required", true, "本文は必須"),
+                new ArtifactCheck("jsonPointerContains", "/required", "id", "idは必須")
+        ));
+        assertResult("置き場所と真偽値と配列", ArtifactValidator.validate(placed,
+                "{\"paths\":{\"/orders\":{\"post\":{\"requestBody\":{\"required\":true},"
+                        + "\"responses\":{\"201\":{}}}}},\"required\":[\"name\",\"id\"]}"), true, 3);
+        assertResult("別の階層に置いた201と、文字列のtrueと、配列でないrequired", ArtifactValidator.validate(placed,
+                "{\"paths\":{\"/orders\":{\"post\":{\"201\":{},\"requestBody\":{\"required\":\"true\"}}}},"
+                        + "\"required\":\"id\"}"), false, 0);
+
         ArtifactSpec properties = new ArtifactSpec("app.properties", "properties", List.of(
                 new ArtifactCheck("property", "app.timeout", "30", "timeout")
         ));
