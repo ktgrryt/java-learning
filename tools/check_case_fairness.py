@@ -21,7 +21,7 @@ tools/check-case-fairness.sh から呼ばれる。
 
 ## 判定
 
-  失敗 … 模範解答の中の日本語を含む固定文字列が、隠しケースの期待出力にだけ現れる
+  失敗 … 模範解答の中の日本語を含む固定文字列（または `&#39;` のような文字参照）が、隠しケースの期待出力にだけ現れる
   失敗 … ケースのラベルが `表示ケース1` `隠しケース2` のような番号だけ
 
 ## 直し方
@@ -41,6 +41,9 @@ CONTENT = pathlib.Path('content')
 LITERAL = re.compile(r'"((?:[^"\\\n]|\\.)*)"')
 MIN_LITERAL = 3
 JAPANESE = re.compile(r'[぀-ヿ一-鿿]')
+# 記号だけの文字参照も「当てられない固定文言」になる。22-5 は `'` の置き換え先 `&#39;` を隠しケースだけが
+# 求めていて、`&#x27;` や `&apos;` で書いた正しい解答が落ちていた（日本語を含まないので見逃していた）。
+ENTITY = re.compile(r'&#?[0-9A-Za-z]+;')
 NUMBERED_LABEL = re.compile(r'^(?:表示|隠し)?ケース\s*\d+$')
 
 # 問題文が「並び」や「語の一覧」として書いているので、1語ずつは載っていなくても当てられるもの。
@@ -118,7 +121,7 @@ def required_only_in_hidden(task):
         if len(literal) < MIN_LITERAL:
             continue
         text = literal.replace('\\"', '"')
-        if text in readable or not JAPANESE.search(text):
+        if text in readable or not (JAPANESE.search(text) or ENTITY.search(text)):
             continue
         if any(text in (c.get('expected') or '') for c in hidden(task)):
             found.append(text)
