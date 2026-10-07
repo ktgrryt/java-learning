@@ -201,7 +201,7 @@
         "32-o2",
         "32-o3"
       ],
-      "explanation": "## はじめて学ぶ人へ\n\nスレッドセーフとは、共有データの**守るべき条件（不変条件）**が同時実行でも壊れないことです。残高が0円未満にならない口座から、2人が同時に800円ずつ引き出す例を考えます。\n\n```text\n残高1000円\nA: 1000円あると確認\nB: 1000円あると確認\nA/Bとも800円を引く → 条件が壊れる\n```\n\n確認と更新を別々ではなく、1本の鍵でまとめて守る必要があります。`synchronized` は部屋の鍵、`Lock` は期限付き取得などもできる高機能な鍵です。`volatile` は、書いた値がほかのスレッドから見えることを保証しますが、「確認してから更新」の複合操作を原子的にはしません。\n\n## ロックはデータの不変条件を守る\n\n`synchronized` は同じモニタを使う区間を一度に1スレッドへ限定し、可視性も保証します。残高確認と減算のような複数操作は一つの臨界区間にします。\n\n`ConcurrentHashMap` は並行アクセス向けですが、`get`して計算して`put`という組合せ全体が自動で原子的になるわけではありません。`merge`、`compute`、`putIfAbsent`などの複合APIを使います。複数ロックを取る場合は順序を統一し、ロック中に遅いI/Oや外部コールをしないことがデッドロックと詰まりを避ける基本です。",
+      "explanation": "## はじめて学ぶ人へ\n\nスレッドセーフとは、共有データの**守るべき条件（不変条件）**が同時実行でも壊れないことです。残高が0円未満にならない口座から、2人が同時に800円ずつ引き出す例を考えます。\n\n```text\n残高1000円\nA: 1000円あると確認\nB: 1000円あると確認\nA/Bとも800円を引く → 条件が壊れる\n```\n\n確認と更新を別々ではなく、1本の鍵でまとめて守る必要があります。`synchronized` は部屋の鍵、`Lock` は期限付き取得などもできる高機能な鍵です。`volatile` は、書いた値がほかのスレッドから見えることを保証しますが、「確認してから更新」の複合操作を原子的にはしません。\n\n## ロックはデータの不変条件を守る\n\n`synchronized` は同じモニタを使う区間を一度に1スレッドへ限定し、可視性も保証します。残高確認と減算のような複数操作は一つの臨界区間にします。\n\nメソッド全体ではなく、特定のオブジェクトを鍵にして区間を書くこともできます。2つの口座を両方守るときは、鍵を入れ子にします。\n\n```java\nsynchronized (first) {          // 先に取る鍵\n    synchronized (second) {     // 両方を持っている間だけ動く\n        from.add(-amount);\n        to.add(amount);\n    }\n}\n```\n\nどのスレッドも同じ順（たとえば口座IDの小さい方から）で鍵を取ることが大切です。順番がスレッドによって違うと、互いに相手の持つ鍵を待ち続けます（デッドロック）。\n\n`ConcurrentHashMap` は並行アクセス向けですが、`get`して計算して`put`という組合せ全体が自動で原子的になるわけではありません。`merge`、`compute`、`putIfAbsent`などの複合APIを使います。複数ロックを取る場合は順序を統一し、ロック中に遅いI/Oや外部コールをしないことがデッドロックと詰まりを避ける基本です。",
       "samples": [
         {
           "caption": "ConcurrentHashMap.mergeで集計",
@@ -255,6 +255,11 @@
           "pattern": "\\.join\\s*\\(",
           "minimum": 1,
           "message": "表示する前に、全スレッドを `join()` で待ってください。"
+        },
+        {
+          "pattern": "\\.merge\\s*\\(",
+          "minimum": 1,
+          "message": "件数は `counts.merge(w, 1, Integer::sum)` で加算してください。`get` してから `put` すると、2つの操作のあいだに他のスレッドが割り込み、加算が失われます。"
         }
       ],
       "extraTasks": [
@@ -496,7 +501,7 @@
             "32-o3"
           ],
           "kind": "drill",
-          "task": "【組み合わせ】在庫stock、単価price、要求数n、1回に買う数量amountを読みます。`Shop` クラスに `synchronized boolean buy(int amount)` を作り、**在庫と売上を1つの `synchronized` の中でまとめて更新**してください。在庫が足りなければ何も変えずに `false`、足りれば在庫を amount 減らし、売上に `amount*price` を足して `true` を返します。\n\nn本のスレッドがそれぞれ1回ずつ `buy` を呼びます。成功数は共有の `AtomicInteger` で数え、全スレッドを `join` したあとに `ok=成功数 sold=売れた数量 revenue=売上 rest=残り在庫` と表示してください。\n\n最後に、`sold*price == revenue` と `sold == 初期在庫-rest` の両方が成り立っていれば `INVARIANT_OK`、どちらかが崩れていれば `INVARIANT_BROKEN` と表示します（在庫と売上を別々に更新すると、ここが崩れます）。",
+          "task": "【組み合わせ】在庫stock、単価price、要求数n、1回に買う数量amountを読みます。`Shop` クラスに `synchronized boolean buy(int amount)` を作り、**在庫と売上を1つの `synchronized` の中でまとめて更新**してください。在庫が足りなければ何も変えずに `false`、足りれば在庫を amount 減らし、売上に `amount*price` を足して `true` を返します。\n\nn本のスレッドがそれぞれ1回ずつ `buy` を呼びます。成功数は共有の `AtomicInteger` で数え、全スレッドを `join` したあとに `ok=成功数 sold=売れた数量 revenue=売上 rest=残り在庫` と表示してください。\n\n最後に、`sold*price == revenue` と `sold == 初期在庫-rest` の両方が成り立っていれば `INVARIANT_OK`、どちらかが崩れていれば `INVARIANT_BROKEN` と表示します。この検算は、すべてのスレッドが終わった後の値だけを見ます。`synchronized` を付けずに更新すると、更新が失われてここが崩れることがあります。",
           "starterCode": "import java.util.*;\nimport java.util.concurrent.atomic.*;\n\nclass Shop {\n    private int rest;\n    private long revenue;\n    private final int price;\n\n    Shop(int rest, int price) {\n        this.rest = rest;\n        this.price = price;\n    }\n\n    synchronized boolean buy(int amount) {\n        /* TODO 在庫と売上をまとめて更新する */ return false;\n    }\n\n    synchronized int rest() {\n        return rest;\n    }\n\n    synchronized long revenue() {\n        return revenue;\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) throws Exception {\n        Scanner sc = new Scanner(System.in);\n        int stock = sc.nextInt(), price = sc.nextInt(), n = sc.nextInt(), amount = sc.nextInt();\n        Shop shop = new Shop(stock, price);\n        AtomicInteger ok = new AtomicInteger();\n        List<Thread> threads = new ArrayList<>();\n        /* TODO スレッドを作って start し、join する */ int sold = stock - shop.rest();\n        System.out.println(\"ok=\" + ok.get() + \" sold=\" + sold + \" revenue=\" + shop.revenue() + \" rest=\" + shop.rest());\n        /* TODO 不変条件の検算 */\n    }\n}\n",
           "visibleCases": [
             {
@@ -540,7 +545,7 @@
           "hints": [
             "在庫の確認・在庫の減算・売上の加算を、1つの `synchronized` メソッドの中で続けて行います。途中で他のスレッドへ割り込まれない範囲が「不変条件を守る単位」です。",
             "先に全スレッドを `start` し、そのあとで全部を `join` します。成功数は複数スレッドから触るので `AtomicInteger` です。",
-            "在庫を減らすメソッドと売上を足すメソッドを別々に `synchronized` にすると、片方だけ済んだ状態が他のスレッドから見えてしまいます。それが `INVARIANT_BROKEN` の正体です。"
+            "在庫を減らすメソッドと売上を足すメソッドを別々に `synchronized` にすると、片方だけ済んだ状態が途中で他のスレッドから見えてしまいます。最後の検算は終わった後の値しか見ないので、この食い違いは `INVARIANT_OK` のまま見逃されます。検算で捕まるのは、`synchronized` を付けずに更新が失われた場合です。"
           ],
           "solution": "import java.util.*;\nimport java.util.concurrent.atomic.*;\n\nclass Shop {\n    private int rest;\n    private long revenue;\n    private final int price;\n\n    Shop(int rest, int price) {\n        this.rest = rest;\n        this.price = price;\n    }\n\n    synchronized boolean buy(int amount) {\n        if (rest < amount) return false;\n        rest -= amount;\n        revenue += (long) amount * price;\n        return true;\n    }\n\n    synchronized int rest() {\n        return rest;\n    }\n\n    synchronized long revenue() {\n        return revenue;\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) throws Exception {\n        Scanner sc = new Scanner(System.in);\n        int stock = sc.nextInt(), price = sc.nextInt(), n = sc.nextInt(), amount = sc.nextInt();\n        Shop shop = new Shop(stock, price);\n        AtomicInteger ok = new AtomicInteger();\n        List<Thread> threads = new ArrayList<>();\n        for (int i = 0; i < n; i++) {\n            Thread t = new Thread(() -> {\n                if (shop.buy(amount)) ok.incrementAndGet();\n            });\n            threads.add(t);\n            t.start();\n        }\n        for (Thread t : threads) t.join();\n        int sold = stock - shop.rest();\n        System.out.println(\"ok=\" + ok.get() + \" sold=\" + sold + \" revenue=\" + shop.revenue() + \" rest=\" + shop.rest());\n        System.out.println((long) sold * price == shop.revenue() && sold == stock - shop.rest() ? \"INVARIANT_OK\" : \"INVARIANT_BROKEN\");\n    }\n}\n",
           "sourceChecks": [
@@ -592,7 +597,7 @@
               "expected": "0=50\ntotal=50"
             },
             {
-              "label": "逆向きの指定でも順序をそろえる",
+              "label": "逆向きの送金を組んでも最後まで終わる",
               "stdin": "2 100 100 2 1 0 40 0 1 40",
               "expected": "0=100\n1=100\ntotal=200"
             },
@@ -618,6 +623,11 @@
               "pattern": "\\.join\\s*\\(",
               "minimum": 1,
               "message": "残高を読む前に、全スレッドを `join()` で待ってください。"
+            },
+            {
+              "pattern": "\\b\\w+\\s*\\.\\s*id\\s*(?:<|>|<=|>=)\\s*\\w+\\s*\\.\\s*id\\b|\\bInteger\\s*\\.\\s*compare\\s*\\(",
+              "minimum": 1,
+              "message": "ロックを取る前に2つの口座IDを比べ、小さい方から取ってください（`from.id < to.id ? from : to`）。`from` → `to` の順で取ると、逆向きの送金と組んだときにデッドロックします。"
             }
           ]
         }

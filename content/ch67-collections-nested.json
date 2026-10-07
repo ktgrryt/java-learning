@@ -230,6 +230,18 @@
           "answer": 3,
           "explanation": "外側インスタンスを暗黙に保持するのは `static` を付けない inner class です。`static` なネスト型は `static` メンバーを持てますし、同じ外側クラスの中にあるのでprivateなメンバーへも触れます。違いは、外側のインスタンスを必要とせず`new 外側.内側()` の形で単独に作れることです。"
         }
+      ],
+      "sourceChecks": [
+        {
+          "pattern": "\\brecord\\s+Item\\s*\\(",
+          "minimum": 1,
+          "message": "`Catalog` の中に `record Item(String name, int price)` を宣言してください。"
+        },
+        {
+          "pattern": "\\bCatalog\\s*\\.\\s*Item\\b",
+          "minimum": 1,
+          "message": "外からは `Catalog.Item` として使ってください。"
+        }
       ]
     },
     {
@@ -239,7 +251,7 @@
         "ch67-o1"
       ],
       "explanation": "## 「どう取り出すか」と「外側と結び付くか」で選ぶ\n\nこの章の2つを組み合わせます。**入れ物は取り出し方で選ぶ**こと（FIFOなら `Queue`、\n両端から触るなら `Deque`、走査しながら削除するなら `Iterator.remove()`）。\n**ネストした型は外側と結び付くかで選ぶ**こと（要らなければ `static`、\n外側の状態に触るなら inner）です。\n\n新しい文法は出てきません。迷ったら `41-4` と `41-5` の解説へ戻ってください。\n\n| 確かめること | どこで学んだか |\n|---|---|\n| `getFirst` `getLast` `reversed()`（Sequenced Collection） | `41-4` |\n| 走査中の削除は `Iterator.remove()`。`for` の中で `remove` すると失敗する | `41-4` |\n| 外側を要さない型は `static`。要る型は inner（`外側.new 内側()` で作る） | `41-5` |\n\n> ⚠️ `Deque` は Queue としてもスタックとしても使えます。**どちら向きに使っているか**を\n> 名前とメソッドで示してください（`addLast`/`pollFirst` ならFIFO、`push`/`pop` ならスタック）。",
-      "task": "【基本】1行目に個数 `n`（`0` 以上）、続く行に `n` 個の整数（マイナスも来ます）が入力されます。読んだ整数を `Deque` へ入れ、**先頭・末尾・逆順**を表示してください。\n形は `first=1 last=3 reversed=[3, 2, 1]` です。\n\n1件も無いときは `first=none last=none reversed=[]` と表示します。",
+      "task": "【基本】1行目に個数 `n`（`0` 以上）、続く行に `n` 個の整数（マイナスも来ます）が入力されます。読んだ整数を `Deque` へ入れ、**先頭・末尾・逆順**を、`getFirst()`・`getLast()`・`reversed()` で表示してください。\n形は `first=1 last=3 reversed=[3, 2, 1]` です。\n\n1件も無いときは `first=none last=none reversed=[]` と表示します。",
       "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n        Deque<Integer> deque = new ArrayDeque<>();\n        for (int i = 0; i < n; i++) {\n            deque.addLast(sc.nextInt());\n        }\n        // TODO 空なら none、そうでなければ先頭・末尾・逆順を表示する\n        System.out.println(\"first=\" + deque);\n    }\n}\n",
       "visibleCases": [
         {
@@ -417,6 +429,18 @@
           ],
           "answer": 1,
           "explanation": "top-level の record と static nested class は、外側のインスタンスと無関係に作れます。enum定数も外側を保持しません。`static` を付けない inner class だけが外側のインスタンスと結び付き、暗黙の参照を持ちます。この参照が、意図せずメモリを保持し続ける原因になることがあります。"
+        }
+      ],
+      "sourceChecks": [
+        {
+          "pattern": "\\.(?:get|peek)(?:First|Last)\\s*\\(",
+          "minimum": 2,
+          "message": "先頭と末尾は `getFirst()`・`getLast()` で取り出してください。"
+        },
+        {
+          "pattern": "\\.reversed\\s*\\(",
+          "minimum": 1,
+          "message": "逆順は `reversed()` で、並べ替えずに逆向きの見え方を得てください。"
         }
       ]
     }

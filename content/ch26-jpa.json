@@ -143,6 +143,33 @@
             }
           ]
         }
+      ],
+      "sourceChecks": [
+        {
+          "pattern": "@Entity\\b",
+          "minimum": 1,
+          "message": "`Product` に `@Entity` を付けてください。"
+        },
+        {
+          "pattern": "@Table\\s*\\(",
+          "minimum": 1,
+          "message": "テーブル名は `@Table(name = \"products\")` で指定してください。"
+        },
+        {
+          "pattern": "@GeneratedValue\\b",
+          "minimum": 1,
+          "message": "idの自動採番は `@GeneratedValue` で指定してください。"
+        },
+        {
+          "pattern": "@Column\\s*\\((?=[^)]*\\bnullable\\s*=\\s*false)(?=[^)]*\\blength\\s*=\\s*80)",
+          "minimum": 1,
+          "message": "nameは `@Column(nullable = false, length = 80)` で、null不可・長さ80にしてください。"
+        },
+        {
+          "pattern": "\\.persist\\s*\\(",
+          "minimum": 1,
+          "message": "作ったProductは `em.persist` で保存してください。"
+        }
       ]
     },
     {
@@ -230,6 +257,18 @@
               "message": "`find` は見つからなければ `null` を返します。`remove` の前に確かめてください。"
             }
           ]
+        }
+      ],
+      "sourceChecks": [
+        {
+          "pattern": "\\.persist\\s*\\(",
+          "minimum": 1,
+          "message": "3件のTaskは `em.persist` で保存してください。"
+        },
+        {
+          "pattern": "\\.find\\s*\\(\\s*Task\\s*\\.\\s*class",
+          "minimum": 1,
+          "message": "入力IDのTaskは `em.find(Task.class, id)` で取り出してください。"
         }
       ]
     },
@@ -373,7 +412,7 @@
             ]
           },
           "hints": [
-            "一覧のJPQLを`SELECT DISTINCT c FROM Customer c LEFT JOIN FETCH c.orders ORDER BY c.id`にします。`DISTINCT`が必要なのは、JOINで顧客の行が注文の数だけ複製されるからです。",
+            "一覧のJPQLを`SELECT DISTINCT c FROM Customer c LEFT JOIN FETCH c.orders ORDER BY c.id`にします。JPAの仕様では、JOIN FETCHすると顧客が注文の数だけ重複して返りうるので、移植できるように`DISTINCT`を付けます（このlabのHibernate 6以降は、付けなくても重複を除きます）。",
             "`findOne`は`try`の中で`CustomerSummary`へ移し替えてから返します。閉じたあとに`getOrders()`を触ると、もう取ってこられません。",
             "`Customer`の`version`フィールドへ`@Version`を付けます。これだけで、更新が`UPDATE ... WHERE id = ? AND version = ?`になり、0行更新のときに`OptimisticLockException`になります。"
           ],
@@ -427,6 +466,18 @@
           ],
           "answer": 1,
           "explanation": "SQLインジェクション対策はプレースホルダ、パスワードの保護はハッシュ、主キーの採番は`@GeneratedValue` の担当で、どれも `@Version` とは別です。`@Version` はJPAが更新条件へversionを含めることで、読み込んだあとに別の処理が更新した競合を検出します（アプリが手で増やすものではありません）。"
+        }
+      ],
+      "sourceChecks": [
+        {
+          "pattern": "\\bcreateQuery\\s*\\(",
+          "minimum": 1,
+          "message": "検索はJPQLを `em.createQuery` で組み立ててください。"
+        },
+        {
+          "pattern": "\\.setParameter\\s*\\(",
+          "minimum": 1,
+          "message": "入力名は `:name` に `setParameter` で渡してください。全件を取ってJavaで絞ると、DBに条件を任せたことになりません。"
         }
       ]
     },

@@ -40,14 +40,16 @@ podman image inspect postgres:16-alpine
 `schema.sql` の末尾のSELECTは、顧客ごとの「PAIDの合計」を返します。自動採点版では
 `exercise/paid_totals.sql`を編集し、同じ結果を実DBから得ます。
 `Sora` には注文が無いので、`LEFT JOIN` と `COALESCE` により0で残ります。
+`Ren` の注文は `NEW` だけなので、PAIDの合計は0です。
 
 | name | paid_total |
 |---|---|
 | Aki | 1200.00 |
 | Mina | 2500.00 |
+| Ren | 0.00 |
 | Sora | 0.00 |
 
-（桁の表示のしかたはクライアントによって変わります）
+（桁の表示のしかたはクライアントによって変わります。自動採点は金額を数として比べるので、`0` と `0.00` のどちらでも構いません）
 
 `Aki` の注文102は `NEW` なので合計に入りません。ここが「`WHERE` ではなく `ON` に
 絞り込みを書く」効き目です。
@@ -61,8 +63,9 @@ podman image inspect postgres:16-alpine
 3. 同じメールアドレスの顧客をINSERTし、**UNIQUE違反** になること
 4. 集約SELECTを `EXPLAIN` し、データ量を増やす前後で計画を比べること
 5. `status, created_at` の複合インデックスを追加し、代表SQLで効果を測ること
-6. 末尾のSELECTの `AND o.status = 'PAID'` を `WHERE` へ移すと、`Sora` が消えて
-   内部結合に近い結果になること（アプリ内のレッスンと同じ論点です）
+6. 末尾のSELECTの `AND o.status = 'PAID'` を `WHERE` へ移すと、`Sora` と `Ren` が消えて
+   内部結合に近い結果になること（アプリ内のレッスンと同じ論点です）。`WHERE o.status = 'PAID' OR o.status IS NULL`
+   と書き足しても、注文が `NEW` だけの `Ren` は戻りません
 
 DB製品ごとに実行計画や日時・自動採番の構文は異なります。使う製品の公式文書も
 合わせて確認してください。

@@ -357,9 +357,9 @@
               "message": "現在時刻は `Clock` として受け取ってください。`Instant.now()` を直接呼ぶと、テストで時刻を固定できません。"
             },
             {
-              "pattern": "now\\s*\\(\\s*(?:this\\s*\\.\\s*)?clock\\s*\\)",
+              "pattern": "now\\s*\\(\\s*(?:this\\s*\\.\\s*)?clock\\b|\\bclock\\s*\\.\\s*instant\\s*\\(",
               "minimum": 1,
-              "message": "`Instant.now(clock)` のように `Clock` を渡して現在時刻を得てください。"
+              "message": "`Instant.now(clock)` や `ZonedDateTime.now(clock.withZone(zone))` のように、受け取った `Clock` から現在時刻を得てください。"
             }
           ]
         }
@@ -465,9 +465,9 @@
           "solution": "import java.time.*;\nimport java.time.format.*;\nimport java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        Instant start = Instant.parse(sc.next());\n        long minutes = sc.nextLong();\n        ZoneId zone = ZoneId.of(sc.next());\n        Instant end = start.plus(Duration.ofMinutes(minutes));\n        System.out.println(\"instant=\" + end);\n        System.out.println(\"local=\" + end.atZone(zone).format(DateTimeFormatter.ofPattern(\"yyyy-MM-dd HH:mm\")));\n    }\n}\n",
           "sourceChecks": [
             {
-              "pattern": "Duration\\s*\\.\\s*of|plusMinutes",
+              "pattern": "Duration\\s*\\.\\s*of|plusMinutes|ChronoUnit\\s*\\.\\s*MINUTES",
               "minimum": 1,
-              "message": "経過時間は `Duration.ofMinutes` か `plusMinutes` で足してください（秒数を自分で掛けないため）。"
+              "message": "経過時間は `start.plus(Duration.ofMinutes(minutes))` か `start.plus(minutes, ChronoUnit.MINUTES)` で足してください（秒数を自分で掛けないため）。"
             },
             {
               "pattern": "\\.atZone\\s*\\(",

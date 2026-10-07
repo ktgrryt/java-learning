@@ -41,7 +41,7 @@ cd labs/business-app-capstone
 ## 完了条件
 
 ```text
-tests=11 passed=11 failed=0
+tests=17 passed=17 failed=0
 ```
 
 に加えて、次を説明できれば完了です。

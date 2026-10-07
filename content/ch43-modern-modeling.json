@@ -129,7 +129,7 @@
             "追加の修飾子は宣言できない"
           ],
           "answer": 1,
-          "explanation": "`public static` はクラスの公開範囲と入れ子の話で、継承の制限とは別です。`abstract` を求められることはなく、修飾子を書けないわけでもありません。sealedの直接の子は、継承をそこで止める（`final`）か、さらに絞る（`sealed`）か、開放する（`non-sealed`）かを必ず明示します。"
+          "explanation": "`public static` はクラスの公開範囲と入れ子の話で、継承の制限とは別です。`abstract` を求められることはなく、修飾子を書けないわけでもありません。sealedの直接の子がclassなら、継承をそこで止める（`final`）か、さらに絞る（`sealed`）か、開放する（`non-sealed`）かを明示します。recordは暗黙に `final` なので、書かなくても構いません。"
         }
       ],
       "sourceChecks": [
@@ -146,7 +146,7 @@
       "objectiveIds": [
         "ch43-o2"
       ],
-      "explanation": "## 型の確認・型変換・分岐を1つのcaseへまとめる\n\n型ごとに処理を変えるコードを `instanceof` とキャストで並べると、確認した型と変換する型を間違えたり、新しい候補を追加したときに分岐を直し忘れたりします。\n\nJava 21で正式機能になった **pattern matching for switch** では、型の確認と変数への取り出しを1つのcaseへ書けます。\n\n```java\nstatic String describe(Result result) {\n    return switch (result) {\n        case Ok(String value) -> \"成功: \" + value;\n        case Error(String message) -> \"失敗: \" + message;\n    };\n}\n```\n\n`Result` が `Ok` と `Error` だけのsealed型なので、2つを扱えば `default` は不要です。後で新しいサブタイプを追加すると、このswitchがコンパイルエラーになり、修正箇所を知らせます。\n\n型に加えて値の条件を付けるときは `when` を使います。\n\n```java\ncase Ok(String value) when value.isBlank() -> \"空の成功\";\ncase Ok(String value)                      -> \"成功: \" + value;\n```\n\n条件付きの狭いcaseを、すべての `Ok` に一致する広いcaseより先に置きます。逆にすると後のcaseへ到達できないため、コンパイルエラーになります。\n\n`null` はどの型パターンにも一致しません。nullを許す設計なら `case null` を明示し、許さないならswitchへ渡す前の境界で拒否します。\n\n今回の演習では、`Add` と `Reset` だけを持つCommandをdefaultなしで処理します。短く書くことより、候補追加時に処理漏れをコンパイラへ検出させることが利点です。",
+      "explanation": "## 型の確認・型変換・分岐を1つのcaseへまとめる\n\n型ごとに処理を変えるコードを `instanceof` とキャストで並べると、確認した型と変換する型を間違えたり、新しい候補を追加したときに分岐を直し忘れたりします。\n\nJava 21で正式機能になった **pattern matching for switch** では、型の確認と変数への取り出しを1つのcaseへ書けます。\n\n```java\nstatic String describe(Result result) {\n    return switch (result) {\n        case Ok(String value) -> \"成功: \" + value;\n        case Error(String message) -> \"失敗: \" + message;\n    };\n}\n```\n\n`Result` が `Ok` と `Error` だけのsealed型なので、2つを扱えば `default` は不要です。後で新しいサブタイプを追加すると、このswitchがコンパイルエラーになり、修正箇所を知らせます。\n\n型に加えて値の条件を付けるときは `when` を使います。\n\n```java\ncase Ok(String value) when value.isBlank() -> \"空の成功\";\ncase Ok(String value)                      -> \"成功: \" + value;\n```\n\n条件付きの狭いcaseを、すべての `Ok` に一致する広いcaseより先に置きます。逆にすると後のcaseへ到達できないため、コンパイルエラーになります。\n\nswitchへ渡す値そのものが `null` だと、`case null` が無い限り `NullPointerException` になります。nullを許す設計なら `case null` を明示し（`default` より前に置きます）、許さないならswitchへ渡す前の境界で拒否します。一方、record patternの中の型パターンは、成分の `null` にも一致します。`case Ok(String value) when value.isBlank()` は `new Ok(null)` で `NullPointerException` になるので、成分にnullが来うるなら先に確かめます。\n\n今回の演習では、`Add` と `Reset` だけを持つCommandをdefaultなしで処理します。短く書くことより、候補追加時に処理漏れをコンパイラへ検出させることが利点です。",
       "samples": [
         {
           "caption": "型switch",
@@ -377,6 +377,13 @@
           "answer": 2,
           "explanation": "record patternは可変にする仕組みではなく、GCとも無関係で、privateフィールドを書き換えるものでもありません。`case Point(int x, int y)` と書くと、「Pointか」の判定と「中身をxとyへ取り出す」を一度に行えます。判定・キャスト・呼び出しを別々に書く必要がなくなります。"
         }
+      ],
+      "sourceChecks": [
+        {
+          "pattern": "(?:instanceof|case)\\s+Order\\s*\\(",
+          "minimum": 1,
+          "message": "record patternで `Order(Customer(String name), int amount)` のように分解してください。アクセサを順に呼ぶのではなく、型の確認と取り出しを1つの式で行います。"
+        }
       ]
     },
     {
@@ -506,7 +513,7 @@
           "code": "sealed interface State permits Ready, Failed { }\n\nrecord Ready(int count) implements State { }\n\nrecord Failed(String reason) implements State { }\n\npublic class Main {\n    static String show(State s) {\n        return switch (s) {\n            case Ready(int n) -> \"ready:\" + n;\n            case Failed(String r) -> \"failed:\" + r;\n        };\n    }\n\n    public static void main(String[] a) {\n        System.out.println(show(new Ready(2)));\n    }\n}\n"
         }
       ],
-      "task": "【基本】1行に、単位（`C` か `F`）と温度の値（マイナスも来ます）が、この順で入力されます。sealedな温度単位 `Celsius(double)` / `Fahrenheit(double)` をswitchで摂氏へ変換し、小数1桁で表示してください。",
+      "task": "【基本】1行に、単位（`C` か `F`）と温度の値（マイナスも来ます）が、この順で入力されます。sealedな温度単位 `Celsius(double)` / `Fahrenheit(double)` をswitchで摂氏へ変換し、小数1桁で表示してください。sealedなので `default` は書かず、2つの `case` で網羅します。",
       "starterCode": "import java.util.*;\n\nsealed interface Temperature permits Celsius, Fahrenheit { }\n\nrecord Celsius(double value) implements Temperature { }\n\nrecord Fahrenheit(double value) implements Temperature { }\n\npublic class Main {\n    static double celsius(Temperature t) {\n        // TODO: Celsius はそのまま、Fahrenheit は摂氏へ直して返す\n        return 0;   // 仮の値。書けたら消す\n    }\n\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        String unit = sc.next();\n        double v = sc.nextDouble();\n        Temperature t = unit.equals(\"C\") ? new Celsius(v) : new Fahrenheit(v);\n        System.out.printf(Locale.ROOT, \"%.1f%n\", celsius(t));\n    }\n}\n",
       "visibleCases": [
         {
@@ -680,6 +687,29 @@
           ],
           "answer": 2,
           "explanation": "モジュールでも（`opens` などの条件つきで）リフレクションは使えますし、`setAccessible` を使えば private にも触れます。recordだけに限られるものでもありません。問題は、名前を文字列で指定するためコンパイラの型検査もIDEの名前変更も効かず、間違いが**実行時まで**見つからないことです。"
+        }
+      ],
+      "sourceChecks": [
+        {
+          "pattern": "\\bswitch\\s*\\(",
+          "minimum": 1,
+          "message": "単位ごとの変換は `switch` で書いてください。"
+        },
+        {
+          "pattern": "\\bcase\\s+Celsius\\b",
+          "minimum": 1,
+          "message": "`case Celsius` の場合を書いてください。"
+        },
+        {
+          "pattern": "\\bcase\\s+Fahrenheit\\b",
+          "minimum": 1,
+          "message": "`case Fahrenheit` の場合を書いてください。"
+        },
+        {
+          "pattern": "\\bdefault\\b",
+          "minimum": 0,
+          "message": "sealedなので `default` は要りません。書かないことで、単位を足したときにコンパイラが漏れを知らせてくれます。",
+          "maximum": 0
         }
       ]
     }

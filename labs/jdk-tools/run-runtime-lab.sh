@@ -90,7 +90,8 @@ fi
 deps=''
 if [ "$compiled" -eq 1 ] && [ -n "$modules_tool" ] && [ -n "$modules_flag" ]; then
   "$modules_tool" "$modules_flag" out/classes >out/modules.txt 2>&1
-  deps="$(tr -d ' \011\015' <out/modules.txt | tr '\n' ' ' | sed 's/ *$//')"
+  # --print-module-deps は「a,b」の1行、--list-deps は1行に1つで出すので、どちらもカンマ区切りへ寄せる
+  deps="$(tr -d ' \011\015' <out/modules.txt | sed '/^$/d' | paste -sd, -)"
 fi
 case "$deps" in
   java.base,java.net.http|java.net.http,java.base)

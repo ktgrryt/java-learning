@@ -345,6 +345,11 @@
           "label": "似た文字列は配下ではない",
           "stdin": "ERROR\n1\norder DEBUG\n2\norders.Service DEBUG wrong-prefix\norder.Service DEBUG right-prefix",
           "expected": "order.Service right-prefix"
+        },
+        {
+          "label": "長いprefixが先に書かれていても長いほうを使う",
+          "stdin": "INFO\n2\ncom.example.orders ERROR\ncom.example DEBUG\n2\ncom.example.orders.Service WARN slow\ncom.example.users.Service DEBUG lookup",
+          "expected": "com.example.users.Service lookup"
         }
       ],
       "hints": [
@@ -355,9 +360,9 @@
       "solution": "import java.util.*;\n\nrecord Rule(String prefix, String level) { }\n\npublic class Main {\n    static final List<String> LEVELS = List.of(\"TRACE\", \"DEBUG\", \"INFO\", \"WARN\", \"ERROR\");\n\n    static String effectiveLevel(String logger, String root, List<Rule> rules) {\n        String selected = root;\n        int longest = -1;\n        for (Rule rule : rules) {\n            boolean matches = logger.equals(rule.prefix())\n                    || logger.startsWith(rule.prefix() + \".\");\n            if (matches && rule.prefix().length() > longest) {\n                selected = rule.level();\n                longest = rule.prefix().length();\n            }\n        }\n        return selected;\n    }\n\n    static boolean enabled(String configured, String event) {\n        return LEVELS.indexOf(event) >= LEVELS.indexOf(configured);\n    }\n\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        String root = sc.next();\n        int n = sc.nextInt();\n        List<Rule> rules = new ArrayList<>();\n        for (int i = 0; i < n; i++) rules.add(new Rule(sc.next(), sc.next()));\n        int m = sc.nextInt();\n        int emitted = 0;\n        for (int i = 0; i < m; i++) {\n            String logger = sc.next(), level = sc.next(), message = sc.next();\n            if (enabled(effectiveLevel(logger, root, rules), level)) {\n                System.out.println(logger + \" \" + message);\n                emitted++;\n            }\n        }\n        if (emitted == 0) System.out.println(\"NONE\");\n    }\n}\n",
       "sourceChecks": [
         {
-          "pattern": "logger\\s*\\.\\s*startsWith\\s*\\(\\s*rule\\s*\\.\\s*prefix\\s*\\(",
+          "pattern": "\\b\\w+\\s*\\.\\s*startsWith\\s*\\(\\s*\\w+\\s*\\.\\s*prefix\\s*\\(",
           "minimum": 1,
-          "message": "似た名前を誤一致させないよう、prefixの後ろのドットまで確認してください。"
+          "message": "prefixとの一致は `startsWith(rule.prefix() + \".\")` のように、prefixの後ろのドットまで含めて確かめてください（`order` が `orders.Service` に誤って一致しないように）。"
         },
         {
           "pattern": "LEVELS\\s*\\.\\s*indexOf\\s*\\(",
@@ -493,7 +498,7 @@
       "samples": [],
       "kind": "applied",
       "type": "project",
-      "task": "`labs/logging-investigation`のログ解析プロジェクトを完成させ、注文キャンセル障害の報告を作成してください。\n\n参照専用の`incident/orders.log`と`deployments.txt`から、対象要求の時系列、最初の異常、その前の最新配備を調べます。Authorizationや顧客の自由入力は、マスクして残すのではなく許可リストから除外してください。最後に`REPORT.md`を、事実・仮説・検証・緩和策・恒久対策へ分けて記述します。\n\n編集できるのは解析器3ファイルと報告書だけです。テストや入力ログは変更できません。最初は失敗する11テストを、調査根拠を保ったまますべて通してください。\n\nREPORT.mdの5つの `##` 見出しは維持し、各本文に少なくとも1文（句点またはピリオドで終わる文）を書いてください。「時系列と事実」に最初の異常の正確な時刻とイベント、「仮説」に直前の配備を配置します。報告の自動検査は見出し・本文・根拠の配置・秘密情報除外という最低限の形式を確認します。原因の正しさや対策の有効性を保証しないため、確認クイズと模範報告も使って推論を振り返ってください。",
+      "task": "`labs/logging-investigation`のログ解析プロジェクトを完成させ、注文キャンセル障害の報告を作成してください。\n\n参照専用の`incident/orders.log`と`deployments.txt`から、対象要求の時系列、最初の異常、その前の最新配備を調べます。Authorizationや顧客の自由入力は、マスクして残すのではなく許可リストから除外してください。最後に`REPORT.md`を、事実・仮説・検証・緩和策・恒久対策へ分けて記述します。\n\n編集できるのは解析器3ファイルと報告書だけです。テストや入力ログは変更できません。最初は失敗する13テストを、調査根拠を保ったまますべて通してください。\n\nREPORT.mdの5つの `##` 見出しは維持し、各本文に20文字以上の文を書いてください（同じ文を別の節へ写すと落ちます）。「時系列と事実」に最初の異常の正確な時刻とイベント、「仮説」に直前の配備を、原因と断定せず確かめる前の候補として配置します。報告の自動検査は見出し・本文・根拠の配置・秘密情報除外という最低限の形式を確認します。原因の正しさや対策の有効性を保証しないため、確認クイズと模範報告も使って推論を振り返ってください。",
       "project": {
         "name": "logging-investigation",
         "source": "labs/logging-investigation",
@@ -579,7 +584,7 @@
             "ch59-o5"
           ],
           "kind": "applied",
-          "task": "【実践】対象要求の最初のERRORと、その時点より前で最も新しい配備を原因候補として表示します。入力は`targetRequestId`、配備数`d`、続くd行に`time version`、ログ数`n`、続くn行に`time requestId level event`です。対象requestIdのERRORをtime昇順、同時刻なら入力順で探します。無ければ`firstError=NONE`と`hypothesis=NONE`を表示します。あれば`firstError=event@time`を表示し、その時刻以下で最も新しい配備があれば`hypothesis=deploy:version@time`、無ければ`hypothesis=NONE`を表示します。配備はあくまで仮説で、原因の断定ではありません。",
+          "task": "【実践】対象要求の最初のERRORと、その時点以前（同時刻を含む）で最も新しい配備を原因候補として表示します。入力は`targetRequestId`、配備数`d`、続くd行に`time version`、ログ数`n`、続くn行に`time requestId level event`です。対象requestIdのERRORをtime昇順、同時刻なら入力順で探します。無ければ`firstError=NONE`と`hypothesis=NONE`を表示します。あれば`firstError=event@time`を表示し、その時刻以下で最も新しい配備があれば`hypothesis=deploy:version@time`、無ければ`hypothesis=NONE`を表示します。配備はあくまで仮説で、原因の断定ではありません。",
           "starterCode": "import java.util.*;\n\nrecord Deployment(int time, String version) { }\nrecord IncidentLog(int time, String requestId, String level, String event, int sequence) { }\n\npublic class Main {\n    static IncidentLog firstError(String target, List<IncidentLog> logs) {\n        // TODO: 対象要求の最初のERRORを返す。無ければnull\n        return null;   // 仮の値。書けたら消す\n    }\n\n    static Deployment latestBefore(int time, List<Deployment> deployments) {\n        // TODO: time以下で最も新しい配備を返す。無ければnull\n        return null;   // 仮の値。書けたら消す\n    }\n\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        String target = sc.next();\n        int d = sc.nextInt();\n        List<Deployment> deployments = new ArrayList<>();\n        for (int i = 0; i < d; i++) deployments.add(new Deployment(sc.nextInt(), sc.next()));\n        int n = sc.nextInt();\n        List<IncidentLog> logs = new ArrayList<>();\n        for (int i = 0; i < n; i++) {\n            logs.add(new IncidentLog(sc.nextInt(), sc.next(), sc.next(), sc.next(), i));\n        }\n\n        IncidentLog error = firstError(target, logs);\n        if (error == null) {\n            System.out.println(\"firstError=NONE\");\n            System.out.println(\"hypothesis=NONE\");\n            return;\n        }\n        System.out.println(\"firstError=\" + error.event() + \"@\" + error.time());\n        Deployment deployment = latestBefore(error.time(), deployments);\n        System.out.println(deployment == null ? \"hypothesis=NONE\"\n                : \"hypothesis=deploy:\" + deployment.version() + \"@\" + deployment.time());\n    }\n}\n",
           "visibleCases": [
             {
@@ -613,6 +618,11 @@
               "label": "別requestIdのERRORを除く",
               "stdin": "target\n1\n1 base\n2\n2 other ERROR failed\n3 target WARN recovered",
               "expected": "firstError=NONE\nhypothesis=NONE"
+            },
+            {
+              "label": "エラーと同時刻の配備も候補に含める",
+              "stdin": "r-1\n2\n100 v1\n200 v2\n2\n200 r-1 ERROR timeout\n300 r-1 ERROR again",
+              "expected": "firstError=timeout@200\nhypothesis=deploy:v2@200"
             }
           ],
           "hints": [
@@ -626,11 +636,6 @@
               "pattern": "requestId\\s*\\(\\s*\\)\\s*\\.\\s*equals\\s*\\(\\s*target\\s*\\)|target\\s*\\.\\s*equals\\s*\\(\\s*\\w+\\s*\\.\\s*requestId\\s*\\(\\s*\\)\\s*\\)",
               "minimum": 1,
               "message": "対象requestIdのログだけを調べてください。"
-            },
-            {
-              "pattern": "(\\w+)\\s*->\\s*\\1\\s*\\.\\s*time\\s*\\(\\s*\\)\\s*<=\\s*time",
-              "minimum": 1,
-              "message": "エラー発生時刻より後の配備を原因候補にしないでください。"
             }
           ],
           "rubric": [

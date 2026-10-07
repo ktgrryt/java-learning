@@ -35,10 +35,16 @@ public class RuntimeProbe {
                 "空のnameがHTTP 400になりません");
 
         HttpResponse<String> health = get(args[1] + "/actuator/health");
-        failed |= report("spring-health", health.statusCode() == 200
-                        && health.body().contains("\"status\":\"UP\""),
-                "Actuator healthがHTTP 200とUPを返しました",
-                "Actuator healthが公開されていないかUPではありません");
+        HttpResponse<String> readiness = get(args[1] + "/actuator/health/readiness");
+        HttpResponse<String> env = get(args[1] + "/actuator/env");
+        boolean healthUp = health.statusCode() == 200 && health.body().contains("\"status\":\"UP\"");
+        String healthProblem = !healthUp ? "Actuator healthが公開されていないかUPではありません"
+                : readiness.statusCode() != 200 ? "/actuator/health/readinessが200になりません。probeを無効にする設定が残っていないか確かめてください"
+                : env.statusCode() != 404 ? "/actuator/envまで公開されています。HTTPで公開するendpointはhealthだけにしてください"
+                : "";
+        failed |= report("spring-health", healthProblem.isEmpty(),
+                "healthだけを公開し、health・readinessがHTTP 200とUPを返しました（/actuator/envは404）",
+                healthProblem);
         if (failed) System.exit(1);
     }
 

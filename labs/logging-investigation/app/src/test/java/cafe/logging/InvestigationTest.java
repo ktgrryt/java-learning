@@ -27,11 +27,13 @@ public final class InvestigationTest {
         test("秘密情報と自由入力を出さない", InvestigationTest::sanitizeSecrets);
         test("対象requestIdだけを時系列化する", InvestigationTest::timeline);
         test("同時刻では入力順を保つ", InvestigationTest::sameTimeOrder);
+        test("入力順ではなく時刻で並べる", InvestigationTest::timeOrderOverInputOrder);
         test("最初のERRORを特定する", InvestigationTest::firstError);
         test("エラー以前の最新配備を仮説にする", InvestigationTest::deploymentHypothesis);
+        test("エラー直後の配備は近くても候補にしない", InvestigationTest::laterDeploymentIsNotCandidate);
         test("報告の最低限の形式と根拠の配置を満たす", InvestigationTest::report);
 
-        System.out.println("OK " + passed + "/11 tests");
+        System.out.println("OK " + passed + "/13 tests");
     }
 
     private static void parseCoreFields() {
@@ -110,6 +112,18 @@ public final class InvestigationTest {
         equal("second-input", events.get(1).event());
     }
 
+    private static void timeOrderOverInputOrder() {
+        List<LogEntry> entries = List.of(
+                new LogEntry(Instant.parse("2026-08-11T10:00:02Z"), "INFO", "gateway", "r",
+                        "third", Map.of(), 0),
+                new LogEntry(Instant.parse("2026-08-11T10:00:00Z"), "INFO", "gateway", "r",
+                        "first", Map.of(), 1),
+                new LogEntry(Instant.parse("2026-08-11T10:00:01Z"), "ERROR", "order", "r",
+                        "second", Map.of(), 2));
+        List<LogEntry> events = new IncidentAnalyzer(entries).timeline("r");
+        equal(List.of("first", "second", "third"), events.stream().map(LogEntry::event).toList());
+    }
+
     private static void firstError() {
         LogEntry error = new IncidentAnalyzer(fixture).firstError("r-500").orElseThrow();
         equal("database", error.service());
@@ -127,6 +141,16 @@ public final class InvestigationTest {
         equal("orders-2.4.0", candidate.version());
         check(candidate.time().compareTo(errorTime) <= 0,
                 "エラーより後の配備を候補にしてはいけません");
+    }
+
+    private static void laterDeploymentIsNotCandidate() {
+        Instant errorTime = Instant.parse("2026-08-11T10:00:00Z");
+        List<Deployment> deployments = List.of(
+                new Deployment(Instant.parse("2026-08-11T08:00:00Z"), "orders-1.0.0"),
+                new Deployment(Instant.parse("2026-08-11T10:00:05Z"), "orders-1.1.0"));
+        Deployment candidate = IncidentAnalyzer
+                .latestDeploymentBefore(errorTime, deployments).orElseThrow();
+        equal("orders-1.0.0", candidate.version());
     }
 
     private static void report() {

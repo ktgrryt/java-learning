@@ -205,7 +205,7 @@
           "expected": "注文API 2628.0 3000 未達\n管理画面 1051.2 900 達成\n決済連携 262.8 300 未達\n未達 2"
         },
         {
-          "label": "許容ちょうどの停止時間",
+          "label": "許容（52.56分）より少ない停止時間",
           "stdin": "1\n注文API 99.99 52\n",
           "expected": "注文API 52.6 52 達成\n未達 0"
         }
@@ -230,6 +230,16 @@
           "label": "小数第1位で四捨五入する",
           "stdin": "1\n注文API 99.95 100\n",
           "expected": "注文API 262.8 100 達成\n未達 0"
+        },
+        {
+          "label": "許容ちょうどの停止時間は達成",
+          "stdin": "1\n注文API 99.5 2628\n",
+          "expected": "注文API 2628.0 2628 達成\n未達 0"
+        },
+        {
+          "label": "丸める前の値で判定する",
+          "stdin": "1\n注文API 99.84 841\n",
+          "expected": "注文API 841.0 841 未達\n未達 1"
         }
       ],
       "hints": [
@@ -484,9 +494,9 @@
             "ch72-o1",
             "ch72-o4"
           ],
-          "task": "曖昧な取消要件を受入条件へ直す\n\n原案は「利用者は注文を簡単に取り消せる」です。業務責任者に確認すると、次の答えが返ってきました。\n\n> 取り消せるのは、自分で頼んだ注文のうち、まだお金を払っていないものだけにしてください。取り消すときは理由を書いてもらいます。空白を入れただけの理由は困ります。長さは、前後の空白を除いて100文字（Unicodeのコードポイント）までです。断るときは、注文には何も手を付けないでください。\n\nこの答えを、試験できる受入条件にします。\n\n判断をJSONの各欄へ記入してください。選択肢のコードを使います。\n\n- `owner`: any-user（ログインしていれば誰の注文でも） / self-only（注文した本人だけ）\n- `state`: all（支払い済みでも取り消せる） / unpaid-only（未払いの注文だけ）\n- `reason`: any-text（空欄でも受け付ける） / length-1-100（空白だけでも1文字と数え、1〜100文字） / trim-codepoints-1-100（前後の空白を除いてコードポイントで1〜100）\n- `rejected`: cancel-anyway（断っても状態は取消にする） / unchanged（断ったら状態を変えない）\n- `missingTest`: other-owner（本人と同じ入力で他人の注文を取消） / color-only（ボタン色だけ確認）\n\n採点はこの事例に対する判断の整合性を確認します。自由記述のレビュー能力全体を保証するものではありません。",
-          "starterContent": "{\n  \"owner\": \"TODO\",\n  \"state\": \"TODO\",\n  \"reason\": \"TODO\",\n  \"rejected\": \"TODO\",\n  \"missingTest\": \"TODO\"\n}\n",
-          "solution": "{\n  \"owner\": \"self-only\",\n  \"state\": \"unpaid-only\",\n  \"reason\": \"trim-codepoints-1-100\",\n  \"rejected\": \"unchanged\",\n  \"missingTest\": \"other-owner\"\n}\n",
+          "task": "曖昧な取消要件を受入条件へ直す\n\n原案は「利用者は注文を簡単に取り消せる」です。業務責任者に確認すると、次の答えが返ってきました。\n\n> 取り消せるのは、自分で頼んだ注文のうち、まだお金を払っていないものだけにしてください。取り消すときは理由を書いてもらいます。空白を入れただけの理由は困ります。長さは、前後の空白を除いて100文字（Unicodeのコードポイント）までです。断るときは、注文には何も手を付けないでください。取り消したことの通知は要りません。画面に結果が出れば十分です。\n\n今ある受入試験は「本人の未払い注文を、理由を付けて取り消す」の1件だけです。この答えを、試験できる受入条件にします。\n\n判断をJSONの各欄へ記入してください。選択肢のコードを使います。\n\n- `owner`: any-user（ログインしていれば誰の注文でも） / self-only（注文した本人だけ）\n- `state`: all（支払い済みでも取り消せる） / unpaid-only（未払いの注文だけ）\n- `reason`: any-text（空欄でも受け付ける） / length-1-100（空白だけでも1文字と数え、1〜100文字） / trim-codepoints-1-100（前後の空白を除いてコードポイントで1〜100）\n- `rejected`: cancel-anyway（断っても状態は取消にする） / unchanged（断ったら状態を変えない）\n- `missingTest`: other-owner（本人と同じ入力で他人の注文を取消） / color-only（ボタン色だけ確認）\n- `notify`: email-required（取消のたびに利用者へメールで知らせる） / none（通知は受入条件に入れない）\n\n採点はこの事例に対する判断の整合性を確認します。自由記述のレビュー能力全体を保証するものではありません。",
+          "starterContent": "{\n  \"owner\": \"TODO\",\n  \"state\": \"TODO\",\n  \"reason\": \"TODO\",\n  \"rejected\": \"TODO\",\n  \"missingTest\": \"TODO\",\n  \"notify\": \"TODO\"\n}\n",
+          "solution": "{\n  \"owner\": \"self-only\",\n  \"state\": \"unpaid-only\",\n  \"reason\": \"trim-codepoints-1-100\",\n  \"rejected\": \"unchanged\",\n  \"missingTest\": \"other-owner\",\n  \"notify\": \"none\"\n}\n",
           "artifact": {
             "path": "review/decision.json",
             "format": "json",
@@ -520,6 +530,12 @@
                 "expression": "/missingTest",
                 "expected": "other-owner",
                 "message": "missingTest の判断を事例の根拠と照合してください。"
+              },
+              {
+                "type": "jsonPointer",
+                "expression": "/notify",
+                "expected": "none",
+                "message": "notify の判断を事例の根拠と照合してください。"
               }
             ]
           },

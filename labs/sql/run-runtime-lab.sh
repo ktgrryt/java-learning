@@ -65,10 +65,11 @@ fi
 
 fail=0
 
-if rejects "BEGIN; INSERT INTO customers(id,name,email) VALUES (1,'Again','again@example.test'); COMMIT;"; then
-  printf 'JQ_CHECK\tPASS\tsql-primary-key\t実DBがcustomers.idの重複を拒否しました\n'
+if rejects "BEGIN; INSERT INTO customers(id,name,email) VALUES (1,'Again','again@example.test'); COMMIT;" \
+    && rejects "BEGIN; INSERT INTO orders(id,customer_id,status,total,created_at) VALUES (101,1,'NEW',1,CURRENT_TIMESTAMP); COMMIT;"; then
+  printf 'JQ_CHECK\tPASS\tsql-primary-key\t実DBがcustomers.idとorders.idの重複を拒否しました\n'
 else
-  printf 'JQ_CHECK\tFAIL\tsql-primary-key\tcustomers.idへPRIMARY KEYが必要です\n'
+  printf 'JQ_CHECK\tFAIL\tsql-primary-key\tcustomers.idとorders.idへPRIMARY KEYが必要です\n'
   fail=1
 fi
 
@@ -80,8 +81,13 @@ else
 fi
 
 column_constraints=1
-rejects "BEGIN; INSERT INTO customers(id,name,email) VALUES (4,NULL,'null-name@example.test'); COMMIT;" || column_constraints=0
-rejects "BEGIN; INSERT INTO customers(id,name,email) VALUES (4,'Duplicate','aki@example.test'); COMMIT;" || column_constraints=0
+rejects "BEGIN; INSERT INTO customers(id,name,email) VALUES (9,NULL,'null-name@example.test'); COMMIT;" || column_constraints=0
+rejects "BEGIN; INSERT INTO customers(id,name,email) VALUES (9,'NoMail',NULL); COMMIT;" || column_constraints=0
+rejects "BEGIN; INSERT INTO customers(id,name,email) VALUES (9,'Duplicate','aki@example.test'); COMMIT;" || column_constraints=0
+# 外部キーとCHECKはNULLを通すので、NOT NULLが無いと「顧客のない注文」「状態のない注文」が入ってしまう
+rejects "BEGIN; INSERT INTO orders(id,customer_id,status,total,created_at) VALUES (204,NULL,'NEW',1,CURRENT_TIMESTAMP); COMMIT;" || column_constraints=0
+rejects "BEGIN; INSERT INTO orders(id,customer_id,status,total,created_at) VALUES (205,1,NULL,1,CURRENT_TIMESTAMP); COMMIT;" || column_constraints=0
+rejects "BEGIN; INSERT INTO orders(id,customer_id,status,total,created_at) VALUES (206,1,'NEW',1,NULL); COMMIT;" || column_constraints=0
 rejects "BEGIN; INSERT INTO orders(id,customer_id,status,total,created_at) VALUES (202,1,'NEW',-1,CURRENT_TIMESTAMP); COMMIT;" || column_constraints=0
 rejects "BEGIN; INSERT INTO orders(id,customer_id,status,total,created_at) VALUES (203,1,'DONE',1,CURRENT_TIMESTAMP); COMMIT;" || column_constraints=0
 if [ "$column_constraints" -eq 1 ]; then
@@ -91,18 +97,22 @@ else
   fail=1
 fi
 
-expected_totals="$(printf 'Aki|1200.00\nMina|2500.00\nSora|0')"
+# 金額は数として比べる（COALESCEの既定値を 0 と書いても 0.00 と書いても同じ）
+amounts() { awk -F'|' '{ printf "%s|%.2f\n", $1, $2 }'; }
+
+# Renの注文はNEWだけ。WHEREでPAIDに絞ると（OR status IS NULL を足しても）Renが消える
+expected_totals="$(printf 'Aki|1200.00\nMina|2500.00\nRen|0.00\nSora|0.00')"
 if actual_totals="$("$runtime" exec -i "$container" psql -At -F '|' -v ON_ERROR_STOP=1 -U postgres \
-    <exercise/paid_totals.sql 2>/dev/null)" && [ "$actual_totals" = "$expected_totals" ]; then
-  printf 'JQ_CHECK\tPASS\tsql-left-join\tPAIDだけを集約し、注文のないSoraも0で残しました\n'
+    <exercise/paid_totals.sql 2>/dev/null)" && [ "$(printf '%s\n' "$actual_totals" | amounts)" = "$expected_totals" ]; then
+  printf 'JQ_CHECK\tPASS\tsql-left-join\tPAIDだけを集約し、PAIDの注文が無いRenとSoraも0で残しました\n'
 else
-  printf 'JQ_CHECK\tFAIL\tsql-left-join\tLEFT JOINのONでPAIDを絞り、Aki・Mina・Soraを集約してください\n'
+  printf 'JQ_CHECK\tFAIL\tsql-left-join\tLEFT JOINのONでPAIDを絞り、Aki・Mina・Ren・Soraを名前順に集約してください\n'
   fail=1
 fi
 
 expected_high_value="$(printf 'Mina|2500.00\nAki|1200.00')"
 if actual_high_value="$("$runtime" exec -i "$container" psql -At -F '|' -v ON_ERROR_STOP=1 -U postgres \
-    <exercise/high_value_customers.sql 2>/dev/null)" && [ "$actual_high_value" = "$expected_high_value" ]; then
+    <exercise/high_value_customers.sql 2>/dev/null)" && [ "$(printf '%s\n' "$actual_high_value" | amounts)" = "$expected_high_value" ]; then
   printf 'JQ_CHECK\tPASS\tsql-having\t集約後に1000以上の顧客を絞り込みました\n'
 else
   printf 'JQ_CHECK\tFAIL\tsql-having\tHAVINGでPAID合計1000以上を合計降順にしてください\n'
@@ -122,16 +132,18 @@ if ! explain_output="$("$runtime" exec -i "$container" psql -At -v ON_ERROR_STOP
   explain_ok=0
 fi
 
-index_columns="$(printf '%s' "SELECT string_agg(a.attname, ',' ORDER BY keys.ordinality) FROM pg_class i JOIN pg_index ix ON ix.indexrelid=i.oid CROSS JOIN LATERAL unnest(ix.indkey) WITH ORDINALITY AS keys(attnum, ordinality) JOIN pg_attribute a ON a.attrelid=ix.indrelid AND a.attnum=keys.attnum WHERE i.relname='idx_orders_status_created_at' AND keys.ordinality <= ix.indnkeyatts;" | "$runtime" exec -i "$container" psql -At -U postgres 2>/dev/null | tail -n 1)"
-if [ "$index_columns" = 'status,created_at' ]; then
-  printf 'JQ_CHECK\tPASS\tsql-index\t(status, created_at)の複合インデックスを確認しました\n'
+# indexの名前は問わない。ordersの上で、キーの列がちょうど (status, created_at) のindexを探す
+index_name="$(printf '%s' "SELECT i.relname FROM pg_class i JOIN pg_index ix ON ix.indexrelid=i.oid JOIN pg_class t ON t.oid=ix.indrelid CROSS JOIN LATERAL unnest(ix.indkey) WITH ORDINALITY AS keys(attnum, ordinality) JOIN pg_attribute a ON a.attrelid=ix.indrelid AND a.attnum=keys.attnum WHERE t.relname='orders' AND keys.ordinality <= ix.indnkeyatts GROUP BY i.relname HAVING string_agg(a.attname, ',' ORDER BY keys.ordinality)='status,created_at' ORDER BY i.relname LIMIT 1;" | "$runtime" exec -i "$container" psql -At -U postgres 2>/dev/null | tail -n 1)"
+if [ -n "$index_name" ]; then
+  printf 'JQ_CHECK\tPASS\tsql-index\t(status, created_at)の複合インデックス %sを確認しました\n' "$index_name"
 else
-  printf 'JQ_CHECK\tFAIL\tsql-index\tidx_orders_status_created_atを(status, created_at)で作成してください\n'
+  printf 'JQ_CHECK\tFAIL\tsql-index\tordersへ(status, created_at)の順で複合インデックスを作成してください\n'
   fail=1
 fi
 
 if [ "$explain_ok" -eq 1 ] \
-    && printf '%s' "$explain_output" | grep -q '"Index Name": "idx_orders_status_created_at"' \
+    && [ -n "$index_name" ] \
+    && printf '%s' "$explain_output" | grep -Fq "\"Index Name\": \"$index_name\"" \
     && printf '%s' "$explain_output" | grep -q '"Actual Rows"'; then
   printf 'JQ_CHECK\tPASS\tsql-explain\tEXPLAIN ANALYZEで実インデックス利用と実測行数を確認しました\n'
 else

@@ -66,7 +66,7 @@
       "objectiveIds": [
         "ch28-o1"
       ],
-      "explanation": "## HTTPの要求をJavaのメソッドへ対応付ける\n\nWeb APIでは、利用側のプログラムを **クライアント**、要求を受けて処理する側を **サーバー** と呼びます。クライアントはHTTPリクエストに、操作の種類、対象のURL、必要ならJSONなどの本文を入れて送ります。\n\nRESTでは、URLを操作名ではなく、扱う対象である **リソース** の住所として設計します。操作はHTTPメソッドで表します。\n\n```text\nGET    /books       本の一覧を取得\nGET    /books/10    10番の本を取得\nPOST   /books       新しい本を作成\nPUT    /books/10    10番の本を置き換え\nDELETE /books/10    10番の本を削除\n```\n\nJakarta RESTは、このHTTPの情報をJavaのクラスとメソッドへ結び付ける標準APIです。\n\n```java\n@Path(\"/books\")\nclass BookResource {\n    @GET\n    @Path(\"/{id}\")\n    public BookResponse find(@PathParam(\"id\") long id) { ... }\n}\n```\n\n`@Path` はURLの一部、`@GET` はHTTPメソッド、`@PathParam` はURL内の `{id}` をJavaの引数へ渡す指定です。`@Consumes` は受け取る本文の形式、`@Produces` は返す本文の形式を示します。\n\nAPIの入出力には、通信項目だけを持つ **DTO（Data Transfer Object）** を使います。DB管理用のEntityをそのまま返すと、不要な項目や機密情報、遅延読み込みの内部状態まで境界へ漏れるためです。DTOとJSONの変換は、JSON-Bなどの **プロバイダー**、つまりJakarta RESTと連携する実装部品が行います。\n\n`GET` は読み取りを意味する **安全なメソッド** です。`PUT` や `DELETE` は、同じ要求を複数回送っても意図した最終状態が1回の場合と同じになる **冪等なメソッド** です。実装側もこの意味を壊さないよう、GETでデータ削除などを行いません。\n\n今回の演習では、`/products/{id}` に対応するGETメソッドを作り、URLの値がメソッド引数へ渡る形を確認します。\n\n> ⚠️ この教材の `jakarta.ws.rs` は、注釈と `Response` だけを持つ最小限の再実装です。注釈は宣言だけで、URLの振り分けもJSONへの変換も起きません。サンプルや問題ではメソッドを直接呼んで確かめ、実際にHTTPで呼ぶのは 28-4 の実行演習です。",
+      "explanation": "## HTTPの要求をJavaのメソッドへ対応付ける\n\nWeb APIでは、利用側のプログラムを **クライアント**、要求を受けて処理する側を **サーバー** と呼びます。クライアントはHTTPリクエストに、操作の種類、対象のURL、必要ならJSONなどの本文を入れて送ります。\n\nRESTでは、URLを操作名ではなく、扱う対象である **リソース** の住所として設計します。操作はHTTPメソッドで表します。\n\n```text\nGET    /books       本の一覧を取得\nGET    /books/10    10番の本を取得\nPOST   /books       新しい本を作成\nPUT    /books/10    10番の本を置き換え\nDELETE /books/10    10番の本を削除\n```\n\nJakarta RESTは、このHTTPの情報をJavaのクラスとメソッドへ結び付ける標準APIです。\n\n```java\n@Path(\"/books\")\nclass BookResource {\n    @GET\n    @Path(\"/{id}\")\n    public BookResponse find(@PathParam(\"id\") long id) { ... }\n}\n```\n\n`@Path` はURLの一部、`@GET` はHTTPメソッド、`@PathParam` はURL内の `{id}` をJavaの引数へ渡す指定です。`@Consumes` は受け取る本文の形式、`@Produces` は返す本文の形式を示します。\n\nAPIの入出力には、通信項目だけを持つ **DTO（Data Transfer Object）** を使います。DB管理用のEntityをそのまま返すと、不要な項目や機密情報、遅延読み込みの内部状態まで境界へ漏れるためです。DTOとJSONの変換は、JSON-Bなどの **プロバイダー**、つまりJakarta RESTと連携する実装部品が行います。\n\n`GET` は読み取りを意味する **安全なメソッド** です。`PUT` や `DELETE` は、同じ要求を複数回送っても意図した最終状態が1回の場合と同じになる **冪等なメソッド** です。実装側もこの意味を壊さないよう、GETでデータ削除などを行いません。\n\n応答の状態コードやヘッダーを自分で決めたいときは、メソッドの戻り値を `Response` にして組み立てます。\n\n```java\nreturn Response.status(201)                    // 状態コード（Response.Status.CREATED とも書ける）\n        .header(\"Location\", \"/books/10\")       // 作ったものの場所\n        .entity(new BookResponse(10, \"Java\"))  // 本文\n        .build();\n```\n\n`Response.created(URI.create(\"/books/10\"))` は、`201` と `Location` をまとめて付ける近道です。作成の成功に `201` と `Location` を返す理由は、次の 28-2 で扱います。\n\n今回の演習では、`/products/{id}` に対応するGETメソッドを作り、URLの値がメソッド引数へ渡る形を確認します。\n\n> ⚠️ この教材の `jakarta.ws.rs` は、注釈と `Response` だけを持つ最小限の再実装です。注釈は宣言だけで、URLの振り分けもJSONへの変換も起きません。サンプルや問題ではメソッドを直接呼んで確かめ、実際にHTTPで呼ぶのは 28-4 の実行演習です。",
       "samples": [
         {
           "caption": "PathとGETを付ける",
@@ -152,12 +152,12 @@
               "message": "作成は POST なので `@POST` を付けてください。"
             },
             {
-              "pattern": "Response\\s*\\.\\s*status\\s*\\(\\s*201|Status\\s*\\.\\s*CREATED",
+              "pattern": "Response\\s*\\.\\s*status\\s*\\(\\s*201|Status\\s*\\.\\s*CREATED|Response\\s*\\.\\s*created\\s*\\(",
               "minimum": 1,
               "message": "作成の成功は 200 ではなく 201 です。"
             },
             {
-              "pattern": "\\.header\\s*\\(",
+              "pattern": "\\.header\\s*\\(|Response\\s*\\.\\s*created\\s*\\(",
               "minimum": 1,
               "message": "作ったものの場所を `Location` ヘッダで返してください。"
             },
@@ -399,7 +399,7 @@
         "ch28-o1",
         "ch28-o2"
       ],
-      "explanation": "## 章末では、1回のHTTP要求が通る境界を順に追う\n\nREST APIの処理は、注釈を付けたメソッド1つだけでは完結しません。要求が届いてから応答を返すまでを、次の順に分けます。\n\n1. HTTPメソッド、URL、ヘッダー、JSON本文を受け取る\n2. Jakarta RESTがResourceメソッドと引数へ対応付ける\n3. DTOの形式を検証し、認証と認可を確認する\n4. Serviceが業務ルールを判断する\n5. 成功結果または例外を、ステータスコードとDTOへ変換する\n6. traceId、処理結果、時間を安全なログへ残す\n\nURLは対象、HTTPメソッドは操作、ステータスコードは結果、DTOは境界で交換するデータを表します。それぞれの役割を分けると、利用側は内部実装を知らなくてもAPIを利用できます。\n\n安全なAPIは、入力検証だけで作れるわけではありません。認証済みでも対象ごとの認可を行い、SQLはパラメータ化し、HTML表示は出力時にエンコードします。また、内部例外や機密情報を応答・ログへ漏らさないようにします。\n\n章末演習では、Resourceの検索、一覧のページング、認証・認可と状態コードを組み合わせます。各分岐で「クライアントが次に何を判断できる応答か」を確認してください。",
+      "explanation": "## 章末では、1回のHTTP要求が通る境界を順に追う\n\nREST APIの処理は、注釈を付けたメソッド1つだけでは完結しません。要求が届いてから応答を返すまでを、次の順に分けます。\n\n1. HTTPメソッド、URL、ヘッダー、JSON本文を受け取る\n2. Jakarta RESTがResourceメソッドと引数へ対応付ける\n3. 認証と認可を確認し、そのあとでDTOの形式を検証する\n4. Serviceが業務ルールを判断する\n5. 成功結果または例外を、ステータスコードとDTOへ変換する\n6. traceId、処理結果、時間を安全なログへ残す\n\nURLは対象、HTTPメソッドは操作、ステータスコードは結果、DTOは境界で交換するデータを表します。それぞれの役割を分けると、利用側は内部実装を知らなくてもAPIを利用できます。\n\n安全なAPIは、入力検証だけで作れるわけではありません。認証済みでも対象ごとの認可を行い、SQLはパラメータ化し、HTML表示は出力時にエンコードします。また、内部例外や機密情報を応答・ログへ漏らさないようにします。\n\n章末演習では、Resourceの検索、一覧のページング、認証・認可と状態コードを組み合わせます。各分岐で「クライアントが次に何を判断できる応答か」を確認してください。",
       "samples": [
         {
           "caption": "復習用サンプル：所有者まで確認する",

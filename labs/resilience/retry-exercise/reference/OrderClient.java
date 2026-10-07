@@ -12,10 +12,12 @@ import java.util.List;
  * <p>要点は4つ。
  *
  * <ul>
- *   <li><b>失敗を種類で分ける。</b>5xxと応答なしは「もう一度なら直るかもしれない」、
- *       4xxは「何度送っても直らない」。同じ扱いにすると、直らない要求で相手を叩き続ける。</li>
+ *   <li><b>失敗を種類で分ける。</b>503と応答なしは「もう一度なら直るかもしれない」、
+ *       400は「何度送っても直らない」。同じ扱いにすると、直らない要求で相手を叩き続ける。
+ *       （この相手が返すのは400と503だけ。429や503に Retry-After が付いていれば、その時間を待つ）</li>
  *   <li><b>1回ごとの制限時間と、全体の締め切りは別に持つ。</b>
- *       1回だけ短くしても、再試行を重ねれば全体はいくらでも延びる。</li>
+ *       1回だけ短くしても、再試行を重ねれば全体はいくらでも延びる。締め切りが近づいたら、
+ *       1回の制限時間も残り時間まで縮める。</li>
  *   <li><b>待ち時間を空けて再試行する。</b>相手が過負荷のときに即座に送り直すと、
  *       落ちている相手をさらに押す。</li>
  *   <li><b>結果を1行に残す。</b>相関IDと試行回数が無いと、あとから「何が起きたか」を追えない。</li>
@@ -52,11 +54,6 @@ public class OrderClient {
      * @throws Exception あきらめたとき（恒久的な失敗、上限到達、締め切り超過）
      */
     public String fetch(String path, String correlationId) throws Exception {
-        HttpRequest request = HttpRequest.newBuilder(URI.create(baseUrl + path))
-                .timeout(Duration.ofMillis(REQUEST_TIMEOUT_MILLIS))   // 1回ぶんの制限時間
-                .GET()
-                .build();
-
         long startedAt = System.nanoTime();
         long backoff = FIRST_BACKOFF_MILLIS;
         int attempts = 0;
@@ -64,6 +61,12 @@ public class OrderClient {
 
         while (true) {
             attempts++;
+            // 1回ぶんの制限時間。締め切りまでの残りが短ければ、そこまで縮める
+            long remaining = DEADLINE_MILLIS - elapsedMillis(startedAt);
+            HttpRequest request = HttpRequest.newBuilder(URI.create(baseUrl + path))
+                    .timeout(Duration.ofMillis(Math.max(1, Math.min(REQUEST_TIMEOUT_MILLIS, remaining))))
+                    .GET()
+                    .build();
             try {
                 HttpResponse<String> response =
                         http.send(request, HttpResponse.BodyHandlers.ofString());
@@ -79,10 +82,14 @@ public class OrderClient {
                             "恒久的な失敗のため中止しました: status=" + status + " path=" + path);
                 }
                 lastProblem = "status=" + status;
-            } catch (java.io.IOException | InterruptedException retryable) {
+            } catch (java.io.IOException retryable) {
                 // 応答なし・打ち切り。もう一度なら通るかもしれない
-                if (retryable instanceof InterruptedException) Thread.currentThread().interrupt();
                 lastProblem = retryable.getClass().getSimpleName();
+            } catch (InterruptedException interrupted) {
+                // 止めるよう頼まれた。再試行せず、中断の印を戻してから抜ける
+                Thread.currentThread().interrupt();
+                log(correlationId, path, "failed", attempts, elapsedMillis(startedAt));
+                throw interrupted;
             }
 
             long elapsed = elapsedMillis(startedAt);

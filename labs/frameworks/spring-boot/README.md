@@ -24,7 +24,7 @@ Starter、自動構成、ControllerとService、外部設定、テスト、Actua
 | `GreetingController.java` | URL、GET、query parameter、入力検証を扱う |
 | `GreetingService.java` | 挨拶文を作る処理と外部設定を扱う |
 | `application.properties` | 環境で変えられる設定とActuator公開範囲 |
-| `spring-boot-starter-web` | Spring MVC、JSON変換、組み込みTomcatなど |
+| `spring-boot-starter-webmvc` | Spring MVC、JSON変換、組み込みTomcatなど |
 | `spring-boot-starter-validation` | `@NotBlank`、`@Size`による境界検証 |
 | `spring-boot-starter-actuator` | healthなどの運用endpoint |
 

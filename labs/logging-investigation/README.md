@@ -46,5 +46,5 @@ cd labs/logging-investigation
 ./run-tests.sh reference
 ```
 
-完成条件は11テストすべての成功です。テストに合わせるだけでなく、`REPORT.md`に
+完成条件は13テストすべての成功です。テストに合わせるだけでなく、`REPORT.md`に
 「事実」と「まだ検証が必要な仮説」が混ざっていないかも読み直してください。

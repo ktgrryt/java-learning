@@ -56,7 +56,7 @@
       ],
       "kind": "applied",
       "type": "runtime-lab",
-      "task": "【実TLS演習】`labs/security-platform/tls-exercise`で、実際のTLS接続を作って確かめます。解説で「本物の接続でしか確かめられない」とした部分です。2ファイルを直してください。\n\n1. `exercise/certificate.options` — サーバー証明書の作り方。クライアントは`https://localhost:<port>`へ接続します。接続先の判断に使われるのはCNではなくSANです。\n2. `exercise/TrustConfig.java` — クライアントが相手を信じるかどうかの設定。いまは「すべての証明書を信頼する」ままです。渡されたtruststoreだけを信頼する形へ直してください。\n\n提出すると`keytool`で証明書とtruststoreを作り、JDKのHTTPSサーバーを採点側が確保した動的portで起動します。実TLSで3つの相手へ接続し、①正しい証明書のサーバーへは200で繋がること、②別ホスト向けの証明書は信頼済みでもホスト名の不一致で拒否すること、③truststoreに無い証明書は拒否することを確かめ、最後にlistenerを停止します。",
+      "task": "【実TLS演習】`labs/security-platform/tls-exercise`で、実際のTLS接続を作って確かめます。解説で「本物の接続でしか確かめられない」とした部分です。2ファイルを直してください。\n\n1. `exercise/certificate.options` — サーバー証明書の作り方。クライアントは`https://localhost:<port>`へ接続します。接続先の名前はSANへ入れます（JDKはDNSのSANが無い証明書に限ってCNでも照合しますが、ブラウザや認証局の規則ではSANが必須です）。\n2. `exercise/TrustConfig.java` — クライアントが相手を信じるかどうかの設定。いまは「すべての証明書を信頼する」ままです。渡されたtruststoreだけを信頼する形へ直してください。\n\n提出すると`keytool`で証明書とtruststoreを作り、JDKのHTTPSサーバーを採点側が確保した動的portで起動します。実TLSで3つの相手へ接続し、①正しい証明書のサーバーへは200で繋がること、②別ホスト向けの証明書は信頼済みでもホスト名の不一致で拒否すること、③truststoreに無い証明書は拒否することを確かめ、最後にlistenerを停止します。",
       "runtimeLab": {
         "name": "TLS certificate and truststore lab",
         "source": "labs/security-platform/tls-exercise",
@@ -112,7 +112,7 @@
         ]
       },
       "hints": [
-        "接続先の判断に使われるのはCNではなくSANです。`san=dns:localhost,ip:127.0.0.1`のように、実際に繋ぐ名前を入れます。",
+        "DNSのSANがあれば、接続先の判断にCNは使われません。ブラウザや認証局の規則ではSANが必須です。`san=dns:localhost,ip:127.0.0.1`のように、実際に繋ぐ名前を入れます。",
         "truststoreはPKCS12でパスワードは`changeit`です。`KeyStore`で読み、`TrustManagerFactory.getInstance(\"PKIX\")`の`init`へ渡せば、chainの検証もホスト名の照合もJDKが行います。",
         "自分で`X509TrustManager`を書くと検証を消してしまいがちです。「すべて信頼する」実装は、暗号化はされても相手の確認をやめた状態です。"
       ],
@@ -224,6 +224,11 @@
           "label": "スコープ不足",
           "stdin": "https://id.example orders 1000 1100 900 profile,orders:write",
           "expected": "DENY"
+        },
+        {
+          "label": "有効開始と同時刻は有効",
+          "stdin": "https://id.example orders 900 1100 900 orders:read",
+          "expected": "ALLOW"
         }
       ],
       "hints": [
@@ -493,6 +498,16 @@
             {
               "label": "adminは他人でも許可",
               "stdin": "https://issuer.example orders-api 1000 2000 500 2 orders:read orders:write u1 u2 admin",
+              "expected": "ALLOW"
+            },
+            {
+              "label": "期限と同時刻は期限切れ",
+              "stdin": "https://issuer.example orders-api 2000 2000 500 1 orders:read u1 u1 user",
+              "expected": "DENY EXPIRED"
+            },
+            {
+              "label": "有効開始と同時刻は有効",
+              "stdin": "https://issuer.example orders-api 500 2000 500 1 orders:read u1 u1 user",
               "expected": "ALLOW"
             }
           ],

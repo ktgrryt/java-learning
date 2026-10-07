@@ -27,7 +27,7 @@
           "code": "import java.math.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        BigDecimal price = new BigDecimal(\"100.00\");\n        BigDecimal tax = price.multiply(new BigDecimal(\"0.10\"));\n        System.out.println(price.add(tax).setScale(2, RoundingMode.HALF_UP));\n    }\n}\n"
         }
       ],
-      "task": "単価price（小数文字列）と個数countを読み、金額を小数第2位へHALF_UPで丸め、`total=0.00` の形で表示してください。",
+      "task": "単価price（小数文字列）と個数countを読み、`BigDecimal` で金額を計算して小数第2位へHALF_UPで丸め、`total=0.00` の形で表示してください。",
       "starterCode": "import java.math.*;\nimport java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        String price = sc.next();\n        int count = sc.nextInt();\n        /* TODO */\n    }\n}\n",
       "visibleCases": [
         {
@@ -61,6 +61,11 @@
           "label": "個数0",
           "stdin": "9.99 0",
           "expected": "total=0.00"
+        },
+        {
+          "label": "doubleでは誤差で切り下がる",
+          "stdin": "1.005 3",
+          "expected": "total=3.02"
         }
       ],
       "hints": [
@@ -258,6 +263,13 @@
           "answer": 0,
           "explanation": "自動で `BigInteger` になることはなく、コンパイルエラーにもならず、例外も出ません。上限を超えると**静かに回り込んで**負の値などになるので、間違った結果に気づけないのが怖いところです。検出したいときは `Math.addExact` などの Exact 系メソッドを使います。"
         }
+      ],
+      "sourceChecks": [
+        {
+          "pattern": "\\bMath\\s*\\.\\s*addExact\\s*\\(",
+          "minimum": 1,
+          "message": "加算は `Math.addExact` で行い、あふれは `ArithmeticException` で受け取ってください。"
+        }
       ]
     },
     {
@@ -301,6 +313,11 @@
           "label": "大きい金額",
           "stdin": "99999.99 100 5",
           "expected": "total=9499999.05"
+        },
+        {
+          "label": "doubleでは誤差で切り下がる",
+          "stdin": "19.99 2 25",
+          "expected": "total=29.99"
         }
       ],
       "hints": [

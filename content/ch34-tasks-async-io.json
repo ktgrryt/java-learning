@@ -82,6 +82,11 @@
           "pattern": "\\btry\\s*\\(",
           "minimum": 1,
           "message": "プールは閉じないとプログラムが終わりません。try-with-resources で受けてください。"
+        },
+        {
+          "pattern": "\\.get\\s*\\(\\s*\\)",
+          "minimum": 1,
+          "message": "結果は、投入した順に `Future` の `get()` で受け取って表示してください。タスクの中で表示すると、終わった順に出て順序が崩れます。"
         }
       ],
       "extraTasks": [
@@ -553,6 +558,18 @@
           "answer": 1,
           "explanation": "例外を空の `catch` で捨てると失敗に気づけません。無限待ちは、相手が黙ったまま応答しないと永久に止まります。1バイトずつ読む必要はありません。外部通信では遅延・部分的な失敗・切断が**普通に起きること**として、接続と読み書きの両方にタイムアウトを設け、切断時の処理を用意します。"
         }
+      ],
+      "sourceChecks": [
+        {
+          "pattern": "\\bFiles\\s*\\.\\s*(?:write|writeString|newBufferedWriter)\\s*\\(",
+          "minimum": 1,
+          "message": "入力は `Files.write(path, lines, StandardCharsets.UTF_8)` などで、実際に `data.txt` へ書いてください。"
+        },
+        {
+          "pattern": "\\bFiles\\s*\\.\\s*readAllLines\\s*\\(",
+          "minimum": 1,
+          "message": "表示する内容は、書いたファイルを `Files.readAllLines` で読み戻したものにしてください。"
+        }
       ]
     },
     {
@@ -618,6 +635,11 @@
           "pattern": "\\.submit\\s*\\(",
           "minimum": 1,
           "message": "各値の計算は `pool.submit(...)` で投入してください。ループで直接計算すると、ひな形のプールを使ったことになりません。"
+        },
+        {
+          "pattern": "\\.get\\s*\\(\\s*\\)",
+          "minimum": 1,
+          "message": "結果は、投入した順に `Future` の `get()` で受け取って表示してください。タスクの中で表示すると、終わった順に出て順序が崩れます。"
         }
       ],
       "extraTasks": [
@@ -744,7 +766,7 @@
             {
               "pattern": "StandardCharsets\\s*\\.\\s*UTF_8",
               "minimum": 1,
-              "message": "文字コードは `StandardCharsets.UTF_8` と明示してください。既定に任せると環境によって変わります。"
+              "message": "外部と受け渡すファイルなので、文字コードは `StandardCharsets.UTF_8` と明示してください（`Files` の既定もUTF-8ですが、読む人に意図が伝わります）。"
             },
             {
               "pattern": "Files\\s*\\.\\s*write",

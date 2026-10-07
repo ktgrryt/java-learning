@@ -143,6 +143,13 @@
           "answer": 0,
           "explanation": "`static` メソッドはテストからそのまま呼べます。戻り値が `int` なのは、むしろ期待値を書きやすい形です。`price` を引数で受け取っているのも良い点です。問題は残りの入力である曜日を**中で取りに行っている**ことで、実行した日によって結果が変わります。曜日か `Clock` を引数にすれば、日曜の挙動もいつでも試せます。"
         }
+      ],
+      "sourceChecks": [
+        {
+          "pattern": "\\bdiscounted\\s*\\(",
+          "minimum": 2,
+          "message": "計算は `discounted` に置き、mainからはそれを呼んで結果を表示してください。"
+        }
       ]
     },
     {
@@ -327,6 +334,18 @@
       "rubric": [
         "implement",
         "test"
+      ],
+      "sourceChecks": [
+        {
+          "pattern": "->",
+          "minimum": 1,
+          "message": "`RateSource` はラムダ（`() -> rate`）で用意してください。テストで税率を差し替える練習です。"
+        },
+        {
+          "pattern": "\\bPriceService\\s*\\.\\s*total\\s*\\(",
+          "minimum": 1,
+          "message": "税込価格は `PriceService.total` に計算させてください。"
+        }
       ]
     },
     {
@@ -970,7 +989,7 @@
           ],
           "hints": [
             "固定Clockは `Clock.fixed(now, ZoneOffset.UTC)` です。",
-            "現在時刻は `clock.instant()` で取得します。",
+            "現在時刻は `clock.instant()`（または `Instant.now(clock)`）で取得します。",
             "「前ではない」は `!clock.instant().isBefore(deadline)` と表せます。"
           ],
           "solution": "import java.time.Clock;\nimport java.time.Instant;\nimport java.time.ZoneOffset;\nimport java.util.Scanner;\n\npublic class Main {\n    static boolean isExpired(Instant deadline, Clock clock) {\n        return !clock.instant().isBefore(deadline);\n    }\n\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        Instant now = Instant.parse(sc.next());\n        Instant deadline = Instant.parse(sc.next());\n        Clock clock = Clock.fixed(now, ZoneOffset.UTC);\n        System.out.println(isExpired(deadline, clock) ? \"EXPIRED\" : \"ACTIVE\");\n    }\n}\n",
@@ -981,15 +1000,15 @@
               "message": "テストで再現できる固定Clockを作ってください。"
             },
             {
-              "pattern": "clock\\s*\\.\\s*instant\\s*\\(",
+              "pattern": "clock\\s*\\.\\s*instant\\s*\\(|now\\s*\\(\\s*clock\\b",
               "minimum": 1,
-              "message": "判定メソッドは渡されたClockから現在時刻を取得してください。"
+              "message": "判定メソッドは渡されたClockから現在時刻を取得してください（`clock.instant()` か `Instant.now(clock)`）。"
             },
             {
-              "pattern": "Instant\\s*\\.\\s*now\\s*\\(",
+              "pattern": "Instant\\s*\\.\\s*now\\s*\\(\\s*\\)",
               "minimum": 0,
               "maximum": 0,
-              "message": "この問題では実行時刻に依存するInstant.now()を直接呼ばないでください。"
+              "message": "この問題では、実行時刻に依存する引数なしの `Instant.now()` を呼ばないでください。"
             }
           ],
           "rubric": [

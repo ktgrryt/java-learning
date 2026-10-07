@@ -161,6 +161,18 @@
             }
           ]
         }
+      ],
+      "sourceChecks": [
+        {
+          "pattern": "\\.forward\\s*\\(",
+          "minimum": 1,
+          "message": "表示は `getRequestDispatcher(...).forward(req, res)` で表示側のServletへ渡してください。ここで直接書くと、処理と表示を分けたことになりません。"
+        },
+        {
+          "pattern": "\\bsetAttribute\\s*\\(",
+          "minimum": 1,
+          "message": "表示側へ渡す値は `req.setAttribute` でリクエスト属性に入れてください。"
+        }
       ]
     },
     {
@@ -177,7 +189,7 @@
           "stdin": "GET /count alice\nGET /count alice\nGET /count bob"
         }
       ],
-      "task": "入力は **1行が1リクエスト**（`METHOD /パス?クエリ ブラウザ名` の形）で、上から順に処理されます。3つ目の語はブラウザ名で、利用者ごとに分かれます。\n\n`/cart?add=商品名` でセッション内のカート（`List<String>`）に追加し、現在の中身を `カート(n件): a, b` と表示してください。addが無いリクエストは追加せず表示だけします。利用者ごとにカートが分かれることもテストします。",
+      "task": "入力は **1行が1リクエスト**（`METHOD /パス?クエリ ブラウザ名` の形）で、上から順に処理されます。3つ目の語はブラウザ名で、利用者ごとに分かれます。\n\n`/cart?add=商品名` でセッション内のカート（`List<String>`）に追加し、現在の中身を `カート(n件): a, b` と表示してください。addが無いリクエストと、addが空のリクエスト（`?add=`）は、追加せず表示だけします。利用者ごとにカートが分かれることもテストします。",
       "starterCode": "import jakarta.servlet.annotation.WebServlet;\nimport jakarta.servlet.http.*;\nimport java.io.*;\nimport java.util.*;\n\n@WebServlet(\"/cart\")\npublic class CartServlet extends HttpServlet {\n    protected void doGet(HttpServletRequest req, HttpServletResponse res) throws IOException {\n        // TODO: セッションからcartを取得。無ければ作って保存\n        // TODO: addがあれば追加し、件数と内容を表示\n    }\n\n    public static void main(String[] args) {\n        MiniWeb.app().register(CartServlet.class).serve();\n    }\n}\n",
       "visibleCases": [
         {
@@ -317,7 +329,7 @@
       "extraTasks": [
         {
           "kind": "applied",
-          "task": "入力は **1行が1リクエスト**（`METHOD /パス?クエリ ブラウザ名` の形）で、上から順に処理されます。3つ目の語はブラウザ名で、利用者ごとに分かれます。\n\n`/consent?accept=yes` でconsent CookieをHttpOnly付きで保存し、`clear=yes` で削除してください。通常表示は `consent=yes` または `consent=none`。",
+          "task": "入力は **1行が1リクエスト**（`METHOD /パス?クエリ ブラウザ名` の形）で、上から順に処理されます。3つ目の語はブラウザ名で、利用者ごとに分かれます。\n\n`/consent?accept=yes` でconsent CookieをHttpOnly付きで保存し、`clear=yes` で削除してください。削除は、同じ名前で値を空にし、`setMaxAge(0)` を付けたCookieを返して行います。Pathはどちらも `/` にします。通常表示は `consent=yes` または `consent=none`。",
           "starterCode": "import jakarta.servlet.annotation.WebServlet;\nimport jakarta.servlet.http.*;\nimport java.io.*;\n\n@WebServlet(\"/consent\")\npublic class ConsentServlet extends HttpServlet {\n    protected void doGet(HttpServletRequest req, HttpServletResponse res) throws IOException {\n        res.getWriter().println(\"\");\n    }\n\n    public static void main(String[] a) {\n        MiniWeb.app().register(ConsentServlet.class).showCookies().serve();\n    }\n}\n",
           "visibleCases": [
             {
@@ -702,6 +714,18 @@
             "implement",
             "diagnose"
           ]
+        }
+      ],
+      "sourceChecks": [
+        {
+          "pattern": "\\.forward\\s*\\(",
+          "minimum": 1,
+          "message": "表示は `getRequestDispatcher(...).forward(req, res)` で表示側のServletへ渡してください。ここで直接書くと、処理と表示を分けたことになりません。"
+        },
+        {
+          "pattern": "\\bsetAttribute\\s*\\(",
+          "minimum": 1,
+          "message": "表示側へ渡す値は `req.setAttribute` でリクエスト属性に入れてください。"
         }
       ]
     }

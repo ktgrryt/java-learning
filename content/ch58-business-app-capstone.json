@@ -75,6 +75,11 @@
           "label": "キャンセル済み",
           "stdin": "1 10 7 CANCELLED 10 7",
           "expected": "result=NO_CHANGE\nsaved=0\nstatus=CANCELLED"
+        },
+        {
+          "label": "他人の支払い済み注文は、状態より先に所有者で断る",
+          "stdin": "1 10 7 PAID 10 8",
+          "expected": "result=FORBIDDEN\nsaved=0\nstatus=PAID"
         }
       ],
       "hints": [
@@ -164,6 +169,11 @@
           "label": "101文字",
           "stdin": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
           "expected": "INVALID:reason:too_long"
+        },
+        {
+          "label": "前後の空白を除けば100文字なら受け付ける",
+          "stdin": "  aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa  ",
+          "expected": "OK:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
         }
       ],
       "hints": [
@@ -549,7 +559,7 @@
           "solution": "import java.util.*;\n\nrecord ChangeResult(int status, String code, int version, int outbox) { }\n\npublic class Main {\n    static ChangeResult change(boolean knownKey, int version, int expectedVersion,\n                               String status, boolean eventWriteFails) {\n        if (knownKey) return new ChangeResult(200, \"duplicate\", version, 0);\n        if (version != expectedVersion) return new ChangeResult(409, \"version_conflict\", version, 0);\n        if (!status.equals(\"NEW\")) return new ChangeResult(409, \"order_not_cancellable\", version, 0);\n        if (eventWriteFails) return new ChangeResult(500, \"rollback\", version, 0);\n        return new ChangeResult(204, \"cancelled\", version + 1, 1);\n    }\n\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        ChangeResult result = change(sc.nextInt() == 1, sc.nextInt(), sc.nextInt(),\n                sc.next(), sc.nextInt() == 1);\n        System.out.println(result.status() + \" \" + result.code());\n        System.out.println(\"version=\" + result.version());\n        System.out.println(\"outbox=\" + result.outbox());\n    }\n}\n",
           "sourceChecks": [
             {
-              "pattern": "version\\s*!=\\s*expectedVersion",
+              "pattern": "version\\s*!=\\s*expectedVersion|expectedVersion\\s*!=\\s*version",
               "minimum": 1,
               "message": "読み取ったversionと更新時に期待するversionを比較してください。"
             },

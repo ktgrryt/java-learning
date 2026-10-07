@@ -79,10 +79,35 @@ class RequirementsTest {
 
     @Test
     void keepsTheLearnerTestAsAWebMvcSlice() throws Exception {
-        String test = Files.readString(Path.of(
-                "src/test/java/example/greeting/GreetingControllerTest.java"));
-        assertTrue(test.contains("@WebMvcTest"));
-        assertTrue(test.contains("MockMvc"));
-        assertFalse(test.contains("@SpringBootTest"));
+        // ひな形のTODOコメントにも語が出てくるので、コメントを除いてから数える
+        String test = withoutComments(Files.readString(Path.of(
+                "src/test/java/example/greeting/GreetingControllerTest.java")));
+        assertTrue(test.contains("@WebMvcTest"), "GreetingControllerTestへ@WebMvcTestを付けてください");
+        assertTrue(test.contains("MockMvc"), "GreetingControllerTestでMockMvcを使ってください");
+        assertFalse(test.contains("@SpringBootTest"), "@SpringBootTestではなく@WebMvcTestで検証してください");
+        assertTrue(count(test, ".perform(") >= 3,
+                "正常・空白・長すぎる名前の3つを、MockMvcのperformで要求してください");
+    }
+
+    @Test
+    void keepsTheServiceTestAsPlainJUnit() throws Exception {
+        String test = withoutComments(Files.readString(Path.of(
+                "src/test/java/example/greeting/GreetingServiceTest.java")));
+        assertTrue(test.contains("new GreetingService("), "GreetingServiceTestではServiceを直接newしてください");
+        assertTrue(test.contains("assertEquals("), "GreetingServiceTestで結果をassertEqualsで確かめてください");
+        assertFalse(test.contains("@SpringBootTest") || test.contains("@WebMvcTest"),
+                "GreetingServiceTestはSpringを起動しないJUnitテストのままにしてください");
+    }
+
+    private static String withoutComments(String source) {
+        return source.replaceAll("(?s)/\\*.*?\\*/", "").replaceAll("//[^\\n]*", "");
+    }
+
+    private static int count(String text, String word) {
+        int found = 0;
+        for (int at = text.indexOf(word); at >= 0; at = text.indexOf(word, at + word.length())) {
+            found++;
+        }
+        return found;
     }
 }

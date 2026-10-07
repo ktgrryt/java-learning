@@ -114,7 +114,7 @@
           "code": "import java.net.*;\nimport java.net.http.*;\nimport java.time.*;\n\npublic class Main {\n    public static void main(String[] a) {\n        var r = HttpRequest.newBuilder(URI.create(\"https://example.test/items\")).timeout(Duration.ofSeconds(2)).GET().build();\n        System.out.println(r.method() + \" \" + r.uri().getPath());\n    }\n}\n"
         }
       ],
-      "task": "1行に、`host` と整数 `id` が、この順で入力されます。`https://host/items/id` へのGETリクエストを組み立て、`GET /items/id timeout=3` と表示してください。通信はしません。hostは妥当なホスト名、idは0以上です。",
+      "task": "1行に、`host` と整数 `id` が、この順で入力されます。`https://host/items/id` へのGETリクエストを組み立て、`GET /items/id timeout=3` と表示してください。表示する値は、組み立てたリクエストから `method()`・`uri()`・`timeout()` で読み出します。通信はしません。hostは妥当なホスト名、idは0以上です。",
       "starterCode": "import java.net.*;\nimport java.net.http.*;\nimport java.time.*;\nimport java.util.*;\n\npublic class Main {\n    public static void main(String[] a) {\n        Scanner sc = new Scanner(System.in);\n        String host = sc.next();\n        int id = sc.nextInt();\n        /* TODO */\n    }\n}\n",
       "visibleCases": [
         {
@@ -155,7 +155,7 @@
             "そのリクエストの完了待ち時間"
           ],
           "answer": 3,
-          "explanation": "コンパイル時間・DNS名の長さ・JSONの文字数は、いずれもリクエストの時間制限とは関係ありません。`HttpRequest` の `timeout` は、その1回の要求が終わるまで待つ上限です。接続そのものの上限（`HttpClient` の `connectTimeout`）とは別なので、両方を設定します。"
+          "explanation": "コンパイル時間・DNS名の長さ・JSONの文字数は、いずれもリクエストの時間制限とは関係ありません。`HttpRequest` の `timeout` は、その1回の要求で応答（ステータスとヘッダー）が届くまで待つ上限です。本文が届くのが遅い場合までは制限しないので、全体に期限が要るときは `sendAsync(...).orTimeout(...)` などで別に区切ります。接続そのものの上限（`HttpClient` の `connectTimeout`）とは別なので、両方を設定します。"
         },
         {
           "question": "`connectTimeout` を3秒にしたのに、応答が返らないリクエストが待ち続けました。理由はどれでしょう。",
@@ -167,6 +167,23 @@
           ],
           "answer": 3,
           "explanation": "応答待ちは `HttpRequest` 側の `timeout` で制限します。2つは別のタイムアウトです。"
+        }
+      ],
+      "sourceChecks": [
+        {
+          "pattern": "\\bHttpRequest\\s*\\.\\s*newBuilder\\s*\\(",
+          "minimum": 1,
+          "message": "リクエストは `HttpRequest.newBuilder` で組み立ててください。"
+        },
+        {
+          "pattern": "\\.timeout\\s*\\(\\s*Duration",
+          "minimum": 1,
+          "message": "制限時間は `timeout(Duration.ofSeconds(3))` で設定してください。"
+        },
+        {
+          "pattern": "\\.timeout\\s*\\(\\s*\\)",
+          "minimum": 1,
+          "message": "表示する値は、組み立てたリクエストから `method()`・`uri()`・`timeout()` で読み出してください。"
         }
       ]
     },
@@ -360,7 +377,7 @@
             ]
           },
           "hints": [
-            "接続のタイムアウトではなく、`HttpRequest.Builder.timeout`が応答全体を待つ上限です。",
+            "接続のタイムアウトではなく、`HttpRequest.Builder.timeout`が応答（ステータスとヘッダー）を待つ上限です。",
             "サーバーの遅延は2秒です。`Duration.ofMillis(500)`なら、遅い応答だけがタイムアウトになります。"
           ],
           "rubric": [

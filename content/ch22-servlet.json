@@ -511,7 +511,7 @@
           "stdin": "GET /api"
         }
       ],
-      "task": "入力は1行で、`METHOD /パス?クエリ` の形のリクエストが1つ来ます。\n\n`/search?q=...` でHTMLを返します。qのアンパサンド・山括弧・二重引用符・単一引用符をHTMLエスケープし、`検索: <安全な文字列>` と表示してください。Content-Typeも設定します。",
+      "task": "入力は1行で、`METHOD /パス?クエリ` の形のリクエストが1つ来ます。\n\n`/search?q=...` でHTMLを返します。qの `&`・`<`・`>`・`\"`・`'` を、それぞれ `&amp;`・`&lt;`・`&gt;`・`&quot;`・`&#39;` へ置き換えて（HTMLエスケープ）、`検索: <安全な文字列>` と表示してください。Content-Typeも設定します。",
       "starterCode": "import jakarta.servlet.annotation.WebServlet;\nimport jakarta.servlet.http.*;\nimport java.io.*;\n\n@WebServlet(\"/search\")\npublic class SearchServlet extends HttpServlet {\n    static String escapeHtml(String s) {\n        return s;\n    }\n\n    protected void doGet(HttpServletRequest q, HttpServletResponse s) throws IOException {\n        // TODO\n    }\n\n    public static void main(String[] a) {\n        MiniWeb.app().register(SearchServlet.class).showHeaders().serve();\n    }\n}\n",
       "visibleCases": [
         {
@@ -736,7 +736,7 @@
             "ch22-o5"
           ],
           "kind": "applied",
-          "task": "【実践】入力は1行で、`METHOD /パス?クエリ` の形のリクエストが1つ来ます。\n\nGET `/search?q=...` で、qをHTMLエスケープして `検索: q` と返してください。Content-Typeは `text/html; charset=UTF-8` にします。最低限 `&`、`<`、`>` をこの順で変換します。",
+          "task": "【実践】入力は1行で、`METHOD /パス?クエリ` の形のリクエストが1つ来ます。\n\nGET `/search?q=...` で、qをHTMLエスケープして `検索: q` と返してください。Content-Typeは `text/html; charset=UTF-8` にします。最低限 `&` を `&amp;`、`<` を `&lt;`、`>` を `&gt;` へ変換します。`replace` を続けて使うなら、`&` を最初に変換します。",
           "starterCode": "import jakarta.servlet.annotation.WebServlet;\nimport jakarta.servlet.http.*;\nimport java.io.*;\n\n@WebServlet(\"/search\")\npublic class Main extends HttpServlet {\n    static String escape(String s) {\n        // TODO\n        return \"\";   // 仮の値。書けたら消す\n    }\n\n    protected void doGet(HttpServletRequest req, HttpServletResponse res) throws IOException {\n        /* TODO */\n    }\n\n    public static void main(String[] args) {\n        MiniWeb.app().register(Main.class).showHeaders().serve();\n    }\n}\n",
           "visibleCases": [
             {
@@ -768,11 +768,6 @@
           ],
           "solution": "import jakarta.servlet.annotation.WebServlet;\nimport jakarta.servlet.http.*;\nimport java.io.*;\n\n@WebServlet(\"/search\")\npublic class Main extends HttpServlet {\n    static String escape(String s) {\n        if (s == null) return \"\";\n        return s.replace(\"&\", \"&amp;\").replace(\"<\", \"&lt;\").replace(\">\", \"&gt;\");\n    }\n\n    protected void doGet(HttpServletRequest req, HttpServletResponse res) throws IOException {\n        res.setContentType(\"text/html; charset=UTF-8\");\n        res.getWriter().println(\"検索: \" + escape(req.getParameter(\"q\")));\n    }\n\n    public static void main(String[] args) {\n        MiniWeb.app().register(Main.class).showHeaders().serve();\n    }\n}\n",
           "sourceChecks": [
-            {
-              "pattern": "\\.replace\\s*\\(",
-              "minimum": 3,
-              "message": "`&`、`<`、`>` の3つを変換します。`&` を先に変換しないと、あとで足した `&amp;` が二重に変換されます。"
-            },
             {
               "pattern": "\\bsetContentType\\s*\\(",
               "minimum": 1,

@@ -73,7 +73,7 @@
           "code": "import jakarta.validation.constraints.*;\n\nrecord Signup(@NotBlank String name, @Email String email, @Min(18) int age) { }\n\npublic class ValidationSample {\n    public static void main(String[] a) {\n        System.out.println(MiniValidator.validate(new Signup(\" \", \"bad\", 15)));\n    }\n}\n"
         }
       ],
-      "task": "CreateProductのnameを必須かつ1〜20文字、priceを0以上100000以下にし、MiniValidatorのエラーを1行ずつ表示してください。エラーなしは `valid`。文言は `名前は必須です`・`名前は20文字以内です`・`価格は0以上です`・`価格は100000以下です` です。入力は `name price` で、`_` は空文字とします。",
+      "task": "CreateProductのnameを必須（空なら `名前は必須です` の1件だけ）で20文字以内、priceを0以上100000以下にし、MiniValidatorのエラーを1行ずつ表示してください。エラーなしは `valid`。文言は `名前は必須です`・`名前は20文字以内です`・`価格は0以上です`・`価格は100000以下です` です。入力は `name price` で、`_` は空文字とします。",
       "starterCode": "import jakarta.validation.constraints.*;\nimport java.util.*;\n\nrecord CreateProduct(/* TODO */ String name, /* TODO */ int price) { }\n\npublic class ValidateProduct {\n    public static void main(String[] a) {\n        Scanner sc = new Scanner(System.in);\n        String name = sc.next();\n        if (name.equals(\"_\")) name = \"\";\n        CreateProduct p = new CreateProduct(name, sc.nextInt());\n        // TODO validate/output\n    }\n}\n",
       "visibleCases": [
         {
@@ -169,6 +169,33 @@
           ],
           "answer": 2,
           "explanation": "`@NotNull` が見るのは「参照が `null` でないか」だけなので、`\"\"` や `\"   \"` は通ります。`@NotBlank` は `null`・空文字・空白だけの文字列をすべて違反にします。長さの上限は `@Size` の仕事で、`@NotBlank` は関与しません。メッセージだけの違いでもありません。"
+        }
+      ],
+      "sourceChecks": [
+        {
+          "pattern": "@NotBlank\\b",
+          "minimum": 1,
+          "message": "nameの必須は `@NotBlank` で宣言してください。"
+        },
+        {
+          "pattern": "@Size\\s*\\(",
+          "minimum": 1,
+          "message": "nameの長さは `@Size(max = 20)` で宣言してください。"
+        },
+        {
+          "pattern": "@Min\\s*\\(",
+          "minimum": 1,
+          "message": "priceの下限は `@Min` で宣言してください。"
+        },
+        {
+          "pattern": "@Max\\s*\\(",
+          "minimum": 1,
+          "message": "priceの上限は `@Max` で宣言してください。"
+        },
+        {
+          "pattern": "\\bMiniValidator\\s*\\.\\s*validate\\s*\\(",
+          "minimum": 1,
+          "message": "エラーは自分のifで作らず、`MiniValidator.validate` に制約注釈を読ませて得てください。"
         }
       ]
     },
@@ -511,6 +538,23 @@
           ],
           "answer": 2,
           "explanation": "呼び出し側は一度で直したいので、違反は**まとめて**返します。1件ずつ返すと往復が増え、利用者は直すたびに次の違反を知ることになります。入力の誤りはサーバーの障害ではないので500ではありません。内容を含めない応答は、何を直せばよいか伝えられません。"
+        }
+      ],
+      "sourceChecks": [
+        {
+          "pattern": "@NotBlank\\b",
+          "minimum": 1,
+          "message": "nameへ `@NotBlank` を付けてください。"
+        },
+        {
+          "pattern": "@Email\\b",
+          "minimum": 1,
+          "message": "emailへ `@Email` を付けてください。"
+        },
+        {
+          "pattern": "@Min\\s*\\(",
+          "minimum": 1,
+          "message": "ageへ `@Min(18)` を付けてください。"
         }
       ]
     }

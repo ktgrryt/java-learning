@@ -111,7 +111,7 @@
       ],
       "explanation": "## 契約を先に決めると、並行して作れる\n\nAPIの取り決め（**契約**）を先に固めると、画面を作る人とサーバーを作る人が同時に動けます。契約が無いまま両方が進むと、繋いだ瞬間に食い違いが出ます。\n\n契約に書くのは次の5つです。\n\n1. **経路とメソッド** … `POST /preorders`\n2. **要求の項目** … 名前、型、必須かどうか\n3. **応答の項目** … 名前、型、必須かどうか\n4. **状態コード** … 成功と失敗をどう返すか\n5. **エラーの形** … どの項目に何を入れるか\n\n## 状態コードは使い分けを決める\n\n| 状態コード | 使うところ |\n|---|---|\n| 201 | 作成に成功した（作ったものの場所や識別子を返す） |\n| 400 | 入力が不正（項目が足りない、形式が違う、範囲外） |\n| 401 / 403 | 認証が無い / 権限が無い |\n| 404 | 対象が無い |\n| 409 | 状態が合わない（支払い済みの注文を取り消そうとした、在庫が足りない） |\n| 500 | 予期しない失敗（利用側が直せない） |\n\n**作成の成功に200を返すか201を返すかは、決めておかないと混ざります。** どちらでも動きますが、混ざると利用側が両方を書くことになります。\n\n## 必須かどうかは、あとから変えにくい\n\n`required` に項目を足すのは、**利用側を壊す変更**です。既に動いている利用側はその項目を送っていないので、足した瞬間に400になります。\n\n| 変更 | 利用側への影響 |\n|---|---|\n| 応答へ項目を足す | 壊れない（利用側が知らない項目を無視する作りなら） |\n| 応答の必須項目を消す | 壊れる（あると決めて読んでいる） |\n| 応答の必須をやめて任意にする | 壊れる（入っていない応答が来る） |\n| 応答の任意項目を消す | 壊れない（無い場合に備えてある） |\n| 応答の項目の型を変える | 壊れる |\n| 要求の必須項目を足す | 壊れる |\n| 要求の任意項目を足す | 壊れない |\n\n応答へ項目を足しても壊れないのは、利用側が**知らない項目を無視する**作りになっている場合です。知らない項目が来ると失敗する作りもあるので、「知らない項目は無視する」ことも契約に書いておきます（`47-4` の「未知の項目が来たらどうするか」）。\n\nそのため**契約は最初に広く決めておき、あとから狭めない**ようにします。互換性の判定は章末演習で書きます。\n\n## OpenAPIで書く\n\n契約は文章でも書けますが、機械が読める形にしておくと、利用側のコード生成、入力の検証、試験の自動生成に使えます。よく使われる形式が **OpenAPI** です（第56章でも扱います）。\n\n```json\n{\n  \"openapi\": \"3.1.0\",\n  \"paths\": {\n    \"/preorders\": {\n      \"post\": {\n        \"operationId\": \"createPreorder\",\n        \"requestBody\": { \"required\": true, \"content\": { \"…\": \"…\" } },\n        \"responses\": { \"201\": { \"…\": \"…\" }, \"400\": { \"…\": \"…\" } }\n      }\n    }\n  }\n}\n```\n\nこの問題では、事前注文の契約を実際に書き足します。\n",
       "type": "artifact",
-      "task": "事前注文のAPI契約を `api/preorders.json` へ書き足してください。ひな形には`openapi`と`info`、それに空の`paths`と、項目が1つだけの`PreorderRequest`が入っています。\n\n次の6つを満たす形にします。\n\n1. `info.version` を `1.0.0` にする\n2. `paths` へ `/preorders` の `post` を足し、`operationId` を `createPreorder` にする\n3. `post` の `responses` に `201`・`400`・`409` の3つを置く（`description` の文はそのままでも構いません）\n4. `post` の `requestBody` に `\"required\": true` を書き、`PreorderRequest` を参照する\n5. `PreorderRequest` の `properties` へ、次の3項目をそろえる\n   - `storeId` … `\"type\": \"integer\"`\n   - `items` … `\"type\": \"array\"`\n   - `pickupAt` … `\"type\": \"string\"` と `\"format\": \"date-time\"`\n6. `PreorderRequest` の `required` に `storeId`・`items`・`pickupAt` の3つを入れる\n\n`201` は作成の成功、`400` は入力が不正、`409` は在庫が足りないなど状態が合わないときに使います。`pickupAt`（受け取り時刻）は日時なので、`string` に `date-time` の形式を添えます。\n\nJSONとして読めない状態では採点できません。カンマと括弧の対応に注意してください。\n",
+      "task": "事前注文のAPI契約を `api/preorders.json` へ書き足してください。ひな形には`openapi`と`info`、それに空の`paths`と、項目が1つだけの`PreorderRequest`が入っています。\n\n次の6つを満たす形にします。\n\n1. `info.version` を `1.0.0` にする\n2. `paths` へ `/preorders` の `post` を足し、`operationId` を `createPreorder` にする\n3. `post` の `responses` に `201`・`400`・`409` の3つを置く（それぞれに短い `description` を書きます。文面は問いません）\n4. `post` の `requestBody` に `\"required\": true` を書き、`PreorderRequest` を参照する\n5. `PreorderRequest` の `properties` へ、次の3項目をそろえる\n   - `storeId` … `\"type\": \"integer\"`\n   - `items` … `\"type\": \"array\"`\n   - `pickupAt` … `\"type\": \"string\"` と `\"format\": \"date-time\"`\n6. `PreorderRequest` の `required` に `storeId`・`items`・`pickupAt` の3つを入れる\n\n`201` は作成の成功、`400` は入力が不正、`409` は在庫が足りないなど状態が合わないときに使います。`pickupAt`（受け取り時刻）は日時なので、`string` に `date-time` の形式を添えます。\n\nJSONとして読めない状態では採点できません。カンマと括弧の対応に注意してください。\n",
       "starterContent": "{\n  \"openapi\": \"3.1.0\",\n  \"info\": {\n    \"title\": \"Preorders API\",\n    \"version\": \"0.1.0\"\n  },\n  \"paths\": {\n  },\n  \"components\": {\n    \"schemas\": {\n      \"PreorderRequest\": {\n        \"type\": \"object\",\n        \"properties\": {\n          \"storeId\": { \"type\": \"integer\" }\n        }\n      }\n    }\n  }\n}\n",
       "artifact": {
         "path": "api/preorders.json",
@@ -130,29 +130,31 @@
             "message": "/preorders の post に operationId createPreorder を書く"
           },
           {
-            "type": "regex",
-            "expression": "\"201\"\\s*:",
-            "message": "作成の成功として 201 を返す"
+            "type": "jsonPointerExists",
+            "expression": "/paths/~1preorders/post/responses/201",
+            "message": "作成の成功として 201 を返す（post の responses の中に置く）"
           },
           {
-            "type": "regex",
-            "expression": "\"400\"\\s*:",
-            "message": "入力が不正なときの 400 を置く"
+            "type": "jsonPointerExists",
+            "expression": "/paths/~1preorders/post/responses/400",
+            "message": "入力が不正なときの 400 を置く（post の responses の中に置く）"
           },
           {
-            "type": "regex",
-            "expression": "\"409\"\\s*:",
-            "message": "状態が合わないときの 409 を置く"
+            "type": "jsonPointerExists",
+            "expression": "/paths/~1preorders/post/responses/409",
+            "message": "状態が合わないときの 409 を置く（post の responses の中に置く）"
           },
           {
-            "type": "regex",
-            "expression": "\"requestBody\"[\\s\\S]{0,200}?\"required\"\\s*:\\s*true",
+            "type": "jsonPointer",
+            "expression": "/paths/~1preorders/post/requestBody/required",
+            "expected": true,
             "message": "requestBody に \"required\": true を書く"
           },
           {
-            "type": "regex",
-            "expression": "\"\\$ref\"\\s*:\\s*\"#/components/schemas/PreorderRequest\"",
-            "message": "requestBody から PreorderRequest を参照する"
+            "type": "jsonPointer",
+            "expression": "/paths/~1preorders/post/requestBody/content/application~1json/schema/$ref",
+            "expected": "#/components/schemas/PreorderRequest",
+            "message": "requestBody の content（application/json）の schema から PreorderRequest を参照する"
           },
           {
             "type": "jsonPointer",
@@ -179,9 +181,22 @@
             "message": "pickupAt に format date-time を添える"
           },
           {
-            "type": "regex",
-            "expression": "\"required\"\\s*:\\s*\\[(?=[^\\]]*\"storeId\")(?=[^\\]]*\"items\")(?=[^\\]]*\"pickupAt\")",
-            "message": "required に storeId・items・pickupAt の3つを入れる"
+            "type": "jsonPointerContains",
+            "expression": "/components/schemas/PreorderRequest/required",
+            "expected": "storeId",
+            "message": "PreorderRequest の required（properties と同じ階層）に storeId を入れる"
+          },
+          {
+            "type": "jsonPointerContains",
+            "expression": "/components/schemas/PreorderRequest/required",
+            "expected": "items",
+            "message": "PreorderRequest の required（properties と同じ階層）に items を入れる"
+          },
+          {
+            "type": "jsonPointerContains",
+            "expression": "/components/schemas/PreorderRequest/required",
+            "expected": "pickupAt",
+            "message": "PreorderRequest の required（properties と同じ階層）に pickupAt を入れる"
           }
         ]
       },
@@ -298,7 +313,7 @@
       "objectiveIds": [
         "ch73-o5"
       ],
-      "explanation": "## 詳細設計は、外から見えない選択を決める\n\n基本設計で「外から見える取り決め」が固まったら、詳細設計では**その中をどう作るか**を決めます。\n\n| 決めるもの | 例 |\n|---|---|\n| クラスの分け方 | 検証・業務判断・保存を、どの層のどのクラスが持つか（第21章） |\n| 処理の順番 | 入力検証 → 存在確認 → 権限 → 状態 の順で見る |\n| SQL | どの表を結合するか、索引を使えるか、何件取るか |\n| 失敗したときの戻し方 | どこまで戻すか、途中の記録は残すか |\n| 排他 | 同時に来たときどちらを通すか（第27章） |\n\n## どこまで書くかを決める\n\n詳細設計書に**コードと同じ内容を書くと、二重に持つことになります**。コードを直すたびに文書も直す作業が増え、やがて文書だけが古くなります。\n\n| 書く | 書かない |\n|---|---|\n| なぜその分け方にしたか | 変数の宣言、getterの一覧 |\n| どの順で確かめるか（順番に意味があるとき） | 1行ずつの日本語訳 |\n| 失敗したときにどう戻すか | コードを読めば分かる分岐 |\n| 性能のために何を選んだか（索引、まとめ取り） | メソッドの引数の型（署名を見れば分かる） |\n\n**判断の基準は「コードを読んでも分からないことか」です。** 分かることは書きません。分からないのは、**選ばなかった案**と**その理由**です。\n\n## 決定を残す（ADR）\n\n設計の決定は、あとから必ず問い直されます。「なぜこの方式にしたのか」が残っていないと、変えていいのか判断できません。決定を1件ずつ短く残す形が **ADR**（Architecture Decision Record）です（第63章で実際に書きます）。\n\n1件に書くのは4つです。\n\n| 項目 | 中身 |\n|---|---|\n| 決めたこと | 事前注文の在庫確保は、注文の保存と同じトランザクションで行う |\n| 背景 | 在庫が足りないのに受け付けると、店で渡せず苦情になる |\n| 選ばなかった案とその理由 | 非同期で後から確保する案 … 受付から確保までの間に売り切れる。先に在庫を予約する案 … 予約の期限切れの管理が増える |\n| 影響 | 在庫システムが遅いと注文の応答も遅くなる。応答時間の目標（第72章）へ跳ね返る |\n\n**いちばん大事なのは3つ目です。** 選ばなかった案が書かれていないと、あとから同じ案が「良い考え」として何度も出てきます。書いてあれば「その案は◯◯の理由で見送った」と1行で返せます。\n\n## 決定が残らないと、変えられなくなる\n\n理由の分からない実装は、**触ると危ないもの**として扱われます。誰も理由を知らないので、消してよいか判断できず、そのまま残ります。理由が残っていれば、その理由がもう成り立たないと分かった時点で消せます。\n\n> 「あとで書く」で残らなかった設計判断は、**次に触る人の時間を借りている**状態です。借りは利子付きで返すことになります。\n",
+      "explanation": "## 詳細設計は、外から見えない選択を決める\n\n基本設計で「外から見える取り決め」が固まったら、詳細設計では**その中をどう作るか**を決めます。\n\n| 決めるもの | 例 |\n|---|---|\n| クラスの分け方 | 検証・業務判断・保存を、どの層のどのクラスが持つか（第21章） |\n| 処理の順番 | 認証・役割の認可 → 入力検証 → 存在確認と所有者の確認 → 状態 の順で見る（他人の注文を404で隠すか403で返すかも決める。第69章） |\n| SQL | どの表を結合するか、索引を使えるか、何件取るか |\n| 失敗したときの戻し方 | どこまで戻すか、途中の記録は残すか |\n| 排他 | 同時に来たときどちらを通すか（第27章） |\n\n## どこまで書くかを決める\n\n詳細設計書に**コードと同じ内容を書くと、二重に持つことになります**。コードを直すたびに文書も直す作業が増え、やがて文書だけが古くなります。\n\n| 書く | 書かない |\n|---|---|\n| なぜその分け方にしたか | 変数の宣言、getterの一覧 |\n| どの順で確かめるか（順番に意味があるとき） | 1行ずつの日本語訳 |\n| 失敗したときにどう戻すか | コードを読めば分かる分岐 |\n| 性能のために何を選んだか（索引、まとめ取り） | メソッドの引数の型（署名を見れば分かる） |\n\n**判断の基準は「コードを読んでも分からないことか」です。** 分かることは書きません。分からないのは、**選ばなかった案**と**その理由**です。\n\n## 決定を残す（ADR）\n\n設計の決定は、あとから必ず問い直されます。「なぜこの方式にしたのか」が残っていないと、変えていいのか判断できません。決定を1件ずつ短く残す形が **ADR**（Architecture Decision Record）です（第63章で実際に書きます）。\n\n1件に書くのは4つです。\n\n| 項目 | 中身 |\n|---|---|\n| 決めたこと | 事前注文の在庫確保は、注文の保存と同じトランザクションで行う |\n| 背景 | 在庫が足りないのに受け付けると、店で渡せず苦情になる |\n| 選ばなかった案とその理由 | 非同期で後から確保する案 … 受付から確保までの間に売り切れる。先に在庫を予約する案 … 予約の期限切れの管理が増える |\n| 影響 | 在庫システムが遅いと注文の応答も遅くなる。応答時間の目標（第72章）へ跳ね返る |\n\n**いちばん大事なのは3つ目です。** 選ばなかった案が書かれていないと、あとから同じ案が「良い考え」として何度も出てきます。書いてあれば「その案は◯◯の理由で見送った」と1行で返せます。\n\n## 決定が残らないと、変えられなくなる\n\n理由の分からない実装は、**触ると危ないもの**として扱われます。誰も理由を知らないので、消してよいか判断できず、そのまま残ります。理由が残っていれば、その理由がもう成り立たないと分かった時点で消せます。\n\n> 「あとで書く」で残らなかった設計判断は、**次に触る人の時間を借りている**状態です。借りは利子付きで返すことになります。\n",
       "quiz": [
         {
           "question": "詳細設計書に書かないほうがよいのはどれでしょう。",
@@ -375,7 +390,7 @@
         "ch73-o4",
         "ch73-o5"
       ],
-      "explanation": "## 決めた取り決めを、機械で守る\n\n章末では、設計の取り決めを実際に当てます。\n\n- 1問目 … 許された状態遷移の表を当てて、**起きてはいけない遷移**を見つける\n- 2問目 … 旧い契約と新しい契約を比べて、**利用側を壊す変更**を見つける\n\n1問目の状態遷移は、基本設計で決める中心のひとつです。「支払い済みの注文は取り消せない」は、状態遷移の表で表せば1行で済みます。文章で書くと条件が散り、抜けます。\n\n2問目は、契約を変えるときに毎回必要な判定です（第63章の「壊さないAPI契約の更新」と同じ観点）。**応答の必須項目を消す・必須をやめる・型を変えるのは壊す変更**で、項目を足すことと、任意項目を消すことは壊しません。\n\n> どちらも判定は機械にできますが、**表そのものが正しいかは人が決めます**。許された遷移が足りなければ、正しい操作も不正と判定されます。\n\n\n## この節の到達点\n\n最後の成果物レビューで、事例の条件から判断を選びます。その前にあるJava課題は、任意の自動化練習です。計算した値が正しいことと、判断が妥当であることは別々に確かめます。",
+      "explanation": "## 決めた取り決めを、機械で守る\n\n章末では、設計の取り決めを実際に当てます。\n\n- 1問目 … 許された状態遷移の表を当てて、**起きてはいけない遷移**を見つける\n- 2問目 … 旧い契約と新しい契約を比べて、**利用側を壊す変更**を見つける\n\n1問目の状態遷移は、基本設計で決める中心のひとつです。「支払い済みの注文は取り消せない」は、状態遷移の表で表せば1行で済みます。文章で書くと条件が散り、抜けます。\n\n2問目は、契約を変えるときに毎回必要な判定です（第63章の「壊さないAPI契約の更新」と同じ観点）。**応答の必須項目を消す・必須をやめる・型を変えるのは壊す変更**です。項目を足すことと、任意項目を消すことは、利用側が知らない項目を無視し、任意の項目が無くても動く作りだと契約で決めてあれば壊しません。\n\n> どちらも判定は機械にできますが、**表そのものが正しいかは人が決めます**。許された遷移が足りなければ、正しい操作も不正と判定されます。\n\n\n## この節の到達点\n\n最後の成果物レビューで、事例の条件から判断を選びます。その前にあるJava課題は、任意の自動化練習です。計算した値が正しいことと、判断が妥当であることは別々に確かめます。",
       "task": "許された状態遷移の表を当てて、起きてはいけない遷移を見つけてください。\n\n入力は2つの部分に分かれます。\n\n```\n3\nNEW PAID\nNEW CANCELLED\nPAID DONE\n4\nA-1 NEW PAID\nA-1 PAID DONE\nA-2 NEW CANCELLED\nA-2 CANCELLED PAID\n```\n\n前半の1行目は許された遷移の数n、続くn行が `元の状態 次の状態` です。後半の1行目は記録の数m、続くm行が `注文ID 元の状態 次の状態` です。\n\n出力の1行目は、許されない遷移が0件なら `OK`、1件以上あれば `NG` です。続けて、**入力の順**に許されない遷移だけを `NG <注文ID> <元の状態> <次の状態>` と表示します。\n\n最後の行に `不正 <件数>/<記録の総数>` を表示してください。\n\n上の例の答えはこうなります。\n\n```\nNG\nNG A-2 CANCELLED PAID\n不正 1/4\n```\n",
       "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int n = Integer.parseInt(sc.nextLine().trim());\n        Set<String> allowed = new HashSet<>();\n        for (int i = 0; i < n; i++) {\n            String[] parts = sc.nextLine().trim().split(\"\\\\s+\");\n            /* TODO 「元の状態 -> 次の状態」の組を集める */\n        }\n        int m = Integer.parseInt(sc.nextLine().trim());\n        List<String> problems = new ArrayList<>();\n        for (int i = 0; i < m; i++) {\n            String[] parts = sc.nextLine().trim().split(\"\\\\s+\");\n            /* TODO 許された組に無ければ problems へ足す */\n        }\n        /* TODO OK / NG、許されない遷移、不正の件数を表示する */\n    }\n}\n",
       "visibleCases": [
@@ -473,9 +488,9 @@
             "ch73-o4",
             "ch73-o5"
           ],
-          "task": "設計変更とADRをレビューする\n\n注文APIは保存成功後に在庫を同期確保し、確保失敗なら注文も取り消す契約です。提案は受付を速くするため在庫確保を非同期化し、受付直後に「確保済み」を返します。ADRには応答時間の改善だけが書かれています。\n\n判断をJSONの各欄へ記入してください。選択肢のコードを使います。\n\n- `contract`: unchanged（利用側への約束は同期のときと同じ） / changes（確保前に確保済みとは言えない）\n- `alternative`: none（提案の方式だけを書けば足りる） / compare-sync-reservation（同期確保継続や期限付き予約と比較）\n- `consequence`: none（受付後に確保できない場合は考えなくてよい） / pending-failure（確保待ち・確保失敗の状態と通知を設計）\n- `decision`: approve（応答時間が改善するので承認する） / revise（契約と判断理由をそろえて再レビュー）\n\n採点はこの事例に対する判断の整合性を確認します。自由記述のレビュー能力全体を保証するものではありません。",
-          "starterContent": "{\n  \"contract\": \"TODO\",\n  \"alternative\": \"TODO\",\n  \"consequence\": \"TODO\",\n  \"decision\": \"TODO\"\n}\n",
-          "solution": "{\n  \"contract\": \"changes\",\n  \"alternative\": \"compare-sync-reservation\",\n  \"consequence\": \"pending-failure\",\n  \"decision\": \"revise\"\n}\n",
+          "task": "設計変更とADRをレビューする\n\n注文APIは保存成功後に在庫を同期確保し、確保失敗なら注文も取り消す契約です。提案は受付を速くするため在庫確保を非同期化し、受付直後に「確保済み」を返します。ADRには応答時間の改善だけが書かれています。注文一覧の応答には在庫の項目が無く、一覧の利用側は在庫の状態を受け取っていません。\n\n判断をJSONの各欄へ記入してください。選択肢のコードを使います。\n\n- `contract`: unchanged（利用側への約束は同期のときと同じ） / changes（確保前に確保済みとは言えない）\n- `alternative`: none（提案の方式だけを書けば足りる） / compare-sync-reservation（同期確保継続や期限付き予約と比較）\n- `consequence`: none（受付後に確保できない場合は考えなくてよい） / pending-failure（確保待ち・確保失敗の状態と通知を設計）\n- `decision`: approve（応答時間が改善するので承認する） / revise（契約と判断理由をそろえて再レビュー）\n- `listApi`: change（注文一覧の契約も変える） / unchanged（一覧は在庫の状態を返していないので、この変更の影響を受けない）\n\n採点はこの事例に対する判断の整合性を確認します。自由記述のレビュー能力全体を保証するものではありません。",
+          "starterContent": "{\n  \"contract\": \"TODO\",\n  \"alternative\": \"TODO\",\n  \"consequence\": \"TODO\",\n  \"decision\": \"TODO\",\n  \"listApi\": \"TODO\"\n}\n",
+          "solution": "{\n  \"contract\": \"changes\",\n  \"alternative\": \"compare-sync-reservation\",\n  \"consequence\": \"pending-failure\",\n  \"decision\": \"revise\",\n  \"listApi\": \"unchanged\"\n}\n",
           "artifact": {
             "path": "review/decision.json",
             "format": "json",
@@ -503,6 +518,12 @@
                 "expression": "/decision",
                 "expected": "revise",
                 "message": "decision の判断を事例の根拠と照合してください。"
+              },
+              {
+                "type": "jsonPointer",
+                "expression": "/listApi",
+                "expected": "unchanged",
+                "message": "listApi の判断を事例の根拠と照合してください。"
               }
             ]
           },

@@ -40,7 +40,7 @@
         }
       ],
       "kind": "practice",
-      "task": "最初にエラーが出た時刻と配備の一覧から、**その時刻以前で最も新しい配備**を求めてください。\n\n入力の1行目は基準となる時刻、2行目は配備の件数`n`、続く`n`行が`時刻 配備名`です。時刻はISO 8601形式で、入力順は時刻順とは限りません。\n\n基準時刻**以前**（同時刻を含む）の配備のうち最も新しいものを選び、`previous=<配備名> elapsedSeconds=<経過秒>`と1行で出力してください。経過秒はその配備から基準時刻までの秒数です。条件を満たす配備が1つも無ければ`previous=NONE`だけを出力します。",
+      "task": "最初にエラーが出た時刻と配備の一覧から、**その時刻以前で最も新しい配備**を求めてください。\n\n入力の1行目は基準となる時刻、2行目は配備の件数`n`、続く`n`行が`時刻 配備名`です。時刻はISO 8601形式で、小数秒の付いたものや、UTCからの時差（`+09:00` など）で書いたものも混ざります。入力順は時刻順とは限りません。\n\n基準時刻**以前**（同時刻を含む）の配備のうち最も新しいものを選び、`previous=<配備名> elapsedSeconds=<経過秒>`と1行で出力してください。経過秒はその配備から基準時刻までの秒数です。条件を満たす配備が1つも無ければ`previous=NONE`だけを出力します。",
       "starterCode": "import java.time.*;\nimport java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        Instant target = Instant.parse(sc.next());\n        int n = sc.nextInt();\n        for (int i = 0; i < n; i++) {\n            String time = sc.next();\n            String name = sc.next();\n            // TODO: target以前で最も新しい配備を選ぶ\n        }\n        // TODO: 選べたら previous=<名前> elapsedSeconds=<秒>、無ければ previous=NONE\n        System.out.println(\"previous=NONE\");\n    }\n}\n",
       "visibleCases": [
         {
@@ -69,6 +69,16 @@
           "label": "配備が0件",
           "stdin": "2026-08-12T09:14:07Z\n0",
           "expected": "previous=NONE"
+        },
+        {
+          "label": "小数秒の付いた時刻も時刻として比べる",
+          "stdin": "2026-08-12T09:14:07Z\n2\n2026-08-12T09:12:58Z orders-2.4.0\n2026-08-12T09:14:07.500Z late-fix",
+          "expected": "previous=orders-2.4.0 elapsedSeconds=69"
+        },
+        {
+          "label": "時差付きの時刻もUTCに直して比べる",
+          "stdin": "2026-08-12T18:14:07+09:00\n2\n2026-08-12T09:12:58Z orders-2.4.0\n2026-08-12T10:00:00Z inventory-1.9.0",
+          "expected": "previous=orders-2.4.0 elapsedSeconds=69"
         }
       ],
       "hints": [
@@ -92,7 +102,7 @@
       "extraTasks": [
         {
           "kind": "drill",
-          "task": "複数の障害について、それぞれの直前の配備を求めてください。\n\n入力の1行目は障害の件数`m`、続く`m`行が基準時刻です。次の行が配備の件数`n`、続く`n`行が`時刻 配備名`です。\n\n基準時刻ごとに1行ずつ、`previous=<配備名> elapsedSeconds=<経過秒>`（該当なしは`previous=NONE`）を入力順に出力してください。",
+          "task": "複数の障害について、それぞれの直前の配備を求めてください。\n\n入力の1行目は障害の件数`m`、続く`m`行が基準時刻です。次の行が配備の件数`n`、続く`n`行が`時刻 配備名`です。時刻はISO 8601形式で、小数秒の付いたものや、UTCからの時差（`+09:00` など）で書いたものも混ざります。\n\n基準時刻ごとに1行ずつ、`previous=<配備名> elapsedSeconds=<経過秒>`（該当なしは`previous=NONE`）を入力順に出力してください。",
           "starterCode": "import java.time.*;\nimport java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int m = sc.nextInt();\n        String[] targets = new String[m];\n        for (int i = 0; i < m; i++) {\n            targets[i] = sc.next();\n        }\n        int n = sc.nextInt();\n        // TODO: 配備を読み、基準時刻ごとに直前の配備を出す\n    }\n}\n",
           "visibleCases": [
             {
@@ -111,6 +121,11 @@
               "label": "障害が0件なら何も出さない",
               "stdin": "0\n1\n2026-08-10T14:40:00Z orders-2.3.2",
               "expected": ""
+            },
+            {
+              "label": "時差付きの時刻もUTCに直して比べる",
+              "stdin": "1\n2026-08-12T18:14:07+09:00\n2\n2026-08-12T09:12:58Z orders-2.4.0\n2026-08-12T10:00:00Z inventory-1.9.0",
+              "expected": "previous=orders-2.4.0 elapsedSeconds=69"
             }
           ],
           "hints": [
@@ -392,7 +407,7 @@
       "objectiveIds": [
         "ch63-o4"
       ],
-      "explanation": "## 「起きている」と「受け入れられる」は別\n\nプロセスが動いていることと、要求を処理できることは違います。DBへ繋がらなければ、\nプロセスが元気でも仕事はできません。そのため健全性の確認は2つに分かれます。\n\n| 名前 | 問い | falseのときにされること |\n|---|---|---|\n| liveness | プロセスは生きているか | 再起動される |\n| readiness | いま要求を受け入れられるか | 振り分けから外される |\n\nreadinessを「自分のプロセスが起きていれば`true`」と実装すると、配備の入れ替えが\n常に成功と判定されます。落ちた依存先へ要求を流し続けることになります。\nreadinessは**依存先を実際に確認して**答えます。\n\n確認するときの注意が2つあります。\n\n1. **落ちている依存先は、綺麗に`false`を返さない。** 接続例外を投げてきます。例外がそのまま外へ出ると、readinessの答え自体が返らなくなります。捕まえて「落ちている」と扱います。\n2. **どれが落ちたか分かるように返す。** `false`だけでは調査が始められません。依存先ごとの状態を添えます。\n\n## API契約は、足すことはできても消せない\n\nAPIを使う側は、こちらが返す項目名や並び順を前提に作られています。これが **契約** です。\n契約を変えると、こちらのコードはコンパイルできても利用側が壊れます。\n\n壊す変更と壊さない変更の境目は決まっています。\n\n| 変更 | 壊れるか |\n|---|---|\n| 項目を追加する（必須にしない） | 壊れない（利用側が知らない項目を無視する前提） |\n| **必須**の項目を削除する | **壊れる**（あると決めて読んでいる） |\n| **任意**の項目を削除する | 壊れない（無い場合に備えてある） |\n| 応答の必須をやめて任意にする | **壊れる**（入っていない応答が来る） |\n| 受け取る項目を必須にする | **壊れる**（送っていなかった利用側が弾かれる） |\n| 項目の型を変える | **壊れる** |\n| 並び順を変える | **壊れる**（順序を約束している場合） |\n\n必須と任意で分かれるのは、**任意の項目は「無いこともある」と決めて渡してある**からです。同じ判定を新旧の契約へ機械で当てる練習は第73章の章末演習にあります。\n\n追加するだけなら安全なので、まず**足す**、利用側の移行が終わってから**消す**という順で進めます。\nDBの移行を expand と contract に分けるのと同じ考え方です。",
+      "explanation": "## 「起きている」と「受け入れられる」は別\n\nプロセスが動いていることと、要求を処理できることは違います。DBへ繋がらなければ、\nプロセスが元気でも仕事はできません。そのため健全性の確認は2つに分かれます。\n\n| 名前 | 問い | falseのときにされること |\n|---|---|---|\n| liveness | プロセスは生きているか | 再起動される |\n| readiness | いま要求を受け入れられるか | 振り分けから外される |\n\nreadinessを「自分のプロセスが起きていれば`true`」と実装すると、配備の入れ替えが\n常に成功と判定されます。落ちた依存先へ要求を流し続けることになります。\nreadinessは**依存先を実際に確認して**答えます。\n\n確認するときの注意が2つあります。\n\n1. **落ちている依存先は、綺麗に`false`を返さない。** 接続例外を投げてきます。例外がそのまま外へ出ると、readinessの答え自体が返らなくなります。捕まえて「落ちている」と扱います。\n2. **どれが落ちたか分かるように返す。** `false`だけでは調査が始められません。依存先ごとの状態を添えます。\n\n## API契約は、足すことはできても、必須の項目は消せない\n\nAPIを使う側は、こちらが返す項目名や並び順を前提に作られています。これが **契約** です。\n契約を変えると、こちらのコードはコンパイルできても利用側が壊れます。\n\n壊す変更と壊さない変更の境目は決まっています。\n\n| 変更 | 壊れるか |\n|---|---|\n| 項目を追加する（必須にしない） | 壊れない（利用側が知らない項目を無視する前提） |\n| **必須**の項目を削除する | **壊れる**（あると決めて読んでいる） |\n| **任意**の項目を削除する | 壊れない（無い場合に備えてある） |\n| 応答の必須をやめて任意にする | **壊れる**（入っていない応答が来る） |\n| 受け取る項目を必須にする | **壊れる**（送っていなかった利用側が弾かれる） |\n| 項目の型を変える | **壊れる** |\n| 並び順を変える | **壊れる**（順序を約束している場合） |\n\n必須と任意で分かれるのは、**任意の項目は「無いこともある」と決めて渡してある**からです。同じ判定を新旧の契約へ機械で当てる練習は第73章の章末演習にあります。\n\n追加するだけなら安全なので、まず**足す**、利用側の移行が終わってから**消す**という順で進めます。\nDBの移行を expand と contract に分けるのと同じ考え方です。",
       "samples": [
         {
           "caption": "例外を投げる確認も「落ちている」として扱う",
@@ -479,7 +494,7 @@
               {
                 "type": "regex",
                 "expression": "\\A(?![\\s\\S]*\"required\"\\s*:\\s*\\[[^\\]]*cancelReason)[\\s\\S]*\\z",
-                "message": "追加した項目をrequiredへ入れない（既存の利用側が弾かれる）"
+                "message": "追加した項目をrequiredへ入れない（キャンセルされていない注文では値が無いので、必須にすると自分の契約を破る）"
               },
               {
                 "type": "regex",
@@ -490,7 +505,7 @@
           },
           "hints": [
             "`properties`へ`\"cancelReason\": { \"type\": \"string\" }`を足します。`required`には触りません。",
-            "項目を足すだけなら利用側は壊れません。消すこと・必須にすること・型を変えることが壊す変更です。"
+            "項目を足すだけなら、知らない項目を無視する利用側は壊れません。応答では、必須の項目を消すこと・必須をやめること・型を変えることが壊す変更です。値が無いことのある項目を必須にすると、こちらが契約を守れなくなります。"
           ],
           "solution": "{\n  \"openapi\": \"3.1.0\",\n  \"info\": {\n    \"title\": \"Orders API\",\n    \"version\": \"2.0.0\"\n  },\n  \"paths\": {\n    \"/orders\": {\n      \"get\": {\n        \"summary\": \"顧客の注文一覧を新しい注文から順に返す\",\n        \"responses\": {\n          \"200\": {\n            \"description\": \"注文一覧\",\n            \"content\": {\n              \"application/json\": {\n                \"schema\": {\n                  \"type\": \"array\",\n                  \"items\": { \"$ref\": \"#/components/schemas/OrderSummary\" }\n                }\n              }\n            }\n          }\n        }\n      }\n    }\n  },\n  \"components\": {\n    \"schemas\": {\n      \"OrderSummary\": {\n        \"type\": \"object\",\n        \"required\": [\"orderId\", \"storeName\", \"amount\"],\n        \"properties\": {\n          \"orderId\": { \"type\": \"integer\", \"format\": \"int64\" },\n          \"storeName\": { \"type\": \"string\" },\n          \"amount\": { \"type\": \"integer\" },\n          \"cancelReason\": { \"type\": \"string\" }\n        }\n      }\n    }\n  }\n}\n",
           "rubric": [
@@ -520,7 +535,7 @@
             "項目の型を数値から文字列へ変える"
           ],
           "answer": 0,
-          "explanation": "足すだけなら、知らない項目を無視する利用側はそのまま動きます。requiredへ入れると、送っていなかった利用側が弾かれます。消す・型を変えるはどちらも壊す変更です。"
+          "explanation": "足すだけなら、知らない項目を無視する利用側はそのまま動きます。requiredへ入れると、キャンセルされていない注文の応答で値を返せず、こちらが契約を破ります。消す・型を変えるはどちらも壊す変更です。"
         }
       ]
     },
@@ -635,53 +650,63 @@
             "ch63-o4"
           ],
           "kind": "applied",
-          "task": "【実践】API契約の変更が利用側を壊すかを判定してください。\n\n入力は3行です。1行目が変更前の項目名（空白区切り）、2行目が変更後の項目名、3行目が変更後の必須項目名です。どの行も空になることがあります。\n\n削除された項目を`removed=<名前をコンマ区切り>`、変更前に無かったのに必須になった項目を`newRequired=<名前をコンマ区切り>`として、それぞれ変更前（`removed`）または変更後（`newRequired`）の入力順で出力してください。該当が無ければ`NONE`とします。最後に`breaking=true`または`breaking=false`を出力します。どちらかに該当があれば`true`です。",
-          "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        // TODO: 3行を読み、消えた項目と新たに必須になった項目を求める\n        //       空行のときは項目0個として扱う\n        System.out.println(\"removed=NONE\");\n        System.out.println(\"newRequired=NONE\");\n        System.out.println(\"breaking=false\");\n    }\n}\n",
+          "task": "【実践】注文APIが**受け取る**項目（要求の契約）を変えるとき、送る側を壊すかを判定してください。このAPIは、知らない項目が届くと `400` で拒否すると契約で決めています（第47章のJackson演習と同じ扱いです）。\n\n入力は4行です。1行目が変更前に受け取る項目名、2行目が変更前の必須項目名、3行目が変更後に受け取る項目名、4行目が変更後の必須項目名です（どれも空白区切り）。必須項目は、同じ版の受け取る項目に必ず含まれます。どの行も空になることがあります。\n\n壊す変更は次の2つです。\n\n- `removed` … 変更前は受け取っていたのに、変更後は受け取らない項目。送り続けている側が、知らない項目として拒否されます\n- `newRequired` … 変更後に必須で、変更前は必須ではなかった項目。新しく足した項目も、もとからある任意の項目を必須にしたものも含みます。送っていなかった側が拒否されます\n\n`removed=<名前をコンマ区切り>`（変更前に受け取る項目の入力順）と `newRequired=<名前をコンマ区切り>`（変更後の必須項目の入力順）を出力し、該当が無ければ `NONE` とします。最後に、どちらかに該当があれば `breaking=true`、無ければ `breaking=false` を出力します。必須をやめて任意にするのは、受け取る側が緩くなるだけなので壊す変更に数えません。",
+          "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        // TODO: 4行を読み、受け取らなくなった項目と、新たに必須になった項目を求める\n        //       空行のときは項目0個として扱う\n        System.out.println(\"removed=NONE\");\n        System.out.println(\"newRequired=NONE\");\n        System.out.println(\"breaking=false\");\n    }\n}\n",
           "visibleCases": [
             {
-              "label": "足すだけなら壊れない",
-              "stdin": "orderId storeName amount\norderId storeName amount cancelReason\norderId storeName amount",
+              "label": "任意の項目を足すだけなら壊れない",
+              "stdin": "orderId storeName amount\norderId amount\norderId storeName amount note\norderId amount",
               "expected": "removed=NONE\nnewRequired=NONE\nbreaking=false"
             },
             {
-              "label": "消すと壊れる",
-              "stdin": "orderId storeName amount\norderId amount\norderId amount",
+              "label": "受け取らなくなると壊れる",
+              "stdin": "orderId storeName amount\norderId\norderId amount\norderId",
               "expected": "removed=storeName\nnewRequired=NONE\nbreaking=true"
+            },
+            {
+              "label": "新しい項目を必須にすると壊れる",
+              "stdin": "orderId storeName\norderId\norderId storeName cancelReason\norderId cancelReason",
+              "expected": "removed=NONE\nnewRequired=cancelReason\nbreaking=true"
             }
           ],
           "hiddenCases": [
             {
-              "label": "新しい項目を必須にすると壊れる",
-              "stdin": "orderId storeName\norderId storeName cancelReason\norderId storeName cancelReason",
-              "expected": "removed=NONE\nnewRequired=cancelReason\nbreaking=true"
+              "label": "もとからある任意の項目を必須にすると壊れる",
+              "stdin": "orderId storeName\norderId\norderId storeName\norderId storeName",
+              "expected": "removed=NONE\nnewRequired=storeName\nbreaking=true"
             },
             {
-              "label": "もとからある項目が必須になるのは壊さない",
-              "stdin": "orderId storeName\norderId storeName\norderId storeName",
+              "label": "必須をやめて任意にするのは壊さない",
+              "stdin": "orderId storeName\norderId storeName\norderId storeName\norderId",
               "expected": "removed=NONE\nnewRequired=NONE\nbreaking=false"
             },
             {
-              "label": "消えたものが複数",
-              "stdin": "a b c d\na d\na",
+              "label": "受け取らなくなったものが複数",
+              "stdin": "a b c d\na\na d\na",
               "expected": "removed=b,c\nnewRequired=NONE\nbreaking=true"
             },
             {
-              "label": "必須項目が無い（3行目が空）",
-              "stdin": "a b\na b\n",
+              "label": "両方に当たる",
+              "stdin": "a b\na\na c\na c",
+              "expected": "removed=b\nnewRequired=c\nbreaking=true"
+            },
+            {
+              "label": "必須項目が無い（2行目と4行目が空）",
+              "stdin": "a b\n\na b\n",
               "expected": "removed=NONE\nnewRequired=NONE\nbreaking=false"
             },
             {
-              "label": "項目が全部消えた（2行目も3行目も空）",
-              "stdin": "a b\n",
+              "label": "項目が全部消えた（3行目も4行目も空）",
+              "stdin": "a b\na\n",
               "expected": "removed=a,b\nnewRequired=NONE\nbreaking=true"
             }
           ],
           "hints": [
-            "削除は「変更前にあって変更後に無い」項目です。集合の差で求められます。",
-            "`newRequired`は「必須なのに変更前の項目に無い」ものだけです。もとからある項目が必須になっても、送っていた利用側は困りません。",
-            "**行そのものが無いこともあります。** 必須項目が無ければ3行目は空で、入力は2行で終わります。`sc.nextLine()` をそのまま3回呼ぶと落ちるので、`sc.hasNextLine()` で確かめてから読み、無ければ空文字として扱います。"
+            "`removed` は「変更前に受け取っていて、変更後は受け取らない」項目です。集合の差で求められます。",
+            "`newRequired` は「変更後の必須にあって、変更前の必須に無い」ものです。変更前の**項目**ではなく**必須**と比べます。もとからある任意の項目を必須にすると、その項目を送っていなかった側が拒否されるからです。",
+            "**行そのものが無いこともあります。** 末尾の行が空なら、入力はそこで終わります。`sc.nextLine()` をそのまま4回呼ぶと落ちるので、`sc.hasNextLine()` で確かめてから読み、無ければ空文字として扱います。"
           ],
-          "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        List<String> before = readLine(sc);\n        List<String> after = readLine(sc);\n        List<String> required = readLine(sc);\n\n        List<String> removed = new ArrayList<>();\n        for (String name : before) {\n            if (!after.contains(name)) {\n                removed.add(name);\n            }\n        }\n        List<String> newRequired = new ArrayList<>();\n        for (String name : required) {\n            if (!before.contains(name)) {\n                newRequired.add(name);\n            }\n        }\n        System.out.println(\"removed=\" + join(removed));\n        System.out.println(\"newRequired=\" + join(newRequired));\n        System.out.println(\"breaking=\" + !(removed.isEmpty() && newRequired.isEmpty()));\n    }\n\n    static List<String> readLine(Scanner sc) {\n        String line = sc.hasNextLine() ? sc.nextLine().trim() : \"\";\n        if (line.isEmpty()) {\n            return new ArrayList<>();\n        }\n        return new ArrayList<>(Arrays.asList(line.split(\"\\\\s+\")));\n    }\n\n    static String join(List<String> names) {\n        return names.isEmpty() ? \"NONE\" : String.join(\",\", names);\n    }\n}\n",
+          "solution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        List<String> before = readLine(sc);\n        List<String> beforeRequired = readLine(sc);\n        List<String> after = readLine(sc);\n        List<String> afterRequired = readLine(sc);\n\n        List<String> removed = new ArrayList<>();\n        for (String name : before) {\n            if (!after.contains(name)) {\n                removed.add(name);\n            }\n        }\n        List<String> newRequired = new ArrayList<>();\n        for (String name : afterRequired) {\n            if (!beforeRequired.contains(name)) {\n                newRequired.add(name);\n            }\n        }\n        System.out.println(\"removed=\" + join(removed));\n        System.out.println(\"newRequired=\" + join(newRequired));\n        System.out.println(\"breaking=\" + !(removed.isEmpty() && newRequired.isEmpty()));\n    }\n\n    static List<String> readLine(Scanner sc) {\n        String line = sc.hasNextLine() ? sc.nextLine().trim() : \"\";\n        if (line.isEmpty()) {\n            return new ArrayList<>();\n        }\n        return new ArrayList<>(Arrays.asList(line.split(\"\\\\s+\")));\n    }\n\n    static String join(List<String> names) {\n        return names.isEmpty() ? \"NONE\" : String.join(\",\", names);\n    }\n}\n",
           "rubric": [
             "decide"
           ]

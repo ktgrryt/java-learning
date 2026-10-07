@@ -136,6 +136,23 @@
           "answer": 3,
           "explanation": "Streamは処理のパイプラインで、要素を貯めておく入れ物ではありません。元のコレクションを書き換えることもなく、`collect` などの終端操作で結果を新しく作ります。終端操作を1度使ったStreamは再利用できないので、もう一度必要なら作り直します。"
         }
+      ],
+      "sourceChecks": [
+        {
+          "pattern": "\\.stream\\s*\\(",
+          "minimum": 1,
+          "message": "`values.stream()` からStreamを作ってください。"
+        },
+        {
+          "pattern": "\\.filter\\s*\\(",
+          "minimum": 1,
+          "message": "偶数だけを残すのは `filter` です。"
+        },
+        {
+          "pattern": "\\.map\\s*\\(",
+          "minimum": 1,
+          "message": "2倍にするのは `map` です。"
+        }
       ]
     },
     {
@@ -151,7 +168,7 @@
           "code": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        var xs = List.of(3, 8, 2);\n        System.out.println(xs.stream().max(Integer::compare).orElse(- 1));\n        System.out.println(xs.stream().mapToInt(Integer::intValue).sum());\n    }\n}\n"
         }
       ],
-      "task": "n個の整数を読み、正数だけの合計と最大値を `sum=n max=n/none` の形で表示してください。正数が無ければ `sum=0 max=none` です。",
+      "task": "n個の整数を読み、正数だけの合計と最大値を `sum=n max=n/none` の形で表示してください。正数が無ければ `sum=0 max=none` です。合計と最大値はStreamで求め、最大値は `max` が返す `Optional` から `orElse` で取り出します。",
       "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n        List<Integer> xs = new ArrayList<>();\n        for (int i = 0; i < n; i++) xs.add(sc.nextInt());\n        /* TODO */\n    }\n}\n",
       "visibleCases": [
         {
@@ -252,6 +269,18 @@
           "answer": 3,
           "explanation": "`orElse` は引数を**先に評価する**ので、値があっても代替値を作る処理が走ってしまいます。`get` は値が無いと例外になります。`of` は `Optional` を作るメソッドです。`orElseGet` は `Supplier` を受け取り、値が無いときだけ呼ぶので、生成が重い場合はこちらを使います。"
         }
+      ],
+      "sourceChecks": [
+        {
+          "pattern": "\\.stream\\s*\\(",
+          "minimum": 1,
+          "message": "正数だけを集めるところからStreamで書いてください。"
+        },
+        {
+          "pattern": "\\.orElse(?:Get)?\\s*\\(",
+          "minimum": 1,
+          "message": "最大値はStreamの `max` が返す `Optional` から、`orElse` で取り出してください（正数が無いときの `none`）。"
+        }
       ]
     },
     {
@@ -267,7 +296,7 @@
           "code": "import java.util.*;\nimport java.util.stream.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        var words = List.of(\"apple\", \"api\", \"java\");\n        var m = words.stream().collect(Collectors.groupingBy(w -> w.substring(0, 1), TreeMap::new, Collectors.toList()));\n        System.out.println(m);\n    }\n}\n"
         }
       ],
-      "task": "1行に、単語の個数 `n`（`0` 以上）、続けて `n` 個の単語が入力されます。大文字小文字を無視して数え、`単語=件数` を小文字の辞書順で表示してください。",
+      "task": "1行に、単語の個数 `n`（`0` 以上）、続けて `n` 個の単語が入力されます。大文字小文字を無視して `Collectors.groupingBy` で数え、`単語=件数` を小文字の辞書順で表示してください。",
       "starterCode": "import java.util.*;\nimport java.util.stream.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n        List<String> words = new ArrayList<>();\n        for (int i = 0; i < n; i++) words.add(sc.next());\n        /* TODO */\n    }\n}\n",
       "visibleCases": [
         {
@@ -352,6 +381,13 @@
           ],
           "answer": 0,
           "explanation": "キーを文字列型にしても重複は防げません。元リストを `clear` するのは無関係で、`Optional` を `null` にするのは避けるべき行為です。2引数の `toMap` はキーが重複した時点で `IllegalStateException` を投げるので、「重複したらどう1つにするか」を表す第3引数のマージ関数を渡します。"
+        }
+      ],
+      "sourceChecks": [
+        {
+          "pattern": "groupingBy\\s*\\(",
+          "minimum": 1,
+          "message": "単語ごとの件数は `Collectors.groupingBy` で数えてください。"
         }
       ]
     },
@@ -470,6 +506,13 @@
           "answer": 2,
           "explanation": "測定して有効だと分かった処理、十分に大きく独立したCPU計算、副作用のない集約は、いずれも並列に向く例です。避けるのは、複数スレッドが同じ `ArrayList` へ `add` するような**共有可変状態への副作用**で、`ArrayList` は安全でないため要素が欠けたり例外になったりします。集めるのは `collect` に任せます。"
         }
+      ],
+      "sourceChecks": [
+        {
+          "pattern": "IntStream\\s*\\.\\s*range(?:Closed)?\\s*\\(",
+          "minimum": 1,
+          "message": "範囲の整数は `IntStream.rangeClosed(from, to)` で作ってください。"
+        }
       ]
     },
     {
@@ -486,7 +529,7 @@
           "code": "import java.util.*;\nimport java.util.stream.*;\n\nrecord Sale(String category, int amount) { }\n\npublic class Main {\n    public static void main(String[] args) {\n        var xs = List.of(new Sale(\"book\", 100), new Sale(\"book\", 200), new Sale(\"food\", 50));\n        var m = xs.stream().collect(Collectors.groupingBy(Sale::category, TreeMap::new, Collectors.summingInt(Sale::amount)));\n        System.out.println(m);\n    }\n}\n"
         }
       ],
-      "task": "【基本】1行に、個数 `n`（`0` 以上）、続けて `n` 個の整数（マイナスも来ます）が入力されます。重複を除き、昇順にして1行へ半角スペースで結合してください。空なら空出力です。",
+      "task": "【基本】1行に、個数 `n`（`0` 以上）、続けて `n` 個の整数（マイナスも来ます）が入力されます。Streamの `distinct()` で重複を除き、`sorted()` で昇順にして、1行へ半角スペースで結合してください。空なら空出力です。",
       "starterCode": "import java.util.*;\nimport java.util.stream.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n        List<Integer> xs = new ArrayList<>();\n        for (int i = 0; i < n; i++) xs.add(sc.nextInt());\n        /* TODO */\n    }\n}\n",
       "visibleCases": [
         {
@@ -607,14 +650,14 @@
           "solution": "import java.util.*;\n\nrecord Result(String name, int score) { }\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt(), pass = sc.nextInt();\n        List<Result> xs = new ArrayList<>();\n        for (int i = 0; i < n; i++) xs.add(new Result(sc.next(), sc.nextInt()));\n        List<Result> out = xs.stream().filter(r -> r.score() >= pass).sorted(Comparator.comparingInt(Result::score).reversed().thenComparing(Result::name)).toList();\n        if (out.isEmpty()) System.out.println(\"none\");\n        else out.forEach(r -> System.out.println(r.name() + \":\" + r.score()));\n    }\n}\n",
           "sourceChecks": [
             {
-              "pattern": "\\.reversed\\s*\\(\\s*\\)",
+              "pattern": "\\.reversed\\s*\\(\\s*\\)|\\breverseOrder\\s*\\(",
               "minimum": 1,
-              "message": "点数は降順なので `Comparator` を `reversed()` で逆にしてください。"
+              "message": "点数は降順なので、`Comparator` を `reversed()` で逆にするか、`Comparator.reverseOrder()` を渡してください。"
             },
             {
               "pattern": "\\bthenComparing\\b",
               "minimum": 1,
-              "message": "同点の決着は `thenComparing` でつないでください。`reversed()` のあとに書くと名前まで逆順になる点に注意します。"
+              "message": "同点の決着は `thenComparing` でつないでください。`reversed()` を最後に付けると、名前の順まで逆になる点に注意します。"
             },
             {
               "pattern": "isEmpty\\s*\\(|size\\s*\\(\\s*\\)\\s*==\\s*0|count\\s*\\(\\s*\\)\\s*==\\s*0",
@@ -634,7 +677,7 @@
             "変更不可"
           ],
           "answer": 3,
-          "explanation": "`null` は返らず、元リストと同じ参照にもなりません。`ArrayList` だと決まってもいません。`Stream.toList()` が返すのは**変更不可**のリストで、`add` や `set` を呼ぶと `UnsupportedOperationException` になります。変更したいなら `collect(Collectors.toList())` を使います。"
+          "explanation": "`null` は返らず、元リストと同じ参照にもなりません。`ArrayList` だと決まってもいません。`Stream.toList()` が返すのは**変更不可**のリストで、`add` や `set` を呼ぶと `UnsupportedOperationException` になります。変更したいなら `collect(Collectors.toCollection(ArrayList::new))` を使います（`Collectors.toList()` は、変更できるかどうかを保証していません）。"
         },
         {
           "question": "`findFirst()` の戻り値は？",
@@ -668,6 +711,18 @@
           ],
           "answer": 0,
           "explanation": "例外がなくなることはなく、型検査が無効になることもありません。中間操作の回数が減るわけでもありません。外の状態を書き換えないと、各要素の処理が互いに独立するので、順序に依存せず、並列にしたときの競合も起きません。"
+        }
+      ],
+      "sourceChecks": [
+        {
+          "pattern": "\\.distinct\\s*\\(",
+          "minimum": 1,
+          "message": "重複はStreamの `distinct()` で除いてください。"
+        },
+        {
+          "pattern": "\\.sorted\\s*\\(",
+          "minimum": 1,
+          "message": "並べ替えはStreamの `sorted()` です。"
         }
       ]
     }

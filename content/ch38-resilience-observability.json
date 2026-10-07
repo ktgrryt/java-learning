@@ -433,7 +433,7 @@
             "38-o4"
           ],
           "kind": "applied",
-          "task": "【実践】この問題では「観測したp95がsloMs以下」を簡略なSLOとして扱います。本来のSLOには「直近30日間」のような評価期間も必要です。\n\n許容するp95の上限sloMsと件数nを読み、続けてn件のspanを `traceId service durationMs` の形で読みます。\n\n次の順に表示してください。\n\n1. traceIdの辞書順に、そのtraceに属するserviceを**入力順**に ` -> ` でつなぎ、`traceId 経路 total=合計時間`\n2. 全spanのdurationMsからnearest-rank方式で求めたp95を `p95=値`（spanが0件なら0）\n3. p95がsloMs以下なら `SLO_MET`、超えていれば `SLO_VIOLATED`\n4. 最も時間のかかったserviceを `slowest=service durationMs`（同じ時間なら名前の辞書順で先のもの、spanが0件なら `slowest=NONE 0`）",
+          "task": "【実践】この問題では「観測したp95がsloMs以下」を簡略なSLOとして扱います。本来のSLOには「直近30日間」のような評価期間も必要です。\n\n許容するp95の上限sloMsと件数nを読み、続けてn件のspanを `traceId service durationMs` の形で読みます。\n\n次の順に表示してください。\n\n1. traceIdの辞書順に、そのtraceに属するserviceを**入力順**に ` -> ` でつなぎ、`traceId 経路 total=合計時間`（この問題のspanは入れ子にならず、1つのtraceの中で順に呼ばれたものとします。そのため合計時間は所要時間の和です）\n2. 全spanのdurationMsからnearest-rank方式で求めたp95を `p95=値`（spanが0件なら0）\n3. p95がsloMs以下なら `SLO_MET`、超えていれば `SLO_VIOLATED`\n4. 最も時間のかかったserviceを `slowest=service durationMs`（同じ時間なら名前の辞書順で先のもの、spanが0件なら `slowest=NONE 0`）",
           "starterCode": "import java.util.*;\n\npublic class Main {\n    static long percentile(long[] sorted, int percent) {\n        /* TODO nearest-rank */ return 0;\n    }\n\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        long sloMs = sc.nextLong();\n        int n = sc.nextInt();\n        Map<String, List<String>> paths = new TreeMap<>();\n        Map<String, Long> totals = new TreeMap<>();\n        long[] durations = new long[n];\n        String slowest = null;\n        long slowestMs = - 1;\n        for (int i = 0; i < n; i++) {\n            String traceId = sc.next(), service = sc.next();\n            long ms = sc.nextLong();\n            /* TODO 経路・合計・最遅 */\n        }\n        /* TODO trace ごとの表示 */ /* TODO p95・SLO判定・slowest */\n    }\n}\n",
           "visibleCases": [
             {
@@ -445,6 +445,11 @@
               "label": "余裕がある",
               "stdin": "500 2 t1 api 10 t1 db 20",
               "expected": "t1 api -> db total=30\np95=20\nSLO_MET\nslowest=db 20"
+            },
+            {
+              "label": "件数が多いとp95は最大値より小さい",
+              "stdin": "100 21 t1 api 10 t1 db 10 t1 cache 10 t2 api 10 t2 db 10 t2 cache 10 t3 api 10 t3 db 10 t3 cache 10 t4 api 10 t4 db 10 t4 cache 10 t5 api 10 t5 db 10 t5 cache 10 t6 api 10 t6 db 10 t6 cache 10 t7 api 10 t7 db 50 t7 cache 500",
+              "expected": "t1 api -> db -> cache total=30\nt2 api -> db -> cache total=30\nt3 api -> db -> cache total=30\nt4 api -> db -> cache total=30\nt5 api -> db -> cache total=30\nt6 api -> db -> cache total=30\nt7 api -> db -> cache total=560\np95=50\nSLO_MET\nslowest=cache 500"
             }
           ],
           "hiddenCases": [
@@ -472,6 +477,11 @@
               "label": "ちょうどSLOぴったり",
               "stdin": "100 2 t1 a 100 t1 b 50",
               "expected": "t1 a -> b total=150\np95=100\nSLO_MET\nslowest=a 100"
+            },
+            {
+              "label": "遅い2件だけではp95は上がらない",
+              "stdin": "50 40 t01 api 20 t01 db 20 t02 api 20 t02 db 20 t03 api 20 t03 db 20 t04 api 20 t04 db 20 t05 api 20 t05 db 20 t06 api 20 t06 db 20 t07 api 20 t07 db 20 t08 api 20 t08 db 20 t09 api 20 t09 db 20 t10 api 20 t10 db 20 t11 api 20 t11 db 20 t12 api 20 t12 db 20 t13 api 20 t13 db 20 t14 api 20 t14 db 20 t15 api 20 t15 db 20 t16 api 20 t16 db 20 t17 api 20 t17 db 20 t18 api 20 t18 db 20 t19 api 20 t19 db 20 t20 api 900 t20 db 900",
+              "expected": "t01 api -> db total=40\nt02 api -> db total=40\nt03 api -> db total=40\nt04 api -> db total=40\nt05 api -> db total=40\nt06 api -> db total=40\nt07 api -> db total=40\nt08 api -> db total=40\nt09 api -> db total=40\nt10 api -> db total=40\nt11 api -> db total=40\nt12 api -> db total=40\nt13 api -> db total=40\nt14 api -> db total=40\nt15 api -> db total=40\nt16 api -> db total=40\nt17 api -> db total=40\nt18 api -> db total=40\nt19 api -> db total=40\nt20 api -> db total=1800\np95=20\nSLO_MET\nslowest=api 900"
             }
           ],
           "hints": [
@@ -487,7 +497,7 @@
           ],
           "kind": "applied",
           "type": "runtime-lab",
-          "task": "【実行演習】`labs/resilience/retry-exercise`で、落ちたり遅れたりする実APIへの呼び方を直します。\n\n採点側が`FlakyServer`をlocalhostの動的ポートで起動します。相手は3種類の振る舞いをします。`/transient`は最初の2回が503で3回目から200、`/permanent`はいつでも400、`/slow`は4秒待ってから200です。\n\n`exercise/OrderClient.java`はいま1回送って本文をそのまま返すだけです。次の4つを満たしてください。\n\n(1)`/transient`は一時的な失敗として再試行し、取得に成功すること。(2)`/permanent`の400は再試行せずその場でやめること。(3)`/slow`は1回500ms・全体1500msで打ち切り、4秒待たないこと。(4)1件の取得につき1行、`event=fetch cid=<相関ID> path=<パス> outcome=<ok|failed> attempts=<試行回数> ms=<所要ミリ秒>`の形でログを残すこと。\n\n**試行回数は自己申告では採点しません。**受信回数は`FlakyServer`が数えていて、`/transient`は3回・`/permanent`は1回でなければ落ちます。ログの`attempts`もこの実測と突き合わせます。実際と食い違うログは、障害調査で役に立たないからです。\n\n定数（`REQUEST_TIMEOUT_MILLIS`・`DEADLINE_MILLIS`・`MAX_ATTEMPTS`）とメソッドの形は採点の足場が使うので変えないでください。",
+          "task": "【実行演習】`labs/resilience/retry-exercise`で、落ちたり遅れたりする実APIへの呼び方を直します。\n\n採点側が`FlakyServer`をlocalhostの動的ポートで起動します。相手は3種類の振る舞いをします。`/transient`は最初の2回が503で3回目から200、`/permanent`はいつでも400、`/slow`は4秒待ってから200です。\n\n`exercise/OrderClient.java`はいま1回送って本文をそのまま返すだけです。次の4つを満たしてください。\n\n(1)`/transient`は一時的な失敗として再試行し、取得に成功すること。(2)`/permanent`の400は再試行せずその場でやめること。(3)`/slow`は1回500ms・全体1500msで打ち切り、4秒待たないこと（採点は1.7秒未満。締め切りが近いときは、1回の制限時間も残り時間まで縮めます）。(4)1件の取得につき1行、`event=fetch cid=<相関ID> path=<パス> outcome=<ok|failed> attempts=<試行回数> ms=<所要ミリ秒>`の形でログを残すこと。\n\n**試行回数は自己申告では採点しません。**受信回数は`FlakyServer`が数えていて、`/transient`は3回・`/permanent`は1回でなければ落ちます。ログの`attempts`もこの実測と突き合わせます。実際と食い違うログは、障害調査で役に立たないからです。\n\n定数（`REQUEST_TIMEOUT_MILLIS`・`DEADLINE_MILLIS`・`MAX_ATTEMPTS`）とメソッドの形は採点の足場が使うので変えないでください。",
           "runtimeLab": {
             "name": "retry and deadline lab",
             "source": "labs/resilience/retry-exercise",
@@ -534,8 +544,8 @@
             ]
           },
           "hints": [
-            "`response.statusCode()`を見て3通りに分けます。2xxは成功、4xxはその場でやめる、5xxと例外（応答なし・打ち切り）は再試行です。ひな形は本文だけを見ていてステータスを見ていません。",
-            "1回ぶんの制限時間は`HttpRequest.newBuilder(...).timeout(Duration.ofMillis(REQUEST_TIMEOUT_MILLIS))`です。全体の締め切りは開始時刻を覚えて自分で見ます。",
+            "`response.statusCode()`を見て3通りに分けます。2xxは成功、400のような要求の誤りはその場でやめる、503と例外（応答なし・打ち切り）は再試行です。この相手が返すのは400と503だけです（429や503に `Retry-After` が付いていれば、その時間を待つのが第47章の作法です）。ひな形は本文だけを見ていてステータスを見ていません。",
+            "1回ぶんの制限時間は`HttpRequest.newBuilder(...).timeout(Duration.ofMillis(REQUEST_TIMEOUT_MILLIS))`です。全体の締め切りは開始時刻を覚えて自分で見ます。要求は試行のたびに作り直し、制限時間を「500msと、締め切りまでの残り時間の短いほう」にします。",
             "再試行の前に少し待ち、待ち時間を倍にしていきます。「次の待ち時間を足すと締め切りを超える」ときは、待たずにあきらめます。ログは成功でも失敗でも1行だけ残します。"
           ],
           "rubric": [

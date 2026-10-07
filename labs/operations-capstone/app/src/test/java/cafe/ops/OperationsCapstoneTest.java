@@ -108,6 +108,8 @@ public final class OperationsCapstoneTest {
 
         assertFalse(result.ok(), "3回すべて失敗したら打ち切る");
         assertEquals(3, client.callCount(), "上限を超えて下流を叩かない");
+        assertEquals(List.of(200L, 400L), sleeper.waits(),
+                "最後の失敗のあとは待たずに打ち切る（待っても次の試行は無い）");
         assertEquals("inventory_timeout", result.errorCode());
         assertFalse(result.errorCode().contains("internal"), "内部のホスト名を応答へ出さない");
         assertFalse(result.errorCode().contains("Bearer"), "資格情報を応答へ出さない");
@@ -174,7 +176,11 @@ public final class OperationsCapstoneTest {
         assertTrue(code.contains("create table order_cancel_audit"),
                 "order_cancel_auditテーブルを作る");
         assertTrue(code.contains("attempts"), "attempts列に試行回数を残す");
-        assertTrue(code.contains("unique"), "order_idと冪等キーの組を一意にする");
+        assertTrue(code.contains("alter table orders"), "既存のordersへ列を足す（alter table orders）");
+        String flat = code.replaceAll("\\s+", " ");
+        assertTrue(flat.matches("(?s).*unique ?\\( ?order_id ?, ?idempotency_key ?\\).*")
+                        || flat.matches("(?s).*unique ?\\( ?idempotency_key ?, ?order_id ?\\).*"),
+                "order_idと冪等キーの組を一意にする（UNIQUE (order_id, idempotency_key)）");
         assertTrue(code.contains("idempotency_key"), "idempotency_key列を持たせる");
         assertFalse(code.contains("drop "), "expand段階ではDROPしない");
         assertFalse(code.matches("(?s).*cancel_requested_at[^;]*not\\s+null.*"),

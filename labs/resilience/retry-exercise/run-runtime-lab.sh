@@ -97,10 +97,10 @@ fi
 # ── 3. 遅い応答を打ち切り、締め切りを超えない ────────────────────────────
 slow_outcome="$(value slow-outcome)"
 slow_millis="$(value slow-millis)"
-if [ "$slow_outcome" = threw ] && [ "$slow_millis" -lt 2800 ]; then
+if [ "$slow_outcome" = threw ] && [ "$slow_millis" -lt 1700 ]; then
   pass retry-deadline "4秒かかる相手を${slow_millis}msで打ち切りました（1回500ms・締め切り1500ms）"
 elif [ "$slow_outcome" = threw ]; then
-  bad retry-deadline "打ち切りましたが${slow_millis}msかかりました。1回ごとの制限時間と全体の締め切りを両方効かせてください"
+  bad retry-deadline "打ち切りましたが${slow_millis}msかかりました（締め切りは1500ms）。1回ごとの制限時間と全体の締め切りを両方効かせ、締め切りが近いときは1回の制限時間も残り時間まで縮めてください"
 else
   bad retry-deadline "4秒待って応答を受けています（${slow_millis}ms）。1回の要求に制限時間を付けてください"
 fi

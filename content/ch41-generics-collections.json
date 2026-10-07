@@ -216,7 +216,7 @@
       "objectiveIds": [
         "ch41-o3"
       ],
-      "explanation": "## コンパイル時の型情報と、実行時に残る情報を分ける\n\nジェネリクスは主にコンパイラが型の安全性を確認する仕組みです。Javaは既存のライブラリとの互換性を保つため、多くの型パラメータ情報をコンパイル時に検査した後、実行用のバイトコードでは共通の形へ変換します。これを **型消去** と呼びます。\n\nそのため、実行時のJVMからは `List<String>` と `List<Integer>` を完全には見分けられません。次のようなコードは書けません。\n\n```java\n// new T();\n// T.class;\n// value instanceof List<String>;\n```\n\n`T` の具体的な型が実行時には分からないためです。実行時にも型が必要なら、`Class<T>` を引数として明示的に受け取ります。\n\n```java\nstatic <T> boolean matches(Object value, Class<T> type) {\n    return type.isInstance(value);\n}\n\nboolean ok = matches(\"Java\", String.class);\n```\n\n`String.class` は実行時の型を表す **Classオブジェクト** です。`Class<T>` と組み合わせると、型の検査結果と戻り値の型をコンパイラにも伝えられます。\n\n型引数を省いた `List` のような書き方は **raw型** と呼ばれます。古いコードとの互換性のため残っていますが、コンパイラの検査を弱め、誤った型が入り込む **ヒープ汚染** を招くことがあります。警告を消すために型変換を増やすのではなく、まずraw型を `List<String>` などへ直すのが基本です。\n\n今回の演習では `Class<?>` と `isInstance` を使います。`?` は「型は不明だがClassオブジェクトである」ことを表し、実行時検査に必要な情報を呼び出し側から渡す方法を確認します。",
+      "explanation": "## コンパイル時の型情報と、実行時に残る情報を分ける\n\nジェネリクスは主にコンパイラが型の安全性を確認する仕組みです。Javaは既存のライブラリとの互換性を保つため、多くの型パラメータ情報をコンパイル時に検査した後、実行用のバイトコードでは共通の形へ変換します。これを **型消去** と呼びます。\n\nそのため、実行時のJVMからは `List<String>` と `List<Integer>` を完全には見分けられません。`T` が型パラメータ、`value` が `Object` 型のとき、次のようなコードは書けません。\n\n```java\n// new T();\n// T.class;\n// value instanceof List<String>;\n```\n\n`T` の具体的な型が実行時には分からないためです。実行時にも型が必要なら、`Class<T>` を引数として明示的に受け取ります。\n\n```java\nstatic <T> boolean matches(Object value, Class<T> type) {\n    return type.isInstance(value);\n}\n\nboolean ok = matches(\"Java\", String.class);\n```\n\n`String.class` は実行時の型を表す **Classオブジェクト** です。`Class<T>` と組み合わせると、型の検査結果と戻り値の型をコンパイラにも伝えられます。\n\n型引数を省いた `List` のような書き方は **raw型** と呼ばれます。古いコードとの互換性のため残っていますが、コンパイラの検査を弱め、誤った型が入り込む **ヒープ汚染** を招くことがあります。警告を消すために型変換を増やすのではなく、まずraw型を `List<String>` などへ直すのが基本です。\n\n今回の演習では `Class<?>` と `isInstance` を使います。`?` は「型は不明だがClassオブジェクトである」ことを表し、実行時検査に必要な情報を呼び出し側から渡す方法を確認します。",
       "samples": [
         {
           "caption": "Class<T>を明示的に渡す",
@@ -293,7 +293,7 @@
       ],
       "quiz": [
         {
-          "question": "コンパイルできるものは？",
+          "question": "`Object value` と型パラメータ `T` があるとき、コンパイルできるものは？",
           "choices": [
             "new T()",
             "value instanceof List<?>",
@@ -301,7 +301,7 @@
             "T.class"
           ],
           "answer": 1,
-          "explanation": "`new T()` は型消去のため実際のクラスが分からず作れません。`instanceof List<String>` は実行時に型引数が消えているので判定できません。`T.class` も同じ理由で書けません。`List<?>` のようにワイルドカードなら、「Listであること」だけは実行時に確かめられます。"
+          "explanation": "`new T()` は型消去のため実際のクラスが分からず作れません。`Object` 型の値に対する `instanceof List<String>` は、実行時に型引数が消えているので判定できません（Java 16以降、`Collection<String>` 型の値のように静的な型から安全と分かる場合だけは書けます）。`T.class` も同じ理由で書けません。`List<?>` のようにワイルドカードなら、「Listであること」だけは実行時に確かめられます。"
         }
       ],
       "sourceChecks": [
@@ -503,6 +503,18 @@
           ],
           "answer": 1,
           "explanation": "`String` が `final` かどうかは関係ありません。型消去は実行時の話で、代入を止めるのは**コンパイル時**の判定です。`List` が `interface` であることも理由ではありません（`ArrayList<String>` は `List<String>` へ代入できます）。代入できてしまうと `List<Object>` の顔で `Integer` を追加でき、元の `List<String>` が壊れます。そのためジェネリクスは**継承関係を引き継ぎません**。この不便を必要な向きだけ緩めるのが `? extends` と `? super` です。"
+        }
+      ],
+      "sourceChecks": [
+        {
+          "pattern": "\\brecord\\s+Pair\\s*<",
+          "minimum": 1,
+          "message": "`record Pair<K, V>(K key, V value)` を宣言してください。"
+        },
+        {
+          "pattern": "\\bnew\\s+Pair\\s*<",
+          "minimum": 1,
+          "message": "読んだ組は `new Pair<>(...)` で作ってください。"
         }
       ]
     }
