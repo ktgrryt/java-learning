@@ -1523,6 +1523,31 @@ const HELPERS = `window.__t = {
     '★と正解数の根拠（選んだ答え）は書き換えない', graded);
   check(graded.next.length > 0, '答えたあとに次へ進める', graded.next);
 
+  // 答えたあとも、その場でしおりを付け外しできる。復習のクイズ画面だけ
+  // bindBookmarkButtons を呼んでおらず、押しても何も起きなかった（2026-10-07）。
+  // 付けたままにすると後の出題順（誤答 → しおり → 残り）が変わるので、外して戻す。
+  const reviewQuizMark = await ev(`(async () => {
+    const saved = async () => {
+      const s = await (await fetch('/api/state')).json();
+      let lesson = null;
+      s.chapters.forEach(ch => ch.lessons.forEach(l => {
+        if (l.id === '${QUIZ_LESSON}') { lesson = l; }
+      }));
+      return !!((lesson && lesson.quizBookmarks) || [])[0];
+    };
+    const btn = document.querySelector('.review-quiz-view .quiz-item-head .bookmark-btn');
+    if (!btn) { return { found: false }; }
+    btn.click();
+    const on = !!await window.__t.until(() => btn.classList.contains('on'), 40);
+    const savedOn = await saved();
+    btn.click();
+    const off = !!await window.__t.until(() => !btn.classList.contains('on'), 40);
+    return { found: true, on: on, savedOn: savedOn, off: off, savedOff: await saved() };
+  })()`);
+  check(reviewQuizMark.found && reviewQuizMark.on && reviewQuizMark.savedOn
+      && reviewQuizMark.off && !reviewQuizMark.savedOff,
+    '復習のクイズでも、答えたあとにしおりを付け外しできる', reviewQuizMark);
+
   // 回答済みクイズへ戻ってもAPIへ再送信しない。問題と共通の前後移動にするうえで、
   // 連続正解を二重計上しないための要所。
   const revisitedQuiz = await ev(`(async () => {

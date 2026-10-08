@@ -3118,6 +3118,9 @@
     document.getElementById('crumbHome').addEventListener('click', goHome);
     document.getElementById('crumbReview').addEventListener('click', endReviewSession);
     bindReviewBar();
+    // しおりは答える前もあとも押せる（間違えた回こそ付けたい）。選択肢と違って
+    // 答えたあとも紐づけを外さない
+    bindBookmarkButtons(main);
     if (!answered) {
       Array.prototype.forEach.call(main.getElementsByClassName('quiz-choice'), function (btn) {
         btn.addEventListener('click', function () {
